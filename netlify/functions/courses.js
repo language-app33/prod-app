@@ -1,0 +1,1267 @@
+import { getStore } from "@netlify/blobs";
+import { createHash, randomBytes } from "node:crypto";
+/* The one list of grammatical fields a card may carry, shared with the app so
+   that adding an axis to a language does not silently drop it here. */
+import { grammarFields } from "../../src/languages.js";
+
+/*
+ * Courses, decks and the people who use them.
+ *
+ * Identity:
+ *   handle       sara-4f2a   public, permanent, what rosters point at
+ *   displayName  Sara        public, editable, cosmetic
+ *   sign-in key  five words  secret, and the only credential there is
+ *
+ * The key signs you in on any device and is what your devices share. Only
+ * its digest is stored, so it can't be read back — but an admin can issue
+ * a replacement against a handle, which is the whole reason identity is
+ * kept here rather than derived on the device.
+ *
+ * Roles are not properties of a person. Admin is a flag; teaching and
+ * studying are memberships of a course. The same person can teach one
+ * course and study another.
+ */
+
+const STORE = "arabic-courses";
+const MAX_CLIP_BYTES = 1024 * 1024;
+
+const WORDS = [
+  "amber", "cedar", "harbour", "lantern", "meadow", "quartz", "raven", "saffron",
+  "thistle", "velvet", "willow", "cobalt", "ember", "fjord", "gable", "indigo",
+  "juniper", "kestrel", "larch", "mistral", "nimbus", "opal", "pewter", "rowan",
+  "sorrel", "tamarind", "umber", "verbena", "yarrow", "zephyr",
+];
+
+const sha = (s) => createHash("sha256").update(String(s)).digest("hex");
+
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", "cache-control": "no-store" },
+  });
+}
+
+/* Five words. Roughly 24 bits per word from a 30-word list is thin, so the
+   words carry a numeric tail as well. */
+function makeKey() {
+  const pick = () => WORDS[randomBytes(1)[0] % WORDS.length];
+  return `${pick()}-${pick()}-${pick()}-${pick()}-${randomBytes(2).toString("hex")}`;
+}
+
+function makeCode() {
+  const pick = () => WORDS[randomBytes(1)[0] % WORDS.length];
+  return `${pick()}-${pick()}-${randomBytes(2).toString("hex")}`;
+}
+
+/* A handle is chosen once from the display name and never changes, because
+   rosters and memberships point at it. */
+function makeHandle(displayName, taken) {
+  const base =
+    String(displayName || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 20) || "user";
+  for (let i = 0; i < 40; i++) {
+    const handle = `${base}-${randomBytes(2).toString("hex")}`;
+    if (!taken.includes(handle)) return handle;
+  }
+  return `${base}-${randomBytes(4).toString("hex")}`;
+}
+
+const K = {
+  user: (h) => `user:${h}`,
+  card: (id) => `card:${id}`,
+  ownCards: (h) => `owncards:${h}`,
+  keyOf: (hash) => `key:${hash}`,
+  course: (id) => `course:${id}`,
+  deck: (id) => `deck:${id}`,
+  cards: (id) => `cards:${id}`,          // legacy: cards stored per deck
+  card: (id) => `card:${id}`,
+  myCards: (owner) => `mycards:${owner}`,
+  code: (c) => `code:${String(c).toLowerCase()}`,
+  clip: (h) => `clip:${h}`,
+  index: (what) => `index:${what}`,
+};
+
+/* Strong reads come from the origin, eventual ones from the edge. Anything
+   that reads in order to write back must be strong, and so must anything a
+   teacher looks at straight after saving. A student's view of course
+   material can be a minute behind without anyone noticing, so those paths
+   pass EVENTUAL. */
+const EVENTUAL = { consistency: "eventual" };
+
+async function readJson(store, key, opts = {}) {
+  try {
+    const raw = await store.get(key, { type: "text", consistency: opts.consistency || "strong" });
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+const writeJson = (store, key, value) => store.set(key, JSON.stringify(value));
+
+async function indexAdd(store, what, id) {
+  const list = (await readJson(store, K.index(what))) || [];
+  if (!list.includes(id)) await writeJson(store, K.index(what), list.concat([id]));
+}
+
+async function currentUser(req, store) {
+  const key = req.headers.get("x-key") || "";
+  if (!key) return null;
+  const handle = await readJson(store, K.keyOf(sha(key)));
+  if (!handle) return null;
+  return readJson(store, K.user(handle));
+}
+
+const isTeacher = (course, h) => !!course && (course.teachers || []).includes(h);
+const isStudent = (course, h) => !!course && (course.students || []).includes(h);
+const inCourse = (course, h) => isTeacher(course, h) || isStudent(course, h);
+
+/*
+ * Removing a person: their decks go, their cards go, and they come out of
+ * every course. Nothing of theirs is left pointing at nothing.
+ */
+/* Blob reads are network calls, so reading a list one record at a time turns
+   a screen into a waterfall of round trips. Reads are safe to run together;
+   writes are not, because course and deck records are read-modify-write, so
+   the destructive loops below stay deliberately sequential. */
+/* Who may change a deck.
+ *
+ * Its owner, an administrator, or any teacher of a course the deck is in.
+ * A course is shared work: a teacher brought in to help cannot be expected
+ * to ask the original author before fixing a card. Merely studying a course
+ * grants nothing. */
+async function canEditDeck(store, deck, handle, isAdmin) {
+  if (!deck) return false;
+  if (isAdmin || deck.owner === handle) return true;
+  for (const link of deck.courses || []) {
+    const course = await readJson(store, K.course(link.courseId));
+    if (course && isTeacher(course, handle)) return true;
+  }
+  return false;
+}
+
+async function readManyJson(store, keys, opts) {
+  return Promise.all(keys.map((k) => readJson(store, k, opts)));
+}
+
+/* A fingerprint of what a student would receive, cheap enough to compute
+   from courses and decks alone. Deck versions move whenever a deck's cards
+   change (membership or content), so the cards need not be read to know
+   whether anything did. */
+function materialVersion(courses, decks) {
+  const summary = {
+    courses: courses.map((c) => [c.id, c.title, c.language || "", (c.decks || []).length]),
+    decks: decks.map((d) => [d.id, d.version || 1, d.title, (d.cardIds || []).length]),
+  };
+  return sha(JSON.stringify(summary)).slice(0, 24);
+}
+
+async function wipeAccount(store, handle) {
+  const user = await readJson(store, K.user(handle));
+  if (!user) return false;
+
+  const deckIds = (await readJson(store, K.index("decks"))) || [];
+  const keptDecks = [];
+  for (const id of deckIds) {
+    const d = await readJson(store, K.deck(id));
+    if (!d) continue;
+    if (d.owner !== handle) {
+      keptDecks.push(id);
+      continue;
+    }
+    for (const link of d.courses || []) {
+      const c = await readJson(store, K.course(link.courseId));
+      if (!c) continue;
+      c.decks = c.decks.filter((x) => x !== id);
+      await writeJson(store, K.course(c.id), c);
+    }
+    await store.delete(K.deck(id)).catch(() => {});
+  }
+  await writeJson(store, K.index("decks"), keptDecks);
+
+  for (const id of (await readJson(store, K.ownCards(handle))) || []) {
+    await store.delete(K.card(id)).catch(() => {});
+  }
+  await store.delete(K.ownCards(handle)).catch(() => {});
+
+  for (const id of (await readJson(store, K.index("courses"))) || []) {
+    const c = await readJson(store, K.course(id));
+    if (!c) continue;
+    if (c.teachers.includes(handle) || c.students.includes(handle)) {
+      c.teachers = c.teachers.filter((x) => x !== handle);
+      c.students = c.students.filter((x) => x !== handle);
+      await writeJson(store, K.course(c.id), c);
+    }
+  }
+
+  if (user.keyHash) await store.delete(K.keyOf(user.keyHash)).catch(() => {});
+  await store.delete(K.user(handle)).catch(() => {});
+  const users = (await readJson(store, K.index("users"))) || [];
+  await writeJson(store, K.index("users"), users.filter((x) => x !== handle));
+  return true;
+}
+
+export default async (req) => {
+  const url = new URL(req.url);
+  const action = url.searchParams.get("action") || "";
+  const store = getStore(STORE);
+  const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+
+  try {
+    /* ================= accounts ================= */
+
+    if (action === "signup") {
+      const displayName = String(body.displayName || "").trim().slice(0, 40);
+      if (!displayName) return json({ error: "name-required" }, 400);
+
+      /* With SIGNUP_CODE set in the site's environment, an account can only
+         be made by someone who was given the code. Without it, anyone who
+         finds the address can fill the people list. The app asks for the
+         code only after being told it is needed, so a site without one never
+         shows the field. */
+      const needed = String(process.env.SIGNUP_CODE || "").trim();
+      if (needed && String(body.signupCode || "").trim() !== needed) {
+        return json({ error: "signup-code-required" }, 403);
+      }
+
+      const handles = (await readJson(store, K.index("users"))) || [];
+      const handle = makeHandle(displayName, handles);
+      const key = makeKey();
+      const user = {
+        handle,
+        displayName,
+        admin: false,
+        created: Date.now(),
+        lastSeen: Date.now(),
+      };
+      await writeJson(store, K.user(handle), { ...user, keyHash: sha(key) });
+      await writeJson(store, K.keyOf(sha(key)), handle);
+      await indexAdd(store, "users", handle);
+      // The key is shown once and cannot be read back from the digest.
+      return json({ ok: true, user, key });
+    }
+
+    if (action === "signin" || action === "whoami") {
+      const me = await currentUser(req, store);
+      if (!me) return json({ error: "bad-key" }, 401);
+      await writeJson(store, K.user(me.handle), { ...me, lastSeen: Date.now() });
+      const { keyHash, ...safe } = me;
+      return json({ ok: true, user: safe });
+    }
+
+    const me = await currentUser(req, store);
+    if (!me) return json({ error: "bad-key" }, 401);
+    const mine = me.handle;
+
+    if (action === "delete-account") {
+      await wipeAccount(store, mine);
+      return json({ ok: true });
+    }
+
+    if (action === "rename") {
+      const displayName = String(body.displayName || "").trim().slice(0, 40);
+      if (!displayName) return json({ error: "name-required" }, 400);
+      await writeJson(store, K.user(mine), { ...me, displayName });
+      return json({ ok: true, displayName });
+    }
+
+    /* One-time promotion, so the first admin can exist at all. */
+    if (action === "claim-admin") {
+      if (!process.env.ADMIN_KEY || String(body.adminKey || "") !== process.env.ADMIN_KEY) {
+        return json({ error: "not-allowed" }, 401);
+      }
+      await writeJson(store, K.user(mine), { ...me, admin: true });
+      return json({ ok: true });
+    }
+
+    /* Closing your own account: everything the server holds about you,
+       including the decks you made. Cards on the device are the person's
+       own business and stay there until they clear them. */
+    if (action === "delete-account") {
+      const courseIds = (await readJson(store, K.index("courses"))) || [];
+      for (const id of courseIds) {
+        const c = await readJson(store, K.course(id));
+        if (!c || !inCourse(c, mine)) continue;
+        c.teachers = c.teachers.filter((h) => h !== mine);
+        c.students = c.students.filter((h) => h !== mine);
+        await writeJson(store, K.course(id), c);
+      }
+
+      const deckIds = (await readJson(store, K.index("decks"))) || [];
+      const keep = [];
+      for (const id of deckIds) {
+        const d = await readJson(store, K.deck(id));
+        if (!d) continue;
+        if (d.owner !== mine) {
+          keep.push(id);
+          continue;
+        }
+        for (const link of d.courses || []) {
+          const c = await readJson(store, K.course(link.courseId));
+          if (c) {
+            c.decks = c.decks.filter((x) => x !== id);
+            await writeJson(store, K.course(link.courseId), c);
+          }
+        }
+        await store.delete(K.deck(id)).catch(() => {});
+        await store.delete(K.cards(id)).catch(() => {});
+      }
+      await writeJson(store, K.index("decks"), keep);
+
+      if (me.keyHash) await store.delete(K.keyOf(me.keyHash)).catch(() => {});
+      await store.delete(K.user(mine)).catch(() => {});
+      const users = (await readJson(store, K.index("users"))) || [];
+      await writeJson(store, K.index("users"), users.filter((h) => h !== mine));
+      return json({ ok: true });
+    }
+
+    /* ================= decks ================= */
+
+    if (action === "create-deck") {
+      const title = String(body.title || "").trim().slice(0, 60);
+      if (!title) return json({ error: "title-required" }, 400);
+      const id = `d${randomBytes(6).toString("hex")}`;
+      const deck = {
+        id,
+        owner: mine,
+        title,
+        description: String(body.description || "").slice(0, 300),
+        lang: String(body.lang || "").slice(0, 20),
+        version: 1,
+        courses: [],
+        cardIds: [],
+        updated: Date.now(),
+      };
+      await writeJson(store, K.deck(id), deck);
+      await indexAdd(store, "decks", id);
+      return json({ ok: true, deck });
+    }
+
+    /* ---- cards, owned by whoever made them ---- */
+
+    /* ================= cards =================
+
+       A card belongs to whoever made it, not to a deck. Decks hold ids,
+       so one card can sit in several without being copied — which is
+       what makes a library rather than a pile of duplicates. */
+
+    async function loadCard(id) {
+      return readJson(store, K.card(id));
+    }
+
+    /* Which decks hold a card. Kept on the card itself (inDecks) so that
+       saving or deleting one card touches only the decks it is actually in,
+       instead of reading every deck on the site. Cards saved before the
+       index existed are found the slow way once, and gain it on their next
+       save. */
+    async function decksHolding(card) {
+      if (Array.isArray(card.inDecks)) return card.inDecks;
+      const deckIds = (await readJson(store, K.index("decks"))) || [];
+      const rows = await readManyJson(store, deckIds.map((id) => K.deck(id)));
+      return rows.filter((d) => d && (d.cardIds || []).includes(card.id)).map((d) => d.id);
+    }
+
+    /* Take a card out of the decks that hold it. One read-modify-write per
+       deck, grouped so deleting twenty cards from one deck is one write. */
+    async function pullFromDecks(removals /* Map deckId -> Set cardId */) {
+      for (const [did, cardIds] of removals) {
+        const d = await readJson(store, K.deck(did));
+        if (!d) continue;
+        const next = (d.cardIds || []).filter((x) => !cardIds.has(x));
+        if (next.length === (d.cardIds || []).length) continue;
+        await writeJson(store, K.deck(did), {
+          ...d,
+          cardIds: next,
+          cardCount: next.length,
+          version: (d.version || 1) + 1,
+          updated: Date.now(),
+        });
+      }
+    }
+
+    /* Delete cards the person may delete. Returns what happened to each id,
+       so a batch can report partial success rather than stopping at the
+       first card that isn't theirs. */
+    async function deleteCards(ids) {
+      const result = { deleted: [], refused: [], missing: [] };
+      const removals = new Map();
+      const owned = new Map(); // owner -> ids, for their mycards lists
+      for (const id of ids) {
+        const card = await loadCard(id);
+        if (!card) {
+          result.missing.push(id);
+          continue;
+        }
+        if (card.owner !== mine && !me.admin) {
+          result.refused.push(id);
+          continue;
+        }
+        for (const did of await decksHolding(card)) {
+          if (!removals.has(did)) removals.set(did, new Set());
+          removals.get(did).add(id);
+        }
+        if (!owned.has(card.owner)) owned.set(card.owner, []);
+        owned.get(card.owner).push(id);
+        result.deleted.push(id);
+      }
+      await pullFromDecks(removals);
+      for (const id of result.deleted) await store.delete(K.card(id)).catch(() => {});
+      for (const [owner, gone] of owned) {
+        const list = (await readJson(store, K.myCards(owner))) || [];
+        await writeJson(store, K.myCards(owner), list.filter((x) => !gone.includes(x)));
+      }
+      return result;
+    }
+
+    async function deckCardIds(deck) {
+      /* Decks made before the library existed kept their cards inline.
+         Move them across the first time they are read. */
+      if (Array.isArray(deck.cardIds) && deck.cardIds.length) return deck.cardIds;
+      const legacy = (await readJson(store, K.cards(deck.id))) || [];
+      if (!legacy.length) return [];
+      const ids = [];
+      const mineList = (await readJson(store, K.myCards(deck.owner))) || [];
+      for (const c of legacy) {
+        const id = `k${randomBytes(6).toString("hex")}`;
+        await writeJson(store, K.card(id), {
+          ...c,
+          id,
+          owner: deck.owner,
+          lang: deck.lang || "",
+          rev: 1,
+          inDecks: [deck.id],
+        });
+        ids.push(id);
+        mineList.push(id);
+      }
+      await writeJson(store, K.myCards(deck.owner), mineList);
+      await writeJson(store, K.deck(deck.id), { ...deck, cardIds: ids, cardCount: ids.length });
+      await store.delete(K.cards(deck.id)).catch(() => {});
+      return ids;
+    }
+
+    if (action === "my-cards") {
+      const ids = (await readJson(store, K.myCards(mine))) || [];
+      const deckIds = (await readJson(store, K.index("decks"))) || [];
+      const courseIds = (await readJson(store, K.index("courses"))) || [];
+      const [cardRows, deckRows, courseRows] = await Promise.all([
+        readManyJson(store, ids.map((id) => K.card(id))),
+        readManyJson(store, deckIds.map((id) => K.deck(id))),
+        readManyJson(store, courseIds.map((id) => K.course(id))),
+      ]);
+
+      /* The decks I may work on: mine, plus every deck in a course I teach.
+         The cards in them are mine to see and correct too — a co-teacher who
+         can open the deck but not its cards can't do the job. */
+      const teaching = new Set(
+        courseRows.filter((c) => c && isTeacher(c, mine)).flatMap((c) => c.decks || [])
+      );
+      const editable = deckRows.filter((d) => d && (d.owner === mine || teaching.has(d.id)));
+
+      const holding = {};
+      for (const d of editable) {
+        for (const cid of d.cardIds || []) (holding[cid] = holding[cid] || []).push(d.id);
+      }
+
+      /* Cards I own, plus any card sitting in a deck I look after. */
+      const extraIds = Object.keys(holding).filter((id) => !ids.includes(id));
+      const extra = await readManyJson(store, extraIds.map((id) => K.card(id)));
+      const cards = cardRows.concat(extra).filter(Boolean);
+      return json({ ok: true, cards: cards.map((c) => ({ ...c, decks: holding[c.id] || [] })) });
+    }
+
+    if (action === "save-card") {
+      const card = body.card || {};
+      const id = String(card.id || "").replace(/[^A-Za-z0-9_-]/g, "");
+      const fields = {
+        ar: String(card.ar || "").slice(0, 400),
+        en: String(card.en || "").slice(0, 400),
+        lat: String(card.lat || "").slice(0, 400),
+        /* Whatever grammatical values the card carries. The server does not
+           know which language uses which; it stores what it is given, so a
+           card is never stripped by passing through here. */
+        ...Object.fromEntries(
+          grammarFields().map((f) => [f, String(card[f] || "").slice(0, 40)])
+        ),
+        note: String(card.note || "").slice(0, 500),
+        lang: String(card.lang || "").slice(0, 12),
+        subs: Array.isArray(card.subs)
+          ? card.subs.slice(0, 12).map((sb) => ({
+              ar: String(sb.ar || "").slice(0, 400),
+              en: String(sb.en || "").slice(0, 400),
+              lat: String(sb.lat || "").slice(0, 400),
+              ...Object.fromEntries(
+                grammarFields().map((f) => [f, String(sb[f] || "").slice(0, 40)])
+              ),
+              clips: Array.isArray(sb.clips) ? sb.clips.slice(0, 12) : [],
+            }))
+          : [],
+        clips: Array.isArray(card.clips) ? card.clips.slice(0, 12) : [],
+      };
+
+      let saved;
+      let current = [];
+      if (id) {
+        const existing = await loadCard(id);
+        if (!existing) return json({ error: "no-card" }, 404);
+        current = await decksHolding(existing);
+        if (existing.owner !== mine && !me.admin) {
+          /* A card in a deck I teach is mine to correct — a deck it is
+             actually in, not one the request happens to name. */
+          let allowed = false;
+          for (const did of current) {
+            const d = await readJson(store, K.deck(did));
+            if (await canEditDeck(store, d, mine, me.admin)) {
+              allowed = true;
+              break;
+            }
+          }
+          if (!allowed) return json({ error: "not-yours" }, 403);
+        }
+        saved = { ...existing, ...fields, rev: (existing.rev || 1) + 1, updated: Date.now() };
+      } else {
+        const newId = `k${randomBytes(6).toString("hex")}`;
+        saved = { id: newId, owner: mine, ...fields, rev: 1, updated: Date.now() };
+        const list = (await readJson(store, K.myCards(mine))) || [];
+        await writeJson(store, K.myCards(mine), list.concat([newId]));
+      }
+
+      /* Which decks it belongs to travels with the card. Older clients sent
+         this as deckIds, so both names are honoured rather than silently
+         leaving the card in no deck at all. */
+      const wantedDecks = Array.isArray(body.decks)
+        ? body.decks
+        : Array.isArray(body.deckIds)
+        ? body.deckIds
+        : null;
+
+      /* Only the decks that gain or lose the card are read and written. A
+         deck that keeps it is still bumped when the card's content changed,
+         so the version a student's device compares against moves too. */
+      const wanted = wantedDecks ? new Set(wantedDecks) : new Set(current);
+      const touched = new Set([...current, ...wanted]);
+      const final = [];
+      const deckRecords = [];
+      for (const did of touched) {
+        const d = await readJson(store, K.deck(did));
+        if (!d) continue;
+        const has = current.includes(did);
+        const want = wanted.has(did);
+        if (want !== has && !(await canEditDeck(store, d, mine, me.admin))) {
+          /* Not this person's deck to change: leave it as it was. */
+          if (has) final.push(did);
+          continue;
+        }
+        const ids = await deckCardIds(d);
+        const next = want
+          ? ids.includes(saved.id)
+            ? ids
+            : ids.concat([saved.id])
+          : ids.filter((x) => x !== saved.id);
+        if (want) final.push(did);
+        const changedMembership = next.length !== ids.length;
+        if (!changedMembership && !id) continue;
+        const fresh = changedMembership ? await readJson(store, K.deck(did)) : d;
+        const record = {
+          ...fresh,
+          cardIds: next,
+          cardCount: next.length,
+          version: (fresh.version || 1) + 1,
+          updated: Date.now(),
+        };
+        await writeJson(store, K.deck(did), record);
+        deckRecords.push(record);
+      }
+      saved.inDecks = final;
+      await writeJson(store, K.card(saved.id), saved);
+      return json({ ok: true, card: { ...saved, decks: final }, decks: deckRecords });
+    }
+
+    if (action === "delete-cards") {
+      const ids = (Array.isArray(body.cardIds) ? body.cardIds : [])
+        .map((x) => String(x || ""))
+        .filter(Boolean)
+        .slice(0, 100);
+      if (!ids.length) return json({ error: "no-card" }, 400);
+      const result = await deleteCards(ids);
+      return json({ ok: true, ...result });
+    }
+
+    if (action === "delete-card") {
+      const id = String(body.cardId || "");
+      const result = await deleteCards([id]);
+      if (result.missing.length) return json({ error: "no-card" }, 404);
+      if (result.refused.length) return json({ error: "not-yours" }, 403);
+      return json({ ok: true });
+    }
+
+    if (action === "my-decks") {
+      const ids = (await readJson(store, K.index("decks"))) || [];
+      const rows = (await readManyJson(store, ids.map((id) => K.deck(id)))).filter(Boolean);
+
+      /* Mine, plus every deck in a course I teach — those are mine to work on
+         too, and hiding them meant a co-teacher could not find the material
+         they had been brought in to look after. */
+      const courseIds = (await readJson(store, K.index("courses"))) || [];
+      const courses = (await readManyJson(store, courseIds.map((id) => K.course(id)))).filter(
+        (c) => c && isTeacher(c, mine)
+      );
+      const teaching = new Set(courses.flatMap((c) => c.decks || []));
+
+      const decks = rows
+        .filter((d) => d.owner === mine || teaching.has(d.id))
+        .map((d) => ({ ...d, cardCount: (d.cardIds || []).length, mine: d.owner === mine }));
+      return json({ ok: true, decks });
+    }
+
+    if (action === "rename-deck") {
+      const deck = await readJson(store, K.deck(String(body.deckId || "")));
+      if (!deck) return json({ error: "no-deck" }, 404);
+      if (!(await canEditDeck(store, deck, mine, me.admin)))
+        return json({ error: "not-yours" }, 403);
+      const title = String(body.title || "").trim().slice(0, 60);
+      if (!title) return json({ error: "title-required" }, 400);
+      await writeJson(store, K.deck(deck.id), { ...deck, title, updated: Date.now() });
+      return json({ ok: true, title });
+    }
+
+    /* The deck goes; the cards it held stay in the library. */
+    if (action === "delete-deck") {
+      const deck = await readJson(store, K.deck(String(body.deckId || "")));
+      if (!deck) return json({ error: "no-deck" }, 404);
+      if (!(await canEditDeck(store, deck, mine, me.admin)))
+        return json({ error: "not-yours" }, 403);
+
+      for (const link of deck.courses || []) {
+        const c = await readJson(store, K.course(link.courseId));
+        if (c) {
+          c.decks = c.decks.filter((x) => x !== deck.id);
+          await writeJson(store, K.course(link.courseId), c);
+        }
+      }
+      await store.delete(K.deck(deck.id)).catch(() => {});
+      await store.delete(K.cards(deck.id)).catch(() => {});
+      const ids = (await readJson(store, K.index("decks"))) || [];
+      await writeJson(store, K.index("decks"), ids.filter((x) => x !== deck.id));
+      return json({ ok: true });
+    }
+
+    /* Adding a deck to a course, and taking it away again. */
+    if (action === "attach-deck" || action === "detach-deck") {
+      const deck = await readJson(store, K.deck(String(body.deckId || "")));
+      const course = await readJson(store, K.course(String(body.courseId || "")));
+      if (!deck || !course) return json({ error: "not-found" }, 404);
+      if (!(await canEditDeck(store, deck, mine, me.admin)))
+        return json({ error: "not-yours" }, 403);
+      if (!isTeacher(course, mine) && !me.admin) return json({ error: "not-teaching" }, 403);
+
+      if (action === "attach-deck") {
+        if (!deck.courses.some((c) => c.courseId === course.id)) {
+          deck.courses.push({ courseId: course.id, addedAt: Date.now() });
+        }
+        if (!course.decks.includes(deck.id)) course.decks.push(deck.id);
+      } else {
+        deck.courses = deck.courses.filter((c) => c.courseId !== course.id);
+        course.decks = course.decks.filter((d) => d !== deck.id);
+      }
+      await writeJson(store, K.deck(deck.id), deck);
+      await writeJson(store, K.course(course.id), course);
+      return json({ ok: true, deck, course });
+    }
+
+    /* ================= courses ================= */
+
+    if (action === "create-course") {
+      if (!me.admin) return json({ error: "admin-only" }, 403);
+      const title = String(body.title || "").trim().slice(0, 80);
+      if (!title) return json({ error: "title-required" }, 400);
+      const id = `c${randomBytes(6).toString("hex")}`;
+      /* Two codes, because the two invitations are different acts. The
+         student code is handed round a class; the teacher code gives
+         someone authority over the material and should travel privately. */
+      const code = makeCode();
+      const teacherCode = makeCode();
+      const course = {
+        id,
+        title,
+        description: String(body.description || "").slice(0, 400),
+        /* The language the course teaches. Everything downstream leans on
+           this: which script its decks and cards are written in, which
+           keyboard the editor offers, how answers are marked. Dropping it
+           here made every card default to the first language on the list. */
+        language: String(body.language || "").slice(0, 20),
+        teachers: [],
+        students: [],
+        decks: [],
+        code,
+        teacherCode,
+        created: Date.now(),
+      };
+      await writeJson(store, K.course(id), course);
+      await writeJson(store, K.code(code), id);
+      await writeJson(store, K.code(teacherCode), id);
+      await indexAdd(store, "courses", id);
+      return json({ ok: true, course });
+    }
+
+    /* Teaching a course and studying it are separate memberships, and someone
+       may hold both — a teacher who also wants the cards in their own practice
+       has to be enrolled as a student to get them. Assigning one no longer
+       removes the other. */
+    if (action === "assign-teacher" || action === "assign-student" || action === "remove-member") {
+      if (!me.admin) return json({ error: "admin-only" }, 403);
+      const course = await readJson(store, K.course(String(body.courseId || "")));
+      const handle = String(body.handle || "");
+      const target = await readJson(store, K.user(handle));
+      if (!course || !target) return json({ error: "not-found" }, 404);
+
+      if (action === "assign-teacher") {
+        if (!course.teachers.includes(handle)) course.teachers.push(handle);
+      } else if (action === "assign-student") {
+        if (!course.students.includes(handle)) course.students.push(handle);
+      } else {
+        const only = body.role;
+        if (only === "teacher") course.teachers = course.teachers.filter((h) => h !== handle);
+        else if (only === "student") course.students = course.students.filter((h) => h !== handle);
+        else {
+          course.teachers = course.teachers.filter((h) => h !== handle);
+          course.students = course.students.filter((h) => h !== handle);
+        }
+      }
+      await writeJson(store, K.course(course.id), course);
+      return json({ ok: true, course });
+    }
+
+    if (action === "join-course") {
+      const given = String(body.code || "").trim();
+      const id = await readJson(store, K.code(given));
+      if (!id) return json({ error: "bad-code" }, 404);
+      const course = await readJson(store, K.course(id));
+      if (!course) return json({ error: "not-found" }, 404);
+
+      /* Which code was used decides what they become. A code that no longer
+         matches the course it points at has been replaced. */
+      const asTeacher = !!course.teacherCode && given === course.teacherCode;
+      const asStudent = given === course.code;
+      if (!asTeacher && !asStudent) return json({ error: "bad-code" }, 404);
+
+      let changed = false;
+      if (asTeacher) {
+        if (!course.teachers.includes(mine)) {
+          course.teachers.push(mine);
+          changed = true;
+        }
+      } else if (!course.students.includes(mine)) {
+        /* Studying is its own membership. A teacher may hold it too — that is
+           how they get the course's cards into their own practice. */
+        course.students.push(mine);
+        changed = true;
+      }
+      if (changed) await writeJson(store, K.course(course.id), course);
+
+      const { code, teacherCode, ...safe } = course;
+      return json({ ok: true, course: safe, role: asTeacher ? "teacher" : "student" });
+    }
+
+    if (action === "my-courses") {
+      const ids = (await readJson(store, K.index("courses"))) || [];
+      const out = (await readManyJson(store, ids.map((id) => K.course(id))))
+        .filter((c) => c && inCourse(c, mine))
+        .map((c) => {
+          const teaching = isTeacher(c, mine);
+          const studying = isStudent(c, mine);
+          const role = teaching ? "teacher" : "student";
+          // Only a teacher hands out invitations, so only a teacher sees them.
+          return {
+            ...c,
+            role,
+            teaching,
+            studying,
+            code: role === "teacher" ? c.code : undefined,
+            teacherCode: role === "teacher" ? c.teacherCode : undefined,
+          };
+        });
+      return json({ ok: true, courses: out });
+    }
+
+    /* Everything a student holds, in one answer: the courses they study,
+       those courses' decks, and the cards in them. The app used to fetch
+       this as one request per course and then one per deck, every
+       forty-five seconds. Now it sends the version it last saw, and if
+       nothing has moved the answer is a few bytes.
+
+       Reads here are eventual: a student can see a teacher's change a
+       minute late without noticing, and the version converges with it. */
+    if (action === "my-material") {
+      const known = String(url.searchParams.get("version") || "");
+      const courseIds = (await readJson(store, K.index("courses"), EVENTUAL)) || [];
+      const allCourses = (
+        await readManyJson(store, courseIds.map((id) => K.course(id)), EVENTUAL)
+      ).filter(Boolean);
+      const courseRows = allCourses.filter((c) => isStudent(c, mine));
+      /* Whether the Teaching space exists for this person is answered here
+         too, so the app needn't ask a second time on every launch. */
+      const teaches = allCourses.some((c) => isTeacher(c, mine));
+
+      /* A deck in two of the person's courses is still one deck; listing
+         it twice gave the app two cards with one id. First course wins. */
+      const deckToCourse = new Map();
+      for (const c of courseRows) for (const did of c.decks || []) {
+        if (!deckToCourse.has(did)) deckToCourse.set(did, c);
+      }
+      const deckIds = [...deckToCourse.keys()];
+      const deckRows = (await readManyJson(store, deckIds.map((id) => K.deck(id)), EVENTUAL)).filter(
+        Boolean
+      );
+
+      const version = materialVersion(courseRows, deckRows);
+      const courses = courseRows.map((c) => ({
+        ...c,
+        code: undefined,
+        teacherCode: undefined,
+        role: "student",
+        teaching: isTeacher(c, mine),
+        studying: true,
+      }));
+      if (known && known === version) return json({ ok: true, unchanged: true, version, teaches });
+
+      const ownerHandles = [...new Set(deckRows.map((d) => d.owner))];
+      const owners = await readManyJson(store, ownerHandles.map((h) => K.user(h)), EVENTUAL);
+      const nameOf = {};
+      ownerHandles.forEach((h, i) => (nameOf[h] = owners[i] ? owners[i].displayName : h));
+
+      const decks = [];
+      for (const d of deckRows) {
+        const course = deckToCourse.get(d.id);
+        const link = (d.courses || []).find((c) => c.courseId === course.id);
+        const cardIds = await deckCardIds(d);
+        decks.push({
+          ...d,
+          cardIds,
+          cardCount: cardIds.length,
+          ownerName: nameOf[d.owner],
+          addedAt: link ? link.addedAt : null,
+          courseId: course.id,
+          courseTitle: course.title,
+          courseLanguage: course.language || "",
+        });
+      }
+      decks.sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+
+      const allCardIds = [...new Set(decks.flatMap((d) => d.cardIds))];
+      const cardRows = await readManyJson(store, allCardIds.map((id) => K.card(id)), EVENTUAL);
+      const cardById = new Map();
+      allCardIds.forEach((id, i) => cardRows[i] && cardById.set(id, cardRows[i]));
+      const cards = decks.map((d) => ({
+        deckId: d.id,
+        cards: d.cardIds.map((id) => cardById.get(id)).filter(Boolean),
+      }));
+
+      return json({ ok: true, version, teaches, courses, decks, cards });
+    }
+
+    /* Everything in a course is visible to everyone in it. */
+    if (action === "course-decks") {
+      const course = await readJson(store, K.course(url.searchParams.get("course") || ""));
+      if (!course) return json({ error: "not-found" }, 404);
+      if (!inCourse(course, mine) && !me.admin) return json({ error: "not-in-course" }, 403);
+
+      const rows = (await readManyJson(store, course.decks.map((id) => K.deck(id)))).filter(
+        Boolean
+      );
+      const ownerHandles = [...new Set(rows.map((d) => d.owner))];
+      const owners = await readManyJson(store, ownerHandles.map((h) => K.user(h)));
+      const nameOf = {};
+      ownerHandles.forEach((h, i) => (nameOf[h] = owners[i] ? owners[i].displayName : h));
+      const decks = rows.map((d) => {
+        const link = d.courses.find((c) => c.courseId === course.id);
+        return {
+          ...d,
+          ownerName: nameOf[d.owner],
+          addedAt: link ? link.addedAt : null,
+          cardCount: (d.cardIds || []).length,
+        };
+      });
+      decks.sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0));
+      return json({ ok: true, course: { ...course, code: undefined }, decks });
+    }
+
+    if (action === "deck-cards") {
+      const deck = await readJson(store, K.deck(url.searchParams.get("deck") || ""));
+      if (!deck) return json({ error: "not-found" }, 404);
+
+      let allowed = deck.owner === mine || me.admin;
+      if (!allowed) {
+        for (const link of deck.courses) {
+          const c = await readJson(store, K.course(link.courseId));
+          if (inCourse(c, mine)) {
+            allowed = true;
+            break;
+          }
+        }
+      }
+      if (!allowed) return json({ error: "no-access" }, 403);
+
+      const cards = (
+        await readManyJson(store, (deck.cardIds || []).map((id) => K.card(id)))
+      ).filter(Boolean);
+      return json({ ok: true, version: deck.version, cards });
+    }
+
+    /* ================= clips ================= */
+
+    if (action === "put-clip") {
+      const hash = String(body.hash || "");
+      const data = String(body.data || "");
+      if (!/^[a-f0-9]{64}$/.test(hash)) return json({ error: "bad-hash" }, 400);
+      if (!data || data.length > MAX_CLIP_BYTES) return json({ error: "bad-clip" }, 400);
+      const existing = await store.get(K.clip(hash), { type: "text" });
+      if (existing) return json({ ok: true, deduplicated: true });
+      await store.set(K.clip(hash), data);
+      return json({ ok: true, deduplicated: false });
+    }
+
+    if (action === "clip") {
+      const hash = url.searchParams.get("hash") || "";
+      if (!/^[a-f0-9]{64}$/.test(hash)) return json({ error: "bad-hash" }, 400);
+      // Clips never change once written, so the edge copy is always right.
+      const data = await store.get(K.clip(hash), { type: "text", consistency: "eventual" });
+      if (!data) return json({ error: "not-found" }, 404);
+      return json({ ok: true, hash, data });
+    }
+
+    /* ================= admin ================= */
+
+    if (action.startsWith("admin-")) {
+      if (!me.admin) return json({ error: "admin-only" }, 403);
+
+      if (action === "admin-overview") {
+        const userIds = (await readJson(store, K.index("users"))) || [];
+        const courseIds = (await readJson(store, K.index("courses"))) || [];
+        const deckIds = (await readJson(store, K.index("decks"))) || [];
+
+        const [courseRows, userRows, deckRows] = await Promise.all([
+          readManyJson(store, courseIds.map((id) => K.course(id))),
+          readManyJson(store, userIds.map((h) => K.user(h))),
+          readManyJson(store, deckIds.map((id) => K.deck(id))),
+        ]);
+        const courses = courseRows.filter(Boolean);
+        const users = [];
+        for (const u of userRows) {
+          if (!u) continue;
+          const h = u.handle;
+          const { keyHash, ...safe } = u;
+          users.push({
+            ...safe,
+            /* Title and language together: a course name on its own doesn't
+               say what is being taught, and that is the thing that goes wrong
+               quietly. */
+            teaching: courses
+              .filter((c) => isTeacher(c, h))
+              .map((c) => ({ title: c.title, language: c.language || "" })),
+            studying: courses
+              .filter((c) => isStudent(c, h))
+              .map((c) => ({ title: c.title, language: c.language || "" })),
+          });
+        }
+        const nameOf = {};
+        for (const u of userRows) if (u) nameOf[u.handle] = u.displayName;
+        const decks = deckRows.filter(Boolean).map((d) => ({
+          ...d,
+          cardCount: (d.cardIds || []).length,
+          ownerName: nameOf[d.owner] || d.owner,
+          courseTitles: d.courses
+            .map((l) => (courses.find((c) => c.id === l.courseId) || {}).title)
+            .filter(Boolean),
+        }));
+        return json({ ok: true, users, courses, decks });
+      }
+
+      /* A lost key: the handle survives, so memberships and progress do too. */
+      /* Making someone's account for them.
+     
+         The same as signing up, except the administrator does it and keeps
+         the key to hand over. This is the only way to get a teacher onto
+         the site without asking them to install the app first and read
+         their handle back — which is the wrong way round when the person
+         inviting them already knows who they are.
+     
+         The key is returned once and cannot be read back afterwards; if it
+         is lost, issue a new one. */
+      /* ================= backup =================
+
+         Reading everything in one request would work in testing and fail the
+         first time a course has real recordings in it: a function may only
+         return about 6MB and may only run for a few seconds, and clips are
+         base64 audio. So a backup is a manifest — which says exactly what
+         exists and how it is divided — followed by chunks the browser fetches
+         and reassembles into one file.
+
+         The manifest is also what makes a backup checkable: every chunk
+         carries a digest, so a file can be verified long after it was made,
+         without a restore and without trusting that the download finished. */
+
+      if (action === "admin-backup-manifest") {
+        const handles = (await readJson(store, K.index("users"))) || [];
+        const courseIds = (await readJson(store, K.index("courses"))) || [];
+        const deckIds = (await readJson(store, K.index("decks"))) || [];
+
+        /* Card ids come from each owner's list rather than a global index,
+           which is where they actually live. */
+        const cardLists = await readManyJson(store, handles.map((h) => K.myCards(h)));
+        const cardIds = [...new Set(cardLists.flatMap((l) => l || []))];
+
+        /* Clip hashes are only discoverable from the cards that use them, so
+           the cards have to be read to know what a complete backup contains.
+           Only the hashes are kept here; the bytes travel in their own
+           chunks. */
+        const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
+        const clipHashes = [
+          ...new Set(
+            cards.filter(Boolean).flatMap((c) => [
+              ...(c.clips || []),
+              ...(c.subs || []).flatMap((sb) => sb.clips || []),
+            ])
+          ),
+        ];
+
+        /* Key hashes, so that restoring a backup leaves everyone's existing
+           sign-in key working. The keys themselves are not stored anywhere
+           and cannot be part of a backup. */
+        const users = await readManyJson(store, handles.map((h) => K.user(h)));
+        const keyHashes = users.filter(Boolean).map((u) => u.keyHash).filter(Boolean);
+
+        /* Records are small and clips are not, so they are batched
+           differently. These sizes keep a chunk well under the response
+           limit even for long cards or a minute of audio. */
+        const chunks = [];
+        const batch = (kind, keys, size) => {
+          for (let i = 0; i < keys.length; i += size) {
+            chunks.push({ id: `${kind}-${chunks.length}`, kind, keys: keys.slice(i, i + size) });
+          }
+        };
+        batch("user", handles.map(K.user), 40);
+        batch("keymap", keyHashes.map(K.keyOf), 60);
+        batch("course", courseIds.map(K.course), 40);
+        batch("deck", deckIds.map(K.deck), 40);
+        batch("owncards", handles.map(K.myCards), 60);
+        batch("card", cardIds.map(K.card), 25);
+        batch("clip", clipHashes.map(K.clip), 3);
+
+        return json({
+          ok: true,
+          manifest: {
+            version: 1,
+            takenAt: Date.now(),
+            counts: {
+              users: handles.length,
+              courses: courseIds.length,
+              decks: deckIds.length,
+              cards: cardIds.length,
+              clips: clipHashes.length,
+              keys: keyHashes.length,
+            },
+            indexes: { users: handles, courses: courseIds, decks: deckIds },
+            chunks: chunks.map((c) => ({ id: c.id, kind: c.kind, keys: c.keys.length })),
+            /* Repeated so a chunk can be fetched without the client having to
+               reconstruct which keys were in it. */
+            plan: chunks,
+          },
+        });
+      }
+
+      if (action === "admin-backup-chunk") {
+        const keys = Array.isArray(body.keys) ? body.keys.slice(0, 200) : [];
+        if (!keys.length) return json({ error: "no-keys" }, 400);
+        /* Clips are stored as plain text, not JSON. Parsing them as JSON
+           silently dropped every recording from every backup. */
+        const values = await Promise.all(
+          keys.map((k) =>
+            k.startsWith("clip:")
+              ? store.get(k, { type: "text" }).catch(() => null)
+              : readJson(store, k)
+          )
+        );
+        const records = {};
+        keys.forEach((k, i) => {
+          if (values[i] !== null && values[i] !== undefined) records[k] = values[i];
+        });
+        /* A digest of what this chunk actually contains, so a finished file
+           can be checked against its own manifest later. */
+        const digest = sha(JSON.stringify(records));
+        return json({ ok: true, records, digest, found: Object.keys(records).length });
+      }
+
+      /* Putting a backup back. Records are written as they were; anything on
+         the site that the file does not mention is left alone, so restoring
+         is additive and can be repeated. The app sends the file in the same
+         chunks it was taken in, and the three indexes last. */
+      if (action === "admin-restore-chunk") {
+        const records =
+          body.records && typeof body.records === "object" && !Array.isArray(body.records)
+            ? body.records
+            : {};
+        const keys = Object.keys(records).slice(0, 200);
+        if (!keys.length) return json({ error: "no-keys" }, 400);
+        const allowed = /^(user|key|course|deck|owncards|mycards|card|clip|code|index):/;
+        let written = 0;
+        for (const k of keys) {
+          if (!allowed.test(k) || k.length > 200) continue;
+          let v = records[k];
+          /* An index is the union of what the file says and what is here,
+             so restoring an old backup cannot hide accounts, courses or
+             decks made since it was taken. */
+          if (k.startsWith("index:") && Array.isArray(v)) {
+            const have = (await readJson(store, k)) || [];
+            v = [...new Set(have.concat(v))];
+          }
+          const payload = k.startsWith("clip:") ? String(v || "") : JSON.stringify(v);
+          if (!payload || payload.length > 4 * 1024 * 1024) continue;
+          await store.set(k, payload);
+          written += 1;
+        }
+        return json({ ok: true, written });
+      }
+
+      if (action === "admin-create-user") {
+        const displayName = String(body.displayName || "").trim().slice(0, 40);
+        if (!displayName) return json({ error: "name-required" }, 400);
+
+        const handles = (await readJson(store, K.index("users"))) || [];
+        const handle = makeHandle(displayName, handles);
+        const key = makeKey();
+        const user = {
+          handle,
+          displayName,
+          admin: false,
+          created: Date.now(),
+          /* Never seen: they haven't signed in yet. The people list uses
+             this to show who still hasn't picked up their key. */
+          lastSeen: 0,
+          createdBy: mine,
+        };
+        await writeJson(store, K.user(handle), { ...user, keyHash: sha(key) });
+        await writeJson(store, K.keyOf(sha(key)), handle);
+        await indexAdd(store, "users", handle);
+
+        /* Putting them straight into a course, so inviting a teacher is one
+           action rather than three. */
+        const courseId = String(body.courseId || "");
+        if (courseId) {
+          const course = await readJson(store, K.course(courseId));
+          if (course) {
+            const as = body.role === "student" ? "students" : "teachers";
+            if (!course[as].includes(handle)) course[as].push(handle);
+            await writeJson(store, K.course(courseId), course);
+          }
+        }
+        return json({ ok: true, user, key });
+      }
+
+      if (action === "admin-reissue-key") {
+        const handle = String(body.handle || "");
+        const target = await readJson(store, K.user(handle));
+        if (!target) return json({ error: "no-user" }, 404);
+        const key = makeKey();
+        if (target.keyHash) await store.delete(K.keyOf(target.keyHash)).catch(() => {});
+        await writeJson(store, K.user(handle), { ...target, keyHash: sha(key) });
+        await writeJson(store, K.keyOf(sha(key)), handle);
+        return json({ ok: true, handle, key });
+      }
+
+      if (action === "admin-delete-user") {
+        const handle = String(body.handle || "");
+        if (handle === mine) return json({ error: "use-delete-account" }, 400);
+        const gone = await wipeAccount(store, handle);
+        if (!gone) return json({ error: "no-user" }, 404);
+        return json({ ok: true });
+      }
+
+      /* Removing a person: their memberships go, their decks are left
+         orphaned rather than destroyed, and their key stops working. */
+      if (action === "admin-delete-user") {
+        const handle = String(body.handle || "");
+        if (handle === mine) return json({ error: "not-yourself" }, 400);
+        const target = await readJson(store, K.user(handle));
+        if (!target) return json({ error: "no-user" }, 404);
+
+        const courseIds = (await readJson(store, K.index("courses"))) || [];
+        for (const id of courseIds) {
+          const c = await readJson(store, K.course(id));
+          if (!c) continue;
+          if (inCourse(c, handle)) {
+            c.teachers = c.teachers.filter((h) => h !== handle);
+            c.students = c.students.filter((h) => h !== handle);
+            await writeJson(store, K.course(id), c);
+          }
+        }
+        if (target.keyHash) await store.delete(K.keyOf(target.keyHash)).catch(() => {});
+        await store.delete(K.user(handle)).catch(() => {});
+        const users = (await readJson(store, K.index("users"))) || [];
+        await writeJson(store, K.index("users"), users.filter((h) => h !== handle));
+        return json({ ok: true, handle });
+      }
+
+      /* Removing a course: the roster goes and the decks are released back
+         to the teachers who made them. Cards belong to their owners, so
+         nothing anybody wrote is destroyed here. */
+      if (action === "admin-delete-course") {
+        const course = await readJson(store, K.course(String(body.courseId || "")));
+        if (!course) return json({ error: "not-found" }, 404);
+
+        for (const deckId of course.decks || []) {
+          const d = await readJson(store, K.deck(deckId));
+          if (!d) continue;
+          await writeJson(store, K.deck(deckId), {
+            ...d,
+            courses: (d.courses || []).filter((l) => l.courseId !== course.id),
+          });
+        }
+        if (course.code) await store.delete(K.code(course.code)).catch(() => {});
+        await store.delete(K.course(course.id)).catch(() => {});
+        const ids = (await readJson(store, K.index("courses"))) || [];
+        await writeJson(store, K.index("courses"), ids.filter((x) => x !== course.id));
+        return json({ ok: true });
+      }
+
+      /* Courses created before the language was stored have none, and a
+         course with no language sends its decks and cards to the wrong
+         script. This is how one gets corrected. */
+      if (action === "admin-course-language") {
+        const course = await readJson(store, K.course(String(body.courseId || "")));
+        if (!course) return json({ error: "not-found" }, 404);
+        const language = String(body.language || "").slice(0, 20);
+        if (!language) return json({ error: "language-required" }, 400);
+        await writeJson(store, K.course(course.id), {
+          ...course,
+          language,
+          updated: Date.now(),
+        });
+        return json({ ok: true, language });
+      }
+
+      /* Replacing one of a course's two codes. The other is untouched, so
+         retiring a leaked teacher code doesn't turn away a whole class.
+         This is also how a course made before there were two codes gets
+         its teacher code. */
+      if (action === "admin-new-code") {
+        const course = await readJson(store, K.course(String(body.courseId || "")));
+        if (!course) return json({ error: "not-found" }, 404);
+        const which = body.which === "teacher" ? "teacherCode" : "code";
+        const code = makeCode();
+        if (course[which]) await store.delete(K.code(course[which])).catch(() => {});
+        await writeJson(store, K.code(code), course.id);
+        await writeJson(store, K.course(course.id), { ...course, [which]: code });
+        return json({ ok: true, code, which });
+      }
+    }
+
+    return json({ error: "unknown-action" }, 400);
+  } catch (err) {
+    return json({ error: "server", detail: String(err && err.message) }, 500);
+  }
+};

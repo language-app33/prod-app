@@ -1,0 +1,1018 @@
+/* ------------------------------------------------------------------
+   Styles for the whole app.
+
+   These used to be a 1,079-line template string inside the trainer,
+   rendered through three <style> tags. In a file Vite minifies and
+   hashes them, the browser caches them apart from the JavaScript, and a
+   component can be given rules of its own without the main chunk being
+   rebuilt.
+   ------------------------------------------------------------------ */
+
+/* The component carries its own styles. This only handles the page shell,
+   the safe areas on a phone, and the pre-paint background so a light-mode
+   device doesn't flash dark before React mounts. */
+
+:root {
+  color-scheme: light dark;
+  --shell: #141a2a;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --shell: #f4f6fa;
+  }
+}
+/* Once the app knows the chosen theme it pins the shell, overriding the
+   device preference above. */
+html[data-theme="dark"] {
+  --shell: #141a2a;
+}
+html[data-theme="light"] {
+  --shell: #f4f6fa;
+}
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--shell);
+}
+body {
+  /* Keep content clear of the notch and home indicator when installed. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  overscroll-behavior-y: none;
+}
+/* Stop iOS zooming when you focus a text field. */
+input,
+textarea,
+button {
+  font-size: 16px;
+}
+/* ------------------------------------------------------------------
+   Tokens
+
+   Colour, radius and type were already named; spacing and layering
+   were not, which is why the components used to carry dozens of inline
+   margins and ten different z-indexes. Everything a component needs to
+   position itself is named here.
+   ------------------------------------------------------------------ */
+
+.at {
+  /* spacing — a six-step scale, used for margin, padding and gap */
+  --s1: 4px;
+  --s2: 6px;
+  --s3: 10px;
+  --s4: 14px;
+  --s5: 18px;
+  --s6: 24px;
+
+  /* type */
+  --fs-xs: 11px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 19px;
+  --fs-xl: 24px;
+  --fs-stat: 36px;
+
+  /* layers, in the order they sit above the page */
+  --z-raised: 2;
+  --z-nav: 100;
+  --z-chrome: 140;
+  --z-sheet: 200;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  /* the one content width, and the one narrow breakpoint (see below) */
+  --content: 700px;
+}
+/* Belt and braces for the same problem: whatever a block's own margins
+   are, they collapse at the edges of its container. */
+.at-field:last-child,
+.at-hint:last-child,
+.at-eyebrow:last-child > :last-child { margin-bottom: 0; }
+.at-field:first-child,
+.at-hint:first-child,
+.at-eyebrow:first-child > :first-child { margin-top: 0; }
+.at * { box-sizing: border-box; }
+/* ---- palette ---- */
+.at {
+  --ui: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ar: "Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", "Arabic Typesetting", "Segoe UI", serif;
+  --serif: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 16px; --r-lg: 20px; --r-sm: 12px;
+
+  --bg:#141A2A; --surface:#1D2436; --raised:#26304A; --raised-hover:#2E3A58;
+  --line:#313C58; --text:#E9ECF4; --text-soft:#C6CDDD; --muted:#8C96B0; --faint:#5F6980;
+  --well:rgba(0,0,0,.22); --well-deep:rgba(0,0,0,.28);
+  --brass:#E0AE44; --brass-hover:#EDBB4F; --onbrass:#1A1408;
+  --jade:#4FB286; --onjade:#06210F; --rose:#DF5F72;
+  --tag-bg:rgba(224,174,68,.12); --tag-line:rgba(224,174,68,.38);
+  --jade-soft:rgba(79,178,134,.45); --rose-soft:rgba(223,95,114,.45);
+  --shadow:none;
+  --shade:#171E31; --brass-shade:#B8862A; --jade-shade:#2F8A63; --rose-shade:#B23F52;
+  --nav-bg:rgba(29,36,54,.92); --nav-shadow:0 8px 28px rgba(0,0,0,.5);
+  color-scheme: dark;
+}
+.at.light {
+  --bg:#F4F6FA; --surface:#FFFFFF; --raised:#EAEEF6; --raised-hover:#DDE4F0;
+  --line:#D2D9E6; --text:#16203A; --text-soft:#3A4664; --muted:#5F6B85; --faint:#98A2B8;
+  --well:rgba(20,32,58,.05); --well-deep:rgba(20,32,58,.07);
+  --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
+  --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
+  --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
+  --jade-soft:rgba(31,122,85,.4); --rose-soft:rgba(179,39,60,.4);
+  --shadow:0 1px 2px rgba(20,32,58,.06);
+  --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
+  --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  .at.auto {
+    --bg:#F4F6FA; --surface:#FFFFFF; --raised:#EAEEF6; --raised-hover:#DDE4F0;
+    --line:#D2D9E6; --text:#16203A; --text-soft:#3A4664; --muted:#5F6B85; --faint:#98A2B8;
+    --well:rgba(20,32,58,.05); --well-deep:rgba(20,32,58,.07);
+    --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
+    --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
+    --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
+    --jade-soft:rgba(31,122,85,.4); --rose-soft:rgba(179,39,60,.4);
+    --shadow:0 1px 2px rgba(20,32,58,.06);
+    --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
+    --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
+    color-scheme: light;
+  }}
+.at {
+  background: var(--bg); color: var(--text); font-family: var(--ui);
+  min-height: 100vh; padding: 66px 16px 108px; -webkit-font-smoothing: antialiased;
+  max-width: 100%; overflow-x: hidden;
+}
+.at-wrap { max-width: 700px; margin: 0 auto; }
+.at-headline { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+.at-exit { flex-shrink:0; width:34px; height:34px; border-radius:999px; cursor:pointer;
+  background:none; border:2px solid var(--line); color: var(--muted);
+  font-size:19px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
+.at-exit:hover { color: var(--text); border-color: var(--muted); }
+.at-learntnote { border:2px dashed var(--line); border-radius: var(--r); padding:10px 12px;
+  margin-bottom:14px; }
+.at-count { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.05em;
+  color: var(--muted); white-space:nowrap; }
+.at-headline .at-progress { flex:1; margin-bottom:0; }
+.at-instruction { font-family: var(--ui); font-size:19px; font-weight:700; color: var(--text);
+  margin:0 0 16px; line-height:1.4; }
+.at-answerlabel { font-family: var(--ui); font-size:13px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color: var(--muted); margin:0 0 4px; }
+/* The answer itself carries the weight; anything shown beneath it is a
+   second thing worth noticing, not a competing one. */
+.at-answermain { margin: 6px 0 4px; }
+/* Once the answer is up, the question asked and the box it was typed into
+   step back, so the answer is what the eye lands on. The answer itself is
+   untouched — only what came before it shrinks. */
+.at-ask, .at-answerbox { transition: transform 240ms ease, opacity 240ms ease,
+  margin 240ms ease; transform-origin: top center; }
+.at-ask.done { transform: scale(.72); opacity:.5; margin: -4px 0 -10px; }
+.at-answerbox.done { transform: scale(.86); opacity:.55; margin-top:6px !important; }
+.at-answerbox.done .at-input { padding:6px 10px; font-size:14px; min-height:0; }
+@media (prefers-reduced-motion: reduce) {
+  .at-ask, .at-answerbox, .at-asked .at-instruction { transition: none; }}
+/* The question and the answer box shrink out of the way once the answer is
+   showing. Transitioned rather than switched, so the eye follows the change
+   instead of being surprised by it. */
+.at-asked .at-instruction { font-size:13px; opacity:.6; transition: font-size 220ms ease, opacity 220ms ease; }
+.at-answermain .at-arabic { font-size:40px; line-height:1.35; margin:6px 0; }
+.at-answermain .at-en { font-size:26px; font-weight:800; }
+.at-answermain .at-latin { font-size:24px; }
+.at-answeralso { margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
+.at-alsolabel { font-family: var(--ui); font-size:11px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 6px; }
+.at-answeralso .at-arabic { font-size:26px; line-height:1.4; margin:4px 0; }
+.at-answeralso .at-en { font-size:16px; }
+.at-answeralso .at-latin { font-size:15px; }
+.at-flagwrap { position:relative; margin-top:14px; text-align:center; }
+.at-flagbtn { background:none; border:0; cursor:pointer; font-family: var(--ui); font-size:13px;
+  font-weight:700; color: var(--faint); padding:6px 10px; }
+.at-flagbtn:hover { color: var(--muted); }
+.at-flagbtn.on { color: var(--brass); }
+.at-flagmenu { display:flex; flex-direction:column; gap:6px; margin-top:8px;
+  border:2px solid var(--line); border-radius: var(--r); background: var(--surface); padding:8px; }
+.at-flagopt { text-align:left; background:none; border:0; cursor:pointer; border-radius: var(--r-sm);
+  padding:11px 12px; color: var(--text); font-family: var(--ui); font-size:14px; font-weight:600; }
+.at-flagopt:hover { background: var(--raised); }
+.at-flagopt span { display:block; font-size:11px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; color: var(--jade); margin-top:3px; }
+.at-flag.flagged { color: var(--rose); border-color: var(--rose-soft); }
+.at-shout { font-family: var(--ui); font-size:34px; font-weight:800; letter-spacing:-.02em;
+  margin:6px 0 0; }
+.at-shout.ok { color: var(--jade); }
+.at-shout.no { color: var(--rose); }
+.at-after { margin-top:6px; }
+.at-continue { margin-top:22px; }
+/* Session builder: tag and card selection. These matched nothing before,
+   which is why they rendered as bare browser defaults. */
+.at-taglist { display:flex; flex-direction:column; gap:8px; }
+.at-tagpick { border:2px solid var(--line); border-radius: var(--r); background: var(--surface);
+  overflow:hidden; }
+.at-tagpick.on { border-color: var(--jade); background: var(--tag-bg); }
+.at-tagpickrow { display:flex; align-items:stretch; }
+.at-tagpickmain { flex:1; min-width:0; display:flex; align-items:center; gap:10px;
+  background:none; border:0; cursor:pointer; color: var(--text); padding:13px 14px;
+  text-align:left; font-family: var(--ui); }
+.at-tagpickmain .nm { flex:1; min-width:0; font-size:15px; font-weight:700;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-tagpickmain .ct { font-size:12px; font-weight:700; color: var(--muted); white-space:nowrap; }
+.at-tagpickmore { flex-shrink:0; width:44px; background:none; border:0; border-left:2px solid var(--line);
+  cursor:pointer; color: var(--muted); font-size:15px; }
+.at-tagpickmore:hover { background: var(--raised); color: var(--text); }
+.at-box { flex-shrink:0; width:24px; height:24px; border-radius:7px; border:2px solid var(--line);
+  display:inline-flex; align-items:center; justify-content:center; font-size:14px;
+  font-weight:800; color: var(--onjade); background: var(--well); }
+.at-box.all { background: var(--jade); border-color: var(--jade); }
+.at-box.some { background: var(--brass); border-color: var(--brass); color: var(--onbrass); }
+.at-tagpickcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
+  gap:6px; padding:10px; border-top:2px solid var(--line); }
+.at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg); padding:12px 12px 8px; color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:4px; height:100%; }
+.at-minicard.on { border-color: var(--jade); background: var(--tag-bg); }
+.at-minicard .ar { display:block; font-family: var(--sfont, var(--ar)); font-size:17px; font-weight:700;
+  direction: var(--sdir, rtl); unicode-bidi:isolate; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-minicard .en { display:block; font-size:12px; font-weight:600; color: var(--muted);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-lengthgroup { margin-bottom:14px; }
+.at-lengthor { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.1em;
+  text-transform:uppercase; color: var(--faint); text-align:center; margin:6px 0 14px; }
+.at-handle { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:14px;
+  color: var(--muted); margin:0; }
+.at-key { font-family: var(--sfont, var(--ar)); font-size:21px; background: var(--raised); border:2px solid var(--line); border-radius:10px; padding:0 7px; color: var(--text); word-break:break-all; user-select:all; margin:0; min-width:38px; height:44px; cursor:pointer; }
+.ob { position:fixed; inset:0; z-index:500; background: var(--bg); display:flex;
+  align-items:center; justify-content:center; padding:24px 18px; overflow-y:auto; }
+.ob-box { width:100%; max-width:420px; }
+.ob-box h1 { font-family: var(--sfont, var(--ar)); font-size:34px; font-weight:700; margin:0 0 14px;
+  text-align:center; direction: var(--sdir, rtl); }
+.ob-box h2 { font-size:22px; font-weight:800; margin:0 0 10px; letter-spacing:-.01em; }
+.ob-lede { font-size:15px; font-weight:500; color: var(--muted); line-height:1.6; margin:0 0 18px; }
+.at-nav2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+.at-tab2 { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background:none; border:2px solid var(--line); border-radius:999px; color: var(--muted); padding:9px 15px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.at-tab2.on { background: var(--raised); color: var(--text); border-color: var(--raised); }
+.at-codebox { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  border:2px solid var(--tag-line); background: var(--tag-bg); border-radius: var(--r-sm);
+  padding:9px 11px; }
+.at-codebox span { font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color: var(--muted); }
+.at-codebox b { flex:1; min-width:120px; font-family: ui-monospace, Menlo, monospace;
+  font-size:15px; color: var(--brass); user-select:all; }
+.at-mode { position:fixed; top:12px; left:12px; z-index:200; }
+/* The app's name, where the space selector used to sit. */
+.at-brand { position:fixed; top:12px; left:14px; z-index:200; height:44px;
+  display:flex; align-items:center; font-family: var(--ui); font-size:17px;
+  font-weight:800; letter-spacing:.01em; color: var(--ink); pointer-events:none; }
+.at-modebtn { display:inline-flex; align-items:center; gap:7px; cursor:pointer; border:2px solid var(--line); border-radius:999px; padding:9px 14px; background: var(--nav-bg); backdrop-filter:blur(12px); color: var(--text); font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; box-shadow: var(--nav-shadow); justify-content:center; }
+.at-modecaret { color: var(--brass); display:inline-flex; transition: transform 150ms; }
+.at-modecaret.up { transform: rotate(180deg); }
+.at-modemenu { position:absolute; top:46px; left:0; min-width:170px; background: var(--surface);
+  border:2px solid var(--line); border-radius:14px; padding:6px;
+  box-shadow:0 10px 30px rgba(0,0,0,.5); }
+.at-modeitem { display:flex; align-items:center; justify-content:space-between; width:100%;
+  background:none; border:0; cursor:pointer; border-radius:10px; padding:11px 12px;
+  color: var(--text); font-family: var(--ui); font-size:13px; font-weight:700; text-align:left; }
+.at-modeitem:hover { background: var(--raised); }
+.at-modeitem.on { color: var(--brass); }
+.at-inputwrap { position:relative; }
+.at-keybtn { position:absolute; top:50%; transform:translateY(-50%); right:8px;
+  width:34px; height:34px; border-radius:9px; cursor:pointer; display:inline-flex;
+  align-items:center; justify-content:center; background: var(--raised);
+  border:2px solid var(--line); color: var(--muted); }
+.at-keybtn.on { color: var(--brass); border-color: var(--tag-line); background: var(--tag-bg); }
+.at-keypad { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
+.at-formblock { border:2px solid var(--line); border-radius: var(--r-lg); padding:16px;
+  margin-bottom:14px; background: var(--surface); }
+.at-formblock.main { border-color: var(--brass); }
+.at-formhead { display:flex; align-items:baseline; gap:10px; margin-bottom:14px;
+  padding-bottom:10px; border-bottom:2px solid var(--line); }
+.at-formnum { font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color: var(--brass); }
+.at-formrole { flex:1; font-size:12px; color: var(--muted); }
+.at-cklist { display:flex; flex-direction:column; gap:8px; }
+/* A tighter card editor: less air between fields, smaller labels. */
+.at-screen.over .at-field { margin-bottom:12px; }
+.at-screen.over .at-label { font-size:11px; margin-bottom:4px; }
+.at-screen.over .at-input { padding:9px 11px; }
+.at-screen.over .at-formblock { padding:16px; margin-bottom:16px; }
+.at-screen.over .at-formhead { margin-bottom:14px; align-items:baseline; }
+.at-screen.over .at-formnum { font-size:17px; font-weight:800; letter-spacing:0;
+  text-transform:none; color: var(--ink); }
+.at-screen.over .at-formrole { font-size:12px; color: var(--muted); }
+.at-screen.over .at-chips { gap:5px; }
+.at-screen.over .at-chips .at-btn.sm { padding:5px 10px; font-size:12px; }
+/* Icons sit inside buttons at the text baseline. */
+.at-ic { flex:0 0 auto; vertical-align:-4px; }
+.at-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family: var(--ui); font-size:16px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background: var(--raised); color: var(--text); border:2px solid var(--line); border-radius: var(--r); padding:14px 22px; cursor:pointer; transition: transform 60ms, background 120ms; min-height:52px; }
+.at-btn.sm { gap:6px; }
+.at-icon { display:inline-flex; align-items:center; justify-content:center; flex:1; border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised); color: var(--ink); font-size:14px; line-height:1; padding:7px 0; cursor:pointer; }
+/* Select sits with the search field, not on its own row. */
+.at-toolbar .at-selectbtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
+  padding:0; box-sizing:border-box; }
+.at-toolbar .at-selectbtn.on { border-color: var(--accent); color: var(--accent); }
+/* The bulk tray: what it is on the left, how many on the right. */
+.at-bulkhead2 { display:flex; align-items:baseline; justify-content:space-between;
+  gap:12px; width:100%; margin-bottom:8px; }
+.at-bulktitle { font-size:12px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.05em; color: var(--ink); }
+.at-bulkrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%; }
+.at-bulkdel { margin-left:auto; width:44px; height:40px; flex:0 0 auto;
+  background: var(--rose); border-color: var(--rose); color:#fff; }
+/* A setting that is deliberately hard to change. */
+.at-lockrow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.at-lockname { display:inline-flex; align-items:center; gap:8px; font-size:15px;
+  font-weight:700; color: var(--ink); }
+/* Splitting a form into what gets drilled and what doesn't. */
+/* A subsection inside a form: a coloured rule and a chip, so the split
+   between what is drilled and what is reference is impossible to miss. */
+.at-groupline { margin:0 0 14px; font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.07em; color: var(--accent); }
+.at-formblock .at-groupline + .at-field, .at-formblock .at-groupline + .at-hint {
+  margin-top:0; }
+.at-formblock .at-groupline:not(:first-of-type) { margin-top:22px; }
+/* Ticking decks: a real checkbox, so it looks and behaves like one. */
+.at-ticklist { display:flex; flex-direction:column; gap:6px; }
+.at-tickrow { display:flex; align-items:center; gap:10px; cursor:pointer;
+  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised);
+  padding:10px 12px; }
+.at-tickrow:has(input:checked) { border-color: var(--accent); }
+.at-tickrow input { width:20px; height:20px; flex:0 0 auto; margin:0; cursor:pointer;
+  accent-color: var(--jade); }
+.at-tickbody { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.at-tickbody b { font-size:14px; font-weight:700; overflow-wrap:anywhere; }
+.at-tickbody i { font-size:11px; font-style:normal; color: var(--muted); }
+/* What a form still needs, shown beside its fields. */
+.at-formneed { margin:0 0 12px; font-size:12px; color: var(--muted); }
+.at-formneed.unmet { color: var(--brass); }
+.at-formneed.unmet { color: var(--brass); }
+/* Decks a card belongs to: chips that tick, rather than a stack of rows. */
+
+/* The shared frame every list of things uses. The New button and the search
+   box share one height so the row reads as a single control, not two. */
+.at-listwrap { position:relative; }
+.at-toolbar { display:flex; gap:8px; align-items:stretch; margin-bottom:10px; flex-wrap:nowrap; }
+/* Both controls are sized the same way — border-box, one height, no inherited
+   padding — so the button and the field line up exactly. */
+.at-toolbar .at-btn, .at-toolbar .at-search {
+  box-sizing:border-box; height:44px; min-height:44px; line-height:normal;
+  border-radius: var(--r-sm); font-size:14px; margin:0;
+}
+.at-toolbar .at-btn { flex:0 0 auto; padding:0 16px; white-space:nowrap; font-weight:700; }
+.at-toolbar .at-btn:active:not(:disabled) { transform:none; }
+.at-toolbar .at-search { flex:1 1 0; min-width:0; padding:0 12px; }
+/* Room between the line explaining a tab and the controls under it. */
+.at-toolbar-top { margin-top:16px; }
+/* The selected tab carries a dark outline, so which one is active reads at a
+   glance rather than by shade alone. */
+.at-tab2.on { border:2px solid var(--ink); }
+/* A boxed section inside a full-screen view, so a course reads as three
+   distinct things rather than one long column. */
+.at-panel { border:2px solid var(--line); border-radius: var(--r-lg);
+  padding:16px 16px 18px; margin-bottom:16px; background: var(--surface); }
+/* Section headings are headings, not captions. */
+.at-panel > .at-eyebrow:first-child { margin:0 0 4px; font-size:15px; font-weight:800;
+  letter-spacing:0; text-transform:none; color: var(--ink); }
+.at-subhead { font-size:13px; font-weight:800; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; margin:16px 0 8px; }
+.at-subhead:first-child { margin-top:0; }
+/* The line under a course title carries the facts, so it is readable. */
+.at-coursemeta { font-size:15px; color: var(--ink); font-weight:600;
+  margin:0 0 16px; line-height:1.5; }
+.at-coursemeta span { color: var(--muted); font-weight:400; }
+/* People in a course: a name, a role, and nothing pretending to be tappable. */
+.at-person { display:flex; align-items:center; gap:10px; padding:10px 12px;
+  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised);
+  margin-bottom:6px; }
+.at-person:last-child { margin-bottom:0; }
+.at-avatar { width:30px; height:30px; border-radius:999px; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center; font-size:12px;
+  font-weight:800; background: var(--surface); border:2px solid var(--line);
+  color: var(--muted); }
+.at-personname { font-size:14px; font-weight:600; min-width:0; overflow-wrap:anywhere; }
+.at-panel .at-decklist2 .at-deckcard { background: var(--raised); }
+.at-listtools { display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+/* Dialog titles and screen titles are the same rank, so they are the same
+   size — a modal is a small screen, not a different species. */
+.at-modaltitle { font-size:19px; font-weight:800; margin:0 0 10px; }
+/* The teaching tab strip and the learning nav share one type scale. */
+.at-nav2 .at-btn.sm .at-btn.sm { font-size:13px; letter-spacing:.03em; }
+/* A tile carries its own tick when the list is in selecting mode. */
+.at-tilewrap { position:relative; }
+.at-tilewrap.picked > .at-deckcard, .at-tilewrap.picked > .at-minicard,
+.at-tilewrap.picked > .at-item { border-color: var(--accent); }
+.at-tilewrap > .at-ckbox.pick { position:absolute; top:10px; right:10px; z-index:2; }
+/* The bar that rises once something is ticked: a plain tray across the
+   bottom, not a floating pill. */
+.at-bulkfloat {
+  position:fixed; left:0; right:0;
+  bottom:0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  z-index:120; display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  background: var(--surface); border-top:2px solid var(--line);
+  box-shadow: 0 -6px 20px rgba(0,0,0,.14);
+}
+.at-bulkcount { font-size:12px; font-weight:800; color: var(--muted);
+  margin-right:auto; text-transform:uppercase; letter-spacing:.04em; }
+/* A join code and what it grants. */
+.at-codeblock { margin: 0 0 14px; }
+.at-codehead { font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+  color: var(--muted); font-weight:700; margin-bottom:6px; }
+.at-codeblock .at-hint { margin-top:6px; }
+/* A full-screen editor sits above the app chrome (200) and below the confirm
+   dialogs (400). Screens are portalled to the body, so this z-index is
+   authoritative no matter how deeply the screen was opened from.
+   The chrome is hidden as well, because a full-screen task should not show
+   the account bubble — that is about focus, not layering. */
+.at-screen.over { z-index:300; }
+/* A selected tab is outlined rather than merely tinted, so it reads at a
+   glance and in both themes. */
+/* A selected tab keeps the same border as the others, only darker, so the
+   two read as the same control in two states. */
+
+/* Playing a clip. The button shows what it will do next. */
+.at-clipplay.on { border-color: var(--accent); color: var(--accent); }
+.at-clipplay:disabled { opacity:.6; }
+/* Decks in the teaching space: title and actions on one row, wrapping to
+   two when the title needs the width. */
+.at-decklist2 { display:flex; flex-direction:column; gap:10px; }
+.at-deckcard { border:2px solid var(--line); border-radius: var(--r-lg);
+  padding:14px 16px; background: var(--surface); }
+.at-deckrow2 { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+.at-deckmain { flex:1 1 180px; min-width:0; }
+.at-decktitle { font-size:17px; font-weight:800; overflow-wrap:anywhere; }
+.at-deckmeta { font-size:12px; color: var(--muted); margin-top:3px; }
+.at-deckacts { display:flex; gap:6px; flex:0 0 auto; margin-left:auto; }
+.at-deckacts .at-icon { flex:0 0 auto; width:auto; min-width:46px; padding:11px 12px;
+  font-size:16px; }
+.at-deckacts .at-btn { flex:0 0 auto; }
+/* Progress summary: the figures carry the screen, so they are read at size. */
+.at-stat b { font-size:30px; line-height:1.1; }
+.at-stat span { font-size:13px; }
+/* A deck row: name, practice, score, then the chevron hard right. */
+.at-tagsecbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:8px; min-width:0; }
+.at-tagsecbar .nm { font-size:16px; font-weight:800; flex:1 1 auto; min-width:0;
+  overflow-wrap:anywhere; }
+.at-tagsecbar .ct { font-size:12px; color: var(--muted); margin-left:auto;
+  white-space:nowrap; }
+.at-chev { width:36px; height:34px; flex:0 0 auto; }
+.at-keyfield { letter-spacing:.02em; }
+/* Whether a deck is reaching anyone, at a glance. */
+.at-reach { display:flex; align-items:center; gap:8px; margin-top:10px;
+  padding-top:10px; border-top:1px solid var(--line); flex-wrap:wrap; }
+.at-reachdot { width:9px; height:9px; border-radius:999px; flex:0 0 auto;
+  background: var(--muted); }
+.at-reachdot.live { background: var(--jade); }
+.at-reachtext { font-size:12px; color: var(--muted); min-width:0; }
+.at-reachtext b { color: var(--ink); font-weight:700; }
+/* A card shown rather than edited: label on the left, value on the right,
+   stacking on a narrow screen. */
+.at-readrow { display:flex; gap:12px; padding:6px 0; align-items:baseline; flex-wrap:wrap; }
+.at-readlabel { flex:0 0 108px; font-size:11px; letter-spacing:.04em;
+  text-transform:uppercase; color: var(--muted); font-weight:700; }
+.at-readvalue { flex:1 1 160px; min-width:0; overflow-wrap:anywhere; }
+.at-readvalue .ar { font-size:22px; line-height:1.35; }
+/* The card itself, read only: the word, then its meaning under it. */
+.at-readword { font-size:34px; line-height:1.3; margin:4px 0 2px; font-weight:600;
+  overflow-wrap:anywhere; }
+.at-readmeaning { font-family: var(--ui); font-size:19px; font-weight:700;
+  margin:0 0 2px; overflow-wrap:anywhere; }
+.at-readlat { font-family: var(--ui); font-size:14px; color: var(--muted); margin:0; }
+@media (max-width: 420px) {
+  .at-readlabel { flex-basis:100%; }}
+/* Someone's own name in a roster. */
+.at-me { color: var(--muted); font-weight:600; }
+/* Cards as a grid: two across on a phone, more when there is room. */
+.at-cardgrid { display:grid; gap:10px; margin-top:4px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  align-items:stretch; }
+.at-cardgrid > * { display:flex; }
+.at-cardgrid > * > .at-minicard { flex:1; }
+/* The word and its meaning get fixed room, so tiles in a row line up however
+   long or short their contents are. */
+.at-minicard .ar { min-height:56px; display:flex; align-items:center; }
+.at-minien { min-height:34px; font-size:13px; font-weight:600; word-break:break-word; }
+.at-minimeta { min-height:30px; font-size:11px; color: var(--muted); line-height:1.4; word-break:break-word; }
+/* The meaning sits under the word it belongs to; the decks it lives in are the
+   next most useful fact, so they are not buried in grey. */
+.at-minilat { font-size:12px; color: var(--muted); }
+.at-minidecks { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.at-minidecks .at-flag { font-size:11px; }
+.at-minicard.picked { border-color: var(--accent); }
+.at-minicard .ar { font-size:22px; line-height:1.3; word-break:break-word; }
+.at-miniacts { display:flex; gap:6px; margin-top:auto; padding-top:8px; }
+/* The tick that puts something into a bulk selection. */
+.at-ckbox.pick { position:absolute; top:8px; right:8px; width:22px; height:22px;
+  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+  color: var(--ink); font-size:13px; line-height:1; cursor:pointer; padding:0;
+  display:flex; align-items:center; justify-content:center; }
+.at-ckbox.pick.on { border-color: var(--accent); }
+.at-item .at-ckbox.pick { position:static; margin-right:10px; flex:none; }
+.at-item.picked { border-color: var(--accent); }
+.at-ck { display:flex; align-items:center; gap:11px; width:100%; cursor:pointer; text-align:left;
+  background: var(--raised); border:2px solid var(--line); border-radius: var(--r-sm);
+  padding:11px 12px; color: var(--text); }
+.at-ck.on { border-color: var(--jade); background: var(--tag-bg); }
+.at-ckbox { flex-shrink:0; width:24px; height:24px; border-radius:7px; border:2px solid var(--line);
+  display:inline-flex; align-items:center; justify-content:center; background: var(--well);
+  font-size:14px; font-weight:800; color: var(--onjade); }
+.at-ck.on .at-ckbox { background: var(--jade); border-color: var(--jade); }
+.at-cktext { display:flex; flex-direction:column; min-width:0; }
+.at-cktext b { font-size:14px; font-weight:700; }
+.at-cktext i { font-style:normal; font-size:12px; color: var(--muted); margin-top:2px; }
+.at-corner { position:fixed; top:12px; right:12px; z-index:200; }
+/* A card you can open lifts a little and takes a darker edge under the
+   pointer. Pointer devices only: on a touchscreen :hover sticks to the last
+   thing tapped. */
+@media (hover: hover) {
+  .at-deckcard[data-open]:hover, .at-minicard:hover, .at-tickrow:hover,
+  .at-person[data-open]:hover {
+    border-color: var(--ink);
+    transform: translateY(-1px);
+  }
+}
+.at-deckcard, .at-minicard, .at-tickrow {
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+.at-deckcard[data-open], .at-minicard { cursor: pointer; }
+/* Sat immediately left of the account button, same height, same rhythm. */
+.at-spaces { position:fixed; top:12px; right:60px; z-index:200; display:flex;
+  align-items:center; gap:2px; height:40px; padding:0 3px; border-radius:999px;
+  background: var(--nav-bg); border:2px solid var(--line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.at-spacebtn { width:34px; height:32px; border:0; border-radius:999px; cursor:pointer;
+  background:none; color: var(--muted); display:inline-flex; align-items:center;
+  justify-content:center; }
+.at-spacebtn.on { background: var(--raised); color: var(--ink); }
+.at-cornerbtn { position:relative; width:40px; height:40px; border-radius:999px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  background: var(--nav-bg); border:2px solid var(--line); color: var(--text);
+  font-family: var(--ui); font-size:13px; font-weight:800; backdrop-filter:blur(12px);
+  box-shadow: var(--nav-shadow); }
+.at-cdot { width:9px; height:9px; border-radius:50%; background: var(--jade); flex-shrink:0; }
+.at-cdot.syncing { background: var(--brass); }
+.at-cdot.error, .at-cdot.off { background: var(--rose); }
+.at-cornerbtn .at-cdot { position:absolute; top:-2px; right:-2px; width:12px; height:12px;
+  border:2px solid var(--bg); }
+.at-cmenu { position:absolute; top:50px; right:0; min-width:250px; background: var(--surface);
+  border:2px solid var(--line); border-radius:18px; padding:8px;
+  box-shadow:0 14px 40px rgba(0,0,0,.45); }
+.at-cwho { display:flex; align-items:center; gap:11px; padding:10px 10px 12px; }
+.at-cavatar { width:38px; height:38px; border-radius:999px; flex-shrink:0; display:inline-flex;
+  align-items:center; justify-content:center; background: var(--brass); color: var(--onbrass);
+  font-family: var(--ui); font-size:14px; font-weight:800; }
+.at-cwhotext { display:flex; flex-direction:column; min-width:0; }
+.at-cwhotext b { font-size:15px; font-weight:800; }
+.at-cwhotext i { font-style:normal; font-family: ui-monospace, Menlo, monospace;
+  font-size:11px; color: var(--muted); margin-top:2px; }
+.at-cline { display:flex; align-items:center; gap:10px; width:100%; background:none;
+  border:0; cursor:pointer; border-radius:12px; padding:11px 10px; color: var(--text);
+  text-align:left; font-family: var(--ui); font-size:14px; font-weight:700; }
+.at-cline:hover { background: var(--raised); }
+.at-cline:hover, .at-cline.on .at-clinetext { color: var(--ink); font-weight:800; }
+.at-cico { width:20px; display:inline-flex; align-items:center; justify-content:center; color: var(--brass); flex:0 0 auto; text-align:center; font-size:15px; }
+.at-clinetext { flex:1; min-width:0; font-size:13px; font-weight:600; color: var(--text-soft); }
+.at-cact { font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  color: var(--brass); white-space:nowrap; }
+.at-crule { height:2px; background: var(--line); margin:8px 4px; border-radius:2px; }
+.at-screen { position:fixed; inset:0; z-index:140; background: var(--bg);
+  display:flex; flex-direction:column; }
+.at-screenhead { display:flex; align-items:center; gap:12px; padding:14px 16px;
+  padding-top:calc(14px + 46px); border-bottom:2px solid var(--line); background: var(--surface); }
+/* A screen that sits above the chrome has no chrome to clear, so the room
+   reserved for it would just be a band of empty space. */
+.at-screen.over .at-screenhead { padding-top:14px; }
+.at-screenhead h2 { margin:0; font-size:19px; font-weight:800; }
+.at-screenaction { margin-left:auto; display:inline-flex; align-items:center; flex:0 0 auto; }
+.at-back { width:38px; height:38px; flex-shrink:0; border-radius:999px; cursor:pointer;
+  background:none; border:2px solid var(--line); color: var(--text); font-size:22px; line-height:1; }
+.at-screenbody { flex:1; overflow-y:auto; padding:18px 16px 40px; }
+.at-screeninner { max-width:640px; margin:0 auto; }
+.at-dangertoggle { display:flex; align-items:center; justify-content:space-between; width:100%;
+  gap:12px; background:none; border:0; padding:0; cursor:pointer; color:inherit;
+  font:inherit; text-align:left; }
+.at-dangertoggle .at-chevron { font-size:18px; line-height:1; color: var(--text-soft); }
+.at-modalback { position:fixed; inset:0; z-index:400; background: rgba(0,0,0,.55);
+  display:flex; align-items:center; justify-content:center; padding:20px; }
+.at-modal { width:100%; max-width:440px; background: var(--surface); border-radius: var(--r-lg);
+  border:2px solid var(--line); padding:22px; max-height:88vh; overflow-y:auto;
+  box-shadow: 0 18px 50px rgba(0,0,0,.4); }
+.at-modal.danger { border-color: var(--rose); }
+.at-modalbody { font-size:14.5px; line-height:1.55; color: var(--text-soft); }
+.at-modalbody strong { color: var(--text); }
+/* A space with no heading of its own: the selector in the corner is the
+   title and the way out, so the body just has to clear it. */
+.at-screen.bare .at-screenbody { padding-top: calc(18px + 52px); }
+/* Present to the browser, invisible to the eye: password managers need a
+   username field to attach an entry to. */
+.at-hiddenuser { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
+.at-showkey { position:absolute; right:10px; top:50%; transform:translateY(-50%);
+  background:none; border:0; cursor:pointer; padding:6px 8px; font:inherit;
+  font-size:13px; font-weight:700; color: var(--text-soft); }
+.at-showkey:hover { color: var(--text); }
+.at-guide { border:2px solid var(--line); border-radius: var(--r); margin-bottom:10px;
+  background: var(--surface); overflow:hidden; }
+.at-guide.on { border-color: var(--brass); }
+.at-guidehead { display:flex; align-items:center; gap:10px; width:100%; cursor:pointer;
+  background:none; border:0; padding:15px 16px; color: var(--text); text-align:left; }
+.at-guidehead .nm { flex:1; min-width:0; font-family: var(--ui); font-size:16px; font-weight:800; }
+.at-guidehead .at-chevron { font-size:20px; color: var(--brass); }
+.at-guidebody { padding:0 16px 16px; }
+.at-guidebody p { font-size:15px; font-weight:500; line-height:1.65; color: var(--text-soft);
+  margin:0 0 12px; }
+.at-guidebody p:last-child { margin-bottom:0; }
+.at-modelist { display:flex; flex-direction:column; gap:12px; }
+.at-modecard { text-align:left; cursor:pointer; background: var(--surface);
+  border:2px solid var(--line); border-radius: var(--r-lg); padding:18px; color: var(--text); }
+.at-modecard.on { border-color: var(--jade); background: var(--tag-bg); }
+.at-modecard b { display:block; font-size:19px; font-weight:800; }
+.at-modecard span { display:block; font-size:14px; font-weight:500; color: var(--muted);
+  margin-top:6px; line-height:1.55; }
+.at-sheetnote { font-family: var(--mono); font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; color: var(--jade); }
+.at-disclosure { display:flex; align-items:center; justify-content:space-between;
+  width:100%; background:none; border:0; padding:0; cursor:pointer; color: var(--text); }
+.at-disclosure:hover .at-chevron { color: var(--text); }
+.at-chevron { color: var(--muted); font-size:12px; }
+.at-advgroup { margin-top:18px; padding-top:16px; border-top:1px solid var(--line); }
+.at-advgroup:first-of-type { margin-top:16px; }
+.at-sub.at-danger { border-color: var(--rose-soft); }
+.at-cliplist { display:flex; flex-direction:column; gap:6px; }
+.at-clip { display:flex; align-items:center; gap:8px; border:1px solid var(--line);
+  border-radius:5px; padding:6px 8px; background: var(--well); }
+.at-clipplay { width:28px; height:28px; flex-shrink:0; border-radius:999px; cursor:pointer;
+  background: var(--raised); border:1px solid var(--line); color: var(--brass); font-size:11px; }
+.at-clipplay:hover { background: var(--raised-hover); }
+.at-clipname { flex:1; min-width:0; background:none; border:0; color: var(--text);
+  font-family: var(--ui); font-size:13px; padding:2px 0; }
+.at-clipname:focus { outline:none; border-bottom:1px solid var(--brass); }
+.at-clipmeta { font-family: var(--mono); font-size:9px; color: var(--muted); white-space:nowrap; }
+.at-playbig { display:inline-flex; align-items:center; justify-content:center; gap:10px;
+  min-width:150px; padding:18px 26px; border-radius:999px; cursor:pointer;
+  background: var(--raised); border:1px solid var(--line); color: var(--text);
+  font-family: var(--ui); font-size:15px; font-weight:600; }
+.at-playbig:hover { background: var(--raised-hover); }
+.at-playbig .dot { color: var(--brass); font-size:20px; }
+.at-voices { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
+.at-voice { font-family: var(--ui); font-size:14px; font-weight:800; cursor:pointer;
+  background: var(--raised); border:2px solid var(--line); border-radius:999px;
+  width:34px; height:34px; color: var(--muted); }
+.at-voice.on { border-color: var(--brass); color: var(--brass); }
+.at-voice:hover { color: var(--text); border-color: var(--muted); }
+.at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px 16px 8px;
+  margin-bottom:14px; background: var(--surface); }
+.at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  margin:0 0 12px; }
+.at-grouphead span:first-child { font-family: var(--mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color: var(--text); }
+.at-grouphead .req { font-family: var(--mono); font-size:9px; letter-spacing:.1em;
+  text-transform:uppercase; color: var(--brass); }
+.at-grouphead .opt { font-family: var(--mono); font-size:9px; letter-spacing:.1em;
+  text-transform:uppercase; color: var(--faint); }
+.at-inline { display:flex; gap:12px; }
+.at-inline > * { flex:1; min-width:0; }
+@media (max-width:460px){ .at-inline { flex-direction:column; gap:0; }}
+.at-status { font-family: var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  color: var(--jade); border-top:1px solid var(--line); padding:10px 0 4px; margin-top:4px; }
+.at-status.warn { color: var(--rose); }
+.at-emptyforms { border:1px dashed var(--line); border-radius:6px; padding:14px;
+  text-align:center; margin-bottom:10px; }
+.at-subedit { border:1px solid var(--line); border-radius:6px; padding:12px; margin-top:10px;
+  background: var(--well); }
+.at-subedithead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.at-reviewgroup { margin-bottom:26px; }
+.at-reviewbar { display:flex; align-items:center; justify-content:space-between;
+  gap:10px; margin-bottom:10px; }
+.at-reviewacts { display:flex; gap:8px; }
+.at-reviewcard { border:1px solid var(--line); border-radius:6px; padding:16px;
+  margin-bottom:12px; background: var(--surface); text-align:center; }
+.at-reviewhead { display:flex; align-items:center; justify-content:space-between;
+  gap:10px; margin-bottom:8px; text-align:left; }
+.at-previewrow.weak { background: rgba(223,95,114,.07); }
+.at-bulkbar { position: fixed; left:50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom)); z-index:60;
+  background: var(--surface); border:1px solid var(--line); border-radius:10px;
+  padding:12px 14px; box-shadow: var(--nav-shadow);
+  width: calc(100% - 24px); max-width: 660px; }
+.at-bulkhead { display:flex; align-items:center; justify-content:space-between;
+  gap:10px; margin-bottom:10px; font-size:13px; }
+.at-undo { position: fixed; left:50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom)); z-index:60;
+  background: var(--surface); border:1px solid var(--line); border-radius:8px;
+  padding:10px 14px; display:flex; align-items:center; gap:14px;
+  box-shadow: var(--nav-shadow); max-width: calc(100% - 24px); font-size:13px; }
+.at-undo .what { color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
+.at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
+.at-hint em { color: var(--text-soft); font-style:normal; }
+.at-card { background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg);
+  padding:30px 22px; text-align:center; box-shadow: var(--shadow); }
+.at-sub { border:2px solid var(--line); border-radius: var(--r-lg); padding:20px; background: var(--surface);
+  margin-bottom:18px; box-shadow: var(--shadow); }
+.at-arabic { font-family: var(--sfont, var(--ar)); direction: var(--sdir, rtl); unicode-bidi: isolate; line-height:1.75; font-weight:600; margin:8px 0; word-break: break-word; }
+.at-arabic.word { font-size:54px; }
+.at-arabic.phrase { font-size:40px; }
+.at-arabic.sentence { font-size:30px; line-height:1.85; }
+.at-latin { font-family: var(--ui); font-size:19px; font-weight:600; color: var(--muted); margin:8px 0; word-break:break-word; }
+.at-en { font-family: var(--ui); font-size:25px; font-weight:800; letter-spacing:-.01em; margin:8px 0; word-break:break-word; }
+.at-note { font-size:14px; font-weight:500; color: var(--muted); margin:12px 0 0; }
+/* Touch browsers leave :hover stuck on the last thing tapped, which left a
+   just-pressed toggle looking washed out until you tapped elsewhere. Hover
+   styling is for devices that actually hover. */
+@media (hover: hover) {
+  .at-btn:hover:not(:disabled) { background: var(--raised-hover); }
+    .at-icon:hover { border-color: var(--accent); }
+  .at-icon.danger:hover { border-color: var(--rose); color: var(--rose); }
+}
+/* Flat buttons: the press is a small nudge rather than a block that sinks. */
+.at-btn:active:not(:disabled) { transform: translateY(1px); }
+.at-btn:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+.at-btn.primary { background: var(--jade); border-color: var(--jade); color: var(--onjade); }
+.at-btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
+.at-btn.danger { background: var(--rose); border-color: var(--rose); color:#fff; }
+.at-btn.ghost { background:transparent; border-color: var(--line); }
+.at-btn.wide { width:100%; }
+.at-btn.sm { padding:9px 14px; font-size:13px; min-height:0; border-radius: var(--r-sm);
+  letter-spacing:.02em; }
+/* Fading a filled button took its label down with it, leaving jade-on-jade
+   that was barely readable. Disabled now drops to the plain surface and
+   keeps a legible label. */
+.at-btn:disabled { cursor:default; box-shadow:none; opacity:1;
+  background: var(--raised); border-color: var(--line); color: var(--faint);
+  filter:none; }
+.at-btn.ghost:disabled { background:transparent; }
+.at-row { display:flex; gap:12px; margin-top:20px; }
+.at-row > * { flex:1; }
+.at-input { font-family: var(--ui); font-size:18px; font-weight:600; width:100%;
+  background: var(--well); color: var(--text); border:2px solid var(--line);
+  border-radius: var(--r); padding:15px 16px; }
+.at-input::placeholder { color: var(--faint); font-weight:500; }
+.at-input:focus { outline:none; border-color: var(--brass); }
+.at-input.ok { border-color: var(--jade); background: var(--tag-bg); }
+.at-input.no { border-color: var(--rose); }
+.at-input.ar { font-family: var(--sfont, var(--ar)); font-size:40px; font-weight:600; direction: var(--sdir, rtl);
+  text-align:right; line-height:1.75; padding:14px 16px; }
+textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:vertical; min-height:140px; }
+.at-kb { margin-top:12px; }
+.at-kbtoggle { margin-top:10px; }
+.at-kbrow { display:flex; gap:4px; justify-content:center; margin-bottom:4px; flex-wrap:wrap; }
+.at-key:active { transform: translateY(1px); }
+.at-key:hover { background: var(--raised-hover); }
+.at-key.util { font-family: var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; min-width:52px; }
+.at-key.mark { color: var(--brass); }
+.at-progress { height:16px; background: var(--well); border:2px solid var(--line);
+  border-radius:999px; overflow:hidden; margin-bottom:20px; }
+.at-progress i { display:block; height:100%; background: var(--brass); border-radius:999px;
+  transition:width 320ms cubic-bezier(.2,.9,.25,1); }
+.at-formtag { color: var(--jade); margin-inline-end:8px; }
+.at-list { border:2px solid var(--line); border-radius: var(--r-lg); overflow:hidden; box-shadow: var(--shadow); }
+.at-item { display:flex; align-items:center; gap:10px; padding:8px 10px;
+  border-bottom:2px solid var(--line); background: var(--surface); }
+.at-flag.warn { color: var(--rose); border-color: var(--rose-soft); }
+.at-tag.sm { font-size:10px; padding:1px 7px; border-width:1px; }
+.at-item:last-child { border-bottom:0; }
+.at-item .grow { flex:1; min-width:0; }
+.at-item .ar { font-family: var(--sfont, var(--ar)); font-size:21px; font-weight:700; direction: var(--sdir, rtl); unicode-bidi:isolate; line-height:1.45; }
+.at-item .lat { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
+.at-item .en { font-size:14px; font-weight:700; color: var(--text); }
+.at-flags { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
+.at-flag { cursor:default; font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; border:2px solid var(--line); border-radius:999px; padding:2px 7px; color: var(--muted); white-space:nowrap; }
+button.at-flag { cursor:pointer; }
+button.at-flag:hover { color: var(--text); border-color: var(--muted); }
+.at-flag.forms { color: var(--jade); border-color: var(--jade-soft); }
+.at-flag.audio { color: var(--brass); border-color: var(--tag-line); }
+.at-flag.audio.big { font-size:13px; padding:4px 10px; gap:5px;
+  display:inline-flex; align-items:center; background: var(--tag-bg); }
+.at-flag.audio.big svg { width:15px; height:15px; }
+.at-flag.locked { border-color: var(--tag-line); }
+.at-warn { color: var(--rose); }
+.at-x { background:none; border:0; color: var(--muted); cursor:pointer; font-size:19px; line-height:1; padding:4px 6px; }
+.at-x:hover { color: var(--rose); }
+.at-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:5px; }
+.at-tag { font-family: var(--ui); font-size:13px; font-weight:700; background: var(--tag-bg);
+  border:2px solid var(--tag-line); color: var(--brass); border-radius:999px; padding:5px 12px;
+  display:inline-flex; align-items:center; gap:6px; }
+.at-tag button { background:none; border:0; color:inherit; cursor:pointer; font-size:12px; line-height:1; padding:0; opacity:.6; }
+.at-tag button:hover { opacity:1; }
+.at-tag.pick { cursor:pointer; background:transparent; border-color: var(--line); color: var(--muted); }
+.at-tag.pick:hover { border-color: var(--muted); color: var(--text); }
+.at-tag.pick.on { background: var(--tag-bg); border-color: var(--tag-line); color: var(--brass); }
+.at-tag .n { opacity:.6; }
+.at-field { margin-bottom:12px; }
+.at-label { display:block; font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color: var(--muted); margin-bottom:8px; }
+.at-optional { color: var(--faint); }
+.at-chips { display:flex; gap:6px; flex-wrap:wrap; }
+.at-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:18px; }
+.at-stat { border:2px solid var(--line); border-radius: var(--r); padding:16px 12px; background: var(--surface); box-shadow: var(--shadow); }
+.at-stat b { display:block; font-family: var(--ui); font-size:30px; font-weight:800; letter-spacing:-.02em; }
+.at-stat span { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
+/* The compact row used on the Progress screen. */
+.at-stats.tight { grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:16px; }
+.at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
+.at-stats.tight .at-stat b { font-size:19px; }
+.at-stats.tight .at-stat span { font-size:8px; letter-spacing:.04em; }
+.at-tagsec { margin-bottom:20px; }
+.at-tagsecbar > .at-btn { flex-shrink:0; }
+.at-modepick { border:2px solid var(--line); border-radius: var(--r); padding:12px;
+  margin:10px 0; background: var(--surface); }
+.at-modepick .at-miniq { font-family: var(--ui); font-size:13px; font-weight:700;
+  color: var(--muted); margin:0 0 10px; }
+.at-modepickopt { display:block; width:100%; text-align:left; cursor:pointer; margin-bottom:8px;
+  background: var(--raised); border:2px solid var(--line); border-radius: var(--r-sm);
+  padding:11px 12px; color: var(--text); }
+.at-modepickopt:last-child { margin-bottom:0; }
+.at-modepickopt:hover { border-color: var(--jade); background: var(--tag-bg); }
+.at-modepickopt b { display:block; font-size:15px; font-weight:800; }
+.at-modepickopt span { display:block; font-size:12px; font-weight:500; color: var(--muted);
+  margin-top:3px; line-height:1.45; }
+.at-pbar { height:6px; background: var(--well); border:1px solid var(--line);
+  border-radius:999px; overflow:hidden; }
+.at-pbar i { display:block; height:100%; background: var(--brass); border-radius:999px;
+  transition:width 300ms; }
+.at-pbar.lg { height:10px; border-width:2px; }
+.at-pbar i.full { background: var(--jade); }
+.at-pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:8px; margin-top:12px; min-width:0; }
+.at-pcard { min-width:0; border:2px solid var(--line); border-radius: var(--r-sm); padding:10px; background: var(--surface); }
+.at-pcard.done { border-color: var(--jade); background: var(--tag-bg); }
+.at-pcard.done .at-pbar i { background: var(--jade); }
+.at-pcard.idle { opacity:.55; }
+.at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
+.at-pcardtop .ar { font-family: var(--sfont, var(--ar)); font-size:20px; font-weight:700; direction: var(--sdir, rtl);
+  unicode-bidi:isolate; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-pcardtop .en { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-pcardfoot { display:flex; justify-content:space-between; gap:6px; margin-top:6px;
+  font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.04em;
+  text-transform:uppercase; color: var(--muted); }
+.at-pcard.done .at-pcardfoot { color: var(--jade); }
+.at-empty { text-align:center; padding:36px 20px; }
+/* Visually hidden, but still a real field so password managers see it. */
+
+.at-syntax { border:1px solid var(--line); border-left:2px solid var(--brass); border-radius:4px;
+  padding:14px 16px; margin-bottom:12px; background: var(--well); }
+.at-syntax p { font-size:12px; color: var(--muted); line-height:1.6; margin:0 0 6px; }
+.at-syntax p:last-child { margin-bottom:0; }
+.at-syntax code { font-family: var(--mono); font-size:11px; color: var(--brass);
+  background: var(--tag-bg); border-radius:3px; padding:1px 4px; }
+.at-syntax pre { font-family: var(--mono); font-size:12px; color: var(--text); line-height:1.7;
+  background: var(--well-deep); border-radius:4px; padding:9px 11px; margin:0 0 10px;
+  white-space:pre-wrap; word-break:break-word; }
+.at-preview { border:1px solid var(--line); border-radius:5px; margin-top:10px; overflow:hidden; }
+.at-previewhead { display:flex; justify-content:space-between; font-family: var(--mono); font-size:10px;
+  letter-spacing:.12em; text-transform:uppercase; color: var(--muted);
+  padding:8px 11px; border-bottom:1px solid var(--line); background: var(--well); }
+.at-previewrow { display:flex; gap:10px; padding:8px 11px; border-bottom:1px solid var(--line); align-items:baseline; }
+.at-previewrow:last-child { border-bottom:0; }
+.at-previewrow .cell { flex:1; min-width:0; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-previewrow .ar { font-family: var(--sfont, var(--ar)); font-size:17px; direction: var(--sdir, rtl); unicode-bidi:isolate; }
+.at-previewrow .lat { font-family: var(--ui); font-weight:600; color: var(--muted); }
+.at-previewrow .tag { font-family: var(--mono); font-size:10px; color: var(--brass); }
+.at-toast { font-family: var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color: var(--rose); margin-top:10px; text-align:center; }
+.at-toast.notice { color: var(--brass); }
+.at-item.locked { background: var(--well); }
+/* ---- phone keyboard open: strip everything that isn't the exercise ---- */
+.at.kb-open { padding: 6px 12px 8px; }
+.at.kb-open .at.kb-open .at.kb-open .at-progress,
+.at.kb-open .at.kb-open .at-note,
+.at.kb-open .at.kb-open .at.kb-open .at-kb,
+.at.kb-open .at-kbtoggle,
+.at.kb-open .at-hintbtn { display: none; }
+.at.kb-open .at-card { padding: 12px 12px 14px; }
+.at.kb-open .at-eyebrow { margin-bottom: 4px; }
+.at.kb-open .at-arabic { margin: 2px 0; }
+.at.kb-open .at-arabic.word { font-size: 34px; line-height:1.4; }
+.at.kb-open .at-arabic.phrase { font-size: 27px; line-height:1.4; }
+.at.kb-open .at-arabic.sentence { font-size: 20px; line-height:1.5; }
+.at.kb-open .at-en { font-size: 20px; margin: 2px 0; }
+.at.kb-open .at-latin { font-size: 16px; margin: 2px 0; }
+.at.kb-open .at-input { padding: 11px 14px; font-size: 17px; }
+.at.kb-open .at-input.ar { font-size: 32px; }
+.at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
+.at.kb-open .at-progress { height: 10px; }
+.at.kb-open .at-shout { font-size: 24px; }
+.at.kb-open .at-continue { margin-top: 14px; }
+.at.kb-open .at-row { margin-top: 10px; }
+.at.kb-open .at-hint { margin-top: 4px; }
+@media (max-width:480px){
+  .at-arabic.word{font-size:44px;} .at-arabic.phrase{font-size:33px;} .at-arabic.sentence{font-size:25px;} .at-key{min-width:31px; font-size:19px;}
+  .at-btn{font-size:15px; padding:13px 16px;}
+  .at-stats{ grid-template-columns:repeat(2,1fr); }
+  .at-stats.tight{ grid-template-columns:repeat(5,1fr); }
+  .at-pgrid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .at-pcard { padding:8px 7px; }
+  .at-pcardtop { min-height:38px; }
+  .at-pcardtop .ar { font-size:17px; }
+  .at-pcardtop .en { font-size:11px; }
+  .at-pcardfoot { font-size:9px; }
+  .at-modepickopt span { font-size:11px; }
+  .at-previewrow { flex-wrap:wrap; gap:4px 10px; } .at-previewrow .cell { flex:1 1 45%; }}
+@media (max-width:360px){
+  .at-pgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }}
+@media (prefers-reduced-motion: reduce){ .at * { transition:none !important; }}
+/* The script's direction and typeface, set on the root from the language
+   pack. Every rule that renders the target language reads these, so a
+   left-to-right language is never laid out right-to-left. */
+
+/* Rules for classes the markup uses. Previously missing, so these elements
+   were rendering unstyled. */
+.at-readout { display:block; }
+.at-pairs { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+.at-advanced { margin-top:18px; padding-top:14px; border-top:2px solid var(--line); }
+/* Two clearly separate parts of the courses page. */
+.at-section { margin-bottom:26px; }
+.at-section:first-of-type { margin-top:20px; }
+.at-sectionhead { font-family: var(--ui); font-size:19px; font-weight:800;
+  margin:0 0 10px; color: var(--ink); letter-spacing:-.01em; }
+.at-joinbox { border:2px solid var(--line); border-radius: var(--r-lg);
+  padding:16px; background: var(--surface); }
+.at-joinbox .at-toolbar { margin-bottom:0; }
+/* ------------------------------------------------------------------
+   Primitives added with the component set
+   ------------------------------------------------------------------ */
+
+/* --- Section: an eyebrow and an optional lede, the standard opener --- */
+.at-section > .at-sectiontop { display:flex; align-items:baseline; justify-content:space-between; gap: var(--s3); }
+.at-section > .at-sectiontop > .at-eyebrow { margin:0; }
+.at-section .at-sectioncount { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-section .at-sectionlede { margin: var(--s2) 0 0; }
+.at-section .at-sectionbody { margin-top: var(--s3); }
+/* --- Notice: every error, warning, success and busy line --- */
+/* Lede: the intro paragraph under a title. Was ob-lede in onboarding and
+   at-hint everywhere else, so the two drifted apart. */
+.at-lede { font-family: var(--ui); font-size: var(--fs-md); line-height:1.55; color: var(--text-soft); margin:0 0 var(--s4); }
+/* Meta: small print that sits beside content rather than under a control. */
+.at-meta { font-family: var(--ui); font-size: var(--fs-xs); color: var(--muted); }
+.ob-lede { font-family: var(--ui); font-size: var(--fs-md); line-height:1.55; color: var(--text-soft); margin:0 0 var(--s4); }
+.at-notice { font-family: var(--ui); font-size: var(--fs-sm); line-height:1.5; margin:0; padding: var(--s3) var(--s4); border-radius: var(--r-sm); border:2px solid var(--line); background: var(--well); color: var(--text-soft); display:flex; gap: var(--s2); align-items:flex-start; }
+.at-notice.error { border-color: var(--rose-shade); background: var(--rose-soft); color: var(--text); }
+.at-notice.warn { border-color: var(--brass-shade); color: var(--text); }
+.at-notice.ok { border-color: var(--jade-shade); background: var(--jade-soft); color: var(--text); }
+.at-notice.busy { border-style:dashed; }
+.at-notice.plain { border:0; background:none; padding:0; }
+/* --- Empty: nothing here yet --- */
+.at-empty2 { text-align:center; padding: var(--s6) var(--s4); border:2px dashed var(--line); border-radius: var(--r); background: var(--well); }
+.at-empty2 .at-eyebrow { margin:0 0 var(--s2); }
+.at-empty2 .at-hint { margin:0 auto; max-width: 46ch; }
+.at-empty2 .at-row { justify-content:center; margin-top: var(--s4); }
+/* --- Segmented: pick one of a few --- */
+.at-segmented { display:flex; flex-wrap:wrap; gap: var(--s2); }
+/* --- Stat: one big number --- */
+.at-stat2 { display:block; }
+.at-stat2 .at-statvalue { font-family: var(--serif); font-size: var(--fs-stat); font-weight:600; line-height:1.05; margin:0; color: var(--text); }
+.at-stat2 .at-statlabel { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.05em; text-transform:uppercase; color: var(--muted); margin: var(--s2) 0 0; }
+.at-stat2.big .at-statvalue { font-size: 40px; }
+/* --- Screen footer: the action bar a sheet keeps at the bottom --- */
+.at-screenfoot { position:sticky; bottom:0; display:flex; gap: var(--s3); padding: var(--s4) 0 0; margin-top: var(--s5); background: linear-gradient(to top, var(--surface) 60%, transparent); }
+.at-screenfoot > * { flex:1; }
+/* --- Tabs / space chrome: one owner for the layers --- */
+.at-brand { z-index: var(--z-chrome); }
+.at-corner, .at-mode { z-index: var(--z-nav); }
+.at-spaces { z-index: var(--z-nav); }
+.at-modalback { z-index: var(--z-modal); }
+/* Everything the chrome hides while a screen is open, in one rule
+   rather than one per overlay. */
+/* Everything that floats above the app hides behind a screen, in one rule.
+   It used to be three rules in three places, so a fourth overlay was always
+   going to be forgotten. */
+body.at-screening .at-brand,
+body.at-screening .at-corner,
+body.at-screening .at-mode,
+body.at-screening .at-spaces { display:none; }
+/* ---- edge margins ------------------------------------------------
+   at-hint, at-field and the paragraphs carry a margin so they space
+   themselves in a run. At the start or end of a container that margin is
+   wrong, which is why forty-two call sites carried marginTop:0 and
+   thirteen carried marginBottom:0 to undo it. The stylesheet knows where
+   the edges are; the call sites did not need to. */
+.at-sub > :first-child,
+.at-section > :first-child,
+.at-sectionbody > :first-child,
+.at-card > :first-child,
+.at-modalbody > :first-child,
+.at-screeninner > :first-child,
+.at-empty2 > :first-child { margin-top: 0; }
+.at-sub > :last-child,
+.at-section > :last-child,
+.at-sectionbody > :last-child,
+.at-card > :last-child,
+.at-modalbody > :last-child,
+.at-empty2 > :last-child,
+.at-field > :last-child { margin-bottom: 0; }
+/* A field is the last thing in a group often enough that this is the rule
+   rather than the exception. */
+.at-sub > .at-field:last-of-type,
+.at-section > .at-field:last-of-type { margin-bottom: 0; }
+/* ---- spacing utilities -------------------------------------------
+   The last of the inline margins. The numbers written at call sites were
+   4, 8, 10, 12, 14, 16, 18, 20 and 22 — nine values for what is really
+   five steps, which is what the scale is for. */
+.at-mt1 { margin-top: var(--s1); }
+.at-mt2 { margin-top: var(--s2); }
+.at-mt3 { margin-top: var(--s3); }
+.at-mt4 { margin-top: var(--s4); }
+.at-mt5 { margin-top: var(--s5); }
+.at-mt6 { margin-top: var(--s6); }
+.at-mb3 { margin-bottom: var(--s3); }
+.at-hidden { display: none; }
+.at-mb2 { margin-bottom: var(--s2); }
