@@ -1035,7 +1035,7 @@ body.at-screening .at-spaces { display:none; }
 .at-galhead { display:flex; align-items:baseline; gap: var(--s3); margin-bottom: var(--s2); }
 .at-galname { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: var(--fs-sm); font-weight:700; color: var(--text); }
-.at-galuses { font-family: var(--ui); font-size: var(--fs-xs); color: var(--muted); }
+.at-galtotal { font-family: var(--ui); font-size: var(--fs-xs); color: var(--muted); }
 .at-galdemo { display:flex; flex-wrap:wrap; gap: var(--s3); align-items:flex-start;
   margin-top: var(--s3); }
 .at-galdemo:empty { display:none; }
@@ -1059,3 +1059,25 @@ body.at-screening .at-spaces { display:none; }
 .at-galfake { border:1px dashed var(--line); border-radius:10px; padding: var(--s3); width:100%; }
 .at-galfakehead { display:flex; align-items:center; justify-content:space-between;
   gap: var(--s3); margin-bottom: var(--s3); color: var(--muted); font-size: var(--fs-sm); }
+
+/* Where a component is used: folded away, because the answer for Button is
+   ninety lines long and the answer for Meta is one. */
+.at-galuses { margin-top: var(--s3); }
+.at-galuses > summary { cursor:pointer; font-family: var(--ui); font-size: var(--fs-xs);
+  font-weight:800; letter-spacing:.05em; text-transform:uppercase; color: var(--muted);
+  display:flex; align-items:center; gap: var(--s2); }
+.at-galuses > summary::marker { color: var(--muted); }
+.at-galuses > summary:hover { color: var(--text); }
+.at-galcount { font-weight:700; letter-spacing:0; text-transform:none;
+  background: var(--nav-bg); border:1px solid var(--line); border-radius:999px;
+  padding:1px 7px; }
+.at-galfile { margin-top: var(--s3); }
+.at-galfilename { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--fs-xs); color: var(--text); font-weight:700; }
+.at-galplaces { list-style:none; margin: var(--s2) 0 0; padding:0 0 0 var(--s3);
+  border-left:2px solid var(--line); }
+.at-galplaces li { display:flex; flex-wrap:wrap; gap: var(--s2); align-items:baseline;
+  padding:2px 0; }
+.at-galwhere { font-family: var(--ui); font-size: var(--fs-xs); color: var(--text); }
+.at-gallines { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px; color: var(--muted); }

@@ -12,6 +12,7 @@
  */
 
 import React, { useState } from "react";
+import { COMPONENT_USES } from "./component-uses.js";
 import {
   Button,
   CardReadout,
@@ -58,21 +59,75 @@ const SAMPLE_CARD = {
 };
 const SAMPLE_LANG = { id: "ar-PS", name: "Arabic", direction: "rtl", fontStack: undefined };
 
+/* Call sites, gathered by file and then by the component they sit inside,
+   which is how you would go looking for them. The line numbers are the
+   point: they are what turns "Button, 92 uses" into somewhere to read. */
+function groupUses(uses) {
+  const byFile = new Map();
+  for (const use of uses) {
+    if (!byFile.has(use.file)) byFile.set(use.file, new Map());
+    const byWhere = byFile.get(use.file);
+    if (!byWhere.has(use.where)) byWhere.set(use.where, []);
+    byWhere.get(use.where).push(use.line);
+  }
+  return [...byFile.entries()].map(([file, byWhere]) => ({
+    file,
+    places: [...byWhere.entries()].map(([where, lines]) => ({ where, lines })),
+  }));
+}
+
+function Uses({ name }) {
+  const uses = COMPONENT_USES[name];
+  /* Hooks and helpers have a row but no call sites gathered for them. */
+  if (!uses) return null;
+  if (!uses.length) {
+    return <Meta>Nothing uses it yet.</Meta>;
+  }
+
+  /* A component imported under another name is worth saying out loud: it is
+     why searching the source for the obvious name comes up short. */
+  const aliases = [...new Set(uses.map((u) => u.as).filter(Boolean))];
+
+  return (
+    <details className="at-galuses">
+      <summary>
+        Where it's used <span className="at-galcount">{uses.length}</span>
+      </summary>
+      {aliases.length ? (
+        <Meta>Imported as {aliases.join(", ")} in some files.</Meta>
+      ) : null}
+      {groupUses(uses).map((group) => (
+        <div className="at-galfile" key={group.file}>
+          <div className="at-galfilename">{group.file}</div>
+          <ul className="at-galplaces">
+            {group.places.map((place) => (
+              <li key={place.where}>
+                <span className="at-galwhere">{place.where}</span>
+                <span className="at-gallines">{place.lines.join(", ")}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </details>
+  );
+}
+
 /* One entry per component: what it is called, what it is for, and the
    variants worth seeing side by side. `note` carries the thing you would
    otherwise learn by reading the source. */
-function Row({ name, uses, what, note, children }) {
+function Row({ name, what, note, children }) {
+  const uses = COMPONENT_USES[name];
   return (
     <div className="at-galrow">
       <div className="at-galhead">
         <code className="at-galname">{name}</code>
-        {typeof uses === "number" ? (
-          <span className="at-galuses">{plural(uses, "use")}</span>
-        ) : null}
+        {uses ? <span className="at-galtotal">{plural(uses.length, "use")}</span> : null}
       </div>
       {what ? <Help className="at-mb2">{what}</Help> : null}
       <div className="at-galdemo">{children}</div>
       {note ? <Meta>{note}</Meta> : null}
+      <Uses name={name} />
     </div>
   );
 }
@@ -122,17 +177,16 @@ export function ComponentGallery() {
       {/* ---- text ---- */}
       <p className="at-eyebrow at-mt5">Text</p>
 
-      <Row name="Lede" uses={6} what="The intro paragraph under a title.">
+      <Row name="Lede" what="The intro paragraph under a title.">
         <V label="default"><Lede>Learn a language a card at a time.</Lede></V>
       </Row>
 
-      <Row name="Help" uses={83} what="Helper text under a control. The workhorse.">
+      <Row name="Help" what="Helper text under a control. The workhorse.">
         <V label="default"><Help>Shown once, and never readable again.</Help></V>
       </Row>
 
       <Row
         name="Meta"
-        uses={0}
         what="Small print beside content."
         note="Unused in the app. Available rather than established — its API is the most likely to need something adding."
       >
@@ -141,7 +195,6 @@ export function ComponentGallery() {
 
       <Row
         name="Notice"
-        uses={12}
         what="Errors, warnings, success and busy lines."
         note="Renders nothing when its children are empty, so it is safe to leave in the tree unconditionally."
       >
@@ -157,7 +210,6 @@ export function ComponentGallery() {
 
       <Row
         name="Button"
-        uses={90}
         what="Every button in the app."
         note="Pass icon= rather than an <Icon> child, so the spacing stays consistent."
       >
@@ -173,7 +225,6 @@ export function ComponentGallery() {
 
       <Row
         name="IconButton"
-        uses={12}
         what="An icon on its own."
         note="label is required — it is the only name a screen reader has to go on."
       >
@@ -183,7 +234,6 @@ export function ComponentGallery() {
 
       <Row
         name="Segmented"
-        uses={17}
         what="Pick one of a few."
         note="For picking several this is the wrong component — use CheckList."
       >
@@ -217,7 +267,6 @@ export function ComponentGallery() {
 
       <Row
         name="Field"
-        uses={48}
         what="A labelled control."
         note="spaces.jsx imports it as Field; the trainer imports it as FormField, because the trainer has an unrelated Field of its own."
       >
@@ -233,7 +282,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="CheckList" uses={4} what="Pick several.">
+      <Row name="CheckList" what="Pick several.">
         <V label="options + chosen" wide>
           <CheckList
             options={[
@@ -249,7 +298,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="LanguageRadio" uses={4} what="A proper radio list of languages.">
+      <Row name="LanguageRadio" what="A proper radio list of languages.">
         <V label="languages + value" wide>
           <LanguageRadio
             languages={{
@@ -263,7 +312,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="ModeSelector" uses={0} what="A drop-down of the spaces." note="Nothing calls it — the app uses the icon strip in the corner instead. Its labels are a fixed map inside shared.jsx, so it only knows learn, teach and admin.">
+      <Row name="ModeSelector" what="A drop-down of the spaces." note="Nothing calls it — the app uses the icon strip in the corner instead. Its labels are a fixed map inside shared.jsx, so it only knows learn, teach and admin.">
         <V label="modes" wide>
           <ModeSelector mode={mode} modes={["learn", "teach", "admin"]} onChange={setMode} />
         </V>
@@ -272,7 +321,7 @@ export function ComponentGallery() {
       {/* ---- layout ---- */}
       <p className="at-eyebrow at-mt5">Layout and frames</p>
 
-      <Row name="Section" uses={7} what="A titled block. Replaces a hand-built eyebrow and lede.">
+      <Row name="Section" what="A titled block. Replaces a hand-built eyebrow and lede.">
         <V label="title + lede + count + action" wide>
           <Section
             title="People"
@@ -285,7 +334,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="Tabs" uses={2} what="The tab strip. Handles role, aria-selected and aria-current.">
+      <Row name="Tabs" what="The tab strip. Handles role, aria-selected and aria-current.">
         <V label="tabs = [key, label, icon]" wide>
           <Tabs
             tabs={[["first", "First", "school"], ["second", "Second", "folder"], ["third", "Third", "tune"]]}
@@ -298,7 +347,6 @@ export function ComponentGallery() {
 
       <Row
         name="Screen"
-        uses={21}
         what="The one full-screen shell: portals to the app root, owns Escape, hides the app chrome while open."
         note="Not shown live — it would cover this page. Props: title, onBack, action, footer, backLabel, children."
       >
@@ -316,12 +364,11 @@ export function ComponentGallery() {
 
       <Row
         name="SpaceFrame"
-        uses={2}
         what="The Teaching and Admin shells: full-bleed screen, dialog slot, error line, busy line, tabs, contents."
         note="You are inside one right now. Props: tabs, tab, onTab, error, busy, label, dialog, children."
       />
 
-      <Row name="Empty" uses={5} what="The nothing-here state.">
+      <Row name="Empty" what="The nothing-here state.">
         <V label="title + children + action" wide>
           <Empty title="No decks yet" action={<Button size="sm" icon="add">New deck</Button>}>
             A deck is a set of cards you hand to a course.
@@ -329,7 +376,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="Stat" uses={6} what="One big number.">
+      <Row name="Stat" what="One big number.">
         <V label="default"><Stat value="128" label="Cards" /></V>
         <V label="big"><Stat value="12" label="Due today" big /></V>
       </Row>
@@ -339,7 +386,6 @@ export function ComponentGallery() {
 
       <Row
         name="Tile"
-        uses={6}
         what="The generic deck and course tile."
         note="Moved into shared.jsx — it used to live in spaces.jsx, so the one library the docs point at did not actually hold it."
       >
@@ -354,18 +400,18 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="TileNote" uses={4} what="The line under a tile: whether anyone can see it.">
+      <Row name="TileNote" what="The line under a tile: whether anyone can see it.">
         <V label="live"><TileNote live>In Arabic 101</TileNote></V>
         <V label="not live"><TileNote>Personal — not in a course</TileNote></V>
       </Row>
 
-      <Row name="CardTile" uses={2} what="One card tile, for the learner's list and the teacher's alike.">
+      <Row name="CardTile" what="One card tile, for the learner's list and the teacher's alike.">
         <V label="card + lang + deckTitles" wide>
           <CardTile card={SAMPLE_CARD} lang={SAMPLE_LANG} deckTitles={["Lesson 1"]} showLat />
         </V>
       </Row>
 
-      <Row name="CardReadout" uses={3} what="A card and its forms, read-only. Falls back to the default language pack when lang is left off.">
+      <Row name="CardReadout" what="A card and its forms, read-only. Falls back to the default language pack when lang is left off.">
         <V label="card + lang" wide>
           <CardReadout card={{ ...SAMPLE_CARD, decks: ["d1"] }} decks={[{ id: "d1", title: "Lesson 1" }]} />
         </V>
@@ -373,7 +419,6 @@ export function ComponentGallery() {
 
       <Row
         name="ItemList"
-        uses={8}
         what="The standard list frame: New button, search, Select mode, bulk actions, empty state, paging at 120."
         note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]."
       >
@@ -396,7 +441,6 @@ export function ComponentGallery() {
 
       <Row
         name="ConfirmModal"
-        uses={10}
         what="Asking before something irreversible."
         note="confirmWord makes the person type a word before the button enables. Prefer this over window.confirm."
       >
@@ -405,7 +449,6 @@ export function ComponentGallery() {
 
       <Row
         name="PlayButton"
-        uses={0}
         what="Playback control for one recording."
         note="No direct uses — it is what ClipList renders inside. States: idle, loading, playing, missing."
       >
@@ -416,7 +459,6 @@ export function ComponentGallery() {
 
       <Row
         name="ClipList"
-        uses={2}
         what="A list of recordings with playback."
         note="Uses useClipPlayer, which owns the Audio element and revokes its object URL — build one of these rather than a new Audio()."
       >
@@ -431,7 +473,6 @@ export function ComponentGallery() {
 
       <Row
         name="Icon"
-        uses={22}
         what="Every icon in the set. Use these rather than glyph characters."
         note={`${ICON_NAMES.length} names. Pass name and an optional size (20 by default).`}
       >
@@ -447,7 +488,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="LanguageTag" uses={4} what="Naming a language, including the case where there isn't one.">
+      <Row name="LanguageTag" what="Naming a language, including the case where there isn't one.">
         <V label="a language">
           <LanguageTag languages={{ "ar-PS": { name: "Arabic" } }} id="ar-PS" />
         </V>
