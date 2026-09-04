@@ -1016,3 +1016,39 @@ body.at-screening .at-spaces { display:none; }
 .at-mb3 { margin-bottom: var(--s3); }
 .at-hidden { display: none; }
 .at-mb2 { margin-bottom: var(--s2); }
+
+/* --- Component gallery -------------------------------------------
+   Admin > App. A specimen of every reusable component, so what exists
+   can be seen rather than remembered. Its own small layout: a labelled
+   frame around whatever is being shown, which must not inherit spacing
+   from the thing it is framing. */
+.at-gallery { margin-top: var(--s3); }
+.at-galrow { padding: var(--s5) 0; border-top: 1px solid var(--line); }
+.at-galrow:first-of-type { border-top: 0; }
+.at-galhead { display:flex; align-items:baseline; gap: var(--s3); margin-bottom: var(--s2); }
+.at-galname { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--fs-sm); font-weight:700; color: var(--text); }
+.at-galuses { font-family: var(--ui); font-size: var(--fs-xs); color: var(--muted); }
+.at-galdemo { display:flex; flex-wrap:wrap; gap: var(--s3); align-items:flex-start;
+  margin-top: var(--s3); }
+.at-galdemo:empty { display:none; }
+/* Each specimen carries its own label, so a variant can be named rather
+   than pointed at. */
+.at-galv { flex:0 1 auto; min-width:0; border:1px solid var(--line); border-radius:10px;
+  padding: var(--s3); background: var(--surface); }
+.at-galv.wide { flex:1 1 100%; }
+.at-galvlabel { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--fs-xs); color: var(--muted); margin-bottom: var(--s2); }
+.at-galvbody > :first-child { margin-top:0; }
+.at-galvbody > :last-child { margin-bottom:0; }
+/* The icon set, laid out so a name can be found by eye. */
+.at-galicons { display:grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: var(--s3); width:100%; }
+.at-galicon { display:flex; flex-direction:column; align-items:center; gap: var(--s1);
+  text-align:center; color: var(--text); }
+.at-galicon code { font-size: 10px; color: var(--muted); word-break:break-all; }
+/* Screen can't be shown for real without covering the page, so this stands
+   in for its head. */
+.at-galfake { border:1px dashed var(--line); border-radius:10px; padding: var(--s3); width:100%; }
+.at-galfakehead { display:flex; align-items:center; justify-content:space-between;
+  gap: var(--s3); margin-bottom: var(--s3); color: var(--muted); font-size: var(--fs-sm); }

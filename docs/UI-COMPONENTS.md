@@ -4,6 +4,11 @@ Everything reusable lives in `src/shared.jsx`. Usage counts are from the app
 files (`ArabicTrainer.jsx` + `spaces.jsx`) at the time of writing — they show
 how established each piece is, not how important it is.
 
+**There is a live version of this list.** Admin → App → Components renders
+every component below with its variants, labelled. It is built from the real
+components, so it cannot drift the way this file can — when the two disagree,
+believe the gallery and fix this file.
+
 **When asking for UI changes, the useful shorthand is the component name.**
 "Put it in a Section with a Help under it" is unambiguous; "add a heading and
 some grey text" is not.
@@ -132,6 +137,12 @@ One card tile for both the learner's and the teacher's lists.
 ### `Tile` — 6 uses
 The generic deck/course tile. `title, meta, onOpen, actions, footer`
 
+Lived in `spaces.jsx` until recently, which made this file wrong about where
+reusable things are; it is in `shared.jsx` with the rest now.
+
+### `TileNote` — 4 uses
+The line under a tile: whether anyone can see it. `live, children`
+
 ### `CardReadout` — 3 uses
 Read-only view of a card and its forms. `card, lang, decks`
 
@@ -203,7 +214,12 @@ A list of recordings with playback. `clips, onChange, load`
 
 ## Keeping this accurate
 
-This file drifts the moment components change. When we add, rename or remove
-one, update it in the same change — and if it's in the Project knowledge,
+The gallery in Admin → App is the copy that cannot go stale: it calls the real
+components with real props, and the smoke test renders the whole of it, so a
+prop that changes shape without the gallery changing with it fails the build
+rather than quietly misinforming someone. Add a row there for anything new.
+
+This file still drifts the moment components change. When we add, rename or
+remove one, update it in the same change — and if it's in the Project knowledge,
 re-upload it. A stale list is worse than none, because it will confidently
 point at something that no longer exists.

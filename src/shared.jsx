@@ -492,6 +492,36 @@ export function CardTile({ card, lang, deckTitles, showLat, meta, actions, onCli
    One audio element, one object URL, one state machine. There were
    three copies of this, and every fix — the leaked URL, the missing
    error handler — had to be made in each of them separately. */
+/* --- Tile ---------------------------------------------------------
+   The deck and course tile. Lived in spaces.jsx, which meant the one
+   library the docs point at did not actually hold it. */
+export function Tile({ title, meta, onOpen, actions, footer }) {
+  return (
+    /* data-open marks a tile that actually opens something, so only those
+       get the hover treatment. */
+    <div className="at-deckcard" onClick={onOpen} data-open={onOpen ? "" : undefined}>
+      <div className="at-deckrow2">
+        <div className="at-deckmain">
+          <div className="at-decktitle">{title}</div>
+          {meta ? <div className="at-deckmeta">{meta}</div> : null}
+        </div>
+        {actions ? <div className="at-deckacts">{actions}</div> : null}
+      </div>
+      {footer}
+    </div>
+  );
+}
+
+/* The line under a deck's rule: whether anyone can see it. */
+export function TileNote({ live, children }) {
+  return (
+    <div className="at-reach">
+      <span className={`at-reachdot${live ? " live" : ""}`} />
+      <span className="at-reachtext">{children}</span>
+    </div>
+  );
+}
+
 export function useClipPlayer(load) {
   const [state, setState] = useState("idle"); // idle | loading | playing | missing
   const audio = useRef(null);
@@ -952,8 +982,35 @@ export function CheckList({ options, chosen, onToggle, empty }) {
    screen opened on top of another doesn't take both down with one key. */
 const SCREEN_STACK = [];
 
+/*
+ * The class hides the app chrome, and it used to come off only when the
+ * stack emptied. That made one entry outliving its component permanent: the
+ * chrome stayed hidden for the rest of the session and only a reload
+ * brought it back, which is a poor trade for a counter that is only ever an
+ * approximation of what is on screen.
+ *
+ * The document is the thing that actually knows. A screen React has taken
+ * down is no longer connected, so any entry whose element has gone is
+ * dropped before the class is set — a stale one corrects itself the next
+ * time any screen opens or closes, instead of wedging the app.
+ *
+ * A screen that is merely hidden — Suspense does this while a chunk
+ * loads — stays connected, so it still counts, which is right: it is
+ * coming back.
+ */
+function reconcileScreens() {
+  for (let i = SCREEN_STACK.length - 1; i >= 0; i--) {
+    const el = SCREEN_STACK[i].el;
+    if (el && !el.isConnected) SCREEN_STACK.splice(i, 1);
+  }
+  document.body.classList.toggle("at-screening", SCREEN_STACK.length > 0);
+}
+
 export function Screen({ title, onBack, action, children, footer, backLabel = "Back" }) {
   const self = useRef({});
+  /* The screen's own element, so the stack can be checked against the
+     document rather than trusted. See reconcileScreens. */
+  const elRef = useRef(null);
   /* Found after mounting, not during the first render: on that first pass the
      app root is not in the document yet, and looking too early silently falls
      back to the body — which is the case that loses the theme. Until it is
@@ -965,12 +1022,13 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
 
   useEffect(() => {
     const me = self.current;
+    me.el = elRef.current;
     SCREEN_STACK.push(me);
-    document.body.classList.add("at-screening");
+    reconcileScreens();
     return () => {
       const i = SCREEN_STACK.indexOf(me);
       if (i >= 0) SCREEN_STACK.splice(i, 1);
-      if (!SCREEN_STACK.length) document.body.classList.remove("at-screening");
+      reconcileScreens();
     };
   }, []);
 
@@ -981,6 +1039,9 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
+      /* Same reason as the class: a stale entry on top would otherwise
+         swallow Escape for every screen underneath it. */
+      reconcileScreens();
       if (SCREEN_STACK[SCREEN_STACK.length - 1] !== self.current) return;
       if (onBackRef.current) onBackRef.current();
     };
@@ -1001,7 +1062,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
      and no z-index of its own, so it is not a stacking context — mounting
      inside it escapes the space's layer while staying in the theme. */
   const view = (
-    <div className="at-screen over" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="at-screen over" ref={elRef} role="dialog" aria-modal="true" aria-label={title}>
       <div className="at-screenhead">
         {onBack ? (
           <button className="at-back" onClick={onBack} aria-label={backLabel}>

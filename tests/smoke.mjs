@@ -13,7 +13,7 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.js"],
+  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.js", "src/gallery.jsx", "src/shared.jsx"],
   bundle: true,
   format: "esm",
   splitting: true,
@@ -226,6 +226,90 @@ check("the course card is still in storage after the session", after.items.some(
 const storedStates = [...Object.keys(answered.s), ...(answered.subs || []).flatMap((sb) => Object.keys(sb.s))];
 check("exactly the answered state is stored on the answered card, and nothing untouched", storedStates.length <= 1, `stored states: ${storedStates.join(",")}`);
 check("no console errors during the session", errors.length === 0, errors.slice(0, 3).join(" | "));
+
+/* ---- the component gallery ----
+   Every specimen in it is a real component called with real props, so
+   rendering the whole thing is what catches a prop shape that has drifted:
+   the gallery is only worth having if it is right. */
+{
+  const before = errors.length;
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const { ComponentGallery } = await import(path.join(out, "gallery.js"));
+  const galleryRoot = createRoot(host);
+  galleryRoot.render(React.createElement(ComponentGallery));
+  await sleep(400);
+
+  const shown = host.textContent;
+  check("the gallery renders", /Every reusable component/.test(shown), shown.slice(0, 80));
+  check("no console errors rendering the gallery", errors.length === before,
+    errors.slice(before, before + 3).join(" | "));
+
+  /* Named rather than counted: a component quietly dropped from the gallery
+     is the way it stops being a full list. */
+  const missing = [
+    "Lede", "Help", "Meta", "Notice", "Button", "IconButton", "Segmented", "Field",
+    "CheckList", "LanguageRadio", "ModeSelector", "Section", "Tabs", "Screen",
+    "SpaceFrame", "Empty", "Stat", "Tile", "TileNote", "CardTile", "CardReadout",
+    "ItemList", "ConfirmModal", "PlayButton", "ClipList", "Icon", "LanguageTag",
+  ].filter((n) => !shown.includes(n));
+  check("every component in the library has a row", missing.length === 0, `missing: ${missing.join(", ")}`);
+
+  /* The specimens have to actually render something, not just be listed. */
+  check("specimens rendered, not just names", host.querySelectorAll(".at-galvbody").length >= 30,
+    `${host.querySelectorAll(".at-galvbody").length} specimens`);
+  check("the icon set is laid out", host.querySelectorAll(".at-galicon").length >= 30,
+    `${host.querySelectorAll(".at-galicon").length} icons`);
+  galleryRoot.unmount();
+  host.remove();
+}
+
+/* ---- the app chrome cannot be wedged hidden ----
+   The space selector and corner menu are hidden by a body class while a
+   screen is open. It used to come off only when a counter emptied, so an
+   entry that outlived its component hid the chrome until the page was
+   reloaded. */
+{
+  const { Screen } = await import(path.join(out, "shared.js"));
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const screenRoot = createRoot(host);
+
+  check("no screen open to start with", !document.body.classList.contains("at-screening"),
+    `body="${document.body.className}"`);
+
+  screenRoot.render(React.createElement(Screen, { title: "A screen", onBack() {} }, "body"));
+  await sleep(100);
+  check("a screen hides the chrome", document.body.classList.contains("at-screening"));
+
+  screenRoot.render(null);
+  await sleep(100);
+  check("closing it brings the chrome back", !document.body.classList.contains("at-screening"));
+
+  /* The leak the old counter could not recover from: a screen whose element
+     is gone from the document while its entry stays behind. Its root is
+     abandoned rather than unmounted, which is what a leak is. */
+  const leakHost = document.createElement("div");
+  document.body.appendChild(leakHost);
+  createRoot(leakHost).render(React.createElement(Screen, { title: "Leaked", onBack() {} }, "body"));
+  await sleep(100);
+  const open = document.querySelectorAll(".at-screen.over");
+  open[open.length - 1].remove();
+  check("the leaked screen is out of the document", !document.querySelector(".at-screen.over"));
+
+  /* Any screen opening and closing afterwards must clear it. */
+  screenRoot.render(React.createElement(Screen, { title: "Another", onBack() {} }, "body"));
+  await sleep(100);
+  screenRoot.render(null);
+  await sleep(100);
+  check("a leaked screen does not hide the chrome for good",
+    !document.body.classList.contains("at-screening"),
+    `body="${document.body.className}"`);
+
+  screenRoot.unmount();
+  host.remove();
+  leakHost.remove();
+}
 
 console.error = origError;
 console.log(results.join("\n"));

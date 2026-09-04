@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.js";
+
+/* Loaded only when the gallery is opened: it is a reference an
+   administrator reads occasionally, not part of running the site. */
+const ComponentGallery = React.lazy(() =>
+  import("./gallery.jsx").then((m) => ({ default: m.ComponentGallery })),
+);
 import { GRAMMAR, dimsOf, dimValues, LANGUAGES, DEFAULT_LANGUAGE } from "./languages.js";
 import {
   Button,
@@ -22,6 +28,8 @@ import {
   Segmented,
   SpaceFrame,
   Tabs,
+  Tile,
+  TileNote,
   askConfirm,
   cardToItem,
   languageName,
@@ -855,6 +863,9 @@ export function AdminSpace({ account, languages, onClose }) {
   const [openCourse2, setOpenCourse2] = useState(null); // a course being settled
   const [selPeople, setSelPeople] = useState(() => new Set());
   const [backup, setBackup] = useState(null); // { state, done, total, note }
+  /* Off until asked for: the gallery renders a specimen of every component,
+     which is a lot of markup to carry on a tab that is mostly about backups. */
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [selDecks, setSelDecks] = useState(() => new Set());
   const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
   /* One slot for whatever is waiting to be confirmed, so only one of these
@@ -1664,6 +1675,23 @@ export function AdminSpace({ account, languages, onClose }) {
                 Keep the file somewhere private. It holds every name and handle on the site, and
                 anyone able to restore it can change who has access.
               </Help>
+
+              <p className="at-eyebrow at-mt6">Components</p>
+              <Help>
+                Every reusable component, rendered live with its variants. Worth a look before
+                building anything new: if something here fits, use it rather than raw markup —
+                two implementations of one thing is the failure mode this library exists to
+                prevent.
+              </Help>
+              {galleryOpen ? (
+                <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
+                  <ComponentGallery />
+                </React.Suspense>
+              ) : (
+                <Button className="at-mt3" icon="view" onClick={() => setGalleryOpen(true)}>
+                  Show the components
+                </Button>
+              )}
             </>
           )}
     </SpaceFrame>
@@ -1842,33 +1870,6 @@ function blobToDataUrl(blob) {
 /* One thing, as a tile: a deck, a course, a person. Title, a line of facts,
    optional actions, and a slot under the rule for whatever matters where it
    is being shown. Six near-identical copies of this used to exist. */
-function Tile({ title, meta, onOpen, actions, footer }) {
-  return (
-    /* data-open marks a tile that actually opens something, so only those
-       get the hover treatment. */
-    <div className="at-deckcard" onClick={onOpen} data-open={onOpen ? "" : undefined}>
-      <div className="at-deckrow2">
-        <div className="at-deckmain">
-          <div className="at-decktitle">{title}</div>
-          {meta ? <div className="at-deckmeta">{meta}</div> : null}
-        </div>
-        {actions ? <div className="at-deckacts">{actions}</div> : null}
-      </div>
-      {footer}
-    </div>
-  );
-}
-
-/* The line under a deck's rule: whether anyone can see it. */
-function TileNote({ live, children }) {
-  return (
-    <div className="at-reach">
-      <span className={`at-reachdot${live ? " live" : ""}`} />
-      <span className="at-reachtext">{children}</span>
-    </div>
-  );
-}
-
 /* ------------------------------------------------------------------
    Choosing which decks a course carries
 
