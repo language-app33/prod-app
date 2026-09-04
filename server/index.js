@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 
 import courses from "./api/courses.js";
 import sync from "./api/sync.js";
-import { dataRoot } from "./store.js";
+import { dataRoot, dataRootFrom, dataRootDurable } from "./store.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DIST = process.env.DIST_DIR || path.join(here, "..", "dist");
@@ -191,6 +191,17 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   createApp().listen(PORT, () => {
     console.log(`taleb33 listening on ${PORT}`);
     console.log(`serving ${DIST}`);
-    console.log(`storing data under ${dataRoot}`);
+    console.log(`storing data under ${dataRoot} (from ${dataRootFrom})`);
+    /* The failure this guards against is silent: accounts are made, courses
+       are taught, and it all disappears at the next deploy. Say so loudly
+       while there is still nothing to lose. */
+    if (!dataRootDurable) {
+      console.warn(
+        "WARNING: no volume and no DATA_DIR, so documents are being written " +
+          "to this container's own disk. Everything stored — accounts, " +
+          "courses, decks — is lost on the next deploy or restart. Attach a " +
+          "volume, or set DATA_DIR to somewhere that persists.",
+      );
+    }
   });
 }

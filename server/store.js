@@ -21,7 +21,34 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const ROOT = process.env.DATA_DIR || path.join(process.cwd(), "data");
+/*
+ * Where documents go, in order of preference:
+ *
+ *   DATA_DIR                   set deliberately, so it wins
+ *   RAILWAY_VOLUME_MOUNT_PATH  set by the host when a volume is attached
+ *   ./data                     nothing was configured
+ *
+ * The middle one is the point of this: a host that mounts a volume says so
+ * in the environment, and picking that up means attaching the volume is the
+ * whole job. Getting it wrong is otherwise silent — the app runs perfectly
+ * and writes to a disk that is thrown away on the next deploy.
+ */
+export function resolveDataRoot(env = process.env, cwd = process.cwd()) {
+  if (env.DATA_DIR) return { root: env.DATA_DIR, from: "DATA_DIR", durable: true };
+  if (env.RAILWAY_VOLUME_MOUNT_PATH) {
+    return {
+      root: env.RAILWAY_VOLUME_MOUNT_PATH,
+      from: "RAILWAY_VOLUME_MOUNT_PATH",
+      durable: true,
+    };
+  }
+  /* Durable only if this happens to be a real disk, which on most hosts it
+     is not. The caller says so at startup rather than letting it pass. */
+  return { root: path.join(cwd, "data"), from: "default", durable: false };
+}
+
+const resolved = resolveDataRoot();
+const ROOT = resolved.root;
 
 const etagOf = (text) => createHash("sha256").update(text).digest("hex").slice(0, 32);
 
@@ -140,3 +167,5 @@ export function getStore(name) {
 }
 
 export const dataRoot = ROOT;
+export const dataRootFrom = resolved.from;
+export const dataRootDurable = resolved.durable;

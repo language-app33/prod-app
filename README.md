@@ -34,17 +34,28 @@ One Node process serves both the built app and the API, so it needs a host
 that runs a process rather than static files alone. `npm start` runs it, and
 it listens on `PORT`.
 
-Documents are stored as files under `DATA_DIR`. **That directory has to
-survive a restart.** On a host with an ephemeral filesystem — Railway among
-them — attach a volume and point `DATA_DIR` at its mount path, or every
-account and course disappears with the next deploy.
+Documents are stored as files, and **the directory they go in has to
+survive a restart.** Most hosts give a container a disk that is thrown away
+on the next deploy, and nothing about that failure is visible while the app
+is running: accounts are made, courses are taught, and it all disappears at
+the next push.
+
+The server picks its directory in this order, and says which one it chose in
+its first line of log:
+
+1. `DATA_DIR`, if set.
+2. `RAILWAY_VOLUME_MOUNT_PATH`, which Railway sets by itself once a volume
+   is attached — so on Railway, attaching the volume is the whole job and
+   there is no path to keep in step by hand.
+3. `./data`, if neither is set. The server prints a warning at startup,
+   because on most hosts this disk does not persist.
 
 Environment variables:
 
 | name | effect |
 |---|---|
 | `PORT` | port to listen on. Defaults to 3000; most hosts set this for you. |
-| `DATA_DIR` | where documents are written. Defaults to `./data`, which is only safe if that path persists. |
+| `DATA_DIR` | where documents are written. Overrides an attached volume. |
 | `SIGNUP_CODE` | if set, making an account requires this code. Leave unset to let anyone sign up. |
 | `ADMIN_KEY` | if set, an account can promote itself to administrator once by entering it. |
 

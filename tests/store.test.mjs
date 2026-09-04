@@ -8,7 +8,7 @@ import path from "node:path";
    temporary directory has to be in place before the import. */
 const dir = await mkdtemp(path.join(tmpdir(), "taleb-store-"));
 process.env.DATA_DIR = dir;
-const { getStore } = await import("../server/store.js");
+const { getStore, resolveDataRoot } = await import("../server/store.js");
 
 after(() => rm(dir, { recursive: true, force: true }));
 
@@ -99,4 +99,29 @@ test("two stores keep their own documents under one key", async () => {
   await b.set("doc", "from b");
   assert.equal(await a.get("doc"), "from a");
   assert.equal(await b.get("doc"), "from b");
+});
+
+/* Where documents land is the difference between a working deployment and
+   one that quietly discards every account at the next deploy, so the order
+   is pinned rather than left to be read off the code. */
+test("DATA_DIR wins over an attached volume", () => {
+  const got = resolveDataRoot(
+    { DATA_DIR: "/mnt/chosen", RAILWAY_VOLUME_MOUNT_PATH: "/mnt/volume" },
+    "/app",
+  );
+  assert.equal(got.root, "/mnt/chosen");
+  assert.equal(got.durable, true);
+});
+
+test("an attached volume is used without anything being configured", () => {
+  const got = resolveDataRoot({ RAILWAY_VOLUME_MOUNT_PATH: "/mnt/volume" }, "/app");
+  assert.equal(got.root, "/mnt/volume");
+  assert.equal(got.from, "RAILWAY_VOLUME_MOUNT_PATH");
+  assert.equal(got.durable, true);
+});
+
+test("with neither, the fallback is reported as not durable", () => {
+  const got = resolveDataRoot({}, "/app");
+  assert.equal(got.root, path.join("/app", "data"));
+  assert.equal(got.durable, false);
 });
