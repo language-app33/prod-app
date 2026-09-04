@@ -40,8 +40,8 @@ on the next deploy, and nothing about that failure is visible while the app
 is running: accounts are made, courses are taught, and it all disappears at
 the next push.
 
-The server picks its directory in this order, and says which one it chose in
-its first line of log:
+The server picks its directory in this order, and names the one it chose —
+and where the choice came from — in its startup log:
 
 1. `DATA_DIR`, if set.
 2. `RAILWAY_VOLUME_MOUNT_PATH`, which Railway sets by itself once a volume
