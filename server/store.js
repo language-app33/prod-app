@@ -1,0 +1,142 @@
+/*
+ * Storage, in the shape the endpoints already expect.
+ *
+ * The two endpoints were written against Netlify Blobs and use a small,
+ * closed part of it: get, getWithMetadata, set — including the conditional
+ * writes the sync endpoint relies on — and delete. Nothing lists keys;
+ * everything is reached from an "index:" key. That is little enough to
+ * serve out of a directory, which is what this does, so moving off Netlify
+ * did not mean rewriting the endpoints.
+ *
+ * One document per file under DATA_DIR/<store>/. Writes go to a temporary
+ * file and are renamed into place, so a reader sees either the old document
+ * or the new one and never half of either.
+ *
+ * The ETag is a digest of the content, so two documents with the same bytes
+ * share an ETag. That is what the sync endpoint wants: a write that would
+ * not change anything cannot be a lost update.
+ */
+
+import { createHash } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+const ROOT = process.env.DATA_DIR || path.join(process.cwd(), "data");
+
+const etagOf = (text) => createHash("sha256").update(text).digest("hex").slice(0, 32);
+
+/* Keys carry colons and are otherwise arbitrary, so they are percent-encoded
+   rather than trusted as filenames. Encoding is reversible, which keeps the
+   directory legible when something has to be looked at by hand. */
+const fileFor = (dir, key) => path.join(dir, encodeURIComponent(key));
+
+/*
+ * A conditional write reads the current document and then writes, and those
+ * two halves must not interleave with another request's. One process serves
+ * every request, so a promise chain per key is a sufficient lock — and,
+ * unlike a lock file, it cannot be left behind by a crash.
+ */
+const chains = new Map();
+
+function underLock(key, work) {
+  const previous = chains.get(key) || Promise.resolve();
+  /* Chain on settlement rather than success: one failed write must not
+     wedge the key for the life of the process. */
+  const next = previous.then(work, work);
+  const settled = next.then(
+    () => {},
+    () => {},
+  );
+  chains.set(key, settled);
+  /* Drop the entry once nothing is queued behind it, so a long-lived
+     process does not keep a promise per key it has ever written. */
+  settled.then(() => {
+    if (chains.get(key) === settled) chains.delete(key);
+  });
+  return next;
+}
+
+export function getStore(name) {
+  const dir = path.join(ROOT, encodeURIComponent(name));
+  let ready = null;
+  const ensureDir = () => (ready = ready || mkdir(dir, { recursive: true }));
+
+  async function readRaw(key) {
+    try {
+      return await readFile(fileFor(dir, key), "utf8");
+    } catch (err) {
+      if (err && err.code === "ENOENT") return null;
+      throw err;
+    }
+  }
+
+  async function writeRaw(key, text) {
+    await ensureDir();
+    const target = fileFor(dir, key);
+    /* The temporary file has to sit in the same directory: rename is only
+       atomic within one filesystem. */
+    const temp = `${target}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
+    try {
+      await writeFile(temp, text, "utf8");
+      await rename(temp, target);
+    } catch (err) {
+      await unlink(temp).catch(() => {});
+      throw err;
+    }
+  }
+
+  return {
+    /* The endpoints only ever ask for text, and consistency describes
+       Netlify's edge, which a single process does not have: every read here
+       is strong, so the option is accepted and ignored. */
+    async get(key) {
+      return readRaw(key);
+    },
+
+    async getWithMetadata(key) {
+      const data = await readRaw(key);
+      if (data === null) return null;
+      return { data, etag: etagOf(data) };
+    },
+
+    /*
+     * Netlify's contract, which the sync endpoint depends on:
+     *   onlyIfNew    write only when nothing is stored under the key
+     *   onlyIfMatch  write only when the stored ETag is the one given
+     * A refused write reports modified: false rather than throwing, and the
+     * endpoint turns that into a 409.
+     */
+    async set(key, value, opts = {}) {
+      const text = String(value);
+      return underLock(`${dir} ${key}`, async () => {
+        if (opts.onlyIfNew || opts.onlyIfMatch) {
+          const current = await readRaw(key);
+          if (opts.onlyIfNew && current !== null) return { modified: false };
+          if (opts.onlyIfMatch) {
+            if (current === null) return { modified: false };
+            if (etagOf(current) !== opts.onlyIfMatch) return { modified: false };
+          }
+        }
+        await writeRaw(key, text);
+        return { modified: true, etag: etagOf(text) };
+      });
+    },
+
+    async delete(key) {
+      try {
+        await unlink(fileFor(dir, key));
+      } catch (err) {
+        /* Deleting what isn't there is not a failure; the endpoints delete
+           optimistically in several places. */
+        if (!err || err.code !== "ENOENT") throw err;
+      }
+    },
+
+    /* So the server can say where documents are going when it starts. */
+    get directory() {
+      return dir;
+    },
+  };
+}
+
+export const dataRoot = ROOT;

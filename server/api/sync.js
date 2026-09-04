@@ -1,4 +1,4 @@
-import { getStore } from "@netlify/blobs";
+import { getStore } from "../store.js";
 import { createHash } from "node:crypto";
 
 /*
@@ -19,6 +19,11 @@ const STORE = "arabic-trainer";
 function keyFor(token) {
   return createHash("sha256").update(`arabic-trainer:${token}`).digest("hex");
 }
+
+/* Errors that mean the data directory is missing, read-only or full,
+   rather than anything about the request: on a host where the volume was
+   never mounted, this is what every call fails with. */
+const STORAGE_ERRORS = new Set(["EACCES", "EROFS", "ENOSPC", "ENOTDIR", "EPERM", "EDQUOT"]);
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -118,7 +123,10 @@ export default async (req) => {
     }
   } catch (err) {
     const detail = String((err && err.message) || err);
-    if (err && err.name === "MissingBlobsEnvironmentError") {
+    /* Storage that can't be written to is worth telling apart from any
+       other failure: nothing about the request was wrong, and the thing to
+       look at is the volume rather than the code. */
+    if (err && STORAGE_ERRORS.has(err.code)) {
       return json({ error: "storage-unconfigured", detail }, 500);
     }
     return json({ error: "server", detail }, 500);

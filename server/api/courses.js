@@ -1,4 +1,4 @@
-import { getStore } from "@netlify/blobs";
+import { getStore } from "../store.js";
 import { createHash, randomBytes } from "node:crypto";
 /* The one list of grammatical fields a card may carry, shared with the app so
    that adding an axis to a language does not silently drop it here. */
@@ -33,6 +33,11 @@ const WORDS = [
 ];
 
 const sha = (s) => createHash("sha256").update(String(s)).digest("hex");
+
+/* Errors that mean the data directory is missing, read-only or full,
+   rather than anything about the request: on a host where the volume was
+   never mounted, this is what every call fails with. */
+const STORAGE_ERRORS = new Set(["EACCES", "EROFS", "ENOSPC", "ENOTDIR", "EPERM", "EDQUOT"]);
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -1268,9 +1273,10 @@ export default async (req) => {
     return json({ error: "unknown-action" }, 400);
   } catch (err) {
     const detail = String((err && err.message) || err);
-    /* Worth telling apart from any other failure: it means the site has no
-       blob storage, not that the request was wrong. */
-    if (err && err.name === "MissingBlobsEnvironmentError") {
+    /* Storage that can't be written to is worth telling apart from any
+       other failure: nothing about the request was wrong, and the thing to
+       look at is the volume rather than the code. */
+    if (err && STORAGE_ERRORS.has(err.code)) {
       return json({ error: "storage-unconfigured", detail }, 500);
     }
     return json({ error: "server", detail }, 500);

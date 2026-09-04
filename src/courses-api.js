@@ -163,8 +163,8 @@ export function explain(err) {
   const m = String((err && err.message) || err);
   if (m === "unknown-action")
     return (
-      "This part of the app is newer than the server. Upload the latest " +
-      "netlify/functions/courses.js and let the site rebuild."
+      "This part of the app is newer than the server. Deploy the current " +
+      "server/api/courses.js and restart it."
     );
 
   /* An answer that wasn't the function's own. The status is the only clue
@@ -174,8 +174,8 @@ export function explain(err) {
     const status = m.slice("http-".length);
     if (status === "404")
       return (
-        "The server has no /api/courses endpoint. The Netlify functions " +
-        "didn't deploy, or the redirect in netlify.toml is missing."
+        "The server has no /api/courses endpoint. Either it isn't running " +
+        "the app's own server, or something else is answering for it."
       );
     if (status === "502" || status === "503" || status === "504")
       return "The server didn't answer. Give it a moment and try again.";
@@ -204,8 +204,8 @@ export function explain(err) {
       "not-found": "That no longer exists.",
       "signup-code-required": "This site needs an invitation code to make an account.",
       "storage-unconfigured":
-        "The site has no storage yet. Enable Netlify Blobs for it, then " +
-        "redeploy and try again.",
+        "The server can't reach its storage. Check that DATA_DIR points at " +
+        "a writable directory.",
       server: "The server hit an error. Check the site's function log.",
       "bad-response": "The server's answer wasn't in a form this app understands.",
     }[m] || `Something went wrong (${m}). Try again in a moment.`

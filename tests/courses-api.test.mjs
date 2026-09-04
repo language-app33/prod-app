@@ -41,10 +41,10 @@ test("the SPA's index.html served in place of the function names the missing end
   assert.match(API.explain(new Error("http-404")), /no \/api\/courses endpoint/);
 });
 
-test("a site without blob storage is explained as storage, not as a bad key", async () => {
+test("a server that cannot write is explained as storage, not as a bad key", async () => {
   answer(500, JSON.stringify({ error: "storage-unconfigured", detail: "..." }));
   await assert.rejects(API.whoAmI("k"), { message: "storage-unconfigured" });
-  assert.match(API.explain(new Error("storage-unconfigured")), /Netlify Blobs/);
+  assert.match(API.explain(new Error("storage-unconfigured")), /DATA_DIR/);
 });
 
 test("only a 2xx that isn't JSON is a bad response", async () => {
