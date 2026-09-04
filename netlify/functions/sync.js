@@ -32,8 +32,6 @@ export default async (req) => {
   // The client always sends a 64-char hex digest. Anything else is noise.
   if (!/^[a-f0-9]{64}$/.test(token)) return json({ error: "bad-token" }, 401);
 
-  const store = getStore(STORE);
-
   /* Clips live under their own keys so a document sync doesn't have to
      carry them. ?audio=<id> addresses one clip. */
   const url = new URL(req.url);
@@ -44,6 +42,10 @@ export default async (req) => {
   const key = audioId ? keyFor(`${token}:audio:${audioId}`) : keyFor(token);
 
   try {
+    /* Inside the try: on a site without Blobs configured this throws, and
+       out here that would reach the client as a 500 whose body is not
+       JSON — indistinguishable from the endpoint being missing. */
+    const store = getStore(STORE);
     if (req.method === "GET" && audioId) {
       const clip = await store.get(key, { type: "text", consistency: "strong" });
       if (clip == null) return json({ error: "not-found" }, 404);
@@ -115,7 +117,11 @@ export default async (req) => {
       return json({ ok: true });
     }
   } catch (err) {
-    return json({ error: "server", detail: String(err && err.message) }, 500);
+    const detail = String((err && err.message) || err);
+    if (err && err.name === "MissingBlobsEnvironmentError") {
+      return json({ error: "storage-unconfigured", detail }, 500);
+    }
+    return json({ error: "server", detail }, 500);
   }
 
   return json({ error: "method" }, 405);

@@ -75,11 +75,20 @@ async function call(action, { body, params, key } = {}) {
     clearTimeout(deadline);
   }
 
-  let data = {};
+  /* Read the body as text and parse it here rather than calling res.json()
+     directly. A failure that never reached the function — a missing
+     redirect serving index.html, a platform error page — has a body that
+     isn't JSON, and res.json() throwing on it would lose the status code
+     along with every clue about what actually happened. */
+  const text = await res.text();
+  let data = null;
   try {
-    data = await res.json();
+    data = JSON.parse(text);
   } catch (e) {
-    throw new Error("bad-response");
+    data = null;
+  }
+  if (data === null || typeof data !== "object") {
+    throw new Error(res.ok ? "bad-response" : `http-${res.status}`);
   }
   if (!res.ok) throw new Error(data.error || `http-${res.status}`);
   return data;
@@ -158,6 +167,21 @@ export function explain(err) {
       "netlify/functions/courses.js and let the site rebuild."
     );
 
+  /* An answer that wasn't the function's own. The status is the only clue
+     the app has, and each of these points at a different thing to check,
+     so they are worth spelling out rather than showing a bare number. */
+  if (m.startsWith("http-")) {
+    const status = m.slice("http-".length);
+    if (status === "404")
+      return (
+        "The server has no /api/courses endpoint. The Netlify functions " +
+        "didn't deploy, or the redirect in netlify.toml is missing."
+      );
+    if (status === "502" || status === "503" || status === "504")
+      return "The server didn't answer. Give it a moment and try again.";
+    return `The server answered ${status}. Check the site's function log.`;
+  }
+
   return (
     {
       offline: "Can't reach the server. Your own cards still work.",
@@ -179,6 +203,11 @@ export function explain(err) {
       "use-delete-account": "Delete your own account from Account settings instead.",
       "not-found": "That no longer exists.",
       "signup-code-required": "This site needs an invitation code to make an account.",
+      "storage-unconfigured":
+        "The site has no storage yet. Enable Netlify Blobs for it, then " +
+        "redeploy and try again.",
+      server: "The server hit an error. Check the site's function log.",
+      "bad-response": "The server's answer wasn't in a form this app understands.",
     }[m] || `Something went wrong (${m}). Try again in a moment.`
   );
 }

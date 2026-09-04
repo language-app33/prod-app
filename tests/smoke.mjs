@@ -61,7 +61,15 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
   const method = opts.method || "GET";
   const action = url.searchParams.get("action");
   calls.push(`${method} ${url.pathname}${action ? "?action=" + action : ""}${url.searchParams.get("audio") ? "?audio" : ""}`);
-  const json = (body, status = 200) => ({ ok: status < 300, status, json: async () => body });
+  /* Both readers, because the courses client reads the body as text and
+     the sync client calls json(). A stub that offered only one would let a
+     change to either slip through here. */
+  const json = (body, status = 200) => ({
+    ok: status < 300,
+    status,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  });
 
   if (url.pathname === "/api/courses") {
     if (action === "whoami") return json({ ok: true, user: { ...account, key: undefined } });

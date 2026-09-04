@@ -206,12 +206,17 @@ async function wipeAccount(store, handle) {
 }
 
 export default async (req) => {
-  const url = new URL(req.url);
-  const action = url.searchParams.get("action") || "";
-  const store = getStore(STORE);
-  const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-
+  /* Everything, the setup included, runs inside the try. getStore throws
+     outright on a site with no Blobs configuration, and a throw out here
+     is not an answer at all: the platform replies 500 with a body that
+     isn't JSON, so the app can only report that it couldn't read the
+     answer. Inside, the same failure arrives as an error it can name. */
   try {
+    const url = new URL(req.url);
+    const action = url.searchParams.get("action") || "";
+    const store = getStore(STORE);
+    const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+
     /* ================= accounts ================= */
 
     if (action === "signup") {
@@ -1262,6 +1267,12 @@ export default async (req) => {
 
     return json({ error: "unknown-action" }, 400);
   } catch (err) {
-    return json({ error: "server", detail: String(err && err.message) }, 500);
+    const detail = String((err && err.message) || err);
+    /* Worth telling apart from any other failure: it means the site has no
+       blob storage, not that the request was wrong. */
+    if (err && err.name === "MissingBlobsEnvironmentError") {
+      return json({ error: "storage-unconfigured", detail }, 500);
+    }
+    return json({ error: "server", detail }, 500);
   }
 };
