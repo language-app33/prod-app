@@ -75,11 +75,14 @@ button {
   --fs-xl: 24px;
   --fs-stat: 36px;
 
-  /* layers, in the order they sit above the page */
+  /* Layers, in the order they sit above the page. The one that matters:
+     the chrome is ABOVE a screen, because a space frame is a screen and
+     the corner menu and space selector are how you leave one. Putting them
+     below it painted them out of sight the moment a space opened. */
   --z-raised: 2;
-  --z-nav: 100;
-  --z-chrome: 140;
-  --z-sheet: 200;
+  --z-screen: 140;   /* a full-page screen, a space frame included */
+  --z-chrome: 160;   /* brand, space selector, corner menu */
+  --z-over: 300;     /* a screen opened on top of another */
   --z-modal: 400;
   --z-toast: 500;
 
@@ -259,9 +262,9 @@ button {
   color: var(--muted); }
 .at-codebox b { flex:1; min-width:120px; font-family: ui-monospace, Menlo, monospace;
   font-size:15px; color: var(--brass); user-select:all; }
-.at-mode { position:fixed; top:12px; left:12px; z-index:200; }
+.at-mode { position:fixed; top:12px; left:12px; }
 /* The app's name, where the space selector used to sit. */
-.at-brand { position:fixed; top:12px; left:14px; z-index:200; height:44px;
+.at-brand { position:fixed; top:12px; left:14px; height:44px;
   display:flex; align-items:center; font-family: var(--ui); font-size:17px;
   font-weight:800; letter-spacing:.01em; color: var(--ink); pointer-events:none; }
 .at-modebtn { display:inline-flex; align-items:center; gap:7px; cursor:pointer; border:2px solid var(--line); border-radius:999px; padding:9px 14px; background: var(--nav-bg); backdrop-filter:blur(12px); color: var(--text); font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; box-shadow: var(--nav-shadow); justify-content:center; }
@@ -423,7 +426,7 @@ button {
    authoritative no matter how deeply the screen was opened from.
    The chrome is hidden as well, because a full-screen task should not show
    the account bubble — that is about focus, not layering. */
-.at-screen.over { z-index:300; }
+.at-screen.over { z-index: var(--z-over); }
 /* A selected tab is outlined rather than merely tinted, so it reads at a
    glance and in both themes. */
 /* A selected tab keeps the same border as the others, only darker, so the
@@ -519,7 +522,7 @@ button {
 .at-cktext { display:flex; flex-direction:column; min-width:0; }
 .at-cktext b { font-size:14px; font-weight:700; }
 .at-cktext i { font-style:normal; font-size:12px; color: var(--muted); margin-top:2px; }
-.at-corner { position:fixed; top:12px; right:12px; z-index:200; }
+.at-corner { position:fixed; top:12px; right:12px; }
 /* A card you can open lifts a little and takes a darker edge under the
    pointer. Pointer devices only: on a touchscreen :hover sticks to the last
    thing tapped. */
@@ -535,7 +538,7 @@ button {
 }
 .at-deckcard[data-open], .at-minicard { cursor: pointer; }
 /* Sat immediately left of the account button, same height, same rhythm. */
-.at-spaces { position:fixed; top:12px; right:60px; z-index:200; display:flex;
+.at-spaces { position:fixed; top:12px; right:60px; display:flex;
   align-items:center; gap:2px; height:40px; padding:0 3px; border-radius:999px;
   background: var(--nav-bg); border:2px solid var(--line);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
@@ -574,7 +577,7 @@ button {
 .at-cact { font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color: var(--brass); white-space:nowrap; }
 .at-crule { height:2px; background: var(--line); margin:8px 4px; border-radius:2px; }
-.at-screen { position:fixed; inset:0; z-index:140; background: var(--bg);
+.at-screen { position:fixed; inset:0; z-index: var(--z-screen); background: var(--bg);
   display:flex; flex-direction:column; }
 .at-screenhead { display:flex; align-items:center; gap:12px; padding:14px 16px;
   padding-top:calc(14px + 46px); border-bottom:2px solid var(--line); background: var(--surface); }
@@ -965,10 +968,14 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 /* --- Screen footer: the action bar a sheet keeps at the bottom --- */
 .at-screenfoot { position:sticky; bottom:0; display:flex; gap: var(--s3); padding: var(--s4) 0 0; margin-top: var(--s5); background: linear-gradient(to top, var(--surface) 60%, transparent); }
 .at-screenfoot > * { flex:1; }
-/* --- Tabs / space chrome: one owner for the layers --- */
-.at-brand { z-index: var(--z-chrome); }
-.at-corner, .at-mode { z-index: var(--z-nav); }
-.at-spaces { z-index: var(--z-nav); }
+/* --- Tabs / space chrome: one owner for the layers ---
+   All four together, above --z-screen. They used to be split: the brand on
+   --z-chrome and the other three below a space frame, so opening Teaching
+   or Admin painted the space selector and corner menu out of sight and left
+   the wordmark behind — with no way back to the learning space but a
+   reload. A screen opened on top (--z-over) is still above them, and
+   .at-screening hides them there anyway. */
+.at-brand, .at-corner, .at-mode, .at-spaces { z-index: var(--z-chrome); }
 .at-modalback { z-index: var(--z-modal); }
 /* Everything the chrome hides while a screen is open, in one rule
    rather than one per overlay. */
