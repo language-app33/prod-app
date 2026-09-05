@@ -34,6 +34,12 @@ One Node process serves both the built app and the API, so it needs a host
 that runs a process rather than static files alone. `npm start` runs it, and
 it listens on `PORT`.
 
+Nothing is needed at run time: the server imports only Node built-ins and the
+app's own files, and everything else — React included — is compiled into
+`dist/` by the build. The build itself does need the devDependencies, so
+`.npmrc` sets `include=dev`; without it a host that installs with
+`production=true` skips them and the build stops at `sh: vite: not found`.
+
 Documents are stored as files, and **the directory they go in has to
 survive a restart.** Most hosts give a container a disk that is thrown away
 on the next deploy, and nothing about that failure is visible while the app
