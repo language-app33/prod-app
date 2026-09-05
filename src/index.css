@@ -887,7 +887,11 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at.kb-open .at-note,
 .at.kb-open .at.kb-open .at.kb-open .at-kb,
 .at.kb-open .at-kbtoggle,
-.at.kb-open .at-hintbtn { display: none; }
+.at.kb-open .at-hintbtn,
+/* Same reason as the hint button: with the phone keyboard up there is barely
+   room for the question, and this is not what you came back to the screen
+   for. It is still there once the keyboard drops. */
+.at.kb-open .at-quietbtn { display: none; }
 .at.kb-open .at-card { padding: 12px 12px 14px; }
 .at.kb-open .at-eyebrow { margin-bottom: 4px; }
 .at.kb-open .at-arabic { margin: 2px 0; }

@@ -12,6 +12,7 @@ import {
   LANGUAGES,
   TYPES,
   EX,
+  isListening,
 } from "../src/languages.js";
 
 test("Arabic: bare letters accepted, wrong harakat rejected, missing harakat depends on setting", () => {
@@ -87,4 +88,36 @@ test("the retired definition stays, so a stored reference still resolves", () =>
      deleting the entry would turn old data into a crash. */
   assert.ok(EX.ar2tr);
   assert.equal(EX.ar2tr.retired, true);
+});
+
+/* --- listening exercises --- */
+
+test("the listening exercises are exactly the ones prompted by audio", () => {
+  const byPrompt = TYPES.filter((t) => EX[t].promptField === "audio");
+  const byHelper = TYPES.filter(isListening);
+  assert.deepEqual(byHelper, byPrompt);
+  /* Named so that adding a fourth needs no second edit — but the three that
+     exist today should be exactly these. */
+  assert.deepEqual(byHelper, ["rec2en", "rec2ar", "rec2attr"]);
+});
+
+test("reading and writing exercises are not listening ones", () => {
+  for (const t of ["ar2en", "tr2ar", "en2ar"]) {
+    assert.equal(isListening(t), false, t);
+  }
+});
+
+test("a type that does not exist is not a listening exercise", () => {
+  /* Called with whatever a stored session holds, which may name a type that
+     has since been retired. */
+  assert.equal(isListening("nonsense"), false);
+  assert.equal(isListening(undefined), false);
+});
+
+test("every listening exercise offers no hint", () => {
+  /* Why the button has a free slot to sit in: the hint control never renders
+     on these. If that ever changes, the two would collide. */
+  for (const t of TYPES.filter(isListening)) {
+    assert.equal(EX[t].hintField, undefined, t);
+  }
 });

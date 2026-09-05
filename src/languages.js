@@ -125,6 +125,11 @@ export const EX = {
   },
 };
 
+/* An exercise that plays a recording and asks what was in it. The listening
+   ones are exactly the specs prompted by audio — named here, beside the table
+   it reads, so a fourth of them needs no second edit anywhere else. */
+export const isListening = (type) => !!EX[type] && EX[type].promptField === "audio";
+
 /* "na" maps to nothing on purpose: a form whose number does not apply should
    carry no number label at all, not the letters "na". labelFor falls back to
    the raw value for anything missing here, so the empty string is load

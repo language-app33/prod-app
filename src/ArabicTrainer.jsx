@@ -88,6 +88,7 @@ import {
   dimValues,
   dimsOf,
   exOf,
+  isListening,
   groupAttrOf,
   labelFor,
   langOf,
@@ -468,7 +469,79 @@ function familyCounts(it) {
 }
 
 
-/* Which exercise types this card's data can support. */
+/* Someone who can't play sound where they are says so once, and listening
+   exercises stop being asked for until this passes. Module-level for the same
+   reason as the sound flag and the active language: the helpers below are
+   plain functions called from anywhere, not hooks. It is set during render
+   from the state that owns it. */
+let listenOffUntil = 0;
+function setListenOffUntil(until) {
+  listenOffUntil = until || 0;
+}
+
+/* Whether a type may be asked at this moment. Only the clock makes this
+   false, so it is deliberately not part of what a card "supports". */
+function typeAllowedNow(type) {
+  return !(listenOffUntil > Date.now() && isListening(type));
+}
+
+/* How long "can't listen right now" lasts. Long enough to cover the walk, the
+   queue or the meeting that prompted it; short enough that forgetting about
+   it costs one session rather than a week of never hearing the language. */
+const LISTEN_OFF_MS = 15 * 60 * 1000;
+
+/*
+ * Take the listening exercises out of what is left of a queue.
+ *
+ * Only the tail is rewritten — everything before `from` has been answered and
+ * is left exactly as it was. That is what keeps the cursor honest: filtering
+ * the whole array would slide later entries down underneath a stationary
+ * index, and the learner would silently skip questions they had never seen.
+ *
+ * A listening exercise becomes another way of asking about the same card,
+ * preferring one that is not already queued for it. A card that has nothing
+ * else to offer — a recording and a spelling, no English — drops out of the
+ * rest of the session; there is genuinely nothing to ask.
+ */
+export function withoutListening(exercises, from, items, settings) {
+  const keyOf = (ex) => `${ex.id} ${ex.subId || ""}`;
+  const used = new Map();
+  const note = (ex, type) => {
+    const k = keyOf(ex);
+    if (!used.has(k)) used.set(k, new Set());
+    used.get(k).add(type);
+  };
+  /* Everything already planned counts, answered or not: a substitute should
+     be a different question, not the one queued two turns later. */
+  for (const ex of exercises) if (!isListening(ex.type)) note(ex, ex.type);
+
+  const tail = [];
+  for (const ex of exercises.slice(from)) {
+    if (!isListening(ex.type)) {
+      tail.push(ex);
+      continue;
+    }
+    const resolved = resolveUnit(items, ex);
+    /* Filtered here rather than trusting the clock, so this answers the same
+       way whenever it is called — including from a test. */
+    const options = (resolved ? enabledTypes(resolved.unit, settings) : []).filter(
+      (t) => !isListening(t)
+    );
+    if (!options.length) continue;
+    const seen = used.get(keyOf(ex)) || new Set();
+    const pick = options.find((t) => !seen.has(t)) || options[0];
+    note(ex, pick);
+    tail.push({ ...ex, type: pick });
+  }
+  return exercises.slice(0, from).concat(tail);
+}
+
+/* Which exercise types this card's data can support.
+
+   Note this is not filtered by the quiet window: it answers what the card
+   holds, and the preview rows, the weak-card count and unitFullyLearnt all
+   ask it that. Silencing here would make a card look broken, or call it
+   fully learnt while a third of its exercises were merely paused. */
 function availableTypes(it, lang = activeLang()) {
   const attr = quizAttrOf(lang);
   const drillsTranslit = lang.translitDrilled !== false;
@@ -487,7 +560,9 @@ function availableTypes(it, lang = activeLang()) {
 function enabledTypes(it, settings) {
   /* The language comes from the settings in hand, not from the module-level
      pointer — that is only set during render, and this runs from anywhere. */
-  return availableTypes(it, langOf(settings)).filter((t) => settings.types[t]);
+  return availableTypes(it, langOf(settings)).filter(
+    (t) => settings.types[t] && typeAllowedNow(t)
+  );
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -754,7 +829,11 @@ function unitFullyLearnt(unit) {
 
 /* Exercise types follow from the mode, so there is nothing to choose. */
 function typesForMode(mode, settings) {
-  const enabled = TYPES.filter((t) => settings.types[t]);
+  /* The second place the quiet window has to be honoured: the manual builder
+     comes through here rather than through enabledTypes. Get started draws on
+     two gentle types, one of which is listening, so during the window it
+     builds from recognition alone — which is still the gentle end. */
+  const enabled = TYPES.filter((t) => settings.types[t] && typeAllowedNow(t));
   return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(t)) : enabled;
 }
 
@@ -2300,6 +2379,29 @@ function saveTeaches(yes) {
   }
 }
 
+/* When listening exercises stop being asked for, as a timestamp.
+
+   Kept on the device rather than in the synced settings, for two reasons. It
+   describes where someone is, not how they learn, so silencing a phone on a
+   bus should not silence the tablet at home. And settings sync whole and
+   last-writer-wins: a write here would stamp settingsUpdated and hand this
+   device's theme, keyboard and exercise choices to every other one. */
+const LISTEN_OFF_KEY = "arabic-trainer-listen-off";
+function loadListenOff() {
+  try {
+    return Number(localStorage.getItem(LISTEN_OFF_KEY)) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+function saveListenOff(until) {
+  try {
+    localStorage.setItem(LISTEN_OFF_KEY, String(until || 0));
+  } catch (e) {
+    /* private browsing; it lasts as long as the app is open */
+  }
+}
+
 export default function ArabicTrainer() {
   const [data, setData] = useState(EMPTY);
   const [ready, setReady] = useState(false);
@@ -2318,6 +2420,13 @@ export default function ArabicTrainer() {
      Deriving it only from a fresh network call meant a slow or failed request
      took the space selector away, with no way back but signing out. */
   const [teaches, setTeaches] = useState(() => loadTeaches());
+  /* Read from the device rather than started at zero, so closing the app on
+     the bus and opening it again does not start playing audio. */
+  const [listenOff, setListenOff] = useState(() => loadListenOff());
+  /* Pushed into the module flag here and not further down beside setSounds:
+     the memos that decide what is drillable run below this line and go
+     through enabledTypes, so the flag has to be true before they do. */
+  setListenOffUntil(listenOff);
   const [myCourses, setMyCourses] = useState([]);
   /* A deck the person asked to practise from the Courses tab, handed to the
      cards tab once it is on screen. */
@@ -2783,7 +2892,18 @@ export default function ArabicTrainer() {
 
   function begin(practice) {
     const built = buildSession({ items, settings, inDeck, practice });
-    if (!built.exercises.length) return;
+    if (!built.exercises.length) {
+      /* This used to return in silence, which reads as a broken button. It
+         mattered little when the only way to get here was a card list that
+         was plainly too thin; with listening switched off it is reachable
+         with a deck full of cards, and the reason has to be said. */
+      flash(
+        listenOff > Date.now()
+          ? "Nothing to practise without sound just now"
+          : "Nothing ready to practise yet"
+      );
+      return;
+    }
     warmSession(built);
     setSession({ ...built, practice });
     setQi(0);
@@ -2836,6 +2956,34 @@ export default function ArabicTrainer() {
     setChecked(result);
     // Drop the phone keyboard so the answer and grades are visible.
     if (inputRef.current) inputRef.current.blur();
+  }
+
+  /* "Can't listen right now": stop asking for recordings, here and in
+     anything built for the next quarter of an hour. */
+  function goQuiet() {
+    const until = now() + LISTEN_OFF_MS;
+    /* The module flag first, because withoutListening and every builder read
+       it rather than the state; then the state, so the screen re-renders;
+       then the device, so a reload does not undo it. */
+    setListenOffUntil(until);
+    setListenOff(until);
+    saveListenOff(until);
+
+    const next = session ? withoutListening(session.exercises, qi, items, settings) : [];
+    if (next.length <= qi) {
+      /* Every card left needs sound. Ending here is honest — running the
+         queue out would show "Session complete" over a session that was
+         cut short. */
+      setSession(null);
+      sfx("warn");
+      flash("Nothing left in this session that works without sound");
+      return;
+    }
+    setSession((s) => (s ? { ...s, exercises: next } : s));
+    /* The question at this index is a different one now, so nothing typed
+       against the old one should survive. */
+    resetExercise();
+    sfx("tick");
   }
 
   function giveUp() {
@@ -3263,6 +3411,11 @@ export default function ArabicTrainer() {
   const inExercise = !!(session && exercise);
   const kbOpen = kb.open && inExercise;
   const undrillable = items.filter((it) => !isDrillable(it, settings)).length;
+  /* Whether the quiet window is open, for the one message whose explanation
+     changes while it is: a card can fall below the two-type minimum because
+     its listening exercises are paused, and saying it is missing fields would
+     send someone looking for a fault that isn't there. */
+  const listenQuiet = listenOff > Date.now();
 
   return (
     <div
@@ -3357,8 +3510,17 @@ Cards ready to practice
                   )}
                   {undrillable > 0 && drillable.length > 0 && (
                     <Help>
-                      {plural(undrillable, "item")} sitting out — see Items for
-                      which fields are missing.
+                      {listenQuiet ? (
+                        <>
+                          {plural(undrillable, "item")} sitting out while listening is
+                          off — see Items for anything missing a field.
+                        </>
+                      ) : (
+                        <>
+                          {plural(undrillable, "item")} sitting out — see Items for
+                          which fields are missing.
+                        </>
+                      )}
                     </Help>
                   )}
                 </div>
@@ -3430,6 +3592,16 @@ Cards ready to practice
                   {!hintOpen && item[spec.hintField] && !checked && (
                     <Button variant="ghost" size="sm" className="at-hintbtn" onClick={() => setHintOpen(true)}>
                       {spec.hintLabel}
+                    </Button>
+                  )}
+
+                  {/* A listening exercise carries no hint, so this slot is
+                      free exactly when this button is wanted. Somewhere with
+                      no sound, the alternative to it is failing every
+                      recording in turn or abandoning the session. */}
+                  {isListening(exercise.type) && !checked && (
+                    <Button variant="ghost" size="sm" className="at-quietbtn" onClick={goQuiet}>
+                      Can't listen right now
                     </Button>
                   )}
 

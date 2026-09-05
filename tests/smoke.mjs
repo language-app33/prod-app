@@ -337,6 +337,72 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   leakHost.remove();
 }
 
+/* ---- "can't listen right now" ----
+   The queue rewrite, driven directly: it is a pure function over a queue, an
+   index, the cards and the settings, which is the whole reason it is one. */
+{
+  const { withoutListening } = await import(path.join(out, "ArabicTrainer.js"));
+  const stored2 = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
+  const byId2 = Object.fromEntries(stored2.items.map((i) => [i.id, i]));
+  /* oldclient1 is ar + en + lat and has no recordings, so it supports the
+     reading and writing types and none of the listening ones. */
+  const card1 = byId2.oldclient1;
+  const set = stored2.settings;
+
+  const queue = [
+    { id: card1.id, subId: null, type: "ar2en" },
+    { id: card1.id, subId: null, type: "rec2en" },
+    { id: card1.id, subId: null, type: "rec2ar" },
+    { id: card1.id, subId: null, type: "en2ar" },
+  ];
+  const out2 = withoutListening(queue, 1, stored2.items, set);
+
+  check("the answered questions are left exactly as they were",
+    out2[0] === queue[0], `first=${JSON.stringify(out2[0])}`);
+  check("no listening exercise survives the rewrite",
+    out2.every((e) => !["rec2en", "rec2ar", "rec2attr"].includes(e.type)),
+    out2.map((e) => e.type).join(","));
+  check("the question in front of you is replaced, not skipped",
+    out2.length > 1 && out2[1].id === card1.id && out2[1].type !== "rec2en",
+    out2.map((e) => e.type).join(","));
+  /* Prefer a question the card is not already being asked: with ar2en and
+     en2ar already in the queue, the free one is tr2ar. */
+  const one = withoutListening(
+    [
+      { id: card1.id, subId: null, type: "ar2en" },
+      { id: card1.id, subId: null, type: "rec2en" },
+      { id: card1.id, subId: null, type: "en2ar" },
+    ],
+    1,
+    stored2.items,
+    set,
+  );
+  check("a substitute avoids what the card is already being asked",
+    one[1].type === "tr2ar", one.map((e) => e.type).join(","));
+
+  /* And when every alternative is already queued, repeat one rather than
+     drop the practice — the card is still worth answering. */
+  check("with nothing free it still substitutes rather than dropping",
+    out2.length === queue.length, out2.map((e) => e.type).join(","));
+
+  /* A card with nothing but sound to offer: the entry goes, rather than
+     sitting in the queue unanswerable. */
+  const soundOnly = { ...card1, id: "soundonly", en: "", lat: "", recs: [{ id: "z".repeat(64) }] };
+  const dropped = withoutListening(
+    [{ id: "soundonly", subId: null, type: "rec2ar" }],
+    0,
+    stored2.items.concat([soundOnly]),
+    set,
+  );
+  check("a card that can only be listened to drops out", dropped.length === 0,
+    JSON.stringify(dropped));
+
+  /* Nothing to do when there is nothing to listen to. */
+  const untouched = withoutListening(queue.filter((e) => e.type === "ar2en"), 0, stored2.items, set);
+  check("a queue with no listening exercises is returned unchanged",
+    untouched.length === 1 && untouched[0].type === "ar2en");
+}
+
 console.error = origError;
 console.log(results.join("\n"));
 console.log("\nrequests:", calls.join("\n          "));
