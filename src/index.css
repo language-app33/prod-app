@@ -150,6 +150,14 @@ button {
   min-height: 100vh; padding: 66px 16px 108px; -webkit-font-smoothing: antialiased;
   max-width: 100%; overflow-x: hidden;
 }
+/* The 66px above is room for the fixed chrome — the wordmark, the space
+   selector, the corner menu. During an exercise none of that is rendered
+   (see inExercise), so the room stayed reserved for nothing and every
+   question sat under a band of empty page. Ordinary page margin instead.
+
+   Before .at.kb-open, which is the same specificity and has to win: with
+   the keyboard up the padding is tighter still. */
+.at.in-exercise { padding-top: 18px; }
 .at-wrap { max-width: 700px; margin: 0 auto; }
 .at-headline { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
 .at-exit { flex-shrink:0; width:34px; height:34px; border-radius:999px; cursor:pointer;
@@ -756,10 +764,17 @@ button {
   background: var(--surface); border:1px solid var(--line); border-left-width:3px;
   border-radius:8px; padding:11px 8px 11px 14px;
   display:flex; align-items:center; gap:10px;
-  box-shadow: var(--nav-shadow); max-width: calc(100% - 24px);
-  font-family: var(--ui); font-size:13px; font-weight:600; color: var(--text);
+  box-shadow: var(--nav-shadow);
+  /* Sized like the bulk bar rather than shrunk to its text: a pill that
+     hugs three words is easy to miss, and a message the width of the page
+     is read without hunting for it. Capped short of the 700px content
+     column, which one sentence cannot fill without looking empty. */
+  width: calc(100% - 24px); max-width: 560px;
+  font-family: var(--ui); font-size:14px; font-weight:600; color: var(--text);
   animation: at-snack-in 160ms ease-out; }
-.at-snack .msg { min-width:0; overflow-wrap:anywhere; }
+/* Takes the slack, so the dismiss button sits hard right rather than
+   trailing the text across a half-empty pill. */
+.at-snack .msg { flex:1; min-width:0; overflow-wrap:anywhere; }
 .at-snack.good { border-left-color: var(--jade); }
 .at-snack.warn { border-left-color: var(--rose); }
 .at-snack.info { border-left-color: var(--brass); }

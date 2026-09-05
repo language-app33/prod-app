@@ -276,6 +276,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("a hand-built session actually starts", !!document.querySelector(".at-instruction"),
     document.body.textContent.slice(0, 120));
 
+  /* The band of empty page above a question. 66px of the root's padding is
+     room for the fixed chrome, and none of that chrome renders during an
+     exercise — so the class that takes the room back has to be on while a
+     question is up, and off the moment it isn't. */
+  const root = document.querySelector(".at");
+  check("an exercise reclaims the room reserved for the chrome",
+    root.classList.contains("in-exercise"), root.className);
+
   /* Out again, so the rest of the run starts its own session rather than
      inheriting this one. */
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Leave session"));
@@ -284,6 +292,16 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(250);
   check("and you can leave it again", !document.querySelector(".at-instruction"),
     document.body.textContent.slice(0, 80));
+  check("and gives it back, so the chrome has somewhere to sit",
+    !document.querySelector(".at").classList.contains("in-exercise"),
+    document.querySelector(".at").className);
+
+  /* Kept for the browser check, which needs cards to have a session at
+     all and cannot make them through the UI in reasonable time. */
+  if (process.env.DUMP_DOC) {
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(process.env.DUMP_DOC, localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "");
+  }
 }
 
 /* ---- the version line ----

@@ -3428,7 +3428,7 @@ export default function ArabicTrainer() {
 
   return (
     <div
-      className={`at ${theme}${kbOpen ? " kb-open" : ""}`}
+      className={`at ${theme}${inExercise ? " in-exercise" : ""}${kbOpen ? " kb-open" : ""}`}
       /* Every rule that lays out the language being learnt reads these two.
          Nothing set them, so the fallbacks applied and Vietnamese was laid
          out right-to-left, like Arabic. */
