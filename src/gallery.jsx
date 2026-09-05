@@ -263,11 +263,17 @@ export function ComponentGallery() {
       <Row
         name="KeysButton"
         what="Opens the on-screen keys, from inside the field it types into."
-        note="Positioned by .at-inputwrap, which also reserves the room for it — put it inside one, next to the input. Physical right, so it sits in the same corner whichever way the script runs."
+        note="Positioned by .at-inputwrap, which also reserves the room for it — put it inside one, next to the input. It sits at the end of the line, so add rtl to the wrapper for a right-to-left script and the button moves to the left with the padding."
       >
-        <V label="in a field, off and on" wide>
+        <V label="left-to-right — the button takes the right" wide>
           <div className="at-inputwrap">
-            <input className="at-input" defaultValue="كِتَاب" dir="auto" readOnly />
+            <input className="at-input" defaultValue="house" readOnly />
+            <KeysButton on={keys} onClick={() => setKeys((v) => !v)} />
+          </div>
+        </V>
+        <V label='right-to-left — add "rtl" to the wrapper' wide>
+          <div className="at-inputwrap rtl">
+            <input className="at-input" defaultValue="كِتَاب" dir="rtl" readOnly />
             <KeysButton on={keys} onClick={() => setKeys((v) => !v)} />
           </div>
         </V>

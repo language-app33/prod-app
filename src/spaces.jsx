@@ -1807,7 +1807,11 @@ function ScriptInput({ lang, value, onChange }) {
 
   return (
     <>
-      <div className="at-inputwrap">
+      {/* The button belongs at the end of the line, which the deck's
+          language decides — not the field's own dir, which is "auto" and
+          would send the button across the field as soon as an English word
+          was typed into an Arabic deck. */}
+      <div className={`at-inputwrap${lang.direction === "rtl" ? " rtl" : ""}`}>
         <input
           ref={ref}
           className="at-input"

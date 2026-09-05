@@ -3640,12 +3640,14 @@ Cards ready to practice
                   </div>
 
                   {hintOpen && item[spec.hintField] && (
-                    <Field
-                      value={item[spec.hintField]}
-                      field={spec.hintField}
-                      kind={item.kind}
-                      name="hint-value"
-                    />
+                    <div className="at-hintvalue" data-el="hint-value">
+                      <Field
+                        value={item[spec.hintField]}
+                        field={spec.hintField}
+                        kind={item.kind}
+                        name="hint-value-text"
+                      />
+                    </div>
                   )}
                   {!hintOpen && item[spec.hintField] && !checked && (
                     <Button
@@ -3704,7 +3706,13 @@ Cards ready to practice
                          the script — including after checking, when the
                          button is gone. Dropping it there would slide the
                          answer sideways at the moment of the verdict. */
-                      <div className={spec.answerMode === "ar" ? "at-inputwrap" : undefined}>
+                      <div
+                        className={
+                          spec.answerMode === "ar"
+                            ? `at-inputwrap${langOf(settings).direction === "rtl" ? " rtl" : ""}`
+                            : undefined
+                        }
+                      >
                         <input
                           ref={inputRef}
                           /* "ar" here means the language's own script, so the
@@ -4427,7 +4435,7 @@ function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef
   return (
     <div className="at-field">
       {label && <label className="at-label">{label}</label>}
-      <div className="at-inputwrap">
+      <div className={`at-inputwrap${activeLang().direction === "rtl" ? " rtl" : ""}`}>
         <input
           ref={ref}
           lang={activeLang().id}

@@ -296,6 +296,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the answer field carries the keys button in its corner",
       wrap.classList.contains("at-inputwrap") && !!wrap.querySelector(".at-keybtn"),
       wrap.className);
+    /* Which side it takes is settled by this class, not by the stylesheet
+       guessing: the seeded course is Arabic, so it is the left. */
+    check("and the wrapper says which end of the line that is",
+      wrap.classList.contains("rtl"), wrap.className);
     check("and nothing is left of the labelled button under the box",
       !document.querySelector(".at-kbtoggle") && !/Show on-screen keys/.test(document.body.textContent));
 
@@ -356,6 +360,22 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the hint button names the field it shows",
       !hint || /Show transliteration|Show meaning/.test(hint.textContent),
       (hint && hint.textContent) || "no hint on this exercise");
+
+    /* A revealed hint goes through one wrapper whichever field it came
+       from, which is what lets a meaning and a transliteration be set at
+       the same size. jsdom has no stylesheet, so the structure is what can
+       be checked here; the sizes are measured in the browser. */
+    if (hint) {
+      click(hint);
+      await sleep(150);
+      const val = document.querySelector('[data-el="hint-value"]');
+      check("the revealed hint sits in the one slot that sizes it",
+        !!val && val.classList.contains("at-hintvalue") && !!val.firstElementChild,
+        val ? val.className : "no hint value");
+      check("and the value inside it is named too",
+        !!val && val.firstElementChild.getAttribute("data-el") === "hint-value-text",
+        val && val.firstElementChild ? val.firstElementChild.outerHTML.slice(0, 60) : "");
+    }
 
     /* Now answer it, so the second half of the card can be looked at. */
     click(buttonNamed(/^I don't know$/));

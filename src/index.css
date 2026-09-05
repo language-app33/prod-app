@@ -789,6 +789,16 @@ button {
 .at-arabic.phrase { font-size:40px; }
 .at-arabic.sentence { font-size:30px; line-height:1.85; }
 .at-latin { font-family: var(--ui); font-size:19px; font-weight:600; color: var(--muted); margin:8px 0; word-break:break-word; }
+/* A hint is the same kind of thing whichever field it comes from — a look
+   at part of the answer before committing — so it is set at one size. Left
+   to each field's own styling, a revealed meaning came out at 25px and 800
+   weight against a transliteration's 19px and 600, and the two read as
+   different features rather than the same one.
+
+   Not .at-arabic: no exercise hints with the script today, and if one ever
+   does it needs the script's own scale, not this one. */
+.at-hintvalue .at-latin,
+.at-hintvalue .at-en { font-size:19px; font-weight:600; letter-spacing:0; color: var(--muted); }
 .at-en { font-family: var(--ui); font-size:25px; font-weight:800; letter-spacing:-.01em; margin:8px 0; word-break:break-word; }
 .at-note { font-size:14px; font-weight:500; color: var(--muted); margin:12px 0 0; }
 /* Touch browsers leave :hover stuck on the last thing tapped, which left a
@@ -838,18 +848,24 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    right rather than logical: the button sits at right:8px whichever way the
    script runs, and the answer field is the one that runs right-to-left. */
 .at-inputwrap { position:relative; }
-.at-inputwrap > .at-input,
-/* Repeated under kb-open because the rule there sets padding as a
-   shorthand, which would otherwise put the text back under the button. */
-.at.kb-open .at-inputwrap > .at-input { padding-right: 52px; }
-/* Bottom rather than centred: the answer field in a session is three lines
-   tall at 40px script, and a button floating in the middle of that reads as
-   part of the answer. In a one-line field the two are within a few pixels
-   of each other. */
-.at-keybtn { position:absolute; bottom:8px; right:8px;
+/* Which side the button takes is the script's business, not the page's: it
+   belongs at the end of the line, which is the left in Arabic. Marked with
+   a class rather than left to logical properties, because the button
+   resolves those against the wrapper and the padding against the input —
+   and the input's own dir can be "auto", so the two would disagree the
+   moment an English word was typed into an Arabic field.
+
+   Both repeated under kb-open, whose rule sets padding as a shorthand and
+   would otherwise put the text back under the button. */
+.at-inputwrap:not(.rtl) > .at-input,
+.at.kb-open .at-inputwrap:not(.rtl) > .at-input { padding-right: 52px; }
+.at-inputwrap.rtl > .at-input,
+.at.kb-open .at-inputwrap.rtl > .at-input { padding-left: 52px; }
+.at-keybtn { position:absolute; top:50%; transform:translateY(-50%); right:8px;
   width:34px; height:34px; border-radius:9px; cursor:pointer; display:inline-flex;
   align-items:center; justify-content:center; background: var(--raised);
   border:2px solid var(--line); color: var(--muted); }
+.at-inputwrap.rtl .at-keybtn { right:auto; left:8px; }
 .at-keybtn.on { color: var(--brass); border-color: var(--tag-line); background: var(--tag-bg); }
 .at-keypad { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
 .at-kb { margin-top:12px; }
