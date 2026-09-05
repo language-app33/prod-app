@@ -26,6 +26,7 @@ import {
   ConfirmModal,
   Empty,
   Field,
+  FilterBar,
   Help,
   Icon,
   IconButton,
@@ -2601,6 +2602,67 @@ function ContextReport({ cards, lang }) {
   );
 }
 
+/* ------------------------------------------------------------------
+   Ordering and narrowing a list of cards
+
+   Kept as plain functions of a card so they can be tested without a
+   browser, and so the two card lists — the Cards tab and an open deck —
+   can share one answer to "does this card have a recording".
+   ------------------------------------------------------------------ */
+
+/* Recordings live on each form, not on the card, so a card counts as having
+   one if any of its forms does. */
+export const cardHasAudio = (c) =>
+  ((c.clips || []).length > 0) || (c.subs || []).some((sb) => (sb.clips || []).length > 0);
+
+/* The main form is a form. A card with two subs has three. */
+export const cardFormCount = (c) => 1 + (c.subs || []).length;
+
+/*
+ * When a card was added.
+ *
+ * Cards made before the server stamped `created` have none, and falling
+ * back to `updated` is the closest true thing available: for a card never
+ * edited it is exactly when it was made, and for one that has been it is an
+ * upper bound. Backfilling would have been worse — it would have written
+ * today's date over the answer.
+ */
+export const cardAdded = (c) => c.created || c.updated || 0;
+export const cardChanged = (c) => c.updated || c.created || 0;
+
+export const CARD_SORTS = {
+  added: { label: "Added", of: cardAdded, numeric: true },
+  changed: { label: "Changed", of: cardChanged, numeric: true },
+  /* Ordering by a yes/no puts one group first and leaves the other
+     untouched behind it, so a second key decides within each group —
+     otherwise the order inside a group would be whatever the server
+     happened to return. */
+  audio: { label: "Recordings", of: (c) => (cardHasAudio(c) ? 1 : 0), then: cardChanged },
+  forms: { label: "Forms", of: cardFormCount, then: cardChanged },
+};
+
+export function sortCards(cards, key, newestFirst = true) {
+  const sort = CARD_SORTS[key];
+  if (!sort) return cards;
+  const dir = newestFirst ? -1 : 1;
+  return [...cards].sort((a, b) => {
+    const d = (sort.of(a) - sort.of(b)) * dir;
+    if (d) return d;
+    if (!sort.then) return 0;
+    return (sort.then(a) - sort.then(b)) * -1;
+  });
+}
+
+export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
+  return cards.filter((c) => {
+    if (audio === "with" && !cardHasAudio(c)) return false;
+    if (audio === "without" && cardHasAudio(c)) return false;
+    if (forms === "one" && cardFormCount(c) !== 1) return false;
+    if (forms === "several" && cardFormCount(c) < 2) return false;
+    return true;
+  });
+}
+
 export function TeachSpace({ account, languages, onClose }) {
   const [tab, setTab] = useState("courses");
   const [courses, setCourses] = useState([]);
@@ -2697,6 +2759,17 @@ export function TeachSpace({ account, languages, onClose }) {
   );
 
   const snack = useSnackbar();
+  /* How the card list is ordered and what it leaves out. Newest first by
+     default, because the card just made is the one most likely wanted. */
+  const [sortKey, setSortKey] = useState("changed");
+  const [newestFirst, setNewestFirst] = useState(true);
+  const [cardFilter, setCardFilter] = useState({ audio: "any", forms: "any" });
+  /* Narrowed then ordered. ItemList's own search runs after this, over what
+     is left, so a search inside a filter behaves the way it reads. */
+  const shownCards = useMemo(
+    () => sortCards(filterCards(cards, cardFilter), sortKey, newestFirst),
+    [cards, cardFilter, sortKey, newestFirst]
+  );
 
   /* See the note on AdminSpace's run: `done` is the confirmation, and may
      be a function of what the call returned. */
@@ -3415,7 +3488,72 @@ export function TeachSpace({ account, languages, onClose }) {
 
               <ItemList
                 noun="card"
-                items={cards}
+                items={shownCards}
+                count={
+                  shownCards.length === cards.length
+                    ? null
+                    : `${shownCards.length} of ${plural(cards.length, "card")}`
+                }
+                filters={
+                  <FilterBar
+                    note={
+                      shownCards.length === cards.length
+                        ? null
+                        : `${shownCards.length} of ${cards.length}`
+                    }
+                    groups={[
+                      {
+                        key: "sort",
+                        label: "Sort",
+                        value: sortKey,
+                        onChange: setSortKey,
+                        quiet: "changed",
+                        options: Object.entries(CARD_SORTS).map(([k, v]) => ({
+                          value: k,
+                          label: v.label,
+                        })),
+                      },
+                      {
+                        key: "dir",
+                        label: "Order",
+                        value: newestFirst ? "down" : "up",
+                        onChange: (v) => setNewestFirst(v === "down"),
+                        quiet: "down",
+                        /* Named for what they mean rather than which way the
+                           arrow points: "most" is newest for a date and the
+                           most forms for a count. */
+                        options: [
+                          { value: "down", label: "Most first" },
+                          { value: "up", label: "Least first" },
+                        ],
+                      },
+                      {
+                        key: "audio",
+                        label: "Recordings",
+                        value: cardFilter.audio,
+                        onChange: (v) => setCardFilter((f) => ({ ...f, audio: v })),
+                        quiet: "any",
+                        options: [
+                          { value: "any", label: "Any" },
+                          { value: "with", label: "With" },
+                          { value: "without", label: "Without" },
+                        ],
+                      },
+                      {
+                        key: "forms",
+                        label: "Forms",
+                        value: cardFilter.forms,
+                        onChange: (v) => setCardFilter((f) => ({ ...f, forms: v })),
+                        quiet: "any",
+                        options: [
+                          { value: "any", label: "Any" },
+                          { value: "one", label: "One" },
+                          { value: "several", label: "Several" },
+                        ],
+                      },
+                    ]}
+                  />
+                }
                 size="small"
                 busy={busy}
                 empty="No cards yet. Make one — a card is anything to learn, with its meaning."

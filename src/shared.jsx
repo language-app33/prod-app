@@ -711,6 +711,60 @@ export function ClipList({ clips, onChange, load }) {
 
 const PAGE_SIZE = 120;
 
+/*
+ * A row of pickers over a list: how to order it, and what to leave out.
+ *
+ * Shut until it is asked for. Four groups of buttons standing permanently
+ * above a card grid is four rows of chrome before the first card, which is
+ * a heavy price for controls most visits do not touch — so the list looks
+ * exactly as it did until the button is pressed, and the button says how
+ * many groups are away from their default so a narrowed list is never a
+ * mystery.
+ *
+ * Built from Segmented rather than a new control, because picking one of a
+ * few is a thing this app already does one way. It goes in ItemList's
+ * `filters` slot, so a list that wants it gains a line under the search box
+ * and nothing else moves.
+ *
+ * Each group is { key, label, value, onChange, options, quiet } where the
+ * options are Segmented's own. `quiet` is the value that counts as "not
+ * narrowing", used only to decide whether to flag the button.
+ */
+export function FilterBar({ groups, note, label = "Sort and filter" }) {
+  const [open, setOpen] = useState(false);
+  const live = (groups || []).filter((g) => g && g.options && g.options.length > 1);
+  if (!live.length) return null;
+  const busy = live.filter((g) => g.quiet !== undefined && g.value !== g.quiet).length;
+
+  return (
+    <div className="at-filterwrap">
+      <button
+        className={`at-btn sm ghost at-filterbtn${busy ? " on" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <Icon name="tune" size={16} />
+        {label}
+        {busy ? <span className="at-filtercount">{busy}</span> : null}
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+      </button>
+      {note && !open ? <span className="at-filternote">{note}</span> : null}
+
+      {open && (
+        <div className="at-filterbar">
+          {live.map((g) => (
+            <div className="at-filtergroup" key={g.key}>
+              <span className="at-filterlabel">{g.label}</span>
+              <Segmented options={g.options} value={g.value} onChange={g.onChange} label={g.label} />
+            </div>
+          ))}
+          {note ? <span className="at-filternote">{note}</span> : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ItemList({
   noun, // "course", "deck", "person", "card"
   plural,

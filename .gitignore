@@ -5,6 +5,7 @@ dev-dist/
 .DS_Store
 npm-debug.log*
 tests/.smoke-build/
+tests/.cards-build/
 
 # Documents written by the server when DATA_DIR isn't set.
 data/

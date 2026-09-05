@@ -208,6 +208,38 @@ test("a card remembers which words it teaches, and keeps the list clean", async 
   assert.deepEqual(plain.json.card.uses, []);
 });
 
+/*
+ * When a card was made. Nothing recorded it before, so sorting a card list
+ * by "added" had nothing to sort by.
+ */
+test("a new card is stamped with when it was made, and editing does not move it", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dana" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: process.env.ADMIN_KEY || "" } });
+
+  const first = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [] },
+  });
+  assert.equal(first.status, 200, first.text);
+  const { id, created, updated } = first.json.card;
+  assert.equal(typeof created, "number");
+  assert.equal(created, updated, "made and last changed at the same moment");
+
+  await new Promise((r) => setTimeout(r, 5));
+  const again = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id, ar: "شمس", en: "the sun", lang: "ar-PS" }, decks: [] },
+  });
+  assert.equal(again.json.card.created, created, "editing must not move when it was added");
+  assert.ok(again.json.card.updated > created, "but it does move when it was changed");
+
+  /* And a client cannot set it: the date a card was made is the server's to
+     say, or a backdated card would sort ahead of everything. */
+  const lying = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id, ar: "شمس", en: "sun", lang: "ar-PS", created: 1 }, decks: [] },
+  });
+  assert.equal(lying.json.card.created, created);
+});
+
 test("an unknown /api path answers JSON, never the app shell", async () => {
   const res = await api("/api/nothing-here");
   assert.equal(res.status, 404);

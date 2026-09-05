@@ -22,6 +22,7 @@ import {
   ConfirmModal,
   Empty,
   Field,
+  FilterBar,
   Help,
   Icon,
   IconButton,
@@ -152,6 +153,8 @@ export function ComponentGallery() {
      mistaken for something the app actually did. */
   const demo = useSnackbarState();
   const [keys, setKeys] = useState(false);
+  const [order, setOrder] = useState("added");
+  const [only, setOnly] = useState("any");
   const [seg, setSeg] = useState("on");
   const [segBig, setSegBig] = useState("b");
   const [checked, setChecked] = useState(["one"]);
@@ -258,6 +261,43 @@ export function ComponentGallery() {
       >
         <V label="default"><IconButton icon="edit" label="Edit" /></V>
         <V label="danger"><IconButton icon="delete" label="Delete" danger /></V>
+      </Row>
+
+      <Row
+        name="FilterBar"
+        what="How to order a list, and what to leave out of it."
+        note="Goes in ItemList's filters slot. Shut until pressed, because four rows of buttons above a card grid is a heavy price for controls most visits do not touch — and the button carries a count so a narrowed list is never a mystery. Give a group a `quiet` value to say which setting counts as not narrowing."
+      >
+        <V label="press it" wide>
+          <FilterBar
+            note="3 of 12"
+            groups={[
+              {
+                key: "order",
+                label: "Sort",
+                value: order,
+                onChange: setOrder,
+                quiet: "added",
+                options: [
+                  { value: "added", label: "Added" },
+                  { value: "changed", label: "Changed" },
+                ],
+              },
+              {
+                key: "only",
+                label: "Recordings",
+                value: only,
+                onChange: setOnly,
+                quiet: "any",
+                options: [
+                  { value: "any", label: "Any" },
+                  { value: "with", label: "With" },
+                  { value: "without", label: "Without" },
+                ],
+              },
+            ]}
+          />
+        </V>
       </Row>
 
       <Row

@@ -544,10 +544,16 @@ export default async (req) => {
           }
           if (!allowed) return json({ error: "not-yours" }, 403);
         }
+        /* created is whatever it already was. A card saved before this
+           field existed has none, and must not acquire today's date by
+           being edited — the reader falls back to `updated`, which for a
+           card never edited is exactly when it was made and for one that
+           has been is at least an upper bound. */
         saved = { ...existing, ...fields, rev: (existing.rev || 1) + 1, updated: Date.now() };
       } else {
         const newId = `k${randomBytes(6).toString("hex")}`;
-        saved = { id: newId, owner: mine, ...fields, rev: 1, updated: Date.now() };
+        const now = Date.now();
+        saved = { id: newId, owner: mine, ...fields, rev: 1, created: now, updated: now };
         const list = (await readJson(store, K.myCards(mine))) || [];
         await writeJson(store, K.myCards(mine), list.concat([newId]));
       }

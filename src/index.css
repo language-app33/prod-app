@@ -795,6 +795,21 @@ button {
 .at-ctxmeaning { font-family: var(--ui); font-size:17px; font-weight:700; color: var(--text-soft);
   margin:6px 0 0; text-align:center; }
 .at-answeralso .at-ctxmeaning { font-size:14px; font-weight:600; color: var(--muted); margin-top:2px; }
+/* Ordering and narrowing a list, under its search box. Shut by default, so
+   the list looks as it did; open, the groups wrap rather than scroll, and
+   each stays whole on a phone. */
+.at-filterwrap { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 12px; }
+.at-filterbtn.on { border-color: var(--brass); color: var(--brass); }
+.at-filtercount { display:inline-flex; align-items:center; justify-content:center;
+  min-width:17px; height:17px; padding:0 4px; border-radius:999px;
+  background: var(--brass); color: var(--onbrass); font-size:10px; font-weight:800; }
+.at-filterbar { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
+  width:100%; padding:12px; border:1px solid var(--line); border-radius:12px;
+  background: var(--well); }
+.at-filtergroup { display:flex; align-items:center; gap:8px; min-width:0; }
+.at-filterlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-filternote { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
 .at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
 .at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
 .at-hint em { color: var(--text-soft); font-style:normal; }
