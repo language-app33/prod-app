@@ -301,13 +301,6 @@ button {
   color: var(--text); font-family: var(--ui); font-size:13px; font-weight:700; text-align:left; }
 .at-modeitem:hover { background: var(--raised); }
 .at-modeitem.on { color: var(--brass); }
-.at-inputwrap { position:relative; }
-.at-keybtn { position:absolute; top:50%; transform:translateY(-50%); right:8px;
-  width:34px; height:34px; border-radius:9px; cursor:pointer; display:inline-flex;
-  align-items:center; justify-content:center; background: var(--raised);
-  border:2px solid var(--line); color: var(--muted); }
-.at-keybtn.on { color: var(--brass); border-color: var(--tag-line); background: var(--tag-bg); }
-.at-keypad { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
 .at-formblock { border:2px solid var(--line); border-radius: var(--r-lg); padding:16px;
   margin-bottom:14px; background: var(--surface); }
 .at-formblock.main { border-color: var(--brass); }
@@ -835,8 +828,31 @@ button {
 .at-input.ar { font-family: var(--sfont, var(--ar)); font-size:40px; font-weight:600; direction: var(--sdir, rtl);
   text-align:right; line-height:1.75; padding:14px 16px; }
 textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:vertical; min-height:140px; }
+
+/* A field with the on-screen keys button in its corner.
+
+   Below the .at-input rules on purpose: the room reserved for the button is
+   a padding-right, and .at-input.ar sets padding as a shorthand at the same
+   specificity — so whichever comes last wins, and it has to be this one. The room for the
+   button is reserved here rather than by each caller, and it is physical
+   right rather than logical: the button sits at right:8px whichever way the
+   script runs, and the answer field is the one that runs right-to-left. */
+.at-inputwrap { position:relative; }
+.at-inputwrap > .at-input,
+/* Repeated under kb-open because the rule there sets padding as a
+   shorthand, which would otherwise put the text back under the button. */
+.at.kb-open .at-inputwrap > .at-input { padding-right: 52px; }
+/* Bottom rather than centred: the answer field in a session is three lines
+   tall at 40px script, and a button floating in the middle of that reads as
+   part of the answer. In a one-line field the two are within a few pixels
+   of each other. */
+.at-keybtn { position:absolute; bottom:8px; right:8px;
+  width:34px; height:34px; border-radius:9px; cursor:pointer; display:inline-flex;
+  align-items:center; justify-content:center; background: var(--raised);
+  border:2px solid var(--line); color: var(--muted); }
+.at-keybtn.on { color: var(--brass); border-color: var(--tag-line); background: var(--tag-bg); }
+.at-keypad { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
 .at-kb { margin-top:12px; }
-.at-kbtoggle { margin-top:10px; }
 .at-kbrow { display:flex; gap:4px; justify-content:center; margin-bottom:4px; flex-wrap:wrap; }
 .at-key:active { transform: translateY(1px); }
 .at-key:hover { background: var(--raised-hover); }
@@ -956,8 +972,10 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open { padding: 6px 12px 8px; }
 .at.kb-open .at.kb-open .at.kb-open .at-progress,
 .at.kb-open .at.kb-open .at-note,
+/* The keys button is not in this list: it used to be a labelled button
+   under the answer box, costing a row of the little height there is with
+   the phone keyboard up. In the corner of the field it costs none. */
 .at.kb-open .at.kb-open .at.kb-open .at-kb,
-.at.kb-open .at-kbtoggle,
 .at.kb-open .at-hintbtn,
 /* Same reason as the hint button: with the phone keyboard up there is barely
    room for the question, and this is not what you came back to the screen

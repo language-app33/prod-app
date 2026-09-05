@@ -12,6 +12,7 @@ import {
   Icon,
   IconButton,
   ItemList,
+  KeysButton,
   Lede,
   Notice,
   PlayButton,
@@ -2068,29 +2069,32 @@ function useSoftKeyboard() {
   return kb;
 }
 
-function Keyboard({ onKey, onBack, onClear, mode = "auto", lang }) {
+/*
+ * Whether the on-screen keys start out showing.
+ *
+ * Held by whoever renders the field rather than by the keyboard itself,
+ * because the control that opens it now lives inside that field — see
+ * KeysButton. A keyboard that owned the state could only put its own toggle
+ * below itself, which is where it used to be.
+ */
+function useKeysOpen(mode = "auto") {
+  const fine = useFinePointer();
+  /* A fine pointer means a mouse, and a mouse has no keyboard of the
+     language being learnt anywhere near it. A phone already has one. */
+  const wanted = mode === "always" ? true : mode === "never" ? false : fine;
+  const [open, setOpen] = useState(wanted);
+  useEffect(() => {
+    setOpen(wanted);
+  }, [wanted]);
+  return [open, setOpen];
+}
+
+function Keyboard({ onKey, onBack, onClear, onHide, lang }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   const rows = L.keys.rows;
   const extras = L.keys.extras;
   const marksList = L.keys.marks;
-  const fine = useFinePointer();
-  const wanted = mode === "always" ? true : mode === "never" ? false : fine;
-  const [open, setOpen] = useState(wanted);
   const [marks, setMarks] = useState(false);
-
-  useEffect(() => {
-    setOpen(wanted);
-  }, [wanted]);
-
-  if (!open) {
-    return (
-      <div className="at-kbtoggle">
-        <button type="button" className="at-btn ghost sm" onClick={() => setOpen(true)}>
-          Show on-screen keys
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="at-kb">
@@ -2121,7 +2125,7 @@ function Keyboard({ onKey, onBack, onClear, mode = "auto", lang }) {
         <button type="button" className="at-key util" onClick={onClear}>
           clear
         </button>
-        <button type="button" className="at-key util" onClick={() => setOpen(false)}>
+        <button type="button" className="at-key util" onClick={onHide}>
           hide
         </button>
       </div>
@@ -2685,6 +2689,10 @@ export default function ArabicTrainer() {
 
   const items = data.items;
   const settings = data.settings;
+  /* The on-screen keys, opened from the button inside the answer field.
+     Below `settings`, which it reads, and above every early return, which
+     is where a hook has to be. */
+  const [keysOpen, setKeysOpen] = useKeysOpen(settings.keyboard);
   // Keep the module-level pointer in step, for the pure helpers that have no
   // settings to hand. Derived from state, so it cannot drift.
   setActiveLang(settings.language);
@@ -3632,35 +3640,50 @@ Cards ready to practice
                         onChange={setTyped}
                       />
                     ) : (
-                      <input
-                        ref={inputRef}
-                        /* "ar" here means the language's own script, so the
-                           input is declared as that language — not as Arabic,
-                           which sent Vietnamese answers through an Arabic
-                           spellchecker and read them out as Arabic. */
-                        lang={spec.answerMode === "ar" ? langOf(settings).id : undefined}
-                        dir={spec.answerMode === "ar" ? langOf(settings).direction : undefined}
-                        className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
-                          checked ? (checked.ok ? " ok" : " no") : ""
-                        }`}
-                        value={typed}
-                        readOnly={!!checked}
-                        placeholder={spec.placeholder}
-                        onChange={(e) => setTyped(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !checked && typed.trim()) submit();
-                        }}
-                      />
+                      /* The wrapper is what reserves the corner for the keys
+                         button, so it stays for the whole of an answer in
+                         the script — including after checking, when the
+                         button is gone. Dropping it there would slide the
+                         answer sideways at the moment of the verdict. */
+                      <div className={spec.answerMode === "ar" ? "at-inputwrap" : undefined}>
+                        <input
+                          ref={inputRef}
+                          /* "ar" here means the language's own script, so the
+                             input is declared as that language — not as Arabic,
+                             which sent Vietnamese answers through an Arabic
+                             spellchecker and read them out as Arabic. */
+                          lang={spec.answerMode === "ar" ? langOf(settings).id : undefined}
+                          dir={spec.answerMode === "ar" ? langOf(settings).direction : undefined}
+                          className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
+                            checked ? (checked.ok ? " ok" : " no") : ""
+                          }`}
+                          value={typed}
+                          readOnly={!!checked}
+                          placeholder={spec.placeholder}
+                          onChange={(e) => setTyped(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !checked && typed.trim()) submit();
+                          }}
+                        />
+                        {!checked && spec.answerMode === "ar" && (
+                          /* Keeps the caret where it was: tapping the button
+                             would otherwise blur the field first, and the
+                             keys would insert at the end. */
+                          <span onMouseDown={(e) => e.preventDefault()}>
+                            <KeysButton on={keysOpen} onClick={() => setKeysOpen((v) => !v)} />
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  {!checked && spec.answerMode === "ar" && (
+                  {!checked && spec.answerMode === "ar" && keysOpen && (
                     <Keyboard
                       lang={langOf(settings)}
                       onKey={(ch) => caretInsert(inputRef, typed, setTyped, ch)}
                       onBack={() => caretBackspace(inputRef, typed, setTyped)}
                       onClear={() => setTyped("")}
-                      mode={settings.keyboard}
+                      onHide={() => setKeysOpen(false)}
                     />
                   )}
 
@@ -4321,28 +4344,34 @@ function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef
   const own = useRef(null);
   const ref = inputRef || own;
   const [focused, setFocused] = useState(false);
+  const [keysOpen, setKeysOpen] = useKeysOpen(mode);
 
   return (
     <div className="at-field">
       {label && <label className="at-label">{label}</label>}
-      <input
-        ref={ref}
-        lang={activeLang().id}
-        dir={activeLang().direction}
-        className="at-input ar"
-        value={value}
-        placeholder={placeholder}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {focused && (
+      <div className="at-inputwrap">
+        <input
+          ref={ref}
+          lang={activeLang().id}
+          dir={activeLang().direction}
+          className="at-input ar"
+          value={value}
+          placeholder={placeholder}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <span onMouseDown={(e) => e.preventDefault()}>
+          <KeysButton on={keysOpen} onClick={() => setKeysOpen((v) => !v)} />
+        </span>
+      </div>
+      {focused && keysOpen && (
         <div onMouseDown={(e) => e.preventDefault()}>
           <Keyboard
             onKey={(ch) => caretInsert(ref, value, onChange, ch)}
             onBack={() => caretBackspace(ref, value, onChange)}
             onClear={() => onChange("")}
-            mode={mode}
+            onHide={() => setKeysOpen(false)}
             lang={lang}
           />
         </div>

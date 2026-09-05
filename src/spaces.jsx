@@ -20,6 +20,7 @@ import {
   Icon,
   IconButton,
   ItemList,
+  KeysButton,
   LanguageRadio,
   Lede,
   Notice,
@@ -1818,27 +1819,14 @@ function ScriptInput({ lang, value, onChange }) {
              wrong order. While the field is empty there is nothing to go on,
              so the language's own direction places the caret. */
           dir={value ? "auto" : lang.direction}
-          style={{
-            fontFamily: lang.fontStack,
-            fontSize: 22,
-            /* Physical right, not logical: the keys button is positioned at
-               right:8px whichever way the text runs. */
-            paddingRight: 52,
-            textAlign: "start",
-          }}
+          /* The room for the keys button is reserved by .at-inputwrap in the
+             stylesheet — physical right, not logical, because the button is
+             at right:8px whichever way the text runs. */
+          style={{ fontFamily: lang.fontStack, fontSize: 22, textAlign: "start" }}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
-        <button
-          className={`at-keybtn${keys ? " on" : ""}`}
-          onClick={() => setKeys((v) => !v)}
-          aria-label="On-screen keys"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-            <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
-            <path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.8h.01M10 12.8h.01M13.5 12.8h.01M17 12.8h.01M8.5 15.6h7" />
-          </svg>
-        </button>
+        <KeysButton on={keys} onClick={() => setKeys((v) => !v)} />
       </div>
       {keys && (
         <div className="at-keypad" dir={lang.direction}>

@@ -315,6 +315,47 @@ export function IconButton({ icon, label, danger, className = "", ...rest }) {
    at-hint used to do eight jobs at once, so the helper text under a
    control could not be restyled without also restyling every empty
    state and count line. Each job now says which it is. */
+/*
+ * The on-screen keys toggle, which sits inside the field it types into.
+ *
+ * A learner answering in Arabic and a teacher writing a card need the same
+ * control, and it was drawn twice — once here as a labelled button under
+ * the answer box, once in the card editor as an icon in the corner of the
+ * field. The corner is the better of the two: it costs no vertical space,
+ * which matters most on a phone with its own keyboard already up, and it
+ * sits on the thing it acts on.
+ *
+ * Its own glyph rather than an Icon: the set is single-path and filled, and
+ * a keyboard reads as a keyboard only with the keys punched out of it.
+ */
+export function KeysButton({ on, onClick, label = "On-screen keys" }) {
+  return (
+    <button
+      type="button"
+      className={`at-keybtn${on ? " on" : ""}`}
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={!!on}
+      title={label}
+    >
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+        <path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.8h.01M10 12.8h.01M13.5 12.8h.01M17 12.8h.01M8.5 15.6h7" />
+      </svg>
+    </button>
+  );
+}
+
 export function Lede({ children, className = "" }) {
   return <p className={`at-lede${className ? " " + className : ""}`}>{children}</p>;
 }

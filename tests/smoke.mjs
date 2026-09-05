@@ -276,6 +276,47 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("a hand-built session actually starts", !!document.querySelector(".at-instruction"),
     document.body.textContent.slice(0, 120));
 
+  /* The on-screen keys button, which used to be a labelled button in the
+     flow under the answer box and is now an icon in the field's corner.
+     Walk forward until a question actually asks for the script — the queue
+     is shuffled, so the first one may not. */
+  let scriptField = null;
+  for (let i = 0; i < 8 && !scriptField; i++) {
+    scriptField = document.querySelector(".at-answerbox .at-input.ar");
+    if (scriptField) break;
+    click(buttonNamed(/^I don't know$/));
+    await sleep(150);
+    click(buttonNamed(/Continue|Next/));
+    await sleep(250);
+  }
+  check("a question asking for the script was reached", !!scriptField,
+    document.body.textContent.slice(0, 90));
+  if (scriptField) {
+    const wrap = scriptField.parentElement;
+    check("the answer field carries the keys button in its corner",
+      wrap.classList.contains("at-inputwrap") && !!wrap.querySelector(".at-keybtn"),
+      wrap.className);
+    check("and nothing is left of the labelled button under the box",
+      !document.querySelector(".at-kbtoggle") && !/Show on-screen keys/.test(document.body.textContent));
+
+    /* It says what it is and whether it is on, which is all a button with
+       no words on it has to go on. */
+    const keys = wrap.querySelector(".at-keybtn");
+    check("the icon-only button is named for a screen reader",
+      keys.getAttribute("aria-label") === "On-screen keys" && keys.getAttribute("aria-pressed") !== null,
+      `${keys.getAttribute("aria-label")} / pressed=${keys.getAttribute("aria-pressed")}`);
+
+    const wasOpen = !!document.querySelector(".at-kb");
+    click(keys);
+    await sleep(120);
+    check("and it opens and closes the keys",
+      !!document.querySelector(".at-kb") !== wasOpen,
+      `was ${wasOpen ? "open" : "shut"}, now ${document.querySelector(".at-kb") ? "open" : "shut"}`);
+    check("the button shows which it is", wrap.querySelector(".at-keybtn").getAttribute("aria-pressed") === String(!wasOpen));
+    click(wrap.querySelector(".at-keybtn"));
+    await sleep(120);
+  }
+
   /* The band of empty page above a question. 66px of the root's padding is
      room for the fixed chrome, and none of that chrome renders during an
      exercise — so the class that takes the room back has to be on while a
@@ -420,7 +461,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     "CheckList", "LanguageRadio", "ModeSelector", "Section", "Tabs", "Screen",
     "SpaceFrame", "Empty", "Stat", "Tile", "TileNote", "CardTile", "CardReadout",
     "ItemList", "ConfirmModal", "PlayButton", "ClipList", "Icon", "LanguageTag",
-    "Snackbar",
+    "Snackbar", "KeysButton",
   ].filter((n) => !shown.includes(n));
   check("every component in the library has a row", missing.length === 0, `missing: ${missing.join(", ")}`);
 

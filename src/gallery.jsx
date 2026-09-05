@@ -26,6 +26,7 @@ import {
   Icon,
   IconButton,
   ItemList,
+  KeysButton,
   LanguageRadio,
   LanguageTag,
   Lede,
@@ -150,6 +151,7 @@ export function ComponentGallery() {
      replaced by the next, and go on its own — without any of it being
      mistaken for something the app actually did. */
   const demo = useSnackbarState();
+  const [keys, setKeys] = useState(false);
   const [seg, setSeg] = useState("on");
   const [segBig, setSegBig] = useState("b");
   const [checked, setChecked] = useState(["one"]);
@@ -256,6 +258,19 @@ export function ComponentGallery() {
       >
         <V label="default"><IconButton icon="edit" label="Edit" /></V>
         <V label="danger"><IconButton icon="delete" label="Delete" danger /></V>
+      </Row>
+
+      <Row
+        name="KeysButton"
+        what="Opens the on-screen keys, from inside the field it types into."
+        note="Positioned by .at-inputwrap, which also reserves the room for it — put it inside one, next to the input. Physical right, so it sits in the same corner whichever way the script runs."
+      >
+        <V label="in a field, off and on" wide>
+          <div className="at-inputwrap">
+            <input className="at-input" defaultValue="كِتَاب" dir="auto" readOnly />
+            <KeysButton on={keys} onClick={() => setKeys((v) => !v)} />
+          </div>
+        </V>
       </Row>
 
       <Row
