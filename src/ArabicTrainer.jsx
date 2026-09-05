@@ -91,6 +91,7 @@ import {
   dimValues,
   dimsOf,
   exOf,
+  guessKind,
   isListening,
   groupAttrOf,
   labelFor,
@@ -427,18 +428,13 @@ function makeItem(src = {}) {
     recs = [],
   } = src;
   const text = ar || en || lat;
-  const guess = /[.!?،؟]|\s\S+\s\S+\s/.test(text)
-    ? "sentence"
-    : /\s/.test(text.trim())
-    ? "phrase"
-    : "word";
   const s = freshStates();
   return {
     id: `${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     ar: ar.trim(),
     lat: lat.trim(),
     en: en.trim(),
-    kind: kind || guess,
+    kind: kind || guessKind(text, activeLang()),
     note: note.trim(),
     tags: cleanTags(tags),
     locked: false,

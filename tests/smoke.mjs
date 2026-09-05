@@ -62,6 +62,14 @@ const card = {
   subs: [{ ar: "كتب", en: "books", lat: "kutub", number: "plural", gender: "", classifier: "", clips: [] }],
   rev: 2, updated: 1,
 };
+/* A phrase, and one that contains the word above — which is the shape the
+   whole "meet a word in context" idea rests on. It is here mainly to prove
+   that a course card is no longer labelled a word whatever it holds. */
+const phrase = {
+  id: "k222222222222", owner: "t-1", ar: "الكتاب كبير", en: "the book is big", lat: "il-kitaab kbiir",
+  note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  clips: [], subs: [], rev: 1, updated: 1,
+};
 let materialHits = 0;
 /* The build the bundle was compiled with — see the define above — so the
    app and the server agree until a test makes them disagree. */
@@ -94,8 +102,8 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
       return json({
         ok: true, version, teaches: false,
         courses: [{ id: "c1", title: "Arabic 101", language: "ar-PS", decks: ["d1"], role: "student", studying: true, teaching: false }],
-        decks: [{ id: "d1", title: "Lesson 1", owner: "t-1", cardIds: [card.id], cardCount: 1, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 3 }],
-        cards: [{ deckId: "d1", cards: [card] }],
+        decks: [{ id: "d1", title: "Lesson 1", owner: "t-1", cardIds: [card.id, phrase.id], cardCount: 2, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 3 }],
+        cards: [{ deckId: "d1", cards: [card, phrase] }],
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
@@ -187,7 +195,15 @@ check("legacy private document deleted", !remoteDocs.has(legacyToken), calls.fil
 const stored = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
 check("stored document no longer carries an account", !("account" in stored));
 const byId = Object.fromEntries(stored.items.map((i) => [i.id, i]));
-check("the course card and both old cards landed in storage", stored.items.length === 3 && byId["srv" + card.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((i) => i.id).join(",")}`);
+check("both course cards and both old cards landed in storage", stored.items.length === 4 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((i) => i.id).join(",")}`);
+
+/* What a course card is, rather than what it used to be told it was. Every
+   one of them arrived labelled "word" — which is why the practice filter did
+   nothing on course material, and why the app could not see that this phrase
+   contains that word. */
+check("a one-word course card is a word", byId["srv" + card.id].kind === "word", byId["srv" + card.id].kind);
+check("and a course card holding a phrase is a phrase, not a word",
+  byId["srv" + phrase.id].kind === "phrase", byId["srv" + phrase.id].kind);
 check("the old client's card kept its one answered state and gained nothing spurious", byId.oldclient1 && Object.keys(byId.oldclient1.s).join() === "ar2en" && byId.oldclient1.s.ar2en.reps === 3);
 /* The v2 card's "mean" skill becomes ar2en; its "read" skill named the
    retired exercise and must not come back as a state for it. */
@@ -198,7 +214,7 @@ check("a v2 card gains no state for the retired exercise",
   byId.v2card && !("ar2tr" in byId.v2card.s),
   byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
 check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
-check("every card counts as ready to practise", /Cards ready to practice\s*3/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+check("every card counts as ready to practise", /Cards ready to practice\s*4/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
 const wire = remoteDocs.get(realToken) && remoteDocs.get(realToken).data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride

@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
-import { dimValues, dimsOf, LANGUAGES, DEFAULT_LANGUAGE } from "./languages.js";
+import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE } from "./languages.js";
 
 
 
@@ -1511,7 +1511,13 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     ar: card.ar || "",
     lat: card.lat || "",
     en: card.en || "",
-    kind: "word",
+    /* Every course card used to arrive labelled a word, whatever it held.
+       That made the practice filter useless on course material, told the
+       session builder that any two cards were more alike than they are, and
+       set full sentences in the single-word type size — and it is why the
+       app cannot yet see that one of these phrases contains one of these
+       words. Asked of the language, which owns the rule. */
+    kind: guessKind(card.ar || card.en || card.lat, LANGUAGES[card.lang]),
     note: card.note || "",
     tags: [deckTitle],
     locked: true,

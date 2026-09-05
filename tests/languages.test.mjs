@@ -9,6 +9,7 @@ import {
   labelFor,
   normDimValue,
   GRAMMAR,
+  guessKind,
   LANGUAGES,
   TYPES,
   EX,
@@ -119,5 +120,58 @@ test("every listening exercise offers no hint", () => {
      on these. If that ever changes, the two would collide. */
   for (const t of TYPES.filter(isListening)) {
     assert.equal(EX[t].hintField, undefined, t);
+  }
+});
+
+/* --- what kind of thing a card is ---
+
+   A card that is a phrase is a context for the words inside it, so this is
+   the first thing that has to be right before any of that can be built. It
+   also decides what practice can be filtered to and how the script is set. */
+
+test("a word, a phrase and a sentence are told apart", () => {
+  assert.equal(guessKind("باب"), "word");
+  assert.equal(guessKind("بيت كبير"), "phrase");
+  assert.equal(guessKind("سكّر الباب لو سمحت"), "sentence");
+});
+
+test("punctuation makes a sentence however short", () => {
+  /* Both alphabets' full stops and question marks, since a card may be
+     written in either. */
+  assert.equal(guessKind("Hello there."), "sentence");
+  assert.equal(guessKind("وين رايح؟"), "sentence");
+  assert.equal(guessKind("Hello there"), "phrase");
+});
+
+test("nothing is not a sentence", () => {
+  /* An empty or blank field must not become a sentence by accident: it
+     would be filtered out of practice under a setting nobody chose. */
+  assert.equal(guessKind(""), "word");
+  assert.equal(guessKind("   "), "word");
+  assert.equal(guessKind(undefined), "word");
+  assert.equal(guessKind(null), "word");
+});
+
+test("surrounding space does not change the answer", () => {
+  /* The rule this replaced looked for a trailing space, so the same text
+     was a phrase or a sentence depending on how it had been pasted. */
+  assert.equal(guessKind("one two three four"), guessKind("  one two three four  "));
+  assert.equal(guessKind("بيت كبير"), guessKind(" بيت كبير "));
+});
+
+test("a language may answer for itself, and the app never decides", () => {
+  /* The point of this living in the language layer: a script written
+     without spaces between words needs a different rule entirely, and gets
+     one without the app knowing. */
+  const noSpaces = { id: "xx", guessKind: () => "sentence" };
+  assert.equal(guessKind("باب", noSpaces), "sentence");
+  /* And a pack that says nothing gets the default. */
+  assert.equal(guessKind("باب", { id: "yy" }), "word");
+});
+
+test("neither language pack overrides it today", () => {
+  /* If one starts to, the tests above stop covering what ships. */
+  for (const id of Object.keys(LANGUAGES)) {
+    assert.equal(LANGUAGES[id].guessKind, undefined, id);
   }
 });

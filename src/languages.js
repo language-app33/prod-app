@@ -155,6 +155,35 @@ export function editDistance(a, b) {
 /* The grammatical values a card carries. Which of them mean anything is the
    language's business; a card simply keeps whatever it was given, so material
    written for one language survives a look through another. */
+/* ------------------------------------------------------------------
+   What kind of thing a card is
+
+   A word, a phrase, or a sentence. It decides what a learner can filter
+   practice down to, how the script is typeset, and — the reason it is being
+   taken seriously now — whether a card can serve as a context for the words
+   inside it.
+
+   It lives here rather than in the app because the answer is the language's
+   business: "a space means more than one word" holds for Arabic and
+   Vietnamese and fails flatly for a script written without spaces between
+   words. A pack that needs a different rule declares `guessKind` and the app
+   is none the wiser; every other pack gets this one.
+   ------------------------------------------------------------------ */
+
+/* Sentence-ending punctuation, Latin and Arabic. */
+const SENTENCE_MARK = /[.!?،؛؟]/;
+
+export function guessKind(text, lang = null) {
+  const own = lang && lang.guessKind;
+  if (own) return own(text);
+  const t = String(text || "").trim();
+  if (!t) return "word";
+  /* Punctuation, or four words or more: long enough to be a sentence
+     whether or not it was punctuated. */
+  if (SENTENCE_MARK.test(t) || t.split(/\s+/).length >= 4) return "sentence";
+  return /\s/.test(t) ? "phrase" : "word";
+}
+
 export function dimValues(src = {}) {
   const out = {};
   for (const dim of Object.values(GRAMMAR)) {
