@@ -16,7 +16,11 @@
  */
 
 
-export const TYPES = ["ar2en", "rec2en", "ar2tr", "tr2ar", "rec2ar", "en2ar", "rec2attr"];
+/* The exercise types on offer. This is the registry everything derives from —
+   which states a card carries, what a session may pick, what the settings
+   list, what an export has columns for — so retiring a type is one edit here
+   and its definition stays below. */
+export const TYPES = ["ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "rec2attr"];
 
 export const EX = {
   ar2en: {
@@ -32,7 +36,15 @@ export const EX = {
     hintLabel: "Show pronunciation",
     answerMode: "en",
   },
+  /* Retired. Asking for a romanisation graded somebody's spelling of it
+     rather than their Arabic — "kitaab", "kitāb" and "kitab" are the same
+     knowledge — and writing one was never a goal of the app. It is out of
+     TYPES, so nothing offers it and no card carries a state for it. The
+     definition stays, like GRAMMAR.register, because exOf returns null for an
+     unknown key and its callers dereference the result: a stored or exported
+     reference to the type must still resolve to a label rather than crash. */
   ar2tr: {
+    retired: true,
     instruction: "Write this card in {translit}",
     label: "{Script} → {translit}",
     short: "{S}→T",
@@ -113,7 +125,11 @@ export const EX = {
   },
 };
 
-export const NUMBER_SHORT = { singular: "sg.", plural: "pl." };
+/* "na" maps to nothing on purpose: a form whose number does not apply should
+   carry no number label at all, not the letters "na". labelFor falls back to
+   the raw value for anything missing here, so the empty string is load
+   bearing. */
+export const NUMBER_SHORT = { singular: "sg.", plural: "pl.", na: "" };
 
 export const GENDER_SHORT = { masculine: "m.", feminine: "f.", neutral: "n." };
 
@@ -139,7 +155,14 @@ export function dimValues(src = {}) {
   for (const dim of Object.values(GRAMMAR)) {
     const allowed = dim.options.map(([v]) => v);
     const given = src[dim.field];
-    out[dim.field] = allowed.includes(given) ? given : dim.required ? allowed[0] : "";
+    /* Where a dimension declares a default, that is what a new or unreadable
+       value becomes — so what a blank form starts as is the language's call
+       rather than an accident of which option happens to be listed first. */
+    out[dim.field] = allowed.includes(given)
+      ? given
+      : dim.required
+      ? dim.default || allowed[0]
+      : "";
   }
   for (const lang of Object.values(LANGUAGES)) {
     if (lang.lexical) {
@@ -157,8 +180,12 @@ export function labelFor(unit, lang = activeLang()) {
   for (const dim of dimsOf(lang)) {
     const value = unit[dim.field];
     if (!value) continue;
-    if (dim.field === "number") bits.push(NUMBER_SHORT[value] || value);
-    else if (dim.field === "gender") bits.push(GENDER_SHORT[value] || value);
+    /* ?? rather than ||, so a value whose short form is deliberately empty —
+       N/A, which should name nothing — stays empty instead of falling back to
+       its own id. An unknown value still falls back, which is the point of
+       the fallback. */
+    if (dim.field === "number") bits.push(NUMBER_SHORT[value] ?? value);
+    else if (dim.field === "gender") bits.push(GENDER_SHORT[value] ?? value);
     else {
       const opt = dim.options.find(([v]) => v === value);
       bits.push(opt ? opt[1] : value);
@@ -242,10 +269,19 @@ export const GRAMMAR = {
     label: "Number",
     field: "number",
     required: true,
+    /* "na" is last, and deliberately not first: an unrecognised or missing
+       value falls back to `default` where one is declared, but normDimValue
+       still matches options in order, and reordering these would change what
+       a stored value already means. */
     options: [
       ["singular", "singular"],
       ["plural", "plural"],
+      ["na", "N/A"],
     ],
+    /* Most words a teacher writes are not usefully singular or plural, and
+       guessing wrong labels every form in the card list. Start at "doesn't
+       apply" and let them say otherwise. */
+    default: "na",
   },
   gender: {
     label: "Gender",

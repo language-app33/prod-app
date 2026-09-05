@@ -1786,12 +1786,21 @@ function ScriptInput({ lang, value, onChange }) {
         <input
           ref={ref}
           className="at-input"
-          dir={lang.direction}
+          lang={lang.id}
+          /* The text decides, once there is any: dir="auto" lays the field out
+             by its own first strong character, so a pasted Arabic phrase reads
+             right-to-left even if the deck is labelled with another language.
+             Trusting the deck's direction is what put pasted words in the
+             wrong order. While the field is empty there is nothing to go on,
+             so the language's own direction places the caret. */
+          dir={value ? "auto" : lang.direction}
           style={{
             fontFamily: lang.fontStack,
             fontSize: 22,
+            /* Physical right, not logical: the keys button is positioned at
+               right:8px whichever way the text runs. */
             paddingRight: 52,
-            textAlign: lang.direction === "rtl" ? "right" : "left",
+            textAlign: "start",
           }}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -2183,7 +2192,11 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
   const [chosen, setChosen] = useState(inDecks || []);
 
   const main = forms[0];
-  const canSave = main.ar.trim() && (main.en.trim() || main.lat.trim());
+  /* English, not "English or a transliteration": with typing the
+     transliteration retired, a card carrying only the script and a
+     romanisation supports one exercise type, and no student could ever
+     practise it. Better to say so here than to save something inert. */
+  const canSave = main.ar.trim() && main.en.trim();
   const setForm = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
   return (
@@ -2211,13 +2224,36 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
                 <span className="at-formrole">
                   {i === 0 ? "the main form" : "another form of the same card"}
                 </span>
-                {i > 0 && (
+                {/* Kept together so the pair stays whole and the role text
+                    beside them shortens instead of collapsing into a column. */}
+                <span className="at-formacts">
+                  {/* A second form usually differs from the first in a field
+                      or two, so start it from the one in hand rather than
+                      empty. The copy lands directly beneath its source, where
+                      the eye already is. Recordings are not carried over: the
+                      copy is a different word, so the original's audio would
+                      be wrong for it, and a wrong recording is worse than a
+                      missing one. */}
                   <Button variant="ghost" size="sm"
-                    onClick={() => setForms((x) => x.filter((_, j) => j !== i))}
+                    onClick={() =>
+                      setForms((x) =>
+                        x
+                          .slice(0, i + 1)
+                          .concat([{ ...x[i], clips: [] }])
+                          .concat(x.slice(i + 1))
+                      )
+                    }
                   >
-                    Remove
+                    Duplicate
                   </Button>
-                )}
+                  {i > 0 && (
+                    <Button variant="ghost" size="sm"
+                      onClick={() => setForms((x) => x.filter((_, j) => j !== i))}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                </span>
               </div>
 
               <p className="at-groupline">Drilled in exercises</p>
@@ -2225,7 +2261,7 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
               {/* What this form needs, next to the fields it's about. */}
               {i === 0 && (
                 <p className={`at-formneed${canSave ? "" : " unmet"}`}>
-                  {lang.scriptLabel} plus English{drillsTranslit ? " or " + lang.translitLabel.toLowerCase() : ""}.
+                  {lang.scriptLabel} plus English.
                 </p>
               )}
 
@@ -2306,7 +2342,9 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
           ))}
 
           <Button variant="ghost" size="sm"
-            onClick={() => setForms((f) => f.concat([{ ...blankForm(), number: "plural" }]))}
+            /* No number override: blankForm takes the language's declared
+               default, so what a new form starts as is settled in one place. */
+            onClick={() => setForms((f) => f.concat([blankForm()]))}
           icon="add"
         >
           Add a form

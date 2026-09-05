@@ -557,8 +557,11 @@ function stateReady(s) {
 
 const MAX_UNITS_PER_FAMILY = 4;
 
-/* Recognition and decoding: the gentler half of the exercise set. */
-const EASY_TYPES = ["ar2en", "ar2tr", "rec2en"];
+/* Recognition: the gentler half of the exercise set. Reading the script and
+   hearing it, never producing either. Decoding used to be here too, as
+   script → transliteration; that is retired, which is why a card supporting
+   only one of these still belongs in the mode — see buildManualSession. */
+const EASY_TYPES = ["ar2en", "rec2en"];
 
 const MODES = {
   regular: {
@@ -768,7 +771,13 @@ function everyTypeMode(mode) {
 function buildManualSession({ items, settings, ids, mode, count }) {
   const chosen = new Set(ids);
   const allowed = new Set(typesForMode(mode, settings));
-  if (allowed.size < 2) return { exercises: [], reason: "no-variety" };
+  /* Two types is the rule everywhere else, and it is what keeps a session
+     from being one exercise repeated. Get started draws on the two gentle
+     types alone, one of which needs a recording, so holding it to two would
+     quietly turn the beginners' mode into one that only accepts cards with
+     audio. It takes a card on one. */
+  const minTypes = mode === "started" ? 1 : 2;
+  if (allowed.size < minTypes) return { exercises: [], reason: "no-variety" };
 
   const pool = items.filter((i) => chosen.has(i.id) && settings.kinds[i.kind]);
   const perUnit = Math.max(2, settings.perItem);
@@ -781,7 +790,7 @@ function buildManualSession({ items, settings, ids, mode, count }) {
 
     for (const { unit, isSub } of unitsOf(it)) {
       const usable = availableTypes(unit).filter((t) => allowed.has(t));
-      if (usable.length < 2) continue;
+      if (usable.length < minTypes) continue;
       if (unitFullyLearnt(unit)) {
         anyLearnt = true;
         continue;
@@ -812,7 +821,11 @@ function buildManualSession({ items, settings, ids, mode, count }) {
   const ordered = varyTypes(shuffle(plans));
   const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, Math.max(4, count));
 
-  if (new Set(exercises.map((e) => e.type)).size < 2) return { exercises: [], reason: "no-variety", learnt };
+  /* The same minimum again, and the one easily missed: when every card chosen
+     supports a single gentle type the whole session is that one type, so
+     relaxing only the per-card check above would still refuse to build. */
+  if (new Set(exercises.map((e) => e.type)).size < minTypes)
+    return { exercises: [], reason: "no-variety", learnt };
 
   return {
     exercises,
@@ -1164,8 +1177,12 @@ function download(text, filename, type) {
    Storage
    ------------------------------------------------------------------ */
 
-/* v2 used three skills; map them onto the four exercise types. */
-const V2_MAP = { mean: "ar2en", read: "ar2tr", write: "en2ar" };
+/* v2 used three skills; two of them map onto exercise types that still exist.
+   Its "read" skill meant typing the transliteration, which is retired, so that
+   progress is not carried forward — there is no exercise it would belong to,
+   and liftStates writes these without checking TYPES, so leaving it here would
+   recreate a state for a type nothing offers. */
+const V2_MAP = { mean: "ar2en", write: "en2ar" };
 const OLD_INTERVALS = [0, 1, 2, 4, 9, 21];
 
 function liftState(s) {
@@ -1186,7 +1203,10 @@ function liftState(s) {
 function liftStates(old = {}) {
   const s = freshStates();
   for (const [oldKey, newKey] of Object.entries(V2_MAP)) {
-    if (old[oldKey]) s[newKey] = liftState(old[oldKey]);
+    /* `newKey in s` because s starts from the types that exist: without it a
+       stale mapping would write back a state for a retired type, which then
+       goes to storage and out over sync. */
+    if (old[oldKey] && newKey in s) s[newKey] = liftState(old[oldKey]);
   }
   for (const t of TYPES) if (old[t]) s[t] = liftState(old[t]);
   return s;
@@ -1276,8 +1296,11 @@ async function saveData(data) {
    identical on every device, and nothing extra to cache offline.
 
    The tone is meant to be small and warm — sine and triangle waves, quick
-   decay, nothing above a whisper. Every sound is under 400ms so it can't
-   get in the way of answering.
+   decay, nothing above a whisper. The two that mark an answer run to about
+   400ms: long enough to register as a verdict rather than a click, and still
+   over before anyone has read the feedback under it. The incidental ones —
+   tick, pop, record — stay very short, because they accompany an action
+   rather than judging it.
    ------------------------------------------------------------------ */
 
 let audioCtx = null;
@@ -1320,14 +1343,20 @@ function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
 }
 
 const SOUNDS = {
-  // Two notes up a fifth — small and pleased, not triumphant.
+  /* Three notes up a major triad, the last one held. Still small and pleased
+     rather than triumphant — the extra note is there so the verdict lands,
+     not to celebrate. */
   correct: (c) => {
-    note(c, { freq: 660, dur: 0.09, peak: 0.06 });
-    note(c, { freq: 988, at: 0.075, dur: 0.13, peak: 0.055 });
+    note(c, { freq: 660, dur: 0.1, peak: 0.06 });
+    note(c, { freq: 880, at: 0.09, dur: 0.12, peak: 0.058 });
+    note(c, { freq: 1319, at: 0.2, dur: 0.22, peak: 0.05 });
   },
-  // A soft slump. Deliberately gentle: you'll hear this one a lot.
+  /* A slump, then a lower one settling under it. Deliberately gentle and
+     quieter than correct: you'll hear this one a lot, and it should read as
+     "not that" rather than as a buzzer. */
   wrong: (c) => {
-    note(c, { freq: 300, to: 200, dur: 0.17, type: "triangle", peak: 0.05 });
+    note(c, { freq: 300, to: 220, dur: 0.18, type: "triangle", peak: 0.05 });
+    note(c, { freq: 220, to: 165, at: 0.16, dur: 0.22, type: "triangle", peak: 0.045 });
   },
   // Barely there — the sound of a card turning over.
   tick: (c) => {
@@ -4351,7 +4380,7 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
 
 /* An empty form, with whatever values the languages declare, from the one
    place that knows them. */
-const BLANK_SUB = { ar: "", lat: "", en: "", ...dimValues({ number: "plural" }), note: "", recs: [] };
+const BLANK_SUB = { ar: "", lat: "", en: "", ...dimValues({}), note: "", recs: [] };
 
 function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
   const lang = langOf(settings);
@@ -4360,8 +4389,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
     lat: "",
     en: "",
     recs: [],
-    number: "singular",
-    gender: "",
+    ...dimValues({}),
     kind: "",
     note: "",
     tags: "",
@@ -4375,8 +4403,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
           lat: initial.lat,
           en: initial.en,
           recs: initial.recs || [],
-          number: initial.number || "singular",
-          gender: initial.gender || "",
+          ...dimValues(initial),
           kind: initial.kind || "",
           note: initial.note || "",
           tags: (initial.tags || []).join(", "),
@@ -4889,12 +4916,16 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
   const last = step === steps.length - 1;
 
   const typeCount = typesForMode(mode, settings).length;
+  /* Matches the minimum buildManualSession uses, or Start would be offered
+     for a session that then refuses to build — and refused for one that
+     would have been fine. */
+  const needTypes = mode === "started" ? 1 : 2;
   const problem =
     picked.size === 0
       ? "Choose at least one card"
-      : typeCount < 2
+      : typeCount < needTypes
       ? mode === "started"
-        ? "Get started needs two of the gentle exercise types switched on"
+        ? "Get started needs one of the gentle exercise types switched on"
         : "At least two exercise types must be switched on in Settings"
       : "";
 
@@ -6281,8 +6312,9 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
               </span>
             ) : (
               <>
-                A→E is recognition, A→T decoding, T→A production from sound, E→A production from
-                meaning. Turning types off can drop items below the two-type minimum.
+                A→E is recognition, T→A production from sound, E→A production from meaning, and
+                the L→ types drill the same things by ear. Turning types off can drop items below
+                the two-type minimum.
               </>
             )}
           </Help>

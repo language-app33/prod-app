@@ -181,7 +181,7 @@ async function push(token, etag, data) {
 
 /* ---------------- size ----------------
 
-   Every form carries one state per exercise type, seven in all, and most of
+   Every form carries one state per exercise type, six in all, and most of
    them have never been touched. Writing those out cost about 4KB per card
    and put a hard ceiling near a thousand cards, at which point the server
    refused the document and sync failed for good. A state that has never

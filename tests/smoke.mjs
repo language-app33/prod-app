@@ -127,8 +127,17 @@ remoteDocs.set(realToken, {
   etag: "e0",
   data: {
     version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" }, settingsUpdated: 1,
-    items: [{ id: "oldclient1", ar: "بيت", en: "house", lat: "beit", kind: "word", tags: ["Lesson 1"],
-      created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } }],
+    items: [
+      { id: "oldclient1", ar: "بيت", en: "house", lat: "beit", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } },
+      /* A v2 card, whose three skills predate exercise types. Its "read"
+         skill was typing the transliteration, which is retired — so it must
+         be dropped rather than lifted into a state for an exercise nothing
+         offers, which would then be stored and synced forever. */
+      { id: "v2card", ar: "باب", en: "door", lat: "baab", kind: "word", tags: [],
+        created: 1, updated: 5,
+        s: { mean: { box: 2, due: 0, right: 3, wrong: 1 }, read: { box: 2, due: 0, right: 2, wrong: 0 } } },
+    ],
   },
 });
 
@@ -164,12 +173,29 @@ check("legacy private document deleted", !remoteDocs.has(legacyToken), calls.fil
 const stored = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
 check("stored document no longer carries an account", !("account" in stored));
 const byId = Object.fromEntries(stored.items.map((i) => [i.id, i]));
-check("course card and the old client's card both landed in storage", stored.items.length === 2 && byId["srv" + card.id] && byId.oldclient1, `items=${stored.items.map((i) => i.id).join(",")}`);
+check("the course card and both old cards landed in storage", stored.items.length === 3 && byId["srv" + card.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((i) => i.id).join(",")}`);
 check("the old client's card kept its one answered state and gained nothing spurious", byId.oldclient1 && Object.keys(byId.oldclient1.s).join() === "ar2en" && byId.oldclient1.s.ar2en.reps === 3);
+/* The v2 card's "mean" skill becomes ar2en; its "read" skill named the
+   retired exercise and must not come back as a state for it. */
+check("a v2 card's skills lift onto types that exist, and no further",
+  byId.v2card && byId.v2card.s.ar2en && byId.v2card.s.ar2en.reps === 4,
+  byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
+check("a v2 card gains no state for the retired exercise",
+  byId.v2card && !("ar2tr" in byId.v2card.s),
+  byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
 check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
-check("both cards count as ready to practise", /Cards ready to practice\s*2/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+check("every card counts as ready to practise", /Cards ready to practice\s*3/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
 const wire = remoteDocs.get(realToken) && remoteDocs.get(realToken).data;
-check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((i) => Object.keys(i.s).length <= 1));
+/* Sparse means one thing: no state written out for an exercise type that was
+   never answered. Keys from an older schema — v2's mean/read/write — ride
+   along untouched, because sync unions whatever keys either side has so that
+   a device on one build never strips what a device on another still needs.
+   That is deliberate, and the reason a retired type's state is left alone
+   rather than filtered out of the document. */
+const V2_KEYS = ["mean", "read", "write"];
+const typeStates = (i) => Object.keys(i.s).filter((k) => !V2_KEYS.includes(k));
+check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((i) => typeStates(i).length <= 1), wire ? wire.items.map((i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
+check("the retired exercise is never written into the document", wire && wire.items.every((i) => !("ar2tr" in i.s)), wire ? wire.items.map((i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
 check("clip sync uploaded nothing (no blob: URLs)", !calls.some((c) => c.startsWith("POST /api/sync?audio")));
 check("clip sync did not fetch course recordings as a side effect", !calls.some((c) => c.includes("action=clip")), calls.filter((c) => c.includes("clip")).join(","));
 

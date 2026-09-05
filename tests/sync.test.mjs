@@ -6,7 +6,9 @@ const fresh = () => ({
   phase: "new", step: 0, ease: 2.5, interval: 0, due: 0, reps: 0, lapses: 0,
   right: 0, wrong: 0, skips: 0, near: 0, hist: [], updated: 0,
 });
-const TYPES = ["ar2en", "rec2en", "ar2tr", "tr2ar", "rec2ar", "en2ar", "rec2attr"];
+/* Written out rather than imported, so sync.js can stay free of imports.
+   Must track TYPES in src/languages.js. */
+const TYPES = ["ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "rec2attr"];
 const states = () => Object.fromEntries(TYPES.map((t) => [t, fresh()]));
 const item = (id, extra = {}) => ({
   id, ar: "كتاب", en: "book", lat: "kitaab", tags: [], updated: 0,

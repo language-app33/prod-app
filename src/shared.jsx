@@ -130,6 +130,10 @@ export function Icon({ name, size = 20 }) {
 function ClipRow({ hash, label, index, onRemove, load }) {
   const [state, setState] = useState("idle"); // idle | loading | playing
   const [error, setError] = useState("");
+  /* Asked before removing. A recording is a minute of somebody's voice and
+     the × sits a thumb's width from Play, which is a poor trade for a
+     control that used to act on the first tap. */
+  const [asking, setAsking] = useState(null);
   const audio = useRef(null);
 
   /* An object URL made for this row is this row's to release. */
@@ -200,9 +204,42 @@ function ClipRow({ hash, label, index, onRemove, load }) {
         {error ? ` — ${error}` : ""}
       </span>
       {onRemove && (
-        <button className="at-x" aria-label="Remove recording" onClick={onRemove}>
+        <button
+          className="at-x"
+          aria-label="Remove recording"
+          onClick={() =>
+            setAsking(
+              askConfirm({
+                title: "Delete this recording?",
+                verb: "Delete it",
+                /* Reversible: the card holds it until it is saved, so this is
+                   a plain confirm rather than one that asks for a typed
+                   word. See confirmStrength. */
+                permanent: false,
+                body: (
+                  <p>
+                    It goes from the card when you save. Leave the card without
+                    saving and the recording stays.
+                  </p>
+                ),
+                action: onRemove,
+              })
+            )
+          }
+        >
           ×
         </button>
+      )}
+
+      {asking && (
+        <ConfirmModal
+          {...asking}
+          onCancel={() => setAsking(null)}
+          onConfirm={() => {
+            setAsking(null);
+            asking.action();
+          }}
+        />
       )}
     </div>
   );
@@ -700,6 +737,9 @@ export function ItemList({
           <input
             className="at-input at-search"
             type="search"
+            /* Cards are searched by typing the language they are written in,
+               so the box has to lay itself out by what is in it. */
+            dir="auto"
             placeholder={`Search ${plural || `${noun}s`}`}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
