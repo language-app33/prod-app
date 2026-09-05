@@ -96,7 +96,6 @@ import {
   groupAttrOf,
   labelFor,
   langOf,
-  normAr,
   quizAttrOf,
   setActiveLang,
   tight,

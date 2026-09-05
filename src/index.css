@@ -777,6 +777,20 @@ button {
 @keyframes at-snack-in { from { opacity:0; transform: translate(-50%, 10px); }
   to { opacity:1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .at-snack { animation: none; } }
+/* The context report: one word, and the phrases that already teach it. */
+.at-ctxrow { border-top:1px solid var(--line); padding:10px 0; }
+.at-ctxrow:first-child { border-top:0; }
+.at-ctxword { display:flex; align-items:baseline; gap:10px; margin:0 0 6px; flex-wrap:wrap; }
+.at-ctxword b { font-size:20px; font-weight:600; }
+.at-ctxword i { font-style:normal; font-size:13px; font-weight:600; color: var(--muted); }
+.at-ctxlist { list-style:none; margin:0; padding:0 0 0 12px; border-left:2px solid var(--line); }
+.at-ctxlist li { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:4px; font-size:15px; }
+.at-ctxlist em { font-style:normal; font-size:12px; font-weight:600; color: var(--muted); }
+.at-ctxbare { display:flex; flex-wrap:wrap; gap:8px; }
+.at-ctxbare span { display:inline-flex; align-items:baseline; gap:6px; padding:6px 10px;
+  border:1px solid var(--line); border-radius:999px; background: var(--well); }
+.at-ctxbare b { font-size:17px; font-weight:600; }
+.at-ctxbare i { font-style:normal; font-size:12px; font-weight:600; color: var(--muted); }
 .at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
 .at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
 .at-hint em { color: var(--text-soft); font-style:normal; }

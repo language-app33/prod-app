@@ -264,6 +264,149 @@ export function normViet(s, { stripTones }) {
   return x.replace(/\s+/g, " ").trim().normalize("NFC");
 }
 
+/* ------------------------------------------------------------------
+   Finding a word inside a phrase
+
+   A phrase the teacher recorded that contains a word the teacher also
+   teaches is a context for that word — and it is the one kind of variety
+   this app can offer without inventing content, because the teacher already
+   wrote it when they added the phrase.
+
+   Every part of "does this phrase contain this word" is the language's
+   business and none of it is the app's. Arabic glues ال and و and ب onto
+   the front of a word, so الكتاب contains كتاب; Vietnamese glues nothing to
+   anything; a script written without spaces between words would not even
+   agree about where a token starts. So a pack that wants this declares a
+   `context` block, and a pack that does not simply has no context
+   exercises. That is the expected case, not a failure.
+
+     context: {
+       tokens?: (text) => string[]   // defaults to splitting on whitespace
+       matches: (token, word) => boolean
+     }
+
+   Matching is token-by-token rather than by substring on purpose. A
+   substring hit gives a position in the *normalised* text, and normalising
+   Arabic drops harakat, so that position means nothing in the text a
+   learner would actually be shown. A token index survives, which is what
+   lets the same match blank the right word later.
+   ------------------------------------------------------------------ */
+
+export const supportsContext = (lang) => !!(lang && lang.context && lang.context.matches);
+
+export function contextTokens(text, lang) {
+  const own = lang && lang.context && lang.context.tokens;
+  const t = String(text || "").trim();
+  if (!t) return [];
+  return own ? own(t) : t.split(/\s+/);
+}
+
+/*
+ * Which token of `phrase` is `word`, or -1. The index, not the text: it is
+ * what a fill-the-gap question needs in order to blank the right one.
+ */
+export function findWordSlot(phrase, word, lang) {
+  if (!supportsContext(lang) || !phrase || !word) return -1;
+  const tokens = contextTokens(phrase, lang);
+  for (let i = 0; i < tokens.length; i++) {
+    if (lang.context.matches(tokens[i], word)) return i;
+  }
+  return -1;
+}
+
+/*
+ * How much of a collection is already teachable in context.
+ *
+ * Given cards, pairs every word card with the phrase and sentence cards
+ * that contain it. Nothing is written and nothing is decided: this is the
+ * number that says whether context exercises are worth building for a
+ * given deck, and it comes from real material rather than a guess.
+ *
+ * Cards are the teacher's shape — { id, ar, en, kind } — so this can be run
+ * from the teaching space without loading a learner's progress.
+ */
+export function contextCoverage(cards, lang) {
+  const empty = { supported: false, words: [], counts: { word: 0, phrase: 0, sentence: 0 }, covered: 0, links: 0 };
+  if (!supportsContext(lang)) return empty;
+
+  const counts = { word: 0, phrase: 0, sentence: 0 };
+  const words = [];
+  const contexts = [];
+  for (const c of cards || []) {
+    const kind = c.kind || guessKind(c.ar || c.en || c.lat, lang);
+    counts[kind] = (counts[kind] || 0) + 1;
+    if (kind === "word") words.push(c);
+    else contexts.push(c);
+  }
+
+  let links = 0;
+  const out = words.map((w) => {
+    /* Every context, not just the first: the point of the exercise is that
+       a word turns up somewhere different each time it comes round. */
+    const found = contexts.filter((c) => findWordSlot(c.ar, w.ar, lang) >= 0);
+    links += found.length;
+    return { id: w.id, ar: w.ar, en: w.en, contexts: found.map((c) => ({ id: c.id, ar: c.ar, en: c.en })) };
+  });
+
+  return {
+    supported: true,
+    counts,
+    words: out.sort((a, b) => b.contexts.length - a.contexts.length),
+    covered: out.filter((w) => w.contexts.length > 0).length,
+    links,
+  };
+}
+
+/* ---- Arabic ----
+   Proclitics: the conjunctions و and ف, the prepositions ب ل ك, and the
+   article ال, which stack — وبالكتاب is one token and four pieces.
+
+   Peeled rather than pattern-matched, because the combinations multiply and
+   a list of them goes stale. Two peels deep is enough for anything real,
+   and the remainder must keep three letters: Arabic words are built on
+   three consonants, so a two-letter remainder is the sign of having peeled
+   away the word itself rather than a prefix.
+
+   It will still occasionally offer a wrong match — كتاب peels to تاب, which
+   is a word. That is why a match is a suggestion for the teacher to accept,
+   never a fact the app acts on by itself. */
+const AR_PROCLITICS = ["وال", "فال", "بال", "كال", "لل", "ال", "و", "ف", "ب", "ل", "ك"];
+
+export function arWordStems(token, depth = 2) {
+  const out = [token];
+  const peel = (s, left) => {
+    if (left <= 0) return;
+    for (const p of AR_PROCLITICS) {
+      if (!s.startsWith(p)) continue;
+      const rest = s.slice(p.length);
+      if (rest.length < 3 || out.includes(rest)) continue;
+      out.push(rest);
+      peel(rest, left - 1);
+    }
+  };
+  peel(token, depth);
+  return out;
+}
+
+export function arTokenIsWord(token, word) {
+  const opts = { stripTashkeel: true, ignoreHamza: true };
+  const w = normAr(word, opts);
+  if (!w) return false;
+  const t = normAr(token, opts);
+  if (!t) return false;
+  return arWordStems(t).includes(w);
+}
+
+/* ---- Vietnamese ----
+   Nothing is glued to anything, so a token is the word or it is not. Tones
+   are kept: ma and má are different words, and treating them as the same
+   one would be the same mistake the checker refuses to make. */
+export function viTokenIsWord(token, word) {
+  const opts = { stripTones: false };
+  const w = normViet(word, opts);
+  return !!w && normViet(token, opts) === w;
+}
+
 export function checkViet(given, expected, settings) {
   const mode = settings.tones || "either";
   const forms = splitForms(expected, /[/;]/);
@@ -477,6 +620,10 @@ export const LANGUAGES = {
        consonants, in any order — the shape of a root. */
     similarityKey: arSimilarityKey,
     similarityMode: "chars",
+    /* Which words a recorded phrase teaches. The article and the one-letter
+       conjunctions and prepositions attach to the front of a word here, so
+       الكتاب and وبالكتاب are both the word كتاب wearing something. */
+    context: { matches: arTokenIsWord },
     /* A romanisation of an Arabic word is a different rendering of it, so
        going between the two is a real exercise. */
     translitDrilled: true,
@@ -563,6 +710,9 @@ export const LANGUAGES = {
        keys are compared whole. Letter overlap would call ban and nab related. */
     similarityKey: viBare,
     similarityMode: "exact",
+    /* Nothing attaches to anything, so a token either is the word or is
+       not — but the tone has to match, because má and ma are two words. */
+    context: { matches: viTokenIsWord },
     /* Vietnamese is already written in the Latin alphabet, so a "type the
        transliteration" exercise would ask for the word already on screen.
        The pronunciation note is a note; it is not drilled. */

@@ -6,7 +6,15 @@ import * as API from "./courses-api.js";
 const ComponentGallery = React.lazy(() =>
   import("./gallery.jsx").then((m) => ({ default: m.ComponentGallery })),
 );
-import { GRAMMAR, dimsOf, dimValues, LANGUAGES, DEFAULT_LANGUAGE } from "./languages.js";
+import {
+  GRAMMAR,
+  contextCoverage,
+  dimsOf,
+  dimValues,
+  supportsContext,
+  LANGUAGES,
+  DEFAULT_LANGUAGE,
+} from "./languages.js";
 import {
   Button,
   CardReadout,
@@ -2403,6 +2411,114 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
   );
 }
 
+/*
+ * How much of a deck can already be practised in context.
+ *
+ * A phrase the teacher recorded that contains a word the teacher also
+ * teaches is a context for that word — the one kind of variety this app can
+ * offer without inventing content. This counts how much of that is sitting
+ * in a deck already, so the question "is it worth building the exercises
+ * that would use it?" is answered from real material instead of a guess.
+ *
+ * Read-only. It writes nothing and suggests nothing; the whole job is the
+ * number at the top.
+ */
+function ContextReport({ cards, lang }) {
+  const [open, setOpen] = useState(false);
+  const report = useMemo(() => contextCoverage(cards, lang), [cards, lang]);
+
+  if (!supportsContext(lang)) {
+    return (
+      <Help>
+        {(lang || {}).name || "This language"} does not describe how to find a word inside a
+        phrase, so nothing here can be measured yet.
+      </Help>
+    );
+  }
+
+  const { counts, covered, links, words } = report;
+  const total = words.length;
+  const withContext = words.filter((w) => w.contexts.length > 0);
+  const bare = words.filter((w) => w.contexts.length === 0);
+
+  return (
+    <>
+      <Lede>
+        {total === 0
+          ? "No single-word cards in this deck yet."
+          : `${covered} of ${plural(total, "word")} appear in at least one phrase you have recorded.`}
+      </Lede>
+      <Help>
+        {plural(counts.word, "word")} · {plural(counts.phrase, "phrase")} ·{" "}
+        {plural(counts.sentence, "sentence")}
+        {links ? ` · ${plural(links, "pairing")} in all` : ""}
+      </Help>
+
+      {total > 0 && (
+        <>
+          <Button
+            className="at-mt3"
+            size="sm"
+            icon={open ? "chevronUp" : "chevronDown"}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "Hide the pairings" : "Show the pairings"}
+          </Button>
+          {open && (
+            <div className="at-mt3">
+              {withContext.map((w) => (
+                <div className="at-ctxrow" key={w.id}>
+                  <p className="at-ctxword">
+                    <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+                      {w.ar}
+                    </b>
+                    <i>{w.en}</i>
+                  </p>
+                  <ul className="at-ctxlist">
+                    {w.contexts.map((c) => (
+                      <li key={c.id}>
+                        <span lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+                          {c.ar}
+                        </span>
+                        <em>{c.en}</em>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {open && bare.length > 0 && (
+        /* The actionable half. "3 of 4" says how rich the deck is; this says
+           which word to record a phrase for next. */
+        <div className="at-mt4">
+          <p className="at-eyebrow">Not in any phrase yet</p>
+          <div className="at-ctxbare">
+            {bare.map((w) => (
+              <span key={w.id}>
+                <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+                  {w.ar}
+                </b>
+                <i>{w.en}</i>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {total > 0 && covered === 0 && (
+        <Help className="at-mt3">
+          Nothing to pair yet. It grows on its own as you add phrases that use words already in the
+          deck — each phrase becomes a context for every word inside it.
+        </Help>
+      )}
+    </>
+  );
+}
+
 export function TeachSpace({ account, languages, onClose }) {
   const [tab, setTab] = useState("courses");
   const [courses, setCourses] = useState([]);
@@ -2711,6 +2827,10 @@ export function TeachSpace({ account, languages, onClose }) {
             <Help>
               Tap a card to see it. Tap Select to move or delete several at once.
             </Help>
+
+            <Section title="In context" className="at-mt5">
+              <ContextReport cards={mine} lang={langOfDeck(d)} />
+            </Section>
 
             <ItemList
               noun="card"

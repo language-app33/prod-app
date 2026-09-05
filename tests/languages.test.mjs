@@ -8,9 +8,13 @@ import {
   grammarFields,
   labelFor,
   normDimValue,
+  arTokenIsWord,
+  contextCoverage,
+  findWordSlot,
   GRAMMAR,
   guessKind,
   LANGUAGES,
+  supportsContext,
   TYPES,
   EX,
   isListening,
@@ -174,4 +178,94 @@ test("neither language pack overrides it today", () => {
   for (const id of Object.keys(LANGUAGES)) {
     assert.equal(LANGUAGES[id].guessKind, undefined, id);
   }
+});
+
+/* --- finding a word inside a phrase ---
+
+   The point of all of it: a phrase the teacher recorded is a context for
+   the words inside it, and no content has to be invented to get one. */
+
+const AR = LANGUAGES["ar-PS"];
+
+test("the article and the little prefixes do not hide a word", () => {
+  assert.equal(arTokenIsWord("كتاب", "كتاب"), true);
+  assert.equal(arTokenIsWord("الكتاب", "كتاب"), true);
+  assert.equal(arTokenIsWord("وبالكتاب", "كتاب"), true);
+  assert.equal(arTokenIsWord("للكتاب", "كتاب"), true);
+});
+
+test("harakat do not hide it either", () => {
+  /* A teacher may vocalise one card and not the other; the match has to
+     survive that, the same way the answer checker does. */
+  assert.equal(arTokenIsWord("الكِتَاب", "كتاب"), true);
+  assert.equal(arTokenIsWord("كتاب", "كِتَاب"), true);
+});
+
+test("a different word is not a match", () => {
+  assert.equal(arTokenIsWord("مكتبة", "كتاب"), false);
+  assert.equal(arTokenIsWord("بيت", "كتاب"), false);
+});
+
+test("a broken plural is a known miss, and stays one", () => {
+  /* أبواب is باب reshaped, not باب with something added, so peeling
+     prefixes can never find it. Written down so the limit is a decision
+     rather than a surprise — the root grouping is what covers this. */
+  assert.equal(arTokenIsWord("أبواب", "باب"), false);
+});
+
+test("peeling stops before it eats the word", () => {
+  /* بيت is three letters; peeling ب off it leaves يت, which is not a word
+     and must not be offered as one. */
+  assert.equal(arTokenIsWord("بيت", "يت"), false);
+});
+
+test("the slot is the token's position, so the right word can be blanked", () => {
+  assert.equal(findWordSlot("الكتاب كبير", "كتاب", AR), 0);
+  assert.equal(findWordSlot("بدي كتاب جديد", "كتاب", AR), 1);
+  assert.equal(findWordSlot("الكتاب كبير", "بيت", AR), -1);
+});
+
+test("a language that does not declare context gets none of this", () => {
+  /* The expected case for most languages, and it must be a quiet no rather
+     than a crash or a wrong guess made by the app. */
+  const bare = { id: "xx" };
+  assert.equal(supportsContext(bare), false);
+  assert.equal(findWordSlot("الكتاب كبير", "كتاب", bare), -1);
+  assert.deepEqual(contextCoverage([{ id: "1", ar: "كتاب" }], bare).supported, false);
+});
+
+test("Vietnamese matches whole words and keeps the tone", () => {
+  const VI = LANGUAGES["vi-Hue"];
+  assert.equal(findWordSlot("má tôi", "má", VI), 0);
+  /* ma and má are two words; treating them as one would repeat the mistake
+     the answer checker exists to avoid. */
+  assert.equal(findWordSlot("ma tôi", "má", VI), -1);
+});
+
+test("coverage counts the words that have a context, and every context each has", () => {
+  const cards = [
+    { id: "1", ar: "كتاب", en: "book" },
+    { id: "2", ar: "بيت", en: "house" },
+    { id: "3", ar: "شمس", en: "sun" },
+    { id: "4", ar: "الكتاب كبير", en: "the book is big" },
+    { id: "5", ar: "بدي كتاب جديد", en: "I want a new book" },
+    { id: "6", ar: "البيت بعيد", en: "the house is far" },
+  ];
+  const r = contextCoverage(cards, AR);
+  assert.equal(r.counts.word, 3);
+  assert.equal(r.counts.phrase, 3);
+  assert.equal(r.covered, 2, "book and house have contexts; sun has none");
+  assert.equal(r.links, 3);
+  /* Most contexts first, because that is the order worth reading. */
+  assert.equal(r.words[0].ar, "كتاب");
+  assert.equal(r.words[0].contexts.length, 2);
+  assert.equal(r.words.at(-1).contexts.length, 0);
+});
+
+test("a collection with no phrases at all reports honestly", () => {
+  /* The answer this is built to give when it is the true one. */
+  const r = contextCoverage([{ id: "1", ar: "كتاب" }, { id: "2", ar: "بيت" }], AR);
+  assert.equal(r.covered, 0);
+  assert.equal(r.links, 0);
+  assert.equal(r.counts.phrase, 0);
 });
