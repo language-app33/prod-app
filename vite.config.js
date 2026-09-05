@@ -2,7 +2,41 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+import { appVersion } from "./scripts/version.mjs";
+
+/* Read once, so every part of one build agrees about which build it is. */
+const VERSION = appVersion();
+
+/*
+ * The same fact in two places, deliberately.
+ *
+ * __APP_VERSION__ is frozen into the JavaScript, so a browser running a
+ * bundle reports the build that bundle came from — which, for an installed
+ * app holding a precached copy, is not necessarily the build on the server.
+ * version.json sits in dist and is read fresh by the server.
+ *
+ * The gap between the two is the useful part: it is how the app can tell
+ * you a deploy landed but you are still looking at the old one.
+ */
+function emitVersion() {
+  return {
+    name: "taleb33-version",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify(VERSION, null, 2) + "\n",
+      });
+    },
+  };
+}
+
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(VERSION.commit),
+    __BUILT_AT__: JSON.stringify(VERSION.builtAt),
+  },
+
   /*
    * If you deploy to a subpath — e.g. codeberg.page/you/arabic-trainer —
    * set this to "/arabic-trainer/". For a root domain, leave it as "/".
@@ -11,6 +45,7 @@ export default defineConfig({
 
   plugins: [
     react(),
+    emitVersion(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon-512.png"],

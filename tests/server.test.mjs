@@ -126,6 +126,45 @@ test("a sync token that isn't a digest is refused", async () => {
   assert.equal(res.json.error, "bad-token");
 });
 
+/*
+ * The version endpoint exists so the app can tell "the deploy failed" from
+ * "the deploy worked and this browser is still holding the old copy". That
+ * only works if it reports what is in dist, so that is what it reads.
+ */
+test("the deployed version is whatever is in dist, read fresh", async () => {
+  const { writeFile, mkdir, rm: remove } = await import("node:fs/promises");
+  const distDir = path.join(dir, "dist-for-version");
+  await mkdir(distDir, { recursive: true });
+
+  /* A server pointed at a dist of our own, so the file can be changed
+     underneath it. */
+  process.env.DIST_DIR = distDir;
+  const mod = await import(`../server/index.js?version-test`);
+  const own = mod.createApp();
+  await new Promise((resolve) => own.listen(0, "127.0.0.1", resolve));
+  const at = `http://127.0.0.1:${own.address().port}/api/version`;
+
+  const unbuilt = await fetch(at);
+  assert.equal(unbuilt.status, 404, "no dist yet, so nothing to report");
+  assert.equal((await unbuilt.json()).error, "unbuilt");
+
+  await writeFile(path.join(distDir, "version.json"), JSON.stringify({ commit: "aaaaaaa", builtAt: "x" }));
+  const first = await fetch(at);
+  assert.equal(first.status, 200);
+  assert.equal((await first.json()).commit, "aaaaaaa");
+  /* Never cached: a stale answer here is the one thing that would make the
+     whole check useless. */
+  assert.match(first.headers.get("cache-control") || "", /no-store/);
+
+  /* A deploy, as far as this endpoint can see one. */
+  await writeFile(path.join(distDir, "version.json"), JSON.stringify({ commit: "bbbbbbb", builtAt: "y" }));
+  assert.equal((await (await fetch(at)).json()).commit, "bbbbbbb");
+
+  await new Promise((resolve) => own.close(resolve));
+  await remove(distDir, { recursive: true, force: true });
+  delete process.env.DIST_DIR;
+});
+
 test("an unknown /api path answers JSON, never the app shell", async () => {
   const res = await api("/api/nothing-here");
   assert.equal(res.status, 404);

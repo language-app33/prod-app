@@ -28,6 +28,26 @@ const MAX_BODY_BYTES = 12 * 1024 * 1024;
 
 const ROUTES = { "/api/courses": courses, "/api/sync": sync };
 
+/*
+ * What is actually deployed.
+ *
+ * Read from dist rather than from the environment, so this reports the
+ * build being served and not merely the commit this process was started
+ * with — those come apart the moment a container serves a dist it did not
+ * build. Read on every request, and not cached, because the whole value of
+ * the answer is that it is current: the browser is asking it precisely
+ * because the copy it holds may be stale.
+ */
+async function serveVersion(res) {
+  const text = await readFile(path.join(DIST, "version.json"), "utf8").catch(() => null);
+  if (text === null) return asJson(res, { error: "unbuilt" }, 404);
+  try {
+    return asJson(res, JSON.parse(text), 200);
+  } catch (err) {
+    return asJson(res, { error: "unreadable" }, 500);
+  }
+}
+
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -153,6 +173,9 @@ export function createApp() {
   return createServer(async (req, res) => {
     try {
       const urlPath = new URL(req.url, "http://localhost").pathname;
+
+      if (urlPath === "/api/version") return await serveVersion(res);
+
       const handler = ROUTES[urlPath];
 
       if (handler) {

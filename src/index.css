@@ -599,6 +599,21 @@ button {
 .at-cact { font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color: var(--brass); white-space:nowrap; }
 .at-crule { height:2px; background: var(--line); margin:8px 4px; border-radius:2px; }
+/* The version, at the foot of the menu. Quieter than the rows above it —
+   it is a fact to look up, not somewhere to go — until the server turns out
+   to be serving a newer build, when it becomes the one thing in the menu
+   worth acting on. */
+.at-cver { display:flex; align-items:center; gap:10px; padding:8px 10px 4px; }
+.at-cvertext { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.at-cver b { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size:11px; font-weight:700; letter-spacing:.04em; color: var(--text-soft); }
+.at-cver i { font-style:normal; font-size:10px; font-weight:600; color: var(--muted);
+  overflow:hidden; text-overflow:ellipsis; }
+.at-cver.stale b, .at-cver.stale i { color: var(--brass); }
+.at-cverbtn { border:2px solid var(--brass); background:none; color: var(--brass); cursor:pointer;
+  border-radius:999px; padding:5px 11px; font-family: var(--ui); font-size:10px; font-weight:800;
+  letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; flex:none; }
+.at-cverbtn:hover { background: var(--brass); color: var(--onbrass); }
 .at-screen { position:fixed; inset:0; z-index: var(--z-screen); background: var(--bg);
   display:flex; flex-direction:column; }
 .at-screenhead { display:flex; align-items:center; gap:12px; padding:14px 16px;

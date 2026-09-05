@@ -6048,6 +6048,86 @@ function SpaceSwitch({ space, spaces, onSpace }) {
   );
 }
 
+/*
+ * Which build this is, and whether it is the one on the server.
+ *
+ * Frozen in at build time (see vite.config.js), so this is the commit the
+ * running bundle came from — not the commit the server is serving. For an
+ * installed app those come apart: the service worker holds a precached copy
+ * and keeps serving it until it has fetched the new one, so a deploy can
+ * land perfectly and this line still read the old commit for a while.
+ *
+ * Which is exactly the thing that would make a version line misleading, so
+ * the line asks the server as well. "Up to date" then means the deploy
+ * landed *and* you are looking at it, and anything else says so plainly
+ * rather than leaving a good deploy looking like a failed one.
+ */
+const APP_COMMIT = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
+const APP_BUILT_AT = typeof __BUILT_AT__ === "string" ? __BUILT_AT__ : "";
+
+/* Short and local: enough to tell two deploys on the same day apart. */
+function buildStamp(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function AppVersion() {
+  /* null while asking, then the server's answer, or false if it could not
+     be reached — which is not an error worth showing: offline is a normal
+     state for this app, and it says nothing about the deploy. */
+  const [deployed, setDeployed] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/version", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => alive && setDeployed(v && v.commit ? v : false))
+      .catch(() => alive && setDeployed(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const stale = deployed && deployed.commit !== APP_COMMIT;
+
+  async function reload() {
+    /* Ask the service worker to look again first: a plain reload can be
+       answered out of its cache, which is the state we are trying to
+       leave. */
+    try {
+      const reg = navigator.serviceWorker && (await navigator.serviceWorker.getRegistration());
+      if (reg) await reg.update();
+    } catch (e) {
+      /* No worker, or it refused. Reloading is still worth a try. */
+    }
+    window.location.reload();
+  }
+
+  return (
+    <div className={`at-cver${stale ? " stale" : ""}`}>
+      <span className="at-cvertext">
+        <b>Version {APP_COMMIT}</b>
+        <i>
+          {buildStamp(APP_BUILT_AT)}
+          {stale ? ` — ${deployed.commit} is deployed` : ""}
+        </i>
+      </span>
+      {stale && (
+        <button className="at-cverbtn" onClick={reload}>
+          Reload
+        </button>
+      )}
+    </div>
+  );
+}
+
 function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }) {
   const [open, setOpen] = useState(false);
 
@@ -6141,6 +6221,9 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
             </span>
             <span className="at-clinetext">How it works</span>
           </button>
+
+          <div className="at-crule" />
+          <AppVersion />
         </div>
       )}
     </div>

@@ -23,7 +23,14 @@ await build({
   /* One React: the bundle imports the same copy the test renders with. */
   external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
   logLevel: "silent",
-  define: { "process.env.NODE_ENV": '"development"' },
+  /* The same two vite freezes into a real build, so the version line is
+     exercised here the way it actually ships rather than through its
+     "no one defined this" fallback. */
+  define: {
+    "process.env.NODE_ENV": '"development"',
+    __APP_VERSION__: '"abc1234"',
+    __BUILT_AT__: '"2026-09-05T13:00:00.000Z"',
+  },
 });
 
 const dom = new JSDOM(`<!doctype html><html><body><div id="root"></div></body></html>`, {
@@ -56,6 +63,9 @@ const card = {
   rev: 2, updated: 1,
 };
 let materialHits = 0;
+/* The build the bundle was compiled with — see the define above — so the
+   app and the server agree until a test makes them disagree. */
+let deployedVersion = { commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
 w.fetch = globalThis.fetch = async (input, opts = {}) => {
   const url = new URL(String(input), "https://taleb.test");
   const method = opts.method || "GET";
@@ -70,6 +80,10 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
     json: async () => body,
     text: async () => JSON.stringify(body),
   });
+
+  /* Whatever the "server" is serving. Set per test, so the corner menu can
+     be shown both a matching build and a newer one. */
+  if (url.pathname === "/api/version") return json(deployedVersion);
 
   if (url.pathname === "/api/courses") {
     if (action === "whoami") return json({ ok: true, user: { ...account, key: undefined } });
@@ -214,9 +228,64 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(200);
 }
 
-/* ---- a session: start, answer one card, continue ---- */
 const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
 const buttonNamed = (re) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent));
+
+/* ---- the version line ----
+   It exists to answer "is what I merged actually running?", so the two
+   things worth checking are that it shows the build the bundle was
+   compiled from, and that it does not claim to be current when the server
+   is serving something else — which for an installed app is the ordinary
+   case for a minute after a deploy, not an exotic one. */
+{
+  const openMenu = async () => {
+    click(document.querySelector(".at-cornerbtn"));
+    await sleep(150);
+  };
+
+  await openMenu();
+  const ver = document.querySelector(".at-cver");
+  check("the corner menu carries a version", !!ver,
+    ver ? "" : document.querySelector(".at-cmenu") ? "menu open, no version line" : "the menu did not open");
+  check("it names the build this bundle came from", !!ver && /abc1234/.test(ver.textContent),
+    (ver && ver.textContent) || "");
+  check("it says when, so two deploys in a day are distinguishable",
+    !!ver && /\d/.test(ver.querySelector("i").textContent), (ver && ver.querySelector("i").textContent) || "");
+  check("nothing to do when it is the deployed one", !!ver && !ver.classList.contains("stale") && !ver.querySelector(".at-cverbtn"));
+
+  /* A deploy lands while this bundle is the one in hand. */
+  click(document.querySelector(".at-cornerbtn"));
+  await sleep(50);
+  deployedVersion = { commit: "def5678", builtAt: "2026-09-05T14:00:00.000Z" };
+  await openMenu();
+  await sleep(60);
+  const stale = document.querySelector(".at-cver");
+  check("a newer deploy is reported rather than passed over",
+    !!stale && stale.classList.contains("stale") && /def5678/.test(stale.textContent),
+    (stale && stale.textContent) || "");
+  check("and it offers the one thing that fixes it", !!stale && !!stale.querySelector(".at-cverbtn"));
+
+  /* Offline is not a failed deploy, and must not be shown as one. */
+  click(document.querySelector(".at-cornerbtn"));
+  await sleep(50);
+  const realFetch = w.fetch;
+  w.fetch = globalThis.fetch = async (input, opts) => {
+    if (String(input).includes("/api/version")) throw new Error("offline");
+    return realFetch(input, opts);
+  };
+  await openMenu();
+  await sleep(60);
+  const offline = document.querySelector(".at-cver");
+  check("unreachable is not reported as out of date",
+    !!offline && !offline.classList.contains("stale") && /abc1234/.test(offline.textContent),
+    (offline && offline.textContent) || "");
+  w.fetch = globalThis.fetch = realFetch;
+  deployedVersion = { commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
+  click(document.querySelector(".at-cornerbtn"));
+  await sleep(50);
+}
+
+/* ---- a session: start, answer one card, continue ---- */
 click(buttonNamed(/^Start session$/));
 await sleep(400);
 const instruction = document.querySelector(".at-instruction");
