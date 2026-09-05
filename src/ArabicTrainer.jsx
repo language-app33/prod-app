@@ -5031,10 +5031,17 @@ const TIME_CHOICES = [2, 3, 5, 10];
 
 function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
   const [step, setStep] = useState(0);
-  const [mode, setMode] = useState("ultimate");
+  /* No mode until one is chosen. A pre-selected card looks like an answer
+     already given, so the first screen gets read as "confirm this" rather
+     than "pick one" — and Ultimate, which is the longest session on offer,
+     is the last one to hand somebody by default. */
+  const [mode, setMode] = useState("");
   const [picked, setPicked] = useState(() => new Set());
   const [openTag, setOpenTag] = useState(null);
-  const [limitKind, setLimitKind] = useState("count"); // count | time
+  /* "" until one of the two is chosen — the same reason the mode starts
+     unset. It used to open on 20 questions already lit, which is a length
+     nobody asked for sitting where the answer goes. */
+  const [limitKind, setLimitKind] = useState(""); // "" | count | time
   const [count, setCount] = useState(20);
   const [minutes, setMinutes] = useState(5);
   const [q, setQ] = useState("");
@@ -5096,6 +5103,9 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
       return next;
     });
 
+  /* Unknown until a mode is picked, and three steps is the safer guess:
+     showing two and then growing a step reads as the app changing its mind
+     about what it asked for. */
   const needsLength = mode !== "ultimate";
   const steps = needsLength ? ["Mode", "Cards", "Length"] : ["Mode", "Cards"];
   const last = step === steps.length - 1;
@@ -5106,12 +5116,28 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
      would have been fine. */
   const needTypes = mode === "started" ? 1 : 2;
   const problem =
-    picked.size === 0
+    !mode
+      ? "Choose a mode"
+      : picked.size === 0
       ? "Choose at least one card"
       : typeCount < needTypes
       ? mode === "started"
         ? "Get started needs one of the gentle exercise types switched on"
         : "At least two exercise types must be switched on in Settings"
+      : needsLength && !limitKind
+      ? "Choose a length"
+      : "";
+
+  /* What is missing to leave *this* step, which is not the same as what is
+     missing to start: being told to pick cards while still choosing a mode
+     answers a question that has not been asked yet. The button says it
+     rather than sitting dead — a disabled control with no reason given is
+     the one people tap twice and then give up on. */
+  const stepProblem =
+    step === 0 && !mode
+      ? "Choose a mode"
+      : step === 1 && picked.size === 0
+      ? "Choose at least one card"
       : "";
 
   function start() {
@@ -5141,10 +5167,10 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
               )}
               {!last ? (
                 <Button variant="primary"
-                  disabled={step === 1 && picked.size === 0}
+                  disabled={!!stepProblem}
                   onClick={() => setStep(step + 1)}
                 >
-                  Next
+                  {stepProblem || "Next"}
                 </Button>
               ) : (
                 <Button variant="primary" disabled={!!problem} onClick={start}>
@@ -5314,7 +5340,9 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
           <Help>
             {limitKind === "count"
               ? `The session ends after ${count} questions.`
-              : `A countdown replaces the question count, and the session ends after ${minutes} minutes.`}
+              : limitKind === "time"
+              ? `A countdown replaces the question count, and the session ends after ${minutes} minutes.`
+              : "One or the other: a number of questions, or a stretch of time."}
           </Help>
         </>
       )}

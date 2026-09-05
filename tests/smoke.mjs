@@ -219,17 +219,72 @@ const clickNamed = (re) => {
   if (b) b.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
   return !!b;
 };
+const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
+const buttonNamed = (re) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent));
+
 check("the manual session builder opens", clickNamed(/Build a session|Choose what to practise|Pick cards/) || true);
 await sleep(300);
 if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("session builder rendered in a Screen with its footer", !!document.querySelector(".at-screenfoot, .at-screenhead"));
-  const back = [...document.querySelectorAll("button")].find((b) => /Close|Back/.test(b.getAttribute("aria-label") || ""));
-  if (back) back.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
-  await sleep(200);
-}
 
-const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
-const buttonNamed = (re) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent));
+  /* Nothing is chosen for you. Every step of this used to open with an
+     answer already lit — Ultimate on the first screen, twenty questions on
+     the last — which reads as a decision made rather than one to make, and
+     Ultimate is the longest session on offer to hand somebody by default. */
+  const modeCards = [...document.querySelectorAll(".at-modecard")];
+  check("the modes are all offered, none of them chosen", modeCards.length > 1 && !modeCards.some((b) => b.classList.contains("on")),
+    `${modeCards.length} modes, ${modeCards.filter((b) => b.classList.contains("on")).map((b) => b.textContent.slice(0, 12)).join(",") || "none"} lit`);
+
+  const next = () => buttonNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  check("and you cannot go on until you choose one", !!next() && next().disabled, (next() && next().textContent) || "no button");
+  check("the button says what is missing rather than sitting dead", !!next() && /Choose a mode/.test(next().textContent),
+    (next() && next().textContent) || "");
+
+  click(modeCards.find((b) => /Regular/.test(b.textContent)));
+  await sleep(80);
+  check("choosing one lets you go on", !!next() && !next().disabled && /^Next$/.test(next().textContent),
+    (next() && next().textContent) || "");
+
+  /* Cards, which had no default and still should not. */
+  click(next());
+  await sleep(120);
+  check("no card is chosen for you either", !document.querySelector(".at-tagpick.on, .at-minicard.on"));
+  const everything = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Everything/.test(b.textContent));
+  click(everything);
+  await sleep(80);
+  click(next());
+  await sleep(120);
+
+  /* Length: two segmented controls, and on opening neither should have a
+     segment lit. */
+  const lit = [...document.querySelectorAll(".at-lengthgroup .on, .at-lengthgroup [aria-checked=true], .at-lengthgroup [aria-selected=true]")];
+  check("no length is chosen for you", lit.length === 0, lit.map((e) => e.textContent).join(","));
+  const start = () => buttonNamed(/^(Start|Choose a length)$/);
+  check("and it says so instead of starting a session you did not describe",
+    !!start() && start().disabled && /Choose a length/.test(start().textContent),
+    (start() && start().textContent) || "no button");
+
+  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => b.textContent.trim() === "10"));
+  await sleep(80);
+  check("choosing a length is all that was left", !!start() && !start().disabled && /^Start$/.test(start().textContent),
+    (start() && start().textContent) || "");
+
+  /* The whole point of the walk: it still builds. Two new blocking
+     conditions are two new ways to wedge the builder shut. */
+  click(start());
+  await sleep(400);
+  check("a hand-built session actually starts", !!document.querySelector(".at-instruction"),
+    document.body.textContent.slice(0, 120));
+
+  /* Out again, so the rest of the run starts its own session rather than
+     inheriting this one. */
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Leave session"));
+  await sleep(120);
+  click(buttonNamed(/^Leave$/));
+  await sleep(250);
+  check("and you can leave it again", !document.querySelector(".at-instruction"),
+    document.body.textContent.slice(0, 80));
+}
 
 /* ---- the version line ----
    It exists to answer "is what I merged actually running?", so the two
