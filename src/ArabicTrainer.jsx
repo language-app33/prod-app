@@ -1033,12 +1033,12 @@ function MinimalPairs({ pairs, settings }) {
   const lang = langOf(settings);
   const attr = quizAttrOf(lang);
   return (
-    <div className="at-pairs">
-      <p className="at-answerlabel">
+    <div className="at-pairs" data-el="minimal-pairs">
+      <p className="at-answerlabel" data-el="minimal-pairs-label">
         Also spelt this way, with a different {attr ? attr.label : "sound"}
       </p>
       {pairs.map((p) => (
-        <p key={p.text} className="at-hint">
+        <p key={p.text} className="at-hint" data-el="minimal-pair">
           <span className="ar" style={{ fontWeight: 600 }}>
             {p.text}
           </span>
@@ -2194,11 +2194,12 @@ const ICON = {
 
 
 /* The target language's own script, however it is written. */
-function Arabic({ text, kind, lang }) {
+function Arabic({ text, kind, lang, name }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   return (
     <p
       className={`at-arabic ${kind || "word"}`}
+      data-el={name}
       lang={L.id}
       dir={L.direction}
       style={{ fontFamily: L.fontStack, direction: L.direction }}
@@ -2294,11 +2295,21 @@ function AudioPrompt({ recs, autoPlay }) {
   );
 }
 
-function Field({ value, field, kind, lang }) {
+function Field({ value, field, kind, lang, name }) {
   if (!value) return null;
-  if (field === "ar") return <Arabic text={value} kind={kind} lang={lang || activeLang()} />;
-  if (field === "lat") return <p className="at-latin">{value}</p>;
-  return <p className="at-en">{value}</p>;
+  if (field === "ar")
+    return <Arabic text={value} kind={kind} lang={lang || activeLang()} name={name} />;
+  if (field === "lat")
+    return (
+      <p className="at-latin" data-el={name}>
+        {value}
+      </p>
+    );
+  return (
+    <p className="at-en" data-el={name}>
+      {value}
+    </p>
+  );
 }
 
 const FLAG_LABEL = {
@@ -2327,13 +2338,20 @@ function AfterAnswer({ ok, overridden, hasAudio, onOverride, onFlag, flagged, on
 
   return (
     <div className="at-after">
-      <Button variant="primary" wide className="at-continue" onClick={onContinue}>
+      <Button
+        variant="primary"
+        wide
+        className="at-continue"
+        data-el="continue-button"
+        onClick={onContinue}
+      >
         Continue
       </Button>
 
       <div className="at-flagwrap">
         <button
           className={`at-flagbtn${flagged ? " on" : ""}`}
+          data-el="flag-button"
           onClick={() => setOpen((v) => !v)}
         >
           ⚑ {flagged ? "Flagged" : "Flag a problem"}
@@ -3561,16 +3579,17 @@ Cards ready to practice
                   <button
                     className="at-exit"
                     aria-label="Leave session"
+                    data-el="leave-session"
                     onClick={() => setLeaving(true)}
                   >
                     <Icon name="close" />
                   </button>
-                  <span className="at-count">
+                  <span className="at-count" data-el="session-count">
                     {timeLeft !== null
                       ? `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}`
                       : `${qi + 1} / ${session.exercises.length}`}
                   </span>
-                  <div className="at-progress">
+                  <div className="at-progress" data-el="session-progress">
                     <i
                       style={{
                         width: `${
@@ -3590,12 +3609,24 @@ Cards ready to practice
 
                 {/* Once the answer is up, the question and the box you typed
                     into step back so the answer holds the eye. */}
-                <div className={`at-card${checked ? " at-asked" : ""}`}>
-                  <p className="at-instruction">
+                {/* Every piece of text in here carries a data-el name.
+                    They are not styling hooks and nothing reads them at
+                    runtime — they exist so that a change can be asked for by
+                    name ("make question-prompt bigger") instead of by
+                    description, and so a test can notice when one goes
+                    missing. Names describe the role, not the wording, so
+                    rewriting a sentence leaves its name alone. */}
+                <div className={`at-card${checked ? " at-asked" : ""}`} data-el="card">
+                  <p className="at-instruction" data-el="question-instruction">
                     {spec.instruction}
-                    {isSub && <span className="at-formtag"> · {labelFor(item)}</span>}
+                    {isSub && (
+                      <span className="at-formtag" data-el="question-form-tag">
+                        {" "}
+                        · {labelFor(item)}
+                      </span>
+                    )}
                   </p>
-                  <div className={`at-ask${checked ? " done" : ""}`}>
+                  <div className={`at-ask${checked ? " done" : ""}`} data-el="question-prompt">
                     {spec.promptField === "audio" ? (
                       <AudioPrompt recs={item.recs} autoPlay />
                     ) : (
@@ -3603,15 +3634,27 @@ Cards ready to practice
                         value={item[spec.promptField]}
                         field={spec.promptField}
                         kind={item.kind}
+                        name="question-prompt-text"
                       />
                     )}
                   </div>
 
                   {hintOpen && item[spec.hintField] && (
-                    <Field value={item[spec.hintField]} field={spec.hintField} kind={item.kind} />
+                    <Field
+                      value={item[spec.hintField]}
+                      field={spec.hintField}
+                      kind={item.kind}
+                      name="hint-value"
+                    />
                   )}
                   {!hintOpen && item[spec.hintField] && !checked && (
-                    <Button variant="ghost" size="sm" className="at-hintbtn" onClick={() => setHintOpen(true)}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="at-hintbtn"
+                      data-el="hint-button"
+                      onClick={() => setHintOpen(true)}
+                    >
                       {spec.hintLabel}
                     </Button>
                   )}
@@ -3621,16 +3664,32 @@ Cards ready to practice
                       no sound, the alternative to it is failing every
                       recording in turn or abandoning the session. */}
                   {isListening(exercise.type) && !checked && (
-                    <Button variant="ghost" size="sm" className="at-quietbtn" onClick={goQuiet}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="at-quietbtn"
+                      data-el="quiet-button"
+                      onClick={goQuiet}
+                    >
                       Can't listen right now
                     </Button>
                   )}
 
-                  <div className="at-mt4" className={`at-answerbox${checked ? " done" : ""}`}>
+                  {/* Two className attributes stood here and React kept the
+                      second, so the at-mt4 gap was silently dropped and the
+                      answer box sat hard against the hint button above it.
+                      The .at-answerbox.done rule below overrides this margin
+                      with !important, which is the sign it was meant to be
+                      here all along. */}
+                  <div
+                    className={`at-answerbox at-mt4${checked ? " done" : ""}`}
+                    data-el="answer-box"
+                  >
                     {spec.answerMode === "choice" ? (
                       <Segmented
                         size={null}
                         label="Your answer"
+                        data-el="answer-choices"
                         disabled={!!checked}
                         options={((quizAttrOf(langOf(settings)) || {}).classes || []).map((c) => ({
                           value: c.id,
@@ -3657,6 +3716,7 @@ Cards ready to practice
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
                             checked ? (checked.ok ? " ok" : " no") : ""
                           }`}
+                          data-el="answer-input"
                           value={typed}
                           readOnly={!!checked}
                           placeholder={spec.placeholder}
@@ -3689,7 +3749,10 @@ Cards ready to practice
 
                   {checked ? (
                     <>
-                      <p className={`at-shout ${checked.ok || overridden ? "ok" : "no"}`}>
+                      <p
+                        className={`at-shout ${checked.ok || overridden ? "ok" : "no"}`}
+                        data-el="verdict"
+                      >
                         {skipped
                           ? "Here it is"
                           : checked.ok || overridden
@@ -3697,17 +3760,18 @@ Cards ready to practice
                           : "Not quite — here it is"}
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
-                        <Help>{verdictText(checked, langOf(settings))}</Help>
+                        <Help data-el="verdict-reason">{verdictText(checked, langOf(settings))}</Help>
                       )}
                       {/* A right answer is already on screen in the box above,
                           so repeating it says nothing. It is shown only when
                           the person got it wrong or asked to see it. */}
                       {!(checked.ok || overridden) && (
-                        <div className="at-answermain">
+                        <div className="at-answermain" data-el="answer-value">
                           <Field
                             value={item[spec.answerField]}
                             field={spec.answerField}
                             kind={item.kind}
+                            name="answer-value-text"
                           />
                         </div>
                       )}
@@ -3716,13 +3780,15 @@ Cards ready to practice
                           so each says what it is and is set smaller. */}
                       {spec.promptField === "audio" && spec.answerField !== "ar" && item.ar && (
                         <div className="at-answeralso">
-                          <p className="at-alsolabel">This is how it's written</p>
-                          <Field value={item.ar} field="ar" kind={item.kind} />
+                          <p className="at-alsolabel" data-el="also-script-label">
+                            This is how it's written
+                          </p>
+                          <Field value={item.ar} field="ar" kind={item.kind} name="also-script" />
                         </div>
                       )}
                       {item[spec.hintField] && (
                         <div className="at-answeralso">
-                          <p className="at-alsolabel">
+                          <p className="at-alsolabel" data-el="also-hint-label">
                             {spec.hintField === "lat"
                               ? "This is how it's pronounced"
                               : spec.hintField === "ar"
@@ -3733,17 +3799,24 @@ Cards ready to practice
                             value={item[spec.hintField]}
                             field={spec.hintField}
                             kind={item.kind}
+                            name="also-hint"
                           />
                         </div>
                       )}
                       {checked.reason === "bare" && (
-                        <Help>{verdictWord(langOf(settings), "bare")}</Help>
+                        <Help data-el="bare-note">{verdictWord(langOf(settings), "bare")}</Help>
                       )}
                       <MinimalPairs pairs={pairs} settings={settings} />
-                      {item.note && <p className="at-note">{item.note}</p>}
+                      {item.note && (
+                        <p className="at-note" data-el="card-note">
+                          {item.note}
+                        </p>
+                      )}
                       {spec.promptField !== "audio" && (item.recs || []).length > 0 && (
                         <div className="at-answeralso">
-                          <p className="at-alsolabel">This is how it sounds</p>
+                          <p className="at-alsolabel" data-el="also-audio-label">
+                            This is how it sounds
+                          </p>
                           <AudioPrompt recs={item.recs} />
                         </div>
                       )}
@@ -3760,10 +3833,15 @@ Cards ready to practice
                   ) : (
                     <>
                       <div className="at-row">
-                        <Button variant="ghost" onClick={giveUp}>
+                        <Button variant="ghost" data-el="dont-know-button" onClick={giveUp}>
                           I don't know
                         </Button>
-                        <Button variant="primary" disabled={!typed.trim()} onClick={submit}>
+                        <Button
+                          variant="primary"
+                          data-el="check-button"
+                          disabled={!typed.trim()}
+                          onClick={submit}
+                        >
                           Check
                         </Button>
                       </div>

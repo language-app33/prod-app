@@ -317,6 +317,60 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     await sleep(120);
   }
 
+  /* Names on the parts of a question and an answer. They are how a change
+     gets asked for — "make question-prompt bigger" — so the thing worth
+     testing is that they are there, that they mean one element each, and
+     that the gap above the answer box is real rather than a class React
+     threw away. */
+  {
+    const named = () =>
+      [...document.querySelectorAll(".at-card [data-el]")].map((e) => e.getAttribute("data-el"));
+
+    const asking = named();
+    for (const want of ["question-instruction", "question-prompt", "answer-box", "answer-input", "check-button", "dont-know-button"]) {
+      check(`the question names ${want}`, asking.includes(want), asking.join(" "));
+    }
+
+    /* One name, one element — except the minimal pairs, which are a list
+       and are named as one. */
+    const dupes = asking.filter((n, i) => n !== "minimal-pair" && asking.indexOf(n) !== i);
+    check("each name means exactly one thing", dupes.length === 0, dupes.join(", "));
+
+    /* A block comment written without braces in a JSX children position is
+       not a comment — it is text, and it renders. Nothing else here would
+       have caught it: every name was present and every class was right,
+       and the card simply had a paragraph of source code across the top. */
+    const card = document.querySelector(".at-card");
+    check("no source comment leaked into the card",
+      !/\/\*|\*\/|data-el name/.test(card.textContent),
+      card.textContent.slice(0, 100));
+
+    /* The gap that a duplicated className attribute used to swallow. */
+    const box = document.querySelector('[data-el="answer-box"]');
+    check("the answer box keeps the gap above it",
+      box && box.classList.contains("at-mt4"), box ? box.className : "no answer box");
+
+    /* And the hint button says which field it reveals, in the language's
+       own word for it. */
+    const hint = document.querySelector(".at-hintbtn");
+    check("the hint button names the field it shows",
+      !hint || /Show transliteration|Show meaning/.test(hint.textContent),
+      (hint && hint.textContent) || "no hint on this exercise");
+
+    /* Now answer it, so the second half of the card can be looked at. */
+    click(buttonNamed(/^I don't know$/));
+    await sleep(250);
+    const answered = named();
+    for (const want of ["verdict", "answer-value", "continue-button", "flag-button"]) {
+      check(`the answer names ${want}`, answered.includes(want), answered.join(" "));
+    }
+    const dupes2 = answered.filter((n, i) => n !== "minimal-pair" && answered.indexOf(n) !== i);
+    check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
+
+    click(buttonNamed(/Continue|Next/));
+    await sleep(300);
+  }
+
   /* The band of empty page above a question. 66px of the root's padding is
      room for the fixed chrome, and none of that chrome renders during an
      exercise — so the class that takes the room back has to be on while a

@@ -33,7 +33,7 @@ export const EX = {
     promptField: "ar",
     answerField: "en",
     hintField: "lat",
-    hintLabel: "Show pronunciation",
+    hintLabel: "Show {translit}",
     answerMode: "en",
   },
   /* Retired. Asking for a romanisation graded somebody's spelling of it
@@ -105,7 +105,7 @@ export const EX = {
     promptField: "en",
     answerField: "ar",
     hintField: "lat",
-    hintLabel: "Show pronunciation",
+    hintLabel: "Show {translit}",
     answerMode: "ar",
   },
   /* Identify a derived property of the word from its recording. Which

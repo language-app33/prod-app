@@ -359,8 +359,12 @@ export function KeysButton({ on, onClick, label = "On-screen keys" }) {
 export function Lede({ children, className = "" }) {
   return <p className={`at-lede${className ? " " + className : ""}`}>{children}</p>;
 }
-export function Help({ children, className = "" }) {
-  return <p className={`at-hint${className ? " " + className : ""}`}>{children}</p>;
+export function Help({ children, className = "", ...rest }) {
+  return (
+    <p className={`at-hint${className ? " " + className : ""}`} {...rest}>
+      {children}
+    </p>
+  );
 }
 export function Meta({ children, className = "" }) {
   return <span className={`at-meta${className ? " " + className : ""}`}>{children}</span>;
@@ -414,9 +418,9 @@ export function Empty({ title, children, action }) {
    Pick one of a few. Replaces eighteen groups of buttons that each
    toggled their own "primary" class, and tells assistive software what
    is chosen, which none of them did. */
-export function Segmented({ options, value, onChange, size = "sm", label, disabled }) {
+export function Segmented({ options, value, onChange, size = "sm", label, disabled, ...rest }) {
   return (
-    <div className="at-segmented" role="group" aria-label={label}>
+    <div className="at-segmented" role="group" aria-label={label} {...rest}>
       {options.map((o) => {
         const v = typeof o === "object" ? o.value : o;
         const text = typeof o === "object" ? o.label : o;
