@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  arSkeleton,
   checkAr,
   checkViet,
   checkEn,
@@ -8,8 +9,10 @@ import {
   grammarFields,
   labelFor,
   normDimValue,
+  arRootKey,
   arTokenIsWord,
   contextCoverage,
+  EASY_TYPES,
   findWordSlot,
   GRAMMAR,
   guessKind,
@@ -101,9 +104,12 @@ test("the listening exercises are exactly the ones prompted by audio", () => {
   const byPrompt = TYPES.filter((t) => EX[t].promptField === "audio");
   const byHelper = TYPES.filter(isListening);
   assert.deepEqual(byHelper, byPrompt);
-  /* Named so that adding a fourth needs no second edit — but the three that
-     exist today should be exactly these. */
-  assert.deepEqual(byHelper, ["rec2en", "rec2ar", "rec2attr"]);
+  /* Named so that adding another needs no second edit — but the ones that
+     exist today should be exactly these. rec2ctx joined them by declaring
+     an audio prompt and nothing else: the quiet window, the substitution
+     and the "can't listen right now" button all picked it up unprompted,
+     which is what deriving this from the prompt rather than a flag buys. */
+  assert.deepEqual(byHelper, ["rec2en", "rec2ar", "rec2ctx", "rec2attr"]);
 });
 
 test("reading and writing exercises are not listening ones", () => {
@@ -268,4 +274,104 @@ test("a collection with no phrases at all reports honestly", () => {
   assert.equal(r.covered, 0);
   assert.equal(r.links, 0);
   assert.equal(r.counts.phrase, 0);
+});
+
+/* --- the two context exercises ---
+
+   Both are ordinary entries in the table; what is worth asserting is the
+   things the rest of the app derives from them without being told. */
+
+test("filling a gap is not a listening exercise; hearing one is", () => {
+  assert.equal(EX.ctx2ar.promptField, "context");
+  assert.equal(EX.rec2ctx.promptField, "audio");
+});
+
+test("both ask for the script, so they are checked like any other answer", () => {
+  /* answerMode is what routes an answer to the language's own checker. A
+     new mode would have fallen through to the English one silently. */
+  assert.equal(EX.ctx2ar.answerMode, "ar");
+  assert.equal(EX.rec2ctx.answerMode, "ar");
+  assert.equal(EX.ctx2ar.answerField, "ar");
+  assert.equal(EX.rec2ctx.answerField, "ar");
+});
+
+test("each says what a card must have before it can be asked", () => {
+  /* Neither of these is a field on a card: they are questions about the
+     phrases that show a word in use, which availableTypes answers from the
+     index rather than from the card. */
+  assert.ok(EX.ctx2ar.needs.includes("contexts"));
+  assert.ok(EX.rec2ctx.needs.includes("contextAudio"));
+});
+
+test("neither joins the gentle types, and the hint is a nudge not the answer", () => {
+  /* "Get started" is recognition only; picking a word out of running speech
+     is the opposite of that. */
+  assert.equal(EASY_TYPES.includes("ctx2ar"), false);
+  assert.equal(EASY_TYPES.includes("rec2ctx"), false);
+  /* The gap is cued by the word's own meaning, shown always — so the hint
+     is how it sounds, the same nudge en2ar gets. Revealing the meaning here
+     would have been revealing the cue that is already on screen. */
+  assert.equal(EX.ctx2ar.hintField, "lat");
+  assert.equal(EX.rec2ctx.hintField, undefined, "a listening exercise offers no hint");
+});
+
+/* --- the words a word belongs with --- */
+
+test("the gentle types are read off the definitions, not kept beside them", () => {
+  /* The app held a second list, and a new type had to be remembered twice
+     or "Get started" quietly never offered it. */
+  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en"]);
+  for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
+  for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
+    assert.notEqual(EX[t].gentle, true, t);
+  }
+});
+
+test("every language that groups words says what the grouping is called", () => {
+  /* The app renders this sentence and must never compose one: a family
+     sharing a root and a set of words told apart only by tone are not the
+     same observation, and no single sentence is true of both. */
+  for (const [id, lang] of Object.entries(LANGUAGES)) {
+    const group = (lang.derived || []).find((d) => d.groups);
+    if (!group) continue;
+    assert.equal(typeof group.heading, "string", `${id} groups words without a heading`);
+    assert.ok(group.heading.length > 0, id);
+  }
+});
+
+test("Arabic groups by root and needs no quizzable property to do it", () => {
+  /* The change this rests on. Arabic declares a grouping and nothing to
+     quiz, and the old code demanded both — so the root families it had
+     already computed were thrown away on every answer. */
+  const ar = LANGUAGES["ar-PS"];
+  const group = ar.derived.find((d) => d.groups);
+  assert.equal(group.id, "root");
+  assert.equal(ar.derived.some((d) => d.quizzable), false);
+  assert.match(group.heading, /root/i);
+});
+
+test("the root key gathers a family and nothing else", () => {
+  /* The pattern system: three consonants poured into different shapes. */
+  const family = ["كتاب", "كاتب", "مكتب", "مكتبة", "كتب"].map(arRootKey);
+  assert.equal(new Set(family).size, 1, `should share one key, got ${family.join(" ")}`);
+  assert.notEqual(arRootKey("شمس"), family[0]);
+  /* A prefix that is part of the word rather than attached to it. */
+  assert.equal(arRootKey("مدرسة"), arRootKey("درس"));
+});
+
+test("a key too short to mean anything is no key", () => {
+  /* Two consonants would gather words with nothing to do with each other,
+     so a hollow root simply has no family. Fewer families, never wrong
+     ones. */
+  assert.equal(arRootKey("مال"), "");
+  assert.equal(arRootKey("بيت"), "");
+  assert.equal(arRootKey(""), "");
+});
+
+test("what arSkeleton did, and why it could never have grouped anything", () => {
+  /* It stripped harakat and folded hamza and stopped there, so every word
+     kept its own spelling as its key. Kept because similarity still reads
+     it; it is no longer what gathers a family. */
+  assert.notEqual(arSkeleton("كتاب"), arSkeleton("كاتب"));
+  assert.equal(LANGUAGES["ar-PS"].derived.find((d) => d.groups).compute, arRootKey);
 });

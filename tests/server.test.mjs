@@ -165,6 +165,49 @@ test("the deployed version is whatever is in dist, read fresh", async () => {
   delete process.env.DIST_DIR;
 });
 
+/*
+ * A phrase says which words it teaches. The pairing is the teacher's, not
+ * the app's — the app only ever suggests one — so the server has to keep
+ * exactly what it was told and nothing more.
+ */
+test("a card remembers which words it teaches, and keeps the list clean", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rana" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: process.env.ADMIN_KEY || "" } });
+
+  const word = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id: "", ar: "باب", en: "door", lang: "ar-PS" }, decks: [] },
+  });
+  assert.equal(word.status, 200, word.text);
+  const wordId = word.json.card.id;
+
+  const phrase = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "سكّر الباب", en: "close the door", lang: "ar-PS", uses: [wordId] }, decks: [] },
+  });
+  assert.equal(phrase.status, 200, phrase.text);
+  assert.deepEqual(phrase.json.card.uses, [wordId]);
+
+  /* Duplicates collapse and anything that is not an id is dropped, because
+     these are written into a document and read back as identity. */
+  const messy = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: { id: phrase.json.card.id, ar: "سكّر الباب", en: "close the door", lang: "ar-PS",
+              uses: [wordId, wordId, "../etc/passwd", "", null] },
+      decks: [],
+    },
+  });
+  assert.deepEqual(messy.json.card.uses, [wordId, "etcpasswd"]);
+
+  /* A card that says nothing about it has an empty list, not a missing
+     field: the reader should never have to guard. */
+  const plain = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [] },
+  });
+  assert.deepEqual(plain.json.card.uses, []);
+});
+
 test("an unknown /api path answers JSON, never the app shell", async () => {
   const res = await api("/api/nothing-here");
   assert.equal(res.status, 404);

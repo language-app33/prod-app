@@ -1518,6 +1518,10 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
        app cannot yet see that one of these phrases contains one of these
        words. Asked of the language, which owns the rule. */
     kind: guessKind(card.ar || card.en || card.lat, LANGUAGES[card.lang]),
+    /* The word cards this one teaches by containing them, as the teacher
+       confirmed them. Server card ids; the index that turns them into
+       questions maps them to local ids. */
+    uses: (card.uses || []).map(localIdFor),
     note: card.note || "",
     tags: [deckTitle],
     locked: true,

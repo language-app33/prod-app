@@ -90,9 +90,13 @@ import {
   derivedValue,
   dimValues,
   dimsOf,
+  contextTokens,
+  EASY_TYPES,
   exOf,
+  findWordSlot,
   guessKind,
   isListening,
+  supportsContext,
   groupAttrOf,
   labelFor,
   langOf,
@@ -477,6 +481,101 @@ function setListenOffUntil(until) {
   listenOffUntil = until || 0;
 }
 
+/* ------------------------------------------------------------------
+   Where a word turns up
+
+   A phrase the teacher recorded that contains a word they also teach is a
+   context for that word. The pairing is stored on the phrase, as the
+   teacher confirmed it; this turns that round into what the exercises
+   need — for a given form, the phrases that show it in use.
+
+   Held at module level, in step with the items, for the same reason the
+   active language is: availableTypes and the builders are pure functions of
+   a card and cannot be handed a map without threading one through every
+   caller. Derived, never stored, so it cannot fall out of step with the
+   cards it came from.
+   ------------------------------------------------------------------ */
+
+let CONTEXT_INDEX = new Map();
+
+function setContextIndex(map) {
+  CONTEXT_INDEX = map || new Map();
+}
+
+/* The phrases that show this form in use. Keyed by unit id, so a plural
+   held as a form of its card gets its own contexts rather than its
+   parent's. */
+function contextsFor(unitId) {
+  return CONTEXT_INDEX.get(unitId) || [];
+}
+
+/*
+ * Build it from the items in hand.
+ *
+ * A phrase names the *card* it teaches, because that is what a teacher
+ * ticks. Which form of that card actually appears is a question for the
+ * matcher: a phrase may hold the plural rather than the singular the card
+ * leads with, and asking for the wrong form would be a question with no
+ * right answer.
+ */
+function buildContextIndex(items, lang) {
+  const index = new Map();
+  if (!supportsContext(lang)) return index;
+  const byId = new Map(items.map((it) => [it.id, it]));
+
+  for (const phrase of items) {
+    const uses = phrase.uses || [];
+    if (!uses.length || !phrase.ar) continue;
+    for (const targetId of uses) {
+      const target = byId.get(targetId);
+      if (!target) continue;
+      for (const { unit } of unitsOf(target)) {
+        if (!unit.ar) continue;
+        const slot = findWordSlot(phrase.ar, unit.ar, lang);
+        if (slot < 0) continue;
+        const list = index.get(unit.id) || [];
+        list.push({
+          id: phrase.id,
+          ar: phrase.ar,
+          en: phrase.en,
+          recs: phrase.recs || [],
+          slot,
+        });
+        index.set(unit.id, list);
+        /* One form per phrase: if a phrase contained both the singular and
+           the plural it would be a context for each, but the first match
+           is the one the teacher meant. */
+        break;
+      }
+    }
+  }
+  return index;
+}
+
+/*
+ * Which phrase to show this time.
+ *
+ * Rotated rather than picked at random, and keyed on how many times the
+ * form has been answered, so a word that has three contexts meets all three
+ * before it meets any of them twice. Random choice would leave one context
+ * unseen for a surprisingly long time.
+ */
+function pickContext(unit, type) {
+  const list = contextsFor(unit.id).filter((c) =>
+    EX[type] && EX[type].needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
+  );
+  if (!list.length) return null;
+  const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
+  return list[seen % list.length];
+}
+
+/* The phrase with the target word taken out, as the question shows it. */
+function blankedPhrase(context, lang, blank = "____") {
+  const tokens = contextTokens(context.ar, lang);
+  if (context.slot < 0 || context.slot >= tokens.length) return context.ar;
+  return tokens.map((t, i) => (i === context.slot ? blank : t)).join(" ");
+}
+
 /* Whether a type may be asked at this moment. Only the clock makes this
    false, so it is deliberately not part of what a card "supports". */
 function typeAllowedNow(type) {
@@ -529,7 +628,12 @@ export function withoutListening(exercises, from, items, settings) {
     const seen = used.get(keyOf(ex)) || new Set();
     const pick = options.find((t) => !seen.has(t)) || options[0];
     note(ex, pick);
-    tail.push({ ...ex, type: pick });
+    /* The phrase named on the old question is not necessarily right for the
+       new one — a spoken context may have no written place to stand, and a
+       question that needs no context must not carry one. Decided fresh. */
+    const ctx = EX[pick].needs.includes("contexts") ? pickContext(resolved.unit, pick) : null;
+    const { ctx: _dropped, ...rest } = ex;
+    tail.push({ ...rest, type: pick, ...(ctx ? { ctx: ctx.id } : null) });
   }
   return exercises.slice(0, from).concat(tail);
 }
@@ -551,7 +655,16 @@ function availableTypes(it, lang = activeLang()) {
     // And not where going to and from the second writing would mean asking
     // for the word that is already on screen.
     if (!drillsTranslit && spec.needs.includes("lat")) return false;
-    return spec.needs.every((f) => (f === "recs" ? (it.recs || []).length > 0 : it[f]));
+    return spec.needs.every((f) => {
+      /* Three of these are not fields on the card. "recs" asks whether it
+         has a recording of its own; the two context ones ask about the
+         phrases that show this form in use, which live in an index built
+         from every card rather than on this one. */
+      if (f === "recs") return (it.recs || []).length > 0;
+      if (f === "contexts") return contextsFor(it.id).length > 0;
+      if (f === "contextAudio") return contextsFor(it.id).some((c) => (c.recs || []).length > 0);
+      return it[f];
+    });
   });
 }
 
@@ -630,11 +743,7 @@ function stateReady(s) {
 
 const MAX_UNITS_PER_FAMILY = 4;
 
-/* Recognition: the gentler half of the exercise set. Reading the script and
-   hearing it, never producing either. Decoding used to be here too, as
-   script → transliteration; that is retired, which is why a card supporting
-   only one of these still belongs in the mode — see buildManualSession. */
-const EASY_TYPES = ["ar2en", "rec2en"];
+
 
 const MODES = {
   regular: {
@@ -794,7 +903,7 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
         .concat(ordered.filter((t) => !stateReady(unit.s[t])));
       const picked = readyFirst.slice(0, Math.min(Math.max(2, perUnit), ordered.length));
       picked.sort((x, y) => TYPES.indexOf(x) - TYPES.indexOf(y));
-      plans.push({ id: c.it.id, subId: isSub ? unit.id : null, types: picked });
+      plans.push({ id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked });
     }
   }
 
@@ -803,7 +912,14 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
   const depth = Math.max(...plans.map((p) => p.types.length));
   for (let round = 0; round < depth; round++) {
     for (const p of plans) {
-      if (p.types[round]) exercises.push({ id: p.id, subId: p.subId, type: p.types[round] });
+      if (p.types[round]) {
+        const type = p.types[round];
+        /* Which phrase, decided when the queue is built rather than at the
+           moment of asking, so the question does not change under the
+           learner if the cards are refreshed mid-session. */
+        const ctx = p.unit ? pickContext(p.unit, type) : null;
+        exercises.push({ id: p.id, subId: p.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+      }
     }
   }
 
@@ -878,7 +994,10 @@ function buildManualSession({ items, settings, ids, mode, count }) {
       const take = everyTypeMode(mode)
         ? usable
         : shuffle(usable).slice(0, Math.min(perUnit, usable.length));
-      for (const t of take) plans.push({ id: it.id, subId: isSub ? unit.id : null, type: t });
+      for (const t of take) {
+        const ctx = pickContext(unit, t);
+        plans.push({ id: it.id, subId: isSub ? unit.id : null, type: t, ...(ctx ? { ctx: ctx.id } : null) });
+      }
     }
 
     if (!anyUsable && anyLearnt) learnt.push(it);
@@ -962,22 +1081,40 @@ function resolveUnit(items, ex) {
    ------------------------------------------------------------------ */
 
 
-/* Cards whose spelling matches but whose tone does not. */
-function minimalPairs(items, lang, text) {
-  const attr = groupAttrOf(lang);
-  const tone = quizAttrOf(lang);
-  if (!attr || !tone || !text) return [];
-  const key = derivedValue(attr, text);
+/*
+ * The other words this one belongs with.
+ *
+ * What "belongs with" means is the language's answer, not the app's: the
+ * pack names one derived property as the one that groups words, and the
+ * app gathers everything sharing a value for it. In Huế that is the
+ * spelling without its tone, so the group is the words you might mishear
+ * for this one. In Arabic it is the consonantal skeleton, so the group is
+ * the family built on the same root — a different relation entirely, and
+ * a more useful one, since seeing a family together is how the root system
+ * stops being a rumour.
+ *
+ * Where the pack also names a property to be quizzed, a word sharing that
+ * value too is not worth showing: it would be the same word to the ear,
+ * which is the case Huế cares about. Where it names none — Arabic — every
+ * other member of the family qualifies. That second clause is the whole
+ * change: this returned nothing at all for Arabic before, because it asked
+ * for a quizzable property that Arabic has no reason to declare.
+ */
+function relatedWords(items, lang, text) {
+  const group = groupAttrOf(lang);
+  const apart = quizAttrOf(lang);
+  if (!group || !text) return [];
+  const key = derivedValue(group, text);
   if (!key) return [];
-  const mine = derivedValue(tone, text);
+  const mine = apart ? derivedValue(apart, text) : null;
   const out = [];
   const seen = new Set();
   for (const it of items) {
     for (const { unit } of unitsOf(it)) {
       const other = unit.ar;
       if (!other || other === text) continue;
-      if (derivedValue(attr, other) !== key) continue;
-      if (derivedValue(tone, other) === mine) continue;
+      if (derivedValue(group, other) !== key) continue;
+      if (apart && derivedValue(apart, other) === mine) continue;
       if (seen.has(other)) continue;
       seen.add(other);
       out.push({ text: other, en: unit.en || it.en || "", id: it.id });
@@ -1019,21 +1156,26 @@ const LEGACY_SYNC_KEYS = new Set();
    Answer matching
    ------------------------------------------------------------------ */
 
-/* Words spelt the same but toned differently. These are the pairs a learner
-   confuses, and they are worth seeing at the moment of getting one wrong. */
-/* The pairs are worked out once, when the answer is checked, and handed in
-   — not recomputed from every card on every render of the answered state. */
-function MinimalPairs({ pairs, settings }) {
+/* The words this one belongs with, worth seeing at the moment of getting it
+   right or wrong. Worked out once when the answer is checked and handed in,
+   not recomputed from every card on every render of the answered state.
+
+   The heading comes from the language, because the relation does: a family
+   sharing a root and a set of words told apart only by tone are not the
+   same observation, and no sentence the app could assemble would be true of
+   both. */
+function RelatedWords({ pairs, settings }) {
   if (!pairs || !pairs.length) return null;
   const lang = langOf(settings);
-  const attr = quizAttrOf(lang);
+  const group = groupAttrOf(lang);
+  const heading = (group && group.heading) || "Related words";
   return (
-    <div className="at-pairs" data-el="minimal-pairs">
-      <p className="at-answerlabel" data-el="minimal-pairs-label">
-        Also spelt this way, with a different {attr ? attr.label : "sound"}
+    <div className="at-pairs" data-el="related-words">
+      <p className="at-answerlabel" data-el="related-words-label">
+        {heading}
       </p>
       {pairs.map((p) => (
-        <p key={p.text} className="at-hint" data-el="minimal-pair">
+        <p key={p.text} className="at-hint" data-el="related-word">
           <span className="ar" style={{ fontWeight: 600 }}>
             {p.text}
           </span>
@@ -2710,6 +2852,15 @@ export default function ArabicTrainer() {
   // settings to hand. Derived from state, so it cannot drift.
   setActiveLang(settings.language);
 
+  /* And the same for where each word turns up. Rebuilt only when the cards
+     change: it walks every phrase against every word it claims to teach,
+     which is not work to repeat on a keystroke. */
+  const contextIndex = useMemo(
+    () => buildContextIndex(items, langOf(settings)),
+    [items, settings.language]
+  );
+  setContextIndex(contextIndex);
+
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {
     const ids = [];
@@ -2966,6 +3117,14 @@ export default function ArabicTrainer() {
   const isSub = !!(resolved && resolved.isSub);
   const state = item && exercise ? item.s[exercise.type] : null;
   const spec = exercise ? exOf(exercise.type, langOf(settings)) : null;
+  /* The phrase this question shows the word in, if it is that sort of
+     question. Chosen when the queue was built and named on the exercise, so
+     it stays put; looked up again here because only the id travels. */
+  const wantsContext = !!(spec && (spec.promptField === "context" || spec.needs.includes("contextAudio")));
+  const context =
+    wantsContext && exercise && exercise.ctx && item
+      ? contextsFor(item.id).find((c) => c.id === exercise.ctx) || null
+      : null;
   const practice = !!(session && session.practice);
 
   useEffect(() => {
@@ -2976,7 +3135,7 @@ export default function ArabicTrainer() {
     if (!item || checked) return;
     const result = checkAnswer(typed, item, exercise.type, settings);
     sfx(result.ok ? "correct" : "wrong");
-    setPairs(minimalPairs(items, langOf(settings), item.ar));
+    setPairs(relatedWords(items, langOf(settings), item.ar));
     setChecked(result);
     // Drop the phone keyboard so the answer and grades are visible.
     if (inputRef.current) inputRef.current.blur();
@@ -3019,7 +3178,7 @@ export default function ArabicTrainer() {
 
   function giveUp() {
     sfx("warn");
-    setPairs(minimalPairs(items, langOf(settings), item ? item.ar : ""));
+    setPairs(relatedWords(items, langOf(settings), item ? item.ar : ""));
     setSkipped(true);
     setChecked({ ok: false, reason: "skipped" });
     if (inputRef.current) inputRef.current.blur();
@@ -3623,7 +3782,21 @@ Cards ready to practice
                   </p>
                   <div className={`at-ask${checked ? " done" : ""}`} data-el="question-prompt">
                     {spec.promptField === "audio" ? (
-                      <AudioPrompt recs={item.recs} autoPlay />
+                      /* A context question plays the whole phrase, not the
+                         word: hearing it in running speech is the exercise.
+                         Everything else plays the card's own recording. */
+                      <AudioPrompt recs={context ? context.recs : item.recs} autoPlay />
+                    ) : spec.promptField === "context" ? (
+                      <Field
+                        /* The phrase can go between building the queue and
+                           reaching this question — the teacher unticks it,
+                           or the deck is withdrawn. Asking for the word on
+                           its own is a lesser question, not a broken one. */
+                        value={context ? blankedPhrase(context, langOf(settings)) : item.en}
+                        field={context ? "ar" : "en"}
+                        kind="phrase"
+                        name="question-prompt-text"
+                      />
                     ) : (
                       <Field
                         value={item[spec.promptField]}
@@ -3631,6 +3804,17 @@ Cards ready to practice
                         kind={item.kind}
                         name="question-prompt-text"
                       />
+                    )}
+                    {/* Which word is wanted. Always the word's own meaning,
+                        never the phrase's: "close the door please" with a
+                        gap in it has three defensible answers, and marking
+                        two of them wrong would be the app's fault rather
+                        than the learner's. What the phrase means is shown
+                        once the answer is in. */}
+                    {context && (
+                      <p className="at-ctxmeaning" data-el="question-context-meaning">
+                        {item.en}
+                      </p>
                     )}
                   </div>
 
@@ -3781,6 +3965,21 @@ Cards ready to practice
 
                       {/* Everything after it is a second thing worth noticing,
                           so each says what it is and is set smaller. */}
+                      {/* What the phrase it appeared in means. Held back
+                          until now: before the answer it would have given
+                          the game away, and after it is the reason the
+                          question was worth asking. */}
+                      {context && (
+                        <div className="at-answeralso">
+                          <p className="at-alsolabel" data-el="also-context-label">
+                            Where it turned up
+                          </p>
+                          <Field value={context.ar} field="ar" kind="phrase" name="also-context" />
+                          <p className="at-ctxmeaning" data-el="also-context-meaning">
+                            {context.en}
+                          </p>
+                        </div>
+                      )}
                       {spec.promptField === "audio" && spec.answerField !== "ar" && item.ar && (
                         <div className="at-answeralso">
                           <p className="at-alsolabel" data-el="also-script-label">
@@ -3809,7 +4008,7 @@ Cards ready to practice
                       {checked.reason === "bare" && (
                         <Help data-el="bare-note">{verdictWord(langOf(settings), "bare")}</Help>
                       )}
-                      <MinimalPairs pairs={pairs} settings={settings} />
+                      <RelatedWords pairs={pairs} settings={settings} />
                       {item.note && (
                         <p className="at-note" data-el="card-note">
                           {item.note}

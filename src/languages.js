@@ -20,7 +20,7 @@
    which states a card carries, what a session may pick, what the settings
    list, what an export has columns for — so retiring a type is one edit here
    and its definition stays below. */
-export const TYPES = ["ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "rec2attr"];
+export const TYPES = ["ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2ar", "rec2ctx", "rec2attr"];
 
 export const EX = {
   ar2en: {
@@ -35,6 +35,9 @@ export const EX = {
     hintField: "lat",
     hintLabel: "Show {translit}",
     answerMode: "en",
+    /* Recognition rather than production: read it, do not write it. What
+       "Get started" is made of. */
+    gentle: true,
   },
   /* Retired. Asking for a romanisation graded somebody's spelling of it
      rather than their Arabic — "kitaab", "kitāb" and "kitab" are the same
@@ -83,6 +86,7 @@ export const EX = {
     promptField: "audio",
     answerField: "en",
     answerMode: "en",
+    gentle: true,
   },
   rec2ar: {
     instruction: "Listen, then write it in {script}",
@@ -111,6 +115,38 @@ export const EX = {
   /* Identify a derived property of the word from its recording. Which
      property is a matter for the language: the pack names one and this
      exercise drills it. A language that declares none never sees this. */
+  /* The same word, somewhere different each time.
+     A phrase the teacher recorded that contains this word is shown with the
+     word taken out. Nothing here is invented: the sentence is one they
+     wrote, and the only thing the app does is decide which one to show and
+     which word to remove. */
+  ctx2ar: {
+    instruction: "Fill the gap",
+    label: "In a phrase → {script}",
+    short: "P→{S}",
+    needs: ["ar", "contexts"],
+    question: "Which word is missing?",
+    placeholder: "",
+    promptField: "context",
+    answerField: "ar",
+    hintField: "lat",
+    hintLabel: "Show {translit}",
+    answerMode: "ar",
+  },
+  /* And the same again by ear. Harder than hearing the word alone, which is
+     the point: a word inside running speech is what it will sound like when
+     it is met for real. */
+  rec2ctx: {
+    instruction: "Listen to the phrase, then write this word",
+    label: "Phrase heard → {script}",
+    short: "H→{S}",
+    needs: ["ar", "contextAudio"],
+    question: "Which word did you hear?",
+    placeholder: "",
+    promptField: "audio",
+    answerField: "ar",
+    answerMode: "ar",
+  },
   rec2attr: {
     instruction: "Listen, then choose the {attr}",
     label: "Listen → {attr}",
@@ -546,6 +582,37 @@ export function arSimilarityKey(ar) {
   return normAr(ar, { stripTashkeel: true, ignoreHamza: true }).replace(WEAK_LETTERS, "");
 }
 
+/*
+ * The root a word is built on, near enough to gather a family.
+ *
+ * Arabic builds words by pouring three consonants into a pattern, so كتاب,
+ * كاتب and مكتب are the same root wearing different shapes. Seeing them
+ * together is the moment the root system stops being a rumour, and it costs
+ * nothing: it is read off spellings the teacher already typed.
+ *
+ * Near enough, not right. Real morphology is a hard problem and this is
+ * three rules:
+ *   - drop the letters that carry vowelling rather than the root;
+ *   - drop a leading م, the commonest nominal prefix, but only while three
+ *     letters remain, or مال would collapse to nothing;
+ *   - drop a trailing ه, which is where a feminine ة has landed by then.
+ *
+ * A key under three letters is no key at all — two consonants gather words
+ * with nothing to do with each other — so it returns nothing and the word
+ * simply has no family.
+ *
+ * arSkeleton, which this replaces as the grouping, only stripped harakat
+ * and folded hamza. It left the word intact, so no two words ever shared a
+ * key and the family it was meant to gather was always empty. It stays
+ * because similarity still reads it.
+ */
+export function arRootKey(text) {
+  let x = normAr(text, { stripTashkeel: true, ignoreHamza: true }).replace(WEAK_LETTERS, "");
+  if (x.startsWith("\u0645") && x.length >= 4) x = x.slice(1);
+  if (x.endsWith("\u0647") && x.length >= 4) x = x.slice(0, -1);
+  return x.length >= 3 ? x : "";
+}
+
 export function arSkeleton(text) {
   const bare = stripInvisible(String(text || ""))
     .normalize("NFC")
@@ -614,7 +681,19 @@ export const LANGUAGES = {
       bare: "The harakat are above — worth a look.",
     },
     derived: [
-      { id: "root", label: "root", compute: arSkeleton, groups: true, quizzable: false },
+      {
+        id: "root",
+        label: "root",
+        compute: arRootKey,
+        groups: true,
+        quizzable: false,
+        /* What to call the words this gathers, in Arabic's own terms. The
+           app renders this sentence and does not compose one, because the
+           relation it describes is not the same relation in every
+           language: here it is a shared root, in Huế it is a shared
+           spelling with a different tone. */
+        heading: "Built on the same root",
+      },
     ],
     /* What makes two words feel related, for grouping a session: sharing
        consonants, in any order — the shape of a root. */
@@ -703,7 +782,14 @@ export const LANGUAGES = {
           { id: "nang", label: "Nặng — heavy", merges: ["nang"] },
         ],
       },
-      { id: "bare", label: "spelling without tone", compute: viBare, groups: true, quizzable: false },
+      {
+        id: "bare",
+        label: "spelling without tone",
+        compute: viBare,
+        groups: true,
+        quizzable: false,
+        heading: "Also spelt this way, with a different tone",
+      },
     ],
     /* Words that differ only in tone are close relatives, not strangers —
        and that is the only spelling relation that means anything here, so the
@@ -980,6 +1066,12 @@ export function verdictText(result, lang) {
 /* Everything a card can support is drilled unless it is turned off. A
    recording is the only way to practise a language by ear, so leaving those
    exercises off by default meant recordings were made and never heard. */
+/* The gentler half of the set, read off the definitions rather than kept
+   as a second list beside them. The app used to hold one, and a new type
+   had to be remembered in two places or "Get started" quietly never offered
+   it. */
+export const EASY_TYPES = TYPES.filter((t) => EX[t].gentle);
+
 export function defaultTypes() {
   const out = {};
   for (const t of TYPES) out[t] = true;

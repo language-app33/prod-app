@@ -511,6 +511,18 @@ export default async (req) => {
             }))
           : [],
         clips: Array.isArray(card.clips) ? card.clips.slice(0, 12) : [],
+        /* Which word cards this one teaches by containing them. A phrase
+           the teacher recorded is a context for the words inside it, and
+           this is the teacher's confirmation of which those are — never the
+           app's guess, which is only ever a suggestion in the editor.
+
+           Ids, cleaned the same way a card id is: they are written straight
+           into a document and read back as identity. */
+        uses: Array.isArray(card.uses)
+          ? [...new Set(card.uses.map((x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "")))]
+              .filter(Boolean)
+              .slice(0, 24)
+          : [],
       };
 
       let saved;

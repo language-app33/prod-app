@@ -791,6 +791,10 @@ button {
   border:1px solid var(--line); border-radius:999px; background: var(--well); }
 .at-ctxbare b { font-size:17px; font-weight:600; }
 .at-ctxbare i { font-style:normal; font-size:12px; font-weight:600; color: var(--muted); }
+/* The word being asked for, under the phrase it is missing from. */
+.at-ctxmeaning { font-family: var(--ui); font-size:17px; font-weight:700; color: var(--text-soft);
+  margin:6px 0 0; text-align:center; }
+.at-answeralso .at-ctxmeaning { font-size:14px; font-weight:600; color: var(--muted); margin-top:2px; }
 .at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
 .at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
 .at-hint em { color: var(--text-soft); font-style:normal; }

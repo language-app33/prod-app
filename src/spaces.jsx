@@ -11,6 +11,8 @@ import {
   contextCoverage,
   dimsOf,
   dimValues,
+  findWordSlot,
+  guessKind,
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
@@ -2193,7 +2195,74 @@ function Recordings({ clips, onChange }) {
   );
 }
 
-function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, busy, confirming }) {
+/*
+ * Which words a phrase teaches.
+ *
+ * Shown only on a card that is a phrase or a sentence, because a single
+ * word does not contain anything. The app proposes — every word card whose
+ * text it can find inside this one — and the teacher accepts. It is
+ * deliberately not automatic: finding a word inside another is done by
+ * peeling prefixes, and in Arabic that occasionally lands on a different
+ * real word. A wrong pairing would reach a learner as a question with no
+ * right answer.
+ *
+ * A pairing already accepted stays whichever way the matcher later votes,
+ * so improving the matcher can never silently drop a teacher's decision.
+ */
+function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
+  const kind = guessKind(text, lang);
+  const suggestions = useMemo(() => {
+    if (!supportsContext(lang) || kind === "word" || !text.trim()) return [];
+    return (cards || [])
+      .filter((c) => c.id && c.id !== selfId && c.ar)
+      .filter((c) => guessKind(c.ar, lang) === "word")
+      .filter((c) => findWordSlot(text, c.ar, lang) >= 0)
+      .slice(0, 24);
+  }, [cards, lang, text, selfId, kind]);
+
+  /* Anything ticked that the matcher no longer proposes — the phrase was
+     edited, or it was ticked when the wording was different. It has to stay
+     listed or there would be no way to untick it. */
+  const kept = (chosen || []).filter((id) => !suggestions.some((c) => c.id === id));
+  const keptCards = (cards || []).filter((c) => kept.includes(c.id));
+
+  if (!supportsContext(lang) || kind === "word") return null;
+  if (!suggestions.length && !keptCards.length) {
+    return (
+      <div className="at-formblock at-mt5">
+        <p className="at-eyebrow">Words this teaches</p>
+        <Help>
+          None of your single-word cards appear in this one. Add the word on its own card and it
+          will be offered here.
+        </Help>
+      </div>
+    );
+  }
+
+  const options = suggestions.concat(keptCards).map((c) => ({
+    id: c.id,
+    title: c.ar,
+    note: c.en || "",
+  }));
+
+  return (
+    <div className="at-formblock at-mt5">
+      <p className="at-eyebrow">Words this teaches</p>
+      <Help>
+        Tick the words this phrase is a good example of. Each one gets practised inside this phrase
+        as well as on its own — which is how a word is met in more than one place without anything
+        being invented.
+      </Help>
+      <CheckList
+        options={options}
+        chosen={chosen || []}
+        onToggle={(id, on) => onChange(on ? chosen.filter((x) => x !== id) : chosen.concat([id]))}
+      />
+    </div>
+  );
+}
+
+function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming }) {
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
   const dims = dimsOf(lang || LANGUAGES[DEFAULT_LANGUAGE]);
@@ -2214,6 +2283,10 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
   );
   const [note, setNote] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
+  /* Which words this phrase teaches. Confirmed, never assumed: the matcher
+     below proposes and the teacher decides, because peeling prefixes off an
+     Arabic word occasionally lands on a different real one. */
+  const [uses, setUses] = useState((card && card.uses) || []);
 
   const main = forms[0];
   /* English, not "English or a transliteration": with typing the
@@ -2234,7 +2307,7 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
         action={
           <Button variant="primary" size="sm"
             disabled={!canSave || busy}
-            onClick={() => onSave(forms, note, chosen)}
+            onClick={() => onSave(forms, note, chosen, uses)}
           >
             <Icon name="save" />
             {busy ? "Saving…" : "Save"}
@@ -2400,6 +2473,15 @@ function CardEditor({ card, lang, decks, inDecks, onSave, onDelete, onClose, bus
               />
             </div>
           </div>
+
+          <WordsUsed
+            lang={lang}
+            text={main.ar}
+            cards={allCards}
+            selfId={(card && card.id) || ""}
+            chosen={uses}
+            onChange={setUses}
+          />
 
           {card && onDelete && (
             <Button variant="danger" className="at-mt5" onClick={onDelete}>
@@ -2749,7 +2831,8 @@ export function TeachSpace({ account, languages, onClose }) {
         inDecks={editing.decks}
         busy={busy}
         onClose={() => setEditing(null)}
-        onSave={(forms, note, inDecks) =>
+        allCards={cards}
+        onSave={(forms, note, inDecks, uses) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -2763,6 +2846,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   clips: main.clips || [],
                   note: note.trim(),
                   lang: (editLang || {}).id || "",
+                  uses,
                   subs: subs.filter((f) => f.ar.trim() || f.en.trim()),
                 },
                 inDecks
