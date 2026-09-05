@@ -152,3 +152,56 @@ test("a path climbing out of dist cannot read the repository", async () => {
   const text = await res.text();
   assert.doesNotMatch(text, /"dependencies"/);
 });
+
+/*
+ * Stopping. A deploy sends SIGTERM, and how the process answers decides
+ * whether a routine restart reads as a crash: without a handler Node dies on
+ * the signal, npm reports its child as failed, and the log fills with red on
+ * every deploy. This has to be an actual process — the handler is installed
+ * only when the server is run directly, not when a test imports createApp.
+ */
+test("SIGTERM stops it cleanly, and npm has nothing to report", async () => {
+  const { spawn } = await import("node:child_process");
+  const here = path.dirname(new URL(import.meta.url).pathname);
+  const entry = path.join(here, "..", "server", "index.js");
+  const home = await mkdtemp(path.join(tmpdir(), "taleb-stop-"));
+
+  const child = spawn(process.execPath, [entry], {
+    /* An explicit port, high and unlikely to be taken: PORT=0 would not mean
+       "any free port" here, because Number("0") is falsy and the server falls
+       back to 3000 — which might be something else's. */
+    env: { ...process.env, DATA_DIR: home, PORT: "45871" },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let out = "";
+  child.stdout.on("data", (b) => (out += b));
+  child.stderr.on("data", (b) => (out += b));
+
+  /* Wait until it is actually up: signalling mid-startup would prove
+     nothing about the handler. */
+  await new Promise((resolve, reject) => {
+    const giveUp = setTimeout(() => reject(new Error(`never started: ${out}`)), 10000);
+    const look = setInterval(() => {
+      if (/listening on/.test(out)) {
+        clearInterval(look);
+        clearTimeout(giveUp);
+        resolve();
+      }
+    }, 50);
+  });
+
+  const stopped = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
+  child.kill("SIGTERM");
+  const { code, signal } = await stopped;
+
+  await rm(home, { recursive: true, force: true });
+
+  /* Zero and by its own hand: a process killed by the signal would report
+     signal "SIGTERM" and a null code, which is what npm turns into an
+     error block. */
+  assert.equal(signal, null, `killed by a signal rather than exiting: ${out}`);
+  assert.equal(code, 0, out);
+  assert.match(out, /finishing what's in flight/);
+  assert.match(out, /stopped/);
+});

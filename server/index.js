@@ -186,9 +186,60 @@ export function createApp() {
   });
 }
 
+/*
+ * Stop when asked to, rather than being killed where we stand.
+ *
+ * A deploy sends SIGTERM. With nothing listening for it Node dies on the
+ * spot: npm reports its child as having failed on a signal — five red lines
+ * that read like a crash on every routine restart — and, more to the point,
+ * whatever request was in flight is severed. A card being saved, a sync being
+ * written. The window is small but it is not nothing.
+ *
+ * Closing the server stops new connections and lets the ones in hand finish.
+ * The timer is the backstop: a held-open connection must not keep the
+ * container alive past the host's patience, which is short — SIGKILL follows
+ * SIGTERM within seconds either way, and going out at our own hand is tidier
+ * than being shot.
+ *
+ * (The documents themselves were never at risk. store.js writes to a
+ * temporary file and renames it into place, so a process killed mid-write
+ * leaves the previous version whole.)
+ */
+const SHUTDOWN_GRACE_MS = 5000;
+
+function closeOn(server) {
+  let closing = false;
+  for (const signal of ["SIGTERM", "SIGINT"]) {
+    process.on(signal, () => {
+      /* A second signal means impatience, and should be obeyed. */
+      if (closing) process.exit(0);
+      closing = true;
+      console.log(`${signal} — finishing what's in flight, then stopping`);
+      const cutoff = setTimeout(() => {
+        console.log("took too long; stopping anyway");
+        process.exit(0);
+      }, SHUTDOWN_GRACE_MS);
+      /* Do not hold the loop open for the timer's own sake. */
+      if (cutoff.unref) cutoff.unref();
+      server.close(() => {
+        clearTimeout(cutoff);
+        console.log("stopped");
+        process.exit(0);
+      });
+      /* close() alone waits for every open socket, and a browser keeps one
+         idling between requests — so without this a deploy would sit out the
+         full grace period for a connection with nothing on it. Idle sockets
+         go now; the ones mid-request are what close() is waiting for. */
+      if (server.closeIdleConnections) server.closeIdleConnections();
+    });
+  }
+}
+
 /* Started directly rather than imported by a test. */
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  createApp().listen(PORT, () => {
+  const server = createApp();
+  closeOn(server);
+  server.listen(PORT, () => {
     console.log(`taleb33 listening on ${PORT}`);
     console.log(`serving ${DIST}`);
     console.log(`storing data under ${dataRoot} (from ${dataRootFrom})`);
