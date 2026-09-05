@@ -40,6 +40,7 @@ import {
   Tile,
   TileNote,
   plural,
+  useSnackbarState,
 } from "./shared.jsx";
 
 /* Every icon the set has, so a name can be picked by eye. Kept in step with
@@ -144,6 +145,11 @@ function V({ label, children, wide }) {
 }
 
 export function ComponentGallery() {
+  /* Its own, not the app's: a snackbar raised from here should behave
+     exactly like a real one — appear at the foot of the screen, be
+     replaced by the next, and go on its own — without any of it being
+     mistaken for something the app actually did. */
+  const demo = useSnackbarState();
   const [seg, setSeg] = useState("on");
   const [segBig, setSegBig] = useState("b");
   const [checked, setChecked] = useState(["one"]);
@@ -203,6 +209,26 @@ export function ComponentGallery() {
         <V label='kind="warn"'><Notice kind="warn">This cannot be undone.</Notice></V>
         <V label='kind="ok"'><Notice kind="ok">Saved.</Notice></V>
         <V label='kind="busy"'><Notice kind="busy">Working…</Notice></V>
+      </Row>
+
+      <Row
+        name="Snackbar"
+        what="A sentence that appears, is read, and goes."
+        note="Raised with useSnackbar() from anywhere under a SnackbarProvider, or with useSnackbarState() by whichever component renders it. It never asks for anything and losing it costs nothing — a message that must be acknowledged is a ConfirmModal, and one that must stay is a Notice."
+      >
+        <V label="press one, and watch the foot of the screen" wide>
+          <div className="at-row">
+            <Button size="sm" onClick={() => demo.show("Kitaab saved", "good")}>
+              good
+            </Button>
+            <Button size="sm" onClick={() => demo.show("That card is locked", "warn")}>
+              warn
+            </Button>
+            <Button size="sm" onClick={() => demo.show("Nothing new", "info")}>
+              info
+            </Button>
+          </div>
+        </V>
       </Row>
 
       {/* ---- controls ---- */}
@@ -508,6 +534,18 @@ export function ComponentGallery() {
       </Row>
 
       <Row
+        name="useSnackbar()"
+        what="The way anything under a SnackbarProvider raises one: show(message, kind)."
+        note='A hook. Outside a provider it is a no-op rather than a crash — which is why the buttons above use useSnackbarState() instead, so they work wherever this gallery is read.'
+      />
+
+      <Row
+        name="useSnackbarState({ dwell })"
+        what="The state behind the pill, for whichever component hosts it: { show, dismiss, node, current }."
+        note="A hook. Render node once, near the end of the tree; the trainer does, and passes show down through SnackbarProvider."
+      />
+
+      <Row
         name="useLiveRefresh(fn, everyMs)"
         what="Refresh on focus, on visibility change, and on an interval."
         note="A hook, so nothing to show. Default interval is 45 seconds."
@@ -518,6 +556,8 @@ export function ComponentGallery() {
         what="Owns the Audio element, the object URL, and the loading and playing states."
         note="A hook. Revokes its URL on unmount — the leak it exists to prevent is one object URL per clip."
       />
+
+      {demo.node}
     </div>
   );
 }

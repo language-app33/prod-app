@@ -36,6 +36,7 @@ import {
   localIdFor,
   plural,
   useLiveRefresh,
+  useSnackbar,
 } from "./shared.jsx";
 export { Icon, CheckList, Screen, LanguageRadio, ClipList, ItemList, CardReadout };
 export { LanguageTag, languageName } from "./shared.jsx";
@@ -893,12 +894,19 @@ export function AdminSpace({ account, languages, onClose }) {
   const backgroundRefresh = useCallback(() => refresh(true), [refresh]);
   useLiveRefresh(backgroundRefresh);
 
-  async function run(fn) {
+  const snack = useSnackbar();
+
+  /* `done` is what to say once it worked. A string, or a function of
+     whatever the call returned when the message wants to name the thing —
+     "Beginner Arabic created" rather than "Saved". Said after the refresh,
+     so the lists are already showing what it is confirming. */
+  async function run(fn, done) {
     setBusy(true);
     try {
-      await fn();
+      const out = await fn();
       await refresh();
       setError("");
+      if (done) snack(typeof done === "function" ? done(out) : done, "good");
     } catch (e) {
       setError(API.explain(e));
       setBusy(false);
@@ -939,10 +947,14 @@ export function AdminSpace({ account, languages, onClose }) {
           account={account}
           busy={busy}
           onClose={() => setOpenCourse2(null)}
-          onSetLanguage={(id) => run(() => API.setCourseLanguage(c.id, id))}
-          onNewCode={(which) => run(() => API.newCourseCode(c.id, which))}
-          onAssignTeacher={(h) => run(() => API.assignTeacher(c.id, h))}
-          onAssignStudent={(h) => run(() => API.assignStudent(c.id, h))}
+          onSetLanguage={(id) =>
+            run(() => API.setCourseLanguage(c.id, id), () => `Now teaching ${languageName(languages, id)}`)
+          }
+          onNewCode={(which) =>
+            run(() => API.newCourseCode(c.id, which), `New ${which} code — the old one no longer works`)
+          }
+          onAssignTeacher={(h) => run(() => API.assignTeacher(c.id, h), `${h} is now teaching ${c.title}`)}
+          onAssignStudent={(h) => run(() => API.assignStudent(c.id, h), `${h} has joined ${c.title}`)}
           onRemoveMember={(h, name) =>
             setConfirm({
               title: `Remove ${name} from ${c.title}?`,
@@ -1038,10 +1050,12 @@ export function AdminSpace({ account, languages, onClose }) {
                       disabled={!title.trim() || busy}
                       onClick={() =>
                         run(async () => {
-                          await API.createCourse(title.trim(), lang);
+                          const made = title.trim();
+                          await API.createCourse(made, lang);
                           setTitle("");
                           setMakingCourse(false);
-                        })
+                          return made;
+                        }, (made) => `${made} created`)
                       }
           icon="check"
         >
@@ -1148,20 +1162,24 @@ export function AdminSpace({ account, languages, onClose }) {
                     <Button variant="primary" size="sm"
                       disabled={!makingUser.name.trim() || busy}
                       onClick={() =>
-                        run(async () => {
-                          const r = await API.createUser(
-                            makingUser.name.trim(),
-                            makingUser.courseId || undefined,
-                            makingUser.role
-                          );
-                          setNewKey({
-                            name: r.user.displayName,
-                            handle: r.user.handle,
-                            key: r.key,
-                            fresh: true,
-                          });
-                          setMakingUser(null);
-                        })
+                        run(
+                          async () => {
+                            const r = await API.createUser(
+                              makingUser.name.trim(),
+                              makingUser.courseId || undefined,
+                              makingUser.role
+                            );
+                            setNewKey({
+                              name: r.user.displayName,
+                              handle: r.user.handle,
+                              key: r.key,
+                              fresh: true,
+                            });
+                            setMakingUser(null);
+                            return r;
+                          },
+                          (r) => `${r.user.displayName} added as ${r.user.handle}`
+                        )
                       }
           icon="check"
         >
@@ -1368,14 +1386,20 @@ export function AdminSpace({ account, languages, onClose }) {
                         className="at-ck"
                         disabled={busy}
                         onClick={() =>
-                          run(async () => {
-                            for (const id of selDecks) {
-                              if (deckAction === "add") await API.attachDeck(id, c.id);
-                              else await API.detachDeck(id, c.id);
-                            }
-                            setDeckAction(null);
-                            setSelDecks(new Set());
-                          })
+                          run(
+                            async () => {
+                              const n = selDecks.size;
+                              for (const id of selDecks) {
+                                if (deckAction === "add") await API.attachDeck(id, c.id);
+                                else await API.detachDeck(id, c.id);
+                              }
+                              setDeckAction(null);
+                              setSelDecks(new Set());
+                              return n;
+                            },
+                            (n) =>
+                              `${plural(n, "deck")} ${deckAction === "add" ? "added to" : "removed from"} ${c.title}`
+                          )
                         }
                       >
                         <span className="at-cktext">
@@ -2482,11 +2506,16 @@ export function TeachSpace({ account, languages, onClose }) {
     [knownLangs, languages]
   );
 
-  async function run(fn) {
+  const snack = useSnackbar();
+
+  /* See the note on AdminSpace's run: `done` is the confirmation, and may
+     be a function of what the call returned. */
+  async function run(fn, done) {
     setBusy(true);
     try {
-      await fn();
+      const out = await fn();
       setError("");
+      if (done) snack(typeof done === "function" ? done(out) : done, "good");
     } catch (e) {
       setError(API.explain(e));
     } finally {
@@ -2569,20 +2598,26 @@ export function TeachSpace({ account, languages, onClose }) {
         courses={courses}
         languages={languages}
         onToggleCourse={(c, on) =>
-          run(async () => {
-            if (on) await API.detachDeck(existing.id, c.id);
-            else await API.attachDeck(existing.id, c.id);
-            await refresh();
-          })
+          run(
+            async () => {
+              if (on) await API.detachDeck(existing.id, c.id);
+              else await API.attachDeck(existing.id, c.id);
+              await refresh();
+            },
+            `${existing.title} ${on ? "removed from" : "added to"} ${c.title}`
+          )
         }
         onClose={() => setNaming(null)}
         onSave={(title, lang) =>
-          run(async () => {
-            if (existing) await API.renameDeck(existing.id, title);
-            else await API.createDeck(title, "", lang || soleLang);
-            setNaming(null);
-            await refresh();
-          })
+          run(
+            async () => {
+              if (existing) await API.renameDeck(existing.id, title);
+              else await API.createDeck(title, "", lang || soleLang);
+              setNaming(null);
+              await refresh();
+            },
+            `${title} ${existing ? "renamed" : "created"}`
+          )
         }
       />
     );
@@ -2607,25 +2642,33 @@ export function TeachSpace({ account, languages, onClose }) {
         busy={busy}
         onClose={() => setEditing(null)}
         onSave={(forms, note, inDecks) =>
-          run(async () => {
-            const [main, ...subs] = forms;
-            const r = await API.saveCard(
-              {
-                id: editing.card ? editing.card.id : "",
-                ar: main.ar.trim(),
-                en: main.en.trim(),
-                lat: main.lat.trim(),
-                ...dimValues(main),
-                clips: main.clips || [],
-                note: note.trim(),
-                lang: (editLang || {}).id || "",
-                subs: subs.filter((f) => f.ar.trim() || f.en.trim()),
-              },
-              inDecks
-            );
-            absorbSaved(r);
-            setEditing(null);
-          })
+          run(
+            async () => {
+              const [main, ...subs] = forms;
+              const r = await API.saveCard(
+                {
+                  id: editing.card ? editing.card.id : "",
+                  ar: main.ar.trim(),
+                  en: main.en.trim(),
+                  lat: main.lat.trim(),
+                  ...dimValues(main),
+                  clips: main.clips || [],
+                  note: note.trim(),
+                  lang: (editLang || {}).id || "",
+                  subs: subs.filter((f) => f.ar.trim() || f.en.trim()),
+                },
+                inDecks
+              );
+              absorbSaved(r);
+              setEditing(null);
+              return main;
+            },
+            /* Named, because the editor closes on save: without the word
+               back there is nothing left on screen to confirm which card
+               it was. English first — it is the one field a teacher can
+               always read at a glance. */
+            (main) => `${main.en.trim() || main.ar.trim() || "Card"} saved`
+          )
         }
         onDelete={editing.card ? () => setConfirm({ kind: "card", card: editing.card }) : undefined}
         confirming={
@@ -2695,16 +2738,19 @@ export function TeachSpace({ account, languages, onClose }) {
                 {
                   label: "Remove from this deck",
                   onClick: (ids) =>
-                    run(async () => {
-                      for (const id of ids) {
-                        const card = cards.find((c) => c.id === id);
-                        if (!card) continue;
-                        absorbSaved(
-                          await API.saveCard(card, (card.decks || []).filter((x) => x !== d.id))
-                        );
-                      }
-                      setSelCards(new Set());
-                    }),
+                    run(
+                      async () => {
+                        for (const id of ids) {
+                          const card = cards.find((c) => c.id === id);
+                          if (!card) continue;
+                          absorbSaved(
+                            await API.saveCard(card, (card.decks || []).filter((x) => x !== d.id))
+                          );
+                        }
+                        setSelCards(new Set());
+                      },
+                      `${plural(ids.length, "card")} removed from ${d.title}`
+                    ),
                 },
                 {
                   label: "Delete",
@@ -2810,12 +2856,20 @@ export function TeachSpace({ account, languages, onClose }) {
         busy={busy}
         onClose={() => setManagingDecks(null)}
         onSave={(added, removed) =>
-          run(async () => {
-            for (const id of added) await API.attachDeck(id, c.id);
-            for (const id of removed) await API.detachDeck(id, c.id);
-            setManagingDecks(null);
-            await refresh();
-          })
+          run(
+            async () => {
+              for (const id of added) await API.attachDeck(id, c.id);
+              for (const id of removed) await API.detachDeck(id, c.id);
+              setManagingDecks(null);
+              await refresh();
+            },
+            /* Both halves happen in one save, so say what changed rather
+               than "saved" and leave someone counting rows to check. */
+            [added.length && `${plural(added.length, "deck")} added`,
+             removed.length && `${plural(removed.length, "deck")} removed`]
+              .filter(Boolean)
+              .join(", ") || "Nothing to change"
+          )
         }
       />
     );
@@ -3102,22 +3156,34 @@ export function TeachSpace({ account, languages, onClose }) {
                     <Button variant="primary"
                       disabled={!pickedDecks.length || busy}
                       onClick={() =>
-                        run(async () => {
-                          for (const id of selCards) {
-                            const card = cards.find((c) => c.id === id);
-                            if (!card) continue;
-                            const inNow = card.decks || [];
-                            const next =
-                              cardAction === "add"
-                                ? [...new Set(inNow.concat(pickedDecks))]
-                                : inNow.filter((x) => !pickedDecks.includes(x));
-                            if (next.length === inNow.length) continue;
-                            absorbSaved(await API.saveCard(card, next));
-                          }
-                          setCardAction(null);
-                          setPickedDecks([]);
-                          setSelCards(new Set());
-                        })
+                        run(
+                          async () => {
+                            /* Counted rather than assumed: a card already in
+                               the deck is skipped, so the number selected is
+                               not the number changed. */
+                            let changed = 0;
+                            for (const id of selCards) {
+                              const card = cards.find((c) => c.id === id);
+                              if (!card) continue;
+                              const inNow = card.decks || [];
+                              const next =
+                                cardAction === "add"
+                                  ? [...new Set(inNow.concat(pickedDecks))]
+                                  : inNow.filter((x) => !pickedDecks.includes(x));
+                              if (next.length === inNow.length) continue;
+                              absorbSaved(await API.saveCard(card, next));
+                              changed += 1;
+                            }
+                            setCardAction(null);
+                            setPickedDecks([]);
+                            setSelCards(new Set());
+                            return changed;
+                          },
+                          (changed) =>
+                            changed
+                              ? `${plural(changed, "card")} ${cardAction === "add" ? "added" : "removed"}`
+                              : "Nothing to change — they were already like that"
+                        )
                       }
           icon="check"
         >
@@ -3248,18 +3314,24 @@ export function TeachSpace({ account, languages, onClose }) {
                     <Button variant="primary"
                       disabled={!pickedCourses.length || busy}
                       onClick={() =>
-                        run(async () => {
-                          for (const id of selDecks) {
-                            for (const cid of pickedCourses) {
-                              if (deckAction === "add") await API.attachDeck(id, cid);
-                              else await API.detachDeck(id, cid);
+                        run(
+                          async () => {
+                            const n = selDecks.size;
+                            for (const id of selDecks) {
+                              for (const cid of pickedCourses) {
+                                if (deckAction === "add") await API.attachDeck(id, cid);
+                                else await API.detachDeck(id, cid);
+                              }
                             }
-                          }
-                          setDeckAction(null);
-                          setPickedCourses([]);
-                          setSelDecks(new Set());
-                          await refresh();
-                        })
+                            setDeckAction(null);
+                            setPickedCourses([]);
+                            setSelDecks(new Set());
+                            await refresh();
+                            return n;
+                          },
+                          (n) =>
+                            `${plural(n, "deck")} ${deckAction === "add" ? "added to" : "removed from"} ${plural(pickedCourses.length, "course")}`
+                        )
                       }
           icon="check"
         >

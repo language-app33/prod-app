@@ -263,9 +263,24 @@ button {
 .at-codebox b { flex:1; min-width:120px; font-family: ui-monospace, Menlo, monospace;
   font-size:15px; color: var(--brass); user-select:all; }
 .at-mode { position:fixed; top:12px; left:12px; }
-/* The app's name, where the space selector used to sit. */
-.at-brand { position:fixed; top:12px; left:14px; height:44px;
-  display:flex; align-items:center; font-family: var(--ui); font-size:17px;
+/* The app's name, where the space selector used to sit.
+
+   Carried as a chip, like the space selector and the corner menu it sits
+   in a row with. It is fixed, so a screen that scrolls passes underneath
+   it — and with nothing behind the letters that read as the wordmark
+   printed over the page, worst in the component gallery, where it landed
+   on the specimens. The room reserved for it below (.at-screen.bare
+   .at-screenbody) only clears it at the top of a scroll; this is what
+   makes it legible for the rest.
+
+   Still pointer-events:none: it is the app's name, not a button, and
+   nothing should be harder to tap for its being behind it. */
+.at-brand { position:fixed; top:12px; left:12px; height:40px;
+  display:flex; align-items:center; padding:0 14px; border-radius:999px;
+  background: var(--nav-bg); border:2px solid var(--line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  box-shadow: var(--nav-shadow);
+  font-family: var(--ui); font-size:16px;
   font-weight:800; letter-spacing:.01em; color: var(--ink); pointer-events:none; }
 .at-modebtn { display:inline-flex; align-items:center; gap:7px; cursor:pointer; border:2px solid var(--line); border-radius:999px; padding:9px 14px; background: var(--nav-bg); backdrop-filter:blur(12px); color: var(--text); font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; box-shadow: var(--nav-shadow); justify-content:center; }
 .at-modecaret { color: var(--brass); display:inline-flex; transition: transform 150ms; }
@@ -712,6 +727,33 @@ button {
   padding:10px 14px; display:flex; align-items:center; gap:14px;
   box-shadow: var(--nav-shadow); max-width: calc(100% - 24px); font-size:13px; }
 .at-undo .what { color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* The snackbar: the undo bar's shape, because that is already this app's
+   way of saying "something floating, and temporary". It sits above
+   everything (--z-toast) — a confirmation hidden behind the screen that
+   triggered it is worth nothing — and it is the only thing at that layer,
+   so nothing has to be ordered against it.
+
+   pointer-events is left alone: the dismiss button is the one thing in it
+   worth tapping, and the pill is small and low enough not to sit on
+   anything. */
+.at-snack { position: fixed; left:50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom)); z-index: var(--z-toast);
+  background: var(--surface); border:1px solid var(--line); border-left-width:3px;
+  border-radius:8px; padding:11px 8px 11px 14px;
+  display:flex; align-items:center; gap:10px;
+  box-shadow: var(--nav-shadow); max-width: calc(100% - 24px);
+  font-family: var(--ui); font-size:13px; font-weight:600; color: var(--text);
+  animation: at-snack-in 160ms ease-out; }
+.at-snack .msg { min-width:0; overflow-wrap:anywhere; }
+.at-snack.good { border-left-color: var(--jade); }
+.at-snack.warn { border-left-color: var(--rose); }
+.at-snack.info { border-left-color: var(--brass); }
+.at-snackx { border:0; background:none; padding:4px; margin:-4px 0; cursor:pointer;
+  color: var(--muted); display:inline-flex; flex:none; border-radius:6px; }
+.at-snackx:hover { color: var(--text); }
+@keyframes at-snack-in { from { opacity:0; transform: translate(-50%, 10px); }
+  to { opacity:1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .at-snack { animation: none; } }
 .at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
 .at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
 .at-hint em { color: var(--text-soft); font-style:normal; }
@@ -879,7 +921,6 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-previewrow .lat { font-family: var(--ui); font-weight:600; color: var(--muted); }
 .at-previewrow .tag { font-family: var(--mono); font-size:10px; color: var(--brass); }
 .at-toast { font-family: var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color: var(--rose); margin-top:10px; text-align:center; }
-.at-toast.notice { color: var(--brass); }
 .at-item.locked { background: var(--well); }
 /* ---- phone keyboard open: strip everything that isn't the exercise ---- */
 .at.kb-open { padding: 6px 12px 8px; }
@@ -1050,6 +1091,16 @@ body.at-screening .at-spaces { display:none; }
 .at-galdemo { display:flex; flex-wrap:wrap; gap: var(--s3); align-items:flex-start;
   margin-top: var(--s3); }
 .at-galdemo:empty { display:none; }
+/* A specimen has to stay in its row.
+   ModeSelector is fixed to the top-left corner, because in the app that is
+   where it belongs — but rendered here it left the row, flew to the corner
+   and landed under the wordmark, which is what "the app name overlaps the
+   content" turned out to be. Relative rather than static, so its drop-down
+   still anchors to the pill.
+   Not a blanket rule over everything fixed: Snackbar and the bulk bar are
+   meant to leave the row, and seeing them where they really appear is the
+   point of showing them. */
+.at-galdemo .at-mode { position:relative; top:auto; left:auto; }
 /* Each specimen carries its own label, so a variant can be named rather
    than pointed at. */
 .at-galv { flex:0 1 auto; min-width:0; border:1px solid var(--line); border-radius:10px;

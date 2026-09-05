@@ -278,6 +278,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     "CheckList", "LanguageRadio", "ModeSelector", "Section", "Tabs", "Screen",
     "SpaceFrame", "Empty", "Stat", "Tile", "TileNote", "CardTile", "CardReadout",
     "ItemList", "ConfirmModal", "PlayButton", "ClipList", "Icon", "LanguageTag",
+    "Snackbar",
   ].filter((n) => !shown.includes(n));
   check("every component in the library has a row", missing.length === 0, `missing: ${missing.join(", ")}`);
 
@@ -286,8 +287,33 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     `${host.querySelectorAll(".at-galvbody").length} specimens`);
   check("the icon set is laid out", host.querySelectorAll(".at-galicon").length >= 30,
     `${host.querySelectorAll(".at-galicon").length} icons`);
+  /* The snackbar, driven the way the app drives it: the gallery's own
+     buttons go through useSnackbarState, so this exercises the hook, the
+     portal and the styles' one contract — that it lands inside `.at` and
+     not on the body, where it would render themeless. */
+  {
+    const raise = [...host.querySelectorAll(".at-galrow")]
+      .find((r) => /^Snackbar/.test(r.textContent))
+      ;
+    const good = raise && [...raise.querySelectorAll("button")].find((b) => b.textContent === "good");
+    click(good);
+    await sleep(60);
+    const pill = document.querySelector(".at-snack");
+    check("a snackbar appears when one is raised", !!pill && /Kitaab saved/.test(pill.textContent),
+      (pill && pill.textContent) || "nothing showed");
+    check("it is announced to a screen reader", !!pill && pill.getAttribute("role") === "status");
+
+    const warn = raise && [...raise.querySelectorAll("button")].find((b) => b.textContent === "warn");
+    click(warn);
+    await sleep(60);
+    check("a second message replaces the first rather than stacking",
+      document.querySelectorAll(".at-snack").length === 1,
+      `${document.querySelectorAll(".at-snack").length} on screen`);
+  }
+
   galleryRoot.unmount();
   host.remove();
+  check("it goes with the component that raised it", !document.querySelector(".at-snack"));
 }
 
 /* ---- the app chrome cannot be wedged hidden ----

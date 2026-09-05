@@ -5,7 +5,7 @@
  * being parsed by every student on every launch.
  */
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
 import { dimValues, dimsOf, LANGUAGES, DEFAULT_LANGUAGE } from "./languages.js";
@@ -1013,6 +1013,147 @@ export function CheckList({ options, chosen, onToggle, empty }) {
    that the keyboard can push off the bottom is worse than a screen.
    ------------------------------------------------------------------ */
 
+/*
+ * Where something that floats above the whole app belongs in the document.
+ *
+ * The colour tokens live on the app root, not on :root, so a portal into
+ * document.body renders on a themeless background — dark text on dark, or
+ * nothing at all. Everything that escapes its parent goes into `.at`
+ * instead.
+ *
+ * Looked up after mounting rather than during the first render: on that
+ * first pass the app root is not in the document yet, and looking too early
+ * silently falls back to the body, which is exactly the case that loses the
+ * theme. Until it is found the caller renders where it was written, which
+ * looks the same.
+ */
+function useAppHost() {
+  const [host, setHost] = useState(null);
+  useEffect(() => {
+    setHost(document.querySelector(".at") || document.body);
+  }, []);
+  return host;
+}
+
+/* ==================================================================
+   The snackbar
+   ==================================================================
+
+   A sentence that appears, is read, and goes: a save confirmed, a change
+   quietly refused, a setting that will expire. It is the app's answer to
+   "did that work?", and it exists so that answer is not a page reload.
+
+   Three rules it is built around:
+
+   - It never asks for anything. Nothing here needs a tap, nothing here
+     blocks, and losing it costs nothing — which is why it is allowed to
+     vanish on a timer. Anything that must be acknowledged is a
+     ConfirmModal, and anything that must persist is a Notice.
+   - One at a time. A second message replaces the first rather than
+     stacking, because two floating pills in a corner are read as one
+     block of noise and neither gets read.
+   - It is announced. `role="status"` means a screen reader hears the save
+     confirmed too, rather than a sighted-only reassurance.
+
+   The trainer already had a private version of this — a `notice` string, a
+   timer ref and a `flash()` — while the teaching and admin screens had no
+   way to say "saved" at all. This is that mechanism, moved somewhere both
+   can reach.
+*/
+
+const SNACK_DWELL_MS = 4000;
+
+export function Snackbar({ message, kind = "info", onDismiss }) {
+  const host = useAppHost();
+
+  const view = (
+    <div className={`at-snack ${kind}`} role="status" aria-live="polite">
+      <span className="msg">{message}</span>
+      {onDismiss && (
+        <button className="at-snackx" onClick={onDismiss} aria-label="Dismiss">
+          <Icon name="close" size={16} />
+        </button>
+      )}
+    </div>
+  );
+
+  if (typeof document === "undefined" || !host) return view;
+  return createPortal(view, host);
+}
+
+/*
+ * The state behind it, for the one component that hosts the snackbar.
+ *
+ * Returns the node as well as the opener so the host has nothing to
+ * assemble: render `node` once, near the end of the tree, and call `show`
+ * from anywhere.
+ */
+export function useSnackbarState({ dwell = SNACK_DWELL_MS } = {}) {
+  const [snack, setSnack] = useState(null);
+  const timer = useRef(null);
+  /* Numbered so that a second message remounts the pill rather than
+     swapping the text inside the old one: without it the entrance is played
+     once and every later message arrives silently, in place. */
+  const seq = useRef(0);
+
+  const dismiss = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    setSnack(null);
+  }, []);
+
+  const show = useCallback(
+    (message, kind = "info") => {
+      const text = String(message == null ? "" : message).trim();
+      /* An empty message would show an empty pill, which reads as a bug. */
+      if (!text) return;
+      if (timer.current) clearTimeout(timer.current);
+      seq.current += 1;
+      setSnack({ id: seq.current, message: text, kind });
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        setSnack(null);
+      }, dwell);
+    },
+    [dwell]
+  );
+
+  /* A message raised by the last thing a screen did before unmounting would
+     otherwise leave its timer running against a gone component. */
+  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
+
+  return {
+    show,
+    dismiss,
+    current: snack,
+    node: snack ? (
+      <Snackbar key={snack.id} message={snack.message} kind={snack.kind} onDismiss={dismiss} />
+    ) : null,
+  };
+}
+
+/*
+ * And the way everything below the host reaches it. The saves that most
+ * want to confirm themselves — a card, a deck, a course — happen several
+ * components down from where the pill is rendered, and threading a
+ * callback through all of them would put a prop on every screen for the
+ * sake of one line each.
+ *
+ * Outside a provider `show` is a no-op rather than a crash: the gallery
+ * renders these components with nothing hosting them, and a notification
+ * that goes nowhere is not worth taking a screen down for.
+ */
+const SnackbarContext = React.createContext(null);
+const noSnackbar = () => {};
+
+export function SnackbarProvider({ show, children }) {
+  return <SnackbarContext.Provider value={show || noSnackbar}>{children}</SnackbarContext.Provider>;
+}
+
+export function useSnackbar() {
+  return React.useContext(SnackbarContext) || noSnackbar;
+}
+
 /* How many screens are open. A screen opened from inside a space is nested in
    an element that is already positioned, so it cannot out-layer the app chrome
    with z-index alone — the nesting caps it. Rather than fight that, the chrome
@@ -1051,14 +1192,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
   /* The screen's own element, so the stack can be checked against the
      document rather than trusted. See reconcileScreens. */
   const elRef = useRef(null);
-  /* Found after mounting, not during the first render: on that first pass the
-     app root is not in the document yet, and looking too early silently falls
-     back to the body — which is the case that loses the theme. Until it is
-     found the screen renders where it was written, which looks the same. */
-  const [host, setHost] = useState(null);
-  useEffect(() => {
-    setHost(document.querySelector(".at") || document.body);
-  }, []);
+  const host = useAppHost();
 
   useEffect(() => {
     const me = self.current;

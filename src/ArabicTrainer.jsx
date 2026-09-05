@@ -19,6 +19,7 @@ import {
   Screen,
   Section,
   Segmented,
+  SnackbarProvider,
   Stat,
   Tabs,
   languageName,
@@ -26,6 +27,7 @@ import {
   pullCourses,
   useClipPlayer,
   useLiveRefresh,
+  useSnackbarState,
 } from "./shared.jsx";
 
 /* The onboarding, teaching, admin and course screens are their own chunk,
@@ -2474,8 +2476,9 @@ export default function ArabicTrainer() {
   const inputRef = useRef(null);
   const undoTimer = useRef(null);
   const [lastDeleted, setLastDeleted] = useState(null);
-  const [notice, setNotice] = useState("");
-  const noticeTimer = useRef(null);
+  /* Every short-lived message the app says, here and in the teaching and
+     admin screens below, which reach it through SnackbarProvider. */
+  const snack = useSnackbarState();
   const kb = useSoftKeyboard();
 
   /* ---- sync ---- */
@@ -2984,6 +2987,13 @@ export default function ArabicTrainer() {
        against the old one should survive. */
     resetExercise();
     sfx("tick");
+    /* The button says what it stops, not how long for, and the window
+       outlives this session — so say it here rather than leaving someone to
+       wonder whether it stuck. */
+    flash(
+      `No listening exercises for ${Math.round(LISTEN_OFF_MS / 60000)} minutes`,
+      "good"
+    );
   }
 
   function giveUp() {
@@ -3203,11 +3213,10 @@ export default function ArabicTrainer() {
   }
 
   /* A short message for things quietly refused, so a locked card doesn't
-     just silently fail to delete. */
-  function flash(msg) {
-    setNotice(msg);
-    if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    noticeTimer.current = setTimeout(() => setNotice(""), 4500);
+     just silently fail to delete — and for the ones that worked, so a save
+     is not answered with silence. The two are told apart by kind. */
+  function flash(msg, kind) {
+    snack.show(msg, kind);
   }
 
   function undoDelete() {
@@ -3429,6 +3438,10 @@ export default function ArabicTrainer() {
         ...(kbOpen && kb.height ? { minHeight: kb.height } : null),
       }}
     >
+      {/* Everything below here can say something without being handed a
+          callback to say it with — the teaching and admin screens above all,
+          which had no way to confirm a save. */}
+      <SnackbarProvider show={snack.show}>
       <div className="at-wrap">
           {/* The same tab strip the teaching and admin spaces use, rather than
               a floating bar of its own. */}
@@ -3924,7 +3937,6 @@ Cards ready to practice
         )}
 
         {saveFailed && <p className="at-toast">Couldn't save — your last answer may not stick</p>}
-        {notice && <p className="at-toast notice">{notice}</p>}
       </div>
 
       {lastDeleted && lastDeleted.length > 0 && (
@@ -3973,7 +3985,8 @@ Cards ready to practice
         </>
       )}
 
-
+      {snack.node}
+      </SnackbarProvider>
     </div>
   );
 }
