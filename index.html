@@ -2,9 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- interactive-widget=resizes-content: the on-screen keyboard shrinks
+         the page rather than sliding over it, so the answer bar's bottom:0
+         is already above it and nothing has to be lifted. Chrome and
+         Android honour it; Safari does not, which is why the app measures
+         the visual viewport as well and lifts the bar itself. -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, interactive-widget=resizes-content"
     />
     <title>Taleb33</title>
     <meta name="description" content="Spaced repetition for language learning." />

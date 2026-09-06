@@ -34,6 +34,7 @@ export const EX = {
     answerField: "en",
     hintField: "lat",
     hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
     answerMode: "en",
     /* Recognition rather than production: read it, do not write it. What
        "Get started" is made of. */
@@ -58,6 +59,7 @@ export const EX = {
     answerField: "lat",
     hintField: "en",
     hintLabel: "Show meaning",
+    hintHideLabel: "Hide meaning",
     answerMode: "tr",
   },
   tr2ar: {
@@ -71,6 +73,7 @@ export const EX = {
     answerField: "ar",
     hintField: "en",
     hintLabel: "Show meaning",
+    hintHideLabel: "Hide meaning",
     answerMode: "ar",
   },
   /* Listening exercises carry no hint. Anything shown before answering — the
@@ -110,6 +113,7 @@ export const EX = {
     answerField: "ar",
     hintField: "lat",
     hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
     answerMode: "ar",
   },
   /* Identify a derived property of the word from its recording. Which
@@ -131,6 +135,7 @@ export const EX = {
     answerField: "ar",
     hintField: "lat",
     hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
     answerMode: "ar",
   },
   /* And the same again by ear. Harder than hearing the word alone, which is
@@ -869,7 +874,7 @@ export function exOf(type, lang = activeLang()) {
       .replace(/\{A\}/g, attr ? attr.short || "?" : "?");
 
   const out = { ...spec };
-  for (const f of ["instruction", "label", "short", "question", "placeholder", "hintLabel"]) {
+  for (const f of ["instruction", "label", "short", "question", "placeholder", "hintLabel", "hintHideLabel"]) {
     if (out[f]) out[f] = fill(out[f]);
   }
   EX_CACHE.set(key, out);

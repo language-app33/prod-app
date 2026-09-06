@@ -2208,21 +2208,36 @@ function useFinePointer() {
 
 /* Detects the phone's own keyboard via the visual viewport shrinking. */
 function useSoftKeyboard() {
-  const [kb, setKb] = useState({ open: false, height: null });
+  const [kb, setKb] = useState({ open: false, height: null, overlap: 0 });
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    let last = { open: false, height: null };
+    let last = { open: false, height: null, overlap: 0 };
     const onChange = () => {
       const open = vv.height / window.innerHeight < 0.78;
       const height = Math.round(vv.height);
+      /* How much of the page the keyboard is sitting on top of. The layout
+         viewport does not shrink when the keyboard opens — on iOS nothing
+         about `position: fixed; bottom: 0` notices it — so this is the
+         distance a bar pinned to the bottom has to be lifted to stay in
+         sight. Never negative: an overscroll can report more than the
+         window is tall. */
+      const overlap = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
       /* The visual viewport reports a slightly different height on nearly
          every scroll event while the keyboard is up. Re-rendering the whole
          app for each of those is wasted; only a real change gets through. */
-      if (open === last.open && last.height !== null && Math.abs(height - last.height) < 20) {
+      /* The bar is positioned from `overlap`, so a change there has to get
+         through even when the height has barely moved: on iOS the visual
+         viewport scrolls under the keyboard and only the offset changes. */
+      if (
+        open === last.open &&
+        last.height !== null &&
+        Math.abs(height - last.height) < 20 &&
+        overlap === last.overlap
+      ) {
         return;
       }
-      last = { open, height };
+      last = { open, height, overlap };
       setKb(last);
     };
     vv.addEventListener("resize", onChange);
@@ -3645,6 +3660,9 @@ export default function ArabicTrainer() {
       style={{
         "--sdir": langOf(settings).direction || "ltr",
         "--sfont": langOf(settings).fontStack,
+        /* What the answer bar is lifted by. Set here rather than on the bar
+           so the page can reserve the same room underneath its content. */
+        "--kb-overlap": `${kb.overlap || 0}px`,
         ...(kbOpen && kb.height ? { minHeight: kb.height } : null),
       }}
     >
@@ -3818,7 +3836,7 @@ Cards ready to practice
                     word, a blanked phrase or an audio player depending on
                     the exercise, and sizing that on the words would miss
                     two of the three. */}
-                <div className={`at-card${checked ? " at-asked" : ""}`} data-el="card">
+                <div className={`at-exercise${checked ? " at-asked" : ""}`} data-el="card">
                   <p className="at-instruction" data-el="question-instruction">
                     {spec.instruction}
                     {isSub && (
@@ -4071,20 +4089,24 @@ Cards ready to practice
                     </>
                   ) : (
                     <>
-                      <div className="at-row">
+                      <div className="at-row at-answerbar">
                         {/* The nudge sits with the other two ways out of a
                             question rather than floating above the answer
                             box, and carries only its icon: the label said
                             which field it reveals, which the revealed field
                             says for itself a moment later. The name is
                             still there for anyone using a screen reader. */}
-                        {!hintOpen && item[spec.hintField] && (
+                        {item[spec.hintField] && (
+                          /* Stays after revealing, so the nudge can be put
+                             away again — reading the answer with the hint
+                             still on the screen is not the same test. */
                           <IconButton
                             icon="help"
-                            label={spec.hintLabel}
-                            className="at-hintbtn"
+                            label={hintOpen ? spec.hintHideLabel : spec.hintLabel}
+                            className={`at-hintbtn${hintOpen ? " on" : ""}`}
                             data-el="hint-button"
-                            onClick={() => setHintOpen(true)}
+                            aria-pressed={hintOpen}
+                            onClick={() => setHintOpen((v) => !v)}
                           />
                         )}
                         <Button variant="ghost" data-el="dont-know-button" onClick={giveUp}>

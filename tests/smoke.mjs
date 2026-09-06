@@ -344,7 +344,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      threw away. */
   {
     const named = () =>
-      [...document.querySelectorAll(".at-card [data-el]")].map((e) => e.getAttribute("data-el"));
+      [...document.querySelectorAll(".at-exercise [data-el]")].map((e) => e.getAttribute("data-el"));
 
     const asking = named();
     for (const want of ["question-instruction", "question-prompt", "answer-box", "answer-input", "check-button", "dont-know-button"]) {
@@ -360,7 +360,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
        not a comment — it is text, and it renders. Nothing else here would
        have caught it: every name was present and every class was right,
        and the card simply had a paragraph of source code across the top. */
-    const card = document.querySelector(".at-card");
+    const card = document.querySelector(".at-exercise");
     check("no source comment leaked into the card",
       !/\/\*|\*\/|data-el name/.test(card.textContent),
       card.textContent.slice(0, 100));
@@ -417,7 +417,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
        whole 'this is how it's pronounced' section", which is exactly the
        kind of thing this vocabulary is for. Three blocks had labels and
        values and no name of their own until this test was written. */
-    const inCard = [...document.querySelectorAll(".at-card [data-el]")];
+    const inCard = [...document.querySelectorAll(".at-exercise [data-el]")];
     const all = new Set(inCard.map((e) => e.getAttribute("data-el")));
     const orphans = [];
     for (const el of inCard) {

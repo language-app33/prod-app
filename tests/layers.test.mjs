@@ -98,10 +98,24 @@ test("dialogs sit above every screen", () => {
    here is that the rules which make it possible are still present. Deleting
    any of them would put the wrapping back with nothing to notice. */
 
+/*
+ * Everything the stylesheet declares for exactly this selector.
+ *
+ * Two traps, both of which produced a passing test that meant nothing.
+ * ".at-answerbar.at-row {" contains ".at-row {", so a loose search reads a
+ * different rule's body — hence the leading newline. And a selector may
+ * carry several rules, so taking the first would miss a declaration made
+ * further down; they are all joined instead.
+ */
 const rule = (selector) => {
-  const at = css.indexOf(selector + " {");
-  if (at < 0) return "";
-  return css.slice(at, css.indexOf("}", at));
+  const parts = [];
+  const needle = "\n" + selector + " {";
+  let at = css.indexOf(needle);
+  while (at >= 0) {
+    parts.push(css.slice(at, css.indexOf("}", at)));
+    at = css.indexOf(needle, at + 1);
+  }
+  return parts.join("\n");
 };
 
 for (const row of [".at-row > .at-btn", ".at-screenfoot > .at-btn"]) {
@@ -126,8 +140,7 @@ test("a row knows how many buttons are sharing it", () => {
         `${container} does not count ${n} buttons`,
       );
     }
-    assert.ok(css.includes(`${container} { container-type: inline-size`) ||
-      /container-type:\s*inline-size/.test(rule(container)), container);
+    assert.match(rule(container), /container-type:\s*inline-size/, container);
   }
 });
 
@@ -137,4 +150,33 @@ test("the rule reaches a row's own buttons and not a picker inside one", () => {
      full-width button. */
   assert.equal(css.includes(".at-row .at-btn {"), false, "the selector must be a child combinator");
   assert.ok(css.includes(".at-row > .at-btn {"));
+});
+
+/* --- the answer bar --- */
+
+test("the answer bar is pinned to the window, not to whatever scrolls", () => {
+  /* Sticky is relative to a scrolling ancestor; this has to hold against
+     the window whatever the page is doing. */
+  const body = rule(".at-answerbar.at-row");
+  assert.match(body, /position:\s*fixed/);
+  assert.match(body, /bottom:\s*calc\(var\(--kb-overlap/,
+    "the bar must lift by however much the keyboard is covering");
+});
+
+test("the page reserves room for the bar, and only while there is one", () => {
+  /* Once an answer is in, the three buttons are replaced by Continue in the
+     ordinary flow — reserving their height then leaves a screenful of
+     nothing under it. */
+  assert.ok(css.includes(".at.in-exercise:has(.at-answerbar)"));
+  assert.ok(css.includes(".at.kb-open.in-exercise:has(.at-answerbar)"),
+    "the keyboard rule needs the same guard, and wins on specificity");
+});
+
+test("a question is no longer drawn as a card", () => {
+  /* .at-card still exists — the session summary and other screens use it —
+     but the exercise does not, and must not pick up a border or a shadow by
+     being given the class back. */
+  const body = rule(".at-exercise");
+  assert.ok(body, "the exercise block has no rule");
+  assert.doesNotMatch(body, /border:|box-shadow:|background:/);
 });

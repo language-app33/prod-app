@@ -824,6 +824,17 @@ button {
 .at-hint em { color: var(--text-soft); font-style:normal; }
 .at-card { background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg);
   padding:30px 22px; text-align:center; box-shadow: var(--shadow); }
+/* A question is not a card. It used to sit in a bordered, shadowed panel,
+   which framed it as an object on a page — but there is only ever one
+   question on the screen and nothing to tell it apart from, so the frame
+   was drawing a boundary around the whole content area. The text lays on
+   the page instead, and the room the panel's padding used to give it comes
+   from the page.
+
+   The bottom is the answer bar's, which is pinned there and out of the
+   flow: this is what keeps the last line of an answer clear of it. */
+.at-exercise { text-align:center; padding: 4px 2px 0; }
+.at-exercise > :last-child { margin-bottom:0; }
 .at-sub { border:2px solid var(--line); border-radius: var(--r-lg); padding:20px; background: var(--surface);
   margin-bottom:18px; box-shadow: var(--shadow); }
 .at-arabic { font-family: var(--sfont, var(--ar)); direction: var(--sdir, rtl); unicode-bidi: isolate; line-height:1.75; font-weight:600; margin:8px 0; word-break: break-word; }
@@ -868,6 +879,34 @@ button {
   background: var(--raised); border-color: var(--line); color: var(--faint);
   filter:none; }
 .at-btn.ghost:disabled { background:transparent; }
+/* The answer bar: the three ways forward from a question, pinned to the
+   foot of the screen rather than following the answer box down the page.
+
+   Fixed rather than sticky, because sticky is relative to a scrolling
+   ancestor and this has to hold against the window whatever the page is
+   doing. --kb-overlap is how far the device keyboard is covering the
+   window, measured from the visual viewport and set on the app root: the
+   layout viewport does not shrink when the keyboard opens, so a bar at
+   bottom:0 would otherwise be underneath it. Zero when no keyboard is up,
+   which is the ordinary case and costs nothing.
+
+   The blur and the fade above it are so an answer scrolling under the bar
+   reads as passing behind something rather than being cut off. */
+.at-answerbar.at-row { position: fixed; left:0; right:0;
+  bottom: calc(var(--kb-overlap, 0px) + env(safe-area-inset-bottom));
+  z-index: var(--z-chrome); margin:0;
+  padding: 10px 16px;
+  background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-top:1px solid var(--line);
+  /* The content column, not the window: on a wide screen the buttons stay
+     with the question rather than stretching across the page. */
+  max-width: 700px; margin-inline:auto; }
+/* Room for it under the question, so the last line of an answer is never
+   left beneath the bar — and only while there is a bar. Once the answer is
+   in, the three buttons are replaced by Continue in the ordinary flow, and
+   reserving their height would leave a screenful of nothing below it. */
+.at.in-exercise:has(.at-answerbar) { padding-bottom: calc(var(--kb-overlap, 0px) + 96px + env(safe-area-inset-bottom)); }
+
 /* A row of buttons, which never breaks a label across two lines.
    A wrapped label makes a row of buttons different heights and reads as
    something gone wrong, so when the row is too tight the whole row steps
@@ -1065,6 +1104,10 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-item.locked { background: var(--well); }
 /* ---- phone keyboard open: strip everything that isn't the exercise ---- */
 .at.kb-open { padding: 6px 12px 8px; }
+/* The shorthand above would take back the room the answer bar needs, and it
+   is exactly when the keyboard is up that the bar is furthest from the foot
+   of the window. Three classes, so it wins wherever it sits. */
+.at.kb-open.in-exercise:has(.at-answerbar) { padding-bottom: calc(var(--kb-overlap, 0px) + 82px); }
 .at.kb-open .at.kb-open .at.kb-open .at-progress,
 .at.kb-open .at.kb-open .at-note,
 /* The keys button is not in this list: it used to be a labelled button
