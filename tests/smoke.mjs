@@ -809,6 +809,21 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     const uses = src.split("noCardsYet(").length - 1;
     check("and every screen that says it calls the same function", uses >= 4,
       `${uses} mentions, one of them the declaration`);
+
+    /* Arriving somewhere starts at the top of it. jsdom reports every
+       scrollTop as 0 whether or not anything reset it, so this cannot be
+       checked by driving the app here — it is checked in a browser, and
+       what is checked here is that the wiring is still present. Three
+       scrollers, because the app has three: the page for the learner's
+       tabs, the frame's own body for a space's tabs, and a screen's body
+       for a screen that replaces another. */
+    const shared = readFileSync(path.resolve("src/shared.jsx"), "utf8");
+    check("the learner's tabs put the page back to the top",
+      /useScrollTop\(`\$\{space\}:\$\{tab\}`\)/.test(src));
+    check("a space's tabs put its own panel back",
+      /useEffect\(\(\) => \{\s*if \(bodyRef\.current\) bodyRef\.current\.scrollTop = 0;\s*\}, \[tab\]\)/.test(shared));
+    check("and a screen replacing another starts at its own top",
+      /useEffect\(\(\) => \{\s*if \(bodyRef\.current\) bodyRef\.current\.scrollTop = 0;\s*\}, \[title\]\)/.test(shared));
   }
 
   /* The sound setting used to be a boolean and is now a level, and a

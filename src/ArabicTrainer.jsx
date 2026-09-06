@@ -28,6 +28,7 @@ import {
   pullCourses,
   useClipPlayer,
   useLiveRefresh,
+  useScrollTop,
   useSnackbar,
   useSnackbarState,
 } from "./shared.jsx";
@@ -2671,6 +2672,12 @@ export default function ArabicTrainer() {
      Deriving it only from a fresh network call meant a slow or failed request
      took the space selector away, with no way back but signing out. */
   const [teaches, setTeaches] = useState(() => loadTeaches());
+  /* The learner's tabs scroll the page itself rather than a panel of their
+     own, so this is the one that has to be put back. Space and tab
+     together: moving from Teaching to Learning is arriving somewhere too.
+     Not keyed on `screen` — a screen covers the page and closing one
+     should give it back as it was left. */
+  useScrollTop(`${space}:${tab}`);
   /* Read from the device rather than started at zero, so closing the app on
      the bus and opening it again does not start playing audio. */
   const [listenOff, setListenOff] = useState(() => loadListenOff());

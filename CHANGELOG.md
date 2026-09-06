@@ -8,6 +8,12 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.6 — 6 September 2026
+
+- Opening a tab or a screen now starts at the top of it. Reading halfway
+  down a list and then moving somewhere else used to hand you the new
+  place already scrolled into its middle, past whatever it opens with.
+
 ## 0.5 — 6 September 2026
 
 - A student who is in a course that has no cards is no longer told to join

@@ -505,10 +505,19 @@ export function Field({ label, hint, optional, htmlFor, children, className = ""
    tab strip and the tab's contents. Both built that by hand, which is how
    one of them came to show the busy line and the other not. */
 export function SpaceFrame({ tabs, tab, onTab, error, busy, label = "Section", dialog, children }) {
+  /* The frame is a fixed panel that scrolls inside itself, so the page's
+     own scroll position is not the one a tab change has to reset — this
+     is. Switching tabs from halfway down a long list used to hand you the
+     next tab already scrolled past its heading. */
+  const bodyRef = useRef(null);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [tab]);
+
   return (
     <div className="at-screen bare">
       {dialog}
-      <div className="at-screenbody">
+      <div className="at-screenbody" ref={bodyRef}>
         <div className="at-screeninner">
           <Notice kind="error">{error}</Notice>
           <Notice kind="busy">{busy ? "Working…" : ""}</Notice>
@@ -1286,12 +1295,66 @@ function reconcileScreens() {
   document.body.classList.toggle("at-screening", SCREEN_STACK.length > 0);
 }
 
+/*
+ * Back to the top, whatever is doing the scrolling.
+ *
+ * The page itself, not the window: window.scrollTo is the canonical call
+ * but jsdom answers it with an error on the virtual console, and the
+ * smoke run treats console errors as failures. Assigning scrollTop is the
+ * same thing, works in every browser, and is silent where there is no
+ * layout to scroll. document.scrollingElement is <html> in the standards
+ * mode every browser is in here; the fallback is for a document that has
+ * none, which is a document with nothing to scroll anyway.
+ */
+export function scrollToTop() {
+  const el = typeof document === "undefined" ? null : document.scrollingElement || document.documentElement;
+  if (el) el.scrollTop = 0;
+}
+
+/*
+ * Somewhere new starts at the top.
+ *
+ * Opening a tab is arriving somewhere, not staying where you were: a list
+ * read halfway down and then a tab away used to hand you the next screen
+ * already scrolled into its middle, past whatever it opens with. Keyed on
+ * whatever identifies the place — a tab name, a space and tab together —
+ * so it fires on arrival and not on every render.
+ *
+ * Not keyed on a screen opening or closing. A screen covers the page
+ * rather than replacing it, so the page underneath does not move, and
+ * closing one hands it back exactly as it was left — which is what going
+ * back should do.
+ *
+ * That only holds for the page. In the teaching and admin spaces an open
+ * screen returns early instead of rendering the frame, so the frame
+ * unmounts and comes back new, and a list read halfway down is at the top
+ * again on the way back. Untouched here: it is older than this and worth
+ * fixing on its own terms, by keeping the frame mounted.
+ */
+export function useScrollTop(key) {
+  useEffect(() => {
+    scrollToTop();
+  }, [key]);
+}
+
 export function Screen({ title, onBack, action, children, footer, backLabel = "Back" }) {
   const self = useRef({});
   /* The screen's own element, so the stack can be checked against the
      document rather than trusted. See reconcileScreens. */
   const elRef = useRef(null);
   const host = useAppHost();
+
+  /* A screen scrolls inside itself, so the page-level reset does not reach
+     it — and one screen replacing another at the same place in the tree
+     keeps the same DOM node, scroll position included. Opening a card from
+     the bottom of a deck used to drop you into the middle of the card.
+     Keyed on the title because that is what a screen has instead of an
+     id; renaming the thing you are looking at scrolls you up, which is
+     rare and cheap next to arriving halfway down every time. */
+  const bodyRef = useRef(null);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [title]);
 
   useEffect(() => {
     const me = self.current;
@@ -1349,7 +1412,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
             are at opposite ends and neither is hit by accident. */}
         <span className="at-screenaction">{action}</span>
       </div>
-      <div className="at-screenbody">
+      <div className="at-screenbody" ref={bodyRef}>
         <div className="at-screeninner">
           {children}
           {footer ? <div className="at-screenfoot">{footer}</div> : null}
