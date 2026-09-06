@@ -868,13 +868,45 @@ button {
   background: var(--raised); border-color: var(--line); color: var(--faint);
   filter:none; }
 .at-btn.ghost:disabled { background:transparent; }
-.at-row { display:flex; gap:12px; margin-top:20px; }
-.at-row > * { flex:1; }
-/* The hint takes its own width rather than a third of the row: an icon
-   given an equal share leaves "I don't know" wrapping onto two lines while
-   the space beside the icon goes unused. Same treatment as the select
-   button in a toolbar, for the same reason. */
-.at-row .at-hintbtn { flex:0 0 auto; width:52px; padding:0; }
+/* A row of buttons, which never breaks a label across two lines.
+   A wrapped label makes a row of buttons different heights and reads as
+   something gone wrong, so when the row is too tight the whole row steps
+   down together — same type, same padding, all of them — rather than one
+   button breaking.
+
+   The step is computed from the width one button actually gets, which is
+   the row's own width shared between them. --cols counts them, because
+   three buttons in the space of two is the usual reason a row runs out of
+   room. The hint takes a fixed width instead of a share, so the text
+   buttons get slightly more than the figure below assumes, which errs
+   towards fitting. */
+.at-row { display:flex; gap:12px; margin-top:20px; container-type: inline-size; --cols: 1; }
+.at-row:has(> :nth-child(2)) { --cols: 2; }
+.at-row:has(> :nth-child(3)) { --cols: 3; }
+.at-row:has(> :nth-child(4)) { --cols: 4; }
+.at-row { --share: calc((100cqi - (var(--cols) - 1) * 12px) / var(--cols)); }
+.at-row > * { flex:1; min-width:0; }
+/* Direct children only. A row can hold a Segmented, whose own buttons are
+   .at-btn too — sizing those from the row's share would hand a three-way
+   picker the type of a full-width button. */
+.at-row > .at-btn { white-space: nowrap;
+  font-size: clamp(10px, calc(var(--share) * 0.115), 16px);
+  padding-inline: clamp(4px, calc(var(--share) * 0.055), 22px);
+  /* Letterspacing is a luxury of a roomy button. On the narrowest phone
+     the type is already at its floor and this is the only width left to
+     give back — and tracking that reads as considered at 16px reads as
+     padding at 10px. */
+  letter-spacing: clamp(0em, calc(var(--share) * 0.00022), 0.03em); }
+/* The hint takes its own width rather than a share: an icon given an equal
+   share leaves the text buttons short of room while the space beside the
+   icon goes unused. Same treatment as the select button in a toolbar. */
+/* It takes its own width rather than a share — an icon given an equal
+   share leaves the text buttons short while the space beside the icon goes
+   unused — but it steps down with the rest of the row rather than holding
+   52px on a narrow phone, which is where those pixels are worth most. The
+   floor is a tap target, not a look. */
+.at-row > .at-hintbtn { flex:0 0 auto; padding:0;
+  width: clamp(40px, calc(var(--share) * 0.6), 52px); }
 .at-input { font-family: var(--ui); font-size:18px; font-weight:600; width:100%;
   background: var(--well); color: var(--text); border:2px solid var(--line);
   border-radius: var(--r); padding:15px 16px; }
@@ -1136,7 +1168,17 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-stat2.big .at-statvalue { font-size: 40px; }
 /* --- Screen footer: the action bar a sheet keeps at the bottom --- */
 .at-screenfoot { position:sticky; bottom:0; display:flex; gap: var(--s3); padding: var(--s4) 0 0; margin-top: var(--s5); background: linear-gradient(to top, var(--surface) 60%, transparent); }
-.at-screenfoot > * { flex:1; }
+.at-screenfoot > * { flex:1; min-width:0; }
+/* Same rule as an action row: the footer's buttons step down together
+   rather than one of them breaking across two lines. */
+.at-screenfoot { container-type: inline-size; --cols: 1; }
+.at-screenfoot:has(> :nth-child(2)) { --cols: 2; }
+.at-screenfoot:has(> :nth-child(3)) { --cols: 3; }
+.at-screenfoot { --share: calc((100cqi - (var(--cols) - 1) * var(--s3)) / var(--cols)); }
+.at-screenfoot > .at-btn { white-space: nowrap;
+  font-size: clamp(10px, calc(var(--share) * 0.115), 16px);
+  padding-inline: clamp(4px, calc(var(--share) * 0.055), 22px);
+  letter-spacing: clamp(0em, calc(var(--share) * 0.00022), 0.03em); }
 /* --- Tabs / space chrome: one owner for the layers ---
    All four together, above --z-screen. They used to be split: the brand on
    --z-chrome and the other three below a space frame, so opening Teaching

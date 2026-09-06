@@ -88,3 +88,53 @@ test("dialogs sit above every screen", () => {
   assert.ok(layer[".at-modalback"] > layer[".at-screen.over"]);
   assert.ok(layer[".at-modalback"] > layer[".at-screen"]);
 });
+
+/* --- buttons in a row never wrap ---
+
+   A wrapped label makes a row of buttons different heights and reads as
+   something gone wrong, so a tight row steps down in type and padding
+   together instead. Whether it actually fits is a question only a browser
+   can answer, and it is measured there at five widths; what can be held
+   here is that the rules which make it possible are still present. Deleting
+   any of them would put the wrapping back with nothing to notice. */
+
+const rule = (selector) => {
+  const at = css.indexOf(selector + " {");
+  if (at < 0) return "";
+  return css.slice(at, css.indexOf("}", at));
+};
+
+for (const row of [".at-row > .at-btn", ".at-screenfoot > .at-btn"]) {
+  test(`${row} refuses to break a label`, () => {
+    const body = rule(row);
+    assert.ok(body, `${row} has no rule at all`);
+    assert.match(body, /white-space:\s*nowrap/, `${row} may wrap`);
+    /* Nowrap on its own turns a wrap into an overflow, which is worse. The
+       type has to give way instead. */
+    assert.match(body, /font-size:\s*clamp\(/, `${row} does not shrink to fit`);
+    assert.match(body, /--share/, `${row} does not size from the room it has`);
+  });
+}
+
+test("a row knows how many buttons are sharing it", () => {
+  /* --share divides the row between its children, so the count has to be
+     right or three buttons would be sized as though they were two. */
+  for (const container of [".at-row", ".at-screenfoot"]) {
+    for (const n of [2, 3]) {
+      assert.ok(
+        css.includes(`${container}:has(> :nth-child(${n}))`),
+        `${container} does not count ${n} buttons`,
+      );
+    }
+    assert.ok(css.includes(`${container} { container-type: inline-size`) ||
+      /container-type:\s*inline-size/.test(rule(container)), container);
+  }
+});
+
+test("the rule reaches a row's own buttons and not a picker inside one", () => {
+  /* A Segmented in a row renders .at-btn children of its own. Sizing those
+     from the row's share would hand a three-way picker the type of a
+     full-width button. */
+  assert.equal(css.includes(".at-row .at-btn {"), false, "the selector must be a child combinator");
+  assert.ok(css.includes(".at-row > .at-btn {"));
+});

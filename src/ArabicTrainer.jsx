@@ -5501,6 +5501,22 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
       ? "Choose at least one card"
       : "";
 
+  /*
+   * A reason short enough to be a label, or nothing.
+   *
+   * Saying why a button is disabled on the button itself is the right
+   * shape for "Choose a mode" and the wrong one for "At least two exercise
+   * types must be switched on in Settings" — that is a sentence, and a
+   * sentence on a button either wraps or shrinks to something nobody can
+   * read. The long ones are shown above the footer instead, where there is
+   * room for them, and the button keeps its verb.
+   */
+  const LABEL_LIMIT = 26;
+  const onButton = (reason) => (reason && reason.length <= LABEL_LIMIT ? reason : "");
+  const spelledOut = [stepProblem, last ? problem : ""].find(
+    (r) => r && r.length > LABEL_LIMIT
+  );
+
   function start() {
     onStart({
       ids: [...picked],
@@ -5531,16 +5547,18 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
                   disabled={!!stepProblem}
                   onClick={() => setStep(step + 1)}
                 >
-                  {stepProblem || "Next"}
+                  {onButton(stepProblem) || "Next"}
                 </Button>
               ) : (
                 <Button variant="primary" disabled={!!problem} onClick={start}>
-                  {problem || "Start"}
+                  {onButton(problem) || "Start"}
                 </Button>
               )}
         </>
       }
     >
+      {spelledOut && <Notice kind="warn">{spelledOut}</Notice>}
+
       {step === 0 && (
         <div className="at-modelist">
           {Object.entries(MODES).map(([key, m]) => (
