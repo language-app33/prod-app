@@ -1,12 +1,15 @@
 /*
- * The version has one job: change when a deploy changes, and be the same
- * string you can find on GitHub. These are the ways it could quietly fail
- * to do that.
+ * The version has two jobs: name the release a person is on, and name the
+ * build so it can be matched against GitHub. These are the ways either one
+ * could quietly fail.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { appVersion } from "../scripts/version.mjs";
+import { readFileSync } from "node:fs";
+import { appVersion, formatRelease } from "../scripts/version.mjs";
+
+const PKG = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
 test("the host's commit wins, shortened to what GitHub shows", () => {
   const v = appVersion({ RAILWAY_GIT_COMMIT_SHA: "735ade6a1b2c3d4e5f60718293a4b5c6d7e8f900" });
@@ -58,4 +61,38 @@ test("every build is stamped, and the stamp is a real date", () => {
   const v = appVersion({}, new Date("2026-09-05T13:00:00.000Z"));
   assert.equal(v.builtAt, "2026-09-05T13:00:00.000Z");
   assert.equal(Number.isNaN(new Date(appVersion({}).builtAt).getTime()), false);
+});
+
+test("a release is two digits, and the third is never shown", () => {
+  assert.equal(formatRelease("0.1.0"), "0.1");
+  assert.equal(formatRelease("0.2.0"), "0.2");
+  /* npm wants three parts; the scheme has two. A patch number that crept
+     in must not reach the corner menu. */
+  assert.equal(formatRelease("0.4.2"), "0.4");
+});
+
+test("the second digit counts rather than divides", () => {
+  /* 0.10 comes after 0.9, and must not be read — or printed — as 0.1. */
+  assert.equal(formatRelease("0.10.0"), "0.10");
+  assert.equal(formatRelease("1.0.0"), "1.0");
+});
+
+test("nothing usable is blank, not a guess", () => {
+  for (const bad of ["", "   ", "banana", "v0.1", null, undefined, "1"]) {
+    assert.equal(formatRelease(bad), "", `expected no release from ${JSON.stringify(bad)}`);
+  }
+});
+
+test("the release comes from package.json, which is the only place it lives", () => {
+  assert.equal(appVersion({}, new Date(), "0.7.0").release, "0.7");
+  /* No argument: the real file, so a bump that broke the field fails here
+     rather than shipping a blank version line. */
+  assert.match(appVersion({}).release, /^\d+\.\d+$/);
+  assert.equal(appVersion({}).release, formatRelease(PKG.version));
+});
+
+test("package.json keeps to the scheme", () => {
+  /* Guards the numbering itself: two digits that count, a reserved 1.0,
+     and the trailing zero npm insists on. */
+  assert.match(PKG.version, /^0\.\d+\.0$/);
 });

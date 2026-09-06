@@ -65,6 +65,25 @@ Environment variables:
 | `SIGNUP_CODE` | if set, making an account requires this code. Leave unset to let anyone sign up. |
 | `ADMIN_KEY` | if set, an account can promote itself to administrator once by entering it. |
 
+### Version numbers
+
+Two numbers appear at the foot of the top-right menu, and they answer
+different questions.
+
+The **release** — `0.1`, `0.2`, `0.3` — is what you are on. It lives in
+`package.json`'s `version` field, which is the only place it lives, and it
+is bumped by hand in the same commit as the work it names: once per batch of
+change a person would notice, not once per commit. The second digit counts
+rather than divides, so `0.9` is followed by `0.10`, and `1.0` is reserved
+for a launch. npm insists on a third part, so the field reads `0.1.0`; the
+app never shows it. `CHANGELOG.md` says what each release contained.
+
+The **commit** beneath it is the build, and it is the one that answers "is
+what I merged actually running?" — see `scripts/version.mjs` for where it
+comes from. The app compares its own commit against `/api/version` and
+offers a Reload when a service worker is still serving an older copy, so a
+release number alone is never taken as proof of a deploy.
+
 ## How it fits together
 
 ```

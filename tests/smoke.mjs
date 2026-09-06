@@ -23,11 +23,12 @@ await build({
   /* One React: the bundle imports the same copy the test renders with. */
   external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
   logLevel: "silent",
-  /* The same two vite freezes into a real build, so the version line is
+  /* The same three vite freezes into a real build, so the version line is
      exercised here the way it actually ships rather than through its
      "no one defined this" fallback. */
   define: {
     "process.env.NODE_ENV": '"development"',
+    __APP_RELEASE__: '"0.1"',
     __APP_VERSION__: '"abc1234"',
     __BUILT_AT__: '"2026-09-05T13:00:00.000Z"',
   },
@@ -73,7 +74,7 @@ const phrase = {
 let materialHits = 0;
 /* The build the bundle was compiled with — see the define above — so the
    app and the server agree until a test makes them disagree. */
-let deployedVersion = { commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
+let deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
 w.fetch = globalThis.fetch = async (input, opts = {}) => {
   const url = new URL(String(input), "https://taleb.test");
   const method = opts.method || "GET";
@@ -467,11 +468,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 }
 
 /* ---- the version line ----
-   It exists to answer "is what I merged actually running?", so the two
-   things worth checking are that it shows the build the bundle was
-   compiled from, and that it does not claim to be current when the server
-   is serving something else — which for an installed app is the ordinary
-   case for a minute after a deploy, not an exotic one. */
+   It answers two questions: "which version am I on?", which wants the
+   release number in the headline, and "is what I merged actually
+   running?", which only the commit can answer. So the checks are that
+   both are shown, that the release leads, and that it does not claim to
+   be current when the server is serving something else — which for an
+   installed app is the ordinary case for a minute after a deploy, not an
+   exotic one. */
 {
   const openMenu = async () => {
     click(document.querySelector(".at-cornerbtn"));
@@ -482,6 +485,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   const ver = document.querySelector(".at-cver");
   check("the corner menu carries a version", !!ver,
     ver ? "" : document.querySelector(".at-cmenu") ? "menu open, no version line" : "the menu did not open");
+  check("the headline is the release, not a hash",
+    !!ver && /^Version 0\.1\b/.test(ver.querySelector("b").textContent.trim()),
+    (ver && ver.querySelector("b").textContent) || "");
   check("it names the build this bundle came from", !!ver && /abc1234/.test(ver.textContent),
     (ver && ver.textContent) || "");
   check("it says when, so two deploys in a day are distinguishable",
@@ -491,7 +497,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   /* A deploy lands while this bundle is the one in hand. */
   click(document.querySelector(".at-cornerbtn"));
   await sleep(50);
-  deployedVersion = { commit: "def5678", builtAt: "2026-09-05T14:00:00.000Z" };
+  deployedVersion = { release: "0.2", commit: "def5678", builtAt: "2026-09-05T14:00:00.000Z" };
   await openMenu();
   await sleep(60);
   const stale = document.querySelector(".at-cver");
@@ -499,6 +505,21 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     !!stale && stale.classList.contains("stale") && /def5678/.test(stale.textContent),
     (stale && stale.textContent) || "");
   check("and it offers the one thing that fixes it", !!stale && !!stale.querySelector(".at-cverbtn"));
+  check("the newer deploy is named by its release too", !!stale && /0\.2/.test(stale.textContent),
+    (stale && stale.textContent) || "");
+
+  /* Same build, differently labelled. Only the commit decides: a release
+     string that disagreed would otherwise send everyone to Reload for
+     nothing. */
+  click(document.querySelector(".at-cornerbtn"));
+  await sleep(50);
+  deployedVersion = { release: "0.9", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
+  await openMenu();
+  await sleep(60);
+  const relabelled = document.querySelector(".at-cver");
+  check("a relabelled release on the same build is not a new deploy",
+    !!relabelled && !relabelled.classList.contains("stale") && !relabelled.querySelector(".at-cverbtn"),
+    (relabelled && relabelled.textContent) || "");
 
   /* Offline is not a failed deploy, and must not be shown as one. */
   click(document.querySelector(".at-cornerbtn"));
@@ -515,7 +536,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     !!offline && !offline.classList.contains("stale") && /abc1234/.test(offline.textContent),
     (offline && offline.textContent) || "");
   w.fetch = globalThis.fetch = realFetch;
-  deployedVersion = { commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
+  deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
   click(document.querySelector(".at-cornerbtn"));
   await sleep(50);
 }

@@ -588,7 +588,12 @@ button {
 .at-cdot.error, .at-cdot.off { background: var(--rose); }
 .at-cornerbtn .at-cdot { position:absolute; top:-2px; right:-2px; width:12px; height:12px;
   border:2px solid var(--bg); }
-.at-cmenu { position:absolute; top:50px; right:0; min-width:250px; background: var(--surface);
+/* The menu grows to fit its rows, so it needs a ceiling: the version line
+   underneath carries a build, a date and sometimes a whole sentence about
+   a newer deploy, and without this the menu would widen past the screen
+   and take its left-hand edge with it. */
+.at-cmenu { position:absolute; top:50px; right:0; min-width:250px;
+  max-width: calc(100vw - 24px); background: var(--surface);
   border:2px solid var(--line); border-radius:18px; padding:8px;
   box-shadow:0 14px 40px rgba(0,0,0,.45); }
 .at-cwho { display:flex; align-items:center; gap:11px; padding:10px 10px 12px; }
@@ -615,11 +620,15 @@ button {
    worth acting on. */
 .at-cver { display:flex; align-items:center; gap:10px; padding:8px 10px 4px; }
 .at-cvertext { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
-.at-cver b { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size:11px; font-weight:700; letter-spacing:.04em; color: var(--text-soft); }
-.at-cver i { font-style:normal; font-size:10px; font-weight:600; color: var(--muted);
-  overflow:hidden; text-overflow:ellipsis; }
+/* The release leads, in the app's own type, because it is the bit you
+   read. The build beneath it is a string to compare against GitHub
+   character by character, which is what the monospace is for. */
+.at-cver b { font-size:12px; font-weight:800; letter-spacing:.02em; color: var(--text-soft); }
+.at-cver i { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-style:normal; font-size:10px; font-weight:600; color: var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .at-cver.stale b, .at-cver.stale i { color: var(--brass); }
+.at-cvernew { font-weight:800; }
 .at-cverbtn { border:2px solid var(--brass); background:none; color: var(--brass); cursor:pointer;
   border-radius:999px; padding:5px 11px; font-family: var(--ui); font-size:10px; font-weight:800;
   letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; flex:none; }

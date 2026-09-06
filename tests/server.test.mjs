@@ -148,16 +148,18 @@ test("the deployed version is whatever is in dist, read fresh", async () => {
   assert.equal(unbuilt.status, 404, "no dist yet, so nothing to report");
   assert.equal((await unbuilt.json()).error, "unbuilt");
 
-  await writeFile(path.join(distDir, "version.json"), JSON.stringify({ commit: "aaaaaaa", builtAt: "x" }));
+  await writeFile(path.join(distDir, "version.json"), JSON.stringify({ release: "0.1", commit: "aaaaaaa", builtAt: "x" }));
   const first = await fetch(at);
   assert.equal(first.status, 200);
-  assert.equal((await first.json()).commit, "aaaaaaa");
+  const served = await first.json();
+  assert.equal(served.commit, "aaaaaaa");
+  assert.equal(served.release, "0.1", "the release is passed through, not dropped");
   /* Never cached: a stale answer here is the one thing that would make the
      whole check useless. */
   assert.match(first.headers.get("cache-control") || "", /no-store/);
 
   /* A deploy, as far as this endpoint can see one. */
-  await writeFile(path.join(distDir, "version.json"), JSON.stringify({ commit: "bbbbbbb", builtAt: "y" }));
+  await writeFile(path.join(distDir, "version.json"), JSON.stringify({ release: "0.2", commit: "bbbbbbb", builtAt: "y" }));
   assert.equal((await (await fetch(at)).json()).commit, "bbbbbbb");
 
   await new Promise((resolve) => own.close(resolve));

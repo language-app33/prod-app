@@ -6478,19 +6478,26 @@ function SpaceSwitch({ space, spaces, onSpace }) {
 }
 
 /*
- * Which build this is, and whether it is the one on the server.
+ * Which version this is, and whether it is the one on the server.
  *
- * Frozen in at build time (see vite.config.js), so this is the commit the
- * running bundle came from — not the commit the server is serving. For an
- * installed app those come apart: the service worker holds a precached copy
- * and keeps serving it until it has fetched the new one, so a deploy can
- * land perfectly and this line still read the old commit for a while.
+ * Two facts, because they answer two questions. The release — 0.1, 0.2,
+ * 0.3 — is the headline, because "which version am I on?" wants a number
+ * that counts, not a hash. The commit sits under it, because "is what I
+ * merged actually running?" can only be answered by the thing that changes
+ * on every deploy.
+ *
+ * Both are frozen in at build time (see vite.config.js), so they describe
+ * the running bundle — not what the server is serving. For an installed app
+ * those come apart: the service worker holds a precached copy and keeps
+ * serving it until it has fetched the new one, so a deploy can land
+ * perfectly and this line still read the old build for a while.
  *
  * Which is exactly the thing that would make a version line misleading, so
  * the line asks the server as well. "Up to date" then means the deploy
  * landed *and* you are looking at it, and anything else says so plainly
  * rather than leaving a good deploy looking like a failed one.
  */
+const APP_RELEASE = typeof __APP_RELEASE__ === "string" && __APP_RELEASE__ ? __APP_RELEASE__ : "dev";
 const APP_COMMIT = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
 const APP_BUILT_AT = typeof __BUILT_AT__ === "string" ? __BUILT_AT__ : "";
 
@@ -6524,6 +6531,8 @@ function AppVersion() {
     };
   }, []);
 
+  /* The commit, not the release: two builds of 0.3 are still two builds,
+     and only the hash tells them apart. */
   const stale = deployed && deployed.commit !== APP_COMMIT;
 
   async function reload() {
@@ -6542,11 +6551,17 @@ function AppVersion() {
   return (
     <div className={`at-cver${stale ? " stale" : ""}`}>
       <span className="at-cvertext">
-        <b>Version {APP_COMMIT}</b>
-        <i>
-          {buildStamp(APP_BUILT_AT)}
-          {stale ? ` — ${deployed.commit} is deployed` : ""}
-        </i>
+        <b>Version {APP_RELEASE}</b>
+        <i>{[APP_COMMIT, buildStamp(APP_BUILT_AT)].filter(Boolean).join(" · ")}</i>
+        {/* Its own line rather than a tail on the one above: appended, it
+            was the half that got cut off, which is the half worth
+            reading. */}
+        {stale && (
+          <i className="at-cvernew">
+            {deployed.release ? `${deployed.release} (${deployed.commit})` : deployed.commit} is
+            deployed
+          </i>
+        )}
       </span>
       {stale && (
         <button className="at-cverbtn" onClick={reload}>

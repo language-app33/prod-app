@@ -8,12 +8,13 @@ import { appVersion } from "./scripts/version.mjs";
 const VERSION = appVersion();
 
 /*
- * The same fact in two places, deliberately.
+ * The same facts in two places, deliberately.
  *
- * __APP_VERSION__ is frozen into the JavaScript, so a browser running a
- * bundle reports the build that bundle came from — which, for an installed
- * app holding a precached copy, is not necessarily the build on the server.
- * version.json sits in dist and is read fresh by the server.
+ * __APP_RELEASE__ and __APP_VERSION__ are frozen into the JavaScript, so a
+ * browser running a bundle reports the release and the build it came from —
+ * which, for an installed app holding a precached copy, is not necessarily
+ * what is on the server. version.json sits in dist and is read fresh by the
+ * server.
  *
  * The gap between the two is the useful part: it is how the app can tell
  * you a deploy landed but you are still looking at the old one.
@@ -33,6 +34,7 @@ function emitVersion() {
 
 export default defineConfig({
   define: {
+    __APP_RELEASE__: JSON.stringify(VERSION.release),
     __APP_VERSION__: JSON.stringify(VERSION.commit),
     __BUILT_AT__: JSON.stringify(VERSION.builtAt),
   },
