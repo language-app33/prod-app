@@ -642,6 +642,13 @@ button {
   border-radius:999px; padding:5px 11px; font-family: var(--ui); font-size:10px; font-weight:800;
   letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; flex:none; }
 .at-cverbtn:hover { background: var(--brass); color: var(--onbrass); }
+/* Check is a thing you may do; Reload is a thing you should. Only the
+   second is worth brass — a permanent brass pill down there would pull the
+   eye every time the menu opened, which is the job of the stale state and
+   nothing else. */
+.at-cver:not(.stale) .at-cverbtn { border-color: var(--line); color: var(--muted); }
+.at-cver:not(.stale) .at-cverbtn:hover { background: var(--raised); color: var(--text); }
+.at-cverbtn:disabled { opacity:.55; cursor: default; }
 .at-screen { position:fixed; inset:0; z-index: var(--z-screen); background: var(--bg);
   display:flex; flex-direction:column; }
 .at-screenhead { display:flex; align-items:center; gap:12px; padding:14px 16px;

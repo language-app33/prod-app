@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.4 — 6 September 2026
+
+- The version line in the top-right menu has a **Check** button. It asks
+  the server there and then, so after a merge you can sit on the menu and
+  press it rather than closing and reopening the menu, which was the only
+  way to re-check before. If a newer build turns up, the line says so and
+  the button becomes Reload; if not, it tells you you're on the latest.
+
 ## 0.3 — 6 September 2026
 
 - On the answer screen, everything that is not the answer — where the word

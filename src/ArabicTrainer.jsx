@@ -28,6 +28,7 @@ import {
   pullCourses,
   useClipPlayer,
   useLiveRefresh,
+  useSnackbar,
   useSnackbarState,
 } from "./shared.jsx";
 
@@ -6546,17 +6547,56 @@ function AppVersion() {
      be reached — which is not an error worth showing: offline is a normal
      state for this app, and it says nothing about the deploy. */
   const [deployed, setDeployed] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const alive = useRef(true);
+  const snack = useSnackbar();
+
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+
+  /* The one question this component asks, so the menu opening and the
+     button pressing ask it the same way.
+
+     `deployed` is not cleared first: blanking an answer we already have in
+     order to ask the same question again would flicker the line for no
+     reason. `announce` is off for the check that happens when the menu
+     opens — nobody asked for that one, and a snackbar for it would fire
+     every time the menu is touched. */
+  const check = useCallback(
+    (announce = false) => {
+      setBusy(true);
+      return fetch("/api/version", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((v) => {
+          if (!alive.current) return;
+          const found = v && v.commit ? v : false;
+          setDeployed(found);
+          setBusy(false);
+          /* A newer build says so itself — the line turns and offers
+             Reload, which is louder and more useful than a pill. The other
+             two outcomes change nothing on screen, so without a word the
+             button reads as dead. */
+          if (!announce) return;
+          if (!found) snack("Couldn't reach the server");
+          else if (found.commit === APP_COMMIT) snack("You're on the latest version");
+        })
+        .catch(() => {
+          if (!alive.current) return;
+          setDeployed(false);
+          setBusy(false);
+          if (announce) snack("Couldn't reach the server");
+        });
+    },
+    [snack],
+  );
 
   useEffect(() => {
-    let alive = true;
-    fetch("/api/version", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((v) => alive && setDeployed(v && v.commit ? v : false))
-      .catch(() => alive && setDeployed(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
+    check();
+  }, [check]);
 
   /* The commit, not the release: two builds of 0.3 are still two builds,
      and only the hash tells them apart. */
@@ -6590,9 +6630,17 @@ function AppVersion() {
           </i>
         )}
       </span>
-      {stale && (
+      {/* One button, never two. Check is what you press when there is
+          nothing to do; Reload is what you press when there is. A row
+          carrying both would make you pick between them, and the pick is
+          never yours to make. */}
+      {stale ? (
         <button className="at-cverbtn" onClick={reload}>
           Reload
+        </button>
+      ) : (
+        <button className="at-cverbtn" onClick={() => check(true)} disabled={busy}>
+          {busy ? "Checking…" : "Check"}
         </button>
       )}
     </div>

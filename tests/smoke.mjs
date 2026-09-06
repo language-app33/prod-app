@@ -72,6 +72,7 @@ const phrase = {
   clips: [], subs: [], rev: 1, updated: 1,
 };
 let materialHits = 0;
+let versionHits = 0;
 /* The build the bundle was compiled with — see the define above — so the
    app and the server agree until a test makes them disagree. */
 let deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
@@ -91,8 +92,12 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
   });
 
   /* Whatever the "server" is serving. Set per test, so the corner menu can
-     be shown both a matching build and a newer one. */
-  if (url.pathname === "/api/version") return json(deployedVersion);
+     be shown both a matching build and a newer one. Counted, because the
+     Check button's whole job is to ask again. */
+  if (url.pathname === "/api/version") {
+    versionHits += 1;
+    return json(deployedVersion);
+  }
 
   if (url.pathname === "/api/courses") {
     if (action === "whoami") return json({ ok: true, user: { ...account, key: undefined } });
@@ -525,7 +530,49 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     (ver && ver.textContent) || "");
   check("it says when, so two deploys in a day are distinguishable",
     !!ver && /\d/.test(ver.querySelector("i").textContent), (ver && ver.querySelector("i").textContent) || "");
-  check("nothing to do when it is the deployed one", !!ver && !ver.classList.contains("stale") && !ver.querySelector(".at-cverbtn"));
+  const verBtn = ver && ver.querySelector(".at-cverbtn");
+  check("nothing to reload when it is the deployed one",
+    !!ver && !ver.classList.contains("stale") && !!verBtn && /^Check$/.test(verBtn.textContent.trim()),
+    verBtn ? verBtn.textContent : "no button");
+
+  /* The button's whole job: ask again, without closing and reopening the
+     menu, which was the only way to re-check before it existed. */
+  {
+    const before = versionHits;
+    click(verBtn);
+    await sleep(80);
+    check("Check asks the server again", versionHits > before, `${before} → ${versionHits}`);
+    const after = document.querySelector(".at-cver");
+    check("and the menu is still open, so the answer can be read",
+      !!after && !!document.querySelector(".at-cmenu"));
+    check("nothing changes when nothing has changed",
+      !!after && !after.classList.contains("stale"), (after && after.className) || "");
+    /* Nothing on the line moved, so without a word the button reads as
+       dead. */
+    const said = document.querySelector(".at-snack");
+    check("and it says so, rather than looking like a dead button",
+      !!said && /latest version/i.test(said.textContent), (said && said.textContent) || "nothing said");
+  }
+
+  /* A deploy that landed while the menu was open: found by pressing the
+     button, not by reopening the menu. */
+  {
+    deployedVersion = { release: "0.2", commit: "9999999", builtAt: "2026-09-05T15:00:00.000Z" };
+    click(document.querySelector(".at-cverbtn"));
+    await sleep(80);
+    const found = document.querySelector(".at-cver");
+    const btn = found && found.querySelector(".at-cverbtn");
+    check("Check finds a deploy that landed while the menu was open",
+      !!found && found.classList.contains("stale") && /9999999/.test(found.textContent),
+      (found && found.textContent) || "");
+    check("and the button becomes the one that fixes it",
+      !!btn && /^Reload$/.test(btn.textContent.trim()), btn ? btn.textContent : "no button");
+    deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
+    click(document.querySelector(".at-cornerbtn"));
+    await sleep(50);
+    await openMenu();
+    await sleep(60);
+  }
 
   /* A deploy lands while this bundle is the one in hand. */
   click(document.querySelector(".at-cornerbtn"));
@@ -550,8 +597,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await openMenu();
   await sleep(60);
   const relabelled = document.querySelector(".at-cver");
+  const relabelledBtn = relabelled && relabelled.querySelector(".at-cverbtn");
   check("a relabelled release on the same build is not a new deploy",
-    !!relabelled && !relabelled.classList.contains("stale") && !relabelled.querySelector(".at-cverbtn"),
+    !!relabelled && !relabelled.classList.contains("stale") &&
+      !!relabelledBtn && /^Check$/.test(relabelledBtn.textContent.trim()),
     (relabelled && relabelled.textContent) || "");
 
   /* Offline is not a failed deploy, and must not be shown as one. */
@@ -572,6 +621,12 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
   click(document.querySelector(".at-cornerbtn"));
   await sleep(50);
+  /* The snackbar the Check raised outlives this block — it dwells for four
+     seconds — and the gallery below counts what is on screen. Dismissed
+     here rather than there, because the pill is portalled outside the menu
+     and clicking it closes the menu with it. */
+  click(document.querySelector(".at-snackx"));
+  await sleep(40);
 }
 
 /* ---- a session: start, answer one card, continue ---- */
