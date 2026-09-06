@@ -412,6 +412,28 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
 
+    /* Everything that is not the answer, in one box. The members are each
+       conditional, so what matters is that whichever turned up are inside
+       it and in the order they are meant to read in. */
+    const alsoBox = document.querySelector('[data-el="also"]');
+    check("what is not the answer is gathered into a box",
+      !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
+      alsoBox ? alsoBox.className : "no box");
+    const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
+    check("and the blocks that were loose on the page are in it",
+      inBox.includes("also-hint"), inBox.join(" ") || "empty");
+    /* It used to sit three blocks below its own siblings, under the notes. */
+    const heard = inBox.indexOf("also-audio");
+    check("how it sounds sits with its siblings, not below the notes",
+      heard === -1 || heard === inBox.length - 1 || inBox.indexOf("related-words") > heard,
+      inBox.join(" "));
+    check("the box holds only what it was given, never an empty shell",
+      !alsoBox || alsoBox.children.length > 0, String(alsoBox && alsoBox.children.length));
+    /* The notes are about the answer, not about learning more, so they
+       stay outside it. */
+    check("the card's own notes stay outside the box",
+      !alsoBox || !inBox.includes("card-note"), inBox.join(" "));
+
     /* The way on sits where the hint, the nudge and the check sat: same
        bar, same place on the screen, so a long answer can never push it
        out of reach. */

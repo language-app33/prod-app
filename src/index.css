@@ -185,29 +185,39 @@ button {
 /* The answer itself carries the weight; anything shown beneath it is a
    second thing worth noticing, not a competing one. */
 .at-answermain { margin: 6px 0 4px; }
-/* Once the answer is up, the question asked and the box it was typed into
-   step back, so the answer is what the eye lands on. The answer itself is
-   untouched — only what came before it shrinks. */
-.at-ask, .at-answerbox { transition: transform 240ms ease, opacity 240ms ease,
-  margin 240ms ease; transform-origin: top center; }
-.at-ask.done { transform: scale(.72); opacity:.5; margin: -4px 0 -10px; }
-.at-answerbox.done { transform: scale(.86); opacity:.55; margin-top:6px !important; }
-.at-answerbox.done .at-input { padding:6px 10px; font-size:14px; min-height:0; }
-@media (prefers-reduced-motion: reduce) {
-  .at-ask, .at-answerbox, .at-asked .at-instruction { transition: none; }}
-/* The question and the answer box shrink out of the way once the answer is
-   showing. Transitioned rather than switched, so the eye follows the change
-   instead of being surprised by it. */
-.at-asked .at-instruction { font-size:13px; opacity:.6; transition: font-size 220ms ease, opacity 220ms ease; }
 .at-answermain .at-arabic { font-size:40px; line-height:1.35; margin:6px 0; }
 .at-answermain .at-en { font-size:26px; font-weight:800; }
 .at-answermain .at-latin { font-size:24px; }
+/* The question and the answer box used to shrink and fade away over 240ms
+   once the answer landed, to move the eye onto it. Nothing moves now: the
+   question stays the size it was asked at and the answer box stays the
+   size it was typed into. .at-ask and .at-answerbox are still here as
+   plain hooks — they hold no state and no motion. */
 .at-answeralso { margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
 .at-alsolabel { font-family: var(--ui); font-size:11px; font-weight:700;
   letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 6px; }
 .at-answeralso .at-arabic { font-size:26px; line-height:1.4; margin:4px 0; }
 .at-answeralso .at-en { font-size:16px; }
 .at-answeralso .at-latin { font-size:15px; }
+/* Everything under an answer that is not the answer, in one container:
+   where it turned up, how it is written, how it is pronounced, how it
+   sounds, what shares its root. Inset rather than raised — the same well
+   the answer was typed into — so it reads as a place to look things up
+   rather than as a second card competing with the answer above it.
+
+   Immediately after .at-answeralso, and not by accident: the two rules
+   below have the same specificity as the block's own margin and border, so
+   source order is what settles it. */
+.at-alsobox { margin-top:18px; padding:14px; background: var(--well);
+  border:2px solid var(--line); border-radius: var(--r); }
+/* The dividers belong to the box, not to its members: the related words
+   are not an .at-answeralso and had their own margin and hairline four
+   pixels off everything beside them, which they won on source order alone.
+   .at-pairs now declares no spacing at all. And nothing draws a rule
+   against the box's own edge. */
+.at-alsobox > * { margin-top:0; padding-top:0; border-top:0; }
+.at-alsobox > * + * { margin-top:14px; padding-top:12px;
+  border-top:1px solid var(--line); }
 .at-flagwrap { position:relative; margin-top:14px; text-align:center; }
 .at-flagbtn { background:none; border:0; cursor:pointer; font-family: var(--ui); font-size:13px;
   font-weight:700; color: var(--faint); padding:6px 10px; }
@@ -1178,7 +1188,6 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 /* Rules for classes the markup uses. Previously missing, so these elements
    were rendering unstyled. */
 .at-readout { display:block; }
-.at-pairs { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
 .at-advanced { margin-top:18px; padding-top:14px; border-top:2px solid var(--line); }
 /* Two clearly separate parts of the courses page. */
 .at-section { margin-bottom:26px; }

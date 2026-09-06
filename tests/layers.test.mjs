@@ -182,6 +182,32 @@ test("the bar's gap is the one the step-down formula divides by", () => {
   assert.match(rule(".at-answerbar.at-row"), /--gap:/, "the bar does not set its own gap");
 });
 
+test("nothing on the answer screen moves", () => {
+  /* The question and the answer box used to shrink and fade over 240ms.
+     Deleted, and easy to bring back by accident: the classes are still on
+     the elements, so a transition added to either would animate again with
+     no code change to notice. */
+  assert.doesNotMatch(rule(".at-ask"), /transition/);
+  assert.doesNotMatch(rule(".at-answerbox"), /transition/);
+  for (const gone of [".at-ask.done", ".at-answerbox.done", ".at-asked .at-instruction"]) {
+    assert.equal(css.includes(gone + " {"), false, `${gone} is back`);
+  }
+});
+
+test("what is not the answer is in a box", () => {
+  /* An inset container, not a bare run of blocks: without a border and a
+     background it is a group only in the markup. */
+  const body = rule(".at-alsobox");
+  assert.ok(body, "the box has no rule at all");
+  assert.match(body, /border:/, "the box has no edge");
+  assert.match(body, /background:/, "the box has no ground");
+  /* The dividers are the box's, so the related words — which are not an
+     .at-answeralso — are separated like everything beside them, and the
+     first member does not draw a rule against the box's own edge. */
+  assert.match(rule(".at-alsobox > * + *"), /border-top:/);
+  assert.match(rule(".at-alsobox > *"), /border-top:\s*0/);
+});
+
 test("a question is no longer drawn as a card", () => {
   /* .at-card still exists — the session summary and other screens use it —
      but the exercise does not, and must not pick up a border or a shadow by

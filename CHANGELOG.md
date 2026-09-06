@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.3 — 6 September 2026
+
+- On the answer screen, everything that is not the answer — where the word
+  turned up, how it's written, how it's pronounced or what it means, how it
+  sounds, and the words built on the same root — now sits together in one
+  inset box instead of trailing down the page. "This is how it sounds" used
+  to be three blocks below its own siblings; it has joined them.
+- Nothing animates when the answer appears. The question and the answer box
+  used to shrink and fade over a quarter of a second; they now stay exactly
+  as they were.
+
 ## 0.2 — 6 September 2026
 
 - In a practice session, Continue moved to the bar pinned to the foot of

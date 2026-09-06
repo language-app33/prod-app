@@ -1164,6 +1164,26 @@ const LEGACY_SYNC_KEYS = new Set();
    sharing a root and a set of words told apart only by tone are not the
    same observation, and no sentence the app could assemble would be true of
    both. */
+/*
+ * The box under an answer holding everything that is not the answer.
+ *
+ * Where it turned up, how it is written, how it is pronounced, how it
+ * sounds, what shares its root: five things that are each conditional, so
+ * on one card the box holds four and on another none at all. An empty
+ * bordered box is worse than no box, hence the count — and React.Children
+ * drops the false branches for us, so the members can stay written as
+ * plain conditionals at the call site.
+ */
+function AlsoBox({ children }) {
+  const shown = React.Children.toArray(children).filter(Boolean);
+  if (!shown.length) return null;
+  return (
+    <div className="at-alsobox" data-el="also">
+      {shown}
+    </div>
+  );
+}
+
 function RelatedWords({ pairs, settings }) {
   if (!pairs || !pairs.length) return null;
   const lang = langOf(settings);
@@ -3837,7 +3857,7 @@ Cards ready to practice
                     word, a blanked phrase or an audio player depending on
                     the exercise, and sizing that on the words would miss
                     two of the three. */}
-                <div className={`at-exercise${checked ? " at-asked" : ""}`} data-el="card">
+                <div className="at-exercise" data-el="card">
                   <p className="at-instruction" data-el="question-instruction">
                     {spec.instruction}
                     {isSub && (
@@ -3847,7 +3867,7 @@ Cards ready to practice
                       </span>
                     )}
                   </p>
-                  <div className={`at-ask${checked ? " done" : ""}`} data-el="question-prompt">
+                  <div className="at-ask" data-el="question-prompt">
                     {spec.promptField === "audio" ? (
                       /* A context question plays the whole phrase, not the
                          word: hearing it in running speech is the exercise.
@@ -3914,14 +3934,8 @@ Cards ready to practice
 
                   {/* Two className attributes stood here and React kept the
                       second, so the at-mt4 gap was silently dropped and the
-                      answer box sat hard against the hint button above it.
-                      The .at-answerbox.done rule below overrides this margin
-                      with !important, which is the sign it was meant to be
-                      here all along. */}
-                  <div
-                    className={`at-answerbox at-mt4${checked ? " done" : ""}`}
-                    data-el="answer-box"
-                  >
+                      answer box sat hard against the hint button above it. */}
+                  <div className="at-answerbox at-mt4" data-el="answer-box">
                     {spec.answerMode === "choice" ? (
                       <Segmented
                         size={null}
@@ -4019,64 +4033,76 @@ Cards ready to practice
                         </div>
                       )}
 
-                      {/* Everything after it is a second thing worth noticing,
-                          so each says what it is and is set smaller. */}
-                      {/* What the phrase it appeared in means. Held back
-                          until now: before the answer it would have given
-                          the game away, and after it is the reason the
-                          question was worth asking. */}
-                      {context && (
-                        <div className="at-answeralso" data-el="also-context">
-                          <p className="at-alsolabel" data-el="also-context-label">
-                            Where it turned up
-                          </p>
-                          <Field value={context.ar} field="ar" kind="phrase" name="also-context-text" />
-                          <p className="at-ctxmeaning" data-el="also-context-meaning">
-                            {context.en}
-                          </p>
-                        </div>
-                      )}
-                      {spec.promptField === "audio" && spec.answerField !== "ar" && item.ar && (
-                        <div className="at-answeralso" data-el="also-script">
-                          <p className="at-alsolabel" data-el="also-script-label">
-                            This is how it's written
-                          </p>
-                          <Field value={item.ar} field="ar" kind={item.kind} name="also-script-text" />
-                        </div>
-                      )}
-                      {item[spec.hintField] && (
-                        <div className="at-answeralso" data-el="also-hint">
-                          <p className="at-alsolabel" data-el="also-hint-label">
-                            {spec.hintField === "lat"
-                              ? "This is how it's pronounced"
-                              : spec.hintField === "ar"
-                              ? "This is how it's written"
-                              : "This is what it means"}
-                          </p>
-                          <Field
-                            value={item[spec.hintField]}
-                            field={spec.hintField}
-                            kind={item.kind}
-                            name="also-hint-text"
-                          />
-                        </div>
-                      )}
+                      {/* Everything after the answer is a second thing worth
+                          noticing, so each says what it is, they are set
+                          smaller, and they are kept together in one box
+                          rather than trailing down the page. */}
+                      <AlsoBox>
+                        {/* What the phrase it appeared in means. Held back
+                            until now: before the answer it would have given
+                            the game away, and after it is the reason the
+                            question was worth asking. */}
+                        {context && (
+                          <div className="at-answeralso" data-el="also-context">
+                            <p className="at-alsolabel" data-el="also-context-label">
+                              Where it turned up
+                            </p>
+                            <Field value={context.ar} field="ar" kind="phrase" name="also-context-text" />
+                            <p className="at-ctxmeaning" data-el="also-context-meaning">
+                              {context.en}
+                            </p>
+                          </div>
+                        )}
+                        {spec.promptField === "audio" && spec.answerField !== "ar" && item.ar && (
+                          <div className="at-answeralso" data-el="also-script">
+                            <p className="at-alsolabel" data-el="also-script-label">
+                              This is how it's written
+                            </p>
+                            <Field value={item.ar} field="ar" kind={item.kind} name="also-script-text" />
+                          </div>
+                        )}
+                        {item[spec.hintField] && (
+                          <div className="at-answeralso" data-el="also-hint">
+                            <p className="at-alsolabel" data-el="also-hint-label">
+                              {spec.hintField === "lat"
+                                ? "This is how it's pronounced"
+                                : spec.hintField === "ar"
+                                ? "This is how it's written"
+                                : "This is what it means"}
+                            </p>
+                            <Field
+                              value={item[spec.hintField]}
+                              field={spec.hintField}
+                              kind={item.kind}
+                              name="also-hint-text"
+                            />
+                          </div>
+                        )}
+                        {/* Was below the notes, which put it three blocks
+                            away from its own siblings. It belongs with
+                            them. */}
+                        {spec.promptField !== "audio" && (item.recs || []).length > 0 && (
+                          <div className="at-answeralso" data-el="also-audio">
+                            <p className="at-alsolabel" data-el="also-audio-label">
+                              This is how it sounds
+                            </p>
+                            <AudioPrompt recs={item.recs} />
+                          </div>
+                        )}
+                        {/* Asked here rather than inside RelatedWords: an
+                            element that renders null is still an element,
+                            and the box counts what it was given. */}
+                        {pairs && pairs.length > 0 && (
+                          <RelatedWords pairs={pairs} settings={settings} />
+                        )}
+                      </AlsoBox>
                       {checked.reason === "bare" && (
                         <Help data-el="bare-note">{verdictWord(langOf(settings), "bare")}</Help>
                       )}
-                      <RelatedWords pairs={pairs} settings={settings} />
                       {item.note && (
                         <p className="at-note" data-el="card-note">
                           {item.note}
                         </p>
-                      )}
-                      {spec.promptField !== "audio" && (item.recs || []).length > 0 && (
-                        <div className="at-answeralso" data-el="also-audio">
-                          <p className="at-alsolabel" data-el="also-audio-label">
-                            This is how it sounds
-                          </p>
-                          <AudioPrompt recs={item.recs} />
-                        </div>
                       )}
                       <AfterAnswer
                         ok={checked.ok}
