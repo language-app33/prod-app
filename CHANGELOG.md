@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.5 — 6 September 2026
+
+- A student who is in a course that has no cards is no longer told to join
+  a course. All three screens that can be empty — Home, Progress and Cards
+  — now say *"You're in 1 course, but there are no cards in it yet"*,
+  counting the courses they are actually in, and the Join a course button
+  appears only for someone who is not in one.
+
 ## 0.4 — 6 September 2026
 
 - The version line in the top-right menu has a **Check** button. It asks

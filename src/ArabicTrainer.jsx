@@ -2515,6 +2515,29 @@ function Field({ value, field, kind, lang, name }) {
   );
 }
 
+/*
+ * Why there are no cards, in one sentence, in the one place all three
+ * screens that have to say it read from.
+ *
+ * Being in a course with no cards is not the same as being in no course,
+ * and telling someone who has already joined to join looks like a bug.
+ * The Cards tab knew that; Home and Progress each wrote their own
+ * sentence and both told an enrolled student to join a course, Home with
+ * a button to do it with. Three screens, three sentences, one of them
+ * right — which is the argument for there being one sentence.
+ *
+ * It does not say *why* the course is empty. Three things produce it — no
+ * decks attached, decks with nothing in them, cards that have not reached
+ * this device yet — and the material payload carries cards and nothing
+ * else, so any reason given here would be a guess wrong two times in
+ * three.
+ */
+export function noCardsYet(courseCount) {
+  if (!courseCount) return "Join a course and the decks your teacher shares will appear here.";
+  const them = courseCount === 1 ? "it" : "them";
+  return `You're in ${plural(courseCount, "course")}, but there are no cards in ${them} yet.`;
+}
+
 const FLAG_LABEL = {
   strict: "Check too strict",
   data: "Data looks wrong",
@@ -2656,6 +2679,10 @@ export default function ArabicTrainer() {
      through enabledTypes, so the flag has to be true before they do. */
   setListenOffUntil(listenOff);
   const [myCourses, setMyCourses] = useState([]);
+  /* An empty list means two different things until the first pull comes
+     back: "not in any course" and "not asked yet". They look the same and
+     read very differently to someone who has joined one. */
+  const [coursesKnown, setCoursesKnown] = useState(false);
   /* A deck the person asked to practise from the Courses tab, handed to the
      cards tab once it is on screen. */
   const [deckWanted, setDeckWanted] = useState(null);
@@ -3095,6 +3122,10 @@ export default function ArabicTrainer() {
       } finally {
         refreshing.current = false;
         setCourseBusy(false);
+        /* Whether it answered or failed, we are no longer waiting to find
+           out — and an empty-handed student is only told to join a course
+           once we know they are not already in one. */
+        setCoursesKnown(true);
       }
     },
     [account && account.handle]
@@ -3716,19 +3747,27 @@ export default function ArabicTrainer() {
         {tab === "home" && (
           <>
             {items.length === 0 && (
-              <div className="at-empty">
-                <Help>
-                  Your cards come from the courses you're in. Enter the code your teacher gave
-                  you and their decks appear here, ready to practise.
-                </Help>
-                <div className="at-mt5">
-                  <Button variant="primary" onClick={() => setTab("courses")}
-          icon="school"
-        >
-          Join a course
-        </Button>
-                </div>
-              </div>
+              /* The same component the Progress and Cards tabs use for the
+                 same situation. It was a hand-rolled block here, which is
+                 how it came to say something different from both. */
+              <Empty
+                title="Nothing to practise yet"
+                /* The invitation is for someone who has nowhere to get
+                   cards from, and only once we know that. An enrolled
+                   student is waiting on their teacher, not on a code, and
+                   a button telling them otherwise is the whole reason this
+                   read wrong. Courses is a tap away either way — the tab
+                   strip above does not go anywhere. */
+                action={
+                  coursesKnown && myCourses.length === 0 ? (
+                    <Button variant="primary" onClick={() => setTab("courses")} icon="school">
+                      Join a course
+                    </Button>
+                  ) : null
+                }
+              >
+                {noCardsYet(myCourses.length)}
+              </Empty>
             )}
 
             {items.length > 0 && !session && (
@@ -4211,6 +4250,7 @@ Cards ready to practice
           <ProgressTab
             data={data}
             items={items}
+            myCourses={myCourses}
             settings={settings}
             onPractice={(ids, mode) =>
               beginManual({
@@ -4519,16 +4559,7 @@ function ItemsTab({
       </Help>
 
       {items.length === 0 ? (
-        <Empty title="Nothing here yet">
-          <>
-            {/* The Courses tab and this screen must agree. Being in a course
-                with no decks is not the same as being in no course, and saying
-                "join a course" to someone who already has looks like a bug. */}
-            {myCourses.length
-              ? `You're in ${plural(myCourses.length, "course")}, but ${myCourses.length === 1 ? "it has" : "none of them has"} any decks yet. Cards appear here once your teacher adds a deck.`
-              : "Join a course and the decks your teacher shares will appear here."}
-          </>
-        </Empty>
+        <Empty title="Nothing here yet">{noCardsYet(myCourses.length)}</Empty>
       ) : (
         <>
           <ItemList
@@ -6157,7 +6188,7 @@ const TagSection = React.memo(function TagSection({
   );
 });
 
-function ProgressTab({ data, items, settings, onPractice }) {
+function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
   // Collapsed by default: the point of this screen is the overview.
   const [open, setOpen] = useState(() => new Set());
 
@@ -6220,9 +6251,7 @@ function ProgressTab({ data, items, settings, onPractice }) {
       </div>
 
       {items.length === 0 ? (
-        <Empty title="Nothing to show yet">
-          Join a course and your progress with its decks will appear here.
-        </Empty>
+        <Empty title="Nothing to show yet">{noCardsYet(myCourses.length)}</Empty>
       ) : (
         groups.map(({ name, group }) => (
           <TagSection

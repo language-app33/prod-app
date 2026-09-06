@@ -780,7 +780,36 @@ check("no console errors during the session", errors.length === 0, errors.slice(
    The queue rewrite, driven directly: it is a pure function over a queue, an
    index, the cards and the settings, which is the whole reason it is one. */
 {
-  const { withoutListening, soundLevelOf } = await import(path.join(out, "ArabicTrainer.js"));
+  const { withoutListening, soundLevelOf, noCardsYet } = await import(path.join(out, "ArabicTrainer.js"));
+
+  /* Why a student has no cards, said the same way on all three screens
+     that have to say it. Home and Progress used to tell someone already
+     in a course to join one — Home with a button to do it with — while
+     the Cards tab got it right, which is what three hand-written
+     sentences buys you. */
+  check("nobody in a course is told to join one",
+    !/join/i.test(noCardsYet(1)) && !/join/i.test(noCardsYet(4)),
+    `${noCardsYet(1)} / ${noCardsYet(4)}`);
+  check("one course is one course, and it holds no cards",
+    noCardsYet(1) === "You're in 1 course, but there are no cards in it yet.", noCardsYet(1));
+  check("several courses agree with themselves",
+    noCardsYet(3) === "You're in 3 courses, but there are no cards in them yet.", noCardsYet(3));
+  /* Someone in no course is the one person the invitation is for. */
+  check("and someone in none is invited to join",
+    /join a course/i.test(noCardsYet(0)), noCardsYet(0));
+
+  /* One sentence, three screens: the drift is what the helper exists to
+     stop, so the source is checked for a second copy of it. */
+  {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(path.resolve("src/ArabicTrainer.jsx"), "utf8");
+    const invites = src.split("Join a course and").length - 1;
+    check("the invitation is written once, not once per screen", invites === 1,
+      `${invites} copies`);
+    const uses = src.split("noCardsYet(").length - 1;
+    check("and every screen that says it calls the same function", uses >= 4,
+      `${uses} mentions, one of them the declaration`);
+  }
 
   /* The sound setting used to be a boolean and is now a level, and a
      document written before the change still says true. It has to keep
