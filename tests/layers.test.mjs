@@ -164,12 +164,22 @@ test("the answer bar is pinned to the window, not to whatever scrolls", () => {
 });
 
 test("the page reserves room for the bar, and only while there is one", () => {
-  /* Once an answer is in, the three buttons are replaced by Continue in the
-     ordinary flow — reserving their height then leaves a screenful of
-     nothing under it. */
+  /* Both sides of a question have a bar now — three buttons before the
+     answer, Continue after it — so the room is reserved either way, and
+     still only where a bar exists. */
   assert.ok(css.includes(".at.in-exercise:has(.at-answerbar)"));
   assert.ok(css.includes(".at.kb-open.in-exercise:has(.at-answerbar)"),
     "the keyboard rule needs the same guard, and wins on specificity");
+});
+
+test("the bar's gap is the one the step-down formula divides by", () => {
+  /* The type is sized from what is left of the row after the gaps. A bar
+     that tightened its gap without the formula knowing would size its
+     buttons for a width they no longer have — too small, invisibly. */
+  const row = rule(".at-row");
+  assert.match(row, /gap:\s*var\(--gap\)/, "the row's gap is not a variable");
+  assert.match(row, /--share:.*var\(--gap\)/, "--share still assumes a fixed gap");
+  assert.match(rule(".at-answerbar.at-row"), /--gap:/, "the bar does not set its own gap");
 });
 
 test("a question is no longer drawn as a card", () => {

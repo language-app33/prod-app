@@ -2520,15 +2520,16 @@ function AfterAnswer({ ok, overridden, hasAudio, onOverride, onFlag, flagged, on
 
   return (
     <div className="at-after">
-      <Button
-        variant="primary"
-        wide
-        className="at-continue"
-        data-el="continue-button"
-        onClick={onContinue}
-      >
-        Continue
-      </Button>
+      {/* The way on sits where the way on always sits: the same bar pinned
+          to the foot of the screen that carried the hint, the nudge and
+          the check a moment ago. Reading an answer scrolls, and a Continue
+          in the flow lands wherever the answer happens to end — sometimes
+          off the bottom of a long one. */}
+      <div className="at-row at-answerbar">
+        <Button variant="primary" data-el="continue-button" onClick={onContinue}>
+          Continue
+        </Button>
+      </div>
 
       <div className="at-flagwrap">
         <button

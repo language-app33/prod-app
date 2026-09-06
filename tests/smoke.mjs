@@ -412,6 +412,17 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
 
+    /* The way on sits where the hint, the nudge and the check sat: same
+       bar, same place on the screen, so a long answer can never push it
+       out of reach. */
+    const cont = document.querySelector('[data-el="continue-button"]');
+    check("continue is in the bar pinned to the foot of the screen",
+      !!cont && cont.parentElement.classList.contains("at-answerbar"),
+      cont ? cont.parentElement.className : "no continue button");
+    check("and it is the only thing in it, so it takes the whole width",
+      !!cont && cont.parentElement.children.length === 1,
+      cont ? String(cont.parentElement.children.length) : "");
+
     /* The naming scheme, kept honest. A -label or a -text is the second or
        third name of a block, so the block itself has to exist and has to be
        the thing wrapping them — otherwise there is no name for "move the

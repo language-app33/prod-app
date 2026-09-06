@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.2 — 6 September 2026
+
+- In a practice session, Continue moved to the bar pinned to the foot of
+  the screen — the same one that carried the hint, "I don't know" and
+  Check a moment earlier. A long answer can no longer push the way on out
+  of reach.
+- The three buttons in that bar sit closer together and closer to the
+  edges, and the room that buys goes into the buttons themselves, which
+  are now a size or so larger on every phone.
+
 ## 0.1 — 6 September 2026
 
 The first numbered release. Everything before it was identified only by its

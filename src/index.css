@@ -226,7 +226,6 @@ button {
 .at-shout.ok { color: var(--jade); }
 .at-shout.no { color: var(--rose); }
 .at-after { margin-top:6px; }
-.at-continue { margin-top:22px; }
 /* Session builder: tag and card selection. These matched nothing before,
    which is why they rendered as bare browser defaults. */
 .at-taglist { display:flex; flex-direction:column; gap:8px; }
@@ -904,16 +903,22 @@ button {
 .at-answerbar.at-row { position: fixed; left:0; right:0;
   bottom: calc(var(--kb-overlap, 0px) + env(safe-area-inset-bottom));
   z-index: var(--z-chrome); margin:0;
-  padding: 10px 16px;
+  padding: 8px 10px;
   background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-top:1px solid var(--line);
   /* The content column, not the window: on a wide screen the buttons stay
      with the question rather than stretching across the page. */
   max-width: 700px; margin-inline:auto; }
+/* The bar owns its whole width and has nothing beside it, so it can afford
+   a tighter gap and narrower margins than a row sitting inside the page.
+   Those pixels are not saved: the step-down formula sizes the type from
+   whatever is left after the gaps, so giving back space is how the buttons
+   get bigger. */
+.at-answerbar.at-row { --gap: 8px; }
+.at-answerbar.at-row > .at-btn { font-size: clamp(11px, calc(var(--share) * 0.125), 17px); }
 /* Room for it under the question, so the last line of an answer is never
-   left beneath the bar — and only while there is a bar. Once the answer is
-   in, the three buttons are replaced by Continue in the ordinary flow, and
-   reserving their height would leave a screenful of nothing below it. */
+   left beneath the bar. Both states have one — three buttons before the
+   answer, Continue after it — so the room is reserved either way. */
 .at.in-exercise:has(.at-answerbar) { padding-bottom: calc(var(--kb-overlap, 0px) + 96px + env(safe-area-inset-bottom)); }
 
 /* A row of buttons, which never breaks a label across two lines.
@@ -928,11 +933,12 @@ button {
    room. The hint takes a fixed width instead of a share, so the text
    buttons get slightly more than the figure below assumes, which errs
    towards fitting. */
-.at-row { display:flex; gap:12px; margin-top:20px; container-type: inline-size; --cols: 1; }
+.at-row { display:flex; gap: var(--gap); margin-top:20px; container-type: inline-size;
+  --gap: 12px; --cols: 1; }
 .at-row:has(> :nth-child(2)) { --cols: 2; }
 .at-row:has(> :nth-child(3)) { --cols: 3; }
 .at-row:has(> :nth-child(4)) { --cols: 4; }
-.at-row { --share: calc((100cqi - (var(--cols) - 1) * 12px) / var(--cols)); }
+.at-row { --share: calc((100cqi - (var(--cols) - 1) * var(--gap)) / var(--cols)); }
 .at-row > * { flex:1; min-width:0; }
 /* Direct children only. A row can hold a Segmented, whose own buttons are
    .at-btn too — sizing those from the row's share would hand a three-way
@@ -1147,7 +1153,6 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
 .at.kb-open .at-progress { height: 10px; }
 .at.kb-open .at-shout { font-size: 24px; }
-.at.kb-open .at-continue { margin-top: 14px; }
 .at.kb-open .at-row { margin-top: 10px; }
 .at.kb-open .at-hint { margin-top: 4px; }
 @media (max-width:480px){
