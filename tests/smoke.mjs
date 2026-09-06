@@ -372,10 +372,18 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 
     /* And the hint button says which field it reveals, in the language's
        own word for it. */
+    /* Icon-only now, and sitting in the row with "I don't know" — so what
+       it is called lives in its accessible name rather than in its text,
+       and that is the thing worth holding to. */
     const hint = document.querySelector(".at-hintbtn");
     check("the hint button names the field it shows",
-      !hint || /Show transliteration|Show meaning/.test(hint.textContent),
-      (hint && hint.textContent) || "no hint on this exercise");
+      !hint || /Show transliteration|Show meaning/.test(hint.getAttribute("aria-label") || ""),
+      hint ? `aria-label=${hint.getAttribute("aria-label")} text=${JSON.stringify(hint.textContent)}` : "no hint on this exercise");
+    check("and it carries no words of its own",
+      !hint || !hint.textContent.trim(), hint ? JSON.stringify(hint.textContent) : "");
+    check("it stands with the other ways out of the question",
+      !hint || !!hint.closest(".at-row"),
+      hint ? (hint.parentElement || {}).className : "");
 
     /* A revealed hint goes through one wrapper whichever field it came
        from, which is what lets a meaning and a transliteration be set at
@@ -663,7 +671,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
    The queue rewrite, driven directly: it is a pure function over a queue, an
    index, the cards and the settings, which is the whole reason it is one. */
 {
-  const { withoutListening } = await import(path.join(out, "ArabicTrainer.js"));
+  const { withoutListening, soundLevelOf } = await import(path.join(out, "ArabicTrainer.js"));
+
+  /* The sound setting used to be a boolean and is now a level, and a
+     document written before the change still says true. It has to keep
+     working, and it has to mean loud rather than soft — the reason this
+     became a choice at all is that "on" was too quiet to hear. */
+  check("a sound setting stored as a boolean still means something",
+    soundLevelOf(true) === "loud" && soundLevelOf(false) === "off",
+    `${soundLevelOf(true)} / ${soundLevelOf(false)}`);
+  check("and the three levels mean themselves",
+    ["loud", "soft", "off"].every((l) => soundLevelOf(l) === l));
+  check("a setting nobody wrote is loud, which is the new default",
+    soundLevelOf(undefined) === "loud" && soundLevelOf(null) === "loud",
+    `${soundLevelOf(undefined)} / ${soundLevelOf(null)}`);
+  /* Anything unrecognised plays rather than falling silent: a learner who
+     hears nothing assumes the app is broken, where one who hears something
+     unexpected reaches for the setting. */
+  check("something unrecognised is not silence", soundLevelOf("banana") === "loud");
   const stored2 = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
   const byId2 = Object.fromEntries(stored2.items.map((i) => [i.id, i]));
   /* oldclient1 is ar + en + lat and has no recordings, so it supports the

@@ -192,7 +192,7 @@ const EMPTY = {
     keyboard: "auto",
     warmup: true,
     theme: "auto",
-    sounds: true,
+    sounds: "loud",
     language: DEFAULT_LANGUAGE,
   },
 };
@@ -1523,11 +1523,36 @@ async function saveData(data) {
    ------------------------------------------------------------------ */
 
 let audioCtx = null;
-let soundsOn = true;
 let lastSound = 0;
 
-function setSounds(on) {
-  soundsOn = !!on;
+/*
+ * How loud, as a multiplier on every note's peak.
+ *
+ * The notes were written quietly — peaks around 0.05, which is polite on a
+ * desk and inaudible on a bus with the phone in a pocket. Soft is what they
+ * were; loud is what they are now by default. Kept as a factor rather than
+ * as a second set of numbers so the notes stay one description of the
+ * sound and only its level changes.
+ *
+ * Well under anything that clips: the loudest moment is three notes of
+ * correct overlapping at 0.07 × 2.6, which is a fifth of full scale.
+ */
+const SOUND_LEVELS = { loud: 2.6, soft: 1, off: 0 };
+let soundGain = SOUND_LEVELS.loud;
+
+/*
+ * What a stored setting means. It was a boolean, so `true` has to keep
+ * working — and it maps to loud rather than soft because the whole reason
+ * this became a choice is that on was too quiet.
+ */
+export function soundLevelOf(value) {
+  if (value === false || value === "off") return "off";
+  if (value === "soft") return "soft";
+  return "loud";
+}
+
+function setSounds(level) {
+  soundGain = SOUND_LEVELS[soundLevelOf(level)];
 }
 
 function ctx() {
@@ -1542,6 +1567,11 @@ function ctx() {
 
 /* One note: a shaped blip with an optional pitch slide. */
 function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
+  const level = peak * soundGain;
+  /* exponentialRampToValueAtTime cannot reach zero, and the ramps below
+     start and end at 0.0001 — so a peak at or under that is not quiet, it
+     is a ramp that goes the wrong way. Silence is handled by not playing. */
+  if (level <= 0.0002) return;
   const t0 = c.currentTime + at;
   const osc = c.createOscillator();
   const gain = c.createGain();
@@ -1552,7 +1582,7 @@ function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
 
   // Quick in, gentle out — a click rather than a beep.
   gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(level, t0 + 0.012);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
 
   osc.connect(gain);
@@ -1604,7 +1634,7 @@ const SOUNDS = {
 };
 
 function sfx(kind) {
-  if (!soundsOn || !SOUNDS[kind]) return;
+  if (!soundGain || !SOUNDS[kind]) return;
   // Rate limit, so a fast run of answers doesn't turn into a chirp storm.
   const t = Date.now();
   if (t - lastSound < 70) return;
@@ -3596,7 +3626,7 @@ export default function ArabicTrainer() {
   }
 
   const theme = settings.theme || "auto";
-  setSounds(settings.sounds !== false);
+  setSounds(settings.sounds);
   const inExercise = !!(session && exercise);
   const kbOpen = kb.open && inExercise;
   const undrillable = items.filter((it) => !isDrillable(it, settings)).length;
@@ -3846,17 +3876,6 @@ Cards ready to practice
                       />
                     </div>
                   )}
-                  {!hintOpen && item[spec.hintField] && !checked && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="at-hintbtn"
-                      data-el="hint-button"
-                      onClick={() => setHintOpen(true)}
-                    >
-                      {spec.hintLabel}
-                    </Button>
-                  )}
 
                   {/* A listening exercise carries no hint, so this slot is
                       free exactly when this button is wanted. Somewhere with
@@ -4053,6 +4072,21 @@ Cards ready to practice
                   ) : (
                     <>
                       <div className="at-row">
+                        {/* The nudge sits with the other two ways out of a
+                            question rather than floating above the answer
+                            box, and carries only its icon: the label said
+                            which field it reveals, which the revealed field
+                            says for itself a moment later. The name is
+                            still there for anyone using a screen reader. */}
+                        {!hintOpen && item[spec.hintField] && (
+                          <IconButton
+                            icon="help"
+                            label={spec.hintLabel}
+                            className="at-hintbtn"
+                            data-el="hint-button"
+                            onClick={() => setHintOpen(true)}
+                          />
+                        )}
                         <Button variant="ghost" data-el="dont-know-button" onClick={giveUp}>
                           I don't know
                         </Button>
@@ -6840,25 +6874,34 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
             <Segmented
               label="Sounds"
               options={[
-                { value: true, label: "On" },
-                { value: false, label: "Off" },
+                { value: "loud", label: "Loud" },
+                { value: "soft", label: "Soft" },
+                { value: "off", label: "Off" },
               ]}
-              value={settings.sounds !== false}
+              /* Read through the same reader the player uses, so a setting
+                 stored as a boolean shows as the level it will actually
+                 play at rather than as nothing selected. */
+              value={soundLevelOf(settings.sounds)}
               onChange={(v) => setSetting("sounds", v)}
             />
             <Button
               size="sm"
               variant="ghost"
+              /* Off has nothing to demonstrate, and a button that played
+                 anyway would be arguing with the setting next to it. */
+              disabled={soundLevelOf(settings.sounds) === "off"}
               onClick={() => {
-                setSounds(true);
                 sfx("correct");
                 setTimeout(() => sfx("complete"), 400);
-                setTimeout(() => setSounds(settings.sounds !== false), 900);
               }}
             >
               Test
             </Button>
           </div>
+          <Help>
+            The short sounds after an answer. Loud carries on a bus; soft is
+            for a quiet room.
+          </Help>
         </FormField>
       </Section>
 

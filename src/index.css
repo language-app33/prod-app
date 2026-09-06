@@ -169,8 +169,17 @@ button {
 .at-count { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.05em;
   color: var(--muted); white-space:nowrap; }
 .at-headline .at-progress { flex:1; margin-bottom:0; }
+/* The question line, identical on every exercise.
+   Its size, weight and colour never varied — but its height did: "Fill the
+   gap" is one line and "Listen, then write it in arabic script" is two, so
+   the question underneath sat a line lower on some exercises than others
+   and the card appeared to shift as you worked through a session. Two
+   lines are reserved whatever the wording, and a short one is centred in
+   them, so everything below starts in the same place every time. It still
+   grows if a language ever needs a third. */
 .at-instruction { font-family: var(--ui); font-size:19px; font-weight:700; color: var(--text);
-  margin:0 0 16px; line-height:1.4; }
+  margin:0 0 16px; line-height:1.4; min-height:2.8em;
+  display:flex; align-items:center; justify-content:center; text-align:center; }
 .at-answerlabel { font-family: var(--ui); font-size:13px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color: var(--muted); margin:0 0 4px; }
 /* The answer itself carries the weight; anything shown beneath it is a
@@ -861,6 +870,11 @@ button {
 .at-btn.ghost:disabled { background:transparent; }
 .at-row { display:flex; gap:12px; margin-top:20px; }
 .at-row > * { flex:1; }
+/* The hint takes its own width rather than a third of the row: an icon
+   given an equal share leaves "I don't know" wrapping onto two lines while
+   the space beside the icon goes unused. Same treatment as the select
+   button in a toolbar, for the same reason. */
+.at-row .at-hintbtn { flex:0 0 auto; width:52px; padding:0; }
 .at-input { font-family: var(--ui); font-size:18px; font-weight:600; width:100%;
   background: var(--well); color: var(--text); border:2px solid var(--line);
   border-radius: var(--r); padding:15px 16px; }
@@ -1025,10 +1039,16 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    under the answer box, costing a row of the little height there is with
    the phone keyboard up. In the corner of the field it costs none. */
 .at.kb-open .at.kb-open .at.kb-open .at-kb,
-.at.kb-open .at-hintbtn,
-/* Same reason as the hint button: with the phone keyboard up there is barely
-   room for the question, and this is not what you came back to the screen
-   for. It is still there once the keyboard drops. */
+/* The hint is not in this list either, for the same reason the keys button
+   is not: it was a labelled button above the answer box costing a row, and
+   it is now an icon in the row of buttons that was there anyway. With the
+   keyboard up it is the moment a nudge is most wanted, so hiding it was
+   always the wrong trade — it was hidden because it was expensive, not
+   because it was unwelcome.
+
+   The quiet button stays hidden: with the phone keyboard up there is barely
+   room for the question, and it is not what you came back to the screen
+   for. It returns once the keyboard drops. */
 .at.kb-open .at-quietbtn { display: none; }
 .at.kb-open .at-card { padding: 12px 12px 14px; }
 .at.kb-open .at-eyebrow { margin-bottom: 4px; }
