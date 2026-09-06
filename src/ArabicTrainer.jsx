@@ -3763,13 +3763,31 @@ Cards ready to practice
 
                 {/* Once the answer is up, the question and the box you typed
                     into step back so the answer holds the eye. */}
-                {/* Every piece of text in here carries a data-el name.
-                    They are not styling hooks and nothing reads them at
-                    runtime — they exist so that a change can be asked for by
-                    name ("make question-prompt bigger") instead of by
-                    description, and so a test can notice when one goes
-                    missing. Names describe the role, not the wording, so
-                    rewriting a sentence leaves its name alone. */}
+                {/* Every piece of this carries a data-el name. They are not
+                    styling hooks and nothing reads them at runtime — they
+                    exist so a change can be asked for by name ("make
+                    question-prompt bigger") rather than by description, and
+                    so a test can notice when one goes missing. Names
+                    describe the role, not the wording, so rewriting a
+                    sentence leaves its name alone.
+
+                    Three names to a block, and only the first is always
+                    there:
+
+                      <name>        the block: what moves, and what
+                                    spacing belongs on
+                      <name>-label  the small line above it, where there
+                                    is one
+                      <name>-text   the words inside, where they are words
+
+                    A block holding something other than words names it for
+                    what it is instead — answer-box holds answer-input or
+                    answer-choices, never an answer-box-text. The block is
+                    named even where it holds one thing today, because what
+                    it holds is exactly what varies: question-prompt is a
+                    word, a blanked phrase or an audio player depending on
+                    the exercise, and sizing that on the words would miss
+                    two of the three. */}
                 <div className={`at-card${checked ? " at-asked" : ""}`} data-el="card">
                   <p className="at-instruction" data-el="question-instruction">
                     {spec.instruction}
@@ -3970,26 +3988,26 @@ Cards ready to practice
                           the game away, and after it is the reason the
                           question was worth asking. */}
                       {context && (
-                        <div className="at-answeralso">
+                        <div className="at-answeralso" data-el="also-context">
                           <p className="at-alsolabel" data-el="also-context-label">
                             Where it turned up
                           </p>
-                          <Field value={context.ar} field="ar" kind="phrase" name="also-context" />
+                          <Field value={context.ar} field="ar" kind="phrase" name="also-context-text" />
                           <p className="at-ctxmeaning" data-el="also-context-meaning">
                             {context.en}
                           </p>
                         </div>
                       )}
                       {spec.promptField === "audio" && spec.answerField !== "ar" && item.ar && (
-                        <div className="at-answeralso">
+                        <div className="at-answeralso" data-el="also-script">
                           <p className="at-alsolabel" data-el="also-script-label">
                             This is how it's written
                           </p>
-                          <Field value={item.ar} field="ar" kind={item.kind} name="also-script" />
+                          <Field value={item.ar} field="ar" kind={item.kind} name="also-script-text" />
                         </div>
                       )}
                       {item[spec.hintField] && (
-                        <div className="at-answeralso">
+                        <div className="at-answeralso" data-el="also-hint">
                           <p className="at-alsolabel" data-el="also-hint-label">
                             {spec.hintField === "lat"
                               ? "This is how it's pronounced"
@@ -4001,7 +4019,7 @@ Cards ready to practice
                             value={item[spec.hintField]}
                             field={spec.hintField}
                             kind={item.kind}
-                            name="also-hint"
+                            name="also-hint-text"
                           />
                         </div>
                       )}
@@ -4015,7 +4033,7 @@ Cards ready to practice
                         </p>
                       )}
                       {spec.promptField !== "audio" && (item.recs || []).length > 0 && (
-                        <div className="at-answeralso">
+                        <div className="at-answeralso" data-el="also-audio">
                           <p className="at-alsolabel" data-el="also-audio-label">
                             This is how it sounds
                           </p>

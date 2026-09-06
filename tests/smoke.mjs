@@ -400,8 +400,31 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     for (const want of ["verdict", "answer-value", "continue-button", "flag-button"]) {
       check(`the answer names ${want}`, answered.includes(want), answered.join(" "));
     }
-    const dupes2 = answered.filter((n, i) => n !== "minimal-pair" && answered.indexOf(n) !== i);
+    const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
+
+    /* The naming scheme, kept honest. A -label or a -text is the second or
+       third name of a block, so the block itself has to exist and has to be
+       the thing wrapping them — otherwise there is no name for "move the
+       whole 'this is how it's pronounced' section", which is exactly the
+       kind of thing this vocabulary is for. Three blocks had labels and
+       values and no name of their own until this test was written. */
+    const inCard = [...document.querySelectorAll(".at-card [data-el]")];
+    const all = new Set(inCard.map((e) => e.getAttribute("data-el")));
+    const orphans = [];
+    for (const el of inCard) {
+      const n = el.getAttribute("data-el");
+      const m = /^(.*)-(label|text)$/.exec(n);
+      if (!m) continue;
+      const block = document.querySelector(`[data-el="${m[1]}"]`);
+      if (!block) orphans.push(`${n} has no ${m[1]}`);
+      else if (!block.contains(el)) orphans.push(`${n} is not inside ${m[1]}`);
+    }
+    check("every -label and -text sits inside a block of the same name",
+      orphans.length === 0, orphans.join("; "));
+    check("the blocks that hold the extras after an answer are named",
+      ["also-hint", "also-context", "also-script", "also-audio"].some((n) => all.has(n)),
+      [...all].filter((n) => n.startsWith("also")).join(" ") || "none on this card");
 
     click(buttonNamed(/Continue|Next/));
     await sleep(300);
