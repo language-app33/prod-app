@@ -220,7 +220,7 @@ check("a v2 card gains no state for the retired exercise",
   byId.v2card && !("ar2tr" in byId.v2card.s),
   byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
 check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
-check("every card counts as ready to practise", /Cards ready to practice\s*4/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+check("every card counts as ready to practice", /Cards ready to practice\s*4/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
 const wire = remoteDocs.get(realToken) && remoteDocs.get(realToken).data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
@@ -244,7 +244,7 @@ const clickNamed = (re) => {
 const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
 const buttonNamed = (re) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent));
 
-check("the manual session builder opens", clickNamed(/Build a session|Choose what to practise|Pick cards/) || true);
+check("the manual session builder opens", clickNamed(/Build a session|Choose what to practice|Pick cards/) || true);
 await sleep(300);
 if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("session builder rendered in a Screen with its footer", !!document.querySelector(".at-screenfoot, .at-screenhead"));

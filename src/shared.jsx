@@ -1009,7 +1009,7 @@ export function CardReadout({ card, lang, decks }) {
           <p className="at-hint">
             {i === 0
               ? "What a student is asked, and what counts as the answer."
-              : "Another way the same thing is said. It is practised on its own."}
+              : "Another way the same thing is said. It is practiced on its own."}
           </p>
 
           <p className="at-readword" dir={L.direction} style={{ fontFamily: L.fontStack }}>
@@ -1024,7 +1024,7 @@ export function CardReadout({ card, lang, decks }) {
                 Recordings
               </p>
               <p className="at-hint">
-                How it sounds. Cards with a recording can be practised by ear.
+                How it sounds. Cards with a recording can be practiced by ear.
               </p>
               <ClipList clips={f.clips} />
             </>

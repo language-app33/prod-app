@@ -737,7 +737,7 @@ export const LANGUAGES = {
       },
     ],
     rules: [
-      "Cards hold the Arabic script, an English meaning, and a transliteration. Any two of the three make a card practisable.",
+      "Cards hold the Arabic script, an English meaning, and a transliteration. Any two of the three are enough to practice it.",
       "A student may type the bare consonants or the fully vocalised spelling and both are accepted — but harakat that are typed must be correct. A wrong vowel is marked wrong; a missing one is not.",
       "By default ا is accepted for أ إ آ, ي for ى, and ه for ة, because those distinctions are learnt later than the words themselves. A teacher can tighten this per course.",
       "Transliteration is marked most leniently of all: macrons, dots under letters, ʿayn marks, apostrophes and where the hyphens fall are all ignored, since schemes vary between textbooks.",
@@ -826,7 +826,7 @@ export const LANGUAGES = {
       },
     ],
     rules: [
-      "Cards hold the Vietnamese spelling, an English meaning, and an optional pronunciation note. Any two of the three make a card practisable.",
+      "Cards hold the Vietnamese spelling, an English meaning, and an optional pronunciation note. Any two of the three are enough to practice it.",
       "Tone marks work the way harakat do in Arabic: a student may type the word with or without them, but a tone that is typed must be correct. Writing má for mà is wrong; writing ma is merely incomplete.",
       "Đ is treated as its own letter rather than a d with a mark, so typing d for đ is not accepted.",
       "The six tones of the northern standard are not those of Huế speech. Cards should carry the spelling as written; the recording is what teaches the tone.",
@@ -1069,7 +1069,7 @@ export function verdictText(result, lang) {
    ------------------------------------------------------------------ */
 
 /* Everything a card can support is drilled unless it is turned off. A
-   recording is the only way to practise a language by ear, so leaving those
+   recording is the only way to practice a language by ear, so leaving those
    exercises off by default meant recordings were made and never heard. */
 /* The gentler half of the set, read off the definitions rather than kept
    as a second list beside them. The app used to hold one, and a new type

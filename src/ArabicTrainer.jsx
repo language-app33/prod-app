@@ -131,13 +131,13 @@ import {
    Vocabulary used throughout:
      item          a word, expression or sentence to be learnt
      item data     its three fields: Arabic script, English, transliteration
-     exercise      one instance of practising something
+     exercise      one instance of practicing something
      exercise type one of the four kinds of exercise below
      session       a short sequence of exercises done in one sitting
 
    Session rules, enforced by buildSession():
      1. A session always contains more than one exercise type.
-     2. Every item in a session is practised in at least two exercise
+     2. Every item in a session is practiced in at least two exercise
         types, three where the item data allows it.
      3. Items that resemble each other are preferred within a session.
 
@@ -2690,7 +2690,7 @@ export default function ArabicTrainer() {
      back: "not in any course" and "not asked yet". They look the same and
      read very differently to someone who has joined one. */
   const [coursesKnown, setCoursesKnown] = useState(false);
-  /* A deck the person asked to practise from the Courses tab, handed to the
+  /* A deck the person asked to practice from the Courses tab, handed to the
      cards tab once it is on screen. */
   const [deckWanted, setDeckWanted] = useState(null);
   const [courseDecks, setCourseDecks] = useState([]);
@@ -3024,7 +3024,7 @@ export default function ArabicTrainer() {
           ? "Nothing to fix — none of those have gone wrong recently"
           : built.reason === "no-variety"
           ? "That needs at least two exercise types"
-          : "Those cards don't have enough to practise yet"
+          : "Those cards don't have enough to practice yet"
       );
       return;
     }
@@ -3179,8 +3179,8 @@ export default function ArabicTrainer() {
          with a deck full of cards, and the reason has to be said. */
       flash(
         listenOff > Date.now()
-          ? "Nothing to practise without sound just now"
-          : "Nothing ready to practise yet"
+          ? "Nothing to practice without sound just now"
+          : "Nothing ready to practice yet"
       );
       return;
     }
@@ -3202,7 +3202,7 @@ export default function ArabicTrainer() {
     }));
     persist({ ...data, items: cleared, log: {} });
     setSession(null);
-    flash("Scheduling reset — nothing is due until you practise it");
+    flash("Scheduling reset — nothing is due until you practice it");
   }
 
   function resetExercise() {
@@ -3758,7 +3758,7 @@ export default function ArabicTrainer() {
                  same situation. It was a hand-rolled block here, which is
                  how it came to say something different from both. */
               <Empty
-                title="Nothing to practise yet"
+                title="Nothing to practice yet"
                 /* The invitation is for someone who has nowhere to get
                    cards from, and only once we know that. An enrolled
                    student is waiting on their teacher, not on a code, and
@@ -3814,7 +3814,7 @@ Cards ready to practice
                     <Notice kind="warn">
                       No card here has two usable exercise types. A card needs the{" "}
                       {langOf(settings).scriptLabel.toLowerCase()} and at least one more field
-                      before it can be practised.
+                      before it can be practiced.
                     </Notice>
                   )}
                   {undrillable > 0 && drillable.length > 0 && (
@@ -4471,7 +4471,7 @@ function ItemsTab({
   const [q, setQ] = useState("");
   const [filterTags, setFilterTags] = useState([]);
 
-  /* Someone tapped "practise" on a deck elsewhere; show just that deck. */
+  /* Someone tapped "practice" on a deck elsewhere; show just that deck. */
   useEffect(() => {
     if (!deckWanted) return;
     setFilterTags([deckWanted]);
@@ -5233,7 +5233,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
                 ? "Fill the script and one other field"
                 : previewTypes.length >= 2
                 ? `Will be drilled as ${previewTypes.map((t) => exOf(t, langOf(settings)).short).join(", ")}`
-                : "Not enough to practise yet — needs script plus English or transliteration"}
+                : "Not enough to practice yet — needs script plus English or transliteration"}
             </div>
           </div>
 
@@ -5868,7 +5868,7 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
               />
             ) : (
               <Notice kind="warn">
-                {`No ${activeLang().scriptLabel.toLowerCase()} — this form can't be practised.`}
+                {`No ${activeLang().scriptLabel.toLowerCase()} — this form can't be practiced.`}
               </Notice>
             )}
             {unit.en && <p className="at-en" style={{ fontSize: 20 }}>{unit.en}</p>}
@@ -6040,7 +6040,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
             {weak > 0 && (
               <span className="at-warn">
                 {plural(weak, "item")} lack two exercise types and won't be
-                practised until filled in.
+                practiced until filled in.
               </span>
             )}
           </Help>
@@ -6110,7 +6110,7 @@ function ItemProgressCard({ item, progress }) {
         <i style={{ width: `${p === null ? 0 : Math.max(3, p * 100)}%` }} />
       </div>
       <div className="at-pcardfoot">
-        <span>{p === null ? "Not practisable" : done ? "Learnt" : pctLabel}</span>
+        <span>{p === null ? "Can't practice yet" : done ? "Learnt" : pctLabel}</span>
         {(item.subs || []).length > 0 && <span>⌥ {(item.subs || []).length + 1}</span>}
       </div>
     </div>
@@ -6285,13 +6285,13 @@ const GUIDE = [
     title: "Cards",
     body: [
       "A card is one thing to learn — a word, a phrase, an expression, a sentence. It carries the thing itself in the language you are learning, its meaning in English, and optionally a second writing (such as a transliteration) and one or more recordings.",
-      "A card can hold several forms of the same thing — a plural, a feminine, a variant said to an elder — and each form is practised on its own.",
+      "A card can hold several forms of the same thing — a plural, a feminine, a variant said to an elder — and each form is practiced on its own.",
     ],
   },
   {
     title: "What gets asked",
     body: [
-      "What is on a card decides what can be asked of it. Script and meaning give you two directions; a recording lets it be practised by ear; a second writing, where the language uses one, adds more.",
+      "What is on a card decides what can be asked of it. Script and meaning give you two directions; a recording lets it be practiced by ear; a second writing, where the language uses one, adds more.",
       "Some languages have properties that can be heard but not seen written — a tone, for instance. Where a language declares one, there is an exercise for it.",
     ],
   },
@@ -6951,11 +6951,11 @@ function AccountSettings({
               )}
             </FormField>
 
-            <FormField label={<>Send every card back to the start, as though never practised</>}>
+            <FormField label={<>Send every card back to the start, as though never practiced</>}>
               <Help className="at-mb3">
                 Your cards, forms, decks and recordings all stay. What goes is everything the app
                 has worked out about how well you know them — intervals, ease, difficulty and
-                history. Nothing will be due until you practise it again.
+                history. Nothing will be due until you practice it again.
               </Help>
               <Button variant="danger" size="sm" onClick={() => setResetting(true)}>
                 Reset scheduling
@@ -6971,7 +6971,7 @@ function AccountSettings({
                   <p>
                     Every card goes back to the beginning. The cards themselves are kept; what you
                     lose is the record of how well you know them, which can't be rebuilt except by
-                    practising again.
+                    practicing again.
                   </p>
                 }
                 onCancel={() => setResetting(false)}

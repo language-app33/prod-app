@@ -2002,12 +2002,20 @@ function DeckEditor({
   busy,
   courses,
   languages,
-  onToggleCourse,
   onSave,
   onClose,
 }) {
   const [title, setTitle] = useState((deck && deck.title) || "");
   const [lang, setLang] = useState((deck && deck.lang) || initialLang || "");
+  /* Which courses are ticked, held here rather than read off the deck.
+     Read off the deck it could not change: the deck handed in is the copy
+     taken when the screen opened, so a tick saved to the server left the
+     box exactly as it was until you closed the screen and came back. */
+  const wasIn = (deck && deck.courses ? deck.courses : []).map((l) => l.courseId);
+  const [picked, setPicked] = useState(() => new Set(wasIn));
+  const added = [...picked].filter((id) => !wasIn.includes(id));
+  const removed = wasIn.filter((id) => !picked.has(id));
+  const dirty = added.length > 0 || removed.length > 0;
   const asking = !deck && mustAsk;
   const canSave = title.trim() && (!asking || lang);
 
@@ -2018,7 +2026,7 @@ function DeckEditor({
       action={
         <Button variant="primary" size="sm"
           disabled={!canSave || busy}
-          onClick={() => onSave(title.trim(), lang)}
+          onClick={() => onSave(title.trim(), lang, [...picked])}
           icon="save"
         >
           {busy ? "Saving…" : "Save"}
@@ -2051,9 +2059,11 @@ function DeckEditor({
             </Help>
           )}
 
-          {/* Which courses carry it. Changes here take effect at once — there
-              is nothing to save, and pretending otherwise would mean the Save
-              button meant two different things. */}
+          {/* Which courses carry it. Ticking one used to reach the server on
+              the tap and announce itself as done, which made Save mean two
+              different things on one screen — and gave a student a deck
+              before the teacher had finished deciding. Now it is a choice
+              like the title, and the screen saves once. */}
           {deck && (
             <>
               <p className="at-eyebrow at-mt6">
@@ -2064,13 +2074,20 @@ function DeckEditor({
               </Help>
               <div className="at-cklist">
                 {(courses || []).map((c) => {
-                  const on = (deck.courses || []).some((l) => l.courseId === c.id);
+                  const on = picked.has(c.id);
                   return (
                     <button
                       key={c.id}
                       className={`at-ck${on ? " on" : ""}`}
                       disabled={busy}
-                      onClick={() => onToggleCourse(c, on)}
+                      onClick={() =>
+                        setPicked((was) => {
+                          const next = new Set(was);
+                          if (on) next.delete(c.id);
+                          else next.add(c.id);
+                          return next;
+                        })
+                      }
                     >
                       <span className="at-ckbox">{on ? "✓" : ""}</span>
                       <span className="at-cktext">
@@ -2091,6 +2108,15 @@ function DeckEditor({
               <Help>
                 A deck in no course is yours alone — nobody studying can see it.
               </Help>
+              {/* The same sentence the other screen that defers its writes
+                  uses, in the same words, so the two teach one rule. */}
+              {dirty && (
+                <Help>
+                  {added.length ? `${plural(added.length, "course")} to add. ` : ""}
+                  {removed.length ? `${plural(removed.length, "course")} to remove. ` : ""}
+                  Nothing changes until you save.
+                </Help>
+              )}
             </>
           )}
     </Screen>
@@ -2189,7 +2215,7 @@ function Recordings({ clips, onChange }) {
       <Notice kind="error">{error}</Notice>
       {!error && !list.length && (
         <Help>
-          A recording lets this form be practised by ear as well as by sight.
+          A recording lets this form be practiced by ear as well as by sight.
         </Help>
       )}
     </Field>
@@ -2250,7 +2276,7 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
     <div className="at-formblock at-mt5">
       <p className="at-eyebrow">Words this teaches</p>
       <Help>
-        Tick the words this phrase is a good example of. Each one gets practised inside this phrase
+        Tick the words this phrase is a good example of. Each one gets practiced inside this phrase
         as well as on its own — which is how a word is met in more than one place without anything
         being invented.
       </Help>
@@ -2293,7 +2319,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
-     practise it. Better to say so here than to save something inert. */
+     practice it. Better to say so here than to save something inert. */
   const canSave = main.ar.trim() && main.en.trim();
   const setForm = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
@@ -2495,7 +2521,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
 }
 
 /*
- * How much of a deck can already be practised in context.
+ * How much of a deck can already be practiced in context.
  *
  * A phrase the teacher recorded that contains a word the teacher also
  * teaches is a context for that word — the one kind of variety this app can
@@ -2860,26 +2886,25 @@ export function TeachSpace({ account, languages, onClose }) {
         busy={busy}
         courses={courses}
         languages={languages}
-        onToggleCourse={(c, on) =>
-          run(
-            async () => {
-              if (on) await API.detachDeck(existing.id, c.id);
-              else await API.attachDeck(existing.id, c.id);
-              await refresh();
-            },
-            `${existing.title} ${on ? "removed from" : "added to"} ${c.title}`
-          )
-        }
         onClose={() => setNaming(null)}
-        onSave={(title, lang) =>
+        /* Everything the screen holds, written in one go. The courses used
+           to be written on the tap, which is why the screen had both a Save
+           button and changes that ignored it. */
+        onSave={(title, lang, picked) =>
           run(
             async () => {
-              if (existing) await API.renameDeck(existing.id, title);
-              else await API.createDeck(title, "", lang || soleLang);
+              if (!existing) {
+                await API.createDeck(title, "", lang || soleLang);
+              } else {
+                if (title !== existing.title) await API.renameDeck(existing.id, title);
+                const was = (existing.courses || []).map((l) => l.courseId);
+                for (const id of picked) if (!was.includes(id)) await API.attachDeck(existing.id, id);
+                for (const id of was) if (!picked.includes(id)) await API.detachDeck(existing.id, id);
+              }
               setNaming(null);
               await refresh();
             },
-            `${title} ${existing ? "renamed" : "created"}`
+            `${title} ${existing ? "saved" : "created"}`
           )
         }
       />
@@ -3798,7 +3823,7 @@ export function TeachSpace({ account, languages, onClose }) {
    Course material is pulled down and kept as ordinary cards, so every
    part of the trainer — sessions, scheduling, progress — works on it
    without knowing where it came from. They are marked read-only and
-   carry the deck they arrived in, so they can be practised as a group
+   carry the deck they arrived in, so they can be practiced as a group
    and removed cleanly if the course ends.
    ------------------------------------------------------------------ */
 
@@ -3856,7 +3881,7 @@ export function StudentCourses({
                   }}
           icon="cards"
         >
-          Practise
+          Practice
         </Button>
               ) : null
             }

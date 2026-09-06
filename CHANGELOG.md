@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.7 — 6 September 2026
+
+- "Practice" is spelled the same way everywhere in the app.
+- In Teaching → Decks, editing a deck: ticking a course now updates the
+  tick straight away instead of waiting until you leave the screen and
+  come back, and nothing is shared with a course until you press Save. The
+  screen says how many courses are waiting to be added or removed.
+
 ## 0.6 — 6 September 2026
 
 - Opening a tab or a screen now starts at the top of it. Reading halfway
