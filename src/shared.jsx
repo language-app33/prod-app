@@ -420,22 +420,28 @@ export function Empty({ title, children, action }) {
    is chosen, which none of them did. */
 export function Segmented({ options, value, onChange, size = "sm", label, disabled, ...rest }) {
   return (
-    <div className="at-segmented" role="group" aria-label={label} {...rest}>
+    <div
+      className={`at-segmented${size === "sm" ? " sm" : ""}`}
+      data-n={options.length}
+      role="group"
+      aria-label={label}
+      {...rest}
+    >
       {options.map((o) => {
         const v = typeof o === "object" ? o.value : o;
         const text = typeof o === "object" ? o.label : o;
         const on = v === value;
         return (
-          <Button
+          <button
             key={String(v)}
-            size={size || undefined}
-            variant={on ? "primary" : "default"}
+            type="button"
+            className={`at-seg${on ? " on" : ""}`}
             aria-pressed={on}
             disabled={disabled}
             onClick={() => onChange(v)}
           >
             {text}
-          </Button>
+          </button>
         );
       })}
     </div>

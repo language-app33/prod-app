@@ -145,11 +145,30 @@ test("a row knows how many buttons are sharing it", () => {
 });
 
 test("the rule reaches a row's own buttons and not a picker inside one", () => {
-  /* A Segmented in a row renders .at-btn children of its own. Sizing those
-     from the row's share would hand a three-way picker the type of a
-     full-width button. */
+  /* A picker in a row is its own control with its own options inside it.
+     Sizing those from the row's share would hand a three-way picker the
+     type of a full-width button — which is what a descendant selector
+     here would do. */
   assert.equal(css.includes(".at-row .at-btn {"), false, "the selector must be a child combinator");
   assert.ok(css.includes(".at-row > .at-btn {"));
+});
+
+test("a picker is one control rather than a row of buttons", () => {
+  /* Three separate pills read as three things you could do. One track
+     holding three options reads as three states of one thing, which is
+     what it is — and it is what tells you they are alternatives. */
+  const track = rule(".at-segmented");
+  assert.match(track, /background:/, "the track has no ground of its own");
+  assert.match(track, /border:/, "the track has no edge");
+  /* Inside the track, not floating beside it: a hairline gap, not the
+     button gutter the three pills used to sit in. */
+  assert.match(track, /gap:\s*3px/);
+  assert.match(rule(".at-seg"), /background:\s*var\(--raised\)/, "the options have no ground");
+  assert.match(rule(".at-seg.on"), /background:\s*var\(--jade\)/, "the chosen option is not lit");
+  /* Labels stay whole: the type steps down with the track, and what still
+     will not fit takes the next line rather than being clipped. */
+  assert.match(rule(".at-seg"), /font-size:\s*clamp\(/);
+  assert.match(rule(".at-seg"), /min-width:\s*min-content/);
 });
 
 /* --- the answer bar --- */

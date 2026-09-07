@@ -628,7 +628,6 @@ button {
 .at-cline.as-field:hover .at-clinetext { color: var(--text-soft); font-weight:600; }
 .at-cseg { padding:2px 10px 8px 34px; }
 .at-cseg .at-segmented { width:100%; }
-.at-cseg .at-btn { flex:1; min-width:0; padding-inline:6px; }
 .at-crule { height:2px; background: var(--line); margin:8px 4px; border-radius:2px; }
 /* The version, at the foot of the menu. Quieter than the rows above it —
    it is a fact to look up, not somewhere to go — until the server turns out
@@ -847,7 +846,14 @@ button {
 .at-filterbar { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
   width:100%; padding:12px; border:1px solid var(--line); border-radius:12px;
   background: var(--well); }
-.at-filtergroup { display:flex; align-items:center; gap:8px; min-width:0; }
+/* Label above its picker, not beside it. The picker is a container query
+   of its own so its type can step down with its width, and a container
+   cannot be sized by what is inside it — beside a label, with no width of
+   its own to go on, it collapsed to nothing and its options spilled out
+   over each other. A column gives it the group's width to work with, and
+   the bar wraps the groups. */
+.at-filtergroup { display:flex; flex-direction:column; align-items:stretch; gap:6px;
+  flex:1 1 150px; min-width:0; }
 .at-filterlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 .at-filternote { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
@@ -1254,8 +1260,59 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-empty2 .at-eyebrow { margin:0 0 var(--s2); }
 .at-empty2 .at-hint { margin:0 auto; max-width: 46ch; }
 .at-empty2 .at-row { justify-content:center; margin-top: var(--s4); }
-/* --- Segmented: pick one of a few --- */
-.at-segmented { display:flex; flex-wrap:wrap; gap: var(--s2); }
+/* --- Segmented: pick one of a few ---
+
+   One control, not a row of buttons. It was three separate pills with a
+   gap between them, which is the shape of "three things you could do"
+   rather than "three states one thing can be in" — and read as three
+   buttons of which one happened to be green.
+
+   So: a sunken track, the options butted together inside it sharing thin
+   dividers, and the chosen one lifted out of the track in the accent
+   colour. The track is what says the three belong to each other. */
+.at-segmented { display:flex; flex-wrap:wrap; align-items:stretch; width:100%;
+  /* Never narrower than one option needs. As a flex item — beside its own
+     label in the sort-and-filter bar — it would otherwise be squeezed to
+     nothing while its options spilled out over the top of each other. */
+  min-width: min-content;
+  background: var(--well-deep); border:2px solid var(--line); border-radius: var(--r-sm);
+  padding:3px; gap:3px; container-type: inline-size; }
+.at-seg { flex:1 1 0; min-width: min-content; display:inline-flex; align-items:center;
+  justify-content:center; gap:6px;
+  font-family: var(--ui); font-weight:800; letter-spacing:.03em; text-transform:uppercase;
+  white-space:nowrap;
+  background: var(--raised); border:2px solid transparent; border-radius:9px;
+  color: var(--text-soft); cursor:pointer; padding:9px 6px; min-height:38px;
+  transition: background 120ms, color 120ms, border-color 120ms; }
+.at-seg:hover:not(:disabled):not(.on) { background: var(--raised-hover); color: var(--text); }
+.at-seg.on { background: var(--jade); border-color: var(--jade-soft); color: var(--onjade); }
+.at-seg:disabled { cursor:default; opacity:.5; }
+/* The type steps down with the track, the same trick a row of buttons
+   uses, so a long set of options gets smaller rather than being cut off.
+   The count comes from the markup because CSS cannot count children into
+   a number it can divide by. */
+.at-segmented { --seg: calc((100cqi - (var(--n, 3) - 1) * 3px) / var(--n, 3)); }
+.at-segmented[data-n="2"] { --n: 2; }
+.at-segmented[data-n="3"] { --n: 3; }
+.at-segmented[data-n="4"] { --n: 4; }
+.at-segmented[data-n="5"] { --n: 5; }
+.at-segmented[data-n="6"] { --n: 6; }
+.at-seg { font-size: clamp(10px, calc(var(--seg) * 0.105), 14px); }
+/* And where even the floor will not fit — a language called Palestinian
+   Arabic beside two others — the option keeps its label whole and takes
+   the next line down. The track wraps around both, so it still reads as
+   one control rather than as buttons that came apart. */
+.at-segmented.sm .at-seg { min-height:34px; padding-block:7px; }
+/* A picker sharing a row with a button — Sounds and its Test — holds
+   three labels where the button holds one, so an even split starved it
+   and pushed its options to the smallest type they have. */
+.at-row > .at-segmented { flex:2 1 auto; }
+/* Beside its own label in the sort-and-filter bar, a picker is one item in
+   a wrapping row rather than a block of its own: it takes the width its
+   options need and the bar wraps around it. Left at full width it was
+   squeezed into whatever the group had left and stacked its options one
+   per line. */
+.at-filtergroup .at-segmented { width:auto; flex:0 1 auto; }
 /* --- Stat: one big number --- */
 .at-stat2 { display:block; }
 .at-stat2 .at-statvalue { font-family: var(--serif); font-size: var(--fs-stat); font-weight:600; line-height:1.05; margin:0; color: var(--text); }

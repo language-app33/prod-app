@@ -541,6 +541,11 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   const looks = appearance ? [...appearance.querySelectorAll("button")] : [];
   check("Appearance is one picker with its options side by side",
     looks.length === 3, `${looks.length} options`);
+  /* One control, not three buttons: the options are inside the track,
+     which is the element carrying the picker's own name. */
+  check("and they are inside the track rather than beside it",
+    looks.every((b) => b.parentElement === appearance && b.classList.contains("at-seg")),
+    looks.map((b) => b.className).join(" | "));
   check("and exactly one of them is lit",
     looks.filter((b) => b.getAttribute("aria-pressed") === "true").length === 1,
     looks.map((b) => `${b.textContent}:${b.getAttribute("aria-pressed")}`).join(" "));

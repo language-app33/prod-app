@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.9 — 7 September 2026
+
+- Picking between two or three options now looks like one control: a
+  track holding the options side by side with the chosen one filled in,
+  rather than three separate buttons of which one happened to be green.
+  Everywhere one is used — Appearance, Sounds, Hints, on-screen keys, the
+  sort-and-filter bar, the teaching screens.
+- The sort-and-filter bar puts each label above its picker instead of
+  beside it, so the options have room to sit in one row.
+
 ## 0.8 — 7 September 2026
 
 - Loud is louder, and the four sounds you hear in a session — right,
