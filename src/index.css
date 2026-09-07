@@ -1470,13 +1470,18 @@ body.at-screening .at-spaces { display:none; }
 .at-galcount { font-weight:700; letter-spacing:0; text-transform:none;
   background: var(--nav-bg); border:1px solid var(--line); border-radius:999px;
   padding:1px 7px; }
-.at-galfile { margin-top: var(--s3); }
-.at-galfilename { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: var(--fs-xs); color: var(--text); font-weight:700; }
-.at-galplaces { list-style:none; margin: var(--s2) 0 0; padding:0 0 0 var(--s3);
+/* Where a component turns up, by part of the app and then by screen.
+   It used to be file names and line numbers set in monospace, which is a
+   developer's answer to a question anyone might ask. */
+.at-galpart { margin-top: var(--s4); }
+.at-galpartname { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800;
+  letter-spacing:.05em; text-transform:uppercase; color: var(--muted); }
+.at-galwheres { list-style:none; margin: var(--s2) 0 0; padding:0 0 0 var(--s3);
   border-left:2px solid var(--line); }
-.at-galplaces li { display:flex; flex-wrap:wrap; gap: var(--s2); align-items:baseline;
-  padding:2px 0; }
-.at-galwhere { font-family: var(--ui); font-size: var(--fs-xs); color: var(--text); }
-.at-gallines { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 11px; color: var(--muted); }
+.at-galwheres li { display:flex; flex-wrap:wrap; gap: var(--s2); align-items:baseline;
+  padding:3px 0; }
+.at-galwhere { font-family: var(--ui); font-size: var(--fs-sm); color: var(--text); }
+/* How many times, and only when it is more than once — a "1" beside every
+   line is noise pretending to be information. */
+.at-galtimes { font-family: var(--ui); font-size: 11px; font-weight:700; color: var(--muted);
+  background: var(--well); border-radius:999px; padding:1px 7px; }

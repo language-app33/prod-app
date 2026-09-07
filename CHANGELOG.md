@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.12 — 7 September 2026
+
+- In Admin → App → the components, "where it's used" now names screens
+  instead of files: "App preferences", "Editing a card", "The menu in the
+  top right", grouped under Learning, Teaching and Admin. The file names
+  and line numbers are gone, and a place that turns up several times on
+  one screen is one line with a count.
+
 ## 0.11 — 7 September 2026
 
 - Reload works on the first press. It used to reload the page while the

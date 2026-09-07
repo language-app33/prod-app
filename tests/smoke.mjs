@@ -741,6 +741,21 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("specimens rendered, not just names", host.querySelectorAll(".at-galvbody").length >= 30,
     `${host.querySelectorAll(".at-galvbody").length} specimens`);
 
+  /* Every place a component turns up has a name a person would use.
+     Without this, adding a screen quietly falls through to its function
+     name with the capitals spaced out — readable, but not the answer to
+     "where would I see this?", and nothing would say so. */
+  {
+    const { placeOf } = await import(path.join(out, "gallery.js"));
+    const { COMPONENT_USES } = await import(path.resolve("src/component-uses.js"));
+    const nameless = new Set();
+    for (const uses of Object.values(COMPONENT_USES)) {
+      for (const use of uses) if (!placeOf(use).known) nameless.add(use.where);
+    }
+    check("every place a component is used has a name in plain words",
+      nameless.size === 0, [...nameless].join(", ") || "all named");
+  }
+
   /* The picker's two widths, named the way they are asked for. "Full
      size" said nothing about which dimension; the difference is width. */
   const segRow = [...host.querySelectorAll(".at-galrow")]

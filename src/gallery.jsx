@@ -62,21 +62,129 @@ const SAMPLE_CARD = {
 };
 const SAMPLE_LANG = { id: "ar-PS", name: "Arabic", direction: "rtl", fontStack: undefined };
 
-/* Call sites, gathered by file and then by the component they sit inside,
-   which is how you would go looking for them. The line numbers are the
-   point: they are what turns "Button, 92 uses" into somewhere to read. */
+/*
+ * Where a component is used, in the app's own words.
+ *
+ * The generator records the file and the function a use sits inside,
+ * which is the truth but not an answer to "where would I see this?".
+ * This table turns each of those into the screen or section you would
+ * open to look at it, grouped by the part of the app it belongs to.
+ *
+ * A name missing from here still appears — its function name, spaced out
+ * and sentence-cased — under the part its file belongs to. That is worse
+ * than a real name but better than a gap, and it means adding a screen
+ * does not silently drop it from this list.
+ */
+const LEARN = "Learning — the student's app";
+const TEACH = "Teaching";
+const ADMIN = "Admin";
+const START = "Signing in";
+const PARTS = "Inside another component";
+
+const PLACES = {
+  /* The learner's app */
+  ArabicTrainer: [LEARN, "The app around everything else"],
+  AccountPanel: [LEARN, "Account settings"],
+  AccountSettings: [LEARN, "Account settings"],
+  CloseAccount: [LEARN, "Account settings · Closing your account"],
+  ClaimAdmin: [LEARN, "Account settings · Becoming the administrator"],
+  AppPreferences: [LEARN, "App preferences"],
+  SettingsScreen: [LEARN, "App preferences"],
+  CornerMenu: [LEARN, "The menu in the top right"],
+  SpaceSwitch: [LEARN, "Switching between Learning, Teaching and Admin"],
+  Guide: [LEARN, "How it works"],
+  AfterAnswer: [LEARN, "A practice session · after answering"],
+  AudioPrompt: [LEARN, "A practice session · playing a recording"],
+  ManualSessionSheet: [LEARN, "Building a session by hand"],
+  ItemsTab: [LEARN, "The Cards tab"],
+  ItemSheet: [LEARN, "The Cards tab · one card's details"],
+  ProgressTab: [LEARN, "The Progress tab"],
+  ReviewItem: [LEARN, "The Progress tab · one card"],
+  TagSection: [LEARN, "The Progress tab · one deck"],
+  StudentCourses: [LEARN, "The Courses tab"],
+  ArabicField: [LEARN, "Writing in the language you are learning"],
+  RecordingsField: [LEARN, "The recordings on a card"],
+  ClipPlayer: [LEARN, "Playing a recording"],
+  BulkAddSheet: [LEARN, "Adding several cards at once"],
+  ChunkFallback: [LEARN, "While a screen is still loading"],
+
+  /* Teaching */
+  TeachSpace: [TEACH, "The Teaching space"],
+  CoursesPage: [TEACH, "The Courses tab"],
+  CourseSettings: [TEACH, "Course settings"],
+  DeckEditor: [TEACH, "Deck settings"],
+  DeckPicker: [TEACH, "Choosing which decks"],
+  CardEditor: [TEACH, "Editing a card"],
+  WordsUsed: [TEACH, "Editing a card · the words a phrase teaches"],
+  ScriptInput: [TEACH, "Editing a card · writing in the language"],
+  Recordings: [TEACH, "Editing a card · its recordings"],
+  ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
+  SelectionBar: [TEACH, "When several cards are selected"],
+  CodeBox: [TEACH, "A code to hand out"],
+
+  /* Admin */
+  AdminSpace: [ADMIN, "The Admin space"],
+
+  /* Before you are signed in */
+  Onboarding: [START, "Signing in and joining a course"],
+
+  /* Components built out of other components. Where you see them depends
+     on where that one is used, which its own entry answers. */
+  Button: [PARTS, "A button"],
+  IconButton: [PARTS, "An icon button"],
+  PlayButton: [PARTS, "A play button"],
+  ClipRow: [PARTS, "A recording in a list"],
+  CardReadout: [PARTS, "A card's details"],
+  ItemList: [PARTS, "A searchable list"],
+  FilterBar: [PARTS, "Sort and filter"],
+  Tabs: [PARTS, "A row of tabs"],
+  Screen: [PARTS, "A full screen"],
+  SpaceFrame: [PARTS, "The Teaching and Admin frame"],
+  Snackbar: [PARTS, "The message that appears and goes"],
+  useSnackbarState: [PARTS, "The message that appears and goes"],
+  Modal: [PARTS, "A box asking you to confirm"],
+};
+
+/* Not in the table: say something readable rather than nothing, and put
+   it under whichever part of the app its file belongs to. */
+const FILE_PART = {
+  "ArabicTrainer.jsx": LEARN,
+  "spaces.jsx": TEACH,
+  "shared.jsx": PARTS,
+  "gallery.jsx": ADMIN,
+};
+
+export function placeOf(use) {
+  const known = PLACES[use.where];
+  if (known) return { part: known[0], name: known[1], known: true };
+  const spaced = String(use.where || "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/^./, (c) => c.toUpperCase());
+  return { part: FILE_PART[use.file] || LEARN, name: spaced || "Somewhere in the app", known: false };
+}
+
+/* Every place it is used, gathered by part of the app. Several uses in
+   one place become one line with a count, because "six times on the
+   preferences screen" is the useful shape, not six identical rows. */
 function groupUses(uses) {
-  const byFile = new Map();
+  const byPart = new Map();
   for (const use of uses) {
-    if (!byFile.has(use.file)) byFile.set(use.file, new Map());
-    const byWhere = byFile.get(use.file);
-    if (!byWhere.has(use.where)) byWhere.set(use.where, []);
-    byWhere.get(use.where).push(use.line);
+    const { part, name } = placeOf(use);
+    if (!byPart.has(part)) byPart.set(part, new Map());
+    const places = byPart.get(part);
+    places.set(name, (places.get(name) || 0) + 1);
   }
-  return [...byFile.entries()].map(([file, byWhere]) => ({
-    file,
-    places: [...byWhere.entries()].map(([where, lines]) => ({ where, lines })),
-  }));
+  /* A fixed order, so the list reads the same way every time and the
+     student's app comes first. */
+  const order = [LEARN, TEACH, ADMIN, START, PARTS];
+  return order
+    .filter((part) => byPart.has(part))
+    .map((part) => ({
+      part,
+      places: [...byPart.get(part).entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([name, count]) => ({ name, count })),
+    }));
 }
 
 function Uses({ name }) {
@@ -87,26 +195,19 @@ function Uses({ name }) {
     return <Meta>Nothing uses it yet.</Meta>;
   }
 
-  /* A component imported under another name is worth saying out loud: it is
-     why searching the source for the obvious name comes up short. */
-  const aliases = [...new Set(uses.map((u) => u.as).filter(Boolean))];
-
   return (
     <details className="at-galuses">
       <summary>
-        Where it's used <span className="at-galcount">{uses.length}</span>
+        Where you'll see it <span className="at-galcount">{uses.length}</span>
       </summary>
-      {aliases.length ? (
-        <Meta>Imported as {aliases.join(", ")} in some files.</Meta>
-      ) : null}
       {groupUses(uses).map((group) => (
-        <div className="at-galfile" key={group.file}>
-          <div className="at-galfilename">{group.file}</div>
-          <ul className="at-galplaces">
+        <div className="at-galpart" key={group.part}>
+          <div className="at-galpartname">{group.part}</div>
+          <ul className="at-galwheres">
             {group.places.map((place) => (
-              <li key={place.where}>
-                <span className="at-galwhere">{place.where}</span>
-                <span className="at-gallines">{place.lines.join(", ")}</span>
+              <li key={place.name}>
+                <span className="at-galwhere">{place.name}</span>
+                {place.count > 1 ? <span className="at-galtimes">{place.count}</span> : null}
               </li>
             ))}
           </ul>
