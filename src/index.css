@@ -622,6 +622,13 @@ button {
 .at-clinetext { flex:1; min-width:0; font-size:13px; font-weight:600; color: var(--text-soft); }
 .at-cact { font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color: var(--brass); white-space:nowrap; }
+/* A row that names a choice rather than being one: no hover, no pointer,
+   because the thing you tap is the picker underneath it. */
+.at-cline.as-field { cursor:default; }
+.at-cline.as-field:hover .at-clinetext { color: var(--text-soft); font-weight:600; }
+.at-cseg { padding:2px 10px 8px 34px; }
+.at-cseg .at-segmented { width:100%; }
+.at-cseg .at-btn { flex:1; min-width:0; padding-inline:6px; }
 .at-crule { height:2px; background: var(--line); margin:8px 4px; border-radius:2px; }
 /* The version, at the foot of the menu. Quieter than the rows above it —
    it is a fact to look up, not somewhere to go — until the server turns out
@@ -931,7 +938,13 @@ button {
    Those pixels are not saved: the step-down formula sizes the type from
    whatever is left after the gaps, so giving back space is how the buttons
    get bigger. */
-.at-answerbar.at-row { --gap: 8px; }
+/* The one row that must not wrap. It is fixed to the foot of the screen
+   with a measured amount of page reserved underneath it, so a second row
+   would sit over the answer rather than beside it — and it has been
+   checked to fit at 320px, which is narrower than any phone it will meet.
+   Its buttons take the zero floor back so the type clamp alone decides. */
+.at-answerbar.at-row { --gap: 8px; flex-wrap: nowrap; }
+.at-answerbar.at-row > * { min-width: 0; }
 .at-answerbar.at-row > .at-btn { font-size: clamp(11px, calc(var(--share) * 0.125), 17px); }
 /* Room for it under the question, so the last line of an answer is never
    left beneath the bar. Both states have one — three buttons before the
@@ -950,13 +963,22 @@ button {
    room. The hint takes a fixed width instead of a share, so the text
    buttons get slightly more than the figure below assumes, which errs
    towards fitting. */
-.at-row { display:flex; gap: var(--gap); margin-top:20px; container-type: inline-size;
-  --gap: 12px; --cols: 1; }
+.at-row { display:flex; flex-wrap: wrap; gap: var(--gap); margin-top:20px;
+  container-type: inline-size; --gap: 12px; --cols: 1; }
 .at-row:has(> :nth-child(2)) { --cols: 2; }
 .at-row:has(> :nth-child(3)) { --cols: 3; }
 .at-row:has(> :nth-child(4)) { --cols: 4; }
 .at-row { --share: calc((100cqi - (var(--cols) - 1) * var(--gap)) / var(--cols)); }
-.at-row > * { flex:1; min-width:0; }
+/* Shrink first, wrap second, never overflow.
+   min-content, not zero: a nowrap label squashed below its own width does
+   not become smaller, it becomes wider than the box it is in, and the row
+   spills off the screen — which is what three buttons in the backup
+   section did. At min-content the type steps down as far as the clamp
+   below allows and, if that is still not enough, the last button drops to
+   a second row whole rather than any label breaking in half.
+   The basis stays zero so that buttons which do fit on one line come out
+   the same width as each other rather than as wide as their labels. */
+.at-row > * { flex:1 1 0; min-width: min-content; }
 /* Direct children only. A row can hold a Segmented, whose own buttons are
    .at-btn too — sizing those from the row's share would hand a three-way
    picker the type of a full-width button. */
@@ -1240,8 +1262,8 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-stat2 .at-statlabel { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.05em; text-transform:uppercase; color: var(--muted); margin: var(--s2) 0 0; }
 .at-stat2.big .at-statvalue { font-size: 40px; }
 /* --- Screen footer: the action bar a sheet keeps at the bottom --- */
-.at-screenfoot { position:sticky; bottom:0; display:flex; gap: var(--s3); padding: var(--s4) 0 0; margin-top: var(--s5); background: linear-gradient(to top, var(--surface) 60%, transparent); }
-.at-screenfoot > * { flex:1; min-width:0; }
+.at-screenfoot { position:sticky; bottom:0; display:flex; flex-wrap: wrap; gap: var(--s3); padding: var(--s4) 0 0; margin-top: var(--s5); background: linear-gradient(to top, var(--surface) 60%, transparent); }
+.at-screenfoot > * { flex:1 1 0; min-width: min-content; }
 /* Same rule as an action row: the footer's buttons step down together
    rather than one of them breaking across two lines. */
 .at-screenfoot { container-type: inline-size; --cols: 1; }
@@ -1320,6 +1342,14 @@ body.at-screening .at-spaces { display:none; }
 .at-galname { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: var(--fs-sm); font-weight:700; color: var(--text); }
 .at-galtotal { font-family: var(--ui); font-size: var(--fs-xs); color: var(--muted); }
+/* The number you point at. Loud enough to find by eye while scrolling,
+   quiet enough not to compete with the name beside it. */
+.at-galid { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size:11px; font-weight:800; line-height:1; color: var(--onbrass);
+  background: var(--brass); border-radius:6px; padding:4px 6px; flex:0 0 auto;
+  min-width:22px; text-align:center; }
+.at-galid.sub { background:none; color: var(--brass); padding:0 4px 0 0;
+  min-width:0; font-size: var(--fs-xs); }
 .at-galdemo { display:flex; flex-wrap:wrap; gap: var(--s3); align-items:flex-start;
   margin-top: var(--s3); }
 .at-galdemo:empty { display:none; }

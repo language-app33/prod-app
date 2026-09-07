@@ -8,6 +8,31 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.8 — 7 September 2026
+
+- Loud is louder, and the four sounds you hear in a session — right,
+  wrong, "I don't know", and moving to the next question — are longer and
+  easier to notice. The next-question tick was a 45ms blip at the top of
+  the register and was inaudible over almost anything; it is now a short
+  two-note turn.
+- The Test button in App preferences is a normal-sized button with a play
+  icon, and it plays a right answer followed by a wrong one — the two you
+  actually hear — rather than ending on the end-of-session fanfare.
+- Appearance in the top-right menu is now three options side by side with
+  the current one lit, instead of one button that cycled through them and
+  made you tap twice to go back one.
+- Every component in Admin → App → the components carries a number, and
+  each specimen under it carries that number and its own — 12, 12.1, 12.2
+  — so a change can be asked for by number.
+- "Hide the components" now sits exactly where "Show the components" was,
+  rather than at the far end of fifty components.
+- A row of buttons that cannot fit on one line now puts the last one on a
+  second row instead of running off the edge of the screen, with each
+  button's own label still on a single line. The bar in a practice
+  session is the exception: it shrinks its type as before, because it is
+  pinned to the foot of the screen with a measured amount of room
+  underneath it.
+
 ## 0.7 — 6 September 2026
 
 - "Practice" is spelled the same way everywhere in the app.

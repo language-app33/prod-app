@@ -1719,14 +1719,20 @@ export function AdminSpace({ account, languages, onClose }) {
                 two implementations of one thing is the failure mode this library exists to
                 prevent.
               </Help>
-              {galleryOpen ? (
+              {/* The same button in the same place either way, so closing
+                  the gallery is where opening it was rather than a scroll
+                  to the far end of fifty components. */}
+              <Button
+                className="at-mt3"
+                icon={galleryOpen ? "close" : "view"}
+                onClick={() => setGalleryOpen((v) => !v)}
+              >
+                {galleryOpen ? "Hide the components" : "Show the components"}
+              </Button>
+              {galleryOpen && (
                 <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
                   <ComponentGallery />
                 </React.Suspense>
-              ) : (
-                <Button className="at-mt3" icon="view" onClick={() => setGalleryOpen(true)}>
-                  Show the components
-                </Button>
               )}
             </>
           )}

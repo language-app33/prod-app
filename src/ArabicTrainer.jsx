@@ -1556,10 +1556,12 @@ let lastSound = 0;
  * as a second set of numbers so the notes stay one description of the
  * sound and only its level changes.
  *
- * Well under anything that clips: the loudest moment is three notes of
- * correct overlapping at 0.07 × 2.6, which is a fifth of full scale.
+ * The ceiling is clipping, and the headroom is checked rather than
+ * guessed: the smoke run adds up every note each sound schedules, at loud,
+ * and fails if the sum reaches full scale. That is what lets this number
+ * go up without someone having to do the arithmetic by hand.
  */
-const SOUND_LEVELS = { loud: 2.6, soft: 1, off: 0 };
+export const SOUND_LEVELS = { loud: 4.4, soft: 1, off: 0 };
 let soundGain = SOUND_LEVELS.loud;
 
 /*
@@ -1573,7 +1575,7 @@ export function soundLevelOf(value) {
   return "loud";
 }
 
-function setSounds(level) {
+export function setSounds(level) {
   soundGain = SOUND_LEVELS[soundLevelOf(level)];
 }
 
@@ -1613,25 +1615,36 @@ function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
   osc.stop(t0 + dur + 0.02);
 }
 
-const SOUNDS = {
-  /* Three notes up a major triad, the last one held. Still small and pleased
-     rather than triumphant — the extra note is there so the verdict lands,
-     not to celebrate. */
+/* Exported so the smoke run can add up what each one schedules and fail if
+   the total would clip. There is no OfflineAudioContext outside a browser,
+   so what it renders them against is a stub that records the notes. */
+export const SOUNDS = {
+  /* Four notes up a major triad with the top one held, so it arrives, goes
+     somewhere and lands rather than being over before it registers. Still
+     pleased rather than triumphant: it plays after every right answer and
+     has to bear hearing a hundred times a day. */
   correct: (c) => {
-    note(c, { freq: 660, dur: 0.1, peak: 0.06 });
-    note(c, { freq: 880, at: 0.09, dur: 0.12, peak: 0.058 });
-    note(c, { freq: 1319, at: 0.2, dur: 0.22, peak: 0.05 });
+    note(c, { freq: 660, dur: 0.13, peak: 0.075 });
+    note(c, { freq: 880, at: 0.11, dur: 0.14, peak: 0.072 });
+    note(c, { freq: 1100, at: 0.23, dur: 0.16, peak: 0.068 });
+    note(c, { freq: 1319, at: 0.36, dur: 0.34, peak: 0.062 });
   },
-  /* A slump, then a lower one settling under it. Deliberately gentle and
-     quieter than correct: you'll hear this one a lot, and it should read as
-     "not that" rather than as a buzzer. */
+  /* Three steps down, the last one held under the others. Gentle by
+     design — you will hear this one a lot, and it should read as "not
+     that" rather than as a buzzer — but long enough now to be a verdict
+     rather than a bump. */
   wrong: (c) => {
-    note(c, { freq: 300, to: 220, dur: 0.18, type: "triangle", peak: 0.05 });
-    note(c, { freq: 220, to: 165, at: 0.16, dur: 0.22, type: "triangle", peak: 0.045 });
+    note(c, { freq: 320, to: 240, dur: 0.2, type: "triangle", peak: 0.066 });
+    note(c, { freq: 240, to: 180, at: 0.18, dur: 0.22, type: "triangle", peak: 0.062 });
+    note(c, { freq: 180, to: 140, at: 0.38, dur: 0.3, type: "triangle", peak: 0.056 });
   },
-  // Barely there — the sound of a card turning over.
+  /* The page turning. Two notes rather than one, because a single 45ms
+     blip at the top of the register was inaudible over anything at all —
+     but still the shortest thing here, since it accompanies a movement
+     rather than judging an answer. */
   tick: (c) => {
-    note(c, { freq: 880, dur: 0.045, peak: 0.028 });
+    note(c, { freq: 740, dur: 0.07, peak: 0.05 });
+    note(c, { freq: 988, at: 0.06, dur: 0.11, peak: 0.045 });
   },
   // Four notes up a major triad, for the end of a session.
   complete: (c) => {
@@ -1645,9 +1658,12 @@ const SOUNDS = {
   stop: (c) => {
     note(c, { freq: 780, to: 520, dur: 0.1, type: "triangle", peak: 0.05 });
   },
-  // A muted thud for anything destructive.
+  /* A muted double thud, for anything destructive and for giving up on a
+     question. One short thud was easy to miss, and "I don't know" is a
+     verdict on the card like any other — it deserves to be heard. */
   warn: (c) => {
-    note(c, { freq: 240, to: 170, dur: 0.14, type: "triangle", peak: 0.055 });
+    note(c, { freq: 260, to: 190, dur: 0.16, type: "triangle", peak: 0.07 });
+    note(c, { freq: 190, to: 140, at: 0.15, dur: 0.26, type: "triangle", peak: 0.062 });
   },
   // A little bubble, for undo and other small reversals.
   pop: (c) => {
@@ -4424,12 +4440,7 @@ Cards ready to practice
             syncState={syncState === "idle" && courseBusy ? "syncing" : syncState}
             onSyncNow={syncEverything}
             theme={settings.theme || "auto"}
-            onTheme={() =>
-              setSetting(
-                "theme",
-                { auto: "light", light: "dark", dark: "auto" }[settings.theme || "auto"]
-              )
-            }
+            onTheme={(v) => setSetting("theme", v)}
             onAccount={() => setScreen("account")}
             onGuide={() => setScreen("guide")}
             onPrefs={() => setScreen("prefs")}
@@ -6693,8 +6704,6 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
     return () => window.removeEventListener("click", close);
   }, [open]);
 
-  const themeName = { auto: "Follow device", light: "Light", dark: "Dark" }[theme || "auto"];
-
   return (
     <div className="at-corner" onClick={(e) => e.stopPropagation()}>
       <button
@@ -6730,13 +6739,28 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
             <span className="at-cact">Sync now</span>
           </button>
 
-          <button className="at-cline" onClick={onTheme}>
+          {/* Choosing between three looks, not doing a thing: the options
+              sit side by side and the current one is lit, rather than one
+              button cycling through them and leaving you to tap twice to
+              go back one. */}
+          <div className="at-cline as-field">
             <span className="at-cico">
               <Icon name="theme" size={18} />
             </span>
             <span className="at-clinetext">Appearance</span>
-            <span className="at-cact">{themeName}</span>
-          </button>
+          </div>
+          <div className="at-cseg">
+            <Segmented
+              label="Appearance"
+              options={[
+                { value: "auto", label: "Device" },
+                { value: "light", label: "Light" },
+                { value: "dark", label: "Dark" },
+              ]}
+              value={theme || "auto"}
+              onChange={onTheme}
+            />
+          </div>
 
           <div className="at-crule" />
 
@@ -7051,14 +7075,17 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
               onChange={(v) => setSetting("sounds", v)}
             />
             <Button
-              size="sm"
               variant="ghost"
+              icon="play"
               /* Off has nothing to demonstrate, and a button that played
                  anyway would be arguing with the setting next to it. */
               disabled={soundLevelOf(settings.sounds) === "off"}
               onClick={() => {
+                /* The two you will actually hear, in the order you would
+                   hear them — the old pairing ended on the session-complete
+                   fanfare, which is not what this setting is about. */
                 sfx("correct");
-                setTimeout(() => sfx("complete"), 400);
+                setTimeout(() => sfx("wrong"), 700);
               }}
             >
               Test

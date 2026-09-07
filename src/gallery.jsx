@@ -116,19 +116,42 @@ function Uses({ name }) {
   );
 }
 
-/* One entry per component: what it is called, what it is for, and the
-   variants worth seeing side by side. `note` carries the thing you would
-   otherwise learn by reading the source. */
+/*
+ * Numbers to point at.
+ *
+ * Every entry gets one, and every specimen inside it gets the entry's
+ * number and its own — 12, 12.1, 12.2 — so a change can be asked for by
+ * number instead of by describing which of four buttons is meant.
+ *
+ * Counted during the render rather than written down beside each entry:
+ * hand-numbered, inserting one component in the middle would renumber
+ * everything below it by hand, which is the kind of edit that gets done
+ * wrong once and then trusted. The counter is made fresh at the top of
+ * each render, so a second render counts from one again and the numbers
+ * are the document order every time.
+ */
+const GalleryCount = React.createContext(null);
+
 function Row({ name, what, note, children }) {
   const uses = COMPONENT_USES[name];
+  const tally = React.useContext(GalleryCount);
+  const id = tally ? (tally.row += 1) : 0;
+  /* Specimens number within their entry, so the count restarts here — and
+     it has to be a new object every render, not a remembered one: kept,
+     it carried on counting from wherever the last render left it, and the
+     first specimen was numbered 1.3 after two re-renders. */
+  const spec = { n: 0, row: id };
   return (
-    <div className="at-galrow">
+    <div className="at-galrow" id={`c${id}`}>
       <div className="at-galhead">
+        <span className="at-galid">{id}</span>
         <code className="at-galname">{name}</code>
         {uses ? <span className="at-galtotal">{plural(uses.length, "use")}</span> : null}
       </div>
       {what ? <Help className="at-mb2">{what}</Help> : null}
-      <div className="at-galdemo">{children}</div>
+      <GalleryCount.Provider value={spec}>
+        <div className="at-galdemo">{children}</div>
+      </GalleryCount.Provider>
       {note ? <Meta>{note}</Meta> : null}
       <Uses name={name} />
     </div>
@@ -138,9 +161,14 @@ function Row({ name, what, note, children }) {
 /* A labelled specimen inside a row, so a variant can be pointed at by
    name rather than by position. */
 function V({ label, children, wide }) {
+  const spec = React.useContext(GalleryCount);
+  const id = spec && spec.row ? `${spec.row}.${(spec.n += 1)}` : "";
   return (
     <div className={`at-galv${wide ? " wide" : ""}`}>
-      <div className="at-galvlabel">{label}</div>
+      <div className="at-galvlabel">
+        {id ? <span className="at-galid sub">{id}</span> : null}
+        {label}
+      </div>
       <div className="at-galvbody">{children}</div>
     </div>
   );
@@ -166,7 +194,11 @@ export function ComponentGallery() {
     ["Lesson 1", "Lesson 2", "Lesson 3"].map((t, i) => ({ id: `d${i}`, title: t })),
   );
 
+  /* Fresh every render, so the numbers are always document order. */
+  const tally = { row: 0 };
+
   return (
+    <GalleryCount.Provider value={tally}>
     <div className="at-gallery">
       {modalOpen && (
         <ConfirmModal
@@ -620,5 +652,6 @@ export function ComponentGallery() {
 
       {demo.node}
     </div>
+    </GalleryCount.Provider>
   );
 }

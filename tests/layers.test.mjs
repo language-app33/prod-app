@@ -172,6 +172,31 @@ test("the page reserves room for the bar, and only while there is one", () => {
     "the keyboard rule needs the same guard, and wins on specificity");
 });
 
+test("a row that cannot fit wraps rather than spilling off the screen", () => {
+  /* Two rules together. min-content, so a nowrap label is never squashed
+     below its own width — squashed, it does not get smaller, it overflows
+     the row, which is what three buttons in the backup section did. And
+     wrap, so what will not fit drops to a second line whole. */
+  const row = rule(".at-row");
+  assert.match(row, /flex-wrap:\s*wrap/, "the row cannot wrap");
+  assert.match(rule(".at-row > *"), /min-width:\s*min-content/, "a label can still be squashed");
+  /* Basis zero, so buttons that do fit come out matching rather than each
+     as wide as its own label. */
+  assert.match(rule(".at-row > *"), /flex:\s*1 1 0/);
+  /* The footer of a screen is the same kind of row and gets the same. */
+  assert.match(rule(".at-screenfoot"), /flex-wrap:\s*wrap/);
+  assert.match(rule(".at-screenfoot > *"), /min-width:\s*min-content/);
+});
+
+test("the one row that must not wrap, does not", () => {
+  /* The answer bar is fixed to the foot of the screen with a measured
+     amount of page reserved under it, so a second line would sit over the
+     answer. It shrinks its type instead, and has been checked to fit at
+     320px. */
+  assert.match(rule(".at-answerbar.at-row"), /flex-wrap:\s*nowrap/);
+  assert.match(rule(".at-answerbar.at-row > *"), /min-width:\s*0/);
+});
+
 test("the bar's gap is the one the step-down formula divides by", () => {
   /* The type is sized from what is left of the row after the gaps. A bar
      that tightened its gap without the formula knowing would size its

@@ -425,8 +425,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!alsoBox && alsoBox.classList.contains("at-alsobox") && !!alsoBox.closest(".at-exercise"),
       alsoBox ? alsoBox.className : "no box");
     const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
-    check("and the blocks that were loose on the page are in it",
-      inBox.includes("also-hint"), inBox.join(" ") || "empty");
+    const FAMILY = ["also-context", "also-script", "also-hint", "also-audio", "related-words"];
+    check("and everything in it is one of the blocks that were loose on the page",
+      inBox.length > 0 && inBox.every((n) => FAMILY.includes(n)), inBox.join(" ") || "empty");
     /* It used to sit three blocks below its own siblings, under the notes. */
     const heard = inBox.indexOf("also-audio");
     check("how it sounds sits with its siblings, not below the notes",
@@ -469,9 +470,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     }
     check("every -label and -text sits inside a block of the same name",
       orphans.length === 0, orphans.join("; "));
+    /* Which extras a card has depends on which exercise the session
+       picked, and that is not the same every run — so what is checked is
+       that whatever turned up is one of the named blocks, not that a
+       particular one did. */
     check("the blocks that hold the extras after an answer are named",
-      ["also-hint", "also-context", "also-script", "also-audio"].some((n) => all.has(n)),
-      [...all].filter((n) => n.startsWith("also")).join(" ") || "none on this card");
+      ["also-hint", "also-context", "also-script", "also-audio", "related-words"].some((n) => all.has(n)),
+      [...all].filter((n) => n.startsWith("also") || n === "related-words").join(" ") || "none on this card");
 
     click(buttonNamed(/Continue|Next/));
     await sleep(300);
@@ -530,6 +535,16 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     (ver && ver.textContent) || "");
   check("it says when, so two deploys in a day are distinguishable",
     !!ver && /\d/.test(ver.querySelector("i").textContent), (ver && ver.querySelector("i").textContent) || "");
+  /* Three looks, side by side, one lit — rather than one button that
+     cycled and made you tap twice to go back one. */
+  const appearance = document.querySelector(".at-cseg .at-segmented");
+  const looks = appearance ? [...appearance.querySelectorAll("button")] : [];
+  check("Appearance is one picker with its options side by side",
+    looks.length === 3, `${looks.length} options`);
+  check("and exactly one of them is lit",
+    looks.filter((b) => b.getAttribute("aria-pressed") === "true").length === 1,
+    looks.map((b) => `${b.textContent}:${b.getAttribute("aria-pressed")}`).join(" "));
+
   const verBtn = ver && ver.querySelector(".at-cverbtn");
   check("nothing to reload when it is the deployed one",
     !!ver && !ver.classList.contains("stale") && !!verBtn && /^Check$/.test(verBtn.textContent.trim()),
@@ -698,6 +713,20 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   /* The specimens have to actually render something, not just be listed. */
   check("specimens rendered, not just names", host.querySelectorAll(".at-galvbody").length >= 30,
     `${host.querySelectorAll(".at-galvbody").length} specimens`);
+
+  /* Numbers to point at. Counted while rendering, so the way they break is
+     by carrying on from where the last render left off — 1, 2, 3 on the
+     first pass and 36, 37, 38 on the next — which is why the sequence
+     itself is what is checked rather than merely that a badge exists. */
+  const badges = [...host.querySelectorAll(".at-galrow")]
+    .map((r) => (r.querySelector(".at-galid") || {}).textContent || "");
+  check("every component carries a number, counting from one in order",
+    badges.length > 20 && badges.every((b, i) => Number(b) === i + 1),
+    `${badges.length} rows, ${badges.slice(0, 3).join(",")} … ${badges.slice(-2).join(",")}`);
+  const subs = [...host.querySelectorAll(".at-galid.sub")].map((e) => e.textContent);
+  check("and every specimen is numbered under its own component",
+    subs.length > 20 && subs.every((t) => /^\d+\.\d+$/.test(t)),
+    `${subs.length} specimens, e.g. ${subs.slice(0, 3).join(" ")}`);
   check("the icon set is laid out", host.querySelectorAll(".at-galicon").length >= 30,
     `${host.querySelectorAll(".at-galicon").length} icons`);
   /* The snackbar, driven the way the app drives it: the gallery's own
@@ -706,7 +735,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      not on the body, where it would render themeless. */
   {
     const raise = [...host.querySelectorAll(".at-galrow")]
-      .find((r) => /^Snackbar/.test(r.textContent))
+      /* Past the entry's number badge, which is the first thing in the
+         head now — matching from the very start would find nothing. */
+      .find((r) => /^\d*\s*Snackbar/.test(r.textContent))
       ;
     const good = raise && [...raise.querySelectorAll("button")].find((b) => b.textContent === "good");
     click(good);
@@ -780,7 +811,73 @@ check("no console errors during the session", errors.length === 0, errors.slice(
    The queue rewrite, driven directly: it is a pure function over a queue, an
    index, the cards and the settings, which is the whole reason it is one. */
 {
-  const { withoutListening, soundLevelOf, noCardsYet } = await import(path.join(out, "ArabicTrainer.js"));
+  const { withoutListening, soundLevelOf, noCardsYet, SOUNDS, SOUND_LEVELS, setSounds } =
+    await import(path.join(out, "ArabicTrainer.js"));
+
+  /*
+   * The feedback sounds, added up rather than listened to.
+   *
+   * There is no audio engine out here, so each sound is played against a
+   * stub that records what it scheduled: when each note starts, how long
+   * it runs, and the level it ramps to — which already carries the loud
+   * multiplier, because that is applied inside the player.
+   *
+   * Two things worth knowing and impossible to hear from a test: that
+   * turning the volume up has not pushed the sum of overlapping notes
+   * past full scale, where it would clip into a rasp; and that the four
+   * sounds you get during a session are long enough to register as a
+   * verdict rather than a click.
+   */
+  const played = (kind) => {
+    const notes = [];
+    const stub = {
+      currentTime: 0,
+      createOscillator: () => ({
+        type: "", frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+        connect() {}, start() {}, stop() {},
+      }),
+      createGain: () => {
+        const n = { at: 0, level: 0, ends: 0 };
+        notes.push(n);
+        return {
+          gain: {
+            setValueAtTime(v, t) { n.at = t; },
+            exponentialRampToValueAtTime(v, t) {
+              if (v > n.level) n.level = v;
+              if (t > n.ends) n.ends = t;
+            },
+          },
+          connect() {},
+        };
+      },
+      destination: {},
+    };
+    SOUNDS[kind](stub);
+    return notes;
+  };
+  /* The worst moment: every note that is still sounding at the loudest
+     one's peak, added together. Exponential decay means this over-counts,
+     which is the direction a headroom check should err in. */
+  const loudest = (notes) =>
+    Math.max(...notes.map((n) => notes.filter((o) => o.at <= n.at && o.ends >= n.at)
+      .reduce((sum, o) => sum + o.level, 0)));
+  const runs = (notes) => Math.max(...notes.map((n) => n.ends)) - Math.min(...notes.map((n) => n.at));
+
+  setSounds("loud");
+  check("loud is louder than it was", SOUND_LEVELS.loud > 2.6, String(SOUND_LEVELS.loud));
+  for (const kind of Object.keys(SOUNDS)) {
+    const peak = loudest(played(kind));
+    check(`${kind} has headroom at loud`, peak < 1, `${peak.toFixed(2)} of full scale`);
+  }
+  /* The four you hear in a session: right, wrong, given up, and moving on. */
+  for (const [kind, least] of [["correct", 0.55], ["wrong", 0.55], ["warn", 0.35], ["tick", 0.14]]) {
+    const len = runs(played(kind));
+    check(`${kind} lasts long enough to be noticed`, len >= least,
+      `${len.toFixed(2)}s, wanted ${least}s`);
+  }
+  setSounds("off");
+  check("off schedules nothing at all", played("correct").length === 0);
+  setSounds("loud");
 
   /* Why a student has no cards, said the same way on all three screens
      that have to say it. Home and Progress used to tell someone already
