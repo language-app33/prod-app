@@ -6595,6 +6595,10 @@ function AppVersion() {
      state for this app, and it says nothing about the deploy. */
   const [deployed, setDeployed] = useState(null);
   const [busy, setBusy] = useState(false);
+  /* The reload waits for the new worker to take over, which takes a
+     moment — so the button says it is working rather than looking like
+     the press did nothing. Never turned off: the page is on its way. */
+  const [reloading, setReloading] = useState(false);
   const alive = useRef(true);
   const snack = useSnackbar();
 
@@ -6649,17 +6653,66 @@ function AppVersion() {
      and only the hash tells them apart. */
   const stale = deployed && deployed.commit !== APP_COMMIT;
 
+  /*
+   * Reload onto the build that is actually deployed.
+   *
+   * The hard part is not the reload, it is that a reload is answered by
+   * whichever service worker is in charge at that moment. Asking the
+   * worker to look for an update and then reloading straight away — which
+   * is what this did — reloads while the old worker is still in charge,
+   * so the old files come back and the button looks broken. Press it
+   * again a moment later and it works, because by then the new worker has
+   * taken over. That is the two presses.
+   *
+   * So: ask for the update, then wait for the new worker to actually take
+   * control before reloading. The worker this app ships calls
+   * skipWaiting and clientsClaim, so it takes over by itself once it has
+   * installed; controllerchange is the event that says it has.
+   */
   async function reload() {
-    /* Ask the service worker to look again first: a plain reload can be
-       answered out of its cache, which is the state we are trying to
-       leave. */
+    setReloading(true);
+    let done = false;
+    const go = () => {
+      if (done) return;
+      done = true;
+      window.location.reload();
+    };
+    /* Never leave the button spinning: if no new worker arrives — the
+       update was already applied, there is no worker at all, or something
+       went wrong out of our sight — reload anyway. */
+    const giveUp = setTimeout(go, 5000);
+
     try {
-      const reg = navigator.serviceWorker && (await navigator.serviceWorker.getRegistration());
-      if (reg) await reg.update();
+      const sw = navigator.serviceWorker;
+      const reg = sw && (await sw.getRegistration());
+      if (!reg) return go();
+
+      /* Whoever takes over, whenever, this is the moment to reload. */
+      sw.addEventListener("controllerchange", go, { once: true });
+
+      await reg.update();
+
+      const fresh = reg.installing || reg.waiting;
+      /* Nothing new to wait for: either it had already updated in the
+         background, or the deploy is not reachable from here. Reloading
+         is still the right answer — the page may simply be running an
+         older bundle than the worker already holds. */
+      if (!fresh) return go();
+
+      /* Belt and braces for a worker built without skipWaiting, where it
+         would otherwise sit in waiting until every tab is closed. */
+      const nudge = () => reg.waiting && reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      nudge();
+      fresh.addEventListener("statechange", () => {
+        nudge();
+        if (fresh.state === "activated") go();
+      });
     } catch (e) {
       /* No worker, or it refused. Reloading is still worth a try. */
+      go();
+    } finally {
+      if (done) clearTimeout(giveUp);
     }
-    window.location.reload();
   }
 
   return (
@@ -6682,8 +6735,8 @@ function AppVersion() {
           carrying both would make you pick between them, and the pick is
           never yours to make. */}
       {stale ? (
-        <button className="at-cverbtn" onClick={reload}>
-          Reload
+        <button className="at-cverbtn" onClick={reload} disabled={reloading}>
+          {reloading ? "Reloading…" : "Reload"}
         </button>
       ) : (
         <button className="at-cverbtn" onClick={() => check(true)} disabled={busy}>

@@ -605,6 +605,28 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     !!stale && stale.classList.contains("stale") && /def5678/.test(stale.textContent),
     (stale && stale.textContent) || "");
   check("and it offers the one thing that fixes it", !!stale && !!stale.querySelector(".at-cverbtn"));
+  /* Reloading used to take two presses: the page reloaded while the old
+     service worker was still in charge, so the old files came back and
+     the button looked broken. The fix is to wait for the new worker to
+     take control before reloading.
+
+     jsdom has no service worker and will not let location.reload be
+     stubbed, so pressing the button here cannot be watched — what is
+     checked is that the waiting is still wired up. The behaviour itself
+     is checked in a real browser, against two real builds and a real
+     worker, which is the only place it can be. */
+  {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(path.resolve("src/ArabicTrainer.jsx"), "utf8");
+    const body = src.slice(src.indexOf("async function reload()"), src.indexOf("async function reload()") + 2000);
+    check("Reload waits for the new worker to take control",
+      /addEventListener\("controllerchange"/.test(body), "no controllerchange listener");
+    check("and it does not reload the moment it is pressed",
+      !/await reg\.update\(\);\s*\n\s*\}?\s*\n?\s*window\.location\.reload/.test(body));
+    check("and it says it is working while it waits",
+      /Reloading/.test(src), "the button gives no sign it was pressed");
+  }
+
   check("the newer deploy is named by its release too", !!stale && /0\.2/.test(stale.textContent),
     (stale && stale.textContent) || "");
 

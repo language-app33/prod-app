@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.11 — 7 September 2026
+
+- Reload works on the first press. It used to reload the page while the
+  old copy of the app was still in charge, so the old version came back
+  and only a second press got you the new one. It now waits for the new
+  version to take over — and says "Reloading…" while it does, so the
+  press does not look like it did nothing.
+
 ## 0.10 — 7 September 2026
 
 - A picker now comes in two widths that mean different things. The
