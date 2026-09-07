@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.14 — 7 September 2026
+
+- Card tiles on the Progress tab now open the card when you tap one — the
+  same full-screen card the Cards tab shows. They were the one place in
+  the app where a small card told you how well you knew it and then had
+  nothing to say when you asked to see it. The tiles in Learning → Cards,
+  Teaching → Cards and inside a deck already opened, and still do.
+- Those progress tiles are also reachable with a keyboard now: Tab to one,
+  press Enter.
+
 ## 0.13 — 7 September 2026
 
 - The Cards tab, in both Learning and Teaching, now shows the same small

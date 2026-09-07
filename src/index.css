@@ -1144,10 +1144,22 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-pbar i.full { background: var(--jade); }
 .at-pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
   gap:8px; margin-top:12px; min-width:0; }
-.at-pcard { min-width:0; border:2px solid var(--line); border-radius: var(--r-sm); padding:10px; background: var(--surface); }
+/* A button, because it opens the card. The declarations up to `background`
+   are the ones that undo a button's own chrome — the rest is the tile it
+   has always been. */
+.at-pcard { display:block; width:100%; font:inherit; color:inherit; text-align:left;
+  cursor:pointer; -webkit-appearance:none; appearance:none;
+  min-width:0; border:2px solid var(--line); border-radius: var(--r-sm); padding:10px; background: var(--surface); }
 .at-pcard.done { border-color: var(--jade); background: var(--tag-bg); }
 .at-pcard.done .at-pbar i { background: var(--jade); }
 .at-pcard.idle { opacity:.55; }
+/* Same lift as the card tiles. It sits here rather than up with theirs
+   because `.done` sets a border colour of its own further up the file and
+   would otherwise outrank the hover. */
+.at-pcard { transition: border-color 140ms ease, transform 140ms ease; }
+@media (hover: hover) {
+  .at-pcard:hover { border-color: var(--ink); transform: translateY(-1px); }
+}
 .at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
 .at-pcardtop .ar { font-family: var(--sfont, var(--ar)); font-size:20px; font-weight:700; direction: var(--sdir, rtl);
   unicode-bidi:isolate; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

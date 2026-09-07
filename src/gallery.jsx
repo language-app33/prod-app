@@ -98,6 +98,7 @@ const PLACES = {
   ManualSessionSheet: [LEARN, "Building a session by hand"],
   ItemsTab: [LEARN, "The Cards tab"],
   ItemSheet: [LEARN, "The Cards tab · one card's details"],
+  CardScreen: [LEARN, "Opening a card from a tile"],
   ProgressTab: [LEARN, "The Progress tab"],
   ReviewItem: [LEARN, "The Progress tab · one card"],
   TagSection: [LEARN, "The Progress tab · one deck"],

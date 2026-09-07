@@ -693,6 +693,35 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(300);
 }
 
+/* ---- a progress tile opens the card ----
+   Every other small card in the app opens when you tap it. These showed
+   you how far along a card was and then had nothing to say when you
+   asked to see it, which is the moment you most want to. */
+{
+  click(buttonNamed(/^Progress$/));
+  await sleep(400);
+  const opener = [...document.querySelectorAll("button")].find((b) => /^Show /.test(b.getAttribute("aria-label") || ""));
+  click(opener);
+  await sleep(200);
+  const tile = document.querySelector(".at-pgrid .at-pcard");
+  check("a progress tile is a button, so it can be tapped and tabbed to",
+    !!tile && tile.tagName === "BUTTON", tile ? tile.tagName : "no tile");
+  click(tile);
+  await sleep(300);
+  const open = document.querySelector(".at-screen .at-readout, .at-readout");
+  check("tapping one opens the whole card", !!open,
+    document.body.textContent.slice(0, 100).replace(/\s+/g, " "));
+  /* The same readout the Cards tab opens, not a second description of a
+     card written for this screen. */
+  check("and it is the card the tile was showing",
+    !!open && open.textContent.includes(tile.querySelector(".ar").textContent.trim()),
+    open ? open.textContent.slice(0, 60).replace(/\s+/g, " ") : "(nothing open)");
+  click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent) || b.getAttribute("aria-label") === "Back"));
+  await sleep(250);
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+}
+
 /* ---- a session: start, answer one card, continue ---- */
 click(buttonNamed(/^Start session$/));
 await sleep(400);

@@ -4455,6 +4455,30 @@ Cards ready to practice
   );
 }
 
+/* --- CardScreen ---------------------------------------------------
+   One card, opened. The learner gets here by tapping a tile — in the
+   Cards tab, or in Progress — and a card has to be described the same
+   way whichever tile was tapped, so there is one of these rather than
+   one per tab. The card is looked up again by id, so a screen left open
+   shows what was last synced rather than the copy its tile was drawn
+   from. */
+function CardScreen({ card, items, onBack, action }) {
+  const live = items.find((i) => i.id === card.id) || card;
+  return (
+    <Screen title={live.en || live.ar} onBack={onBack} action={action}>
+      <CardReadout
+        card={{
+          ...live,
+          clips: (live.recs || []).map((r) => r.id),
+          decks: live.tags || [],
+        }}
+        lang={activeLang()}
+        decks={(live.tags || []).map((t) => ({ id: t, title: t }))}
+      />
+    </Screen>
+  );
+}
+
 /* ==================================================================
    Items tab
    ================================================================== */
@@ -4648,10 +4672,9 @@ function ItemsTab({
         />
       )}
       {sheet && sheet.view && (
-        /* The same read-only card the teaching space shows, so a card is
-           described identically wherever it is opened. */
-        <Screen
-          title={sheet.view.en || sheet.view.ar}
+        <CardScreen
+          card={sheet.view}
+          items={items}
           onBack={() => setSheet(null)}
           action={
             OWN && !sheet.view.locked ? (
@@ -4662,17 +4685,7 @@ function ItemsTab({
               </Button>
             ) : null
           }
-        >
-          <CardReadout
-            card={{
-              ...(items.find((i) => i.id === sheet.view.id) || sheet.view),
-              clips: (sheet.view.recs || []).map((r) => r.id),
-              decks: sheet.view.tags || [],
-            }}
-            lang={activeLang()}
-            decks={(sheet.view.tags || []).map((t) => ({ id: t, title: t }))}
-          />
-        </Screen>
+        />
       )}
       {OWN && sheet && sheet.edit && (
         <OWN.ItemSheet
@@ -6083,13 +6096,22 @@ function itemProgress(it) {
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
-function ItemProgressCard({ item, progress }) {
+/* A tile here shows how far along a card is, which is exactly the moment
+   you want to look at the card itself — so it opens, like every other
+   small card in the app. A real button rather than a div with a click on
+   it: it has nothing interactive inside it, so it can be the one thing
+   you press, and reach with a keyboard. */
+function ItemProgressCard({ item, progress, onOpen }) {
   const p = progress === undefined ? itemProgress(item) : progress;
   const done = p !== null && p >= 1;
   const pctLabel = p === null ? "—" : `${Math.round(p * 100)}%`;
 
   return (
-    <div className={`at-pcard${done ? " done" : ""}${p === null ? " idle" : ""}`}>
+    <button
+      type="button"
+      className={`at-pcard${done ? " done" : ""}${p === null ? " idle" : ""}`}
+      onClick={onOpen}
+    >
       <div className="at-pcardtop">
         {item.ar && (
           <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
@@ -6105,7 +6127,7 @@ function ItemProgressCard({ item, progress }) {
         <span>{p === null ? "Can't practice yet" : done ? "Learnt" : pctLabel}</span>
         {(item.subs || []).length > 0 && <span>⌥ {(item.subs || []).length + 1}</span>}
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -6119,6 +6141,7 @@ const TagSection = React.memo(function TagSection({
   onToggle,
   onPractice,
   progressOf,
+  onOpen,
 }) {
   const [arming, setArming] = useState(false);
   const scored = group.map((it) => progressOf.get(it.id)).filter((x) => x != null);
@@ -6179,7 +6202,12 @@ const TagSection = React.memo(function TagSection({
       {open && (
         <div className="at-pgrid">
           {group.map((it) => (
-            <ItemProgressCard item={it} key={it.id} progress={progressOf.get(it.id)} />
+            <ItemProgressCard
+              item={it}
+              key={it.id}
+              progress={progressOf.get(it.id)}
+              onOpen={() => onOpen(it)}
+            />
           ))}
         </div>
       )}
@@ -6190,6 +6218,7 @@ const TagSection = React.memo(function TagSection({
 function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
   // Collapsed by default: the point of this screen is the overview.
   const [open, setOpen] = useState(() => new Set());
+  const [viewing, setViewing] = useState(null);
 
   const progressOf = useMemo(() => {
     const m = new Map();
@@ -6261,8 +6290,13 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
             onToggle={() => toggle(name)}
             onPractice={onPractice}
             progressOf={progressOf}
+            onOpen={setViewing}
           />
         ))
+      )}
+
+      {viewing && (
+        <CardScreen card={viewing} items={items} onBack={() => setViewing(null)} />
       )}
     </>
   );
