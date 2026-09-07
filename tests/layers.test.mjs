@@ -222,15 +222,44 @@ test("the flag menu opens upward once the flag is at the foot", () => {
   assert.match(body, /bottom:\s*100%/, "the menu would open off the bottom of the screen");
 });
 
-test("the verdict is a label on the answer, never louder than it", () => {
-  /* An answer is set anywhere from 24px (a romanisation) to 54px (a word
-     in the script), so a fixed verdict has to clear the smallest of them
-     — at 34px it was bigger than four of the five. */
+test("the verdict is one size, and a large one", () => {
+  /* It is the same sentence every time, so it lands in the same place at
+     the same weight whatever the exercise put on the screen. Sized from
+     one variable, and nothing about the exercise may touch it — only the
+     phone keyboard, which is not the exercise. */
   assert.match(rule(".at-shout"), /font-size:\s*var\(--verdict\)/,
     "the verdict is not sized from one place");
   const sizes = [...css.matchAll(/--verdict:\s*(\d+)px/g)].map((m) => Number(m[1]));
   assert.ok(sizes.length >= 1, "--verdict is never set");
-  assert.ok(sizes.every((n) => n <= 20), `--verdict is ${sizes.join(", ")}px; the smallest answer is 24px`);
+  assert.ok(sizes.every((n) => n >= 20), `--verdict is ${sizes.join(", ")}px, which is not large`);
+  /* The declarations, with whatever selector each sits on. Anything but
+     the base and the keyboard means the size has started varying again. */
+  const owners = [...css.matchAll(/([^\n{}]+)\{[^{}]*--verdict:/g)].map((m) => m[1].trim());
+  assert.deepEqual(owners, [".at", ".at.kb-open"],
+    `--verdict is set by ${owners.join(", ")}`);
+});
+
+test("what is not the answer opens on a tap, not by default", () => {
+  /* The answer is what you came back for; five blocks of context under it
+     is a page to scroll past. The invitation is small and centred, and
+     carries the chevron that says which way the box will go. */
+  const more = rule(".at-alsomore");
+  assert.ok(more, "there is no rule for the invitation");
+  assert.match(more, /background:\s*none/);
+  assert.match(more, /border:\s*0/);
+});
+
+test("the foot is not cut in two by a rule between its parts", () => {
+  /* The bar drew a hairline under the line above it, which read as a
+     header for the buttons rather than a thing beside them. The foot has
+     one edge, at the top. */
+  assert.match(rule(".at-footextra + .at-answerbar.at-row"), /border-top:\s*0/,
+    "the bar still draws a line under the text above it");
+  /* And the text is centred between the drawn edge and the buttons: the
+     button brings 6px of its own on each side, and the top loses one to
+     the hairline, so 3px over 4px is what comes out even. */
+  assert.match(rule(".at-footextra"), /padding:\s*3px 10px 4px\s*;/,
+    "the line above the bar is not centred between the edge and the buttons");
 });
 
 test("the page reserves room for the bar, and only while there is one", () => {

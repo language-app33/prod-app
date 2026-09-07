@@ -1178,13 +1178,54 @@ const LEGACY_SYNC_KEYS = new Set();
  * drops the false branches for us, so the members can stay written as
  * plain conditionals at the call site.
  */
-function AlsoBox({ children }) {
+/* --- the verdict ---------------------------------------------------
+   One line, and the same line every time for a miss: it names what
+   happened and then hands over to the answer below it, so the two read
+   as one sentence. Praise rotates so a long session does not say the
+   same word twenty times — in order rather than at random, because
+   random repeats, and being told "Correct!" three times running is what
+   it was rotating to avoid.
+
+   Counted off the session's own tally of right answers, which does not
+   change until the question is left, so the phrase holds still while you
+   read it — picking one per render would reshuffle it on every keystroke
+   and every state change behind it. */
+export const PRAISE = ["Correct!", "Good job!", "Nicely done!", "Great!"];
+export const WRONG_VERDICT = "Incorrect. The correct answer is:";
+export function praiseFor(n) {
+  return PRAISE[((n % PRAISE.length) + PRAISE.length) % PRAISE.length];
+}
+
+/* --- AlsoBox --------------------------------------------------------
+   What is worth knowing beyond the answer, behind one tap. It opens
+   closed: the answer is what you came back for, and five blocks of
+   context under it is a page to scroll past rather than a thing to
+   read. Anyone who wants them is one tap away, and the tap is the
+   signal that they are actually being read.
+
+   Renders nothing — not even the invitation — when there is nothing to
+   put in it, so "Learn more" is never a promise the box cannot keep. */
+function AlsoBox({ children, open, onToggle }) {
   const shown = React.Children.toArray(children).filter(Boolean);
   if (!shown.length) return null;
   return (
-    <div className="at-alsobox" data-el="also">
-      {shown}
-    </div>
+    <>
+      <button
+        type="button"
+        className="at-alsomore"
+        data-el="also-toggle"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        Learn more
+        <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+      </button>
+      {open && (
+        <div className="at-alsobox" data-el="also">
+          {shown}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2602,7 +2643,8 @@ function AfterAnswer({ ok, overridden, hasAudio, onOverride, onFlag, flagged, on
               data-el="flag-button"
               onClick={() => setOpen((v) => !v)}
             >
-              ⚑ {flagged ? "Flagged" : "Flag a problem"}
+              <Icon name="flag" size={16} />
+              {flagged ? "Flagged" : "Flag a problem"}
             </button>
 
             {open && (
@@ -2755,6 +2797,9 @@ export default function ArabicTrainer() {
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
+  /* Closed for every new question. Opening it for one card is not a
+     standing request to see it for the next twenty. */
+  const [alsoOpen, setAlsoOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [tally, setTally] = useState({ ok: 0, no: 0 });
 
@@ -3238,6 +3283,7 @@ export default function ArabicTrainer() {
     setSkipped(false);
     setOverridden(false);
     setFlaggedNow(false);
+    setAlsoOpen(false);
     setHintOpen(settings.showHint);
   }
 
@@ -4067,11 +4113,7 @@ Cards ready to practice
                         className={`at-shout ${checked.ok || overridden ? "ok" : "no"}`}
                         data-el="verdict"
                       >
-                        {skipped
-                          ? "Here it is"
-                          : checked.ok || overridden
-                          ? "That's right"
-                          : "Not quite — here it is"}
+                        {checked.ok || overridden ? praiseFor(tally.ok) : WRONG_VERDICT}
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, langOf(settings))}</Help>
@@ -4094,7 +4136,7 @@ Cards ready to practice
                           noticing, so each says what it is, they are set
                           smaller, and they are kept together in one box
                           rather than trailing down the page. */}
-                      <AlsoBox>
+                      <AlsoBox open={alsoOpen} onToggle={() => setAlsoOpen((v) => !v)}>
                         {/* What the phrase it appeared in means. Held back
                             until now: before the answer it would have given
                             the game away, and after it is the reason the
@@ -4189,6 +4231,7 @@ Cards ready to practice
                               data-el="quiet-button"
                               onClick={goQuiet}
                             >
+                              <Icon name="soundOff" size={16} />
                               Can't listen right now
                             </button>
                           ) : null

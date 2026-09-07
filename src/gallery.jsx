@@ -94,6 +94,7 @@ const PLACES = {
   SpaceSwitch: [LEARN, "Switching between Learning, Teaching and Admin"],
   Guide: [LEARN, "How it works"],
   AfterAnswer: [LEARN, "A practice session · after answering"],
+  AlsoBox: [LEARN, "A practice session · what else is worth knowing"],
   AudioPrompt: [LEARN, "A practice session · playing a recording"],
   ManualSessionSheet: [LEARN, "Building a session by hand"],
   ItemsTab: [LEARN, "The Cards tab"],

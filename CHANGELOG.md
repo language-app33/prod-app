@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.17 — 7 September 2026
+
+- The foot of an exercise screen no longer has a line across its middle:
+  "Can't listen right now" and "Flag a problem" sit on the same ground as
+  the buttons below them, with one edge at the top of the whole foot. Both
+  now carry an icon — a crossed-out speaker and a flag — and both sit
+  centred between that edge and the buttons.
+- New wording after an answer. A miss says "Incorrect. The correct answer
+  is:" and hands over to the answer below it. A hit rotates through
+  "Correct!", "Good job!", "Nicely done!" and "Great!" in order, so a long
+  session does not say the same word twenty times.
+- The verdict is large again — 28px — and the same size in every exercise.
+- What else is worth knowing about a card now opens on a tap. Under the
+  answer there is a small "Learn more" with a chevron; the box was open by
+  default and put five blocks of context between you and the Continue
+  button. It opens closed on every new question.
+
 ## 0.16 — 7 September 2026
 
 - "Can't listen right now" is now plain text with no outline or fill, like

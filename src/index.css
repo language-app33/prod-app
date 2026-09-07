@@ -208,7 +208,16 @@ button {
    Immediately after .at-answeralso, and not by accident: the two rules
    below have the same specificity as the block's own margin and border, so
    source order is what settles it. */
-.at-alsobox { margin-top:18px; padding:14px; background: var(--well);
+/* The invitation to open it. Small and quiet, centred under the answer:
+   it is an offer, not the next thing to do — the next thing to do is
+   Continue, at the foot of the screen. It carries the chevron so the tap
+   target says which way the box will go. */
+.at-alsomore { display:flex; align-items:center; justify-content:center; gap:4px;
+  margin: 14px auto 0; background:none; border:0; cursor:pointer;
+  font-family: var(--ui); font-size:13px; font-weight:700; color: var(--muted);
+  padding:6px 10px; }
+.at-alsomore:hover { color: var(--text); }
+.at-alsobox { margin-top:10px; padding:14px; background: var(--well);
   border:2px solid var(--line); border-radius: var(--r); }
 /* The dividers belong to the box, not to its members: the related words
    are not an .at-answeralso and had their own margin and hairline four
@@ -223,7 +232,8 @@ button {
    saying you cannot hear this one. Neither is a thing to do with the
    question, so neither takes an outline or a fill — they are text you can
    press, sitting above the row that carries the question forward. */
-.at-flagbtn, .at-quietbtn { background:none; border:0; cursor:pointer; font-family: var(--ui);
+.at-flagbtn, .at-quietbtn { display:inline-flex; align-items:center; gap:6px;
+  background:none; border:0; cursor:pointer; font-family: var(--ui);
   font-size:13px; font-weight:700; color: var(--faint); padding:6px 10px; }
 .at-flagbtn:hover, .at-quietbtn:hover { color: var(--muted); }
 .at-flagbtn.on { color: var(--brass); }
@@ -235,13 +245,13 @@ button {
 .at-flagopt span { display:block; font-size:11px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color: var(--jade); margin-top:3px; }
 .at-flag.flagged { color: var(--rose); border-color: var(--rose-soft); }
-/* The verdict is a label on the answer, not the answer. At 34px it was
-   bigger than the answer it introduced in four of the five shapes an
-   answer takes — "Not quite — here it is" set larger than the thing it
-   was handing you. It is now sized below the smallest an answer gets
-   (a romanisation, at 24px; 16px with the keyboard up), so it is
-   subordinate whatever the exercise turned out to be. */
-.at { --verdict: 20px; }
+/* One size, whatever the exercise put on the screen — it is the same
+   sentence every time and it should land in the same place at the same
+   weight. 28px is the largest that keeps "Incorrect. The correct answer
+   is:" to two lines at 320px, which is narrower than any phone it will
+   meet; 30px and above take three there. Only the phone keyboard changes
+   it, and the keyboard is not the exercise. */
+.at { --verdict: 28px; }
 .at-shout { font-family: var(--ui); font-size: var(--verdict); font-weight:800; letter-spacing:-.02em;
   margin:6px 0 0; }
 .at-shout.ok { color: var(--jade); }
@@ -974,11 +984,20 @@ button {
   padding: 8px 10px;
   background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-top:1px solid var(--line); }
-/* Plain text on the page's own ground, with the bar's hairline below it
-   marking where the foot proper starts — above the bar, not in it. */
-.at-footextra { text-align:center; padding: 0 10px 4px;
+/* Plain text above the buttons, one foot with one edge. The bar drew its
+   own hairline under this line, which cut the foot in two and made the
+   text look like a header for the buttons rather than a thing beside
+   them; the rule below takes it away when this is here.
+
+   Padding all but matched top and bottom — the button brings 6px of its
+   own on each side — so the text sits centred between the foot's edge and
+   the buttons rather than hard against the edge. 3px on top rather than 4
+   because the hairline above it is the fourth pixel: what has to be equal
+   is the gap you see from the drawn edge, not the padding box. */
+.at-footextra { text-align:center; padding: 3px 10px 4px;
   background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-top:1px solid var(--line); }
+.at-footextra + .at-answerbar.at-row { border-top: 0; }
 .at-footextra .at-flagwrap { margin-top:0; }
 /* Opens upward. Below the button is the bar and then the edge of the
    screen, so a menu dropping down would open into nothing. */
@@ -1002,9 +1021,11 @@ button {
    answer, Continue after it — so the room is reserved either way. */
 .at.in-exercise:has(.at-answerbar) { --foot-extra: 0px;
   padding-bottom: calc(var(--kb-overlap, 0px) + 96px + var(--foot-extra) + env(safe-area-inset-bottom)); }
-/* A line of text above the bar is more foot to clear. Later in the file and
-   the same specificity, so it is source order that lets it win. */
-.at.in-exercise:has(.at-footextra) { --foot-extra: 32px; }
+/* A line of text above the bar is more foot to clear: 13px of type and a
+   16px icon, 6px of button padding each side, the strip's own 3 and 4, and
+   the hairline. Later in the file and the same specificity, so it is source
+   order that lets it win. */
+.at.in-exercise:has(.at-footextra) { --foot-extra: 36px; }
 
 /* A row of buttons, which never breaks a label across two lines.
    A wrapped label makes a row of buttons different heights and reads as
@@ -1262,7 +1283,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at-input.ar { font-size: 32px; }
 .at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
 .at.kb-open .at-progress { height: 10px; }
-.at.kb-open { --verdict: 14px; }
+.at.kb-open { --verdict: 20px; }
 .at.kb-open .at-row { margin-top: 10px; }
 .at.kb-open .at-hint { margin-top: 4px; }
 @media (max-width:480px){

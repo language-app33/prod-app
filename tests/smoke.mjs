@@ -417,6 +417,19 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const dupes2 = answered.filter((n, i) => n !== "related-word" && answered.indexOf(n) !== i);
     check("and each of those means one thing too", dupes2.length === 0, dupes2.join(", "));
 
+    /* The extras open closed, behind one tap. The answer is what you came
+       back for; five blocks of context under it is a page to scroll past
+       rather than a thing to read. */
+    check("what is not the answer starts put away",
+      !document.querySelector('[data-el="also"]'), "the box is open before it is asked for");
+    const moreBtn = document.querySelector('[data-el="also-toggle"]');
+    check("and there is an invitation to open it",
+      !!moreBtn && /Learn more/.test(moreBtn.textContent), moreBtn ? moreBtn.textContent : "no toggle");
+    check("which says whether it is open", moreBtn && moreBtn.getAttribute("aria-expanded") === "false",
+      moreBtn ? String(moreBtn.getAttribute("aria-expanded")) : "");
+    click(moreBtn);
+    await sleep(120);
+
     /* Everything that is not the answer, in one box. The members are each
        conditional, so what matters is that whichever turned up are inside
        it and in the order they are meant to read in. */
@@ -764,7 +777,8 @@ if (input) {
   check("found something to answer with", false, document.body.textContent.slice(0, 200));
 }
 await sleep(200);
-check("the answer was marked", /That's right|Not quite|Here it is/.test(document.body.textContent));
+check("the answer was marked", /Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(document.body.textContent),
+  (document.querySelector('[data-el="verdict"]') || {}).textContent || document.body.textContent.slice(0, 80));
 click(buttonNamed(/Continue|Next/));
 await sleep(900); // the 600 ms save debounce
 const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
@@ -930,8 +944,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
    The queue rewrite, driven directly: it is a pure function over a queue, an
    index, the cards and the settings, which is the whole reason it is one. */
 {
-  const { withoutListening, soundLevelOf, noCardsYet, SOUNDS, SOUND_LEVELS, setSounds } =
+  const { withoutListening, soundLevelOf, noCardsYet, SOUNDS, SOUND_LEVELS, setSounds,
+          PRAISE, WRONG_VERDICT, praiseFor } =
     await import(path.join(out, "ArabicTrainer.js"));
+
+  /* The verdict. A miss says the same thing every time and hands over to
+     the answer below it; praise rotates so a long session does not repeat
+     itself, and rotates in order — random would repeat, which is the one
+     thing rotating is for. */
+  check("a miss names what happened and points at the answer",
+    /^Incorrect\./.test(WRONG_VERDICT) && /:$/.test(WRONG_VERDICT), WRONG_VERDICT);
+  check("praise is the four phrases, in order",
+    [0, 1, 2, 3].every((i) => praiseFor(i) === PRAISE[i]),
+    [0, 1, 2, 3].map(praiseFor).join(" "));
+  check("and it comes round again rather than running out",
+    praiseFor(4) === PRAISE[0] && praiseFor(9) === PRAISE[1], `${praiseFor(4)} / ${praiseFor(9)}`);
+  check("no two in a row are the same",
+    [0, 1, 2, 3, 4, 5].every((i) => praiseFor(i) !== praiseFor(i + 1)),
+    [0, 1, 2, 3, 4, 5, 6].map(praiseFor).join(" "));
 
   /*
    * The feedback sounds, added up rather than listened to.
