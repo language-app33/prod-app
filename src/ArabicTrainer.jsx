@@ -2394,7 +2394,7 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }) {
   return (
     <div className="at-kb">
       {rows.map((row, i) => (
-        <div className="at-kbrow" key={i}>
+        <div className="at-kbrow fit" key={i}>
           {row.map((ch) => (
             <button key={ch} type="button" className="at-key" onClick={() => onKey(ch)}>
               {ch}
@@ -2425,7 +2425,7 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }) {
         </button>
       </div>
       {marks && (
-        <div className="at-kbrow">
+        <div className="at-kbrow fit">
           {marksList.map((m, i) => (
             <button key={i} type="button" className="at-key mark" onClick={() => onKey(m)}>
               {"\u25CC" + m}

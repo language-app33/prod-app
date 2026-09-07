@@ -13,6 +13,7 @@
 
 import React, { useState } from "react";
 import { COMPONENT_USES } from "./component-uses.js";
+import { SCREEN_ELEMENTS, NAMING } from "./screen-elements.js";
 import {
   Button,
   CardReadout,
@@ -274,6 +275,44 @@ function V({ label, children, wide }) {
         {label}
       </div>
       <div className="at-galvbody">{children}</div>
+    </div>
+  );
+}
+
+
+export function ScreenElements() {
+  return (
+    <div className="at-els">
+      <Lede>
+        Every named piece of a question and an answer. Ask for a change by
+        name — “make question-prompt-text bigger” — rather than by
+        description.
+      </Lede>
+      <div className="at-elnaming">
+        {NAMING.map(([k, what]) => (
+          <p key={k}>
+            <code>{k}</code> {what}
+          </p>
+        ))}
+        <p className="at-hint">
+          A block holding something other than words names what it holds
+          instead: answer-box holds answer-input, never an answer-box-text.
+          Names describe the role, not the wording, so rewriting a sentence
+          leaves its name alone.
+        </p>
+      </div>
+      {SCREEN_ELEMENTS.map(([screen, rows]) => (
+        <section className="at-elgroup" key={screen}>
+          <p className="at-elscreen">{screen}</p>
+          {rows.map(([name, what, example]) => (
+            <div className="at-elrow" key={name}>
+              <code className="at-elname">{name}</code>
+              <p className="at-elwhat">{what}</p>
+              {example ? <p className="at-elexample">{example}</p> : null}
+            </div>
+          ))}
+        </section>
+      ))}
     </div>
   );
 }

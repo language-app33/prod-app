@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.21 — 7 September 2026
+
+- In a practice session, the question and the verdict are now grey rather
+  than full-strength text — the same grey the app already uses for
+  secondary writing. The verdict's green and red are gone with it: the
+  words say which it was, and a wrong answer no longer meets a wall of red
+  at the moment it is least wanted.
+- The question sits closer under its instruction, and the answer sits
+  further below the box you typed in.
+- The on-screen keyboards keep their layout at any width. A row of letters
+  never folds in half now — the keys share the row and the type steps down
+  to fit, so the top row of an Arabic or Hebrew keyboard is where anyone
+  who has used one would look for it. The row of word-labelled keys —
+  space, clear, hide — still wraps, because "space" cannot shrink to the
+  width of a letter.
+- Admin → App has a new section, "A question and an answer": every named
+  piece of the two practice screens, with what it is and an example of
+  what it holds. Naming the piece is the quickest way to ask for a change
+  to either screen. A test keeps the list and the screens in step, in both
+  directions.
+
 ## 0.20 — 7 September 2026
 
 - "Israeli Hebrew" is now called "Modern Hebrew" wherever the language is

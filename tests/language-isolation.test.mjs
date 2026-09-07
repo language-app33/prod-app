@@ -24,7 +24,7 @@ const src = (name) => path.join(here, "..", "src", name);
 
 /* Everything that renders or drives the app. languages.js is the one file
    allowed to know about languages, so it is not in this list. */
-const APP_FILES = ["ArabicTrainer.jsx", "spaces.jsx", "shared.jsx", "gallery.jsx", "sync.js", "storage.js", "courses-api.js"];
+const APP_FILES = ["ArabicTrainer.jsx", "spaces.jsx", "shared.jsx", "gallery.jsx", "screen-elements.js", "sync.js", "storage.js", "courses-api.js"];
 
 /* A name belongs to one language if it is prefixed with that language, in
    either of the two spellings the file uses: ar/Ar for Arabic, vi/Viet for
@@ -91,6 +91,8 @@ const ALLOWED_SCRIPT = {
   "spaces.jsx": ["مُفْرَدات"],
   /* Specimens, which are the point of a gallery. */
   "gallery.jsx": ["كِتَاب", "كُتُب"],
+  /* Examples of what each element holds, which are the point of the list. */
+  "screen-elements.js": ["كِتاب", "الكتاب كبير", "كُتُب"],
 };
 
 for (const file of APP_FILES) {

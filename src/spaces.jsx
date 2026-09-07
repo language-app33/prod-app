@@ -6,6 +6,9 @@ import * as API from "./courses-api.js";
 const ComponentGallery = React.lazy(() =>
   import("./gallery.jsx").then((m) => ({ default: m.ComponentGallery })),
 );
+const ScreenElements = React.lazy(() =>
+  import("./gallery.jsx").then((m) => ({ default: m.ScreenElements })),
+);
 import {
   GRAMMAR,
   contextCoverage,
@@ -887,6 +890,7 @@ export function AdminSpace({ account, languages, onClose }) {
   /* Off until asked for: the gallery renders a specimen of every component,
      which is a lot of markup to carry on a tab that is mostly about backups. */
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [elementsOpen, setElementsOpen] = useState(false);
   const [selDecks, setSelDecks] = useState(() => new Set());
   const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
   /* One slot for whatever is waiting to be confirmed, so only one of these
@@ -1740,6 +1744,26 @@ export function AdminSpace({ account, languages, onClose }) {
               {galleryOpen && (
                 <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
                   <ComponentGallery />
+                </React.Suspense>
+              )}
+
+              <p className="at-eyebrow at-mt6">A question and an answer</p>
+              <Help>
+                Every named piece of the two practice screens, with an example of
+                what it holds. Worth opening before asking for a change to either:
+                naming the piece — “make question-prompt-text bigger” — says in
+                three words what a description takes a paragraph to miss.
+              </Help>
+              <Button
+                className="at-mt3"
+                icon={elementsOpen ? "close" : "view"}
+                onClick={() => setElementsOpen((v) => !v)}
+              >
+                {elementsOpen ? "Hide the elements" : "Show the elements"}
+              </Button>
+              {elementsOpen && (
+                <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
+                  <ScreenElements />
                 </React.Suspense>
               )}
             </>
