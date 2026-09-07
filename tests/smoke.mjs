@@ -671,6 +671,28 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(40);
 }
 
+/* ---- the card tiles, in the student's list ----
+   They carried the language, the decks the card was in, how many forms it
+   had and how many recordings — four facts in a tile you scan past. Now:
+   the word, what it means, and when it was added, in the same tile the
+   progress screen uses, three to a row. */
+{
+  click(buttonNamed(/^Cards$/));
+  await sleep(400);
+  const tile = document.querySelector(".at-cardgrid .at-minicard");
+  check("the student's cards are tiles from the library, not a copy of one",
+    !!tile, tile ? tile.className : `no tile — ${document.body.textContent.slice(0, 80).replace(/\s+/g, " ")}`);
+  const shown = tile ? tile.textContent : "";
+  check("a tile says the word, its meaning and when it was added",
+    shown.includes(card.ar) && shown.includes(card.en) && /\d/.test(shown),
+    shown.replace(/\s+/g, " ").trim() || "(no tile)");
+  check("and nothing about decks, forms, recordings or the language",
+    !!tile && !tile.querySelector(".at-minidecks, .at-flag") && !/form|♪|Arabic/i.test(shown),
+    shown.replace(/\s+/g, " ").trim() || "(no tile)");
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+}
+
 /* ---- a session: start, answer one card, continue ---- */
 click(buttonNamed(/^Start session$/));
 await sleep(400);

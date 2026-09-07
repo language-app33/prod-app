@@ -26,6 +26,7 @@ import {
   languageName,
   plural,
   pullCourses,
+  shortDate,
   useClipPlayer,
   useLiveRefresh,
   useScrollTop,
@@ -4617,38 +4618,18 @@ function ItemsTab({
             selected={selected}
             onSelectedChange={setSelected}
             bulkActions={bulkActions}
-            renderItem={(it) => {
-              const c = familyCounts(it);
-              return (
-                /* A square tile, like the teaching space's cards. Tap to see
-                   the whole card; there is nothing to edit here. */
-                <div
-                  className="at-minicard"
-                  onClick={() => setSheet({ view: it })}
-                >
-                  <div className="ar" lang={activeLang().id} dir={activeLang().direction}>
-                    {it.ar}
-                  </div>
-                  <div className="at-minien">{it.en}</div>
-                  {it.lat ? <div className="at-minilat">{it.lat}</div> : null}
-                  <div className="at-minidecks">
-                    {it.tags.length ? (
-                      it.tags.map((t) => (
-                        <span className="at-flag audio" key={t}>
-                          {t}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="at-flag">In no deck</span>
-                    )}
-                  </div>
-                  <div className="at-minimeta">
-                    {c.forms > 1 ? `${c.forms} forms` : "1 form"}
-                    {c.clips ? ` · ♪${c.clips}` : ""}
-                  </div>
-                </div>
-              );
-            }}
+            /* The library's tile, not a copy of it. This screen had its own
+               hand-written version, which is how the student's card and the
+               teacher's came to show different things. Tap to see the whole
+               card; there is nothing to edit here. */
+            renderItem={(it) => (
+              <CardTile
+                card={it}
+                lang={activeLang()}
+                meta={shortDate(it.created)}
+                onClick={() => setSheet({ view: it })}
+              />
+            )}
           />
 
           {/* Exporting lives in the admin space now: a student's cards belong

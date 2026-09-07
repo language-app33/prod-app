@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.13 — 7 September 2026
+
+- The Cards tab, in both Learning and Teaching, now shows the same small
+  tile the progress screen uses: the word, its meaning, and the date it was
+  added — nothing else. The deck names, the number of forms, the number of
+  recordings and the language are gone from the tile; they are all still on
+  the card itself when you open it. Three tiles fit on a row on an ordinary
+  phone, two on a very narrow one, where one and a half used to.
+
 ## 0.12 — 7 September 2026
 
 - In Admin → App → the components, "where it's used" now names screens

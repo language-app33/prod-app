@@ -552,37 +552,40 @@ export function LanguageTag({ languages, id }) {
    tiles built from the same classes, showing different things and
    counting forms two different ways. One tile, with what differs
    passed in. */
-export function CardTile({ card, lang, deckTitles, showLat, meta, actions, onClick }) {
+export function CardTile({ card, lang, showLat, meta, actions, onClick, className }) {
   const L = lang || {};
-  const titles = deckTitles || [];
-  const forms = 1 + ((card.subs || []).length || 0);
-  const clips = (card.clips || card.recs || []).length;
   return (
-    <div className="at-minicard" onClick={onClick}>
+    <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
       <div className="ar" lang={L.id} dir={L.direction} style={L.fontStack ? { fontFamily: L.fontStack } : undefined}>
         {card.ar}
       </div>
       <div className="at-minien">{card.en}</div>
       {showLat && card.lat ? <div className="at-minilat">{card.lat}</div> : null}
-      <div className="at-minidecks">
-        {titles.length ? (
-          titles.map((t) => (
-            <span className="at-flag audio" key={t}>
-              {t}
-            </span>
-          ))
-        ) : (
-          <span className="at-flag">In no deck</span>
-        )}
-      </div>
-      <div className="at-minimeta">
-        {meta ? `${meta} · ` : ""}
-        {plural(forms, "form")}
-        {clips ? ` · ♪${clips}` : ""}
-      </div>
+      {/* One line of small print, and the caller decides what it says.
+          It used to carry the language, the decks the card was in, how
+          many forms it had and how many recordings — four facts in a
+          tile you are scanning past, none of them what you came to the
+          list for. */}
+      {meta ? <div className="at-minimeta">{meta}</div> : null}
       {actions ? <div className="at-miniacts">{actions}</div> : null}
     </div>
   );
+}
+
+/* --- shortDate ----------------------------------------------------
+   A date small enough for the foot of a tile. The year is left off when
+   it is this one, because "6 Sep" is what you would say out loud and the
+   year only earns its space when it is not the obvious one. */
+export function shortDate(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "";
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    ...(sameYear ? null : { year: "numeric" }),
+  });
 }
 
 /* --- useClipPlayer ------------------------------------------------
@@ -1663,7 +1666,11 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     ...dimValues(card),
     subs: forms,
     source: { courseId, deckId, cardId: card.id, rev: card.rev || 1 },
-    created: Date.now(),
+    /* When the card was made, not when it reached this device — so "added"
+       means the same thing to the student as it does to the teacher who
+       added it. Falls back for a card made before the server kept the
+       date. */
+    created: card.created || Date.now(),
     updated: Date.now(),
     s: freshStates(),
   };

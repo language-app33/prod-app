@@ -47,6 +47,7 @@ import {
   languageName,
   localIdFor,
   plural,
+  shortDate,
   useLiveRefresh,
   useSnackbar,
 } from "./shared.jsx";
@@ -2823,12 +2824,6 @@ export function TeachSpace({ account, languages, onClose }) {
      be followed by three more requests, each reading every deck and course
      on the site; the background check still runs, so the lists cannot drift
      for long even if something here is missed. */
-  /* Deck names for a card, in the order the decks are listed. Both card
-     lists show these; they used to be worked out inside the tile, which is
-     why the student's tile and the teacher's showed different things. */
-  const deckTitlesFor = (card) =>
-    (card.decks || []).map((id) => (decks.find((d) => d.id === id) || {}).title).filter(Boolean);
-
   function absorbSaved(r) {
     const card = r && r.card;
     if (!card) return;
@@ -3062,8 +3057,7 @@ export function TeachSpace({ account, languages, onClose }) {
                 <CardTile
                   card={c}
                   lang={langOfCard(c)}
-                  deckTitles={deckTitlesFor(c)}
-                  meta={(langOfCard(c) || {}).name}
+                  meta={shortDate(cardAdded(c))}
                   onClick={() => setViewing(c)}
                   actions={
                     <>
@@ -3612,8 +3606,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   <CardTile
                     card={c}
                     lang={langOfCard(c)}
-                    deckTitles={deckTitlesFor(c)}
-                    meta={(langOfCard(c) || {}).name}
+                    meta={shortDate(cardAdded(c))}
                     onClick={() => setViewing(c)}
                     actions={
                       <>

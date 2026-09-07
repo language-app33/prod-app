@@ -259,10 +259,19 @@ button {
 .at-box.some { background: var(--brass); border-color: var(--brass); color: var(--onbrass); }
 .at-tagpickcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
   gap:6px; padding:10px; border-top:2px solid var(--line); }
-.at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg); padding:12px 12px 8px; color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:4px; height:100%; }
+/* A card in a list you are scanning, not a page you are reading: the word,
+   what it means, and when it was added. Tight at the top and between the
+   two lines, because the gap between a word and its meaning was doing the
+   work of separating them from each other rather than from the card. */
+.at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r); padding:8px 10px; color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:1px; height:100%; }
 .at-minicard.on { border-color: var(--jade); background: var(--tag-bg); }
-.at-minicard .ar { display:block; font-family: var(--sfont, var(--ar)); font-size:17px; font-weight:700;
-  direction: var(--sdir, rtl); unicode-bidi:isolate; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Two lines at most, then an ellipsis — not one. A tile a third of a
+   phone wide cuts nearly every phrase off after a word or two, and "افتح
+   الباب من…" is not something you can pick out of a list. Two lines grows
+   the tile only when there is something to grow for. */
+.at-minicard .ar { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
+  line-clamp:2; font-family: var(--sfont, var(--ar)); font-size:17px; font-weight:700;
+  direction: var(--sdir, rtl); unicode-bidi:isolate; overflow:hidden; word-break:break-word; }
 .at-minicard .en { display:block; font-size:12px; font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-lengthgroup { margin-bottom:14px; }
@@ -526,24 +535,35 @@ button {
 /* Someone's own name in a roster. */
 .at-me { color: var(--muted); font-weight:600; }
 /* Cards as a grid: two across on a phone, more when there is room. */
-.at-cardgrid { display:grid; gap:10px; margin-top:4px;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+/* Three to a row on a phone. 100px is the largest minimum that still
+   fits three plus their gaps at 360px wide, which is the narrowest phone
+   worth designing for; a 320px screen gets two, which is the "very small"
+   exception rather than the rule. */
+.at-cardgrid { display:grid; gap:8px; margin-top:4px;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   align-items:stretch; }
 .at-cardgrid > * { display:flex; }
 .at-cardgrid > * > .at-minicard { flex:1; }
 /* The word and its meaning get fixed room, so tiles in a row line up however
    long or short their contents are. */
-.at-minicard .ar { min-height:56px; display:flex; align-items:center; }
-.at-minien { min-height:34px; font-size:13px; font-weight:600; word-break:break-word; }
-.at-minimeta { min-height:30px; font-size:11px; color: var(--muted); line-height:1.4; word-break:break-word; }
-/* The meaning sits under the word it belongs to; the decks it lives in are the
-   next most useful fact, so they are not buried in grey. */
-.at-minilat { font-size:12px; color: var(--muted); }
-.at-minidecks { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+/* No reserved heights any more. They were holding room for a deck list and
+   a count of forms that are no longer shown, so every tile carried three
+   empty bands. The grid makes the tiles in a row match; nothing else has
+   to. */
+.at-minien { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
+  line-clamp:2; font-size:12px; font-weight:600; color: var(--muted);
+  overflow:hidden; word-break:break-word; }
+.at-minimeta { font-size:11px; color: var(--faint); line-height:1.4; margin-top:auto;
+  padding-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.at-minilat { font-size:11px; color: var(--muted); }
 .at-minidecks .at-flag { font-size:11px; }
 .at-minicard.picked { border-color: var(--accent); }
-.at-minicard .ar { font-size:22px; line-height:1.3; word-break:break-word; }
-.at-miniacts { display:flex; gap:6px; margin-top:auto; padding-top:8px; }
+.at-minicard .ar { font-size:18px; line-height:1.35; }
+/* Room for the descenders the clamp would otherwise shave off an Arabic
+   line — the box crops to the line height, which sits above the tail of a
+   ب or a ج. */
+.at-minicard .ar { padding-bottom:2px; }
+.at-miniacts { display:flex; gap:6px; margin-top:auto; padding-top:6px; }
 /* The tick that puts something into a bulk selection. */
 .at-ckbox.pick { position:absolute; top:8px; right:8px; width:22px; height:22px;
   border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
