@@ -414,6 +414,29 @@ export function Empty({ title, children, action }) {
   );
 }
 
+/* --- StickyFoot ---------------------------------------------------
+   The foot of an exercise screen: the row of buttons that carries the
+   question forward, and above it an optional line of plain text — the
+   way out of a listening question, or the way to report a bad one.
+
+   One fixed element holding both, rather than two fixed elements with
+   the lower one's height written into the upper one's offset. The bar's
+   height is 8px of padding plus whatever a button is today, and that
+   changes with the type scale and again when the phone keyboard is up;
+   anything that hard-codes it is one button-size edit away from a gap or
+   an overlap. Stacked in a column, the browser does the arithmetic.
+
+   The page reserves room underneath from .at-footextra's presence, so
+   the last line of an answer is never left under the foot. */
+export function StickyFoot({ above, children, className }) {
+  return (
+    <div className={`at-foot${className ? " " + className : ""}`}>
+      {above ? <div className="at-footextra">{above}</div> : null}
+      <div className="at-row at-answerbar">{children}</div>
+    </div>
+  );
+}
+
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
    toggled their own "primary" class, and tells assistive software what

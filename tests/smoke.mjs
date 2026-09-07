@@ -451,6 +451,21 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!cont && cont.parentElement.children.length === 1,
       cont ? String(cont.parentElement.children.length) : "");
 
+    /* Flagging is pinned with it, one step above. It used to trail below
+       the answer, so on a long one you had to scroll to reach the button
+       that says "this question is wrong" — the moment you least want to go
+       looking. Above the bar rather than in it: it is not the way on. */
+    const foot = cont && cont.closest(".at-foot");
+    const flag = document.querySelector('[data-el="flag-button"]');
+    check("the flag is pinned to the foot with continue",
+      !!foot && !!flag && foot.contains(flag), foot ? foot.className : "no foot");
+    check("and it sits above the bar, not inside it",
+      !!flag && !!flag.closest(".at-footextra") && !flag.closest(".at-answerbar"),
+      flag ? flag.parentElement.className : "no flag");
+    check("the bar is the last thing in the foot, so the flag is above it",
+      !!foot && foot.lastElementChild.classList.contains("at-answerbar"),
+      foot ? [...foot.children].map((c) => c.className).join(" | ") : "");
+
     /* The naming scheme, kept honest. A -label or a -text is the second or
        third name of a block, so the block itself has to exist and has to be
        the thing wrapping them — otherwise there is no name for "move the

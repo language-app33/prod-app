@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.16 — 7 September 2026
+
+- "Can't listen right now" is now plain text with no outline or fill, like
+  "Flag a problem", and sits pinned just above the buttons at the foot of
+  the question screen. It used to be a bordered button in the middle of
+  the page, which read as a fourth thing to do with the question rather
+  than a way past it.
+- "Flag a problem" moves to that same place on the answer screen: pinned
+  above the Continue bar instead of trailing below the answer, where a
+  long answer meant scrolling to reach it. Its menu now opens upward.
+- The verdict — "That's right", "Not quite — here it is" — is smaller, and
+  is now always smaller than the answer it introduces. At its old size it
+  was bigger than the answer in four of the five shapes an answer takes.
+
 ## 0.15 — 7 September 2026
 
 - In a practice session, the question is now asked at the same size and

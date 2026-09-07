@@ -178,13 +178,59 @@ test("a picker is one control rather than a row of buttons", () => {
 
 /* --- the answer bar --- */
 
-test("the answer bar is pinned to the window, not to whatever scrolls", () => {
+test("the foot is pinned to the window, not to whatever scrolls", () => {
   /* Sticky is relative to a scrolling ancestor; this has to hold against
-     the window whatever the page is doing. */
-  const body = rule(".at-answerbar.at-row");
+     the window whatever the page is doing. The foot is what is pinned —
+     the bar is a row inside it, with the quiet line or the flag above. */
+  const body = rule(".at-foot");
   assert.match(body, /position:\s*fixed/);
   assert.match(body, /bottom:\s*calc\(var\(--kb-overlap/,
-    "the bar must lift by however much the keyboard is covering");
+    "the foot must lift by however much the keyboard is covering");
+  /* And the bar must not pin itself as well, or the two would stack on
+     top of each other instead of one above the other. */
+  assert.doesNotMatch(rule(".at-answerbar.at-row"), /position:\s*fixed/,
+    "the bar pins itself, so nothing can sit above it");
+});
+
+test("what sits above the bar is stacked, not offset by a guessed height", () => {
+  /* The bar is 8px of padding plus whatever a button is today, and that
+     changes with the type scale and again with the keyboard up. Anything
+     that writes that number into an offset is one button-size edit from a
+     gap or an overlap, so the two are children of one column instead. */
+  const extra = rule(".at-footextra");
+  assert.ok(extra, "there is no rule for what sits above the bar");
+  assert.doesNotMatch(extra, /position:\s*(fixed|absolute)/,
+    "the line above the bar positions itself rather than being stacked");
+  assert.doesNotMatch(extra, /bottom:/, "the line above the bar offsets itself off the bar");
+});
+
+test("the quiet way out is text, like the flag beside it", () => {
+  /* Both are ways past a question rather than things to do with it, so
+     neither takes an outline or a fill. One rule covers both, which is
+     how they stay the same as each other. */
+  const body = rule(".at-flagbtn, .at-quietbtn");
+  assert.ok(body, "the two are no longer set together");
+  assert.match(body, /background:\s*none/);
+  assert.match(body, /border:\s*0/);
+  assert.equal(css.includes("\n.at-quietbtn {"), false,
+    "the quiet button has picked up a rule of its own again");
+});
+
+test("the flag menu opens upward once the flag is at the foot", () => {
+  /* Below it is the bar and then the edge of the screen. */
+  const body = rule(".at-footextra .at-flagmenu");
+  assert.match(body, /bottom:\s*100%/, "the menu would open off the bottom of the screen");
+});
+
+test("the verdict is a label on the answer, never louder than it", () => {
+  /* An answer is set anywhere from 24px (a romanisation) to 54px (a word
+     in the script), so a fixed verdict has to clear the smallest of them
+     — at 34px it was bigger than four of the five. */
+  assert.match(rule(".at-shout"), /font-size:\s*var\(--verdict\)/,
+    "the verdict is not sized from one place");
+  const sizes = [...css.matchAll(/--verdict:\s*(\d+)px/g)].map((m) => Number(m[1]));
+  assert.ok(sizes.length >= 1, "--verdict is never set");
+  assert.ok(sizes.every((n) => n <= 20), `--verdict is ${sizes.join(", ")}px; the smallest answer is 24px`);
 });
 
 test("the page reserves room for the bar, and only while there is one", () => {

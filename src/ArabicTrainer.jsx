@@ -22,6 +22,7 @@ import {
   Segmented,
   SnackbarProvider,
   Stat,
+  StickyFoot,
   Tabs,
   languageName,
   plural,
@@ -2586,41 +2587,49 @@ function AfterAnswer({ ok, overridden, hasAudio, onOverride, onFlag, flagged, on
           to the foot of the screen that carried the hint, the nudge and
           the check a moment ago. Reading an answer scrolls, and a Continue
           in the flow lands wherever the answer happens to end — sometimes
-          off the bottom of a long one. */}
-      <div className="at-row at-answerbar">
+          off the bottom of a long one.
+
+          Flagging sits with it, one step above the bar: it used to trail
+          below the answer, so on anything long you had to scroll to reach
+          the one button that says "this question is wrong" — which is the
+          moment you least want to go looking. Above the bar rather than
+          in it, because it is not the way on. */}
+      <StickyFoot
+        above={
+          <div className="at-flagwrap">
+            <button
+              className={`at-flagbtn${flagged ? " on" : ""}`}
+              data-el="flag-button"
+              onClick={() => setOpen((v) => !v)}
+            >
+              ⚑ {flagged ? "Flagged" : "Flag a problem"}
+            </button>
+
+            {open && (
+              <div className="at-flagmenu">
+                {kinds.map((k) => (
+                  <button
+                    key={k.key}
+                    className="at-flagopt"
+                    onClick={() => {
+                      if (k.fixes && !ok && !overridden) onOverride();
+                      onFlag(k.key);
+                      setOpen(false);
+                    }}
+                  >
+                    {k.label}
+                    {k.fixes && !ok && !overridden && <span>counts it correct</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        }
+      >
         <Button variant="primary" data-el="continue-button" onClick={onContinue}>
           Continue
         </Button>
-      </div>
-
-      <div className="at-flagwrap">
-        <button
-          className={`at-flagbtn${flagged ? " on" : ""}`}
-          data-el="flag-button"
-          onClick={() => setOpen((v) => !v)}
-        >
-          ⚑ {flagged ? "Flagged" : "Flag a problem"}
-        </button>
-
-        {open && (
-          <div className="at-flagmenu">
-            {kinds.map((k) => (
-              <button
-                key={k.key}
-                className="at-flagopt"
-                onClick={() => {
-                  if (k.fixes && !ok && !overridden) onOverride();
-                  onFlag(k.key);
-                  setOpen(false);
-                }}
-              >
-                {k.label}
-                {k.fixes && !ok && !overridden && <span>counts it correct</span>}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      </StickyFoot>
     </div>
   );
 }
@@ -3980,22 +3989,6 @@ Cards ready to practice
                     </div>
                   )}
 
-                  {/* A listening exercise carries no hint, so this slot is
-                      free exactly when this button is wanted. Somewhere with
-                      no sound, the alternative to it is failing every
-                      recording in turn or abandoning the session. */}
-                  {isListening(exercise.type) && !checked && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="at-quietbtn"
-                      data-el="quiet-button"
-                      onClick={goQuiet}
-                    >
-                      Can't listen right now
-                    </Button>
-                  )}
-
                   {/* Two className attributes stood here and React kept the
                       second, so the at-mt4 gap was silently dropped and the
                       answer box sat hard against the hint button above it. */}
@@ -4180,7 +4173,27 @@ Cards ready to practice
                     </>
                   ) : (
                     <>
-                      <div className="at-row at-answerbar">
+                      <StickyFoot
+                        className="quiet"
+                        /* The way out of a question you cannot hear sits
+                           where the way to report a bad one sits on the
+                           next screen: plain text, one step above the bar.
+                           It used to be a bordered button in the middle of
+                           the page, which read as a fourth thing to do
+                           with the question rather than a way past it. */
+                        above={
+                          isListening(exercise.type) && !checked ? (
+                            <button
+                              type="button"
+                              className="at-quietbtn"
+                              data-el="quiet-button"
+                              onClick={goQuiet}
+                            >
+                              Can't listen right now
+                            </button>
+                          ) : null
+                        }
+                      >
                         {/* The nudge sits with the other two ways out of a
                             question rather than floating above the answer
                             box, and carries only its icon: the label said
@@ -4211,7 +4224,7 @@ Cards ready to practice
                         >
                           Check
                         </Button>
-                      </div>
+                      </StickyFoot>
                     </>
                   )}
                 </div>
