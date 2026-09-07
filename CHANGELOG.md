@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.19 — 7 September 2026
+
+- Tapping "I don't know" no longer says "Incorrect. The correct answer
+  is:" — nothing was offered to be incorrect. It says "The answer is:",
+  in the ordinary text colour rather than the red of a miss.
+- The verdict always fits on one line. "Incorrect. The correct answer
+  is:" is 496px wide at full size and a phone's column is 288px, so the
+  verdict now takes its size from the screen — about 16px on the narrowest
+  phone, 20px at 390px, the full 28px from 540px up — and every verdict on
+  a given screen is that one size.
+- The box you type an answer into is one height whichever language you
+  are typing: 64px, a little over what the English box was, and well under
+  the 102px the script box was. Each script keeps its own type size.
+- Editing a card: the taught-language field and the English field each
+  have a + at the end to add another accepted answer, and a − to take one
+  away. Several answers are still stored the way they always were — with
+  a slash between them — so the checker and every existing card are
+  untouched; the slash is simply no longer something a teacher types.
+
 ## 0.18 — 7 September 2026
 
 - **Hebrew.** The app now teaches Israeli Hebrew alongside Palestinian

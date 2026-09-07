@@ -117,6 +117,7 @@ const PLACES = {
   DeckEditor: [TEACH, "Deck settings"],
   DeckPicker: [TEACH, "Choosing which decks"],
   CardEditor: [TEACH, "Editing a card"],
+  Alternatives: [TEACH, "Editing a card · several accepted answers"],
   WordsUsed: [TEACH, "Editing a card · the words a phrase teaches"],
   ScriptInput: [TEACH, "Editing a card · writing in the language"],
   Recordings: [TEACH, "Editing a card · its recordings"],

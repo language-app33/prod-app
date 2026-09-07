@@ -227,8 +227,12 @@ test("the verdict is one size, and a large one", () => {
      the same weight whatever the exercise put on the screen. Sized from
      one variable, and nothing about the exercise may touch it — only the
      phone keyboard, which is not the exercise. */
-  assert.match(rule(".at-shout"), /font-size:\s*var\(--verdict\)/,
-    "the verdict is not sized from one place");
+  /* Capped by --verdict, and sized from the screen below that so the
+     longest verdict — 496px wide at 28px — stays on one line on a 288px
+     column. nowrap is what turns that from a hope into a guarantee. */
+  assert.match(rule(".at-shout"), /font-size:\s*min\(var\(--verdict\),\s*calc\(/,
+    "the verdict is not capped by --verdict and fitted to the screen");
+  assert.match(rule(".at-shout"), /white-space:\s*nowrap/, "the verdict may still wrap");
   const sizes = [...css.matchAll(/--verdict:\s*(\d+)px/g)].map((m) => Number(m[1]));
   assert.ok(sizes.length >= 1, "--verdict is never set");
   assert.ok(sizes.every((n) => n >= 20), `--verdict is ${sizes.join(", ")}px, which is not large`);
@@ -237,6 +241,18 @@ test("the verdict is one size, and a large one", () => {
   const owners = [...css.matchAll(/([^\n{}]+)\{[^{}]*--verdict:/g)].map((m) => m[1].trim());
   assert.deepEqual(owners, [".at", ".at.kb-open"],
     `--verdict is set by ${owners.join(", ")}`);
+});
+
+test("the box you answer in is one height whatever you are typing", () => {
+  /* English was 55px tall and the script 102px, so the screen jumped
+     between exercises. One height set outright: a single-line field
+     centres its text, so the padding is what goes, not the type size. */
+  const box = rule(".at-answerbox .at-input");
+  assert.ok(box, "the answer box has no height of its own");
+  assert.match(box, /height:\s*\d+px/, "the answer box is not given one height");
+  assert.match(box, /box-sizing:\s*border-box/, "the height would not include the border");
+  assert.match(rule(".at.kb-open .at-answerbox .at-input"), /height:\s*\d+px/,
+    "with the keyboard up the answer box has no height of its own");
 });
 
 test("what is not the answer opens on a tap, not by default", () => {

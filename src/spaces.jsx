@@ -21,6 +21,8 @@ import {
   Button,
   CardReadout,
   CardTile,
+  splitAlternatives,
+  joinAlternatives,
   CheckList,
   ClipList,
   ConfirmModal,
@@ -1824,6 +1826,38 @@ export function ClaimAdmin({ onDone }) {
    another. Which of them the editor actually shows is the language's call. */
 const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], ...dimValues({}) });
 
+/* One answer, or several: a field per accepted answer, a + after the last
+   to add another and a − on every extra. What is stored is still one
+   string with " / " between the answers, so the checker and every card
+   already saved are untouched; the slash a teacher used to type by hand is
+   now a button. The list is local state seeded from the stored string —
+   deriving it on every render would drop an added field the moment it was
+   added, because an empty answer joins to nothing. */
+function Alternatives({ value, onChange, render, addLabel = "Add another accepted answer" }) {
+  const [list, setList] = useState(() => splitAlternatives(value));
+  const commit = (next) => {
+    setList(next);
+    onChange(joinAlternatives(next));
+  };
+  return (
+    <div className="at-alts">
+      {list.map((v, i) => (
+        <div className="at-altrow" key={i}>
+          <div className="at-altfield">
+            {render(v, (nv) => commit(list.map((x, j) => (j === i ? nv : x))))}
+          </div>
+          {list.length > 1 && (
+            <IconButton icon="remove" label="Remove this answer" onClick={() => commit(list.filter((_, j) => j !== i))} />
+          )}
+          {i === list.length - 1 && (
+            <IconButton icon="add" label={addLabel} onClick={() => commit(list.concat([""]))} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ScriptInput({ lang, value, onChange }) {
   const [keys, setKeys] = useState(false);
   const ref = useRef(null);
@@ -2402,14 +2436,20 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               )}
 
               <Field label={lang.scriptLabel}>
-                <ScriptInput lang={lang} value={f.ar} onChange={(v) => setForm(i, { ...f, ar: v })} />
+                <Alternatives
+                  value={f.ar}
+                  onChange={(v) => setForm(i, { ...f, ar: v })}
+                  render={(v, set) => <ScriptInput lang={lang} value={v} onChange={set} />}
+                />
               </Field>
 
               <Field label="English">
-                <input
-                  className="at-input"
+                <Alternatives
                   value={f.en}
-                  onChange={(e) => setForm(i, { ...f, en: e.target.value })}
+                  onChange={(v) => setForm(i, { ...f, en: v })}
+                  render={(v, set) => (
+                    <input className="at-input" value={v} onChange={(e) => set(e.target.value)} />
+                  )}
                 />
               </Field>
 

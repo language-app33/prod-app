@@ -777,7 +777,7 @@ if (input) {
   check("found something to answer with", false, document.body.textContent.slice(0, 200));
 }
 await sleep(200);
-check("the answer was marked", /Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(document.body.textContent),
+check("the answer was marked", /The answer is:|Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(document.body.textContent),
   (document.querySelector('[data-el="verdict"]') || {}).textContent || document.body.textContent.slice(0, 80));
 click(buttonNamed(/Continue|Next/));
 await sleep(900); // the 600 ms save debounce
@@ -962,6 +962,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("no two in a row are the same",
     [0, 1, 2, 3, 4, 5].every((i) => praiseFor(i) !== praiseFor(i + 1)),
     [0, 1, 2, 3, 4, 5, 6].map(praiseFor).join(" "));
+
+  /* Several accepted answers are one stored string with " / " between
+     them — the convention every existing card uses — edited as one field
+     per answer. The split has to take the ; a teacher may have typed by
+     hand too, and an added field left empty must leave nothing behind. */
+  const { splitAlternatives, joinAlternatives } = await import(path.join(out, "shared.js"));
+  check("a stored \"a / b\" opens as two answers",
+    JSON.stringify(splitAlternatives("book / notebook")) === JSON.stringify(["book", "notebook"]),
+    JSON.stringify(splitAlternatives("book / notebook")));
+  check("and a ; typed by hand is honoured too",
+    JSON.stringify(splitAlternatives("book; notebook")) === JSON.stringify(["book", "notebook"]),
+    JSON.stringify(splitAlternatives("book; notebook")));
+  check("an empty field opens as one empty answer, never none",
+    JSON.stringify(splitAlternatives("")) === JSON.stringify([""]), JSON.stringify(splitAlternatives("")));
+  check("two answers store as the slash convention the checker reads",
+    joinAlternatives(["book", " notebook "]) === "book / notebook", joinAlternatives(["book", " notebook "]));
+  check("an added answer left empty leaves nothing behind",
+    joinAlternatives(["book", ""]) === "book", JSON.stringify(joinAlternatives(["book", ""])));
 
   /*
    * The feedback sounds, added up rather than listened to.

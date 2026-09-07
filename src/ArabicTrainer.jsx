@@ -1193,6 +1193,9 @@ const LEGACY_SYNC_KEYS = new Set();
    and every state change behind it. */
 export const PRAISE = ["Correct!", "Good job!", "Nicely done!", "Great!"];
 export const WRONG_VERDICT = "Incorrect. The correct answer is:";
+/* Giving up is not getting it wrong: nothing was offered to be incorrect.
+   The answer is simply handed over. */
+export const SKIPPED_VERDICT = "The answer is:";
 export function praiseFor(n) {
   return PRAISE[((n % PRAISE.length) + PRAISE.length) % PRAISE.length];
 }
@@ -4139,10 +4142,16 @@ Cards ready to practice
                   {checked ? (
                     <>
                       <p
-                        className={`at-shout ${checked.ok || overridden ? "ok" : "no"}`}
+                        className={`at-shout ${
+                          checked.ok || overridden ? "ok" : skipped ? "skip" : "no"
+                        }`}
                         data-el="verdict"
                       >
-                        {checked.ok || overridden ? praiseFor(tally.ok) : WRONG_VERDICT}
+                        {checked.ok || overridden
+                          ? praiseFor(tally.ok)
+                          : skipped
+                          ? SKIPPED_VERDICT
+                          : WRONG_VERDICT}
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, langOf(settings))}</Help>

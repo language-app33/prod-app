@@ -444,6 +444,21 @@ export function StickyFoot({ above, children, className }) {
   );
 }
 
+/* --- accepted answers ---------------------------------------------
+   A field may accept several answers. They are stored as one string with
+   " / " between them — the form every existing card already uses, and
+   what the checker splits on — and edited as one field per answer. Split
+   on / or ; because both were accepted when the convention was typed by
+   hand; joined with / only. An empty answer is dropped on the way out, so
+   a field that was added and never filled leaves nothing behind. */
+export function splitAlternatives(value) {
+  const parts = String(value || "").split(/[/;]/).map((x) => x.trim());
+  return parts.length ? parts : [""];
+}
+export function joinAlternatives(list) {
+  return (list || []).map((x) => String(x || "").trim()).filter(Boolean).join(" / ");
+}
+
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
    toggled their own "primary" class, and tells assistive software what
