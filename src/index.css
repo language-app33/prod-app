@@ -1517,3 +1517,45 @@ body.at-screening .at-spaces { display:none; }
    line is noise pretending to be information. */
 .at-galtimes { font-family: var(--ui); font-size: 11px; font-weight:700; color: var(--muted);
   background: var(--well); border-radius:999px; padding:1px 7px; }
+
+/* --- the question prompt -------------------------------------------
+   The prompt is the thing being asked about, and it is set at one size
+   whatever the exercise puts in it: the script, its romanisation, its
+   meaning, or a phrase with a gap in it. The exercise type is not what
+   changed between one question and the next — the card is — so nothing
+   about how the question is presented should move when the type does.
+
+   It used to be left to each field's own styling, and the same card was
+   asked at 44px as a word to translate, 25px as a meaning to write out
+   and 19px in grey as a romanisation — the size and colour of a hint,
+   for the one thing on the screen that is the question.
+
+   The line-height does as much work here as the size. Half the leading
+   sits above the first glyph, so a prompt set at two sizes lands two
+   distances below the instruction however equal their boxes are: that
+   spread was 18px to 33px across the types. One size and one
+   line-height make it one distance, and the play button is pushed down
+   by that same half-leading so a listening question starts exactly
+   where a written one does.
+
+   Only the room available changes the size — a narrow screen, or the
+   phone keyboard being up. Neither of those is the exercise.
+
+   Four classes deep, and last in the file, both on purpose: it has to
+   outrank .at-arabic.word, the narrow-screen step further up and
+   .at.kb-open .at-arabic.word, which is four classes itself — so this
+   ties with it and wins on source order. Those rules still stand
+   everywhere else; inside the prompt this is the whole type scale. */
+.at { --ask: 40px; }
+@media (max-width: 480px) { .at { --ask: 36px; } }
+.at.kb-open { --ask: 26px; }
+.at .at-exercise .at-ask > .at-arabic,
+.at .at-exercise .at-ask > .at-en,
+.at .at-exercise .at-ask > .at-latin {
+  font-size: var(--ask);
+  line-height: 1.5;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.at .at-exercise .at-ask .at-playbig { margin-top: calc(var(--ask) * .25); }

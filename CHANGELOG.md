@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.15 — 7 September 2026
+
+- In a practice session, the question is now asked at the same size and
+  the same distance below the instruction whatever the exercise is. It
+  used to be sized by whichever field the exercise happened to put there:
+  the same card was asked at 44px as a word to translate, 25px as a
+  meaning to write out, and 19px in grey as a romanisation — the size and
+  colour of a hint, for the one thing on the screen that is the question.
+  The gap under the instruction moved with it, between 18px and 33px.
+- A listening question's Play button now starts exactly where a written
+  question's first letter does, so switching between the two no longer
+  shifts the screen.
+- The size still gets smaller on a narrow screen and smaller again with
+  the phone keyboard up. Those are about the room available, not about
+  the exercise.
+
 ## 0.14 — 7 September 2026
 
 - Card tiles on the Progress tab now open the card when you tap one — the

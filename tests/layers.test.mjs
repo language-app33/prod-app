@@ -281,3 +281,34 @@ test("a question is no longer drawn as a card", () => {
   assert.ok(body, "the exercise block has no rule");
   assert.doesNotMatch(body, /border:|box-shadow:|background:/);
 });
+
+test("the question is asked at one size, whatever the exercise", () => {
+  /* Every field that can fill the prompt — the script, the romanisation,
+     the meaning — sized from one variable rather than from its own
+     styling. Miss one and that exercise alone shows a different question
+     size, which is exactly the bug this replaced: the same card asked at
+     44px, 25px and 19px depending on the type. */
+  const prompt = rule(
+    ".at .at-exercise .at-ask > .at-arabic,\n.at .at-exercise .at-ask > .at-en,\n.at .at-exercise .at-ask > .at-latin"
+  );
+  assert.ok(prompt, "the prompt has no rule of its own");
+  assert.match(prompt, /font-size:\s*var\(--ask\)/, "the prompt is not sized from one variable");
+  /* The gap below the instruction is half the leading plus the block's own
+     margin. Both have to be fixed, or one size still lands at two
+     distances. */
+  assert.match(prompt, /line-height:\s*[\d.]+\s*;/, "the prompt has no line-height of its own");
+  assert.match(prompt, /margin:\s*0/, "the prompt keeps a margin that varies by field");
+
+  /* And the size is a property of the room, not of the exercise: a
+     narrower screen and the phone keyboard may change it, nothing else. */
+  const asks = [...css.matchAll(/--ask:\s*([^;]+);/g)].map((m) => m[1].trim());
+  assert.ok(asks.length >= 1, "--ask is never set");
+  assert.ok(asks.every((v) => /^\d+px$/.test(v)), `--ask is not a plain size: ${asks.join(", ")}`);
+});
+
+test("a listening question starts where a written one does", () => {
+  /* The play button has no leading above it, so left alone it sits higher
+     than a word does under the same instruction. It is pushed down by the
+     half-leading the text gets. */
+  assert.match(rule(".at .at-exercise .at-ask .at-playbig"), /margin-top:\s*calc\(var\(--ask\)/);
+});
