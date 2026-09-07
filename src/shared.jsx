@@ -770,7 +770,17 @@ export function FilterBar({ groups, note, label = "Sort and filter" }) {
           {live.map((g) => (
             <div className="at-filtergroup" key={g.key}>
               <span className="at-filterlabel">{g.label}</span>
-              <Segmented options={g.options} value={g.value} onChange={g.onChange} label={g.label} />
+              {/* Full width: a filter group is a narrow column, and some of
+                  these option sets are long — "Least first", "Recordings".
+                  Compact would take the width the labels want and hang off
+                  the side of the bar. */}
+              <Segmented
+                options={g.options}
+                value={g.value}
+                onChange={g.onChange}
+                label={g.label}
+                size={null}
+              />
             </div>
           ))}
           {note ? <span className="at-filternote">{note}</span> : null}

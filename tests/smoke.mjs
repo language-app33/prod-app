@@ -719,6 +719,17 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("specimens rendered, not just names", host.querySelectorAll(".at-galvbody").length >= 30,
     `${host.querySelectorAll(".at-galvbody").length} specimens`);
 
+  /* The picker's two widths, named the way they are asked for. "Full
+     size" said nothing about which dimension; the difference is width. */
+  const segRow = [...host.querySelectorAll(".at-galrow")]
+    .find((r) => (r.querySelector(".at-galname") || {}).textContent === "Segmented");
+  const variants = segRow
+    ? [...segRow.querySelectorAll(".at-galvlabel")].map((e) => e.textContent)
+    : [];
+  check("the picker's variants say compact from full-width",
+    variants.some((t) => /full-width/.test(t)) && !variants.some((t) => /full size/.test(t)),
+    variants.join(" | ") || "no Segmented row");
+
   /* Numbers to point at. Counted while rendering, so the way they break is
      by carrying on from where the last render left off — 1, 2, 3 on the
      first pass and 36, 37, 38 on the next — which is why the sequence

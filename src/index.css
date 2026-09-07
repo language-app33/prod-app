@@ -627,7 +627,6 @@ button {
 .at-cline.as-field { cursor:default; }
 .at-cline.as-field:hover .at-clinetext { color: var(--text-soft); font-weight:600; }
 .at-cseg { padding:2px 10px 8px 34px; }
-.at-cseg .at-segmented { width:100%; }
 .at-crule { height:2px; background: var(--line); margin:8px 4px; border-radius:2px; }
 /* The version, at the foot of the menu. Quieter than the rows above it —
    it is a fact to look up, not somewhere to go — until the server turns out
@@ -1270,10 +1269,13 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    So: a sunken track, the options butted together inside it sharing thin
    dividers, and the chosen one lifted out of the track in the accent
    colour. The track is what says the three belong to each other. */
+/* Full width: the options share whatever the track is given, and the type
+   steps down with it. For a picker that is the whole width of a field or
+   a menu. */
 .at-segmented { display:flex; flex-wrap:wrap; align-items:stretch; width:100%;
   /* Never narrower than one option needs. As a flex item — beside its own
-     label in the sort-and-filter bar — it would otherwise be squeezed to
-     nothing while its options spilled out over the top of each other. */
+     label — it would otherwise be squeezed to nothing while its options
+     spilled out over the top of each other. */
   min-width: min-content;
   background: var(--well-deep); border:2px solid var(--line); border-radius: var(--r-sm);
   padding:3px; gap:3px; container-type: inline-size; }
@@ -1285,7 +1287,10 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
   color: var(--text-soft); cursor:pointer; padding:9px 6px; min-height:38px;
   transition: background 120ms, color 120ms, border-color 120ms; }
 .at-seg:hover:not(:disabled):not(.on) { background: var(--raised-hover); color: var(--text); }
-.at-seg.on { background: var(--jade); border-color: var(--jade-soft); color: var(--onjade); }
+/* Flat fill, no ring. The border is kept so the chosen option is the same
+   size as the others, but a translucent green edge around a solid green
+   block reads as a glow around it rather than as an edge. */
+.at-seg.on { background: var(--jade); border-color: transparent; color: var(--onjade); }
 .at-seg:disabled { cursor:default; opacity:.5; }
 /* The type steps down with the track, the same trick a row of buttons
    uses, so a long set of options gets smaller rather than being cut off.
@@ -1302,7 +1307,20 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    Arabic beside two others — the option keeps its label whole and takes
    the next line down. The track wraps around both, so it still reads as
    one control rather than as buttons that came apart. */
-.at-segmented.sm .at-seg { min-height:34px; padding-block:7px; }
+/* Compact: as wide as it needs to be, with every option the width of the
+   longest label. A grid rather than a flex row, because "all the same
+   width as the widest" is what equal grid columns are, and there is no
+   flex equivalent that also shrinks the whole thing to fit its content.
+
+   No container query here, and none possible: a container's inline size
+   cannot be worked out from what is inside it, which is exactly what
+   shrinking to fit means. So the type is a fixed size instead — which
+   costs nothing, because a picker that takes the width it wants never
+   needs to shrink its labels. A set of options too long for the space it
+   is in wants the full-width variant, not this one. */
+.at-segmented.sm { display:grid; grid-auto-flow:column; grid-auto-columns:1fr;
+  width: max-content; max-width:100%; container-type: normal; }
+.at-segmented.sm .at-seg { min-height:34px; padding:7px 14px; font-size:13px; }
 /* A picker sharing a row with a button — Sounds and its Test — holds
    three labels where the button holds one, so an even split starved it
    and pushed its options to the smallest type they have. */

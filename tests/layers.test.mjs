@@ -165,6 +165,11 @@ test("a picker is one control rather than a row of buttons", () => {
   assert.match(track, /gap:\s*3px/);
   assert.match(rule(".at-seg"), /background:\s*var\(--raised\)/, "the options have no ground");
   assert.match(rule(".at-seg.on"), /background:\s*var\(--jade\)/, "the chosen option is not lit");
+  /* Flat, not glowing: a translucent green edge around a solid green
+     block reads as a shadow around it rather than as an edge. */
+  assert.match(rule(".at-seg.on"), /border-color:\s*transparent/);
+  assert.doesNotMatch(track, /box-shadow/);
+  assert.doesNotMatch(rule(".at-seg"), /box-shadow/);
   /* Labels stay whole: the type steps down with the track, and what still
      will not fit takes the next line rather than being clipped. */
   assert.match(rule(".at-seg"), /font-size:\s*clamp\(/);
@@ -214,6 +219,22 @@ test("the one row that must not wrap, does not", () => {
      320px. */
   assert.match(rule(".at-answerbar.at-row"), /flex-wrap:\s*nowrap/);
   assert.match(rule(".at-answerbar.at-row > *"), /min-width:\s*0/);
+});
+
+test("a picker comes in two widths and they mean different things", () => {
+  /* Compact takes the width its labels need, with every option as wide as
+     the longest — which is equal grid columns at max-content, and has no
+     flex equivalent. Full width shares whatever the track is given. */
+  const compact = rule(".at-segmented.sm");
+  assert.match(compact, /display:\s*grid/);
+  assert.match(compact, /grid-auto-columns:\s*1fr/, "the options are not all one width");
+  assert.match(compact, /width:\s*max-content/, "compact does not shrink to its content");
+  /* And no container query on that one: a container cannot be sized by
+     what is inside it, which is what shrinking to fit is. So its type is
+     fixed rather than stepped down. */
+  assert.match(compact, /container-type:\s*normal/);
+  assert.match(rule(".at-segmented.sm .at-seg"), /font-size:\s*13px/);
+  assert.match(rule(".at-segmented"), /width:\s*100%/, "full width is not full width");
 });
 
 test("the bar's gap is the one the step-down formula divides by", () => {

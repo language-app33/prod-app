@@ -6752,6 +6752,9 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
           <div className="at-cseg">
             <Segmented
               label="Appearance"
+              /* The menu gives it a fixed width to fill; compact would sit
+                 short of the rows above and below it. */
+              size={null}
               options={[
                 { value: "auto", label: "Device" },
                 { value: "light", label: "Light" },

@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.10 — 7 September 2026
+
+- A picker now comes in two widths that mean different things. The
+  compact one takes only the width its labels need, with every option as
+  wide as the longest — it is what Appearance, Sounds and the rest of the
+  settings use. The full-width one fills the space it is given, for a
+  picker in a narrow column or a menu.
+- The chosen option is a flat fill. Its translucent green edge read as a
+  glow around it rather than as an edge.
+
 ## 0.9 — 7 September 2026
 
 - Picking between two or three options now looks like one control: a

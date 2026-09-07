@@ -364,7 +364,7 @@ export function ComponentGallery() {
             label="A choice"
           />
         </V>
-        <V label="size={null} — full size" wide>
+        <V label="size={null} — full-width" wide>
           <Segmented
             options={[{ value: "a", label: "One" }, { value: "b", label: "Two" }, { value: "c", label: "Three" }]}
             value={segBig}
