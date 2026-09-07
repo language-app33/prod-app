@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import {
   arSkeleton,
   checkAr,
+  checkHe,
   checkViet,
+  heRootKey,
+  heTokenIsWord,
+  inScript,
   checkEn,
   dimValues,
   grammarFields,
@@ -27,6 +31,22 @@ test("Arabic: bare letters accepted, wrong harakat rejected, missing harakat dep
   assert.equal(checkAr("كتاب", "كِتَاب", { tashkeel: "either" }).ok, true);
   assert.equal(checkAr("كتاب", "كِتَاب", { tashkeel: "required" }).reason, "missing");
   assert.equal(checkAr("كُتَاب", "كِتَاب", { tashkeel: "either" }).reason, "harakat");
+});
+
+test("Hebrew: bare letters accepted, wrong niqqud rejected, missing niqqud depends on setting", () => {
+  assert.equal(checkHe("ספר", "סֵפֶר", { niqqud: "either" }).ok, true);
+  assert.equal(checkHe("ספר", "סֵפֶר", { niqqud: "required" }).reason, "missing");
+  assert.equal(checkHe("סָפֶר", "סֵפֶר", { niqqud: "either" }).reason, "harakat");
+  /* The same points in a different order are the same spelling: a dagesh
+     typed before or after its vowel. */
+  assert.equal(checkHe("בַּיִת", "בַּיִת".normalize("NFD"), { niqqud: "either" }).ok, true);
+});
+
+test("Hebrew: a final letter typed in its ordinary shape is a leniency, not a rule", () => {
+  assert.equal(checkHe("שלומ", "שלום", { foldFinals: true }).ok, true);
+  assert.equal(checkHe("שלומ", "שלום", { foldFinals: false }).reason, "near");
+  /* And the other way round, for a card stored without its final. */
+  assert.equal(checkHe("שלום", "שלומ", { foldFinals: true }).ok, true);
 });
 
 test("Vietnamese: tone marks behave like harakat; đ is its own letter", () => {
@@ -357,6 +377,52 @@ test("the root key gathers a family and nothing else", () => {
   assert.notEqual(arRootKey("شمس"), family[0]);
   /* A prefix that is part of the word rather than attached to it. */
   assert.equal(arRootKey("مدرسة"), arRootKey("درس"));
+});
+
+test("Hebrew groups by root the way Arabic does", () => {
+  const he = LANGUAGES["he-IL"];
+  const group = he.derived.find((d) => d.groups);
+  assert.equal(group.id, "root");
+  assert.equal(group.compute, heRootKey);
+  assert.match(group.heading, /root/i);
+  assert.equal(he.derived.some((d) => d.quizzable), false);
+});
+
+test("the Hebrew root key gathers a family across its spellings and shapes", () => {
+  /* Full spelling, the noun prefix, a feminine ending, a plural — one root. */
+  const family = ["כתב", "כותב", "מכתב", "כתיבה", "מכתבים"].map(heRootKey);
+  assert.equal(new Set(family).size, 1, `should share one key, got ${family.join(" ")}`);
+  assert.notEqual(heRootKey("שמש"), family[0]);
+  assert.equal(heRootKey("מלכה"), heRootKey("מלך"));
+  assert.equal(heRootKey("ספרים"), heRootKey("ספר"));
+  /* Only מ is peeled off the front. Half the roots start with a letter that
+     is also a preposition or the article, and taking ש off שמירה would file
+     guarding under the wrong family. */
+  assert.equal(heRootKey("שמירה"), "שמר");
+  /* And not a root letter that happens to be מ: מלך is a king, not לך. */
+  assert.equal(heRootKey("מלך").length, 3);
+});
+
+test("a Hebrew key too short to mean anything is no key", () => {
+  assert.equal(heRootKey("אב"), "");
+  assert.equal(heRootKey(""), "");
+});
+
+test("Hebrew finds a word inside a phrase through its attached particles", () => {
+  assert.equal(heTokenIsWord("והספר", "ספר"), true);
+  assert.equal(heTokenIsWord("בבית", "בית"), true);
+  assert.equal(heTokenIsWord("ספר", "שמש"), false);
+  assert.equal(heTokenIsWord("סֵפֶר", "ספר"), true);
+});
+
+test("a language says which script it is written in, and a Latin-script one says nothing", () => {
+  assert.equal(inScript("ספר", LANGUAGES["he-IL"]), true);
+  assert.equal(inScript("book", LANGUAGES["he-IL"]), false);
+  assert.equal(inScript("كتاب", LANGUAGES["ar-PS"]), true);
+  assert.equal(inScript("book", LANGUAGES["ar-PS"]), false);
+  /* Vietnamese cannot be told apart from English by character range, so it
+     declares no script and the importer falls back to column order. */
+  assert.equal(inScript("sách", LANGUAGES["vi-Hue"]), false);
 });
 
 test("a key too short to mean anything is no key", () => {

@@ -740,7 +740,12 @@ function CourseSettings({
               </div>
             ) : (
               <>
+                {/* The full-width picker, not the compact one. Compact sizes
+                    every option to the longest label and never wraps, which
+                    with three language names comes to 552px — wider than any
+                    phone. Full-width lets a third name take a second row. */}
                 <Segmented
+                  size={null}
                   label="Language this course teaches"
                   disabled={busy}
                   options={Object.values(languages).map((Lx) => ({ value: Lx.id, label: Lx.name }))}

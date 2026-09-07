@@ -8,6 +8,34 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.18 — 7 September 2026
+
+- **Hebrew.** The app now teaches Israeli Hebrew alongside Palestinian
+  Arabic and Huế Vietnamese. A teacher can make a Hebrew course, deck and
+  cards; a student who joins one is switched to Hebrew and sees it right
+  to left in a Hebrew typeface, with the standard Israeli keyboard and a
+  separate row of niqqud. Marking works the way Arabic's does: type the
+  bare letters or the fully pointed spelling and either is accepted, but
+  niqqud you do type have to be right. A beginner who types כ at the end
+  of a word is not marked wrong for ך — that's a leniency a teacher can
+  tighten. After an answer, "Built on the same root" gathers the family:
+  כָּתַב shows כּוֹתֵב, מִכְתָּב and כְּתִיבָה.
+- The Marking settings in App preferences now belong to the language you
+  are learning. They were Arabic's two, written out by hand and shown to
+  everyone — a Vietnamese learner was asked about harakat, and Vietnamese's
+  own tone-marks setting had no control at all. Each language now shows
+  its own; Hebrew's are niqqud and final letters.
+- Importing cards: a table headed with a language's own column names
+  ("Hebrew", "Pronunciation note") is read as a table — only "Arabic" used
+  to be recognised — and the worked example and placeholder are in the
+  language you are learning. The importer also asks the language which
+  cell holds the word, rather than checking for Arabic letters.
+- The card editor and the bulk-import screens no longer say "Arabic"
+  where they meant whichever language you are learning.
+- The course-language picker in course settings fits a third name on a
+  phone: it now wraps onto a second row instead of running off the
+  screen.
+
 ## 0.17 — 7 September 2026
 
 - The foot of an exercise screen no longer has a line across its middle:

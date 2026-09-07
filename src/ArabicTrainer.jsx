@@ -99,6 +99,7 @@ import {
   exOf,
   findWordSlot,
   guessKind,
+  inScript,
   isListening,
   supportsContext,
   groupAttrOf,
@@ -1270,8 +1271,36 @@ const FIELD_ALIASES = {
 /* Every grammatical field answers to its own name, without that having to be
    written here each time one is added. */
 for (const f of grammarFields()) FIELD_ALIASES[f] = f;
-const ARABIC_RE = /[\u0600-\u06FF]/;
+/* And every language answers to what it calls its own columns — "Hebrew",
+   "Pronunciation note" — so a table headed in the language's own terms is
+   read as a table. Only "Arabic" was written in above, by hand. */
+const aliasKey = (label) => String(label || "").toLowerCase().replace(/[^a-z]/g, "");
+for (const L of Object.values(LANGUAGES)) {
+  if (L.scriptLabel) FIELD_ALIASES[aliasKey(L.scriptLabel)] = "ar";
+  if (L.translitLabel) FIELD_ALIASES[aliasKey(L.translitLabel)] = "lat";
+}
 const FIELD_ORDER = ["en", "ar", "lat", "tags", "note"].concat(grammarFields());
+
+/* The importer's worked example, written in whichever language is being
+   learnt: a markdown table with the language's own column names and two
+   rows from its pack, and the same rows as a bare placeholder. It used to
+   be an Arabic table for everyone. */
+function sampleTable(L) {
+  const rows = L.sample || [];
+  const head = ["English", L.scriptLabel, L.translitLabel, "Decks"];
+  const decks = ["class 12 june", "numbers"];
+  const line = (cells) => `| ${cells.join(" | ")} |`;
+  return [
+    line(head),
+    line(head.map((h) => "-".repeat(h.length))),
+    ...rows.map((r, i) => line([r.en, r.ar, r.lat || "", decks[i] || ""])),
+  ].join("\n");
+}
+function samplePlaceholder(L) {
+  return (L.sample || [])
+    .map((r, i) => [r.en, r.ar, r.lat, i === 0 ? "class 12 june" : ""].filter(Boolean).join(" | "))
+    .join("\n");
+}
 const MD_SEPARATOR = /^:?-+:?$/;
 const ESC = "\u0000";
 
@@ -1365,8 +1394,8 @@ function parseLines(text, knownTags = []) {
           const key = order ? order[i] : FIELD_ORDER[i];
           if (key && !row[key] && value) row[key] = value;
         }
-        if (row.ar && !ARABIC_RE.test(row.ar)) {
-          const holder = ["en", "lat"].find((k) => row[k] && ARABIC_RE.test(row[k]));
+        if (row.ar && !inScript(row.ar)) {
+          const holder = ["en", "lat"].find((k) => row[k] && inScript(row[k]));
           if (holder) {
             const tmp = row.ar;
             row.ar = row[holder];
@@ -1375,7 +1404,7 @@ function parseLines(text, knownTags = []) {
         }
       } else {
         const values = loose.map((c) => c.value);
-        const arIdx = values.findIndex((v) => ARABIC_RE.test(v));
+        const arIdx = values.findIndex((v) => inScript(v));
         if (arIdx !== -1 && !row.ar) row.ar = values.splice(arIdx, 1)[0];
         if (values.length > 1 && known.size && !row.tags) {
           const parts = cleanTags(values[values.length - 1]);
@@ -5254,7 +5283,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
             </div>
 
             <ArabicField
-              label="Arabic script"
+              label={langOf(settings).scriptLabel}
               value={draft.ar}
               onChange={(v) => set("ar", v)}
               mode={settings.keyboard}
@@ -5946,8 +5975,11 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
                 <>Exercises: {types.map((t) => exOf(t, activeLang()).label).join(" · ")}</>
               ) : (
                 <span className="at-warn">
-                  Fewer than two exercise types — add the Arabic script plus English or a
-                  transliteration.
+                  Fewer than two exercise types — add the {activeLang().scriptLabel} plus English
+                  {activeLang().translitDrilled !== false
+                    ? ` or a ${activeLang().translitLabel.toLowerCase()}`
+                    : ""}
+                  .
                 </span>
               )}
             </Help>
@@ -6059,12 +6091,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
               <strong>A markdown table works as-is.</strong> Paste it below, or open an{" "}
               <code>.md</code> file. Columns in this order:
             </p>
-            <pre dir="auto">
-              | English | Arabic | Transliteration | Decks |{"\n"}
-              |---------|--------|-----------------|------|{"\n"}
-              | book | كِتاب | kitāb | class 12 june |{"\n"}
-              | one | واحِد | | numbers |
-            </pre>
+            <pre dir="auto">{sampleTable(activeLang())}</pre>
             <p>Headings and prose around the table are ignored.</p>
             <p>
               Add <code>Number</code> and <code>Gender</code> columns if you want them — or
@@ -6072,7 +6099,10 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
               filed as singular, and you can change it in bulk afterwards.
             </p>
             <p>Without a table, one card per line, cells split by <code>|</code> or a tab:</p>
-            <pre>english | arabic | transliteration | decks | note</pre>
+            <pre>
+              english | {activeLang().scriptLabel.toLowerCase()} |{" "}
+              {activeLang().translitLabel.toLowerCase()} | decks | note
+            </pre>
             <p>
               Trailing fields can be left off. Use <code>||</code> only to skip a field in the{" "}
               <em>middle</em> of a line. Lines starting with <code>#</code> are ignored.
@@ -6084,7 +6114,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
             value={bulk}
             dir="auto"
             style={{ minHeight: 220 }}
-            placeholder={"book | كِتاب | kitāb | class 12 june\nwater | ماء | māʾ"}
+            placeholder={samplePlaceholder(activeLang())}
             onChange={(e) => setBulk(e.target.value)}
           />
           {bulk.trim() && (
@@ -6108,7 +6138,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
           <div className="at-preview">
             <div className="at-previewhead">
               <span>English</span>
-              <span>Arabic</span>
+              <span>{activeLang().scriptLabel}</span>
               <span>Translit.</span>
               <span>Decks</span>
             </div>
@@ -7362,35 +7392,34 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
 
             <div className="at-advgroup">
               <p className="at-eyebrow">Marking</p>
-<FormField label="Harakat when you type Arabic">
-          <Segmented
-            label="Harakat when you type"
-            options={[
-              { value: "either", label: "Either form" },
-              { value: "required", label: "Must be typed" },
-              { value: "ignore", label: "Never checked" },
-            ]}
-            value={settings.tashkeel}
-            onChange={(v) => setSetting("tashkeel", v)}
-          />
-          <Help>
-            <em>Either form</em> takes the bare letters or the fully vocalised spelling — but typed
-            harakat have to be the right ones. Transliteration is always marked leniently: macrons,
-            ʿayn marks and apostrophes are ignored.
-          </Help>
-</FormField>
-
-<FormField label="Hamza and final letters">
-          <Segmented
-            label="Hamza and final letters"
-            options={[
-              { value: false, label: "Exact" },
-              { value: true, label: "Lenient" },
-            ]}
-            value={!!settings.ignoreHamza}
-            onChange={(v) => setSetting("ignoreHamza", v)}
-          />
-</FormField>
+              {/* Whatever leniencies the language you are learning declares,
+                  in its own words. This block used to be Arabic's two
+                  settings written out by hand and shown to everyone: a
+                  Vietnamese learner was asked about harakat, and the
+                  Vietnamese pack's own tone setting had no control at all
+                  and sat at its default. The pack is asked instead, so a
+                  new language needs nothing here. */}
+              {(langOf(settings).options || []).map((opt) => (
+                <FormField key={opt.key} label={opt.label}>
+                  <Segmented
+                    label={opt.label}
+                    options={
+                      opt.toggle
+                        ? [{ value: false, label: "Exact" }, { value: true, label: "Lenient" }]
+                        : opt.choices.map(([value, label]) => ({ value, label }))
+                    }
+                    value={opt.toggle ? !!settings[opt.key] : settings[opt.key]}
+                    onChange={(v) => setSetting(opt.key, v)}
+                  />
+                  {opt.help ? <Help>{opt.help}</Help> : null}
+                </FormField>
+              ))}
+              {langOf(settings).translitDrilled !== false && (
+                <Help>
+                  {langOf(settings).translitLabel} is always marked leniently: macrons, ʿayn marks
+                  and apostrophes are ignored.
+                </Help>
+              )}
             </div>
           </>
         )}

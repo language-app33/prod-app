@@ -667,6 +667,181 @@ export function gradeClass(attr, value) {
     .join(".");
 }
 
+
+/* ---- Hebrew ----
+   Everything Hebrew knows about itself, in one place like the two above.
+   The app reaches it only through the pack. */
+
+/* The standard Israeli layout, plus the two final-letter keys where the
+   layout puts them. */
+export const HE_KEY_ROWS = [
+  ["ק", "ר", "א", "ט", "ו", "ן", "ם", "פ"],
+  ["ש", "ד", "ג", "כ", "ע", "י", "ח", "ל", "ך", "ף"],
+  ["ז", "ס", "ב", "ה", "נ", "מ", "צ", "ת", "ץ"],
+];
+
+export const HE_EXTRAS = ["־", "׳", "״", ",", "?"];
+
+/* The niqqud, in the order a beginner meets them: the vowels, then the
+   dagesh and the shin and sin dots, then the reduced vowels. */
+export const HE_MARKS = [
+  "ַ", "ָ", "ֶ", "ֵ", "ִ", "ֹ", "ֻ", "ְ",
+  "ּ", "ׁ", "ׂ", "ֲ", "ֱ", "ֳ",
+];
+
+/* Everything that sits on a letter rather than beside it: the points, the
+   dagesh and rafe, the shin and sin dots, and the cantillation nobody
+   types. Not the maqaf, paseq or sof pasuq — those are punctuation. */
+const NIQQUD_CLASS = "\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7";
+export const NIQQUD = new RegExp(`[${NIQQUD_CLASS}]`, "g");
+export const HAS_NIQQUD = new RegExp(`[${NIQQUD_CLASS}]`);
+const HE_MARK_RUN = new RegExp(`([\\u05D0-\\u05EA])([${NIQQUD_CLASS}]+)`, "g");
+
+export const HE_PUNCT = /[.,!?;:"'()[\]־׀׃׳״«»]/g;
+
+/* Five letters take another shape at the end of a word. A beginner who
+   types the ordinary shape there has spelt the word, not misspelt it, so
+   folding the finals is a leniency the pack offers. */
+const HE_FINALS = /[ךםןףץ]/g;
+const HE_FINAL_OF = { "ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ" };
+
+export function normHe(s, { stripNiqqud, foldFinals }) {
+  let x = stripInvisible(s).trim();
+  /* Either the marks go, or they are put in one order so that a dagesh
+     typed before a vowel and one typed after it compare equal. */
+  x = stripNiqqud
+    ? x.replace(NIQQUD, "")
+    : x.replace(HE_MARK_RUN, (_, base, marks) => base + marks.split("").sort().join(""));
+  if (foldFinals) x = x.replace(HE_FINALS, (c) => HE_FINAL_OF[c]);
+  return x.replace(HE_PUNCT, "").replace(/\s+/g, " ").trim();
+}
+
+/* The same two-stage judgement as Arabic: the letters first, and only if
+   those agree, the marks — so a student may type the bare word or the
+   fully pointed one, and the marks they do type have to be right. */
+export function compareHe(given, expected, settings) {
+  const mode = settings.niqqud || "either";
+  const fold = settings.foldFinals;
+  const skelG = normHe(given, { stripNiqqud: true, foldFinals: fold });
+  const skelE = normHe(expected, { stripNiqqud: true, foldFinals: fold });
+
+  if (!skelG) return { ok: false, reason: "wrong" };
+  if (skelG !== skelE) {
+    const near = editDistance(skelG, skelE) <= Math.max(1, Math.round(skelE.length * 0.2));
+    return { ok: false, reason: near ? "near" : "wrong" };
+  }
+  if (mode === "ignore") return { ok: true, reason: "letters-only" };
+
+  const givenHas = HAS_NIQQUD.test(given);
+  const storedHas = HAS_NIQQUD.test(expected);
+  if (!storedHas) return { ok: true, reason: givenHas ? "unchecked" : "letters-only" };
+  if (!givenHas) {
+    return mode === "required" ? { ok: false, reason: "missing" } : { ok: true, reason: "bare" };
+  }
+
+  const fullG = normHe(given, { stripNiqqud: false, foldFinals: fold });
+  const fullE = normHe(expected, { stripNiqqud: false, foldFinals: fold });
+  return fullG === fullE ? { ok: true, reason: "exact" } : { ok: false, reason: "harakat" };
+}
+
+/* The four tiers rank the same way in every marked script, so Arabic's
+   order is reused rather than restated. */
+export function checkHe(given, expected, settings) {
+  let worst = { ok: false, reason: "wrong" };
+  for (const form of splitForms(expected, /[/;]/)) {
+    const r = compareHe(given, form, settings);
+    if (r.ok) return r;
+    if (AR_RANK[r.reason] > AR_RANK[worst.reason]) worst = r;
+  }
+  return worst;
+}
+
+/* What attaches to the front of a Hebrew word: the article, "and", and the
+   one-letter prepositions, singly or "and" plus one of the others. */
+const HE_PREFIXES = ["וה", "וב", "ול", "ומ", "וכ", "וש", "שה", "כש", "ה", "ו", "ב", "ל", "מ", "כ", "ש"];
+
+/*
+ * The root a word is built on, near enough to gather a family — the same
+ * job arRootKey does, for a language built the same way: three consonants
+ * poured into patterns, so כתב, כותב, מכתב and כתיבה are one root in four
+ * shapes. Read off spellings the teacher already typed; nothing is looked
+ * up.
+ *
+ * Near enough, not right. Four rules, each applied only while three
+ * letters remain, so that a root which truly holds one of these letters
+ * keeps it:
+ *   - drop a plural ending or a feminine ה from the end;
+ *   - drop a leading מ, the commonest noun prefix — and only that. The
+ *     article and the one-letter prepositions are peeled when matching a
+ *     word inside a phrase, not here: half the roots in the language start
+ *     with one of those letters, and a key that took ש off שמירה would
+ *     file guarding under the wrong family;
+ *   - drop the vowel letters ו and י of full spelling, which carry the
+ *     vowelling rather than the root;
+ *   - and a key under three letters is no key: two consonants gather words
+ *     with nothing to do with each other, so the word simply has no family.
+ *
+ * The finals are folded first, so the endings below are written with the
+ * ordinary מ. Weak roots — where a root letter vanishes in some forms —
+ * will sometimes come out as two keys for one family. Fewer families,
+ * never wrong ones, is the side to err on.
+ */
+export function heRootKey(text) {
+  let x = normHe(text, { stripNiqqud: true, foldFinals: true }).replace(/\s+/g, "");
+  if (!x) return "";
+  for (const suf of ["ימ", "ות", "ה"]) {
+    if (x.endsWith(suf) && x.length - suf.length >= 3) {
+      x = x.slice(0, -suf.length);
+      break;
+    }
+  }
+  if (x.startsWith("מ") && x.length >= 4) x = x.slice(1);
+  while (x.length > 3 && /[וי]/.test(x)) x = x.replace(/[וי]/, "");
+  return x.length >= 3 ? x : "";
+}
+
+/* Rough consonant skeleton, for the scheduler's sense of which words feel
+   related: the vowel letters out, the rest in any order. */
+export function heSimilarityKey(text) {
+  return normHe(text, { stripNiqqud: true, foldFinals: true }).replace(/[וי\s]/g, "");
+}
+
+/* Which words a recorded phrase teaches. Peeled like Arabic's, two deep,
+   and the remainder must keep two letters — Hebrew has real two-letter
+   words, אב and יד among them, where Arabic has none. */
+export function heWordStems(token, depth = 2) {
+  const out = [token];
+  const peel = (s, left) => {
+    if (left <= 0) return;
+    for (const p of HE_PREFIXES) {
+      if (!s.startsWith(p)) continue;
+      const rest = s.slice(p.length);
+      if (rest.length < 2 || out.includes(rest)) continue;
+      out.push(rest);
+      peel(rest, left - 1);
+    }
+  };
+  peel(token, depth);
+  return out;
+}
+
+export function heTokenIsWord(token, word) {
+  const opts = { stripNiqqud: true, foldFinals: true };
+  const w = normHe(word, opts);
+  if (!w) return false;
+  const t = normHe(token, opts);
+  if (!t) return false;
+  return heWordStems(t).includes(w);
+}
+
+/* Whether a string is written in the language's own script. The importer
+   asks this to work out which column holds the word when a row arrives
+   without a header. A language written in the Latin alphabet declares no
+   script, and the importer falls back to column order. */
+export function inScript(text, lang = activeLang()) {
+  return !!(lang && lang.script && lang.script.test(String(text || "")));
+}
+
 export const LANGUAGES = {
   "ar-PS": {
     id: "ar-PS",
@@ -675,6 +850,12 @@ export const LANGUAGES = {
     direction: "rtl",
     scriptLabel: "Arabic script",
     scriptShort: "A",
+    script: /[\u0600-\u06FF]/,
+    /* Two rows for the importer's worked example, in this language. */
+    sample: [
+      { ar: "كِتاب", en: "book", lat: "kitāb" },
+      { ar: "واحِد", en: "one", lat: "" },
+    ],
     translitLabel: "Transliteration",
     grammar: ["number", "gender"],
     /* What each shade of not-quite-right is called here. The tiers are the
@@ -754,6 +935,10 @@ export const LANGUAGES = {
     direction: "ltr",
     scriptLabel: "Vietnamese",
     scriptShort: "V",
+    sample: [
+      { ar: "sách", en: "book", lat: "" },
+      { ar: "một", en: "one", lat: "" },
+    ],
     translitLabel: "Pronunciation note",
     /* Nothing declines, and nothing about a word varies by who is being
        addressed — greetings and thanks that do vary are held as forms of
@@ -832,6 +1017,79 @@ export const LANGUAGES = {
       "The six tones of the northern standard are not those of Huế speech. Cards should carry the spelling as written; the recording is what teaches the tone.",
       "Recordings matter more here than in a language with a phonetic script, so the listening exercises are worth using from the first lesson.",
       "The on-screen keys carry the vowels Vietnamese needs and a row of tone marks, for students without a Vietnamese keyboard.",
+    ],
+  },
+
+  "he-IL": {
+    id: "he-IL",
+    name: "Israeli Hebrew",
+    nativeName: "עברית",
+    direction: "rtl",
+    scriptLabel: "Hebrew",
+    scriptShort: "H",
+    script: /[֐-׿]/,
+    sample: [
+      { ar: "סֵפֶר", en: "book", lat: "sefer" },
+      { ar: "אֶחָד", en: "one", lat: "" },
+    ],
+    translitLabel: "Transliteration",
+    /* Nouns carry number and gender, and adjectives agree with both —
+       the same two axes Arabic declares. */
+    grammar: ["number", "gender"],
+    verdicts: {
+      partial: "Right letters, wrong niqqud",
+      missing: "Letters right — add the niqqud",
+      near: "Very close",
+      bare: "The niqqud are above — worth a look.",
+    },
+    derived: [
+      {
+        id: "root",
+        label: "root",
+        compute: heRootKey,
+        groups: true,
+        quizzable: false,
+        heading: "Built on the same root",
+      },
+    ],
+    similarityKey: heSimilarityKey,
+    similarityMode: "chars",
+    context: { matches: heTokenIsWord },
+    /* A romanisation of a Hebrew word is a different rendering of it, so
+       going between the two is a real exercise. */
+    translitDrilled: true,
+    formsLabel: "Other forms — plurals, feminines",
+    fontStack:
+      '"Noto Serif Hebrew", "Noto Sans Hebrew", "Frank Ruehl CLM", "David CLM", "David", "Arial Hebrew", "Times New Roman", serif',
+    keys: { rows: HE_KEY_ROWS, extras: HE_EXTRAS, marks: HE_MARKS, marksLabel: "◌ָ ◌ַ ◌ִ" },
+    check: (given, expected, settings) => checkHe(given, expected, settings),
+    options: [
+      {
+        key: "niqqud",
+        label: "Niqqud when typing",
+        choices: [
+          ["either", "Either form"],
+          ["required", "Must be typed"],
+          ["ignore", "Never checked"],
+        ],
+        help:
+          "Either form takes the bare letters or the fully pointed spelling from one stored entry — but typed niqqud have to be the right ones.",
+      },
+      {
+        key: "foldFinals",
+        label: "Final letters",
+        toggle: true,
+        help: "Lenient accepts כ מ נ פ צ at the end of a word for ך ם ן ף ץ.",
+      },
+    ],
+    rules: [
+      "Cards hold the Hebrew, an English meaning, and a transliteration. Any two of the three are enough to practice it.",
+      "A student may type the bare letters or the fully pointed spelling and both are accepted — but niqqud that are typed must be correct. A wrong vowel is marked wrong; a missing one is not.",
+      "By default the ordinary shape of a letter is accepted at the end of a word for its final form, because the finals are learnt later than the words themselves. A teacher can tighten this per course.",
+      "Transliteration is marked most leniently of all: macrons, dots, apostrophes and where the hyphens fall are all ignored, since schemes vary between textbooks.",
+      "Invisible characters that Hebrew keyboards insert — right-to-left marks and zero-width joiners — are stripped before comparing, so an answer that looks correct is treated as correct.",
+      "Words with several forms — plurals, feminines — are held on one card as separate forms. Each is learnt in its own right, and the card is not counted as learnt until all of them are.",
+      "The on-screen keyboard follows the standard Israeli layout, with a separate row for niqqud.",
     ],
   },
 };

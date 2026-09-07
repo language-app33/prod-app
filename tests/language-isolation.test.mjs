@@ -27,9 +27,9 @@ const src = (name) => path.join(here, "..", "src", name);
 const APP_FILES = ["ArabicTrainer.jsx", "spaces.jsx", "shared.jsx", "gallery.jsx", "sync.js", "storage.js", "courses-api.js"];
 
 /* A name belongs to one language if it is prefixed with that language, in
-   either of the two spellings the file uses. Add a prefix here when a third
-   language arrives. */
-const LANGUAGE_SPECIFIC = /^(ar|vi)[A-Z]|^(norm|check|split)(Ar|Viet)$/;
+   either of the two spellings the file uses: ar/Ar for Arabic, vi/Viet for
+   Vietnamese, he/He for Hebrew. Add a prefix here when a fourth arrives. */
+const LANGUAGE_SPECIFIC = /^(ar|vi|he)[A-Z]|^(norm|check|split)(Ar|Viet|He)$/;
 
 function importedNames(source) {
   const m = source.match(/import\s*\{([^}]*)\}\s*from\s*["']\.\/languages\.js["']/);
@@ -45,7 +45,7 @@ test("the exports the app may not reach for are the ones named for a language", 
      below would quietly match nothing and this file would pass for ever. */
   const flagged = Object.keys(LANG).filter((n) => LANGUAGE_SPECIFIC.test(n));
   assert.ok(flagged.length >= 6, `only ${flagged.length} language-specific exports found: ${flagged.join(", ")}`);
-  for (const want of ["arTokenIsWord", "arSkeleton", "checkAr", "viTokenIsWord", "checkViet", "normAr"]) {
+  for (const want of ["arTokenIsWord", "arSkeleton", "checkAr", "viTokenIsWord", "checkViet", "normAr", "checkHe", "heTokenIsWord", "normHe"]) {
     assert.ok(flagged.includes(want), `${want} should be recognised as language-specific`);
   }
 });
@@ -78,12 +78,15 @@ for (const file of APP_FILES) {
  * test, and the answer is either "it is presentation, add it to the list"
  * or "it is a rule, move it to the pack".
  *
- * Arabic only. Vietnamese is written in the Latin alphabet and cannot be
- * told apart from ordinary text by character range.
+ * Arabic and Hebrew, whose blocks sit side by side and are scanned as one
+ * range. Vietnamese is written in the Latin alphabet and cannot be told
+ * apart from ordinary text by character range.
  */
 const ALLOWED_SCRIPT = {
-  /* The card sheet's placeholder — "the form". Behind OWN_CARDS, so unreachable. */
-  "ArabicTrainer.jsx": ["الشكل", "كِتاب", "واحِد", "ماء"],
+  /* The card sheet's placeholder — "the form". Behind OWN_CARDS, so unreachable.
+     The importer's worked example used to be here too; it now comes from the
+     pack of whichever language is being learnt. */
+  "ArabicTrainer.jsx": ["الشكل"],
   /* The wordmark on the first screen: "vocabulary". */
   "spaces.jsx": ["مُفْرَدات"],
   /* Specimens, which are the point of a gallery. */
@@ -91,14 +94,14 @@ const ALLOWED_SCRIPT = {
 };
 
 for (const file of APP_FILES) {
-  test(`${file} holds no Arabic beyond the strings already accounted for`, async () => {
+  test(`${file} holds no Arabic or Hebrew beyond the strings already accounted for`, async () => {
     const source = await readFile(src(file), "utf8");
-    const runs = [...new Set((source.match(/[\u0600-\u06FF][\u0600-\u06FF\s]*/g) || []).map((x) => x.trim()).filter(Boolean))];
+    const runs = [...new Set((source.match(/[\u0590-\u06FF][\u0590-\u06FF\s]*/g) || []).map((x) => x.trim()).filter(Boolean))];
     const unexpected = runs.filter((r) => !(ALLOWED_SCRIPT[file] || []).includes(r));
     assert.deepEqual(
       unexpected,
       [],
-      `${file} gained Arabic text: ${unexpected.join(", ")} — if it is a rule it belongs in the ` +
+      `${file} gained Arabic or Hebrew text: ${unexpected.join(", ")} — if it is a rule it belongs in the ` +
         `language pack; if it is something to look at, add it to ALLOWED_SCRIPT`,
     );
   });
