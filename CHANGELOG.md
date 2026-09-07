@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.20 — 7 September 2026
+
+- "Israeli Hebrew" is now called "Modern Hebrew" wherever the language is
+  named.
+- The selected tab — Home, Progress, Cards, Courses, and the tabs in the
+  Teaching and Admin spaces — carries a dark grey outline, so which one
+  is current reads at a glance rather than by shade alone. The stylesheet
+  had asked for this outline all along, but in a colour that was never
+  defined, and a border in a colour that does not exist is quietly thrown
+  away. That is why it kept not appearing. The colour exists now.
+- The same mistake had also taken the highlight off the select-mode button
+  and picked tiles, and left fifteen other rules naming an "ink" colour
+  that inherited whatever was around them. All three colours are defined
+  now, and a check fails the build if any colour the stylesheet uses is
+  ever left undefined again.
+
 ## 0.19 — 7 September 2026
 
 - Tapping "I don't know" no longer says "Incorrect. The correct answer
@@ -29,7 +45,7 @@ and moves once per batch of work you would notice, not once per commit.
 
 ## 0.18 — 7 September 2026
 
-- **Hebrew.** The app now teaches Israeli Hebrew alongside Palestinian
+- **Hebrew.** The app now teaches Modern Hebrew alongside Palestinian
   Arabic and Huế Vietnamese. A teacher can make a Hebrew course, deck and
   cards; a student who joins one is switched to Hebrew and sees it right
   to left in a Hebrew typeface, with the standard Israeli keyboard and a

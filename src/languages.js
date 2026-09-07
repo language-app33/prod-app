@@ -1022,7 +1022,7 @@ export const LANGUAGES = {
 
   "he-IL": {
     id: "he-IL",
-    name: "Israeli Hebrew",
+    name: "Modern Hebrew",
     nativeName: "עברית",
     direction: "rtl",
     scriptLabel: "Hebrew",

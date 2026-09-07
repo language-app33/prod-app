@@ -255,6 +255,38 @@ test("the box you answer in is one height whatever you are typing", () => {
     "with the keyboard up the answer box has no height of its own");
 });
 
+test("every token the stylesheet uses is a token the stylesheet defines", () => {
+  /* --ink was named in fifteen rules and defined in none. A colour that
+     does not exist is not an error anywhere: the declaration is quietly
+     dropped, a border vanishes, a heading inherits whatever is around it,
+     and the selected tab went without its outline through several rounds
+     of being asked for one — and --accent, which colours the select button
+     and picked tiles, was missing the same way. So: every bare var(--x)
+     has to have a --x: somewhere. Reported as a list, so the next one is a
+     name and not a hunt. */
+  /* A reference with a fallback — var(--sfont, var(--ar)) — is the author
+     saying the token may be absent: those three are set from JavaScript at
+     runtime. Only a bare var(--x) has to be backed by a --x: here. */
+  const used = new Set([...css.matchAll(/var\(\s*(--[a-zA-Z0-9-]+)\s*\)/g)].map((m) => m[1]));
+  const defined = new Set([...css.matchAll(/(--[a-zA-Z0-9-]+)\s*:/g)].map((m) => m[1]));
+  const missing = [...used].filter((t) => !defined.has(t)).sort();
+  assert.deepEqual(missing, [], `used but never defined: ${missing.join(", ")}`);
+});
+
+test("the selected tab has a stroke, in a colour that exists in both themes", () => {
+  /* The outline is what says which tab is current; a shade of fill alone
+     does not. It is its own token — a dark grey in both themes — rather
+     than the page's ink, which is near-white in the dark theme and would
+     read as a highlight rather than an outline. */
+  const on = rule(".at-tab2.on");
+  assert.match(on, /border-color:\s*var\(--tab-stroke\)/, "the selected tab does not stroke with --tab-stroke");
+  const definitions = [...css.matchAll(/--tab-stroke\s*:\s*([^;]+);/g)].map((m) => m[1].trim());
+  assert.ok(definitions.length >= 2, `--tab-stroke is defined ${definitions.length} time(s); it needs the dark and the light theme`);
+  assert.ok(definitions.every((v) => /^#[0-9a-fA-F]{6}$/.test(v)), `--tab-stroke should be a plain colour: ${definitions.join(", ")}`);
+  /* And the base tab still draws a border, or the colour has nothing to colour. */
+  assert.match(rule(".at-tab2"), /border:\s*2px solid/, "the tab has no border for the stroke to take");
+});
+
 test("what is not the answer opens on a tap, not by default", () => {
   /* The answer is what you came back for; five blocks of context under it
      is a page to scroll past. The invitation is small and centred, and

@@ -116,6 +116,15 @@ button {
   --shadow:none;
   --shade:#171E31; --brass-shade:#B8862A; --jade-shade:#2F8A63; --rose-shade:#B23F52;
   --nav-bg:rgba(29,36,54,.92); --nav-shadow:0 8px 28px rgba(0,0,0,.5);
+  /* The ink of the page: what a heading is written in. Fifteen rules named it
+     and nothing defined it, so each fell back to whatever it inherited. */
+  --ink: var(--text);
+  /* The outline of the selected tab: a dark grey in both themes, so it reads
+     as a stroke on a light fill and as a rim on a dark one. */
+  --tab-stroke: #4B556D;
+  /* What marks a thing as chosen — the select button, a picked tile. Named in
+     the stylesheet and never defined, like --ink; the app's chosen colour. */
+  --accent: var(--jade);
   color-scheme: dark;
 }
 .at.light {
@@ -129,6 +138,15 @@ button {
   --shadow:0 1px 2px rgba(20,32,58,.06);
   --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
   --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
+  /* The ink of the page: what a heading is written in. Fifteen rules named it
+     and nothing defined it, so each fell back to whatever it inherited. */
+  --ink: var(--text);
+  /* The outline of the selected tab: a dark grey in both themes, so it reads
+     as a stroke on a light fill and as a rim on a dark one. */
+  --tab-stroke: #4B556D;
+  /* What marks a thing as chosen — the select button, a picked tile. Named in
+     the stylesheet and never defined, like --ink; the app's chosen colour. */
+  --accent: var(--jade);
   color-scheme: light;
 }
 @media (prefers-color-scheme: light) {
@@ -143,6 +161,15 @@ button {
     --shadow:0 1px 2px rgba(20,32,58,.06);
     --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
     --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
+    /* The ink of the page: what a heading is written in. Fifteen rules named it
+       and nothing defined it, so each fell back to whatever it inherited. */
+    --ink: var(--text);
+    /* The outline of the selected tab: a dark grey in both themes, so it reads
+       as a stroke on a light fill and as a rim on a dark one. */
+    --tab-stroke: #4B556D;
+    /* What marks a thing as chosen — the select button, a picked tile. Named in
+       the stylesheet and never defined, like --ink; the app's chosen colour. */
+    --accent: var(--jade);
     color-scheme: light;
   }}
 .at {
@@ -321,7 +348,9 @@ button {
 .ob-lede { font-size:15px; font-weight:500; color: var(--muted); line-height:1.6; margin:0 0 18px; }
 .at-nav2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
 .at-tab2 { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background:none; border:2px solid var(--line); border-radius:999px; color: var(--muted); padding:9px 15px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
-.at-tab2.on { background: var(--raised); color: var(--text); border-color: var(--raised); }
+/* The selected tab carries a dark grey outline, so which one is active reads
+   at a glance rather than by shade alone. */
+.at-tab2.on { background: var(--raised); color: var(--text); border-color: var(--tab-stroke); }
 .at-codebox { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   border:2px solid var(--tag-line); background: var(--tag-bg); border-radius: var(--r-sm);
   padding:9px 11px; }
@@ -448,9 +477,6 @@ button {
 .at-toolbar .at-search { flex:1 1 0; min-width:0; padding:0 12px; }
 /* Room between the line explaining a tab and the controls under it. */
 .at-toolbar-top { margin-top:16px; }
-/* The selected tab carries a dark outline, so which one is active reads at a
-   glance rather than by shade alone. */
-.at-tab2.on { border:2px solid var(--ink); }
 /* A boxed section inside a full-screen view, so a course reads as three
    distinct things rather than one long column. */
 .at-panel { border:2px solid var(--line); border-radius: var(--r-lg);

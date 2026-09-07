@@ -527,7 +527,7 @@ export function ComponentGallery() {
             languages={{
               "ar-PS": { id: "ar-PS", name: "Arabic" },
               "vi-Hue": { id: "vi-Hue", name: "Vietnamese (Huế)" },
-              "he-IL": { id: "he-IL", name: "Hebrew (Israeli)" },
+              "he-IL": { id: "he-IL", name: "Hebrew (Modern)" },
             }}
             value={lang}
             onChange={setLang}
