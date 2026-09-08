@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.29 — 8 September 2026
+
+- When you type a word correctly but without its vowel marks, the app
+  says well done and adds "The harakat are above — worth a look." The
+  marks were not above: because the answer was right, the app did not
+  show the word, so the only thing on screen was the unmarked spelling
+  you had just typed and the nudge pointed at nothing. The properly
+  marked spelling is now shown, with the nudge directly under it. The
+  same fix reaches the tone marks in Vietnamese and the niqqud in Hebrew,
+  which say the same thing.
+- Nothing about marking changes: typed marks still have to be right, and
+  a course that requires them still marks a bare answer wrong.
+
 ## 0.28 — 8 September 2026
 
 The people in a course are now one list rather than two.

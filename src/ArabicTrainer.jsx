@@ -3976,9 +3976,12 @@ Cards ready to practice
                         <Help data-el="verdict-reason">{verdictText(checked, langOf(settings))}</Help>
                       )}
                       {/* A right answer is already on screen in the box above,
-                          so repeating it says nothing. It is shown only when
-                          the person got it wrong or asked to see it. */}
-                      {!(checked.ok || overridden) && (
+                          so repeating it says nothing. It is shown when the
+                          person got it wrong or asked to see it — and when
+                          they were right but typed the word bare, where the
+                          box above holds their own unmarked spelling and the
+                          nudge under it would otherwise point at nothing. */}
+                      {(!(checked.ok || overridden) || checked.reason === "bare") && (
                         <div className="at-answermain" data-el="answer-value">
                           <Field
                             value={item[spec.answerField]}
@@ -3987,6 +3990,13 @@ Cards ready to practice
                             name="answer-value-text"
                           />
                         </div>
+                      )}
+                      {/* Directly under the marked spelling it is talking
+                          about. It sat below the Learn more box, which put
+                          the box between the nudge and the thing to look
+                          at. */}
+                      {checked.reason === "bare" && (
+                        <Help data-el="bare-note">{verdictWord(langOf(settings), "bare")}</Help>
                       )}
 
                       {/* Everything after the answer is a second thing worth
@@ -4052,9 +4062,6 @@ Cards ready to practice
                           <RelatedWords pairs={pairs} settings={settings} />
                         )}
                       </AlsoBox>
-                      {checked.reason === "bare" && (
-                        <Help data-el="bare-note">{verdictWord(langOf(settings), "bare")}</Help>
-                      )}
                       {item.note && (
                         <p className="at-note" data-el="card-note">
                           {item.note}
