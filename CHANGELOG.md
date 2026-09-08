@@ -8,6 +8,39 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.26 — 8 September 2026
+
+Nothing here changes what the app does. All three are about making the
+next change less likely to break it, which an audit said was the weakest
+thing about the code.
+
+- **The tests now run themselves.** Every push and every pull request
+  runs the linter, the tests, the harness that renders the app, and the
+  build. Before this nothing ran unless someone remembered — and the one
+  check that opens a session and answers a question was not even part of
+  the test command, so it could go a week without running.
+- **A linter, and the 130 things it found.** Among them: a key defined
+  twice in the server, so one of the two had never done anything; a whole
+  CSV export nothing offered; a deck filter left reading as though it
+  still worked when nothing could set it; and a card-selection feature
+  wired to nothing. All removed. Twenty-one hooks were reading values
+  they had not declared — every one turned out to be deliberate, and each
+  now says why in a sentence, so the next one that isn't will stand out.
+- **The scheduling maths can be tested.** The part that decides when a
+  card comes back had no tests and could not have any: it lived inside
+  the screen file and read the clock as it went. It is now its own piece
+  with the clock passed in, and thirty tests hold it to exact numbers —
+  a good answer on a ten-day card gives twenty-five days, ease never
+  falls below 1.3, a forgotten card is halved and comes back in ten
+  minutes. Each was checked by breaking the maths on purpose and
+  confirming the tests noticed.
+- **What happens when two devices disagree.** The sync tests only ever
+  merged things that did not conflict. There are now tests for a phone
+  and a laptop editing the same card: which edit wins, what is kept, and
+  — written down plainly rather than glossed — what is lost. The list of
+  exercise types those tests ran against had been copied by hand and had
+  been wrong by two for months; it is taken from the real list now.
+
 ## 0.25 — 8 September 2026
 
 - In the menu in the top right, "Sync now" is a button with a stroke, and

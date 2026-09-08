@@ -1,0 +1,57 @@
+# Everything that was only ever run by hand.
+#
+# Until this existed, the tests were run when someone remembered, and the
+# harness that actually renders the app was not even in `npm test` — so the
+# one check that opens a session and answers a question could go a week
+# without running. Now every push and every pull request runs the lot, and
+# a red tick is the thing that says so.
+#
+# The four steps are deliberately separate. A lint failure and a broken
+# build are different problems and reading which one went red should not
+# mean opening the log.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A second push to the same branch makes the first one's answer worthless,
+# so it is cancelled rather than left to finish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The version package.json asks for, so CI cannot pass on a
+          # runtime the app does not claim to support.
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      # jsdom, so it renders the real app: onboarding, a practice session,
+      # an answer marked and saved. Slower than the unit tests and the only
+      # thing that would notice a screen that no longer mounts.
+      - name: Smoke tests
+        run: npm run test:smoke
+
+      - name: Build
+        run: npm run build

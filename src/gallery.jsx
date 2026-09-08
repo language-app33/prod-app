@@ -766,6 +766,8 @@ export function ComponentGallery() {
       <Row
         name="plural(n, noun)"
         what="Counting, in one place."
+        /* Quoted on purpose: the note shows the code this helper replaces. */
+        // eslint-disable-next-line no-template-curly-in-string
         note="Use it instead of writing ${n} card${n === 1 ? '' : 's'}."
       >
         <V label="0 / 1 / 3">

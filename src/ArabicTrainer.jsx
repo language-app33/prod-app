@@ -3,7 +3,6 @@ import {
   Button,
   CardReadout,
   CardTile,
-  CheckList,
   ClipList,
   ConfirmModal,
   Empty,
@@ -15,7 +14,6 @@ import {
   KeysButton,
   Lede,
   Notice,
-  PlayButton,
   LanguageRadio,
   Screen,
   Section,
@@ -24,11 +22,9 @@ import {
   Stat,
   StickyFoot,
   Tabs,
-  languageName,
   plural,
   pullCourses,
   shortDate,
-  useClipPlayer,
   useLiveRefresh,
   useScrollTop,
   useSnackbar,
@@ -108,7 +104,6 @@ import {
   quizAttrOf,
   scriptVars,
   setActiveLang,
-  tight,
   verdictText,
   verdictWord,
   GRAMMAR,
@@ -117,6 +112,30 @@ import {
   grammarFields,
   normDimValue,
 } from "./languages.js";
+import {
+  MIN,
+  MATURE_DAYS,
+  difficulty,
+  familyMaturity as familyMaturityOf,
+  formatGap,
+  freshState,
+  freshStates,
+  itemDifficulty as itemDifficultyOf,
+  maturity,
+  reschedule,
+  stateReady,
+  unitsOf,
+  dayKey,
+} from "./scheduler.js";
+
+/*
+ * The two that need to know which exercise types a form supports. That
+ * answer depends on the language pack and on the index of phrases showing
+ * a word in use, neither of which belongs in the scheduler — so it is
+ * handed in here, at the one place that has both.
+ */
+const familyMaturity = (it) => familyMaturityOf(it, (u) => availableTypes(u));
+const itemDifficulty = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
 import {
   syncClips,
@@ -150,9 +169,6 @@ import {
    ================================================================== */
 
 const KEY = "arabic-trainer-v3";
-const DAY = 86400000;
-const MIN = 60000;
-
 /* ------------------------------------------------------------------
    Exercise types
    Ordered easiest to hardest: recognition, then decoding, then
@@ -166,16 +182,6 @@ const MAX_RECORD_MS = 15000;
 const MAX_CLIP_BYTES = 400000;
 const AUDIO_BITRATE = 24000;
 
-
-/* ---- scheduler ---- */
-const LEARN_STEPS = [1, 10];
-const RELEARN_STEP = 10;
-const GRADUATE_DAYS = 1;
-const EASY_DAYS = 4;
-const MIN_EASE = 1.3;
-const MAX_EASE = 3.0;
-const MAX_DAYS = 365;
-const MATURE_DAYS = 21;
 
 const EMPTY = {
   version: 3,
@@ -204,122 +210,11 @@ const EMPTY = {
 };
 
 const now = () => Date.now();
-const dayKey = (t = now()) => new Date(t).toISOString().slice(0, 10);
-const inDays = (n) => now() + n * DAY;
-const clampEase = (e) => Math.max(MIN_EASE, Math.min(MAX_EASE, e));
-const fuzz = () => 0.95 + Math.random() * 0.1;
-
-const freshState = () => ({
-  phase: "new",
-  step: 0,
-  ease: 2.5,
-  interval: 0,
-  due: 0,
-  reps: 0,
-  lapses: 0,
-  right: 0,
-  wrong: 0,
-  skips: 0,
-  near: 0,
-  hist: [],
-  updated: 0,
-});
-
-/* ------------------------------------------------------------------
-   Spaced repetition (SM-2)
-   ------------------------------------------------------------------ */
-
-function reschedule(prev, rating) {
-  const s = { ...prev };
-  s.reps += 1;
-  /* "hard" is a near miss, not a success: it is scheduled gently but it is
-     still counted as wrong, so the numbers on the progress screen are true. */
-  if (rating === "again" || rating === "hard") s.wrong += 1;
-  else s.right += 1;
-
-  if (s.phase === "new" || s.phase === "learning") {
-    if (rating === "again") {
-      s.phase = "learning";
-      s.step = 0;
-      s.due = now() + LEARN_STEPS[0] * MIN;
-    } else if (rating === "easy") {
-      s.phase = "review";
-      s.step = 0;
-      s.interval = EASY_DAYS;
-      s.due = inDays(EASY_DAYS);
-    } else if (rating === "hard") {
-      s.phase = "learning";
-      s.due = now() + LEARN_STEPS[Math.min(s.step, LEARN_STEPS.length - 1)] * MIN;
-    } else {
-      const next = s.step + 1;
-      if (next >= LEARN_STEPS.length) {
-        s.phase = "review";
-        s.step = 0;
-        s.interval = GRADUATE_DAYS;
-        s.due = inDays(GRADUATE_DAYS);
-      } else {
-        s.phase = "learning";
-        s.step = next;
-        s.due = now() + LEARN_STEPS[next] * MIN;
-      }
-    }
-    return s;
-  }
-
-  if (s.phase === "relearning") {
-    if (rating === "again") {
-      s.due = now() + RELEARN_STEP * MIN;
-    } else {
-      s.phase = "review";
-      s.interval = Math.max(1, s.interval);
-      s.due = inDays(s.interval);
-    }
-    return s;
-  }
-
-  if (rating === "again") {
-    s.lapses += 1;
-    s.ease = clampEase(s.ease - 0.2);
-    s.interval = Math.max(1, Math.round(s.interval * 0.5));
-    s.phase = "relearning";
-    s.due = now() + RELEARN_STEP * MIN;
-    return s;
-  }
-
-  let mult;
-  if (rating === "hard") {
-    s.ease = clampEase(s.ease - 0.15);
-    mult = 1.2;
-  } else if (rating === "easy") {
-    s.ease = clampEase(s.ease + 0.15);
-    mult = s.ease * 1.3;
-  } else {
-    mult = s.ease;
-  }
-  const base = Math.max(1, s.interval || 1);
-  s.interval = Math.min(MAX_DAYS, Math.max(1, Math.round(base * mult * fuzz())));
-  s.due = inDays(s.interval);
-  return s;
-}
 
 
-function formatGap(ms) {
-  if (ms <= 0) return "now";
-  const m = ms / MIN;
-  if (m < 60) return `${Math.max(1, Math.round(m))}m`;
-  const h = m / 60;
-  if (h < 24) return `${Math.round(h)}h`;
-  const d = h / 24;
-  if (d < 31) return `${Math.round(d)}d`;
-  if (d < 365) return `${Math.round(d / 30)}mo`;
-  return `${(d / 365).toFixed(1)}y`;
-}
 
-function maturity(s) {
-  if (s.phase === "new") return "new";
-  if (s.phase === "learning" || s.phase === "relearning") return "learning";
-  return s.interval >= MATURE_DAYS ? "mature" : "young";
-}
+
+
 
 const MATURITY_LABEL = { new: "New", learning: "Learning", young: "Young", mature: "Mature" };
 const MATURITY_COLOR = {
@@ -336,54 +231,7 @@ const MATURITY_COLOR = {
 const HARD_BACKLOG_LIMIT = 10;
 const DIFF_RANK = { easy: 0, steady: 1, unrated: 2, hard: 3 };
 
-function difficultyScore(s) {
-  const attempts = (s.right || 0) + (s.wrong || 0);
-  if (!attempts) return 0;
-  const raw =
-    ((s.wrong || 0) / attempts) * 40 +
-    Math.min(s.lapses || 0, 5) * 6 +
-    Math.min(s.skips || 0, 5) * 8 +
-    (2.5 - (s.ease || 2.5)) * 20 -
-    Math.min(s.near || 0, 5) * 3;
-  return Math.max(0, Math.min(100, Math.round(raw)));
-}
 
-function difficulty(s) {
-  if ((s.right || 0) + (s.wrong || 0) < 2) return "unrated";
-  const score = difficultyScore(s);
-  if (score < 22) return "easy";
-  if (score < 50) return "steady";
-  return "hard";
-}
-
-/* Rule 7: a family counts as learnt only when every one of its forms is.
-   Both of these take the weakest link across the item and its sub-items. */
-function itemDifficulty(it) {
-  const rated = [];
-  for (const { unit } of unitsOf(it)) {
-    for (const t of availableTypes(unit)) {
-      const d = difficulty(unit.s[t]);
-      if (d !== "unrated") rated.push(d);
-    }
-  }
-  if (!rated.length) return "unrated";
-  if (rated.includes("hard")) return "hard";
-  if (rated.includes("steady")) return "steady";
-  return "easy";
-}
-
-const MATURITY_ORDER = ["new", "learning", "young", "mature"];
-
-function familyMaturity(it) {
-  let worst = null;
-  for (const { unit } of unitsOf(it)) {
-    for (const t of availableTypes(unit)) {
-      const m = maturity(unit.s[t]);
-      if (worst === null || MATURITY_ORDER.indexOf(m) < MATURITY_ORDER.indexOf(worst)) worst = m;
-    }
-  }
-  return worst || "new";
-}
 
 
 /* ------------------------------------------------------------------
@@ -401,11 +249,6 @@ function cleanTags(input) {
 }
 
 
-function freshStates() {
-  const s = {};
-  for (const t of TYPES) s[t] = freshState();
-  return s;
-}
 
 /* A sub-item is a form of its parent — a plural, a feminine — carrying the
    same three fields and its own progress, but no decks of its own. */
@@ -457,12 +300,6 @@ function makeItem(src = {}) {
   };
 }
 
-/* Everything schedulable in a family: the item itself plus its sub-items. */
-function unitsOf(item) {
-  return [{ unit: item, isSub: false }].concat(
-    (item.subs || []).map((sb) => ({ unit: sb, isSub: true }))
-  );
-}
 
 function drillableUnits(item, settings) {
   return unitsOf(item).filter(({ unit }) => enabledTypes(unit, settings).length >= 2);
@@ -740,12 +577,6 @@ const COHESION_POOL = { off: 1, balanced: 3, strong: 6 };
    Session building
    ------------------------------------------------------------------ */
 
-/* A state that isn't there is one that has never been answered, which is
-   ready by definition. In memory every state should exist; this is the
-   guard for the render that happens before a lift catches up. */
-function stateReady(s) {
-  return !s || s.phase === "new" || (s.due || 0) <= now();
-}
 
 const MAX_UNITS_PER_FAMILY = 4;
 
@@ -1446,48 +1277,6 @@ function parseLines(text, knownTags = []) {
 
   out.skipped = skipped;
   return out;
-}
-
-function csvCell(v) {
-  const s = String(v == null ? "" : v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function toCSV(items) {
-  const head = ["english", "script", "transliteration"]
-    .concat(grammarFields())
-    .concat(["form_of", "kind", "tags", "note"]);
-  for (const t of TYPES) head.push(`${t}_phase`, `${t}_days`, `${t}_due`);
-  const rows = [];
-  for (const i of items) {
-    for (const { unit, isSub } of unitsOf(i)) {
-      const cells = [
-        unit.en,
-        unit.ar,
-        unit.lat,
-        ...grammarFields().map((f) => unit[f] || i[f] || ""),
-        isSub ? i.en || i.ar || i.lat : "",
-        i.kind,
-        i.tags.join(", "),
-        unit.note || "",
-      ];
-      for (const t of TYPES) {
-        const st = unit.s[t];
-        cells.push(st.phase, st.interval, st.due ? new Date(st.due).toISOString() : "");
-      }
-      rows.push(cells.map(csvCell).join(","));
-    }
-  }
-  return [head.join(","), ...rows].join("\n");
-}
-
-function download(text, filename, type) {
-  const url = URL.createObjectURL(new Blob([text], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 /* ------------------------------------------------------------------
@@ -2449,7 +2238,11 @@ function caretInsert(ref, value, setValue, ch) {
     const p = s + ch.length;
     try {
       el.setSelectionRange(p, p);
-    } catch (err) {}
+    } catch (err) {
+      /* Some inputs refuse to be given a caret position, and a field that
+         will not take one is not a reason to lose the character that was
+         just typed. The text is already set; only the caret is at stake. */
+    }
   });
 }
 
@@ -2465,7 +2258,11 @@ function caretBackspace(ref, value, setValue) {
     const p = s === e ? s - 1 : s;
     try {
       el.setSelectionRange(p, p);
-    } catch (err) {}
+    } catch (err) {
+      /* Some inputs refuse to be given a caret position, and a field that
+         will not take one is not a reason to lose the character that was
+         just typed. The text is already set; only the caret is at stake. */
+    }
   });
 }
 
@@ -2473,21 +2270,6 @@ function caretBackspace(ref, value, setValue) {
 /* ------------------------------------------------------------------
    Small components
    ------------------------------------------------------------------ */
-
-const ICON = {
-  width: 18,
-  height: 18,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.7,
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-};
-
-
-
-
 
 /* The target language's own script, however it is written. */
 function Arabic({ text, kind, lang, name }) {
@@ -2549,6 +2331,10 @@ function AudioPrompt({ recs, autoPlay }) {
         setState("idle");
       }
     },
+  /* The signature is the identity of the list, and the reason it
+     exists: `list` is rebuilt on every render, so depending on it
+     would rebuild the player between every keystroke. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
     [signature]
   );
 
@@ -2560,6 +2346,10 @@ function AudioPrompt({ recs, autoPlay }) {
       if (audioRef.current) audioRef.current.pause();
       releaseUrl();
     };
+  /* Same again: a new clip list with the same contents must not
+     restart playback. autoPlay and play are read on purpose from the
+     render that changed the signature. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
   if (!list.length) return <Notice kind="warn">No recording for this form.</Notice>;
@@ -2630,13 +2420,6 @@ export function noCardsYet(courseCount) {
   const them = courseCount === 1 ? "it" : "them";
   return `You're in ${plural(courseCount, "course")}, but there are no cards in ${them} yet.`;
 }
-
-const FLAG_LABEL = {
-  strict: "Check too strict",
-  data: "Data looks wrong",
-  audio: "Recording problem",
-  other: "Flagged",
-};
 
 /*
  * After an answer there is nothing to grade by hand: the check decides,
@@ -2761,11 +2544,26 @@ export default function ArabicTrainer() {
   const [saveFailed, setSaveFailed] = useState(false);
   const [tab, setTab] = useState("home");
 
-  const [deck, setDeck] = useState([]);
+  /* The deck filter. Nothing sets it any more — the control that used
+     to toggle it was removed, and this was left reading as though it
+     still worked — so it is always empty and every read below takes
+     the unfiltered path. */
+  const [deck] = useState([]);
   const [session, setSession] = useState(null); // { exercises, practice, items }
   /* Null until the person has set up or signed in; the app shows the
      welcome screens until then. */
   const [account, setAccount] = useState(() => API.loadAccount());
+
+  /*
+   * Who the account is, rather than which object holds it. A re-render can
+   * hand back a fresh object for the same person, and every hook below
+   * wants to re-run when the person changes and not when the reference
+   * does. Named here so the dependency arrays carry something a reader —
+   * and the linter — can check, instead of an expression repeated at six
+   * call sites.
+   */
+  const accountKey = account && account.key;
+  const accountHandle = account && account.handle;
   /* A teacher opens into teaching; everyone else into learning. */
   const [space, setSpace] = useState(() => (loadTeaches() ? "teach" : "learn"));
   const [screen, setScreen] = useState(null); // null | "account" | "prefs"
@@ -2820,8 +2618,15 @@ export default function ArabicTrainer() {
       .catch(() => {
         /* offline, or the key was replaced — keep working locally */
       });
-  }, [account && account.key]);
-  const [now_, setNow_] = useState(0); // ticks only while a timed session runs
+  /* The key, not the account object: a re-render hands back a new
+     object for the same person, and re-checking who they are on
+     every render would put the app in a request loop. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountKey]);
+  /* No value, only a setter: the interval below calls it twice a second
+     purely to re-render, so the time left on a timed session counts
+     down. Nothing reads the number itself. */
+  const [, setNow_] = useState(0);
   const [qi, setQi] = useState(0);
   const [typed, setTyped] = useState("");
   const [checked, setChecked] = useState(null);
@@ -2848,7 +2653,10 @@ export default function ArabicTrainer() {
   /* ---- sync ---- */
   const [syncCfg, setSyncCfg] = useState(() => ({ token: "", lastSync: 0 }));
   const [syncState, setSyncState] = useState("idle"); // idle|syncing|ok|error|off
-  const [syncError, setSyncError] = useState("");
+  /* Recorded but not shown anywhere yet: the corner dot reports that a
+     sync failed, and this holds why. A hole rather than a name, so it
+     is clear the value is unread on purpose. */
+  const [, setSyncError] = useState("");
   const syncTimer = useRef(null);
   const syncing = useRef(false);
   const fromSync = useRef(false);
@@ -2945,6 +2753,10 @@ export default function ArabicTrainer() {
         syncing.current = false;
       }
     },
+  /* Deliberately none. This reads and writes through refs so that a
+     sync started at any moment works on the document as it is then,
+     not as it was when the callback was made. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -2969,7 +2781,10 @@ export default function ArabicTrainer() {
     return () => {
       alive = false;
     };
-  }, [ready, account && account.key, runSync]);
+  /* As above. The account object changes identity far more often
+     than the person behind it does. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, accountKey, runSync]);
 
   // After anything changes — which covers the end of a session.
   useEffect(() => {
@@ -2988,6 +2803,9 @@ export default function ArabicTrainer() {
     if (!session || !session.endsAt) return;
     const id = setInterval(() => setNow_(Date.now()), 500);
     return () => clearInterval(id);
+  /* When the session ends, not which object holds it: the ticking
+     clock below replaces the session object every half second. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session && session.endsAt]);
 
   // Retry when the connection comes back.
@@ -3010,6 +2828,9 @@ export default function ArabicTrainer() {
     return () => {
       alive = false;
     };
+  /* Once, on mount. commit is read through a ref precisely so this
+     does not have to re-run when the document changes. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Match the page background and native controls to the chosen theme.
@@ -3028,6 +2849,10 @@ export default function ArabicTrainer() {
       for (const { unit } of unitsOf(it)) for (const r of unit.recs || []) ids.push(r.id);
     }
     if (ids.length) migrateClips(ids);
+  /* Once the app is ready, and only then. Depending on the cards
+     would walk every recording again on every edit, to migrate
+     clips that were already migrated. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
   /* Takes the next document, or a function of the current one. The
@@ -3062,6 +2887,10 @@ export default function ArabicTrainer() {
      which is not work to repeat on a keystroke. */
   const contextIndex = useMemo(
     () => buildContextIndex(items, langOf(settings)),
+  /* Only the language, not the whole settings object: this walks
+     every phrase against every word it claims to teach, which is not
+     work to repeat because a checkbox moved. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
     [items, settings.language]
   );
   setContextIndex(contextIndex);
@@ -3100,21 +2929,6 @@ export default function ArabicTrainer() {
       ).length,
     [drillable, settings]
   );
-
-  const dueByTag = useMemo(() => {
-    const out = {};
-    for (const it of items) {
-      if (!isDrillable(it, settings)) continue;
-      if (
-        !drillableUnits(it, settings).some(({ unit }) =>
-          enabledTypes(unit, settings).some((t) => stateReady(unit.s[t]))
-        )
-      )
-        continue;
-      for (const t of it.tags) out[t] = (out[t] || 0) + 1;
-    }
-    return out;
-  }, [items, settings]);
 
   /* ---------------- session ---------------- */
 
@@ -3239,26 +3053,36 @@ export default function ArabicTrainer() {
         setCoursesKnown(true);
       }
     },
-    [account && account.handle]
+  /* The handle, not the account object. commit and flash are stable
+     across renders — one writes through a ref, the other forwards to
+     a memoised snackbar — so naming them would only churn this. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+    [accountHandle]
   );
 
   useEffect(() => {
     if (ready && account) refreshCourses(false);
-  }, [ready, account && account.handle, refreshCourses]);
+  /* The handle, not the account object, for the same reason. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, accountHandle, refreshCourses]);
 
   /* Sync now should mean everything, not just this device's own cards: the
      courses are the other half of what a student holds, and a course that has
      been withdrawn is exactly what someone pressing it wants to find out. */
   const syncEverything = useCallback(async () => {
     await Promise.allSettled([runSync(), account ? refreshCourses("changes") : null]);
-  }, [runSync, refreshCourses, account && account.handle]);
+  /* The handle, not the account object, for the same reason. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runSync, refreshCourses, accountHandle]);
 
   /* A course can be deleted, or its decks changed, by a teacher on another
      device. Without this the home screen keeps showing a course that is gone
      until the app is reloaded. */
   const recheckCourses = useCallback(() => {
     if (ready && account) refreshCourses(false);
-  }, [ready, account && account.handle, refreshCourses]);
+  /* The handle, not the account object, for the same reason. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, accountHandle, refreshCourses]);
   useLiveRefresh(recheckCourses);
 
   /* Fetch, in the background, the recordings a session is about to play.
@@ -3325,7 +3149,6 @@ export default function ArabicTrainer() {
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);
-  const state = item && exercise ? item.s[exercise.type] : null;
   const spec = exercise ? exOf(exercise.type, langOf(settings)) : null;
   /* The phrase this question shows the word in, if it is that sort of
      question. Chosen when the queue was built and named on the exercise, so
@@ -3339,6 +3162,10 @@ export default function ArabicTrainer() {
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
+  /* The question number alone. Naming `checked` would drag focus
+     back into the box the moment an answer was marked, and `exercise`
+     changes with it. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qi]);
 
   function submit() {
@@ -3569,14 +3396,6 @@ export default function ArabicTrainer() {
     flash(`${plural(ids.length, "item")} ${locked ? "locked" : "unlocked"}`);
   }
 
-  function untagMany(ids, tag) {
-    updateMany(ids, (i) => ({ ...i, tags: i.tags.filter((t) => t !== tag) }));
-  }
-
-  function setKindMany(ids, kind) {
-    updateMany(ids, (i) => ({ ...i, kind }));
-  }
-
   function removeItems(ids) {
     const set = new Set(Array.isArray(ids) ? ids : [ids]);
     const targets = items.filter((i) => set.has(i.id));
@@ -3765,10 +3584,6 @@ export default function ArabicTrainer() {
     r.readAsText(file);
   }
 
-  const toggleDeck = (tag) =>
-    tag === null
-      ? setDeck([])
-      : setDeck((d) => (d.includes(tag) ? d.filter((t) => t !== tag) : d.concat([tag])));
 
   /* ---------------- render ---------------- */
 
@@ -4612,10 +4427,8 @@ function ItemsTab({
     setQ("");
     if (onDeckWantedUsed) onDeckWantedUsed();
   }, [deckWanted, onDeckWantedUsed]);
-  const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
   const [confirmId, setConfirmId] = useState(null);
-  const [expanded, setExpanded] = useState(() => new Set());
 
   useEffect(() => {
     if (!confirmId) return;
@@ -4657,17 +4470,6 @@ function ItemsTab({
       .sort((a, b) => b.created - a.created);
   }, [items, q, filterTags]);
 
-  const allShownSelected = filtered.length > 0 && filtered.every((i) => selected.has(i.id));
-
-  function toggleSel(id) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   /* Course cards are not a student's to change, so a selection offers
      nothing destructive. With OWN_CARDS off there is nothing at all, and the
      list hides the whole selection mode by itself. */
@@ -4687,11 +4489,6 @@ function ItemsTab({
   /* Both used to be a browser prompt and a browser confirm — the only two
      places in the app that left it to the browser to ask. */
   const [bulk, setBulk] = useState(null);
-
-  function leaveSelect() {
-    setSelecting(false);
-    setSelected(new Set());
-  }
 
   return (
     <>
@@ -7450,10 +7247,6 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
       </div>
     </>
   );
-}
-
-function pct(n, total) {
-  return `${total ? (n / total) * 100 : 0}%`;
 }
 
 function nextDueLine(pool, settings) {

@@ -301,7 +301,7 @@ export function normViet(s, { stripTones }) {
      untouched, and it is not folded into d — the rules promise that typing
      d for đ is marked wrong, and for a while this line quietly broke that
      promise by doing exactly the folding it said it didn't. */
-  x = x.replace(/[.,!?;:'"()\[\]]/g, "").replace(/[-\u2010\u2013_]/g, " ");
+  x = x.replace(/[.,!?;:'"()[\]]/g, "").replace(/[-\u2010\u2013_]/g, " ");
   return x.replace(/\s+/g, " ").trim().normalize("NFC");
 }
 
@@ -535,7 +535,7 @@ export const dimsOf = (lang) => (lang.grammar || []).map((k) => GRAMMAR[k]).filt
 /* Every value any dimension can hold, for validating stored cards without
    knowing which language wrote them. */
 export const DIM_VALUES = {};
-for (const [key, dim] of Object.entries(GRAMMAR)) {
+for (const dim of Object.values(GRAMMAR)) {
   DIM_VALUES[dim.field] = (DIM_VALUES[dim.field] || []).concat(dim.options.map(([v]) => v));
 }
 

@@ -96,7 +96,8 @@ export function scan() {
         /* An opening tag, and not the start of a longer name: "<Tile" must
            not match "<TileNote". */
         const re = new RegExp(`<${local}(?![A-Za-z0-9_])`, "g");
-        for (const _ of line.matchAll(re)) {
+        /* The count is what matters here, not what was matched. */
+        for (let n = line.matchAll(re), m = n.next(); !m.done; m = n.next()) {
           const where = enclosing(lines, i);
           /* A component's own definition is not a use of itself. */
           if (file === "shared.jsx" && where === real) continue;

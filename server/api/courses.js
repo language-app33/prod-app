@@ -78,7 +78,6 @@ function makeHandle(displayName, taken) {
 
 const K = {
   user: (h) => `user:${h}`,
-  card: (id) => `card:${id}`,
   ownCards: (h) => `owncards:${h}`,
   keyOf: (hash) => `key:${hash}`,
   course: (id) => `course:${id}`,

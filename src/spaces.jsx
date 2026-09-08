@@ -10,7 +10,6 @@ const ScreenElements = React.lazy(() =>
   import("./gallery.jsx").then((m) => ({ default: m.ScreenElements })),
 );
 import {
-  GRAMMAR,
   contextCoverage,
   dimsOf,
   dimValues,
@@ -30,7 +29,6 @@ import {
   CheckList,
   ClipList,
   ConfirmModal,
-  Empty,
   Field,
   FilterBar,
   Help,
@@ -45,10 +43,8 @@ import {
   Section,
   Segmented,
   SpaceFrame,
-  Tabs,
   Tile,
   TileNote,
-  askConfirm,
   cardToItem,
   languageName,
   localIdFor,
@@ -797,7 +793,6 @@ function CourseSettings({
           <div className="at-list">
             {people.map((h) => {
               const u = users.find((x) => x.handle === h);
-              const teaching = c.teachers.includes(h);
               return (
                 <div className="at-item" key={h}>
                   <div className="grow">
@@ -881,7 +876,6 @@ export function AdminSpace({ account, languages, onClose }) {
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [lang, setLang] = useState(Object.keys(languages)[0]);
-  const [assigning, setAssigning] = useState(null);
   const [newKey, setNewKey] = useState(null);
   const [makingCourse, setMakingCourse] = useState(false);
   const [makingUser, setMakingUser] = useState(null); // the form, while open
@@ -2379,7 +2373,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         ]
       : [blankForm()]
   );
-  const [note, setNote] = useState((card && card.note) || "");
+  const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
   /* Which words this phrase teaches. Confirmed, never assumed: the matcher
      below proposes and the teacher decides, because peeling prefixes off an
@@ -2773,14 +2767,11 @@ export function TeachSpace({ account, languages, onClose }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [openCourse, setOpenCourse] = useState(null);
   const [courseView, setCourseView] = useState(null);
   const [openDeck, setOpenDeck] = useState(null);
   const [cards, setCards] = useState([]);
   const [editing, setEditing] = useState(null); // {card|null, decks:[]}
   const [naming, setNaming] = useState(null); // "new" | deck
-  const [deckTitle, setDeckTitle] = useState("");
-  const [deckLang, setDeckLang] = useState("");
   const [confirm, setConfirm] = useState(null); // whatever is awaiting a yes
   const [viewing, setViewing] = useState(null); // a card being read, not edited
   const [selCards, setSelCards] = useState(() => new Set());
@@ -2788,8 +2779,6 @@ export function TeachSpace({ account, languages, onClose }) {
   const [newCardLang, setNewCardLang] = useState(null);
   const [managingDecks, setManagingDecks] = useState(null); // a course id
   /* Already teaching something? Then this is a rare errand, folded away. */
-  const [joinOpen, setJoinOpen] = useState(false);
-  const [joinCode, setJoinCode] = useState("");
   const [joinNote, setJoinNote] = useState("");
   const [selDecks, setSelDecks] = useState(() => new Set());
   const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
