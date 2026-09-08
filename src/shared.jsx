@@ -1732,6 +1732,92 @@ export function useSlowWait(waiting, ms = 500) {
   return slow;
 }
 
+/* --- what each space holds, and who fetches it ---------------------
+
+   Teaching and Admin are unmounted the moment you leave them, so what they
+   were showing is kept here rather than in the components: coming back puts
+   the screen up at once and the check for what has changed runs behind it.
+
+   It is also where "Sync now" leaves what it fetches. Pressing sync means
+   "bring what I have up to date", and that has to include the spaces the
+   person is not looking at — which have no component to ask. So the fetching
+   lives here, in one function per space, used both by the space itself and by
+   sync; a space that is on screen is handed the result and takes it.
+
+   Held against the handle it was fetched for, so the next person to sign in on
+   this device is shown nothing of the last one's, and what was kept for them
+   is dropped the moment a different handle asks. */
+const spaceHeld = { admin: null, teach: null };
+const spaceWatchers = new Set();
+
+/* Quietly: the space itself, keeping the slot level with what it is
+   showing. Nothing to tell anyone, since the teller is the only one
+   showing it. */
+export function rememberSpace(space, handle, shown) {
+  spaceHeld[space] = { handle, shown };
+}
+
+/* Out loud: a fetch made on somebody else's behalf, which whoever is on
+   screen should take. */
+function deliverSpace(space, handle, shown) {
+  rememberSpace(space, handle, shown);
+  for (const watcher of [...spaceWatchers]) watcher(space, handle, shown);
+}
+
+export function recallSpace(space, handle) {
+  const held = spaceHeld[space];
+  if (!held) return null;
+  if (held.handle !== handle) {
+    spaceHeld[space] = null;
+    return null;
+  }
+  return held.shown;
+}
+
+/* A space on screen taking contents fetched for it elsewhere. The callback
+   is held in a ref so that a space does not have to memoise it to avoid
+   resubscribing on every render. */
+export function useFreshSpace(space, handle, adopt) {
+  const latest = useRef(adopt);
+  latest.current = adopt;
+  useEffect(() => {
+    const watcher = (which, whose, shown) => {
+      if (which === space && whose === handle) latest.current(shown);
+    };
+    spaceWatchers.add(watcher);
+    return () => {
+      spaceWatchers.delete(watcher);
+    };
+  }, [space, handle]);
+}
+
+/* The administrator's whole view of the site, in one request. */
+export async function pullAdmin(handle) {
+  const data = await API.adminOverview();
+  deliverSpace("admin", handle, data);
+  return data;
+}
+
+/* What a teacher has: the courses they teach, their decks, their cards.
+   One failing call shouldn't blank the screen, so what arrives is taken
+   and what didn't is reported — and what was already held stands in for
+   the part that failed. */
+export async function pullTeaching(handle) {
+  const [c, d, k] = await Promise.allSettled([API.myCourses(), API.myDecks(), API.myCards()]);
+  const before = recallSpace("teach", handle) || { courses: [], decks: [], cards: [] };
+  const shown = {
+    courses:
+      c.status === "fulfilled"
+        ? (c.value.courses || []).filter((x) => x.role === "teacher")
+        : before.courses,
+    decks: d.status === "fulfilled" ? d.value.decks || [] : before.decks,
+    cards: k.status === "fulfilled" ? k.value.cards || [] : before.cards,
+  };
+  deliverSpace("teach", handle, shown);
+  const failed = [c, d, k].find((r) => r.status === "rejected");
+  return { ...shown, failed: failed ? failed.reason : null };
+}
+
 /* Course membership is changed by other people on other devices, so a screen
    that fetched once at mount goes quietly stale — a deleted course sits there
    until the app is reloaded. Re-fetch whenever this window comes back to the

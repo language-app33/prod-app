@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.34 — 8 September 2026
+
+- Sync now brings every space you belong to up to date, not just your own
+  cards and the courses you study. An administrator pressing it gets the
+  latest of everything in Admin — who has signed in, who has practiced,
+  what has been made — and a teacher gets their courses, decks and cards.
+  Before, sync knew nothing about those screens: they refreshed
+  themselves every forty-five seconds and when the window came back, and
+  there was no way to ask for them now short of reloading the whole app.
+- It reaches the spaces you are not looking at as well, so the one you
+  switch to next is already current rather than fetching on arrival. If
+  the space is on screen, it updates in place — no second request.
+- The dot in the corner covers all of it: it stays amber until every part
+  has finished, and turns red if any part failed. "Up to date" now means
+  everything, not just the part sync used to cover.
+
 ## 0.33 — 8 September 2026
 
 - Switching between Learning, Teaching and Admin no longer flashes

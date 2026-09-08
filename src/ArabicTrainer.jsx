@@ -25,6 +25,8 @@ import {
   plural,
   pullCourses,
   shortDate,
+  pullAdmin,
+  pullTeaching,
   useLiveRefresh,
   useScrollTop,
   useSlowWait,
@@ -2598,6 +2600,10 @@ export default function ArabicTrainer() {
    */
   const accountKey = account && account.key;
   const accountHandle = account && account.handle;
+  /* Like the handle: a value rather than the object, so a re-fetch that
+     changes nothing about the person does not rebuild everything that
+     depends on it. */
+  const accountAdmin = !!(account && account.admin);
   /* A teacher opens into teaching; everyone else into learning. */
   const [space, setSpace] = useState(() => (loadTeaches() ? "teach" : "learn"));
   const [screen, setScreen] = useState(null); // null | "account" | "prefs"
@@ -2687,6 +2693,10 @@ export default function ArabicTrainer() {
   /* ---- sync ---- */
   const [syncCfg, setSyncCfg] = useState(() => ({ token: "", lastSync: 0 }));
   const [syncState, setSyncState] = useState("idle"); // idle|syncing|ok|error|off
+  /* True only while a deliberate Sync now is fetching the spaces. The
+     background check every forty-five seconds sets nothing here, so the dot
+     stays still for it. */
+  const [spacesBusy, setSpacesBusy] = useState(false);
   /* Recorded but not shown anywhere yet: the corner dot reports that a
      sync failed, and this holds why. A hole rather than a name, so it
      is clear the value is unread on purpose. */
@@ -3100,14 +3110,43 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, accountHandle, refreshCourses]);
 
-  /* Sync now should mean everything, not just this device's own cards: the
-     courses are the other half of what a student holds, and a course that has
-     been withdrawn is exactly what someone pressing it wants to find out. */
+  /* Sync now should mean everything this person has, not just this device's
+     own cards. The courses are the other half of what a student holds, and a
+     course that has been withdrawn is exactly what someone pressing it wants
+     to find out — and for a teacher or an administrator, so are the decks
+     somebody else changed and the people who have signed in since.
+
+     Every space they belong to, not only the one on screen: the others have
+     no component to ask while they are closed, which is why the fetching for
+     them lives in shared.jsx rather than inside the spaces. Whatever comes
+     back is left where a space picks it up, so the one being looked at
+     updates in place and the rest are already current on arrival.
+
+     Nothing here narrates itself. The dot in the corner is the report — it
+     stays lit until all of this is done, and turns to trouble if any part of
+     it failed. */
   const syncEverything = useCallback(async () => {
-    await Promise.allSettled([runSync(), account ? refreshCourses("changes") : null]);
+    setSpacesBusy(true);
+    try {
+      const jobs = [runSync()];
+      if (account) jobs.push(refreshCourses("changes"));
+      if (account && (teaches || account.admin))
+        jobs.push(
+          pullTeaching(account.handle).then((r) => {
+            if (r.failed) throw r.failed;
+          })
+        );
+      if (account && account.admin) jobs.push(pullAdmin(account.handle));
+      const done = await Promise.allSettled(jobs);
+      /* Said after everything has settled, so it cannot be overwritten by
+         the half of the sync that went fine. */
+      if (done.some((r) => r.status === "rejected")) setSyncState("error");
+    } finally {
+      setSpacesBusy(false);
+    }
   /* The handle, not the account object, for the same reason. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runSync, refreshCourses, accountHandle]);
+  }, [runSync, refreshCourses, accountHandle, teaches, accountAdmin]);
 
   /* A course can be deleted, or its decks changed, by a teacher on another
      device. Without this the home screen keeps showing a course that is gone
@@ -4393,9 +4432,12 @@ Cards ready to practice
           />
           <CornerMenu
             account={account}
-            /* The dot stands for the whole action now, so it should stay lit
-               while either half is still going. */
-            syncState={syncState === "idle" && courseBusy ? "syncing" : syncState}
+            /* The dot stands for the whole action, so it stays lit until
+               every part of it is done — this device's cards, the courses,
+               and the spaces this person belongs to. */
+            syncState={
+              spacesBusy || (syncState === "idle" && courseBusy) ? "syncing" : syncState
+            }
             onSyncNow={syncEverything}
             theme={settings.theme || "auto"}
             onTheme={(v) => setSetting("theme", v)}
