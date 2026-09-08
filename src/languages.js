@@ -1126,10 +1126,32 @@ const positive = (n) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? 
 export const scaleOf = (lang) => positive(lang && lang.scale);
 export const leadingOf = (lang) => positive(lang && lang.leading);
 
-/* The two properties, ready to spread into a style object beside whatever
-   font-family the caller is already setting from the same pack. */
+/*
+ * Every size in the app was tuned by eye against Arabic, and a meaning or
+ * a romanisation is Latin whatever is being taught. Latin sets more of its
+ * body on the line than Arabic does — Arabic spends part of its em on the
+ * harakat above and the tails below — so Latin at an Arabic-tuned size
+ * reads as the louder of the two, which is backwards: the meaning is not
+ * the thing being learnt.
+ *
+ * This is the same correction Vietnamese carries, and for the same reason:
+ * Vietnamese is Latin. So it is Vietnamese's own number, and in a
+ * Vietnamese course the taught word and its meaning come out at one size
+ * again, as they should.
+ */
+const LATIN_SCALE = 0.78;
+
+/* The properties, ready to spread into a style object beside whatever
+   font-family the caller is already setting from the same pack.
+
+   --sscale and --sleading are the taught script's; --lscale belongs to the
+   Latin beside it and is the same whichever language that is. */
 export function scriptVars(lang) {
-  return { "--sscale": String(scaleOf(lang)), "--sleading": String(leadingOf(lang)) };
+  return {
+    "--sscale": String(scaleOf(lang)),
+    "--sleading": String(leadingOf(lang)),
+    "--lscale": String(LATIN_SCALE),
+  };
 }
 
 export const DEFAULT_LANGUAGE = "ar-PS";

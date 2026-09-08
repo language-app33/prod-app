@@ -376,7 +376,7 @@ test("a pack that says nothing about size renders at full size", () => {
      has to be the safe one rather than a crash or a zero. */
   assert.equal(scaleOf({ id: "xx" }), 1);
   assert.equal(leadingOf({ id: "xx" }), 1);
-  assert.deepEqual(scriptVars({ id: "xx" }), { "--sscale": "1", "--sleading": "1" });
+  assert.deepEqual(scriptVars({ id: "xx" }), { "--sscale": "1", "--sleading": "1", "--lscale": "0.78" });
   /* And a value that could not work in a calc() falls back rather than
      poisoning every rule that reads it. */
   for (const bad of [0, -1, NaN, Infinity, "big", null]) {
@@ -390,7 +390,19 @@ test("the properties are strings, which is what a style object needs", () => {
      but the values are read straight into calc() and a string keeps that
      explicit rather than dependent on that behaviour. */
   const v = scriptVars(LANGUAGES["vi-Hue"]);
-  assert.deepEqual(v, { "--sscale": "0.78", "--sleading": "0.85" });
+  assert.deepEqual(v, { "--sscale": "0.78", "--sleading": "0.85", "--lscale": "0.78" });
+});
+
+test("the Latin beside the script is the same size whatever is being taught", () => {
+  /* A meaning and a romanisation are Latin in every course, so the factor
+     that sizes them cannot be the pack's. It is one number for all three,
+     and for Vietnamese it is the pack's own — which is the point: there
+     the word and its meaning come out at one size again. */
+  const ls = Object.keys(LANGUAGES).map((id) => scriptVars(LANGUAGES[id])["--lscale"]);
+  assert.equal(new Set(ls).size, 1, `Latin was sized differently per course: ${ls.join(", ")}`);
+  assert.equal(scriptVars({ id: "xx" })["--lscale"], ls[0], "a pack that says nothing still sizes Latin");
+  assert.equal(scriptVars(LANGUAGES["vi-Hue"])["--sscale"], ls[0],
+    "Vietnamese is Latin, so its own factor and Latin's have to agree");
 });
 
 test("every language that groups words says what the grouping is called", () => {

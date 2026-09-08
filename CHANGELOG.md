@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.24 — 8 September 2026
+
+- The English meaning and the romanisation are now sized as the Latin
+  they are, rather than at sizes meant for Arabic. Every size in the app
+  was chosen by eye against Arabic, which spends part of its height on
+  the harakat above and the tails below; Latin puts nearly all of its
+  height on the line, so the same number came out looking bigger. The
+  meaning was reading louder than the word being learnt, which is
+  backwards. It now takes the same reduction Vietnamese already takes —
+  Vietnamese being Latin — so in a Vietnamese course the word and its
+  meaning come out at one size again, as they should.
+- The word being taught does not move by a pixel, in any language.
+- The question still sits exactly as far below its instruction as it did,
+  whichever field fills it. A smaller line has less space above it, so a
+  smaller meaning would have crept upward; it is given that space back.
+
 ## 0.23 — 8 September 2026
 
 - The stylesheet no longer knows what Arabic is. Where a piece of the

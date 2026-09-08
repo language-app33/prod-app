@@ -230,8 +230,8 @@ button {
    than the six pixels that ran the three together. */
 .at-answermain { margin: 14px 0 4px; }
 .at-answermain .at-arabic { font-size:calc(40px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); margin:6px 0; }
-.at-answermain .at-en { font-size:26px; font-weight:800; }
-.at-answermain .at-latin { font-size:24px; }
+.at-answermain .at-en { font-size:calc(26px * var(--lscale, 1)); font-weight:800; }
+.at-answermain .at-latin { font-size:calc(24px * var(--lscale, 1)); }
 /* The question and the answer box used to shrink and fade away over 240ms
    once the answer landed, to move the eye onto it. Nothing moves now: the
    question stays the size it was asked at and the answer box stays the
@@ -241,8 +241,8 @@ button {
 .at-alsolabel { font-family: var(--ui); font-size:11px; font-weight:700;
   letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 6px; }
 .at-answeralso .at-arabic { font-size:calc(26px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
-.at-answeralso .at-en { font-size:16px; }
-.at-answeralso .at-latin { font-size:15px; }
+.at-answeralso .at-en { font-size:calc(16px * var(--lscale, 1)); }
+.at-answeralso .at-latin { font-size:calc(15px * var(--lscale, 1)); }
 /* Everything under an answer that is not the answer, in one container:
    where it turned up, how it is written, how it is pronounced, how it
    sounds, what shares its root. Inset rather than raised — the same well
@@ -973,7 +973,7 @@ button {
 .at-arabic.word { font-size:calc(54px * var(--sscale, 1)); }
 .at-arabic.phrase { font-size:calc(40px * var(--sscale, 1)); }
 .at-arabic.sentence { font-size:calc(30px * var(--sscale, 1)); line-height:calc(1.85 * var(--sleading, 1)); }
-.at-latin { font-family: var(--ui); font-size:19px; font-weight:600; color: var(--muted); margin:8px 0; word-break:break-word; }
+.at-latin { font-family: var(--ui); font-size:calc(19px * var(--lscale, 1)); font-weight:600; color: var(--muted); margin:8px 0; word-break:break-word; }
 /* A hint is the same kind of thing whichever field it comes from — a look
    at part of the answer before committing — so it is set at one size. Left
    to each field's own styling, a revealed meaning came out at 25px and 800
@@ -983,8 +983,8 @@ button {
    Not .at-arabic: no exercise hints with the script today, and if one ever
    does it needs the script's own scale, not this one. */
 .at-hintvalue .at-latin,
-.at-hintvalue .at-en { font-size:19px; font-weight:600; letter-spacing:0; color: var(--muted); }
-.at-en { font-family: var(--ui); font-size:25px; font-weight:800; letter-spacing:-.01em; margin:8px 0; word-break:break-word; }
+.at-hintvalue .at-en { font-size:calc(19px * var(--lscale, 1)); font-weight:600; letter-spacing:0; color: var(--muted); }
+.at-en { font-family: var(--ui); font-size:calc(25px * var(--lscale, 1)); font-weight:800; letter-spacing:-.01em; margin:8px 0; word-break:break-word; }
 .at-note { font-size:14px; font-weight:500; color: var(--muted); margin:12px 0 0; }
 /* Touch browsers leave :hover stuck on the last thing tapped, which left a
    just-pressed toggle looking washed out until you tapped elsewhere. Hover
@@ -1378,8 +1378,8 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at-arabic.word { font-size:calc(34px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
 .at.kb-open .at-arabic.phrase { font-size:calc(27px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
 .at.kb-open .at-arabic.sentence { font-size:calc(20px * var(--sscale, 1)); line-height:calc(1.5 * var(--sleading, 1)); }
-.at.kb-open .at-en { font-size: 20px; margin: 2px 0; }
-.at.kb-open .at-latin { font-size: 16px; margin: 2px 0; }
+.at.kb-open .at-en { font-size: calc(20px * var(--lscale, 1)); margin: 2px 0; }
+.at.kb-open .at-latin { font-size: calc(16px * var(--lscale, 1)); margin: 2px 0; }
 .at.kb-open .at-input { padding: 11px 14px; font-size: 17px; }
 .at.kb-open .at-input.ar { font-size:calc(32px * var(--sscale, 1)); }
 .at.kb-open .at-answerbox .at-input { height:52px; }
@@ -1703,13 +1703,18 @@ body.at-screening .at-spaces { display:none; }
    .at.kb-open .at-arabic.word, which is four classes itself — so this
    ties with it and wins on source order. Those rules still stand
    everywhere else; inside the prompt this is the whole type scale. */
-.at { --ask: calc(40px * var(--sscale, 1)); }
-@media (max-width: 480px) { .at { --ask: calc(36px * var(--sscale, 1)); } }
-.at.kb-open { --ask: calc(26px * var(--sscale, 1)); }
+/* One size for the prompt, and each script takes it by its own factor.
+   The base is held apart from both so they cannot compound: in a
+   Vietnamese course the script's factor and Latin's are the same number,
+   and multiplying them would shrink the prompt twice over. */
+.at { --askbase: 40px; }
+@media (max-width: 480px) { .at { --askbase: 36px; } }
+.at.kb-open { --askbase: 26px; }
+.at { --ask: calc(var(--askbase) * var(--sscale, 1));
+      --askl: calc(var(--askbase) * var(--lscale, 1)); }
 .at .at-exercise .at-ask > .at-arabic,
 .at .at-exercise .at-ask > .at-en,
 .at .at-exercise .at-ask > .at-latin {
-  font-size: var(--ask);
   line-height: calc(1.5 * var(--sleading, 1));
   font-weight: 700;
   /* Grey, not full ink: the question is what you read first, but it is not
@@ -1718,6 +1723,22 @@ body.at-screening .at-spaces { display:none; }
      ground and 4.9:1 on the light, so it passes AA at any size. */
   color: var(--muted);
   margin: 0;
+}
+/* The one size, taken by each script's own factor. */
+.at .at-exercise .at-ask > .at-arabic { font-size: var(--ask); }
+.at .at-exercise .at-ask > .at-en,
+.at .at-exercise .at-ask > .at-latin {
+  font-size: var(--askl);
+  /* And the ink still starts where the script's would. Half the leading
+     sits above the first glyph and is proportional to the size, so a
+     smaller Latin prompt would otherwise climb toward the instruction and
+     the gap would depend on the exercise type again. This gives back the
+     difference between the two half-leadings.
+
+     Padding rather than margin: a margin here collapses through .at-ask,
+     which carries one of its own, and the larger of the two wins — so the
+     compensation was swallowed whole and measured as nothing. */
+  padding-top: calc((var(--ask) - var(--askl)) * (1.5 * var(--sleading, 1) - 1) / 2);
 }
 .at .at-exercise .at-ask .at-playbig { margin-top: calc(var(--ask) * .25); }
 

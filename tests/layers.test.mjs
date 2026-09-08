@@ -259,6 +259,7 @@ test("every rule that sets the script's size multiplies by the script's scale", 
     for (const [, prop, value] of body.matchAll(/(font-size|line-height)\s*:\s*([^;]+)/g)) {
       const v = value.trim();
       if (v === "normal" || v.includes("var(--sscale") || v.includes("var(--sleading") || v.includes("var(--ask")) continue;
+      if (v.includes("var(--lscale")) continue;   /* Latin beside the script, scaled as Latin */
       /* The keyboard's fitted rows size from the width of the row, not
          from a length, so the scale has nothing to multiply. */
       if (v.includes("var(--kw")) continue;
@@ -498,7 +499,16 @@ test("the question is asked at one size, whatever the exercise", () => {
     ".at .at-exercise .at-ask > .at-arabic,\n.at .at-exercise .at-ask > .at-en,\n.at .at-exercise .at-ask > .at-latin"
   );
   assert.ok(prompt, "the prompt has no rule of its own");
-  assert.match(prompt, /font-size:\s*var\(--ask\)/, "the prompt is not sized from one variable");
+  assert.match(
+    rule(".at .at-exercise .at-ask > .at-arabic"),
+    /font-size:\s*var\(--ask\)/,
+    "the script in the prompt is not sized from the one variable",
+  );
+  assert.match(
+    rule(".at .at-exercise .at-ask > .at-en,\n.at .at-exercise .at-ask > .at-latin"),
+    /font-size:\s*var\(--askl\)/,
+    "the meaning and the romanisation are not sized from the one variable",
+  );
   /* The gap below the instruction is half the leading plus the block's own
      margin. Both have to be fixed, or one size still lands at two
      distances. */
@@ -515,12 +525,38 @@ test("the question is asked at one size, whatever the exercise", () => {
      rather than on the three rules that read it, because the slot holds
      the script, the meaning or the romanisation and all three have to stay
      one size as each other. */
-  const asks = [...css.matchAll(/--ask:\s*([^;]+);/g)].map((m) => m[1].trim());
-  assert.ok(asks.length >= 1, "--ask is never set");
+  const bases = [...css.matchAll(/--askbase:\s*([^;]+);/g)].map((m) => m[1].trim());
+  assert.ok(bases.length >= 1, "--askbase is never set");
   assert.ok(
-    asks.every((v) => /^calc\(\d+px \* var\(--sscale, 1\)\)$/.test(v)),
-    `--ask is not a plain size times the script's scale: ${asks.join(", ")}`,
+    bases.every((v) => /^\d+px$/.test(v)),
+    `--askbase carries something other than a plain size: ${bases.join(", ")}`,
   );
+  /* One base, taken twice. Keeping the factors off the base is what stops
+     them compounding: in a Vietnamese course the script's factor and
+     Latin's are the same number, and a prompt that took both would come
+     out at 0.61 of the size it asked for. */
+  const asks = [...css.matchAll(/--ask:\s*([^;]+);/g)].map((m) => m[1].trim());
+  const askls = [...css.matchAll(/--askl:\s*([^;]+);/g)].map((m) => m[1].trim());
+  assert.deepEqual(asks, ["calc(var(--askbase) * var(--sscale, 1))"]);
+  assert.deepEqual(askls, ["calc(var(--askbase) * var(--lscale, 1))"]);
+});
+
+test("Latin in an exercise is sized as Latin, not as the script", () => {
+  /* The meaning and the romanisation are Latin whatever is being taught,
+     and every size in the stylesheet was tuned against Arabic. Left raw
+     they read louder than the word being learnt. A rule here that forgets
+     the factor puts one field back to shouting. */
+  const LATIN = /\.at-(en|latin)(?![\w-])/;
+  const raw = [];
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!LATIN.test(selectors)) continue;
+    for (const [, value] of body.matchAll(/font-size\s*:\s*([^;]+)/g)) {
+      const v = value.trim();
+      if (v.includes("var(--lscale") || v.includes("var(--askl")) continue;
+      raw.push(`${selectors.trim().split("\n")[0]} { font-size: ${v} }`);
+    }
+  }
+  assert.deepEqual(raw, [], `Latin sized as though it were the script:\n  ${raw.join("\n  ")}`);
 });
 
 test("a listening question starts where a written one does", () => {
