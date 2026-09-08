@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.32 — 8 September 2026
+
+- Tapping anything on a phone no longer flashes a grey square. The flash
+  was the browser's own, drawn as a rectangle over the whole button
+  whatever shape the button actually was, so a round icon button, a pill
+  and a rounded card all lit up as blocks. The app now draws the press
+  itself: a light tint that takes the shape it is pressing, on buttons,
+  pills, tabs, cards and the rows that open something. Text-only buttons
+  like "Report this" get a rounded press area of their own, and holding a
+  button no longer selects its label.
+- A filled button no longer stays brightened after being tapped. On a
+  touchscreen the hover look sticks to the last thing you touched, and
+  this one had been left out of the rule that turns hover off there, so a
+  Create or Save button looked busy long after it had finished.
+
 ## 0.31 — 8 September 2026
 
 - A person's courses in Admin > People are grouped by what they do in

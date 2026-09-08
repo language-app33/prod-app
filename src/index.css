@@ -123,6 +123,10 @@ button {
   --bg:#141A2A; --surface:#1D2436; --raised:#26304A; --raised-hover:#2E3A58;
   --line:#313C58; --text:#E9ECF4; --text-soft:#C6CDDD; --muted:#8C96B0; --faint:#5F6980;
   --well:rgba(0,0,0,.22); --well-deep:rgba(0,0,0,.28);
+  /* The tint a tap lays over whatever it is pressing. It goes the way
+     hover goes in each theme — lighter on the dark one, darker on the
+     light one — so a press reads as more of the same gesture. */
+  --press:rgba(255,255,255,.09);
   --brass:#E0AE44; --brass-hover:#EDBB4F; --onbrass:#1A1408;
   --jade:#4FB286; --onjade:#06210F; --rose:#DF5F72;
   --tag-bg:rgba(224,174,68,.12); --tag-line:rgba(224,174,68,.38);
@@ -151,6 +155,7 @@ button {
   --bg:#F4F6FA; --surface:#FFFFFF; --raised:#EAEEF6; --raised-hover:#DDE4F0;
   --line:#D2D9E6; --text:#16203A; --text-soft:#3A4664; --muted:#5F6B85; --faint:#98A2B8;
   --well:rgba(20,32,58,.05); --well-deep:rgba(20,32,58,.07);
+  --press:rgba(20,32,58,.09);
   --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
   --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
   --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
@@ -176,6 +181,7 @@ button {
     --bg:#F4F6FA; --surface:#FFFFFF; --raised:#EAEEF6; --raised-hover:#DDE4F0;
     --line:#D2D9E6; --text:#16203A; --text-soft:#3A4664; --muted:#5F6B85; --faint:#98A2B8;
     --well:rgba(20,32,58,.05); --well-deep:rgba(20,32,58,.07);
+    --press:rgba(20,32,58,.09);
     --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
     --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
     --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
@@ -1042,14 +1048,48 @@ button {
    styling is for devices that actually hover. */
 @media (hover: hover) {
   .at-btn:hover:not(:disabled) { background: var(--raised-hover); }
+  /* In here with the rest of them: left outside, a filled button stayed
+     brightened after the tap that pressed it, which read as "still
+     working" long after it was done. */
+  .at-btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
     .at-icon:hover { border-color: var(--accent); }
   .at-icon.danger:hover { border-color: var(--rose); color: var(--rose); }
+}
+/* --- what a press looks like --------------------------------------
+   A tap used to be drawn by the browser: a hard grey rectangle over the
+   whole box, square-cornered whatever the shape under it was, so a round
+   icon button, a pill and a rounded card all flashed as blocks. That is
+   off now, and a tint the element lays over itself takes its place —
+   which means it takes the element's own corners, everywhere, without a
+   single button having to describe its own shape twice.
+
+   The tint is a background image rather than a colour or a shadow: it
+   sits over whatever background-color is already there, and it leaves
+   box-shadow alone, which the nav buttons would otherwise lose for as
+   long as a finger was on them.
+
+   The three defaults under it are zero-specificity, so any class that
+   wants otherwise simply says so and wins. A pointer, which is also what
+   iOS asks for before it will show a pressed state at all. A corner
+   radius for the bare text buttons, which never needed one until they
+   had something to round. And no text selection, which is the other half
+   of what makes a held button look broken. */
+.at { -webkit-tap-highlight-color: transparent; }
+:where(.at) button { cursor:pointer; border-radius: var(--r-sm);
+  -webkit-user-select:none; user-select:none; }
+:where(.at) button:disabled { cursor:default; }
+/* The cards and rows that open something are tapped like buttons and were
+   flashed like buttons, so they answer the same way. */
+.at button:not(:disabled):active,
+.at .at-minicard:active,
+.at .at-deckcard[data-open]:active,
+.at .at-tickrow:active {
+  background-image: linear-gradient(var(--press), var(--press));
 }
 /* Flat buttons: the press is a small nudge rather than a block that sinks. */
 .at-btn:active:not(:disabled) { transform: translateY(1px); }
 .at-btn:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 .at-btn.primary { background: var(--jade); border-color: var(--jade); color: var(--onjade); }
-.at-btn.primary:hover:not(:disabled) { filter: brightness(1.06); }
 .at-btn.danger { background: var(--rose); border-color: var(--rose); color:#fff; }
 .at-btn.ghost { background:transparent; border-color: var(--line); }
 .at-btn.wide { width:100%; }
