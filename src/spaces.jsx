@@ -67,6 +67,39 @@ export { ConfirmModal, useLiveRefresh, cardToItem, localIdFor };
  * out a join code all happen on screen.
  */
 
+/* --- what a space was last showing --------------------------------
+
+   Switching space unmounts the space you left, so Teaching and Admin
+   used to arrive empty every time and fetch the site again from
+   nothing — a wait, and something to say about the wait, on a screen
+   you had been looking at ten seconds earlier. The learner's courses
+   never had this problem because they are held above the spaces, where
+   a switch cannot reach them.
+
+   So each space leaves its last contents here on the way out, and picks
+   them up on the way back in: the screen is there immediately, and the
+   check for what has changed since runs quietly behind it, which is the
+   same check that already runs every forty-five seconds anyway.
+
+   Held against the handle it was fetched for, so the next person to sign
+   in on this device is shown nothing of the last one's — and what was
+   kept for them is dropped the moment a different handle asks. */
+const lastShown = { admin: null, teach: null };
+
+function remember(space, handle, shown) {
+  lastShown[space] = { handle, shown };
+}
+
+function recall(space, handle) {
+  const held = lastShown[space];
+  if (!held) return null;
+  if (held.handle !== handle) {
+    lastShown[space] = null;
+    return null;
+  }
+  return held.shown;
+}
+
 /* ------------------------------------------------------------------
    First run
    ------------------------------------------------------------------ */
@@ -1015,7 +1048,7 @@ function CourseSettings({
 
 export function AdminSpace({ account, languages, onClose }) {
   const [tab, setTab] = useState("courses");
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => recall("admin", account.handle));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
@@ -1055,9 +1088,22 @@ export function AdminSpace({ account, languages, onClose }) {
     }
   }, []);
 
+  /* Whether this mount had something to show before it asked. Read once,
+     at the first render: what matters is how the space arrived, not what
+     it holds by the time the answer comes back. */
+  const arrivedWithSomething = useRef(data !== null);
   useEffect(() => {
-    refresh();
+    /* Quietly when there is already a screen to look at — the check is
+       then the same background one the poll makes, and says nothing. */
+    refresh(arrivedWithSomething.current);
   }, [refresh]);
+
+  /* Off the state rather than out of the fetch, so anything that changes
+     what is on screen is remembered, not just what arrived from a
+     refresh. */
+  useEffect(() => {
+    if (data) remember("admin", account.handle, data);
+  }, [data, account.handle]);
 
   const backgroundRefresh = useCallback(() => refresh(true), [refresh]);
   useLiveRefresh(backgroundRefresh);
@@ -3022,15 +3068,22 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
 }
 
 export function TeachSpace({ account, languages, onClose }) {
+  /* What this space was showing when it was last left — see lastShown.
+     Asked once, at the first render: recall forgets another person's
+     contents when it is asked for them, which is not something to do
+     again on every keystroke. */
+  const held = useRef(null);
+  if (held.current === null) held.current = recall("teach", account.handle) || false;
+  const last = held.current || null;
   const [tab, setTab] = useState("courses");
-  const [courses, setCourses] = useState([]);
-  const [decks, setDecks] = useState([]);
+  const [courses, setCourses] = useState(() => (last ? last.courses : []));
+  const [decks, setDecks] = useState(() => (last ? last.decks : []));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [courseView, setCourseView] = useState(null);
   const [openDeck, setOpenDeck] = useState(null);
-  const [cards, setCards] = useState([]);
+  const [cards, setCards] = useState(() => (last ? last.cards : []));
   const [editing, setEditing] = useState(null); // {card|null, decks:[]}
   const [naming, setNaming] = useState(null); // "new" | deck
   const [confirm, setConfirm] = useState(null); // whatever is awaiting a yes
@@ -3066,9 +3119,18 @@ export function TeachSpace({ account, languages, onClose }) {
     }
   }, []);
 
+  /* See AdminSpace: how this mount arrived, read once. Arriving with the
+     last contents means the check for what has changed runs quietly. */
+  const arrivedWithSomething = useRef(Boolean(last));
   useEffect(() => {
-    refresh();
+    refresh(arrivedWithSomething.current);
   }, [refresh]);
+
+  /* Fed from the state, so a card saved or a deck renamed is what comes
+     back next time, not what the last fetch happened to return. */
+  useEffect(() => {
+    remember("teach", account.handle, { courses, decks, cards });
+  }, [account.handle, courses, decks, cards]);
 
   /* Courses are changed by the administrator elsewhere. Without this, a course
      that has been deleted — and the decks and cards that went with it — stays

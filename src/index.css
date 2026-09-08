@@ -942,6 +942,20 @@ button {
 @keyframes at-snack-in { from { opacity:0; transform: translate(-50%, 10px); }
   to { opacity:1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .at-snack { animation: none; } }
+/* "Working…" while a space is fetching or a save is in flight. The
+   snackbar's place and the snackbar's manners — it sits over the content
+   rather than in it, so nothing on the page moves for it, and the
+   confirmation that follows a slow save arrives in the same spot. Quieter
+   than a snack, because it is not news: no coloured edge, and the dashed
+   border the busy notice has always used. */
+.at-working { position: fixed; left:50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom)); z-index: var(--z-toast);
+  margin:0; padding:10px 16px; border-radius:999px;
+  background: var(--surface); border:2px dashed var(--line);
+  box-shadow: var(--nav-shadow);
+  font-family: var(--ui); font-size:13px; font-weight:700; color: var(--muted);
+  animation: at-snack-in 160ms ease-out; }
+@media (prefers-reduced-motion: reduce) { .at-working { animation: none; } }
 /* The context report: one word, and the phrases that already teach it. */
 .at-ctxrow { border-top:1px solid var(--line); padding:10px 0; }
 .at-ctxrow:first-child { border-top:0; }

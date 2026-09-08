@@ -565,17 +565,30 @@ export function SpaceFrame({ tabs, tab, onTab, error, busy, label = "Section", d
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [tab]);
 
+  /* "Working…" used to be a line in the flow above the tabs, which meant
+     every arrival in a space shoved the tabs and everything under them
+     down a notch and pulled them back up again a moment later. It is a
+     passing remark about the app, not a part of the page, so it is said
+     where the app's other passing remarks are said: in the snackbar's
+     place, over the content, moving nothing. The confirmation that
+     follows a slow save then lands in the same spot the waiting was in. */
+  const slow = useSlowWait(busy);
+
   return (
     <div className="at-screen bare">
       {dialog}
       <div className="at-screenbody" ref={bodyRef}>
         <div className="at-screeninner">
           <Notice kind="error">{error}</Notice>
-          <Notice kind="busy">{busy ? "Working…" : ""}</Notice>
           <Tabs tabs={tabs} value={tab} onChange={onTab} label={label} />
           {children}
         </div>
       </div>
+      {slow && (
+        <p className="at-working" role="status">
+          Working…
+        </p>
+      )}
     </div>
   );
 }
@@ -1692,6 +1705,31 @@ export function ConfirmModal({
       </div>
     </div>
   );
+}
+
+/* A wait worth mentioning.
+
+   Most waits are not. Switching space, opening a tab, saving a card: on a
+   working connection these come back inside a couple of hundred
+   milliseconds, and a "Working…" that appears and vanishes inside that is
+   read as a flicker, not as an answer — the eye catches the movement and
+   nothing else. So a wait says nothing until it has lasted long enough to
+   be a wait, and the quick ones pass in silence.
+
+   Half a second is the usual figure for this and it holds here: long
+   enough that a healthy round trip never reaches it, short enough that
+   somebody who has started to wonder is told before they wonder twice. */
+export function useSlowWait(waiting, ms = 500) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!waiting) {
+      setSlow(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setSlow(true), ms);
+    return () => clearTimeout(timer);
+  }, [waiting, ms]);
+  return slow;
 }
 
 /* Course membership is changed by other people on other devices, so a screen

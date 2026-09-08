@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.33 — 8 September 2026
+
+- Switching between Learning, Teaching and Admin no longer flashes
+  "Working…". Two things caused it. The app threw away everything it knew
+  about a space the moment you left it, so coming back meant fetching the
+  whole site again from nothing; and it announced that wait the instant it
+  began, however short it turned out to be. Now each space keeps what it
+  was last showing and puts it straight back on screen, checking for
+  changes quietly behind it — the same check that already runs every
+  minute or so. Switching is instant after the first visit.
+- When there is a real wait — a slow connection, a first visit — the app
+  says so only after about half a second, and says it in the same place
+  confirmations appear, floating clear of the page. Nothing on screen
+  moves for it. Before, the message was a line above the tabs that shoved
+  the whole page down and pulled it back a moment later.
+
 ## 0.32 — 8 September 2026
 
 - Tapping anything on a phone no longer flashes a grey square. The flash

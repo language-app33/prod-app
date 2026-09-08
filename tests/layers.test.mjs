@@ -204,6 +204,18 @@ test("what sits above the bar is stacked, not offset by a guessed height", () =>
   assert.doesNotMatch(extra, /bottom:/, "the line above the bar offsets itself off the bar");
 });
 
+test("the waiting line is over the page, not in it", () => {
+  /* It used to be a notice in the flow above the tabs, so every arrival in
+     a space pushed the tabs and everything under them down and pulled them
+     back a moment later. Pinned like the snackbar, it can appear and go
+     without moving anything. */
+  const body = rule(".at-working");
+  assert.ok(body, "there is no rule for the waiting line");
+  assert.match(body, /position:\s*fixed/, "the waiting line sits in the flow again");
+  assert.equal(layer[".at-working"], tokens["--z-toast"],
+    "the waiting line must sit above the screen it is waiting on");
+});
+
 test("the quiet way out is text, like the flag beside it", () => {
   /* Both are ways past a question rather than things to do with it, so
      neither takes an outline or a fill. One rule covers both, which is

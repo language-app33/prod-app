@@ -27,6 +27,7 @@ import {
   shortDate,
   useLiveRefresh,
   useScrollTop,
+  useSlowWait,
   useSnackbar,
   useSnackbarState,
 } from "./shared.jsx";
@@ -75,9 +76,13 @@ const ClaimAdmin = fromSpaces("ClaimAdmin");
 const TeachSpace = fromSpaces("TeachSpace");
 const StudentCourses = fromSpaces("StudentCourses");
 
-/* What shows for the moment the chunk is in flight. */
+/* What shows while the chunk is in flight — which, once it is cached, is
+   long enough to paint and not long enough to read. Held back until the
+   wait is a real one, so an ordinary trip into a space is silent rather
+   than a word that appears and goes. */
 function ChunkFallback() {
-  return <Help>Loading…</Help>;
+  const slow = useSlowWait(true);
+  return slow ? <Help>Loading…</Help> : null;
 }
 import * as API from "./courses-api.js";
 import {
