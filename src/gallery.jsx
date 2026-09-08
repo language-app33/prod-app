@@ -14,6 +14,7 @@
 import React, { useState } from "react";
 import { COMPONENT_USES } from "./component-uses.js";
 import { SCREEN_ELEMENTS, NAMING } from "./screen-elements.js";
+import { LANGUAGES } from "./languages.js";
 import {
   Button,
   CardReadout,
@@ -61,7 +62,11 @@ const SAMPLE_CARD = {
   lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
   tags: ["Lesson 1"], clips: [], subs: [{ ar: "كُتُب", en: "books", lat: "kutub", clips: [] }],
 };
-const SAMPLE_LANG = { id: "ar-PS", name: "Arabic", direction: "rtl", fontStack: undefined };
+/* The real pack, not a hand-written stand-in. A specimen with no font
+   stack used to inherit an Arabic one from the stylesheet; nothing
+   does now, so a specimen that wants the script has to name a
+   language like the app does. */
+const SAMPLE_LANG = LANGUAGES["ar-PS"];
 
 /*
  * Where a component is used, in the app's own words.

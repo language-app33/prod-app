@@ -252,7 +252,7 @@ test("every rule that sets the script's size multiplies by the script's scale", 
 
      Only rules that render the taught script: the English gloss beside a
      script word, and the word-labelled keys, are interface text. */
-  const SCRIPT = /(\.at-arabic|\.at-input\.ar|\.at-key(?![.\w-])|\.ob-box h1|\.at-(readvalue|minicard|item|pcardtop|previewrow) \.ar|\.at-ctx(word|bare) b)/;
+  const SCRIPT = /(\.at-arabic|\.at-input\.ar|\.at-key(?![.\w-])|\.at-(readvalue|minicard|item|pcardtop|previewrow) \.ar|\.at-ctx(word|bare) b)/;
   const raw = [];
   for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
     if (!SCRIPT.test(selectors)) continue;
@@ -266,6 +266,64 @@ test("every rule that sets the script's size multiplies by the script's scale", 
     }
   }
   assert.deepEqual(raw, [], `unscaled script sizes:\n  ${raw.join("\n  ")}`);
+});
+
+test("no rule falls back to one particular language", () => {
+  /*
+   * font-family: var(--sfont, var(--ar)) and direction: var(--sdir, rtl)
+   * meant a script rule the learner's language never reached still
+   * rendered — in Arabic. Correct-looking for a third of the languages
+   * and silently wrong for the rest, and invisible for as long as Arabic
+   * was the only one there was.
+   *
+   * The defaults live on .at now and are the interface face, left to
+   * right: a language that fails to arrive looks like a bug rather than
+   * looking like Arabic. So a fallback on either variable is the defect
+   * coming back, wherever it is written.
+   */
+  const fellBack = [...css.matchAll(/var\(\s*--(sfont|sdir)\s*,/g)].map((m) => `--${m[1]}`);
+  assert.deepEqual(fellBack, [], `a script variable fell back to a language: ${fellBack.join(", ")}`);
+
+  const sfont = /--sfont\s*:\s*([^;]+);/.exec(css);
+  const sdir = /--sdir\s*:\s*([^;]+);/.exec(css);
+  assert.ok(sfont, "--sfont needs a neutral default, or every rule naming it is voided");
+  assert.ok(sdir, "--sdir needs a neutral default, or every rule naming it is voided");
+  assert.equal(sdir[1].trim(), "ltr", "the no-language direction has to be the document's, not Arabic's");
+
+  /*
+   * And no stylesheet rule may name a script's typeface at all. Those
+   * belong to the pack. The one exception is the wordmark: مُفْرَدات is
+   * the product's own name and stays Arabic in a Hebrew course, so it
+   * carries its own stack and must never be reachable from a script rule.
+   */
+  const SCRIPT_FACES =
+    /Naskh|Amiri|Scheherazade|Traditional Arabic|Geeza|Al Bayan|Arabic Typesetting|Be Vietnam|Frank Ruehl|David CLM|Arial Hebrew|Noto (Sans|Serif) Hebrew/;
+  const strays = [];
+  for (const [, prop, value] of css.matchAll(/(--[a-z-]+|font-family)\s*:\s*([^;}]+)/g)) {
+    if (SCRIPT_FACES.test(value) && prop !== "--wordmark") strays.push(`${prop}: ${value.trim()}`);
+  }
+  assert.deepEqual(strays, [], `a typeface for one script, in the stylesheet:\n  ${strays.join("\n  ")}`);
+
+  assert.equal(
+    (css.match(/var\(--wordmark\)/g) || []).length,
+    1,
+    "only the wordmark itself may read --wordmark",
+  );
+});
+
+test("a script rule aligns to where the language begins, not to a side", () => {
+  /* text-align: right is only correct while the script is Arabic's or
+     Hebrew's. start and end are the same edges named by the direction the
+     pack sets, so they follow the language instead of outliving it. */
+  const SCRIPT = /(\.at-arabic|\.at-input\.ar|\.at-key(?![.\w-])|\.at-(readvalue|minicard|item|pcardtop|previewrow) \.ar|\.at-ctx(word|bare) b)/;
+  const sided = [];
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!SCRIPT.test(selectors)) continue;
+    for (const [, value] of body.matchAll(/text-align\s*:\s*([^;]+)/g)) {
+      if (/^(left|right)$/.test(value.trim())) sided.push(`${selectors.trim().split("\n")[0]} { text-align: ${value.trim()} }`);
+    }
+  }
+  assert.deepEqual(sided, [], `a script rule picked a side:\n  ${sided.join("\n  ")}`);
 });
 
 test("the box you answer in is one height whatever you are typing", () => {

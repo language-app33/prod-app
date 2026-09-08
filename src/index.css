@@ -102,7 +102,21 @@ button {
 .at {
   --ui: ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --ar: "Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", "Arabic Typesetting", "Segoe UI", serif;
+  /* The wordmark is the product's own name — always this one Arabic
+     word, whatever the learner is studying. It is a brand asset, not
+     the taught script, so it keeps its own face and does not follow
+     --sfont, --sdir or --sscale. */
+  --wordmark: "Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", "Arabic Typesetting", "Segoe UI", serif;
+
+  /* The taught script's face and direction. Both are overwritten from
+     the language pack wherever a language is in scope; these are what a
+     script rule gets when none is. Deliberately the interface face and
+     left to right, so a language that failed to reach the rule looks
+     wrong instead of looking like Arabic. --sscale and --sleading need
+     no default here: theirs is 1, which is nobody's value in
+     particular. */
+  --sfont: var(--ui);
+  --sdir: ltr;
   --serif: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --r: 16px; --r-lg: 20px; --r-sm: 12px;
 
@@ -332,8 +346,8 @@ button {
    الباب من…" is not something you can pick out of a list. Two lines grows
    the tile only when there is something to grow for. */
 .at-minicard .ar { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
-  line-clamp:2; font-family: var(--sfont, var(--ar)); font-weight:700;
-  direction: var(--sdir, rtl); unicode-bidi:isolate; overflow:hidden; word-break:break-word; }
+  line-clamp:2; font-family: var(--sfont); font-weight:700;
+  direction: var(--sdir); unicode-bidi:isolate; overflow:hidden; word-break:break-word; }
 .at-minicard .en { display:block; font-size:12px; font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-lengthgroup { margin-bottom:14px; }
@@ -341,12 +355,12 @@ button {
   text-transform:uppercase; color: var(--faint); text-align:center; margin:6px 0 14px; }
 .at-handle { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:14px;
   color: var(--muted); margin:0; }
-.at-key { font-family: var(--sfont, var(--ar)); font-size:calc(21px * var(--sscale, 1)); background: var(--raised); border:2px solid var(--line); border-radius:10px; padding:0 7px; color: var(--text); word-break:break-all; user-select:all; margin:0; min-width:38px; height:44px; cursor:pointer; }
+.at-key { font-family: var(--sfont); font-size:calc(21px * var(--sscale, 1)); background: var(--raised); border:2px solid var(--line); border-radius:10px; padding:0 7px; color: var(--text); word-break:break-all; user-select:all; margin:0; min-width:38px; height:44px; cursor:pointer; }
 .ob { position:fixed; inset:0; z-index:500; background: var(--bg); display:flex;
   align-items:center; justify-content:center; padding:24px 18px; overflow-y:auto; }
 .ob-box { width:100%; max-width:420px; }
-.ob-box h1 { font-family: var(--sfont, var(--ar)); font-size:calc(34px * var(--sscale, 1)); font-weight:700; margin:0 0 14px;
-  text-align:center; direction: var(--sdir, rtl); }
+.ob-box h1 { font-family: var(--wordmark); font-size:34px; font-weight:700; margin:0 0 14px;
+  text-align:center; direction: rtl; }
 .ob-box h2 { font-size:22px; font-weight:800; margin:0 0 10px; letter-spacing:-.01em; }
 .ob-lede { font-size:15px; font-weight:500; color: var(--muted); line-height:1.6; margin:0 0 18px; }
 .at-nav2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
@@ -955,7 +969,7 @@ button {
 .at-exercise > :last-child { margin-bottom:0; }
 .at-sub { border:2px solid var(--line); border-radius: var(--r-lg); padding:20px; background: var(--surface);
   margin-bottom:18px; box-shadow: var(--shadow); }
-.at-arabic { font-family: var(--sfont, var(--ar)); direction: var(--sdir, rtl); unicode-bidi: isolate; line-height:calc(1.75 * var(--sleading, 1)); font-weight:600; margin:8px 0; word-break: break-word; }
+.at-arabic { font-family: var(--sfont); direction: var(--sdir); unicode-bidi: isolate; line-height:calc(1.75 * var(--sleading, 1)); font-weight:600; margin:8px 0; word-break: break-word; }
 .at-arabic.word { font-size:calc(54px * var(--sscale, 1)); }
 .at-arabic.phrase { font-size:calc(40px * var(--sscale, 1)); }
 .at-arabic.sentence { font-size:calc(30px * var(--sscale, 1)); line-height:calc(1.85 * var(--sleading, 1)); }
@@ -1123,8 +1137,11 @@ button {
 .at-input:focus { outline:none; border-color: var(--brass); }
 .at-input.ok { border-color: var(--jade); background: var(--tag-bg); }
 .at-input.no { border-color: var(--rose); }
-.at-input.ar { font-family: var(--sfont, var(--ar)); font-size:calc(40px * var(--sscale, 1)); font-weight:600; direction: var(--sdir, rtl);
-  text-align:right; line-height:calc(1.75 * var(--sleading, 1)); padding:14px 16px; }
+/* start, not right: the answer field is aligned to wherever the
+   language begins. "right" was Arabic's beginning written down as a
+   fixed value, so Vietnamese was typed into a right-aligned box. */
+.at-input.ar { font-family: var(--sfont); font-size:calc(40px * var(--sscale, 1)); font-weight:600; direction: var(--sdir);
+  text-align:start; line-height:calc(1.75 * var(--sleading, 1)); padding:14px 16px; }
 /* The box you answer in is one height whichever language you are typing:
    64px, a little over the 55px the English field used to be, and well
    under the 102px the script field was — the two used to be different
@@ -1218,7 +1235,7 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-tag.sm { font-size:10px; padding:1px 7px; border-width:1px; }
 .at-item:last-child { border-bottom:0; }
 .at-item .grow { flex:1; min-width:0; }
-.at-item .ar { font-family: var(--sfont, var(--ar)); font-size:calc(21px * var(--sscale, 1)); font-weight:700; direction: var(--sdir, rtl); unicode-bidi:isolate; line-height:calc(1.45 * var(--sleading, 1)); }
+.at-item .ar { font-family: var(--sfont); font-size:calc(21px * var(--sscale, 1)); font-weight:700; direction: var(--sdir); unicode-bidi:isolate; line-height:calc(1.45 * var(--sleading, 1)); }
 .at-item .lat { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
 .at-item .en { font-size:14px; font-weight:700; color: var(--text); }
 .at-flags { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
@@ -1296,7 +1313,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
   .at-pcard:hover { border-color: var(--ink); transform: translateY(-1px); }
 }
 .at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
-.at-pcardtop .ar { font-family: var(--sfont, var(--ar)); font-size:calc(20px * var(--sscale, 1)); font-weight:700; direction: var(--sdir, rtl);
+.at-pcardtop .ar { font-family: var(--sfont); font-size:calc(20px * var(--sscale, 1)); font-weight:700; direction: var(--sdir);
   unicode-bidi:isolate; line-height:calc(1.35 * var(--sleading, 1)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-pcardtop .en { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -1323,7 +1340,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-previewrow { display:flex; gap:10px; padding:8px 11px; border-bottom:1px solid var(--line); align-items:baseline; }
 .at-previewrow:last-child { border-bottom:0; }
 .at-previewrow .cell { flex:1; min-width:0; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-previewrow .ar { font-family: var(--sfont, var(--ar)); font-size:calc(17px * var(--sscale, 1)); direction: var(--sdir, rtl); unicode-bidi:isolate; }
+.at-previewrow .ar { font-family: var(--sfont); font-size:calc(17px * var(--sscale, 1)); direction: var(--sdir); unicode-bidi:isolate; }
 .at-previewrow .lat { font-family: var(--ui); font-weight:600; color: var(--muted); }
 .at-previewrow .tag { font-family: var(--mono); font-size:10px; color: var(--brass); }
 .at-toast { font-family: var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color: var(--rose); margin-top:10px; text-align:center; }

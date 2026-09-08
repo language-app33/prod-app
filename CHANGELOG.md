@@ -8,6 +8,32 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.23 — 8 September 2026
+
+- The stylesheet no longer knows what Arabic is. Where a piece of the
+  taught script was drawn, the stylesheet used to name an Arabic typeface
+  and right-to-left as what to use if the language had not reached it.
+  Arabic was the only language for a long time, so that read as a
+  sensible safety net; with three languages it means anything the
+  language fails to reach still looks finished, and looks Arabic. It now
+  falls back to the interface typeface reading left to right, so a
+  language that goes missing looks like the fault it is. A test refuses
+  any new fallback, so the old shape cannot come back quietly.
+- Fixed: the app's own name at the top of the sign-in screen — مُفْرَدات
+  — was being drawn in the typeface of whatever language you were
+  learning, so a Vietnamese learner saw an Arabic word rendered in a
+  Latin face, and it changed size with the language too. It is the
+  product's name rather than anything you are studying, so it now keeps
+  its own face at its own size whatever you are learning.
+- Fixed: the box you type your answer into was aligned to the right,
+  which is where Arabic and Hebrew begin but where Vietnamese ends — so
+  Vietnamese was typed into a right-aligned field. It now aligns to
+  wherever the language you are learning begins, which leaves Arabic and
+  Hebrew exactly as they were.
+- Fixed: the internal component gallery drew its sample card with no
+  typeface of its own and relied on that same Arabic safety net. It uses
+  the real Arabic language description now, like the app does.
+
 ## 0.22 — 8 September 2026
 
 - Each language now renders at a size tuned to its script. A font size
