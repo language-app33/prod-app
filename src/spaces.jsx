@@ -352,6 +352,40 @@ function WhenRow({ label, at, never }) {
   );
 }
 
+/* Where a person belongs, one role at a time: "Teacher in" and the courses
+   under it, then "Student in" and the courses under that. It used to be a run
+   of badges, each repeating the role in front of the course — someone in six
+   courses meant reading the word "Student" six times to reach the six names,
+   which are the part that differs. The role is said once, and the courses are
+   a list you scan.
+
+   A fragment rather than a row of its own, so both labels and every course
+   sit in the one grid the block declares and line up down two columns.
+
+   Courses arrive as `{ title, language }`; older payloads sent bare titles,
+   so a plain string is still read as one. The language rides along because a
+   course name doesn't say what is being taught, which is what an
+   administrator looking for somebody to cover a class actually wants. A
+   course with none set says nothing here rather than "Language not set" —
+   the course's own tile is where that gets fixed. */
+function BelongRow({ label, tone, courses, languages }) {
+  const list = (courses || []).map((c) => (typeof c === "string" ? { title: c } : c));
+  if (!list.length) return null;
+  return (
+    <>
+      <span className={`at-belonglabel ${tone}`}>{label}</span>
+      <span className="at-belonglist">
+        {list.map((c) => (
+          <span className="at-belong" key={c.title}>
+            {c.title}
+            {c.language ? <i>{languageName(languages, c.language)}</i> : null}
+          </span>
+        ))}
+      </span>
+    </>
+  );
+}
+
 /* A "modal" is now a screen. Kept under this name so nothing that opens one
    has to change; what it opens is the standard full-screen shell. */
 export function Modal({ title, children, onClose }) {
@@ -1541,25 +1575,38 @@ export function AdminSpace({ account, languages, onClose }) {
                         )}
                       </div>
                     </div>
-                    <div className="at-flags">
-                      {u.admin && <span className="at-flag flagged">Admin</span>}
-                      {u.teaching.map((c) => (
-                        <span className="at-flag forms" key={`t${c.title || c}`}>
-                          Teacher · {c.title || c}
-                        </span>
-                      ))}
-                      {u.studying.map((c) => (
-                        <span className="at-flag audio" key={`s${c.title || c}`}>
-                          Student · {c.title || c}
-                        </span>
-                      ))}
-                      {!u.admin && !u.teaching.length && !u.studying.length && (
-                        <span className="at-flag">No courses</span>
+                    {/* Admin is a flag on the person, not a course they are
+                        in, so it stays a badge and keeps the row to itself. */}
+                    {u.admin && (
+                      <div className="at-flags">
+                        <span className="at-flag flagged">Admin</span>
+                      </div>
+                    )}
+                    {/* "Hasn't signed in yet" was a pill up here. The lines
+                        below say it, in the same place as the two questions
+                        it sits beside, so the pill was the same fact
+                        twice. */}
+                    <div className="at-belongs">
+                      <BelongRow
+                        label="Teacher in"
+                        tone="teach"
+                        courses={u.teaching}
+                        languages={languages}
+                      />
+                      <BelongRow
+                        label="Student in"
+                        tone="study"
+                        courses={u.studying}
+                        languages={languages}
+                      />
+                      {!u.teaching.length && !u.studying.length && (
+                        <>
+                          <span className="at-belonglabel">Courses</span>
+                          <span className="at-belonglist">
+                            <span className="at-belong none">In no course</span>
+                          </span>
+                        </>
                       )}
-                      {/* "Hasn't signed in yet" was a pill here. The line
-                          below says it, in the same place as the two
-                          questions it sits beside, so the pill was the same
-                          fact twice. */}
                     </div>
                     {/* Three moments, kept apart because they answer three
                         different questions. Somebody who opens the app every

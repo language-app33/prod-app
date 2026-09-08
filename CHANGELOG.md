@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.31 — 8 September 2026
+
+- A person's courses in Admin > People are grouped by what they do in
+  them. "Teacher in" once, then the courses they teach; "Student in"
+  once, then the courses they study. They used to be a run of badges with
+  the role repeated in front of every course, so somebody in six courses
+  meant reading the word "Student" six times to reach the six names —
+  which are the part that differs. Each course now says what it teaches
+  underneath its title, the way it does in the list you pick a course
+  from, and somebody in none of them says "In no course" rather than
+  showing nothing. Admin stays a badge: it is something a person is, not
+  a course they are in.
+
 ## 0.30 — 8 September 2026
 
 - Admin > Decks has a filter beside the search box: one button, which

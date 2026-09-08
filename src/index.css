@@ -1292,7 +1292,9 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 /* When somebody was last here, last practiced and last wrote something, on
    their card in the people list. A label column and a value column rather
    than a run of pills: these are three answers to compare down the card,
-   and pills would wrap into each other. */
+   and pills would wrap into each other. The block of courses above it is
+   built the same way, and each opens with its own rule so the two groups
+   don't read as one list of five things. */
 .at-when { display:flex; flex-direction:column; gap:2px; margin-top:8px;
   padding-top:8px; border-top:2px solid var(--line); }
 .at-whenrow { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
@@ -1303,6 +1305,33 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 /* Nothing to report is quieter than a date, so a card with three of these
    reads as empty at a glance rather than as three facts. */
 .at-whenvalue.never { font-weight:600; color: var(--muted); }
+/* Where a person belongs, on their card in the people list: the role said
+   once in the left column, the courses under it in the right. One grid for
+   the whole block rather than a row each, so "Teacher in" and "Student in"
+   line up and the courses start at one edge — the names are what is being
+   read, and they read as a list only if they begin in the same place. Left,
+   not right like the dates: a date is compared against the date above it,
+   a name is scanned down. */
+.at-belongs { display:grid; grid-template-columns:max-content 1fr; gap:6px 12px;
+  align-items:baseline; margin-top:8px; padding-top:8px; border-top:2px solid var(--line); }
+.at-belonglabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.04em;
+  text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+/* A role keeps the colour it has everywhere else — jade for teaching, brass
+   for studying, the pair the roster's own switches use. */
+.at-belonglabel.teach { color: var(--jade); }
+.at-belonglabel.study { color: var(--brass); }
+.at-belonglist { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.at-belong { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--text-soft);
+  overflow-wrap:anywhere; }
+/* What the course teaches, under its name and quieter — the same two lines
+   the course checklist uses, so a course looks like itself wherever it is
+   listed. Beside the title instead, a long title wrapping mid-line leaves
+   the language looking like part of the next course. */
+.at-belong i { display:block; font-style:normal; font-weight:600; color: var(--muted);
+  margin-top:1px; }
+/* Belonging nowhere is quieter than belonging somewhere, the same way an
+   empty date line is. */
+.at-belong.none { font-weight:600; color: var(--muted); }
 .at-flags { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
 
 /* A person's roles in a course, as two things you switch rather than two
