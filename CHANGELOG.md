@@ -8,6 +8,32 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.28 — 8 September 2026
+
+The people in a course are now one list rather than two.
+
+- **Everyone appears once.** Teaching and studying are separate things
+  someone can hold, and the old screen showed one list of teachers and
+  one of students end to end — so a person doing both was listed twice,
+  with two identical rows.
+- **Each person's roles are two switches** rather than two badges you can
+  only read. Switching one off drops just that role. Switching off the
+  last one is the way out of the course, and it is the only thing that
+  asks first.
+- **Fixed: removing someone from one role removed them from both.** Both
+  of those duplicate rows had a remove button, and both took the person
+  out of the course entirely — so dropping a teacher silently unenrolled
+  them as a student, with nothing in the confirmation to say so.
+- **One way in.** "Assign a teacher" and "Enrol a student" were two
+  buttons opening two pickers, neither showing what the person already
+  was. There is one "Add someone" now, offering only people who are not
+  in the course, and the role you switch on is the one they arrive with.
+- **A new person can be created as both at once**, instead of being made
+  with one role and then edited to add the other.
+- Making someone a teacher does not quietly enrol them as a student. If
+  they want the course's cards in their own practice, that is the second
+  switch.
+
 ## 0.27 — 8 September 2026
 
 - A course can be renamed. In Admin, open a course and its name now sits

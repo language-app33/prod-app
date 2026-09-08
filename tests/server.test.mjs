@@ -421,3 +421,93 @@ test("a course cannot be renamed to nothing, and only an admin can rename one", 
     .json.courses.find((c) => c.id === course.id);
   assert.equal(still.title, "Keeps Its Name", "none of that changed the name");
 });
+
+/*
+ * Someone can teach a course and study it. The two are separate
+ * memberships on purpose — a teacher only gets the course's cards in their
+ * own practice if they are enrolled as a student too — so creating a
+ * person accepts both at once rather than making it two errands.
+ */
+test("a new person can be created into both roles at once", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Hana" } });
+  const key = admin.json.key;
+  const claimed = await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  assert.equal(claimed.status, 200, "the admin claim has to succeed for the rest to mean anything");
+
+  const course = (await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Both Roles", language: "ar-PS" },
+  })).json.course;
+
+  const made = await api("/api/courses?action=admin-create-user", {
+    method: "POST", key,
+    body: { displayName: "Sami Haddad", courseId: course.id, roles: ["teacher", "student"] },
+  });
+  assert.equal(made.status, 200, made.text);
+  const h = made.json.user.handle;
+
+  const after = (await api("/api/courses?action=admin-overview", { key })).json.courses
+    .find((c) => c.id === course.id);
+  assert.deepEqual(after.teachers, [h], "teaching");
+  assert.deepEqual(after.students, [h], "and studying, from the one request");
+
+  /* One role only still works, and is still the default shape. */
+  const one = await api("/api/courses?action=admin-create-user", {
+    method: "POST", key, body: { displayName: "Rana", courseId: course.id, roles: ["student"] },
+  });
+  const rana = one.json.user.handle;
+  const two = (await api("/api/courses?action=admin-overview", { key })).json.courses
+    .find((c) => c.id === course.id);
+  assert.deepEqual(two.teachers, [h], "Rana is not made a teacher");
+  assert.deepEqual(two.students, [h, rana]);
+
+  /* Neither role: an account, in no course. */
+  const none = await api("/api/courses?action=admin-create-user", {
+    method: "POST", key, body: { displayName: "Nobody", courseId: course.id, roles: [] },
+  });
+  const three = (await api("/api/courses?action=admin-overview", { key })).json.courses
+    .find((c) => c.id === course.id);
+  assert.equal(three.teachers.length + three.students.length, 3, "nobody was added");
+  assert.ok(none.json.user.handle, "but the account exists");
+
+  /* A tab left open across the deploy sends the old single `role`, and must
+     still add the role it meant rather than falling back to teacher. */
+  const old = await api("/api/courses?action=admin-create-user", {
+    method: "POST", key, body: { displayName: "Legacy", courseId: course.id, role: "student" },
+  });
+  const four = (await api("/api/courses?action=admin-overview", { key })).json.courses
+    .find((c) => c.id === course.id);
+  assert.ok(four.students.includes(old.json.user.handle), "added as the student they asked for");
+  assert.ok(!four.teachers.includes(old.json.user.handle));
+});
+
+/*
+ * Dropping one role must leave the other standing. This is the shape behind
+ * the fault the roster had: one remove button that took both.
+ */
+test("removing one role leaves the other, and removing the last one leaves the course", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Farah" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const course = (await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Two Roles", language: "ar-PS" },
+  })).json.course;
+  const p = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dual" } });
+  const h = p.json.user.handle;
+
+  await api("/api/courses?action=assign-teacher", { method: "POST", key, body: { courseId: course.id, handle: h } });
+  await api("/api/courses?action=assign-student", { method: "POST", key, body: { courseId: course.id, handle: h } });
+
+  const seen = async () => (await api("/api/courses?action=admin-overview", { key })).json.courses
+    .find((c) => c.id === course.id);
+  const both = await seen();
+  assert.deepEqual([both.teachers, both.students], [[h], [h]]);
+
+  await api("/api/courses?action=remove-member", { method: "POST", key, body: { courseId: course.id, handle: h, role: "teacher" } });
+  const one = await seen();
+  assert.deepEqual(one.teachers, [], "the teaching role is dropped");
+  assert.deepEqual(one.students, [h], "and the studying one is not");
+
+  await api("/api/courses?action=remove-member", { method: "POST", key, body: { courseId: course.id, handle: h, role: "student" } });
+  const gone = await seen();
+  assert.deepEqual([gone.teachers, gone.students], [[], []], "and the last one takes them out");
+});

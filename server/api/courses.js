@@ -1176,13 +1176,24 @@ export default async (req) => {
         await indexAdd(store, "users", handle);
 
         /* Putting them straight into a course, so inviting a teacher is one
-           action rather than three. */
+           action rather than three.
+
+           Both roles at once, because someone teaching a course usually wants
+           its cards in their own practice too — which needs a student
+           enrolment, and used to mean creating them, then going back to add
+           the second role by hand. `role` is still read so a tab left open
+           across a deploy adds the role it meant rather than the default. */
         const courseId = String(body.courseId || "");
         if (courseId) {
           const course = await readJson(store, K.course(courseId));
           if (course) {
-            const as = body.role === "student" ? "students" : "teachers";
-            if (!course[as].includes(handle)) course[as].push(handle);
+            const asked = Array.isArray(body.roles)
+              ? body.roles
+              : [body.role === "student" ? "student" : "teacher"];
+            for (const role of asked) {
+              const as = role === "student" ? "students" : "teachers";
+              if (!course[as].includes(handle)) course[as].push(handle);
+            }
             await writeJson(store, K.course(courseId), course);
           }
         }

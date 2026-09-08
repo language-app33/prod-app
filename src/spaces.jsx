@@ -699,6 +699,44 @@ export function CoursesPage({
    every other list in the app.
    ------------------------------------------------------------------ */
 
+/*
+ * One person in a course, and what they are there to do.
+ *
+ * The two roles are independent, so they are two switches rather than one
+ * picker: a person can teach and study the same course, and a teacher only
+ * gets its cards in their own practice if they are enrolled as a student
+ * too. Nothing is switched on for them — being made a teacher does not
+ * quietly enrol them — because guessing is what filled this list with
+ * duplicates in the first place.
+ */
+function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }) {
+  const role = (key, cls, label, on) => (
+    <button
+      type="button"
+      className={`at-role ${cls}${on ? " on" : ""}`}
+      aria-pressed={on}
+      disabled={busy}
+      onClick={() => onSetRole(key, !on)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="at-item at-rosterrow">
+      <div className="grow">
+        <div className="en">
+          <PersonName name={name} handle={handle} me={me} />
+        </div>
+        <div className="at-handle">{handle}</div>
+      </div>
+      <span className="at-roles">
+        {role("teacher", "teach", "Teacher", teaching)}
+        {role("student", "study", "Student", studying)}
+      </span>
+    </div>
+  );
+}
+
 function CourseSettings({
   course,
   users,
@@ -708,20 +746,30 @@ function CourseSettings({
   onRename,
   onSetLanguage,
   onNewCode,
-  onAssignTeacher,
-  onAssignStudent,
-  onRemoveMember,
+  onSetRole,
   onDelete,
   onClose,
 }) {
-  const [assigning, setAssigning] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [unlockLang, setUnlockLang] = useState(false);
   const c = course;
   /* The title being edited, or null when it is not. Started from the course
      rather than kept in step with it, so a rename in flight is not
      overwritten by the refresh that follows the last one. */
   const [renaming, setRenaming] = useState(null);
-  const people = [...c.teachers, ...c.students];
+
+  /*
+   * One row per person, not one per membership. Teaching and studying are
+   * separate memberships and someone may hold both — which used to put them
+   * in this list twice, with two identical rows and two remove buttons that
+   * each took away both.
+   */
+  const people = [...new Set([...c.teachers, ...c.students])];
+  const nameOf = (h) => {
+    const u = users.find((x) => x.handle === h);
+    return u ? u.displayName : h;
+  };
+  const outsiders = users.filter((u) => !people.includes(u.handle));
 
   return (
     <Screen
@@ -848,75 +896,63 @@ function CourseSettings({
           <p className="at-eyebrow at-mt5">
             Who is in it
           </p>
+          <Help>
+            Someone can do both. Switch a role off to drop it; switch off the
+            last one and they leave the course.
+          </Help>
           <div className="at-list">
-            {people.map((h) => {
-              const u = users.find((x) => x.handle === h);
-              return (
-                <div className="at-item" key={h}>
-                  <div className="grow">
-                    <div className="en">
-                      <PersonName name={u ? u.displayName : h} handle={h} me={account.handle} />
-                    </div>
-                    <div className="at-handle">{h}</div>
-                  </div>
-                  <span className="at-flags">
-                    {c.teachers.includes(h) && <span className="at-flag forms">Teacher</span>}
-                    {c.students.includes(h) && <span className="at-flag audio">Student</span>}
-                  </span>
-                  <IconButton icon="delete" label="Remove from course" danger onClick={() => onRemoveMember(h, u ? u.displayName : h)} />
-                </div>
-              );
-            })}
+            {people.map((h) => (
+              <RosterRow
+                key={h}
+                handle={h}
+                name={nameOf(h)}
+                me={account.handle}
+                teaching={c.teachers.includes(h)}
+                studying={c.students.includes(h)}
+                busy={busy}
+                onSetRole={(role, on) => onSetRole(h, nameOf(h), role, on)}
+              />
+            ))}
             {!people.length && (
               <Help>
-                Nobody in this course yet. Share a join code, or make someone a teacher below.
+                Nobody in this course yet. Share a join code, or add someone below.
               </Help>
             )}
           </div>
 
-          {assigning ? (
-            <Field label={<>{assigning === "student" ? "Enrol someone as a student" : "Make someone a teacher"}</>} className="at-mt3">
-              <div className="at-chips">
-                {users
-                  .filter((u) =>
-                    assigning === "student"
-                      ? !c.students.includes(u.handle)
-                      : !c.teachers.includes(u.handle)
-                  )
-                  .map((u) => (
-                    <button
+          {/* Adding someone is the same control again: a row per person who
+              is not in the course yet, and the role you switch on is the one
+              they arrive with. It used to be two buttons opening two pickers,
+              neither of which showed what the person already was. */}
+          {adding ? (
+            <Field label="Add someone" className="at-mt3">
+              {outsiders.length ? (
+                <div className="at-list">
+                  {outsiders.map((u) => (
+                    <RosterRow
                       key={u.handle}
-                      className="at-btn sm ghost"
-                      onClick={() => {
-                        if (assigning === "student") onAssignStudent(u.handle);
-                        else onAssignTeacher(u.handle);
-                        setAssigning(false);
-                      }}
-                    >
-                      <Icon name="person" />
-                      {u.displayName}
-                    </button>
+                      handle={u.handle}
+                      name={u.displayName}
+                      me={account.handle}
+                      teaching={false}
+                      studying={false}
+                      busy={busy}
+                      onSetRole={(role) => onSetRole(u.handle, u.displayName, role, true)}
+                    />
                   ))}
-              </div>
-              <Button variant="ghost" size="sm"
-                className="at-mt3"
-                onClick={() => setAssigning(false)}
-              >
-                Cancel
+                </div>
+              ) : (
+                <Help>Everyone with an account is already in this course.</Help>
+              )}
+              <Button variant="ghost" size="sm" className="at-mt3" onClick={() => setAdding(false)}>
+                Done
               </Button>
             </Field>
           ) : (
             <div className="at-row at-mt3">
-              <Button size="sm" onClick={() => setAssigning("teacher")}
-          icon="school"
-        >
-          Assign a teacher
-        </Button>
-              <Button size="sm" onClick={() => setAssigning("student")}
-          icon="person"
-        >
-          Enrol a student
-        </Button>
+              <Button size="sm" onClick={() => setAdding(true)} icon="person">
+                Add someone
+              </Button>
             </div>
           )}
     </Screen>
@@ -1031,21 +1067,37 @@ export function AdminSpace({ account, languages, onClose }) {
           onNewCode={(which) =>
             run(() => API.newCourseCode(c.id, which), `New ${which} code — the old one no longer works`)
           }
-          onAssignTeacher={(h) => run(() => API.assignTeacher(c.id, h), `${h} is now teaching ${c.title}`)}
-          onAssignStudent={(h) => run(() => API.assignStudent(c.id, h), `${h} has joined ${c.title}`)}
-          onRemoveMember={(h, name) =>
-            setConfirm({
+          /*
+           * Every change to who is in the course, and what they are here to
+           * do, comes through here. Switching a role on, or off while the
+           * other still stands, is an ordinary edit and one tap undoes it.
+           * Switching off the last one is the only way out of the course, so
+           * that is the only thing that asks.
+           */
+          onSetRole={(h, name, role, on) => {
+            const holdsOther = role === "teacher" ? c.students.includes(h) : c.teachers.includes(h);
+            if (on) {
+              const add = role === "teacher" ? API.assignTeacher : API.assignStudent;
+              const doing = role === "teacher" ? "teaching" : "studying";
+              return run(() => add(c.id, h), `${name} is now ${doing} ${c.title}`);
+            }
+            if (holdsOther) {
+              const dropped = role === "teacher" ? "no longer teaching" : "no longer studying";
+              return run(() => API.removeMember(c.id, h, role), `${name} is ${dropped} ${c.title}`);
+            }
+            return setConfirm({
               title: `Remove ${name} from ${c.title}?`,
               confirmLabel: "Remove them",
               body: (
                 <p>
-                  They lose access to every deck in this course. Their account, their own cards
-                  and their progress are untouched, and they can rejoin with the code.
+                  That was their only role here, so this takes them out of the course. They lose
+                  access to every deck in it. Their account, their own cards and their progress
+                  are untouched, and they can rejoin with the code.
                 </p>
               ),
-              action: () => API.removeMember(c.id, h),
-            })
-          }
+              action: () => API.removeMember(c.id, h, role),
+            });
+          }}
           onDelete={() =>
             setConfirm({
               title: `Delete ${c.title}?`,
@@ -1245,7 +1297,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             const r = await API.createUser(
                               makingUser.name.trim(),
                               makingUser.courseId || undefined,
-                              makingUser.role
+                              makingUser.roles
                             );
                             setNewKey({
                               name: r.user.displayName,
@@ -1308,16 +1360,42 @@ export function AdminSpace({ account, languages, onClose }) {
                   </Field>
 
                   {makingUser.courseId && (
-                    <Field label="In that course they are a">
-                      <Segmented
-                        label="Role"
-                        options={[
-                          { value: "teacher", label: "Teacher" },
-                          { value: "student", label: "Student" },
-                        ]}
-                        value={makingUser.role}
-                        onChange={(v) => setMakingUser((u) => ({ ...u, role: v }))}
-                      />
+                    /* Both, if they are both — the same two switches the
+                       course's own roster uses, rather than a choice between
+                       them. Someone teaching a course usually wants its cards
+                       in their own practice, which needs the student role too. */
+                    <Field label="In that course they are">
+                      <div className="at-roles at-rolesown">
+                        {[
+                          ["teacher", "teach", "Teacher"],
+                          ["student", "study", "Student"],
+                        ].map(([value, cls, label]) => {
+                          const on = makingUser.roles.includes(value);
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              className={`at-role ${cls}${on ? " on" : ""}`}
+                              aria-pressed={on}
+                              onClick={() =>
+                                setMakingUser((u) => ({
+                                  ...u,
+                                  roles: on
+                                    ? u.roles.filter((r) => r !== value)
+                                    : u.roles.concat([value]),
+                                }))
+                              }
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {!makingUser.roles.length && (
+                        <Help>
+                          With neither switched on they are made an account but put in no course.
+                        </Help>
+                      )}
                     </Field>
                   )}
 
@@ -1339,7 +1417,7 @@ export function AdminSpace({ account, languages, onClose }) {
                 match={(u, q) =>
                   u.displayName.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q)
                 }
-                onNew={() => setMakingUser({ name: "", courseId: "", role: "teacher" })}
+                onNew={() => setMakingUser({ name: "", courseId: "", roles: ["teacher"] })}
                 selected={selPeople}
                 onSelectedChange={setSelPeople}
                 bulkActions={[

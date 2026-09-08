@@ -126,6 +126,9 @@ button {
   --brass:#E0AE44; --brass-hover:#EDBB4F; --onbrass:#1A1408;
   --jade:#4FB286; --onjade:#06210F; --rose:#DF5F72;
   --tag-bg:rgba(224,174,68,.12); --tag-line:rgba(224,174,68,.38);
+  /* The jade counterpart of --tag-bg, for the second of two roles a
+     person can hold at once. */
+  --jade-bg:rgba(79,178,134,.12);
   --jade-soft:rgba(79,178,134,.45); --rose-soft:rgba(223,95,114,.45);
   --shadow:none;
   --shade:#171E31; --brass-shade:#B8862A; --jade-shade:#2F8A63; --rose-shade:#B23F52;
@@ -151,6 +154,7 @@ button {
   --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
   --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
   --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
+  --jade-bg:rgba(31,122,85,.10);
   --jade-soft:rgba(31,122,85,.4); --rose-soft:rgba(179,39,60,.4);
   --shadow:0 1px 2px rgba(20,32,58,.06);
   --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
@@ -175,6 +179,7 @@ button {
     --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
     --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
     --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
+    --jade-bg:rgba(31,122,85,.10);
     --jade-soft:rgba(31,122,85,.4); --rose-soft:rgba(179,39,60,.4);
     --shadow:0 1px 2px rgba(20,32,58,.06);
     --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
@@ -1259,6 +1264,30 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-item .lat { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
 .at-item .en { font-size:14px; font-weight:700; color: var(--text); }
 .at-flags { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
+
+/* A person's roles in a course, as two things you switch rather than two
+   badges you read. The colours are the ones the badges already used —
+   jade for teaching, brass for studying — so nothing changed meaning when
+   they became controls.
+
+   The row wraps: a name, a handle and two pills is more than 320px holds,
+   and the toggles dropping to a second line is better than a name cut
+   short. */
+.at-rosterrow { flex-wrap:wrap; row-gap:6px; }
+/* A floor under the name, so the toggles wrap to their own line rather
+   than squeezing a handle into three. Without it the name column can
+   shrink to nothing and the row never wraps at all. */
+.at-rosterrow > .grow { min-width:9rem; }
+.at-roles { display:flex; gap:5px; flex:none; margin-left:auto; }
+.at-role { cursor:pointer; font-family: var(--ui); font-size:10px; font-weight:800;
+  letter-spacing:.03em; text-transform:uppercase; border:2px solid var(--line);
+  border-radius:999px; padding:3px 9px; color: var(--faint); background:none;
+  white-space:nowrap; }
+.at-role:hover:not(:disabled) { color: var(--text-soft); border-color: var(--muted); }
+.at-role:disabled { cursor:default; opacity:.55; }
+.at-role.on.teach { color: var(--jade); border-color: var(--jade); background: var(--jade-bg); }
+.at-role.on.study { color: var(--brass); border-color: var(--brass); background: var(--tag-bg); }
+.at-roles.at-rolesown { margin-left:0; }
 .at-flag { cursor:default; font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; border:2px solid var(--line); border-radius:999px; padding:2px 7px; color: var(--muted); white-space:nowrap; }
 button.at-flag { cursor:pointer; }
 button.at-flag:hover { color: var(--text); border-color: var(--muted); }

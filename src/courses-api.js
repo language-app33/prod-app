@@ -148,8 +148,11 @@ export const backupManifest = () => call("admin-backup-manifest");
 export const backupChunk = (keys) => call("admin-backup-chunk", { body: { keys } });
 export const restoreChunk = (records) => call("admin-restore-chunk", { body: { records } });
 
-export const createUser = (displayName, courseId, role) =>
-  call("admin-create-user", { body: { displayName, courseId, role } });
+/* `roles` is a list because someone can teach a course and study it, and
+   asking for both when the person is made saves going back to add the
+   second by hand. */
+export const createUser = (displayName, courseId, roles) =>
+  call("admin-create-user", { body: { displayName, courseId, roles } });
 export const reissueKey = (handle) => call("admin-reissue-key", { body: { handle } });
 export const deleteUser = (handle) => call("admin-delete-user", { body: { handle } });
 export const newCourseCode = (courseId, which) =>
