@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.25 — 8 September 2026
+
+- In the menu in the top right, "Sync now" is a button with a stroke, and
+  it is the only part of that row you can tap. The whole row used to
+  start a sync, so reading how sync was getting on — which is what the
+  row is there for — meant risking the thing it was reporting.
+- The app's name in the top left no longer looks like a button. It sat
+  between two real buttons wearing the same pill, the same stroke and the
+  same shadow, so it read as the third control in the row. It keeps a
+  soft ground behind it, because a fixed name over a scrolling page is
+  unreadable without one, but nothing else.
+
 ## 0.24 — 8 September 2026
 
 - The English meaning and the romanisation are now sized as the Latin

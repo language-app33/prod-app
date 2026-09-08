@@ -312,6 +312,55 @@ test("no rule falls back to one particular language", () => {
   );
 });
 
+test("the app's name is not dressed as a button", () => {
+  /* It sits in a row with the space selector and the corner menu, both of
+     which are buttons, and it wore the same pill, the same 2px stroke and
+     the same drop shadow — so the one thing up there that does nothing
+     looked like the third control. It keeps a wash behind it, because a
+     fixed wordmark over a scrolling page is unreadable without one, and
+     none of the four things that say "tap me". */
+  const brand = rule(".at-brand");
+  assert.ok(brand, "the app's name has no rule of its own");
+  for (const [prop, why] of [
+    ["border", "a stroke"],
+    ["box-shadow", "a shadow"],
+    ["cursor", "a pointer"],
+  ]) {
+    assert.ok(
+      !new RegExp(`(^|;|\\s)${prop}\\s*:`).test(brand),
+      `the app's name carries ${why}, which is what a button here looks like`,
+    );
+  }
+  const radius = /border-radius:\s*([^;]+)/.exec(brand);
+  assert.ok(radius, "the app's name should say its own radius rather than inherit a pill");
+  assert.ok(
+    !/999px|50%/.test(radius[1]),
+    `the app's name is a pill, which is this app's button shape: ${radius[1]}`,
+  );
+  /* And it stays unreachable, so nothing behind it is harder to tap. */
+  assert.match(brand, /pointer-events:\s*none/);
+  /* The wash is the page's own ground. The raised one reads as a chip
+     sitting on the page rather than as part of it. */
+  assert.match(brand, /background:\s*var\(--wash\)/);
+  for (const block of ["--wash:"]) {
+    assert.equal(
+      (css.match(new RegExp(block, "g")) || []).length,
+      3,
+      "every theme needs its own wash, or the wordmark loses its ground in one of them",
+    );
+  }
+});
+
+test("the menu's own actions are buttons, and stroked", () => {
+  /* The row states where sync has got to and the button starts one. A
+     stroke is what separates the two. */
+  const act = rule(".at-cact");
+  assert.ok(act, ".at-cact has no rule of its own");
+  assert.match(act, /border:\s*2px solid/, "the action in a menu row has no stroke");
+  assert.match(act, /cursor:\s*pointer/);
+  assert.match(act, /border-radius:\s*999px/, "the app's buttons are pills");
+});
+
 test("a script rule aligns to where the language begins, not to a side", () => {
   /* text-align: right is only correct while the script is Arabic's or
      Hebrew's. start and end are the same edges named by the direction the

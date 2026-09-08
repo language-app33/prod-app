@@ -6898,7 +6898,10 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
             </span>
           </div>
 
-          <button className="at-cline" onClick={onSyncNow}>
+          {/* The row states where sync has got to; the button is the only
+              thing that starts one. It used to be the whole row, so
+              reading the state meant risking the action. */}
+          <div className="at-cline as-field">
             <span className="at-cico">
               <span className={`at-cdot ${syncState}`} />
             </span>
@@ -6909,8 +6912,10 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
                 ? "Offline — will retry"
                 : "Up to date"}
             </span>
-            <span className="at-cact">Sync now</span>
-          </button>
+            <button className="at-cact" onClick={onSyncNow}>
+              Sync now
+            </button>
+          </div>
 
           {/* Choosing between three looks, not doing a thing: the options
               sit side by side and the current one is lit, rather than one

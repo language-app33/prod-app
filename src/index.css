@@ -130,6 +130,9 @@ button {
   --shadow:none;
   --shade:#171E31; --brass-shade:#B8862A; --jade-shade:#2F8A63; --rose-shade:#B23F52;
   --nav-bg:rgba(29,36,54,.92); --nav-shadow:0 8px 28px rgba(0,0,0,.5);
+  /* The page's own ground, not the raised one: what sits behind the
+     fixed wordmark so a scrolling page does not read through it. */
+  --wash:rgba(20,26,42,.82);
   /* The ink of the page: what a heading is written in. Fifteen rules named it
      and nothing defined it, so each fell back to whatever it inherited. */
   --ink: var(--text);
@@ -152,6 +155,7 @@ button {
   --shadow:0 1px 2px rgba(20,32,58,.06);
   --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
   --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
+  --wash:rgba(244,246,250,.82);
   /* The ink of the page: what a heading is written in. Fifteen rules named it
      and nothing defined it, so each fell back to whatever it inherited. */
   --ink: var(--text);
@@ -175,6 +179,7 @@ button {
     --shadow:0 1px 2px rgba(20,32,58,.06);
     --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
     --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
+    --wash:rgba(244,246,250,.82);
     /* The ink of the page: what a heading is written in. Fifteen rules named it
        and nothing defined it, so each fell back to whatever it inherited. */
     --ink: var(--text);
@@ -378,23 +383,28 @@ button {
 .at-mode { position:fixed; top:12px; left:12px; }
 /* The app's name, where the space selector used to sit.
 
-   Carried as a chip, like the space selector and the corner menu it sits
-   in a row with. It is fixed, so a screen that scrolls passes underneath
-   it — and with nothing behind the letters that read as the wordmark
-   printed over the page, worst in the component gallery, where it landed
-   on the specimens. The room reserved for it below (.at-screen.bare
-   .at-screenbody) only clears it at the top of a scroll; this is what
-   makes it legible for the rest.
+   It is fixed, so a screen that scrolls passes underneath it — and with
+   nothing behind the letters the wordmark read as printed over the page,
+   worst in the component gallery, where it landed on the specimens. The
+   room reserved for it below (.at-screen.bare .at-screenbody) only clears
+   it at the top of a scroll; the wash behind it is what makes it legible
+   for the rest.
+
+   A wash, though, and not a chip. It used to carry the pill, the 2px
+   stroke and the drop shadow the space selector and the corner menu wear
+   — which is the app's shape for a button, so the one thing in that row
+   that does nothing looked like the third control in it. What is left is
+   the blur and a soft ground: enough to read against a moving page, and
+   none of the four things that say "tap me".
 
    Still pointer-events:none: it is the app's name, not a button, and
    nothing should be harder to tap for its being behind it. */
 .at-brand { position:fixed; top:12px; left:12px; height:40px;
-  display:flex; align-items:center; padding:0 14px; border-radius:999px;
-  background: var(--nav-bg); border:2px solid var(--line);
+  display:flex; align-items:center; padding:0 6px; border-radius:10px;
+  background: var(--wash);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  box-shadow: var(--nav-shadow);
   font-family: var(--ui); font-size:16px;
-  font-weight:800; letter-spacing:.01em; color: var(--ink); pointer-events:none; }
+  font-weight:800; letter-spacing:.01em; color: var(--text-soft); pointer-events:none; }
 .at-modebtn { display:inline-flex; align-items:center; gap:7px; cursor:pointer; border:2px solid var(--line); border-radius:999px; padding:9px 14px; background: var(--nav-bg); backdrop-filter:blur(12px); color: var(--text); font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; box-shadow: var(--nav-shadow); justify-content:center; }
 .at-modecaret { color: var(--brass); display:inline-flex; transition: transform 150ms; }
 .at-modecaret.up { transform: rotate(180deg); }
@@ -715,8 +725,18 @@ button {
 .at-cline:hover, .at-cline.on .at-clinetext { color: var(--ink); font-weight:800; }
 .at-cico { width:20px; display:inline-flex; align-items:center; justify-content:center; color: var(--brass); flex:0 0 auto; text-align:center; font-size:15px; }
 .at-clinetext { flex:1; min-width:0; font-size:13px; font-weight:600; color: var(--text-soft); }
-.at-cact { font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
-  color: var(--brass); white-space:nowrap; }
+/* The action at the end of a row, and the only thing in that row you can
+   tap: the row itself states where sync has got to, which you should be
+   able to read without starting one.
+
+   Quiet, like Check below it and for the same reason. The app syncs by
+   itself and the row usually says so, so this is a thing you may do rather
+   than one you should — and a brass pill would pull the eye every time the
+   menu opened. */
+.at-cact { border:2px solid var(--line); background:none; color: var(--muted); cursor:pointer;
+  border-radius:999px; padding:5px 11px; font-family: var(--ui); font-size:11px; font-weight:800;
+  letter-spacing:.05em; text-transform:uppercase; white-space:nowrap; flex:none; }
+.at-cact:hover { background: var(--raised); color: var(--text); }
 /* A row that names a choice rather than being one: no hover, no pointer,
    because the thing you tap is the picker underneath it. */
 .at-cline.as-field { cursor:default; }

@@ -602,6 +602,27 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!said && /latest version/i.test(said.textContent), (said && said.textContent) || "nothing said");
   }
 
+  /* The sync row states where sync has got to; the button is the only
+     thing that starts one. The whole row used to be the button, so
+     reading the state meant risking the action — and the state is the
+     part you open the menu for. */
+  {
+    const row = [...document.querySelectorAll(".at-cline")].find((r) => r.querySelector(".at-cact"));
+    check("the sync row is a label, not a button", !!row && row.tagName !== "BUTTON",
+      row ? row.tagName : "no sync row");
+    const act = row && row.querySelector(".at-cact");
+    check("and Sync now is a button of its own", !!act && act.tagName === "BUTTON",
+      act ? `${act.tagName} "${act.textContent.trim()}"` : "none");
+    const syncs = () => calls.filter((c) => c === "POST /api/sync").length;
+    const before = syncs();
+    click(row.querySelector(".at-clinetext"));
+    await sleep(90);
+    check("tapping the row starts nothing", syncs() === before, `${before} → ${syncs()}`);
+    click(act);
+    await sleep(140);
+    check("tapping the button syncs", syncs() > before, `${before} → ${syncs()}`);
+  }
+
   /* A deploy that landed while the menu was open: found by pressing the
      button, not by reopening the menu. */
   {
