@@ -8,6 +8,33 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.30 — 8 September 2026
+
+- Admin > Decks has a filter beside the search box: one button, which
+  opens a list of everyone who has made a deck, with how many each of
+  them made. Picking a name shows their decks and nothing else. Search
+  already matched the maker's name, but only if you knew whose name to
+  type, which is the thing you don't know when you are looking at decks
+  made by six different people. Anything selected is dropped when the
+  filter changes, so a bulk delete can never reach a deck the filter has
+  taken off the screen.
+- A person's card in Admin > People now says when they were last seen,
+  when they last practiced, and when they last made or changed a card or
+  a deck — each with the date and the time. They are three different
+  questions: somebody who opens the app every morning and never practices
+  looks exactly like a diligent student under one "last active" line, and
+  a teacher whose course has gone quiet looks like a teacher who is still
+  writing cards.
+- Practising is recorded on the server the way nothing else about it is:
+  the app says "some learning happened" and the server keeps the moment.
+  What was practiced and how it went stay in the document on the device,
+  which the server cannot read. The app says so at most once a quarter of
+  an hour, so a long session is one small message rather than one per
+  answer.
+- The "Hasn't signed in yet" pill has gone from a person's card. The line
+  underneath it says the same thing, beside the two questions it belongs
+  with.
+
 ## 0.29 — 8 September 2026
 
 - When you type a word correctly but without its vowel marks, the app

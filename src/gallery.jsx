@@ -25,6 +25,7 @@ import {
   Empty,
   Field,
   FilterBar,
+  FilterMenu,
   Help,
   Icon,
   IconButton,
@@ -146,6 +147,7 @@ const PLACES = {
   CardReadout: [PARTS, "A card's details"],
   ItemList: [PARTS, "A searchable list"],
   FilterBar: [PARTS, "Sort and filter"],
+  FilterMenu: [PARTS, "One filter, in the toolbar"],
   Tabs: [PARTS, "A row of tabs"],
   Screen: [PARTS, "A full screen"],
   SpaceFrame: [PARTS, "The Teaching and Admin frame"],
@@ -331,6 +333,7 @@ export function ComponentGallery() {
   const [keys, setKeys] = useState(false);
   const [order, setOrder] = useState("added");
   const [only, setOnly] = useState("any");
+  const [maker, setMaker] = useState("");
   const [seg, setSeg] = useState("on");
   const [segBig, setSegBig] = useState("b");
   const [checked, setChecked] = useState(["one"]);
@@ -475,6 +478,26 @@ export function ComponentGallery() {
                   { value: "without", label: "Without" },
                 ],
               },
+            ]}
+          />
+        </V>
+      </Row>
+
+      <Row
+        name="FilterMenu"
+        what="One filter, narrow enough to sit beside a search box."
+        note="Goes in ItemList's tools slot, where it takes the width of an icon until it is pressed. FilterBar is the answer when a list wants several pickers at once; this is the answer when it wants one and the choices are a list rather than a few — every teacher who has made a deck, say, which Segmented would wrap into four rows. `quiet` is the value that means everything, and the button lights while anything else is picked."
+      >
+        <V label="press it">
+          <FilterMenu
+            icon="person"
+            label="Filter by who made it"
+            value={maker}
+            onChange={setMaker}
+            options={[
+              { value: "", label: "Anyone", note: "12" },
+              { value: "sara", label: "Sara", note: "7" },
+              { value: "omar", label: "Omar Haddad", note: "5" },
             ]}
           />
         </V>

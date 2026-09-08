@@ -120,6 +120,20 @@ async function currentUser(req, store) {
   return readJson(store, K.user(handle));
 }
 
+/*
+ * When somebody last did a thing.
+ *
+ * Three moments are kept on the account, and only the moment: lastSeen when
+ * the app signs in or checks who they are, lastLearned when the app says a
+ * session has been practiced, and lastTaught when a card or a deck is
+ * actually made or changed. It is what an administrator needs to tell a
+ * quiet course from an empty one, and it is as little as will answer that —
+ * no counts, no history, and nothing about what was practiced, which lives
+ * in a document on the person's own device that this server cannot read.
+ */
+const touch = (store, user, field) =>
+  writeJson(store, K.user(user.handle), { ...user, [field]: Date.now() });
+
 const isTeacher = (course, h) => !!course && (course.teachers || []).includes(h);
 const isStudent = (course, h) => !!course && (course.students || []).includes(h);
 const inCourse = (course, h) => isTeacher(course, h) || isStudent(course, h);
@@ -257,7 +271,7 @@ export default async (req) => {
     if (action === "signin" || action === "whoami") {
       const me = await currentUser(req, store);
       if (!me) return json({ error: "bad-key" }, 401);
-      await writeJson(store, K.user(me.handle), { ...me, lastSeen: Date.now() });
+      await touch(store, me, "lastSeen");
       const { keyHash, ...safe } = me;
       return json({ ok: true, user: safe });
     }
@@ -265,6 +279,23 @@ export default async (req) => {
     const me = await currentUser(req, store);
     if (!me) return json({ error: "bad-key" }, 401);
     const mine = me.handle;
+
+    /* Stamped where a teaching action has gone through, never where one was
+       merely attempted: a save refused as not-yours is not work done. Which
+       is why this is called at each one's success rather than once up here
+       off a list of action names — the list would be right about what was
+       asked for and wrong about what happened. Every action that writes a
+       card or a deck ends with it. */
+    const taught = () => touch(store, me, "lastTaught");
+
+    /* The app's word that a session was practiced. Learning happens on the
+       device and syncs as an opaque document, so this is the only way the
+       server can know it happened at all. Sent at most once every few
+       minutes, so it is one small write however long the session runs. */
+    if (action === "practiced") {
+      await touch(store, me, "lastLearned");
+      return json({ ok: true });
+    }
 
     if (action === "delete-account") {
       await wipeAccount(store, mine);
@@ -347,6 +378,7 @@ export default async (req) => {
       };
       await writeJson(store, K.deck(id), deck);
       await indexAdd(store, "decks", id);
+      await taught();
       return json({ ok: true, deck });
     }
 
@@ -605,6 +637,7 @@ export default async (req) => {
       }
       saved.inDecks = final;
       await writeJson(store, K.card(saved.id), saved);
+      await taught();
       return json({ ok: true, card: { ...saved, decks: final }, decks: deckRecords });
     }
 
@@ -615,6 +648,7 @@ export default async (req) => {
         .slice(0, 100);
       if (!ids.length) return json({ error: "no-card" }, 400);
       const result = await deleteCards(ids);
+      if (result.deleted.length) await taught();
       return json({ ok: true, ...result });
     }
 
@@ -623,6 +657,7 @@ export default async (req) => {
       const result = await deleteCards([id]);
       if (result.missing.length) return json({ error: "no-card" }, 404);
       if (result.refused.length) return json({ error: "not-yours" }, 403);
+      await taught();
       return json({ ok: true });
     }
 
@@ -653,6 +688,7 @@ export default async (req) => {
       const title = String(body.title || "").trim().slice(0, 60);
       if (!title) return json({ error: "title-required" }, 400);
       await writeJson(store, K.deck(deck.id), { ...deck, title, updated: Date.now() });
+      await taught();
       return json({ ok: true, title });
     }
 
@@ -674,6 +710,7 @@ export default async (req) => {
       await store.delete(K.cards(deck.id)).catch(() => {});
       const ids = (await readJson(store, K.index("decks"))) || [];
       await writeJson(store, K.index("decks"), ids.filter((x) => x !== deck.id));
+      await taught();
       return json({ ok: true });
     }
 
@@ -697,6 +734,7 @@ export default async (req) => {
       }
       await writeJson(store, K.deck(deck.id), deck);
       await writeJson(store, K.course(course.id), course);
+      await taught();
       return json({ ok: true, deck, course });
     }
 

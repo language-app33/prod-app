@@ -976,6 +976,32 @@ button {
 .at-filterlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 .at-filternote { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
+/* One filter, in the toolbar rather than under it: an icon until it is
+   pressed, sized like the select button beside it so the row keeps its
+   rhythm. The wrapper is what the menu hangs from, so it takes the button's
+   width rather than the row's share. */
+.at-pickwrap { position:relative; flex:0 0 auto; display:flex; }
+.at-toolbar .at-pickbtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
+  padding:0; box-sizing:border-box; }
+.at-toolbar .at-pickbtn.on { border-color: var(--brass); color: var(--brass); }
+/* Hangs under its button and is allowed to be taller than the list is
+   long — every teacher who has made a deck can be in here — so it scrolls
+   rather than running off the foot of the screen. Right-aligned: the
+   button sits at the right-hand end of the toolbar, and a menu opening
+   leftward from it stays on a phone. */
+.at-pickmenu { position:absolute; top:50px; right:0; z-index: var(--z-chrome);
+  min-width:210px; max-width: calc(100vw - 32px); max-height:60vh; overflow-y:auto;
+  background: var(--surface); border:2px solid var(--line); border-radius:18px;
+  padding:8px; box-shadow:0 14px 40px rgba(0,0,0,.45); }
+.at-pickline { display:flex; align-items:center; gap:10px; width:100%; background:none;
+  border:0; cursor:pointer; border-radius:12px; padding:10px; color: var(--text);
+  text-align:left; font-family: var(--ui); font-size:13px; font-weight:600; }
+.at-pickline:hover { background: var(--raised); }
+.at-pickline.on { color: var(--ink); font-weight:800; }
+.at-pickmark { width:16px; flex:0 0 auto; display:inline-flex; align-items:center;
+  justify-content:center; color: var(--brass); }
+.at-picktext { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-picknote { flex:0 0 auto; font-size:11px; font-weight:700; color: var(--muted); }
 .at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
 .at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
 .at-hint em { color: var(--text-soft); font-style:normal; }
@@ -1263,6 +1289,20 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-item .ar { font-family: var(--sfont); font-size:calc(21px * var(--sscale, 1)); font-weight:700; direction: var(--sdir); unicode-bidi:isolate; line-height:calc(1.45 * var(--sleading, 1)); }
 .at-item .lat { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
 .at-item .en { font-size:14px; font-weight:700; color: var(--text); }
+/* When somebody was last here, last practiced and last wrote something, on
+   their card in the people list. A label column and a value column rather
+   than a run of pills: these are three answers to compare down the card,
+   and pills would wrap into each other. */
+.at-when { display:flex; flex-direction:column; gap:2px; margin-top:8px;
+  padding-top:8px; border-top:2px solid var(--line); }
+.at-whenrow { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.at-whenlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.04em;
+  text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-whenvalue { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--text-soft);
+  text-align:right; }
+/* Nothing to report is quieter than a date, so a card with three of these
+   reads as empty at a glance rather than as three facts. */
+.at-whenvalue.never { font-weight:600; color: var(--muted); }
 .at-flags { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
 
 /* A person's roles in a course, as two things you switch rather than two

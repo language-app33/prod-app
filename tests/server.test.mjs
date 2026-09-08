@@ -251,6 +251,82 @@ test("a new card is stamped with when it was made, and editing does not move it"
   assert.equal(lying.json.card.created, created);
 });
 
+/*
+ * The three moments the admin screen shows for a person. They answer three
+ * different questions — somebody who opens the app every morning and never
+ * practices looks like a diligent student under one "last active" line — so
+ * each has to move only for its own kind of work.
+ */
+test("signing in, practising and writing a card are recorded apart", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nour" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const handle = made.json.user.handle;
+  const mine = async () => {
+    const r = await api("/api/courses?action=admin-overview", { key });
+    return r.json.users.find((u) => u.handle === handle);
+  };
+
+  /* Signing up counts as being seen, and as nothing else: an account that
+     has never been opened must not look like one that has been used. */
+  let u = await mine();
+  assert.ok(u.lastSeen, "signing up did not record being seen");
+  assert.equal(u.lastLearned, undefined, "a new account has not practiced");
+  assert.equal(u.lastTaught, undefined, "a new account has not written anything");
+
+  await new Promise((r) => setTimeout(r, 5));
+  await api("/api/courses?action=practiced", { method: "POST", key, body: {} });
+  const practiced = await mine();
+  assert.ok(practiced.lastLearned > u.lastSeen, "practising was not recorded");
+  assert.equal(practiced.lastTaught, undefined, "practising is not teaching work");
+
+  await new Promise((r) => setTimeout(r, 5));
+  const card = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id: "", ar: "قمر", en: "moon", lang: "ar-PS" }, decks: [] },
+  });
+  assert.equal(card.status, 200, card.text);
+  const taught = await mine();
+  assert.ok(taught.lastTaught > practiced.lastLearned, "writing a card was not recorded");
+  assert.equal(taught.lastLearned, practiced.lastLearned, "writing a card is not practising");
+
+  /* Making a deck counts too, and later than the card did. */
+  await new Promise((r) => setTimeout(r, 5));
+  await api("/api/courses?action=create-deck", { method: "POST", key, body: { title: "Lesson 1" } });
+  const deck = await mine();
+  assert.ok(deck.lastTaught > taught.lastTaught, "making a deck was not recorded");
+
+  /* Reading is not work: opening the app moves being seen and nothing else. */
+  await new Promise((r) => setTimeout(r, 5));
+  await api("/api/courses?action=whoami", { key });
+  const seen = await mine();
+  assert.ok(seen.lastSeen > deck.lastSeen, "signing in did not move being seen");
+  assert.equal(seen.lastTaught, deck.lastTaught, "reading is not teaching work");
+  assert.equal(seen.lastLearned, deck.lastLearned, "reading is not practising");
+});
+
+test("a teaching action that is refused is not recorded as work done", async () => {
+  const owner = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yara" } });
+  const other = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Fadi" } });
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key: owner.json.key, body: { title: "Yara's deck" },
+  });
+  assert.equal(deck.status, 200, deck.text);
+
+  const refused = await api("/api/courses?action=rename-deck", {
+    method: "POST", key: other.json.key, body: { deckId: deck.json.deck.id, title: "Mine now" },
+  });
+  assert.equal(refused.status, 403);
+
+  const me = await api("/api/courses?action=whoami", { key: other.json.key });
+  assert.equal(me.json.user.lastTaught, undefined, "an attempt that was refused is not work");
+});
+
+test("practising cannot be reported without a key", async () => {
+  const res = await api("/api/courses?action=practiced", { method: "POST", body: {} });
+  assert.equal(res.status, 401);
+  assert.equal(res.json.error, "bad-key");
+});
+
 test("an unknown /api path answers JSON, never the app shell", async () => {
   const res = await api("/api/nothing-here");
   assert.equal(res.status, 404);

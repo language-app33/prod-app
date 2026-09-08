@@ -431,6 +431,35 @@ function typeAllowedNow(type) {
 const LISTEN_OFF_MS = 15 * 60 * 1000;
 
 /*
+ * Telling the server that learning is happening.
+ *
+ * Practice is entirely local — the questions, the grading and the schedule
+ * all live on the device — so without this the only thing an administrator
+ * can see is whether somebody signed in, which a person who opens the app
+ * and does nothing also does. One ping per graded answer would say the same
+ * thing a hundred times a session, so the first answer sends one and the
+ * next quarter of an hour sends none: the server keeps only the moment, and
+ * a moment fifteen minutes stale answers every question anyone asks of it.
+ *
+ * Fire and forget. It is a courtesy to the teacher, not part of practising,
+ * so a failure must never reach the session — offline, it simply tries again
+ * at the next answer.
+ */
+const LEARNED_PING_MS = 15 * 60 * 1000;
+/* A ping that didn't arrive buys a minute rather than the full quarter of
+   an hour: practising on a train should end up recorded, without every
+   answer between tunnels making its own failed request. */
+const LEARNED_RETRY_MS = 60 * 1000;
+let learnedQuietUntil = 0;
+function reportLearning(account) {
+  if (!account || now() < learnedQuietUntil) return;
+  learnedQuietUntil = now() + LEARNED_PING_MS;
+  API.practiced().catch(() => {
+    learnedQuietUntil = Math.min(learnedQuietUntil, now() + LEARNED_RETRY_MS);
+  });
+}
+
+/*
  * Take the listening exercises out of what is left of a queue.
  *
  * Only the tail is rewritten — everything before `from` has been answered and
@@ -3242,6 +3271,9 @@ export default function ArabicTrainer() {
 
   function applyGrade() {
     if (!item || !exercise) return;
+    /* Before the grading, not after: a question answered is learning done,
+       whether it was right or wrong. */
+    reportLearning(account);
     // Nothing to grade by hand: the check decides, and a shown answer counts
     // as a miss. "Too strict" is the one way to overturn it.
     const correct = overridden || (checked && checked.ok && !skipped);

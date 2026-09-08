@@ -31,6 +31,7 @@ import {
   ConfirmModal,
   Field,
   FilterBar,
+  FilterMenu,
   Help,
   Icon,
   IconButton,
@@ -46,6 +47,7 @@ import {
   Tile,
   TileNote,
   cardToItem,
+  dateTime,
   languageName,
   localIdFor,
   plural,
@@ -333,6 +335,20 @@ export function PersonName({ name, handle, me }) {
       {name || handle}
       {handle && handle === me ? <span className="at-me"> (me)</span> : null}
     </>
+  );
+}
+
+/* One "when this last happened" line on a person's card. The date carries
+   the time with it: an administrator checking whether somebody has opened
+   the app since being asked to wants the hour, not the day. Never having
+   happened is said in words rather than left as a dash, because a dash and
+   a value that failed to load look the same. */
+function WhenRow({ label, at, never }) {
+  return (
+    <div className="at-whenrow">
+      <span className="at-whenlabel">{label}</span>
+      <span className={`at-whenvalue${at ? "" : " never"}`}>{dateTime(at) || never}</span>
+    </div>
   );
 }
 
@@ -982,6 +998,11 @@ export function AdminSpace({ account, languages, onClose }) {
   const [elementsOpen, setElementsOpen] = useState(false);
   const [selDecks, setSelDecks] = useState(() => new Set());
   const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
+  /* Whose decks to show: a handle, or "" for everyone's. Search already
+     matches the maker's name, but only if you know whose name to type —
+     which is the thing an administrator looking at decks made by six
+     different people does not know yet. */
+  const [deckOwner, setDeckOwner] = useState("");
   /* One slot for whatever is waiting to be confirmed, so only one of these
      can ever be on screen at a time. */
   const [confirm, setConfirm] = useState(null);
@@ -1029,6 +1050,25 @@ export function AdminSpace({ account, languages, onClose }) {
   const users = (data && data.users) || [];
   const courses = (data && data.courses) || [];
   const decks = (data && data.decks) || [];
+
+  /* Everyone who has actually made a deck, with how many — read off the
+     decks rather than off the people, so the menu never offers a name that
+     would narrow the list to nothing. */
+  const deckMakers = [];
+  for (const d of decks) {
+    const found = deckMakers.find((m) => m.value === d.owner);
+    if (found) found.count += 1;
+    else deckMakers.push({ value: d.owner, label: d.ownerName || d.owner, count: 1 });
+  }
+  deckMakers.sort((a, b) => a.label.localeCompare(b.label));
+  const deckOwnerOptions = [
+    { value: "", label: "Anyone", note: String(decks.length) },
+    ...deckMakers.map((m) => ({ value: m.value, label: m.label, note: String(m.count) })),
+  ];
+  /* Filtered before the list sees them, so the count line, "select all" and
+     every bulk action work on what is on screen rather than on what a
+     narrowed list is hiding. */
+  const shownDecks = deckOwner ? decks.filter((d) => d.owner === deckOwner) : decks;
 
   /* One course, on its own screen — the same shape as deck settings. */
   if (openCourse2) {
@@ -1516,7 +1556,25 @@ export function AdminSpace({ account, languages, onClose }) {
                       {!u.admin && !u.teaching.length && !u.studying.length && (
                         <span className="at-flag">No courses</span>
                       )}
-                      {!u.lastSeen && <span className="at-flag flagged">Hasn't signed in yet</span>}
+                      {/* "Hasn't signed in yet" was a pill here. The line
+                          below says it, in the same place as the two
+                          questions it sits beside, so the pill was the same
+                          fact twice. */}
+                    </div>
+                    {/* Three moments, kept apart because they answer three
+                        different questions. Somebody who opens the app every
+                        morning and never practices looks exactly like a
+                        diligent student under one "last active" line, and a
+                        teacher whose course has gone quiet looks like a
+                        teacher who is still writing cards. */}
+                    <div className="at-when">
+                      <WhenRow label="Last seen" at={u.lastSeen} never="Never signed in" />
+                      <WhenRow label="Last practiced" at={u.lastLearned} never="Never practiced" />
+                      <WhenRow
+                        label="Last changed material"
+                        at={u.lastTaught}
+                        never="Never made a card or a deck"
+                      />
                     </div>
                   </div>
                 )}
@@ -1580,13 +1638,32 @@ export function AdminSpace({ account, languages, onClose }) {
 
               <ItemList
                 noun="deck"
-                items={decks}
+                items={shownDecks}
                 size="large"
                 busy={busy}
-                empty="No decks yet. Make one, then add it to a course so students can see it."
+                empty={
+                  deckOwner
+                    ? "Nothing by them. Choose Anyone to see every deck again."
+                    : "No decks yet. Make one, then add it to a course so students can see it."
+                }
                 match={(d, q) =>
                   d.title.toLowerCase().includes(q) ||
                   (d.ownerName || "").toLowerCase().includes(q)
+                }
+                tools={
+                  <FilterMenu
+                    icon="person"
+                    label="Filter by who made it"
+                    options={deckOwnerOptions}
+                    value={deckOwner}
+                    /* Anything picked before the list was narrowed is
+                       dropped: a bulk delete must never reach decks the
+                       filter has taken off the screen. */
+                    onChange={(v) => {
+                      setDeckOwner(v);
+                      setSelDecks(new Set());
+                    }}
+                  />
                 }
                 selected={selDecks}
                 onSelectedChange={setSelDecks}

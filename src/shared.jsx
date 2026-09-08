@@ -633,6 +633,20 @@ export function shortDate(ms) {
   });
 }
 
+/* The same date with the time on it, for the places where "which day" is
+   not enough — an administrator asking whether somebody has opened the app
+   since being told to wants the hour, not the date. Empty for a moment
+   that never happened, so the caller decides what to say instead. */
+export function dateTime(ms) {
+  if (!ms) return "";
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${shortDate(ms)}, ${d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
+}
+
 /* --- useClipPlayer ------------------------------------------------
    One audio element, one object URL, one state machine. There were
    three copies of this, and every fix — the leaked URL, the missing
@@ -838,9 +852,82 @@ export function FilterBar({ groups, note, label = "Sort and filter" }) {
   );
 }
 
+/*
+ * One filter, narrow enough to live in the toolbar.
+ *
+ * FilterBar is the answer when a list wants several pickers at once; this is
+ * the answer when it wants one and the choices are a list rather than a few
+ * — every person who has made a deck, say, which Segmented would wrap into
+ * four rows of buttons. It takes the width of an icon until it is pressed,
+ * so it goes beside the search box rather than on a line of its own, and it
+ * lights up while it is narrowing so a short list is never a mystery.
+ *
+ * Options are { value, label, note }, and `quiet` is the value that means
+ * "everything" — usually the first one.
+ */
+export function FilterMenu({ icon = "tune", label, options, value, onChange, quiet = "" }) {
+  const [open, setOpen] = useState(false);
+
+  /* The same close-on-anything-else the corner menu uses. Registered only
+     while it is open, and the menu stops the click that opened it from
+     closing it again. */
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+
+  if (!options || options.length < 2) return null;
+  const on = value !== quiet;
+  const chosen = options.find((o) => o.value === value);
+
+  return (
+    <div className="at-pickwrap" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className={`at-icon at-pickbtn${on ? " on" : ""}`}
+        /* The label says what the filter does; the title also says where it
+           has got to, because the lit button alone does not name the person
+           the list has been narrowed to. */
+        title={on && chosen ? `${label}: ${chosen.label}` : label}
+        aria-label={label}
+        aria-expanded={open}
+        aria-pressed={on}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name={icon} />
+      </button>
+
+      {open && (
+        <div className="at-pickmenu">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              className={`at-pickline${o.value === value ? " on" : ""}`}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+            >
+              <span className="at-pickmark">
+                {o.value === value ? <Icon name="check" size={16} /> : null}
+              </span>
+              <span className="at-picktext">{o.label}</span>
+              {o.note ? <span className="at-picknote">{o.note}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ItemList({
   noun, // "course", "deck", "person", "card"
   plural,
+  tools, // optional controls in the toolbar itself, right of the search box
   filters, // optional controls under the toolbar — tag pickers and the like
   count, // optional override for the "n of m" line
   items,
@@ -917,6 +1004,10 @@ export function ItemList({
             onChange={(e) => setQuery(e.target.value)}
           />
         )}
+        {/* Beside the search box, because narrowing by hand and narrowing by
+            typing are the same job. Before the select toggle, which is not a
+            filter and belongs at the end of the row. */}
+        {tools}
         {canSelect && (
           <button
             className={`at-icon at-selectbtn${selecting ? " on" : ""}`}

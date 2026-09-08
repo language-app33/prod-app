@@ -99,6 +99,10 @@ export const signUp = (displayName, signupCode) =>
   call("signup", { body: { displayName, signupCode: signupCode || "" }, key: "" });
 export const whoAmI = (key) => call("whoami", { key });
 export const rename = (displayName) => call("rename", { body: { displayName } });
+/* "Some learning just happened." The server keeps the moment and nothing
+   else — what was practiced and how it went are in the device's own
+   document, which never passes through here. */
+export const practiced = () => call("practiced", { body: {} });
 export const claimAdmin = (adminKey) => call("claim-admin", { body: { adminKey } });
 
 /* ---- courses ---- */
