@@ -4,6 +4,9 @@ import {
   arSkeleton,
   checkAr,
   checkHe,
+  scaleOf,
+  leadingOf,
+  scriptVars,
   checkViet,
   heRootKey,
   heTokenIsWord,
@@ -345,6 +348,49 @@ test("the gentle types are read off the definitions, not kept beside them", () =
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);
   }
+});
+
+test("every pack resolves a usable type scale", () => {
+  /* font-size sets the em box, not the height of a letter, and scripts
+     fill that box by different amounts — so the sizes in the stylesheet,
+     tuned by eye against Arabic, come out oversized for a Latin script.
+     Each pack says how much to multiply by. Both numbers have to be
+     positive and finite wherever they are read, because they end up
+     inside a calc() and a bad one would silently drop the declaration. */
+  for (const [id, lang] of Object.entries(LANGUAGES)) {
+    for (const [what, n] of [["scale", scaleOf(lang)], ["leading", leadingOf(lang)]]) {
+      assert.equal(typeof n, "number", `${id} ${what}`);
+      assert.ok(Number.isFinite(n) && n > 0, `${id} ${what} is ${n}`);
+    }
+  }
+  /* Arabic is the baseline the sizes were tuned against, so it multiplies
+     by nothing: the change that introduced this must not have moved a
+     single Arabic pixel. */
+  assert.equal(scaleOf(LANGUAGES["ar-PS"]), 1);
+  assert.equal(leadingOf(LANGUAGES["ar-PS"]), 1);
+  assert.ok(scaleOf(LANGUAGES["vi-Hue"]) < 1, "Latin script should ask for less than Arabic");
+});
+
+test("a pack that says nothing about size renders at full size", () => {
+  /* The case every future pack starts in — Hebrew is in it today — so it
+     has to be the safe one rather than a crash or a zero. */
+  assert.equal(scaleOf({ id: "xx" }), 1);
+  assert.equal(leadingOf({ id: "xx" }), 1);
+  assert.deepEqual(scriptVars({ id: "xx" }), { "--sscale": "1", "--sleading": "1" });
+  /* And a value that could not work in a calc() falls back rather than
+     poisoning every rule that reads it. */
+  for (const bad of [0, -1, NaN, Infinity, "big", null]) {
+    assert.equal(scaleOf({ scale: bad }), 1, String(bad));
+    assert.equal(leadingOf({ leading: bad }), 1, String(bad));
+  }
+});
+
+test("the properties are strings, which is what a style object needs", () => {
+  /* React appends no unit to a custom property, so a number would work —
+     but the values are read straight into calc() and a string keeps that
+     explicit rather than dependent on that behaviour. */
+  const v = scriptVars(LANGUAGES["vi-Hue"]);
+  assert.deepEqual(v, { "--sscale": "0.78", "--sleading": "0.85" });
 });
 
 test("every language that groups words says what the grouping is called", () => {

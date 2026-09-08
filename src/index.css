@@ -215,7 +215,7 @@ button {
    verdict, then the answer, with air on both sides of the verdict rather
    than the six pixels that ran the three together. */
 .at-answermain { margin: 14px 0 4px; }
-.at-answermain .at-arabic { font-size:40px; line-height:1.35; margin:6px 0; }
+.at-answermain .at-arabic { font-size:calc(40px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); margin:6px 0; }
 .at-answermain .at-en { font-size:26px; font-weight:800; }
 .at-answermain .at-latin { font-size:24px; }
 /* The question and the answer box used to shrink and fade away over 240ms
@@ -226,7 +226,7 @@ button {
 .at-answeralso { margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
 .at-alsolabel { font-family: var(--ui); font-size:11px; font-weight:700;
   letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 6px; }
-.at-answeralso .at-arabic { font-size:26px; line-height:1.4; margin:4px 0; }
+.at-answeralso .at-arabic { font-size:calc(26px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
 .at-answeralso .at-en { font-size:16px; }
 .at-answeralso .at-latin { font-size:15px; }
 /* Everything under an answer that is not the answer, in one container:
@@ -332,7 +332,7 @@ button {
    الباب من…" is not something you can pick out of a list. Two lines grows
    the tile only when there is something to grow for. */
 .at-minicard .ar { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
-  line-clamp:2; font-family: var(--sfont, var(--ar)); font-size:17px; font-weight:700;
+  line-clamp:2; font-family: var(--sfont, var(--ar)); font-weight:700;
   direction: var(--sdir, rtl); unicode-bidi:isolate; overflow:hidden; word-break:break-word; }
 .at-minicard .en { display:block; font-size:12px; font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -341,11 +341,11 @@ button {
   text-transform:uppercase; color: var(--faint); text-align:center; margin:6px 0 14px; }
 .at-handle { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:14px;
   color: var(--muted); margin:0; }
-.at-key { font-family: var(--sfont, var(--ar)); font-size:21px; background: var(--raised); border:2px solid var(--line); border-radius:10px; padding:0 7px; color: var(--text); word-break:break-all; user-select:all; margin:0; min-width:38px; height:44px; cursor:pointer; }
+.at-key { font-family: var(--sfont, var(--ar)); font-size:calc(21px * var(--sscale, 1)); background: var(--raised); border:2px solid var(--line); border-radius:10px; padding:0 7px; color: var(--text); word-break:break-all; user-select:all; margin:0; min-width:38px; height:44px; cursor:pointer; }
 .ob { position:fixed; inset:0; z-index:500; background: var(--bg); display:flex;
   align-items:center; justify-content:center; padding:24px 18px; overflow-y:auto; }
 .ob-box { width:100%; max-width:420px; }
-.ob-box h1 { font-family: var(--sfont, var(--ar)); font-size:34px; font-weight:700; margin:0 0 14px;
+.ob-box h1 { font-family: var(--sfont, var(--ar)); font-size:calc(34px * var(--sscale, 1)); font-weight:700; margin:0 0 14px;
   text-align:center; direction: var(--sdir, rtl); }
 .ob-box h2 { font-size:22px; font-weight:800; margin:0 0 10px; letter-spacing:-.01em; }
 .ob-lede { font-size:15px; font-weight:500; color: var(--muted); line-height:1.6; margin:0 0 18px; }
@@ -584,7 +584,7 @@ button {
 .at-readlabel { flex:0 0 108px; font-size:11px; letter-spacing:.04em;
   text-transform:uppercase; color: var(--muted); font-weight:700; }
 .at-readvalue { flex:1 1 160px; min-width:0; overflow-wrap:anywhere; }
-.at-readvalue .ar { font-size:22px; line-height:1.35; }
+.at-readvalue .ar { font-size:calc(22px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
 /* The card itself, read only: the word, then its meaning under it. */
 .at-readword { font-size:34px; line-height:1.3; margin:4px 0 2px; font-weight:600;
   overflow-wrap:anywhere; }
@@ -619,7 +619,7 @@ button {
 .at-minilat { font-size:11px; color: var(--muted); }
 .at-minidecks .at-flag { font-size:11px; }
 .at-minicard.picked { border-color: var(--accent); }
-.at-minicard .ar { font-size:18px; line-height:1.35; }
+.at-minicard .ar { font-size:calc(18px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
 /* Room for the descenders the clamp would otherwise shave off an Arabic
    line — the box crops to the line height, which sits above the tail of a
    ب or a ج. */
@@ -901,7 +901,7 @@ button {
 .at-ctxrow { border-top:1px solid var(--line); padding:10px 0; }
 .at-ctxrow:first-child { border-top:0; }
 .at-ctxword { display:flex; align-items:baseline; gap:10px; margin:0 0 6px; flex-wrap:wrap; }
-.at-ctxword b { font-size:20px; font-weight:600; }
+.at-ctxword b { font-size:calc(20px * var(--sscale, 1)); font-weight:600; }
 .at-ctxword i { font-style:normal; font-size:13px; font-weight:600; color: var(--muted); }
 .at-ctxlist { list-style:none; margin:0; padding:0 0 0 12px; border-left:2px solid var(--line); }
 .at-ctxlist li { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:4px; font-size:15px; }
@@ -909,7 +909,7 @@ button {
 .at-ctxbare { display:flex; flex-wrap:wrap; gap:8px; }
 .at-ctxbare span { display:inline-flex; align-items:baseline; gap:6px; padding:6px 10px;
   border:1px solid var(--line); border-radius:999px; background: var(--well); }
-.at-ctxbare b { font-size:17px; font-weight:600; }
+.at-ctxbare b { font-size:calc(17px * var(--sscale, 1)); font-weight:600; }
 .at-ctxbare i { font-style:normal; font-size:12px; font-weight:600; color: var(--muted); }
 /* The word being asked for, under the phrase it is missing from. */
 .at-ctxmeaning { font-family: var(--ui); font-size:17px; font-weight:700; color: var(--text-soft);
@@ -955,10 +955,10 @@ button {
 .at-exercise > :last-child { margin-bottom:0; }
 .at-sub { border:2px solid var(--line); border-radius: var(--r-lg); padding:20px; background: var(--surface);
   margin-bottom:18px; box-shadow: var(--shadow); }
-.at-arabic { font-family: var(--sfont, var(--ar)); direction: var(--sdir, rtl); unicode-bidi: isolate; line-height:1.75; font-weight:600; margin:8px 0; word-break: break-word; }
-.at-arabic.word { font-size:54px; }
-.at-arabic.phrase { font-size:40px; }
-.at-arabic.sentence { font-size:30px; line-height:1.85; }
+.at-arabic { font-family: var(--sfont, var(--ar)); direction: var(--sdir, rtl); unicode-bidi: isolate; line-height:calc(1.75 * var(--sleading, 1)); font-weight:600; margin:8px 0; word-break: break-word; }
+.at-arabic.word { font-size:calc(54px * var(--sscale, 1)); }
+.at-arabic.phrase { font-size:calc(40px * var(--sscale, 1)); }
+.at-arabic.sentence { font-size:calc(30px * var(--sscale, 1)); line-height:calc(1.85 * var(--sleading, 1)); }
 .at-latin { font-family: var(--ui); font-size:19px; font-weight:600; color: var(--muted); margin:8px 0; word-break:break-word; }
 /* A hint is the same kind of thing whichever field it comes from — a look
    at part of the answer before committing — so it is set at one size. Left
@@ -1123,8 +1123,8 @@ button {
 .at-input:focus { outline:none; border-color: var(--brass); }
 .at-input.ok { border-color: var(--jade); background: var(--tag-bg); }
 .at-input.no { border-color: var(--rose); }
-.at-input.ar { font-family: var(--sfont, var(--ar)); font-size:40px; font-weight:600; direction: var(--sdir, rtl);
-  text-align:right; line-height:1.75; padding:14px 16px; }
+.at-input.ar { font-family: var(--sfont, var(--ar)); font-size:calc(40px * var(--sscale, 1)); font-weight:600; direction: var(--sdir, rtl);
+  text-align:right; line-height:calc(1.75 * var(--sleading, 1)); padding:14px 16px; }
 /* The box you answer in is one height whichever language you are typing:
    64px, a little over the 55px the English field used to be, and well
    under the 102px the script field was — the two used to be different
@@ -1218,7 +1218,7 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-tag.sm { font-size:10px; padding:1px 7px; border-width:1px; }
 .at-item:last-child { border-bottom:0; }
 .at-item .grow { flex:1; min-width:0; }
-.at-item .ar { font-family: var(--sfont, var(--ar)); font-size:21px; font-weight:700; direction: var(--sdir, rtl); unicode-bidi:isolate; line-height:1.45; }
+.at-item .ar { font-family: var(--sfont, var(--ar)); font-size:calc(21px * var(--sscale, 1)); font-weight:700; direction: var(--sdir, rtl); unicode-bidi:isolate; line-height:calc(1.45 * var(--sleading, 1)); }
 .at-item .lat { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
 .at-item .en { font-size:14px; font-weight:700; color: var(--text); }
 .at-flags { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
@@ -1296,8 +1296,8 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
   .at-pcard:hover { border-color: var(--ink); transform: translateY(-1px); }
 }
 .at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
-.at-pcardtop .ar { font-family: var(--sfont, var(--ar)); font-size:20px; font-weight:700; direction: var(--sdir, rtl);
-  unicode-bidi:isolate; line-height:1.35; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-pcardtop .ar { font-family: var(--sfont, var(--ar)); font-size:calc(20px * var(--sscale, 1)); font-weight:700; direction: var(--sdir, rtl);
+  unicode-bidi:isolate; line-height:calc(1.35 * var(--sleading, 1)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-pcardtop .en { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-pcardfoot { display:flex; justify-content:space-between; gap:6px; margin-top:6px;
@@ -1323,7 +1323,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-previewrow { display:flex; gap:10px; padding:8px 11px; border-bottom:1px solid var(--line); align-items:baseline; }
 .at-previewrow:last-child { border-bottom:0; }
 .at-previewrow .cell { flex:1; min-width:0; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-previewrow .ar { font-family: var(--sfont, var(--ar)); font-size:17px; direction: var(--sdir, rtl); unicode-bidi:isolate; }
+.at-previewrow .ar { font-family: var(--sfont, var(--ar)); font-size:calc(17px * var(--sscale, 1)); direction: var(--sdir, rtl); unicode-bidi:isolate; }
 .at-previewrow .lat { font-family: var(--ui); font-weight:600; color: var(--muted); }
 .at-previewrow .tag { font-family: var(--mono); font-size:10px; color: var(--brass); }
 .at-toast { font-family: var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color: var(--rose); margin-top:10px; text-align:center; }
@@ -1358,13 +1358,13 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at-card { padding: 12px 12px 14px; }
 .at.kb-open .at-eyebrow { margin-bottom: 4px; }
 .at.kb-open .at-arabic { margin: 2px 0; }
-.at.kb-open .at-arabic.word { font-size: 34px; line-height:1.4; }
-.at.kb-open .at-arabic.phrase { font-size: 27px; line-height:1.4; }
-.at.kb-open .at-arabic.sentence { font-size: 20px; line-height:1.5; }
+.at.kb-open .at-arabic.word { font-size:calc(34px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
+.at.kb-open .at-arabic.phrase { font-size:calc(27px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
+.at.kb-open .at-arabic.sentence { font-size:calc(20px * var(--sscale, 1)); line-height:calc(1.5 * var(--sleading, 1)); }
 .at.kb-open .at-en { font-size: 20px; margin: 2px 0; }
 .at.kb-open .at-latin { font-size: 16px; margin: 2px 0; }
 .at.kb-open .at-input { padding: 11px 14px; font-size: 17px; }
-.at.kb-open .at-input.ar { font-size: 32px; }
+.at.kb-open .at-input.ar { font-size:calc(32px * var(--sscale, 1)); }
 .at.kb-open .at-answerbox .at-input { height:52px; }
 .at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
 .at.kb-open .at-progress { height: 10px; }
@@ -1372,14 +1372,14 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at-row { margin-top: 10px; }
 .at.kb-open .at-hint { margin-top: 4px; }
 @media (max-width:480px){
-  .at-arabic.word{font-size:44px;} .at-arabic.phrase{font-size:33px;} .at-arabic.sentence{font-size:25px;} .at-key{min-width:31px; font-size:19px;}
+  .at-arabic.word{font-size:calc(44px * var(--sscale, 1));} .at-arabic.phrase{font-size:calc(33px * var(--sscale, 1));} .at-arabic.sentence{font-size:calc(25px * var(--sscale, 1));} .at-key{min-width:31px; font-size:calc(19px * var(--sscale, 1));}
   .at-btn{font-size:15px; padding:13px 16px;}
   .at-stats{ grid-template-columns:repeat(2,1fr); }
   .at-stats.tight{ grid-template-columns:repeat(5,1fr); }
   .at-pgrid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
   .at-pcard { padding:8px 7px; }
   .at-pcardtop { min-height:38px; }
-  .at-pcardtop .ar { font-size:17px; }
+  .at-pcardtop .ar { font-size:calc(17px * var(--sscale, 1)); }
   .at-pcardtop .en { font-size:11px; }
   .at-pcardfoot { font-size:9px; }
   .at-modepickopt span { font-size:11px; }
@@ -1686,14 +1686,14 @@ body.at-screening .at-spaces { display:none; }
    .at.kb-open .at-arabic.word, which is four classes itself — so this
    ties with it and wins on source order. Those rules still stand
    everywhere else; inside the prompt this is the whole type scale. */
-.at { --ask: 40px; }
-@media (max-width: 480px) { .at { --ask: 36px; } }
-.at.kb-open { --ask: 26px; }
+.at { --ask: calc(40px * var(--sscale, 1)); }
+@media (max-width: 480px) { .at { --ask: calc(36px * var(--sscale, 1)); } }
+.at.kb-open { --ask: calc(26px * var(--sscale, 1)); }
 .at .at-exercise .at-ask > .at-arabic,
 .at .at-exercise .at-ask > .at-en,
 .at .at-exercise .at-ask > .at-latin {
   font-size: var(--ask);
-  line-height: 1.5;
+  line-height: calc(1.5 * var(--sleading, 1));
   font-weight: 700;
   /* Grey, not full ink: the question is what you read first, but it is not
      the answer, and the two used to be the same weight of black. --muted is

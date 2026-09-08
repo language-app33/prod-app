@@ -243,6 +243,31 @@ test("the verdict is one size, and a large one", () => {
     `--verdict is set by ${owners.join(", ")}`);
 });
 
+test("every rule that sets the script's size multiplies by the script's scale", () => {
+  /* font-size sets the em box, not the height of a letter. The sizes here
+     were tuned by eye against Arabic, and every script rule is shared
+     across languages, so a Latin script inherited sizes meant for a script
+     that fills less of its box. Each pack now says what to multiply by,
+     and a rule that sets a raw number puts one language back to guessing.
+
+     Only rules that render the taught script: the English gloss beside a
+     script word, and the word-labelled keys, are interface text. */
+  const SCRIPT = /(\.at-arabic|\.at-input\.ar|\.at-key(?![.\w-])|\.ob-box h1|\.at-(readvalue|minicard|item|pcardtop|previewrow) \.ar|\.at-ctx(word|bare) b)/;
+  const raw = [];
+  for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!SCRIPT.test(selectors)) continue;
+    for (const [, prop, value] of body.matchAll(/(font-size|line-height)\s*:\s*([^;]+)/g)) {
+      const v = value.trim();
+      if (v === "normal" || v.includes("var(--sscale") || v.includes("var(--sleading") || v.includes("var(--ask")) continue;
+      /* The keyboard's fitted rows size from the width of the row, not
+         from a length, so the scale has nothing to multiply. */
+      if (v.includes("var(--kw")) continue;
+      raw.push(`${selectors.trim().split("\n")[0]} { ${prop}: ${v} }`);
+    }
+  }
+  assert.deepEqual(raw, [], `unscaled script sizes:\n  ${raw.join("\n  ")}`);
+});
+
 test("the box you answer in is one height whatever you are typing", () => {
   /* English was 55px tall and the script 102px, so the screen jumped
      between exercises. One height set outright: a single-line field
@@ -419,14 +444,25 @@ test("the question is asked at one size, whatever the exercise", () => {
   /* The gap below the instruction is half the leading plus the block's own
      margin. Both have to be fixed, or one size still lands at two
      distances. */
-  assert.match(prompt, /line-height:\s*[\d.]+\s*;/, "the prompt has no line-height of its own");
+  assert.match(
+    prompt,
+    /line-height:\s*calc\([\d.]+ \* var\(--sleading, 1\)\)/,
+    "the prompt has no line-height of its own, scaled by the script's leading",
+  );
   assert.match(prompt, /margin:\s*0/, "the prompt keeps a margin that varies by field");
 
-  /* And the size is a property of the room, not of the exercise: a
-     narrower screen and the phone keyboard may change it, nothing else. */
+  /* And the size is a property of the room and of the script, not of the
+     exercise: a narrower screen, the phone keyboard, and the language's own
+     type scale may change it, nothing else. The scale is inside --ask
+     rather than on the three rules that read it, because the slot holds
+     the script, the meaning or the romanisation and all three have to stay
+     one size as each other. */
   const asks = [...css.matchAll(/--ask:\s*([^;]+);/g)].map((m) => m[1].trim());
   assert.ok(asks.length >= 1, "--ask is never set");
-  assert.ok(asks.every((v) => /^\d+px$/.test(v)), `--ask is not a plain size: ${asks.join(", ")}`);
+  assert.ok(
+    asks.every((v) => /^calc\(\d+px \* var\(--sscale, 1\)\)$/.test(v)),
+    `--ask is not a plain size times the script's scale: ${asks.join(", ")}`,
+  );
 });
 
 test("a listening question starts where a written one does", () => {

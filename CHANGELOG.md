@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.22 — 8 September 2026
+
+- Each language now renders at a size tuned to its script. A font size
+  sets the box a letter sits in, not the height of the letter, and how
+  much of that box a script fills differs — Arabic leaves room above for
+  harakat and below for the tails of ب and ج. Every size in the app was
+  tuned by eye against Arabic and then shared with every language, so
+  Vietnamese came out oversized. Each language now says how much to
+  multiply by: Arabic is 1, so nothing about it moves by a single pixel,
+  and Vietnamese is 0.78. Hebrew says nothing and so renders unchanged,
+  which is also the proof that adding a language never means touching the
+  stylesheet.
+- Fixed: in the learner's own card editor, the preview of the word was
+  drawn in the interface typeface at the size of a statistic, instead of
+  in the script's own face at its own size.
+
 ## 0.21 — 7 September 2026
 
 - In a practice session, the question and the verdict are now grey rather

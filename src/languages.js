@@ -851,6 +851,15 @@ export const LANGUAGES = {
     scriptLabel: "Arabic script",
     scriptShort: "A",
     script: /[\u0600-\u06FF]/,
+    /* The type scale every script rule multiplies by. font-size sets the em
+       box, not the height of a letter, and how much of that box a script
+       fills differs: Arabic leaves room above for harakat and below for the
+       tails of ب and ج, so an Arabic word at 54px looks the size a Latin
+       word looks at rather less. The sizes in the stylesheet were tuned by
+       eye against this script, so Arabic is 1 by definition and every other
+       pack is measured against it. */
+    scale: 1,
+    leading: 1,
     /* Two rows for the importer's worked example, in this language. */
     sample: [
       { ar: "كِتاب", en: "book", lat: "kitāb" },
@@ -935,6 +944,11 @@ export const LANGUAGES = {
     direction: "ltr",
     scriptLabel: "Vietnamese",
     scriptShort: "V",
+    /* Latin script fills far more of its em box than Arabic does, so the
+       sizes tuned for Arabic came out oversized here. A starting guess,
+       meant to be adjusted by eye. */
+    scale: 0.78,
+    leading: 0.85,
     sample: [
       { ar: "sách", en: "book", lat: "" },
       { ar: "một", en: "one", lat: "" },
@@ -1093,6 +1107,30 @@ export const LANGUAGES = {
     ],
   },
 };
+
+
+/* ------------------------------------------------------------------
+   The type scale
+
+   A pack may say how large its script wants to be relative to the sizes
+   in the stylesheet, which were tuned against Arabic. Both default to 1,
+   so a pack that says nothing — Hebrew today — renders exactly as it did
+   before this existed, and adding a language never means touching CSS.
+
+   Read as CSS custom properties: every script rule multiplies its
+   font-size by --sscale and its line-height by --sleading, and both fall
+   back to 1 wherever they are unset.
+   ------------------------------------------------------------------ */
+const positive = (n) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 1);
+
+export const scaleOf = (lang) => positive(lang && lang.scale);
+export const leadingOf = (lang) => positive(lang && lang.leading);
+
+/* The two properties, ready to spread into a style object beside whatever
+   font-family the caller is already setting from the same pack. */
+export function scriptVars(lang) {
+  return { "--sscale": String(scaleOf(lang)), "--sleading": String(leadingOf(lang)) };
+}
 
 export const DEFAULT_LANGUAGE = "ar-PS";
 

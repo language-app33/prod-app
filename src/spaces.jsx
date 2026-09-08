@@ -19,6 +19,7 @@ import {
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
+  scriptVars,
 } from "./languages.js";
 import {
   Button,
@@ -1907,7 +1908,7 @@ function ScriptInput({ lang, value, onChange }) {
           /* The room for the keys button is reserved by .at-inputwrap in the
              stylesheet — physical right, not logical, because the button is
              at right:8px whichever way the text runs. */
-          style={{ fontFamily: lang.fontStack, fontSize: 22, textAlign: "start" }}
+          style={{ fontFamily: lang.fontStack, fontSize: 22, textAlign: "start", ...scriptVars(lang) }}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -1922,7 +1923,7 @@ function ScriptInput({ lang, value, onChange }) {
               <button
                 key={i}
                 className="at-key"
-                style={{ fontFamily: lang.fontStack }}
+                style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
                 onClick={() => {
                   onChange(value + k);
                   if (ref.current) ref.current.focus();
@@ -2654,7 +2655,7 @@ function ContextReport({ cards, lang }) {
               {withContext.map((w) => (
                 <div className="at-ctxrow" key={w.id}>
                   <p className="at-ctxword">
-                    <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+                    <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                       {w.ar}
                     </b>
                     <i>{w.en}</i>
@@ -2662,7 +2663,7 @@ function ContextReport({ cards, lang }) {
                   <ul className="at-ctxlist">
                     {w.contexts.map((c) => (
                       <li key={c.id}>
-                        <span lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+                        <span lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                           {c.ar}
                         </span>
                         <em>{c.en}</em>
@@ -2684,7 +2685,7 @@ function ContextReport({ cards, lang }) {
           <div className="at-ctxbare">
             {bare.map((w) => (
               <span key={w.id}>
-                <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack }}>
+                <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                   {w.ar}
                 </b>
                 <i>{w.en}</i>

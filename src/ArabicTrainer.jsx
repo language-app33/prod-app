@@ -106,6 +106,7 @@ import {
   labelFor,
   langOf,
   quizAttrOf,
+  scriptVars,
   setActiveLang,
   tight,
   verdictText,
@@ -2497,7 +2498,7 @@ function Arabic({ text, kind, lang, name }) {
       data-el={name}
       lang={L.id}
       dir={L.direction}
-      style={{ fontFamily: L.fontStack, direction: L.direction }}
+      style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}
     >
       {text}
     </p>
@@ -3824,6 +3825,9 @@ export default function ArabicTrainer() {
       style={{
         "--sdir": langOf(settings).direction || "ltr",
         "--sfont": langOf(settings).fontStack,
+        /* And how large that script wants to be against the sizes in the
+           stylesheet, which were tuned against Arabic. */
+        ...scriptVars(langOf(settings)),
         /* What the answer bar is lifted by. Set here rather than on the bar
            so the page can reserve the same room underneath its content. */
         "--kb-overlap": `${kb.overlap || 0}px`,
@@ -5959,12 +5963,18 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
             </div>
 
             {unit.ar ? (
-              <Stat
-                value={unit.ar}
+              /* A plain paragraph, not a Stat. Stat wraps its value in
+                 .at-statvalue, which sets the UI serif and its own size at
+                 the same specificity as .at-arabic.word and later in the
+                 file — so the preview of the word came out in the interface
+                 face at stat size instead of the script's own. */
+              <p
+                className="at-arabic word"
                 lang={activeLang().id}
                 dir={activeLang().direction}
-                className="at-arabic word"
-              />
+              >
+                {unit.ar}
+              </p>
             ) : (
               <Notice kind="warn">
                 {`No ${activeLang().scriptLabel.toLowerCase()} — this form can't be practiced.`}

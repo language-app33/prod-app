@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
-import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE } from "./languages.js";
+import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
 
 
 
@@ -601,7 +601,7 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
   const L = lang || {};
   return (
     <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
-      <div className="ar" lang={L.id} dir={L.direction} style={L.fontStack ? { fontFamily: L.fontStack } : undefined}>
+      <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         {card.ar}
       </div>
       <div className="at-minien">{card.en}</div>
@@ -1076,7 +1076,7 @@ export function CardReadout({ card, lang, decks }) {
               : "Another way the same thing is said. It is practiced on its own."}
           </p>
 
-          <p className="at-readword" dir={L.direction} style={{ fontFamily: L.fontStack }}>
+          <p className="at-readword" dir={L.direction} style={{ fontFamily: L.fontStack, ...scriptVars(L) }}>
             {f.ar}
           </p>
           <p className="at-readmeaning">{f.en}</p>
