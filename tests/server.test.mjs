@@ -14,6 +14,15 @@ import { createHash } from "node:crypto";
 
 const dir = await mkdtemp(path.join(tmpdir(), "taleb-server-"));
 process.env.DATA_DIR = dir;
+/*
+ * An admin key, so the tests below that claim admin actually get it. Every
+ * one of them passed `process.env.ADMIN_KEY || ""`, which the server
+ * refuses outright when the variable is unset — and none checked the
+ * answer, so they had all been running as ordinary accounts and asserting
+ * nothing about the admin paths they were named after.
+ */
+const ADMIN_KEY = "test-admin-key";
+process.env.ADMIN_KEY = ADMIN_KEY;
 const { createApp } = await import("../server/index.js");
 
 const server = createApp();
@@ -175,7 +184,7 @@ test("the deployed version is whatever is in dist, read fresh", async () => {
 test("a card remembers which words it teaches, and keeps the list clean", async () => {
   const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rana" } });
   const key = made.json.key;
-  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: process.env.ADMIN_KEY || "" } });
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
 
   const word = await api("/api/courses?action=save-card", {
     method: "POST", key, body: { card: { id: "", ar: "باب", en: "door", lang: "ar-PS" }, decks: [] },
@@ -217,7 +226,7 @@ test("a card remembers which words it teaches, and keeps the list clean", async 
 test("a new card is stamped with when it was made, and editing does not move it", async () => {
   const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dana" } });
   const key = made.json.key;
-  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: process.env.ADMIN_KEY || "" } });
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
 
   const first = await api("/api/courses?action=save-card", {
     method: "POST", key, body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [] },
@@ -320,4 +329,95 @@ test("SIGTERM stops it cleanly, and npm has nothing to report", async () => {
   assert.equal(code, 0, out);
   assert.match(out, /finishing what's in flight/);
   assert.match(out, /stopped/);
+});
+
+/*
+ * Renaming a course.
+ *
+ * The title is a label: decks, memberships and join codes are all keyed by
+ * the course's id, so a rename must change what people see and nothing
+ * else. These check both halves of that — the new name sticks, and
+ * everything hanging off the course survives it.
+ */
+test("an admin can rename a course, and nothing else about it moves", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
+  const key = made.json.key;
+  const claimed = await api("/api/courses?action=claim-admin", {
+    method: "POST", key, body: { adminKey: ADMIN_KEY },
+  });
+  assert.equal(claimed.status, 200, "the admin claim has to actually succeed, or this proves nothing");
+
+  const created = await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Beginer Arabic", language: "ar-PS" },
+  });
+  assert.equal(created.status, 200, created.text);
+  const before = created.json.course;
+
+  /* Someone in it and a deck attached, so the rename has something to
+     leave undisturbed. */
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Omar" } });
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key, body: { courseId: before.id, handle: student.json.user.handle },
+  });
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Lesson 1", lang: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key, body: { deckId: deck.json.deck.id, courseId: before.id },
+  });
+
+  const renamed = await api("/api/courses?action=admin-rename-course", {
+    method: "POST", key, body: { courseId: before.id, title: "  Beginner Arabic  " },
+  });
+  assert.equal(renamed.status, 200, renamed.text);
+  assert.equal(renamed.json.title, "Beginner Arabic", "trimmed on the way in");
+
+  const list = await api("/api/courses?action=admin-overview", { key });
+  const after = list.json.courses.find((c) => c.id === before.id);
+  assert.equal(after.title, "Beginner Arabic");
+  assert.equal(after.id, before.id, "the id is what everything else is keyed by");
+  assert.equal(after.code, before.code, "the student code still works");
+  assert.equal(after.teacherCode, before.teacherCode, "and so does the teacher code");
+  assert.equal(after.language, before.language);
+  assert.deepEqual(after.students, [student.json.user.handle], "the roster is untouched");
+  assert.deepEqual(after.decks, before.decks.concat([deck.json.deck.id]), "and the deck is still attached");
+
+  /* And the student still reaches it, which is the thing a broken rename
+     would quietly take away. */
+  const theirs = await api("/api/courses?action=my-courses", { key: student.json.key });
+  assert.equal(theirs.json.courses.find((c) => c.id === before.id).title, "Beginner Arabic");
+});
+
+test("a course cannot be renamed to nothing, and only an admin can rename one", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yara" } });
+  await api("/api/courses?action=claim-admin", {
+    method: "POST", key: admin.json.key, body: { adminKey: ADMIN_KEY },
+  });
+  const course = (await api("/api/courses?action=create-course", {
+    method: "POST", key: admin.json.key, body: { title: "Keeps Its Name", language: "ar-PS" },
+  })).json.course;
+
+  for (const title of ["", "   "]) {
+    const res = await api("/api/courses?action=admin-rename-course", {
+      method: "POST", key: admin.json.key, body: { courseId: course.id, title },
+    });
+    assert.equal(res.status, 400, `"${title}" should be refused`);
+    assert.equal(res.json.error, "title-required");
+  }
+
+  /* An ordinary account, which is what most people signing in are. */
+  const other = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Sami" } });
+  const refused = await api("/api/courses?action=admin-rename-course", {
+    method: "POST", key: other.json.key, body: { courseId: course.id, title: "Mine Now" },
+  });
+  assert.equal(refused.status, 403);
+
+  const missing = await api("/api/courses?action=admin-rename-course", {
+    method: "POST", key: admin.json.key, body: { courseId: "c-nope", title: "Ghost" },
+  });
+  assert.equal(missing.status, 404);
+
+  const still = (await api("/api/courses?action=admin-overview", { key: admin.json.key }))
+    .json.courses.find((c) => c.id === course.id);
+  assert.equal(still.title, "Keeps Its Name", "none of that changed the name");
 });

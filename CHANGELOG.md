@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.27 — 8 September 2026
+
+- A course can be renamed. In Admin, open a course and its name now sits
+  at the top with a Rename beside it. Only the name changes: the join
+  codes, the people in it and the decks attached to it are all held
+  against the course itself, not its title, so nothing has to be handed
+  out again and nobody loses access.
+
 ## 0.26 — 8 September 2026
 
 Nothing here changes what the app does. All three are about making the

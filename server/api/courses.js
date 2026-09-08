@@ -1258,6 +1258,19 @@ export default async (req) => {
       /* Courses created before the language was stored have none, and a
          course with no language sends its decks and cards to the wrong
          script. This is how one gets corrected. */
+      /* The title is a label and nothing hangs off it: the id is what decks,
+         memberships and join codes are keyed by, so this changes what people
+         see and nothing else. Same 80 characters create-course allows, or a
+         course could be created with a name it could not be renamed to. */
+      if (action === "admin-rename-course") {
+        const course = await readJson(store, K.course(String(body.courseId || "")));
+        if (!course) return json({ error: "not-found" }, 404);
+        const title = String(body.title || "").trim().slice(0, 80);
+        if (!title) return json({ error: "title-required" }, 400);
+        await writeJson(store, K.course(course.id), { ...course, title, updated: Date.now() });
+        return json({ ok: true, title });
+      }
+
       if (action === "admin-course-language") {
         const course = await readJson(store, K.course(String(body.courseId || "")));
         if (!course) return json({ error: "not-found" }, 404);

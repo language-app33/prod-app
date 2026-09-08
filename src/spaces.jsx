@@ -705,6 +705,7 @@ function CourseSettings({
   languages,
   account,
   busy,
+  onRename,
   onSetLanguage,
   onNewCode,
   onAssignTeacher,
@@ -716,6 +717,10 @@ function CourseSettings({
   const [assigning, setAssigning] = useState(false);
   const [unlockLang, setUnlockLang] = useState(false);
   const c = course;
+  /* The title being edited, or null when it is not. Started from the course
+     rather than kept in step with it, so a rename in flight is not
+     overwritten by the refresh that follows the last one. */
+  const [renaming, setRenaming] = useState(null);
   const people = [...c.teachers, ...c.students];
 
   return (
@@ -726,6 +731,59 @@ function CourseSettings({
         <Button variant="danger" size="sm" onClick={onDelete} icon="delete">Delete</Button>
       }
     >
+          {/* A title is a label and nothing hangs off it — decks, people and
+              join codes are all keyed by the course's id — so unlike the
+              language below, renaming is an ordinary edit and needs no
+              warning and no unlocking. */}
+          <Field label="Name">
+            {renaming === null ? (
+              <div className="at-lockrow">
+                <span className="at-lockname">
+                  <Icon name="school" />
+                  {c.title}
+                </span>
+                <Button variant="ghost" size="sm" disabled={busy} onClick={() => setRenaming(c.title)}>
+                  Rename
+                </Button>
+              </div>
+            ) : (
+              <>
+                <input
+                  className="at-input"
+                  value={renaming}
+                  autoFocus
+                  maxLength={80}
+                  aria-label="Course name"
+                  onChange={(e) => setRenaming(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setRenaming(null);
+                    if (e.key === "Enter" && renaming.trim() && renaming.trim() !== c.title) {
+                      onRename(renaming.trim());
+                      setRenaming(null);
+                    }
+                  }}
+                />
+                <div className="at-row at-mt3">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon="check"
+                    disabled={busy || !renaming.trim() || renaming.trim() === c.title}
+                    onClick={() => {
+                      onRename(renaming.trim());
+                      setRenaming(null);
+                    }}
+                  >
+                    {busy ? "Saving…" : "Save"}
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setRenaming(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            )}
+          </Field>
+
           <Field label={<>Language taught {!c.language && <span className="req">not set</span>}</>}>
             {/* Set once, then behind a deliberate act. Changing it later
                 converts nothing — it just relabels every existing card. */}
@@ -966,6 +1024,7 @@ export function AdminSpace({ account, languages, onClose }) {
           account={account}
           busy={busy}
           onClose={() => setOpenCourse2(null)}
+          onRename={(title) => run(() => API.renameCourse(c.id, title), () => `Renamed to ${title}`)}
           onSetLanguage={(id) =>
             run(() => API.setCourseLanguage(c.id, id), () => `Now teaching ${languageName(languages, id)}`)
           }

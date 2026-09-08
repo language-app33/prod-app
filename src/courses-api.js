@@ -155,6 +155,8 @@ export const deleteUser = (handle) => call("admin-delete-user", { body: { handle
 export const newCourseCode = (courseId, which) =>
   call("admin-new-code", { body: { courseId, which } });
 export const deleteCourse = (courseId) => call("admin-delete-course", { body: { courseId } });
+export const renameCourse = (courseId, title) =>
+  call("admin-rename-course", { body: { courseId, title } });
 export const setCourseLanguage = (courseId, language) =>
   call("admin-course-language", { body: { courseId, language } });
 
