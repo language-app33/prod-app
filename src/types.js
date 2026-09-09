@@ -248,6 +248,15 @@
  * @property {Millis} [created]
  */
 
+/**
+ * The administrator's whole view of the site, as admin-overview answers it.
+ * @typedef {object} AdminOverview
+ * @property {(User & { teaching: { title: string, language?: LangId }[], studying: { title: string, language?: LangId }[] })[]} users
+ * @property {Course[]} courses
+ * @property {(Deck & { cardCount: number, ownerName: string, courseTitles: string[] })[]} decks
+ * @property {Flag[]} flags
+ */
+
 /* ---- the schedule ---- */
 
 /**

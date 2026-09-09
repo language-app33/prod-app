@@ -209,7 +209,7 @@ export const adminOverview = () => call("admin-overview");
 export const backupManifest = () => call("admin-backup-manifest");
 /** @type {(keys: string[]) => Promise<any>} */
 export const backupChunk = (keys) => call("admin-backup-chunk", { body: { keys } });
-/** @type {(records: unknown[]) => Promise<any>} */
+/** @type {(records: Record<string, unknown>) => Promise<any>} */
 export const restoreChunk = (records) => call("admin-restore-chunk", { body: { records } });
 
 /* `roles` is a list because someone can teach a course and study it, and

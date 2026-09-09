@@ -1,3 +1,36 @@
+// @ts-check
+/** @import { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.js" */
+/** @typedef {React.ReactNode} Node */
+/**
+ * Whatever is waiting on a yes: the confirmation to show, and what to do
+ * if the answer is yes. Assembled at the call site rather than declared as
+ * a component's props, because only one of these can be on screen at a
+ * time and every screen builds its own.
+ * @typedef {{
+ *   title?: Node,
+ *   body?: Node,
+ *   confirmLabel?: string,
+ *   confirmWord?: string,
+ *   closeAfter?: boolean,
+ *   kind?: string,
+ *   ids?: string[],
+ *   card?: Card,
+ *   action: () => any,
+ * }} Pending
+ */
+/** How a backup or a restore is going. */
+/**
+ * @typedef {{
+ *   state: string,
+ *   done?: number,
+ *   total?: number,
+ *   note?: string,
+ *   counts?: Record<string, number>,
+ *   file?: any,
+ *   manifest?: any,
+ *   takenAt?: number,
+ * }} Progress
+ */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.js";
 
@@ -78,13 +111,14 @@ export { ConfirmModal, useLiveRefresh, cardToItem, localIdFor };
    First run
    ------------------------------------------------------------------ */
 
+/** @param {{ onDone: (account?: User & { key: string }) => void }} props */
 export function Onboarding({ onDone }) {
   const [step, setStep] = useState("choose"); // choose | new | existing | key
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [made, setMade] = useState(null);
+  const [made, setMade] = useState(/** @type {User & { key: string } | null} */ (null));
   const [showKey, setShowKey] = useState(false);
   /* Asked for only once the server has said it wants one, so a site that
      lets anyone sign up never shows the field. */
@@ -101,7 +135,7 @@ export function Onboarding({ onDone }) {
       setMade(account);
       setStep("key");
     } catch (e) {
-      if (String(e && e.message) === "signup-code-required") {
+      if (String(e && /** @type {any} */ (e).message) === "signup-code-required") {
         setCodeNeeded(true);
         setError(signupCode.trim() ? "That invitation code isn't right." : "");
       } else {
@@ -336,6 +370,7 @@ export function Onboarding({ onDone }) {
 
 
 /* A name in a roster, marked when it is the person reading it. */
+/** @param {{ name?: string, handle?: string, me?: string }} props `me` is the handle to compare against, so the row can say "(me)". */
 export function PersonName({ name, handle, me }) {
   return (
     <>
@@ -350,6 +385,7 @@ export function PersonName({ name, handle, me }) {
    the app since being asked to wants the hour, not the day. Never having
    happened is said in words rather than left as a dash, because a dash and
    a value that failed to load look the same. */
+/** @param {{ label?: Node, at?: number, never?: Node }} props */
 function WhenRow({ label, at, never }) {
   return (
     <div className="at-whenrow">
@@ -375,6 +411,14 @@ function WhenRow({ label, at, never }) {
    administrator looking for somebody to cover a class actually wants. A
    course with none set says nothing here rather than "Language not set" —
    the course's own tile is where that gets fixed. */
+/**
+ * @param {{
+ *   label?: Node,
+ *   tone?: string,
+ *   courses?: { title: string, language?: LangId }[],
+ *   languages: Record<LangId, Lang>,
+ * }} props
+ */
 function BelongRow({ label, tone, courses, languages }) {
   const list = (courses || []).map((c) => (typeof c === "string" ? { title: c } : c));
   if (!list.length) return null;
@@ -395,6 +439,7 @@ function BelongRow({ label, tone, courses, languages }) {
 
 /* A "modal" is now a screen. Kept under this name so nothing that opens one
    has to change; what it opens is the standard full-screen shell. */
+/** @param {{ title?: Node, children?: Node, onClose: () => void }} props */
 export function Modal({ title, children, onClose }) {
   return (
     <Screen title={title} onBack={onClose}>
@@ -421,6 +466,12 @@ export function Modal({ title, children, onClose }) {
 
 
 
+/**
+ * @param {{
+ *   label?: Node, code?: string, hint?: Node,
+ *   onNew?: () => void, busy?: boolean,
+ * }} props
+ */
 export function CodeBox({ label, code, hint, onNew, busy }) {
   return (
     <div className="at-codeblock">
@@ -429,7 +480,7 @@ export function CodeBox({ label, code, hint, onNew, busy }) {
         <b>{code || "—"}</b>
         <Button variant="ghost" size="sm"
           disabled={!code}
-          onClick={() => navigator.clipboard && navigator.clipboard.writeText(code)}
+          onClick={() => navigator.clipboard && navigator.clipboard.writeText(code || "")}
           icon="copy"
         >
           Copy
@@ -445,6 +496,9 @@ export function CodeBox({ label, code, hint, onNew, busy }) {
 
 
 /* The bar that appears once something is ticked. */
+/**
+ * @param {{ count: number, noun: string, onClear?: () => void, children?: Node }} props
+ */
 export function SelectionBar({ count, noun, onClear, children }) {
   if (!count) return null;
   return (
@@ -489,14 +543,18 @@ const RESTORE_BYTES = 3 * 1024 * 1024; // per request, under the function's own 
  * over each chunk as it passes: counts per kind, and whether every deck
  * and recording that is referred to is actually in the file.
  */
+/** @param {(done: number, total: number) => void} onProgress */
 async function buildBackup(onProgress) {
   const { manifest } = await API.backupManifest();
   const plan = manifest.plan || [];
   const { plan: _drop, ...kept } = manifest;
 
+  /** @type {Record<string, any>} */
+  /** @type {Record<string, string>} */
   const digests = {};
   const seen = new Set();
   const refs = { decks: new Set(), clips: new Set() };
+  /** @type {Record<string, number>} */
   const counts = { "user:": 0, "course:": 0, "deck:": 0, "card:": 0, "clip:": 0 };
 
   let blob = new Blob(
@@ -582,10 +640,16 @@ async function buildBackup(onProgress) {
  * record in the file overwrites the one on the site with the same key,
  * and nothing else is touched.
  */
+/**
+ * @param {any} file
+ * @param {(done: number, total: number) => void} onProgress
+ */
 async function restoreBackup(file, onProgress) {
   const records = file.records || {};
   const keys = Object.keys(records).filter((k) => !k.startsWith("index:"));
+  /** @type {Record<string, any>[]} */
   const batches = [];
+  /** @type {Record<string, any>} */
   let batch = {};
   let size = 0;
   let n = 0;
@@ -605,6 +669,9 @@ async function restoreBackup(file, onProgress) {
   if (n) batches.push(batch);
 
   const indexes = (file.manifest && file.manifest.indexes) || {};
+  /** @type {Record<string, any>} */
+  /** @type {Record<string, any>} */
+  /** @type {Record<string, any>} */
   const last = {};
   for (const [what, list] of Object.entries(indexes)) {
     if (Array.isArray(list)) last[`index:${what}`] = list;
@@ -621,6 +688,7 @@ async function restoreBackup(file, onProgress) {
 }
 
 /* What a finished file says about itself, checked against what it holds. */
+/** @param {any} file */
 function verifyBackup(file) {
   const problems = [];
   if (!file || file.format !== "language-app-backup") return ["Not a backup file."];
@@ -628,6 +696,7 @@ function verifyBackup(file) {
   const rec = file.records || {};
   if (m.version !== 1) problems.push(`Made by a different version (${m.version}).`);
 
+  /** @type {(prefix: string) => number} */
   const count = (prefix) => Object.keys(rec).filter((k) => k.startsWith(prefix)).length;
   const expect = [
     ["users", "user:", m.counts && m.counts.users],
@@ -652,7 +721,7 @@ function verifyBackup(file) {
       for (const id of value.decks || []) if (!rec[`deck:${id}`]) danglingDecks += 1;
     }
     if (key.startsWith("card:")) {
-      const all = [...(value.clips || []), ...(value.subs || []).flatMap((sb) => sb.clips || [])];
+      const all = [...(value.clips || []), ...(value.subs || []).flatMap((/** @type {any} */ sb) => sb.clips || [])];
       for (const h of all) if (!rec[`clip:${h}`]) danglingClips += 1;
     }
   }
@@ -670,6 +739,23 @@ function verifyBackup(file) {
    is passed in rather than the page being written twice.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   courses: Course[],
+ *   languages: Record<LangId, Lang>,
+ *   busy?: boolean,
+ *   error?: Node,
+ *   lead?: Node,
+ *   emptyLead?: Node,
+ *   joinTitle?: Node,
+ *   joinHint?: Node,
+ *   joinPlaceholder?: string,
+ *   joinNote?: Node,
+ *   onJoin: (code: string) => any,
+ *   renderCourse: (course: Course) => Node,
+ *   footer?: Node,
+ * }} props
+ */
 export function CoursesPage({
   courses,
   languages,
@@ -766,7 +852,15 @@ export function CoursesPage({
  * quietly enrol them — because guessing is what filled this list with
  * duplicates in the first place.
  */
+/**
+ * @param {{
+ *   handle: string, name?: string,
+ *   me?: string, teaching: boolean, studying: boolean, busy?: boolean,
+ *   onSetRole: (role: "teacher" | "student", on: boolean) => void,
+ * }} props The caller knows whose row this is, so only the answer comes back.
+ */
 function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }) {
+  /** @type {(key: "teacher" | "student", cls: string, label: string, on: boolean) => Node} */
   const role = (key, cls, label, on) => (
     <button
       type="button"
@@ -794,6 +888,21 @@ function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }) {
   );
 }
 
+/**
+ * @param {{
+ *   course: Course,
+ *   users: User[],
+ *   languages: Record<LangId, Lang>,
+ *   account: User,
+ *   busy?: boolean,
+ *   onRename: (title: string) => void,
+ *   onSetLanguage: (id: LangId) => void,
+ *   onNewCode: (which: "teacher" | "student") => void,
+ *   onSetRole: (handle: string, name: string, role: "teacher" | "student", on: boolean) => void,
+ *   onDelete: () => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function CourseSettings({
   course,
   users,
@@ -813,7 +922,7 @@ function CourseSettings({
   /* The title being edited, or null when it is not. Started from the course
      rather than kept in step with it, so a rename in flight is not
      overwritten by the refresh that follows the last one. */
-  const [renaming, setRenaming] = useState(null);
+  const [renaming, setRenaming] = useState(/** @type {string | null} */ (null));
 
   /*
    * One row per person, not one per membership. Teaching and studying are
@@ -822,6 +931,7 @@ function CourseSettings({
    * each took away both.
    */
   const people = [...new Set([...c.teachers, ...c.students])];
+  /** @type {(h: string) => string} */
   const nameOf = (h) => {
     const u = users.find((x) => x.handle === h);
     return u ? u.displayName : h;
@@ -1028,9 +1138,14 @@ function CourseSettings({
  * sent from a language this build no longer carries falls back to the bare
  * type, which is less to read but still says which of eight it was.
  */
+/**
+ * @param {Record<LangId, Lang>} languages
+ * @param {LangId} [langId]
+ * @param {string} [type]
+ */
 function exerciseLabel(languages, langId, type) {
   if (!type) return "";
-  const lang = languages[langId];
+  const lang = languages[langId || ""];
   const spec = lang ? exOf(type, lang) : null;
   return spec && spec.label ? spec.label : type;
 }
@@ -1048,6 +1163,7 @@ function exerciseLabel(languages, langId, type) {
  * chip nobody reads. It is also what a report says when the comparison
  * cannot be made — nothing, rather than a guess.
  */
+/** @type {Record<string, { label: string, tone: string, what: string, openable: boolean }>} */
 const CARD_STATES = {
   edited: {
     label: "Card edited since",
@@ -1077,27 +1193,35 @@ const CARD_STATES = {
    language in everywhere else. Both are undefined for a language this
    build does not carry, which leaves the browser's own defaults — the
    right answer when there is nothing better to say. */
+/** @type {(languages: Record<LangId, Lang>, langId?: LangId) => string | undefined} */
 const dirOf = (languages, langId) =>
-  (languages[langId] && languages[langId].direction) || undefined;
+  (languages[langId || ""] && languages[langId || ""].direction) || undefined;
+/**
+ * @param {Record<LangId, Lang>} languages
+ * @param {LangId} [langId]
+ */
 function scriptStyle(languages, langId) {
-  const lang = languages[langId];
+  const lang = languages[langId || ""];
   if (!lang) return undefined;
   return { ...(lang.fontStack ? { fontFamily: lang.fontStack } : null), ...scriptVars(lang) };
 }
 
+/** @param {{ account: User, languages: Record<LangId, Lang>, onClose: () => void }} props */
 export function AdminSpace({ account, languages, onClose }) {
   const [tab, setTab] = useState("courses");
-  const [data, setData] = useState(() => recallSpace("admin", account.handle));
+  const [data, setData] = useState(
+    /** @type {import("./types.js").AdminOverview | null} */ (recallSpace("admin", account.handle))
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [lang, setLang] = useState(Object.keys(languages)[0]);
-  const [newKey, setNewKey] = useState(null);
+  const [newKey, setNewKey] = useState(/** @type {Record<string, any> | null} */ (null));
   const [makingCourse, setMakingCourse] = useState(false);
-  const [makingUser, setMakingUser] = useState(null); // the form, while open
-  const [openCourse2, setOpenCourse2] = useState(null); // a course being settled
+  const [makingUser, setMakingUser] = useState(/** @type {{ name: string, courseId: string, roles: string[] } | null} */ (null)); // the form, while open
+  const [openCourse2, setOpenCourse2] = useState(/** @type {string | null} */ (null)); // a course being settled
   const [selPeople, setSelPeople] = useState(() => new Set());
-  const [backup, setBackup] = useState(null); // { state, done, total, note }
+  const [backup, setBackup] = useState(/** @type {Progress | null} */ (null)); // { state, done, total, note }
   /* Off until asked for: the gallery renders a specimen of every component,
      which is a lot of markup to carry on a tab that is mostly about backups. */
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -1108,8 +1232,8 @@ export function AdminSpace({ account, languages, onClose }) {
      arrives after the flag does, so the screen is up while it is fetched
      rather than after — a blank second on a tap is what a spinner is
      for. */
-  const [openCard, setOpenCard] = useState(null);
-  const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
+  const [openCard, setOpenCard] = useState(/** @type {{ flag: Flag, card: Card | null, error: string } | null} */ (null));
+  const [deckAction, setDeckAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
   /* Whose decks to show: a handle, or "" for everyone's. Search already
      matches the maker's name, but only if you know whose name to type —
      which is the thing an administrator looking at decks made by six
@@ -1117,9 +1241,9 @@ export function AdminSpace({ account, languages, onClose }) {
   const [deckOwner, setDeckOwner] = useState("");
   /* One slot for whatever is waiting to be confirmed, so only one of these
      can ever be on screen at a time. */
-  const [confirm, setConfirm] = useState(null);
+  const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null));
 
-  const refresh = useCallback(async (background) => {
+  const refresh = useCallback(async (/** @type {boolean} */ background = false) => {
     /* A background poll must not flash "Working" or grey the buttons out
        from under someone mid-click; only a deliberate refresh does that. */
     if (!background) setBusy(true);
@@ -1167,6 +1291,10 @@ export function AdminSpace({ account, languages, onClose }) {
      whatever the call returned when the message wants to name the thing —
      "Beginner Arabic created" rather than "Saved". Said after the refresh,
      so the lists are already showing what it is confirming. */
+  /**
+   * @param {() => Promise<any>} fn
+   * @param {string | ((out: any) => string)} [done]
+   */
   async function run(fn, done) {
     setBusy(true);
     try {
@@ -1184,6 +1312,7 @@ export function AdminSpace({ account, languages, onClose }) {
      than carried by the overview: Admin holds decks, not cards, and a site
      with five hundred reports would otherwise be sending five hundred
      cards to a screen showing one. */
+  /** @param {Flag} flag */
   async function openFlaggedCard(flag) {
     setOpenCard({ flag, card: null, error: "" });
     try {
@@ -1206,6 +1335,7 @@ export function AdminSpace({ account, languages, onClose }) {
   /* Everyone who has actually made a deck, with how many — read off the
      decks rather than off the people, so the menu never offers a name that
      would narrow the list to nothing. */
+  /** @type {{ value: string, label: string, count: number }[]} */
   const deckMakers = [];
   for (const d of decks) {
     const found = deckMakers.find((m) => m.value === d.owner);
@@ -1424,7 +1554,7 @@ export function AdminSpace({ account, languages, onClose }) {
                     } teaching · ${c.students.length} studying · ${plural(c.decks.length, "deck")}`}
                     onOpen={() => setOpenCourse2(c.id)}
                     actions={
-                      <IconButton icon="edit" label="Course settings" onClick={(e) => {
+                      <IconButton icon="edit" label="Course settings" onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
                           setOpenCourse2(c.id);
                         }} />
@@ -1489,8 +1619,8 @@ export function AdminSpace({ account, languages, onClose }) {
                           async () => {
                             const r = await API.createUser(
                               makingUser.name.trim(),
-                              makingUser.courseId || undefined,
-                              makingUser.roles
+                              makingUser.courseId || "",
+                              /** @type {("teacher" | "student")[]} */ (makingUser.roles)
                             );
                             setNewKey({
                               name: r.user.displayName,
@@ -1517,7 +1647,7 @@ export function AdminSpace({ account, languages, onClose }) {
                       value={makingUser.name}
                       autoFocus
                       onChange={(e) =>
-                        setMakingUser((u) => ({ ...u, name: e.target.value }))
+                        setMakingUser((/** @type {any} */ u) => ({ ...u, name: e.target.value }))
                       }
                     />
 </Field>
@@ -1529,7 +1659,7 @@ export function AdminSpace({ account, languages, onClose }) {
                           key={c.id}
                           className={`at-ck${makingUser.courseId === c.id ? " on" : ""}`}
                           onClick={() =>
-                            setMakingUser((u) => ({
+                            setMakingUser((/** @type {any} */ u) => ({
                               ...u,
                               courseId: u.courseId === c.id ? "" : c.id,
                             }))
@@ -1571,10 +1701,10 @@ export function AdminSpace({ account, languages, onClose }) {
                               className={`at-role ${cls}${on ? " on" : ""}`}
                               aria-pressed={on}
                               onClick={() =>
-                                setMakingUser((u) => ({
+                                setMakingUser((/** @type {any} */ u) => ({
                                   ...u,
                                   roles: on
-                                    ? u.roles.filter((r) => r !== value)
+                                    ? u.roles.filter((/** @type {string} */ r) => r !== value)
                                     : u.roles.concat([value]),
                                 }))
                               }
@@ -1864,9 +1994,9 @@ export function AdminSpace({ account, languages, onClose }) {
                 renderItem={(d) => (
                   <Tile
                     title={d.title}
-                    meta={`${d.ownerName} · ${plural(d.cardCount, "card")}`}
+                    meta={`${d.ownerName} · ${plural(d.cardCount || 0, "card")}`}
                     actions={
-                        <IconButton icon="delete" label="Delete deck" danger onClick={(e) => {
+                        <IconButton icon="delete" label="Delete deck" danger onClick={(/** @type {React.MouseEvent} */ e) => {
                             e.stopPropagation();
                             setConfirm({
                               title: `Delete ${d.title}?`,
@@ -1874,7 +2004,7 @@ export function AdminSpace({ account, languages, onClose }) {
                               confirmWord: d.title,
                               body: (
                                 <p>
-                                  Its {plural(d.cardCount, "card")} go with it,
+                                  Its {plural(d.cardCount || 0, "card")} go with it,
                                   out of every course it is in and out of the apps of everyone
                                   studying it. {d.ownerName} loses the work.
                                 </p>
@@ -1984,7 +2114,7 @@ export function AdminSpace({ account, languages, onClose }) {
                   },
                 ]}
                 renderItem={(f) => {
-                  const state = CARD_STATES[f.cardState] || null;
+                  const state = CARD_STATES[f.cardState || ""] || null;
                   return (
                     <Tile
                       title={flagTitle(f.kind)}
@@ -1999,7 +2129,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             <Button
                               size="sm"
                               icon="view"
-                              onClick={(e) => {
+                              onClick={(/** @type {React.MouseEvent} */ e) => {
                                 e.stopPropagation();
                                 openFlaggedCard(f);
                               }}
@@ -2011,7 +2141,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             icon="delete"
                             label="Clear this report"
                             danger
-                            onClick={(e) => {
+                            onClick={(/** @type {React.MouseEvent} */ e) => {
                               e.stopPropagation();
                               setConfirm({
                                 title: "Clear this report?",
@@ -2207,13 +2337,13 @@ export function AdminSpace({ account, languages, onClose }) {
                 </label>
               </div>
 
-              {backup && backup.state === "restoring" && backup.total > 0 && (
+              {backup && backup.state === "restoring" && (backup.total || 0) > 0 && (
                 <Help>
                   Writing {backup.done} of {backup.total} parts…
                 </Help>
               )}
 
-              {backup && backup.state === "running" && backup.total > 0 && (
+              {backup && backup.state === "running" && (backup.total || 0) > 0 && (
                 <Help>
                   Fetching {backup.done} of {backup.total} parts…
                 </Help>
@@ -2319,6 +2449,7 @@ export function AdminSpace({ account, languages, onClose }) {
    Becoming the administrator — once, from Account settings
    ------------------------------------------------------------------ */
 
+/** @param {{ onDone: (claimed?: boolean) => void }} props */
 export function ClaimAdmin({ onDone }) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
@@ -2400,8 +2531,17 @@ const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], ...dimValues({}) 
    now a button. The list is local state seeded from the stored string —
    deriving it on every render would drop an added field the moment it was
    added, because an empty answer joins to nothing. */
+/**
+ * @param {{
+ *   value?: string,
+ *   onChange: (value: string) => void,
+ *   render: (value: string, onChange: (v: string) => void) => Node,
+ *   addLabel?: string,
+ * }} props
+ */
 function Alternatives({ value, onChange, render, addLabel = "Add another accepted answer" }) {
-  const [list, setList] = useState(() => splitAlternatives(value));
+  const [list, setList] = useState(() => splitAlternatives(value || ""));
+  /** @param {string[]} next */
   const commit = (next) => {
     setList(next);
     onChange(joinAlternatives(next));
@@ -2425,8 +2565,12 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
   );
 }
 
+/**
+ * @param {{ lang: Lang, value?: string, onChange: (value: string) => void }} props
+ */
 function ScriptInput({ lang, value, onChange }) {
   const [keys, setKeys] = useState(false);
+  /** @type {React.MutableRefObject<HTMLInputElement | null>} */
   const ref = useRef(null);
 
   return (
@@ -2492,12 +2636,14 @@ function ScriptInput({ lang, value, onChange }) {
   );
 }
 
+/** @param {Blob} blob */
 async function hashOf(blob) {
   const buf = await blob.arrayBuffer();
   const digest = await crypto.subtle.digest("SHA-256", buf);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** @param {Blob} blob */
 function blobToDataUrl(blob) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -2530,7 +2676,18 @@ function blobToDataUrl(blob) {
    round, and only writes what actually changed.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   course: Course,
+ *   decks: Deck[],
+ *   langOfDeck: (deck: Deck) => string,
+ *   busy?: boolean,
+ *   onSave: (added: string[], removed: string[]) => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
+  /** @type {(d: Deck) => boolean} */
   const inCourse = (d) => (d.courses || []).some((l) => l.courseId === course.id);
   const [chosen, setChosen] = useState(() => new Set(decks.filter(inCourse).map((d) => d.id)));
   const [query, setQuery] = useState("");
@@ -2575,7 +2732,7 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
             options={shown.map((d) => ({
               id: d.id,
               title: d.title,
-              note: `${(langOfDeck(d) || {}).name} · ${plural(d.cardCount, "card")}`,
+              note: `${langOfDeck(d)} · ${plural(d.cardCount || 0, "card")}`,
             }))}
             chosen={[...chosen]}
             onToggle={(id) =>
@@ -2607,6 +2764,19 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
    at the top right — so the two feel like one app rather than two.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   deck: Deck | null,
+ *   choices: Record<LangId, Lang>,
+ *   mustAsk?: boolean,
+ *   initialLang?: LangId,
+ *   busy?: boolean,
+ *   courses?: Course[],
+ *   languages: Record<LangId, Lang>,
+ *   onSave: (title: string, lang: LangId, picked: string[]) => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function DeckEditor({
   deck,
   choices,
@@ -2736,18 +2906,26 @@ function DeckEditor({
   );
 }
 
+/**
+ * @param {{ clips?: string[], onChange: (clips: string[]) => void }} props
+ */
 function Recordings({ clips, onChange }) {
 
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  /** @type {React.MutableRefObject<MediaRecorder | null>} */
   const rec = useRef(null);
+  /** @type {React.MutableRefObject<ReturnType<typeof setInterval> | null>} */
   const tick = useRef(null);
   const list = clips || [];
 
-  useEffect(() => () => tick.current && clearInterval(tick.current), []);
+  useEffect(() => () => {
+    if (tick.current) clearInterval(tick.current);
+  }, []);
 
+  /** @param {Blob} blob */
   async function store(blob) {
     setBusy("Saving…");
     try {
@@ -2770,7 +2948,8 @@ function Recordings({ clips, onChange }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream, { audioBitsPerSecond: 24000 });
-      const chunks = [];
+      /** @type {Blob[]} */
+    const chunks = [];
       mr.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
@@ -2785,7 +2964,7 @@ function Recordings({ clips, onChange }) {
       setTimeout(() => mr.state !== "inactive" && end(), 15000);
     } catch (e) {
       setError(
-        String(e && e.name) === "NotAllowedError"
+        String(e && /** @type {any} */ (e).name) === "NotAllowedError"
           ? "Microphone permission was refused"
           : "Couldn't reach the microphone"
       );
@@ -2801,7 +2980,7 @@ function Recordings({ clips, onChange }) {
   return (
     <Field label="Recordings">
 
-      <ClipList clips={list} onChange={onChange} />
+      <ClipList clips={list} onChange={(next) => onChange(/** @type {any} */ (next))} />
 
       <div className="at-chips" style={{ marginTop: list.length ? 10 : 0 }}>
         {recording ? (
@@ -2848,6 +3027,16 @@ function Recordings({ clips, onChange }) {
  *
  * A pairing already accepted stays whichever way the matcher later votes,
  * so improving the matcher can never silently drop a teacher's decision.
+ */
+/**
+ * @param {{
+ *   lang: Lang,
+ *   text: string,
+ *   cards: Card[],
+ *   selfId?: string,
+ *   chosen: string[],
+ *   onChange: (ids: string[]) => void,
+ * }} props
  */
 function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
   const kind = guessKind(text, lang);
@@ -2902,6 +3091,20 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
   );
 }
 
+/**
+ * @param {{
+ *   card: Card | null,
+ *   lang: Lang,
+ *   decks: Deck[],
+ *   inDecks?: string[],
+ *   allCards: Card[],
+ *   onSave: (forms: any, note: string, decks: string[], uses: string[]) => void,
+ *   onDelete?: () => void,
+ *   onClose: () => void,
+ *   busy?: boolean,
+ *   confirming?: Node,
+ * }} props
+ */
 function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming }) {
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
@@ -2934,6 +3137,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      romanisation supports one exercise type, and no student could ever
      practice it. Better to say so here than to save something inert. */
   const canSave = main.ar.trim() && main.en.trim();
+  /** @type {(i: number, next: any) => void} */
   const setForm = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
   return (
@@ -3058,11 +3262,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       <Segmented
                         label={dim.label}
                         options={dim.options.map(([value, label]) => ({ value, label }))}
-                        value={f[dim.field]}
+                        value={/** @type {any} */ (f)[dim.field]}
                         onChange={(v) =>
                           setForm(i, {
                             ...f,
-                            [dim.field]: !dim.required && f[dim.field] === v ? "" : v,
+                            [dim.field]: !dim.required && /** @type {any} */ (f)[dim.field] === v ? "" : v,
                           })
                         }
                       />
@@ -3073,9 +3277,9 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                     <Field label={lang.lexical.label}>
                       <input
                         className="at-input"
-                        value={f[lang.lexical.key] || ""}
+                        value={/** @type {any} */ (f)[lang.lexical.key] || ""}
                         placeholder={lang.lexical.help || ""}
-                        onChange={(e) => setForm(i, { ...f, [lang.lexical.key]: e.target.value })}
+                        onChange={(e) => setForm(i, { ...f, [lang.lexical ? lang.lexical.key : ""]: e.target.value })}
                       />
                     </Field>
                   )}
@@ -3151,6 +3355,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
  * Read-only. It writes nothing and suggests nothing; the whole job is the
  * number at the top.
  */
+/** @param {{ cards: Card[], lang: Lang }} props */
 function ContextReport({ cards, lang }) {
   const [open, setOpen] = useState(false);
   const report = useMemo(() => contextCoverage(cards, lang), [cards, lang]);
@@ -3257,10 +3462,12 @@ function ContextReport({ cards, lang }) {
 
 /* Recordings live on each form, not on the card, so a card counts as having
    one if any of its forms does. */
+/** @type {(c: Card) => boolean} */
 export const cardHasAudio = (c) =>
   ((c.clips || []).length > 0) || (c.subs || []).some((sb) => (sb.clips || []).length > 0);
 
 /* The main form is a form. A card with two subs has three. */
+/** @type {(c: Card) => number} */
 export const cardFormCount = (c) => 1 + (c.subs || []).length;
 
 /*
@@ -3272,9 +3479,12 @@ export const cardFormCount = (c) => 1 + (c.subs || []).length;
  * upper bound. Backfilling would have been worse — it would have written
  * today's date over the answer.
  */
+/** @type {(c: Card) => number} */
 export const cardAdded = (c) => c.created || c.updated || 0;
+/** @type {(c: Card) => number} */
 export const cardChanged = (c) => c.updated || c.created || 0;
 
+/** @type {Record<string, { label: string, of: (c: Card) => any, numeric?: boolean, then?: (c: Card) => any }>} */
 export const CARD_SORTS = {
   added: { label: "Added", of: cardAdded, numeric: true },
   changed: { label: "Changed", of: cardChanged, numeric: true },
@@ -3282,12 +3492,17 @@ export const CARD_SORTS = {
      untouched behind it, so a second key decides within each group —
      otherwise the order inside a group would be whatever the server
      happened to return. */
-  audio: { label: "Recordings", of: (c) => (cardHasAudio(c) ? 1 : 0), then: cardChanged },
+  audio: { label: "Recordings", of: (/** @type {Card} */ c) => (cardHasAudio(c) ? 1 : 0), then: cardChanged },
   forms: { label: "Forms", of: cardFormCount, then: cardChanged },
 };
 
+/**
+ * @param {Card[]} cards
+ * @param {string} key
+ * @param {boolean} [newestFirst]
+ */
 export function sortCards(cards, key, newestFirst = true) {
-  const sort = CARD_SORTS[key];
+  const sort = CARD_SORTS[key || ""];
   if (!sort) return cards;
   const dir = newestFirst ? -1 : 1;
   return [...cards].sort((a, b) => {
@@ -3298,6 +3513,10 @@ export function sortCards(cards, key, newestFirst = true) {
   });
 }
 
+/**
+ * @param {Card[]} cards
+ * @param {{ audio?: string, forms?: string }} [filters]
+ */
 export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
   return cards.filter((c) => {
     if (audio === "with" && !cardHasAudio(c)) return false;
@@ -3308,39 +3527,44 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
   });
 }
 
+/** @param {{ account: User, languages: Record<LangId, Lang>, onClose: () => void }} props */
 export function TeachSpace({ account, languages, onClose }) {
   /* What this space was showing when it was last left — see lastShown.
      Asked once, at the first render: recall forgets another person's
      contents when it is asked for them, which is not something to do
      again on every keystroke. */
+  /** @type {React.MutableRefObject<{ courses: Course[], decks: Deck[], cards: Card[] } | null>} */
   const held = useRef(null);
   if (held.current === null) held.current = recallSpace("teach", account.handle) || false;
+  /** @type {{ courses: Course[], decks: Deck[], cards: Card[] } | null} */
   const last = held.current || null;
   const [tab, setTab] = useState("courses");
-  const [courses, setCourses] = useState(() => (last ? last.courses : []));
-  const [decks, setDecks] = useState(() => (last ? last.decks : []));
+  const [courses, setCourses] = useState(/** @type {Course[]} */ (last ? last.courses : []));
+  const [decks, setDecks] = useState(/** @type {Deck[]} */ (last ? last.decks : []));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [courseView, setCourseView] = useState(null);
-  const [openDeck, setOpenDeck] = useState(null);
-  const [cards, setCards] = useState(() => (last ? last.cards : []));
-  const [editing, setEditing] = useState(null); // {card|null, decks:[]}
-  const [naming, setNaming] = useState(null); // "new" | deck
-  const [confirm, setConfirm] = useState(null); // whatever is awaiting a yes
-  const [viewing, setViewing] = useState(null); // a card being read, not edited
+  const [courseView, setCourseView] = useState(/** @type {any | null} */ (null));
+  const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ (null));
+  const [cards, setCards] = useState(/** @type {Card[]} */ (last ? last.cards : []));
+  const [editing, setEditing] = useState(
+    /** @type {{ card: Card | null, decks: string[], lang?: LangId } | null} */ (null)
+  ); // {card|null, decks:[], lang}
+  const [naming, setNaming] = useState(/** @type {any | null} */ (null)); // "new" | deck
+  const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null)); // whatever is awaiting a yes
+  const [viewing, setViewing] = useState(/** @type {any} */ (null)); // a card being read, not edited
   const [selCards, setSelCards] = useState(() => new Set());
-  const [cardAction, setCardAction] = useState(null); // "add" | "remove"
-  const [newCardLang, setNewCardLang] = useState(null);
-  const [managingDecks, setManagingDecks] = useState(null); // a course id
+  const [cardAction, setCardAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
+  const [newCardLang, setNewCardLang] = useState(/** @type {LangId | null} */ (null));
+  const [managingDecks, setManagingDecks] = useState(/** @type {string | null} */ (null)); // a course id
   /* Already teaching something? Then this is a rare errand, folded away. */
   const [joinNote, setJoinNote] = useState("");
   const [selDecks, setSelDecks] = useState(() => new Set());
-  const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
-  const [pickedDecks, setPickedDecks] = useState([]);
-  const [pickedCourses, setPickedCourses] = useState([]);
+  const [deckAction, setDeckAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
+  const [pickedDecks, setPickedDecks] = useState(/** @type {string[]} */ ([]));
+  const [pickedCourses, setPickedCourses] = useState(/** @type {string[]} */ ([]));
 
-  const refresh = useCallback(async (background) => {
+  const refresh = useCallback(async (/** @type {boolean} */ background = false) => {
     if (!background) setBusy(true);
     try {
       /* pullTeaching takes what arrives and says what didn't, so a failing
@@ -3389,7 +3613,8 @@ export function TeachSpace({ account, languages, onClose }) {
   /* The languages this person actually teaches. One means nothing to ask
      about; several mean every new deck and card has to say which it is. */
   const teachingLangs = useMemo(() => {
-    const ids = [];
+    /** @type {string[]} */
+  const ids = [];
     for (const c of courses) {
       if (c.language && languages[c.language] && !ids.includes(c.language)) ids.push(c.language);
     }
@@ -3400,7 +3625,8 @@ export function TeachSpace({ account, languages, onClose }) {
      while that course's language is still being sorted out. */
   const knownLangs = useMemo(() => {
     if (teachingLangs.length) return teachingLangs;
-    const ids = [];
+    /** @type {string[]} */
+  const ids = [];
     for (const d of decks) {
       if (d.lang && languages[d.lang] && !ids.includes(d.lang)) ids.push(d.lang);
     }
@@ -3436,6 +3662,10 @@ export function TeachSpace({ account, languages, onClose }) {
 
   /* See the note on AdminSpace's run: `done` is the confirmation, and may
      be a function of what the call returned. */
+  /**
+   * @param {() => Promise<any>} fn
+   * @param {string | ((out: any) => string)} [done]
+   */
   async function run(fn, done) {
     setBusy(true);
     try {
@@ -3454,6 +3684,7 @@ export function TeachSpace({ account, languages, onClose }) {
      be followed by three more requests, each reading every deck and course
      on the site; the background check still runs, so the lists cannot drift
      for long even if something here is missed. */
+  /** @param {any} r */
   function absorbSaved(r) {
     const card = r && r.card;
     if (!card) return;
@@ -3468,6 +3699,7 @@ export function TeachSpace({ account, languages, onClose }) {
     absorbDecks(r.decks);
   }
 
+  /** @param {Deck[]} records */
   function absorbDecks(records) {
     if (!Array.isArray(records) || !records.length) return;
     setDecks((prev) =>
@@ -3478,6 +3710,7 @@ export function TeachSpace({ account, languages, onClose }) {
     );
   }
 
+  /** @param {string[]} ids */
   function absorbDeleted(ids) {
     const gone = new Set(ids);
     if (!gone.size) return;
@@ -3492,6 +3725,7 @@ export function TeachSpace({ account, languages, onClose }) {
     );
   }
 
+  /** @type {(deck: Deck) => Lang | undefined} */
   const langOfDeck = (deck) => {
     if (deck && deck.lang && languages[deck.lang]) return languages[deck.lang];
     for (const link of (deck && deck.courses) || []) {
@@ -3501,9 +3735,10 @@ export function TeachSpace({ account, languages, onClose }) {
     return languages[soleLang] || languages[Object.keys(languages)[0]];
   };
 
+  /** @type {(card: Card) => Lang | undefined} */
   const langOfCard = (card) =>
     (card && card.lang && languages[card.lang]) ||
-    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || {});
+    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || /** @type {any} */ ({}));
 
   /* ---- naming a deck takes over the screen, like a card ---- */
   if (naming) {
@@ -3528,7 +3763,7 @@ export function TeachSpace({ account, languages, onClose }) {
                 await API.createDeck(title, "", lang || soleLang);
               } else {
                 if (title !== existing.title) await API.renameDeck(existing.id, title);
-                const was = (existing.courses || []).map((l) => l.courseId);
+                const was = (existing.courses || []).map((/** @type {any} */ l) => l.courseId);
                 for (const id of picked) if (!was.includes(id)) await API.attachDeck(existing.id, id);
                 for (const id of was) if (!picked.includes(id)) await API.detachDeck(existing.id, id);
               }
@@ -3551,11 +3786,11 @@ export function TeachSpace({ account, languages, onClose }) {
        is going into. With one language taught there is never a choice. */
     const editLang =
       (editing.lang && languages[editing.lang]) ||
-      (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || { courses: [] }));
+      (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || /** @type {any} */ ({ courses: [] })));
     return (
       <CardEditor
         card={editing.card}
-        lang={editLang}
+        lang={editLang || LANGUAGES[DEFAULT_LANGUAGE]}
         decks={decks}
         inDecks={editing.decks}
         busy={busy}
@@ -3576,7 +3811,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   note: note.trim(),
                   lang: (editLang || {}).id || "",
                   uses,
-                  subs: subs.filter((f) => f.ar.trim() || f.en.trim()),
+                  subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
                 },
                 inDecks
               );
@@ -3591,9 +3826,16 @@ export function TeachSpace({ account, languages, onClose }) {
             (main) => `${main.en.trim() || main.ar.trim() || "Card"} saved`
           )
         }
-        onDelete={editing.card ? () => setConfirm({ kind: "card", card: editing.card }) : undefined}
+        onDelete={
+          editing.card
+            ? (() => {
+                const doomed = editing.card;
+                return () => setConfirm({ kind: "card", card: doomed, action: () => {} });
+              })()
+            : undefined
+        }
         confirming={
-          confirm && confirm.kind === "card" ? (
+          confirm && confirm.kind === "card" && confirm.card ? (
             <ConfirmModal
               title={`Delete "${confirm.card.en || confirm.card.ar}"?`}
               confirmLabel="Delete the card"
@@ -3608,8 +3850,10 @@ export function TeachSpace({ account, languages, onClose }) {
               onCancel={() => setConfirm(null)}
               onConfirm={() =>
                 run(async () => {
-                  await API.deleteCard(confirm.card.id);
-                  absorbDeleted([confirm.card.id]);
+                  const gone = confirm.card;
+                  if (!gone) return;
+                  await API.deleteCard(gone.id);
+                  absorbDeleted([gone.id]);
                   setConfirm(null);
                   setEditing(null);
                 })
@@ -3642,7 +3886,7 @@ export function TeachSpace({ account, languages, onClose }) {
             </Help>
 
             <Section title="In context" className="at-mt5">
-              <ContextReport cards={mine} lang={langOfDeck(d)} />
+              <ContextReport cards={mine} lang={langOfDeck(d) || LANGUAGES[DEFAULT_LANGUAGE]} />
             </Section>
 
             <ItemList
@@ -3680,7 +3924,7 @@ export function TeachSpace({ account, languages, onClose }) {
                 {
                   label: "Delete",
                   danger: true,
-                  onClick: (ids) => setConfirm({ kind: "cards", ids }),
+                  onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
                 },
               ]}
               renderItem={(c) => (
@@ -3694,7 +3938,7 @@ export function TeachSpace({ account, languages, onClose }) {
                       <IconButton
                         icon="edit"
                         label="Edit"
-                        onClick={(e) => {
+                        onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
                           setEditing({ card: c, decks: c.decks || [] });
                         }}
@@ -3703,9 +3947,9 @@ export function TeachSpace({ account, languages, onClose }) {
                         icon="delete"
                         label="Delete"
                         danger
-                        onClick={(e) => {
+                        onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
-                          setConfirm({ kind: "cards", ids: [c.id] });
+                          setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
                         }}
                       />
                     </>
@@ -3736,7 +3980,7 @@ export function TeachSpace({ account, languages, onClose }) {
 
         {confirm && confirm.kind === "cards" && (
           <ConfirmModal
-            title={`Delete ${plural(confirm.ids.length, "card")}?`}
+            title={`Delete ${plural((confirm.ids || []).length, "card")}?`}
             confirmLabel="Delete them"
             busy={busy}
             body={
@@ -3748,7 +3992,7 @@ export function TeachSpace({ account, languages, onClose }) {
             onCancel={() => setConfirm(null)}
             onConfirm={() =>
               run(async () => {
-                const r = await API.deleteCards(confirm.ids);
+                const r = await API.deleteCards(confirm.ids || []);
                 absorbDeleted(r.deleted || confirm.ids);
                 setConfirm(null);
                 setSelCards(new Set());
@@ -3776,7 +4020,7 @@ export function TeachSpace({ account, languages, onClose }) {
       <DeckPicker
         course={c}
         decks={decks}
-        langOfDeck={langOfDeck}
+        langOfDeck={(d) => (langOfDeck(d) || {}).name || ""}
         busy={busy}
         onClose={() => setManagingDecks(null)}
         onSave={(added, removed) =>
@@ -3806,8 +4050,9 @@ export function TeachSpace({ account, languages, onClose }) {
       return null;
     }
     const mine = decks.filter((d) => (d.courses || []).some((l) => l.courseId === c.id));
-    const addedOn = (d) => {
-      const link = (d.courses || []).find((l) => l.courseId === c.id);
+    /** @type {(d: Deck) => any} */
+  const addedOn = (d) => {
+      const link = (d.courses || []).find((/** @type {any} */ l) => l.courseId === c.id);
       return link && link.addedAt ? new Date(link.addedAt).toLocaleDateString() : null;
     };
     return (
@@ -3842,10 +4087,10 @@ export function TeachSpace({ account, languages, onClose }) {
                   <Tile
                     key={d.id}
                     title={d.title}
-                    meta={`${(langOfDeck(d) || {}).name} · ${plural(d.cardCount, "card")}`}
+                    meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}`}
                     onOpen={() => setOpenDeck(d.id)}
                     actions={
-                      <IconButton icon="edit" label="Deck settings" onClick={(e) => {
+                      <IconButton icon="edit" label="Deck settings" onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
                           setNaming(d);
                         }} />
@@ -4022,7 +4267,7 @@ export function TeachSpace({ account, languages, onClose }) {
 
               {confirm && confirm.kind === "cards" && (
                 <ConfirmModal
-                  title={`Delete ${plural(confirm.ids.length, "card")}?`}
+                  title={`Delete ${plural((confirm.ids || []).length, "card")}?`}
                   confirmLabel="Delete them"
                   busy={busy}
                   body={
@@ -4034,7 +4279,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   onCancel={() => setConfirm(null)}
                   onConfirm={() =>
                     run(async () => {
-                      const r = await API.deleteCards(confirm.ids);
+                      const r = await API.deleteCards(confirm.ids || []);
                       absorbDeleted(r.deleted || confirm.ids);
                       setConfirm(null);
                       setSelCards(new Set());
@@ -4059,7 +4304,7 @@ export function TeachSpace({ account, languages, onClose }) {
                     options={decks.map((d) => ({
                       id: d.id,
                       title: d.title,
-                      note: `${plural(d.cardCount, "card")}`,
+                      note: `${plural(d.cardCount || 0, "card")}`,
                     }))}
                     chosen={pickedDecks}
                     onToggle={(id, on) =>
@@ -4229,7 +4474,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   {
                     label: "Delete",
                     danger: true,
-                    onClick: (ids) => setConfirm({ kind: "cards", ids }),
+                    onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
                   },
                 ]}
                 renderItem={(c) => (
@@ -4243,7 +4488,7 @@ export function TeachSpace({ account, languages, onClose }) {
                         <IconButton
                           icon="edit"
                           label="Edit"
-                          onClick={(e) => {
+                          onClick={(/** @type {React.MouseEvent} */ e) => {
                             e.stopPropagation();
                             setEditing({ card: c, decks: c.decks || [] });
                           }}
@@ -4252,9 +4497,9 @@ export function TeachSpace({ account, languages, onClose }) {
                           icon="delete"
                           label="Delete"
                           danger
-                          onClick={(e) => {
+                          onClick={(/** @type {React.MouseEvent} */ e) => {
                             e.stopPropagation();
-                            setConfirm({ kind: "cards", ids: [c.id] });
+                            setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
                           }}
                         />
                       </>
@@ -4398,15 +4643,15 @@ export function TeachSpace({ account, languages, onClose }) {
                   return (
                     <Tile
                       title={d.title}
-                      meta={`${(langOfDeck(d) || {}).name} · ${plural(d.cardCount, "card")}`}
+                      meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}`}
                       onOpen={() => setOpenDeck(d.id)}
                       actions={
                         <>
-                          <IconButton icon="edit" label="Deck settings" onClick={(e) => {
+                          <IconButton icon="edit" label="Deck settings" onClick={(/** @type {React.MouseEvent} */ e) => {
                               e.stopPropagation();
                               setNaming(d);
                             }} />
-                          <IconButton icon="delete" label="Delete deck" danger onClick={(e) => {
+                          <IconButton icon="delete" label="Delete deck" danger onClick={(/** @type {React.MouseEvent} */ e) => {
                               e.stopPropagation();
                               setConfirm({
                                 kind: "deck",
@@ -4415,7 +4660,7 @@ export function TeachSpace({ account, languages, onClose }) {
                                 confirmWord: d.title,
                                 body: (
                                   <p>
-                                    Its {plural(d.cardCount, "card")} go with
+                                    Its {plural(d.cardCount || 0, "card")} go with
                                     it, out of every course and out of the apps of everyone
                                     studying it. There is no undoing this.
                                   </p>
@@ -4457,6 +4702,18 @@ export function TeachSpace({ account, languages, onClose }) {
    ------------------------------------------------------------------ */
 
 
+/**
+ * @param {{
+ *   courses: Course[],
+ *   decks: (Deck & { courseId: string, courseTitle?: string })[],
+ *   languages: Record<LangId, Lang>,
+ *   busy?: boolean,
+ *   error?: Node,
+ *   onJoin: (code: string) => Promise<any>,
+ *   onRefresh?: () => void,
+ *   onPractise: (deckTitle: string) => void,
+ * }} props
+ */
 export function StudentCourses({
   courses,
   decks,
@@ -4504,7 +4761,7 @@ export function StudentCourses({
             actions={
               mine.length ? (
                 <Button size="sm"
-                  onClick={(e) => {
+                  onClick={(/** @type {React.MouseEvent} */ e) => {
                     e.stopPropagation();
                     onPractise(mine[0].title);
                   }}

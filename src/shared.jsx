@@ -1172,7 +1172,9 @@ export function FilterMenu({ icon = "tune", label, options, value, onChange, qui
  *
  * Generic in the item, so `match`, `renderItem` and `itemKey` all see the
  * same thing the caller passed in `items` rather than an `any`.
- * @template {{ id: string }} T
+ * `itemKey` defaults to reading `.id`. Items need not have one — the People
+ * list is keyed by handle — but then the caller passes its own.
+ * @template T
  * @param {{
  *   noun: string,
  *   plural?: string,
@@ -1204,7 +1206,7 @@ export function ItemList({
   filters, // optional controls under the toolbar — tag pickers and the like
   count, // optional override for the "n of m" line
   items,
-  itemKey = (it) => it.id,
+  itemKey = (it) => /** @type {any} */ (it).id,
   match, // (item, lowercased query) => boolean
   size = "large", // large | small
   onNew,
@@ -2147,7 +2149,10 @@ export function useFreshSpace(space, handle, adopt) {
 }
 
 /* The administrator's whole view of the site, in one request. */
-/** @param {string} handle */
+/**
+ * @param {string} handle
+ * @returns {Promise<import("./types.js").AdminOverview>}
+ */
 export async function pullAdmin(handle) {
   const data = await API.adminOverview();
   deliverSpace("admin", handle, data);
