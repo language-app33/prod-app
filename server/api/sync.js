@@ -1,3 +1,4 @@
+// @ts-check
 import { getStore } from "../store.js";
 import { createHash } from "node:crypto";
 
@@ -16,6 +17,7 @@ import { createHash } from "node:crypto";
 const MAX_BYTES = 4 * 1024 * 1024;
 const STORE = "arabic-trainer";
 
+/** @param {string} token */
 function keyFor(token) {
   return createHash("sha256").update(`arabic-trainer:${token}`).digest("hex");
 }
@@ -25,6 +27,10 @@ function keyFor(token) {
    never mounted, this is what every call fails with. */
 const STORAGE_ERRORS = new Set(["EACCES", "EROFS", "ENOSPC", "ENOTDIR", "EPERM", "EDQUOT"]);
 
+/**
+ * @param {unknown} body
+ * @param {number} [status]
+ */
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -32,6 +38,7 @@ function json(body, status = 200) {
   });
 }
 
+/** @param {Request} req */
 export default async (req) => {
   const token = req.headers.get("x-sync-token") || "";
   // The client always sends a 64-char hex digest. Anything else is noise.
@@ -122,11 +129,12 @@ export default async (req) => {
       return json({ ok: true });
     }
   } catch (err) {
-    const detail = String((err && err.message) || err);
+    const e = /** @type {NodeJS.ErrnoException | null} */ (err);
+    const detail = String((e && e.message) || err);
     /* Storage that can't be written to is worth telling apart from any
        other failure: nothing about the request was wrong, and the thing to
        look at is the volume rather than the code. */
-    if (err && STORAGE_ERRORS.has(err.code)) {
+    if (e && e.code && STORAGE_ERRORS.has(e.code)) {
       return json({ error: "storage-unconfigured", detail }, 500);
     }
     return json({ error: "server", detail }, 500);
