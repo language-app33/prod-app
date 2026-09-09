@@ -92,19 +92,33 @@ function makeHandle(displayName, taken) {
   return `${base}-${randomBytes(4).toString("hex")}`;
 }
 
-/** @type {Record<string, (x: any) => string>} */
+/* Left to infer rather than declared as a record of string-makers: the
+   keys here are fixed and known, and saying otherwise made `K.course`
+   something that might not exist. */
 const K = {
+  /** @param {string} h */
   user: (h) => `user:${h}`,
+  /** @param {string} h */
   ownCards: (h) => `owncards:${h}`,
+  /** @param {string} hash */
   keyOf: (hash) => `key:${hash}`,
+  /** @param {string} id */
   course: (id) => `course:${id}`,
+  /** @param {string} id */
   deck: (id) => `deck:${id}`,
+  /** @param {string} id */
   cards: (id) => `cards:${id}`,          // legacy: cards stored per deck
+  /** @param {string} id */
   card: (id) => `card:${id}`,
+  /** @param {string} owner */
   myCards: (owner) => `mycards:${owner}`,
+  /** @param {string} c */
   code: (c) => `code:${String(c).toLowerCase()}`,
+  /** @param {string} h */
   clip: (h) => `clip:${h}`,
+  /** @param {string} id */
   flag: (id) => `flag:${id}`,
+  /** @param {string} what */
   index: (what) => `index:${what}`,
 };
 
