@@ -176,6 +176,9 @@ export const setCourseLanguage = (courseId, language) =>
 /* Flags are read with the rest of the overview; this is the only thing done
    to them. Dealt with means dealt with — there is nothing to keep. */
 export const deleteFlags = (flagIds) => call("admin-delete-flags", { body: { flagIds } });
+/* One card, fetched when a report about it is opened. Admin lists decks
+   rather than cards, so it holds none of them until one is asked for. */
+export const adminCard = (cardId) => call("admin-card", { params: { card: cardId } });
 
 /* Turn a server error into something worth reading. */
 export function explain(err) {

@@ -1035,6 +1035,41 @@ function exerciseLabel(languages, langId, type) {
   return spec && spec.label ? spec.label : type;
 }
 
+/*
+ * What became of the card a report is about, said on the report itself.
+ *
+ * A report is only worth acting on while the thing it describes is still
+ * there to act on, and three of these four say it is not — or not quite.
+ * The server works out which by comparing the card's revision now against
+ * the one it stood at when the flag was sent.
+ *
+ * "here" is the ordinary case and has no entry: a card that is exactly as
+ * it was needs nothing said about it, and a chip on every tile would be a
+ * chip nobody reads. `openable` says whether there is still a card to
+ * open — for an older report, made before any of this was recorded, the
+ * honest answer is to offer the button and let the fetch say.
+ */
+const CARD_STATES = {
+  edited: {
+    label: "Card edited since",
+    tone: "stale",
+    what: "The card has been saved at least once since this was reported. It may already be fixed.",
+    openable: true,
+  },
+  gone: {
+    label: "Card deleted",
+    tone: "flagged",
+    what: "The card has been deleted since this was reported. There is nothing left to open.",
+    openable: false,
+  },
+  own: {
+    label: "The learner's own card",
+    tone: "",
+    what: "A card this person made for themselves. It lives on their device and the site does not hold it.",
+    openable: false,
+  },
+};
+
 /* And how to set it: the same direction and script the app writes that
    language in everywhere else. Both are undefined for a language this
    build does not carry, which leaves the browser's own defaults — the
@@ -1066,6 +1101,11 @@ export function AdminSpace({ account, languages, onClose }) {
   const [elementsOpen, setElementsOpen] = useState(false);
   const [selDecks, setSelDecks] = useState(() => new Set());
   const [selFlags, setSelFlags] = useState(() => new Set());
+  /* The flagged card being looked at: { flag, card, error }. The card
+     arrives after the flag does, so the screen is up while it is fetched
+     rather than after — a blank second on a tap is what a spinner is
+     for. */
+  const [openCard, setOpenCard] = useState(null);
   const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
   /* Whose decks to show: a handle, or "" for everyone's. Search already
      matches the maker's name, but only if you know whose name to type —
@@ -1134,6 +1174,23 @@ export function AdminSpace({ account, languages, onClose }) {
     } catch (e) {
       setError(API.explain(e));
       setBusy(false);
+    }
+  }
+
+  /* The card a report is about, fetched when the report is opened rather
+     than carried by the overview: Admin holds decks, not cards, and a site
+     with five hundred reports would otherwise be sending five hundred
+     cards to a screen showing one. */
+  async function openFlaggedCard(flag) {
+    setOpenCard({ flag, card: null, error: "" });
+    try {
+      const got = await API.adminCard(flag.cardId);
+      /* Only if it is still the one being waited for: two taps in a row
+         must not leave the second screen showing the first card. */
+      setOpenCard((cur) => (cur && cur.flag.id === flag.id ? { ...cur, card: got.card } : cur));
+    } catch (e) {
+      const said = API.explain(e);
+      setOpenCard((cur) => (cur && cur.flag.id === flag.id ? { ...cur, error: said } : cur));
     }
   }
 
@@ -1855,10 +1912,42 @@ export function AdminSpace({ account, languages, onClose }) {
                 Problems learners reported from the answer screen — what was wrong, on which
                 question, and who said so. Fix the card, then clear the report.
               </Lede>
+              {/* Read-only: what to change about a card is a teacher's
+                  judgement and the teaching space is where it is made. This
+                  is the shortest way from "somebody said this is wrong" to
+                  seeing what they were actually asked. */}
+              {openCard && (
+                <Screen
+                  title={
+                    (openCard.card && (openCard.card.en || openCard.card.ar)) ||
+                    openCard.flag.meaning ||
+                    openCard.flag.prompt ||
+                    "The flagged card"
+                  }
+                  onBack={() => setOpenCard(null)}
+                >
+                  <Notice kind="error">{openCard.error}</Notice>
+                  {!openCard.card && !openCard.error && (
+                    <Notice kind="busy">Fetching the card…</Notice>
+                  )}
+                  {openCard.card && (
+                    <CardReadout
+                      card={openCard.card}
+                      lang={languages[openCard.card.lang]}
+                      decks={decks}
+                    />
+                  )}
+                </Screen>
+              )}
+
               <ItemList
                 noun="flag"
                 items={flags}
-                size="small"
+                /* Full width, one to a row. A report is three or four lines
+                   of somebody's words and a word in a script you may not
+                   read quickly; in a grid of narrow tiles every one of them
+                   wraps to a column and none of them can be skimmed. */
+                size="large"
                 busy={busy}
                 empty="Nothing reported. Learners flag a question from the answer screen, and what they send lands here."
                 match={(f, q) =>
@@ -1891,49 +1980,84 @@ export function AdminSpace({ account, languages, onClose }) {
                       }),
                   },
                 ]}
-                renderItem={(f) => (
-                  <Tile
-                    title={flagTitle(f.kind)}
-                    meta={`${f.handleName || f.handle} · ${dateTime(f.at)}`}
-                    actions={
-                      <IconButton
-                        icon="delete"
-                        label="Clear this report"
-                        danger
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirm({
-                            title: "Clear this report?",
-                            confirmLabel: "Clear it",
-                            body: <p>It goes for good. Nothing about the card changes.</p>,
-                            action: () => API.deleteFlags([f.id]),
-                          });
-                        }}
-                      />
-                    }
-                    footer={
-                      <div className="at-flagreport">
-                        {/* The question as it was asked, copied into the
-                            report when it was sent: the card may have been
-                            edited or withdrawn since, and an id on its own
-                            would say nothing. Set in its own script and
-                            direction, like every other place the app shows
-                            a word — a right-to-left word laid out
-                            left-to-right is the thing an administrator
-                            would misread first. */}
-                        {f.prompt && (
-                          <p className="at-flagreport-q" lang={f.language} dir={dirOf(languages, f.language)}
-                            style={scriptStyle(languages, f.language)}>
-                            {f.prompt}
-                          </p>
-                        )}
-                        {f.meaning && <p className="at-flagreport-en">{f.meaning}</p>}
-                        {f.note && <p className="at-flagreport-note">{f.note}</p>}
-                        <Help>{exerciseLabel(languages, f.language, f.exercise)}</Help>
-                      </div>
-                    }
-                  />
-                )}
+                renderItem={(f) => {
+                  const state = CARD_STATES[f.cardState] || null;
+                  return (
+                    <Tile
+                      title={flagTitle(f.kind)}
+                      /* Spelled out rather than left as a name beside a
+                         date: on a screen of reports about other people's
+                         cards, a bare name reads as easily as whose card it
+                         was as who complained about it. */
+                      meta={`Submitted by ${f.handleName || f.handle} · ${dateTime(f.at)}`}
+                      actions={
+                        <>
+                          {(!state || state.openable) && f.cardId && (
+                            <Button
+                              size="sm"
+                              icon="view"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openFlaggedCard(f);
+                              }}
+                            >
+                              Open card
+                            </Button>
+                          )}
+                          <IconButton
+                            icon="delete"
+                            label="Clear this report"
+                            danger
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirm({
+                                title: "Clear this report?",
+                                confirmLabel: "Clear it",
+                                body: <p>It goes for good. Nothing about the card changes.</p>,
+                                action: () => API.deleteFlags([f.id]),
+                              });
+                            }}
+                          />
+                        </>
+                      }
+                      footer={
+                        <div className="at-flagreport">
+                          {/* The question as it was asked, copied into the
+                              report when it was sent: the card may have been
+                              edited or withdrawn since, and an id on its own
+                              would say nothing. Set in its own script and
+                              direction, like every other place the app shows
+                              a word — a right-to-left word laid out
+                              left-to-right is the thing an administrator
+                              would misread first. */}
+                          {f.prompt && (
+                            <p className="at-flagreport-q" lang={f.language} dir={dirOf(languages, f.language)}
+                              style={scriptStyle(languages, f.language)}>
+                              {f.prompt}
+                            </p>
+                          )}
+                          {f.meaning && <p className="at-flagreport-en">{f.meaning}</p>}
+                          {f.note && <p className="at-flagreport-note">{f.note}</p>}
+                          <div className="at-flagfoot">
+                            <Help>{exerciseLabel(languages, f.language, f.exercise)}</Help>
+                            {/* What became of the card since. Said on the
+                                tile rather than found on opening it: it is
+                                what decides whether the report is still
+                                worth acting on. */}
+                            {state && (
+                              <span
+                                className={`at-flag${state.tone ? " " + state.tone : ""}`}
+                                title={state.what}
+                              >
+                                {state.label}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      }
+                    />
+                  );
+                }}
               />
             </>
           )}

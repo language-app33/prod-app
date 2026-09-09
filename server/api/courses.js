@@ -349,13 +349,27 @@ export default async (req) => {
          well as disabled in the app. */
       if (kind === "other" && !note) return json({ error: "note-required" }, 400);
 
+      /* The card as it stood when the flag was sent, so that reading the
+         report later can say whether it has moved since. Its revision, not
+         a copy: what an administrator needs to know is "is this still the
+         card they were looking at", and one number answers that.
+
+         `cardKnown` is the difference between a card the site holds and
+         one the learner made for themselves, which lives only on their
+         device. Both are missing from the store when the flag is read;
+         only one of them was deleted. */
+      const cardId = String(body.cardId || "").slice(0, 64);
+      const flagged = cardId ? await readJson(store, K.card(cardId)) : null;
+
       const flag = {
         id: randomBytes(8).toString("hex"),
         kind,
         note,
         handle: mine,
         handleName: me.displayName || mine,
-        cardId: String(body.cardId || "").slice(0, 64),
+        cardId,
+        cardKnown: !!flagged,
+        cardRev: flagged ? flagged.rev || 1 : 0,
         exercise: String(body.exercise || "").slice(0, 40),
         subId: body.subId ? String(body.subId).slice(0, 64) : null,
         language: String(body.language || "").slice(0, 20),
@@ -1111,13 +1125,52 @@ export default async (req) => {
             .map((l) => (courses.find((c) => c.id === l.courseId) || {}).title)
             .filter(Boolean),
         }));
+        /*
+         * What became of each flagged card, which decides what the report
+         * is still worth. A card edited since is probably already fixed; a
+         * card deleted since cannot be opened at all; and a card the site
+         * never held is one of the learner's own, which nobody here can
+         * change. Saying so on the report is the difference between a list
+         * to work through and a list to guess at.
+         *
+         * Read once per card rather than once per flag: several reports
+         * about one bad card is the normal case, and it is the whole reason
+         * they are worth reading together.
+         */
+        const flaggedIds = [
+          ...new Set(flagRows.filter((f) => f && f.cardKnown && f.cardId).map((f) => f.cardId)),
+        ];
+        const flaggedCards = await readManyJson(store, flaggedIds.map((id) => K.card(id)), EVENTUAL);
+        const revOf = new Map();
+        flaggedIds.forEach((id, i) => revOf.set(id, flaggedCards[i] ? flaggedCards[i].rev || 1 : null));
+
         /* Newest first: a flags list is read from the top, and what came in
            since the last look is the part worth reading. The reporter's
            current name wins over the one copied in when it was sent, so a
            person who has since been renamed is not two people here. */
         const flags = flagRows
           .filter(Boolean)
-          .map((f) => ({ ...f, handleName: nameOf[f.handle] || f.handleName || f.handle }))
+          .map((f) => {
+            /* A flag sent before any of this was recorded knows nothing
+               about its card either way, and saying "deleted" about a card
+               that is sitting there would be worse than saying nothing. */
+            const rev = revOf.has(f.cardId) ? revOf.get(f.cardId) : undefined;
+            const cardState =
+              !f.cardId || f.cardKnown === undefined
+                ? "unknown"
+                : !f.cardKnown
+                ? "own"
+                : rev === null
+                ? "gone"
+                : rev !== (f.cardRev || 1)
+                ? "edited"
+                : "here";
+            return {
+              ...f,
+              handleName: nameOf[f.handle] || f.handleName || f.handle,
+              cardState,
+            };
+          })
           .sort((a, b) => (b.at || 0) - (a.at || 0));
         return json({ ok: true, users, courses, decks, flags });
       }
@@ -1422,6 +1475,17 @@ export default async (req) => {
         await writeJson(store, K.code(code), course.id);
         await writeJson(store, K.course(course.id), { ...course, [which]: code });
         return json({ ok: true, code, which });
+      }
+
+      /* One card, by id, whoever owns it and whichever deck it is in.
+         Admin lists decks rather than cards, so until now there was no way
+         to look at a card from here — and a report about a card you cannot
+         open is a report you have to go hunting for. */
+      if (action === "admin-card") {
+        const card = await readJson(store, K.card(String(url.searchParams.get("card") || "")));
+        if (!card) return json({ error: "no-card" }, 404);
+        /* Named `decks` because that is what CardReadout reads it as. */
+        return json({ ok: true, card: { ...card, decks: await decksHolding(card) } });
       }
 
       /* Dealt with, or not worth keeping. There is no state on a flag

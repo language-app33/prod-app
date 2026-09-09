@@ -27,7 +27,7 @@ different information from the same data.
 
 ## Layout and frames
 
-### `Screen` — 21 uses
+### `Screen` — 22 uses
 The one full-screen shell. Portals into `.at`, owns Escape (only the topmost
 open screen responds), and locks body scroll while open. Every full-screen
 flow goes through this: there is no second way to make one.
@@ -69,7 +69,7 @@ eight jobs and became impossible to restyle.
 | `Lede` | the intro paragraph under a title | 8 |
 | `Help` | helper text under a control | 94 |
 | `Meta` | small print beside content | 0 |
-| `Notice` | errors, warnings, success, busy | 12 |
+| `Notice` | errors, warnings, success, busy | 16 |
 
 `Notice` takes `kind="info" | "error" | "warn" | "ok" | "busy"` and renders
 nothing when its children are empty — so `<Notice kind="error">{error}</Notice>`
@@ -82,7 +82,7 @@ instead; treat it as available rather than established.
 
 ## Controls
 
-### `Button` — 97 uses
+### `Button` — 98 uses
 `variant="default" | "primary" | "ghost" | "danger"`, `size="sm"`, `wide`,
 `icon="add"`, `iconSize`, plus anything a `<button>` takes.
 
@@ -152,7 +152,7 @@ reusable things are; it is in `shared.jsx` with the rest now.
 ### `TileNote` — 4 uses
 The line under a tile: whether anyone can see it. `live, children`
 
-### `CardReadout` — 3 uses
+### `CardReadout` — 4 uses
 Read-only view of a card and its forms. `card, lang, decks`
 
 ---

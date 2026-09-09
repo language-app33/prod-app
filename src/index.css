@@ -618,6 +618,12 @@ button {
 .at-flagreport-q { margin:0; font-size:calc(20px * var(--sscale, 1)); font-weight:600;
   line-height:calc(1.5 * var(--sleading, 1)); overflow-wrap:anywhere; }
 .at-flagreport-en { margin:0; font-size:14px; color: var(--text-soft); overflow-wrap:anywhere; }
+/* Which question it was, and what has become of the card since — the two
+   small facts, on one line, sharing the width rather than stacking. The
+   chip goes to the right so a column of tiles can be read down it. */
+.at-flagfoot { display:flex; align-items:center; justify-content:space-between;
+  gap:10px; flex-wrap:wrap; }
+.at-flagfoot > .at-hint { margin:0; }
 /* Somebody's own words, set apart as somebody's own words. */
 .at-flagreport-note { margin:0; font-size:13px; color: var(--text-soft);
   border-left:3px solid var(--line); padding-left:10px; overflow-wrap:anywhere;
@@ -1454,7 +1460,11 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 button.at-flag { cursor:pointer; }
 button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-flag.forms { color: var(--jade); border-color: var(--jade-soft); }
-.at-flag.audio { color: var(--brass); border-color: var(--tag-line); }
+/* Brass reads as "worth a second look", which is what both of these are:
+   a recording to listen to, and a card that has moved since somebody
+   reported it. Two names because the tone is the same and the meaning is
+   not — a chip about a card should not have to be called `audio`. */
+.at-flag.audio, .at-flag.stale { color: var(--brass); border-color: var(--tag-line); }
 .at-flag.audio.big { font-size:13px; padding:4px 10px; gap:5px;
   display:inline-flex; align-items:center; background: var(--tag-bg); }
 .at-flag.audio.big svg { width:15px; height:15px; }

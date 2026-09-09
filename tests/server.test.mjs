@@ -680,3 +680,65 @@ test("a flag nobody could act on is refused, and only an administrator reads the
   });
   assert.equal(anon.status, 401);
 });
+
+/*
+ * A report is worth acting on while the card it describes is still the one
+ * that was reported. Three things can have happened to it since, and the
+ * overview says which — otherwise every report has to be opened to find out
+ * that it was already dealt with.
+ */
+test("a flag says what became of its card: edited, deleted, or never the site's", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Maha" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nour" } });
+
+  const deck = (await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Flagged Lesson", lang: "ar-PS" },
+  })).json.deck;
+  const make = async (ar, en) => (await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { ar, en, lang: "ar-PS" }, decks: [deck.id] },
+  })).json.card;
+  const untouched = await make("كِتاب", "book");
+  const edited = await make("بيت", "house");
+  const deleted = await make("باب", "door");
+
+  const flag = async (cardId) => (await api("/api/courses?action=report-flag", {
+    method: "POST", key: student.json.key,
+    body: { kind: "data", cardId, exercise: "ar2en", language: "ar-PS" },
+  })).json.id;
+  const ids = {
+    untouched: await flag(untouched.id),
+    edited: await flag(edited.id),
+    deleted: await flag(deleted.id),
+    /* A card the learner made for themselves. It never reached the server,
+       so it is missing for a different reason than a deleted one. */
+    own: await flag("local-only-card"),
+  };
+
+  await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { ...edited, en: "home" }, decks: [deck.id] },
+  });
+  await api("/api/courses?action=delete-card", { method: "POST", key, body: { cardId: deleted.id } });
+
+  const seen = (await api("/api/courses?action=admin-overview", { key })).json.flags;
+  const stateOf = (id) => (seen.find((f) => f.id === id) || {}).cardState;
+  assert.equal(stateOf(ids.untouched), "here", "a card nobody has touched says nothing");
+  assert.equal(stateOf(ids.edited), "edited", "one saved since may already be fixed");
+  assert.equal(stateOf(ids.deleted), "gone", "and one deleted since cannot be opened");
+  assert.equal(stateOf(ids.own), "own", "a card the site never held is not a deleted one");
+
+  /* And the card itself can be read from here, which is the only way in:
+     Admin lists decks, not cards. */
+  const opened = await api(`/api/courses?action=admin-card&card=${untouched.id}`, { key });
+  assert.equal(opened.status, 200, opened.text);
+  assert.equal(opened.json.card.ar, "كِتاب");
+  assert.deepEqual(opened.json.card.decks, [deck.id], "with the decks it is in, for the readout");
+
+  const missing = await api(`/api/courses?action=admin-card&card=${deleted.id}`, { key });
+  assert.equal(missing.status, 404);
+  assert.equal(missing.json.error, "no-card");
+
+  const nosy = await api(`/api/courses?action=admin-card&card=${untouched.id}`, { key: student.json.key });
+  assert.equal(nosy.status, 403, "a student cannot read any card they please");
+});

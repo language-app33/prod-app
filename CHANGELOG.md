@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.36 — 9 September 2026
+
+- Admin → Flags gives each report the full width of the screen. They were
+  laid out in the grid the card list uses, which is right for a word and
+  its meaning and wrong for four lines of somebody's own words: every
+  report wrapped into a narrow column and none of them could be skimmed.
+- Each one says **Submitted by** in front of the name. A bare name beside a
+  date, on a screen full of other people's cards, reads as easily as whose
+  card it was as who reported it.
+- **Open card** on a report shows the card as it stands now — the word,
+  every other form, the recordings, the decks it is in. Admin lists decks
+  rather than cards, so until now a report was something you had to go
+  hunting for in the teaching space.
+- And a report says what has become of its card since it was sent: *Card
+  edited since* when it has been saved at least once — it may already be
+  fixed — or *Card deleted* when there is nothing left to open. A card the
+  learner made for themselves is marked as theirs, because it lives on
+  their device and the site does not hold it.
+
 ## 0.35 — 9 September 2026
 
 - Flagging a bad question now asks what was wrong in a way that can be
