@@ -780,18 +780,24 @@ export function CoursesPage({
 
       <Notice kind="error">{error}</Notice>
 
-      <section className="at-section">
-        <h3 className="at-sectionhead">My courses</h3>
-        <ItemList
-          noun="course"
-          items={courses}
-          size="large"
-          busy={busy}
-          empty=""
-          match={(c, q) => c.title.toLowerCase().includes(q)}
-          renderItem={renderCourse}
-        />
-      </section>
+      {/* Nobody's courses is not a list with nothing in it: the heading over
+          an empty box only asks what went missing. The lead above already
+          says what to do, so the join box below is the whole screen until
+          there is a first course. */}
+      {courses.length > 0 && (
+        <section className="at-section">
+          <h3 className="at-sectionhead">My courses</h3>
+          <ItemList
+            noun="course"
+            items={courses}
+            size="large"
+            busy={busy}
+            empty=""
+            match={(c, q) => c.title.toLowerCase().includes(q)}
+            renderItem={renderCourse}
+          />
+        </section>
+      )}
 
       {/* The heading names the section; the box holds only the doing. */}
       <section className="at-section">
@@ -2015,7 +2021,9 @@ export function AdminSpace({ account, languages, onClose }) {
                     footer={
                       <TileNote live={d.courseTitles.length > 0}>
                         {d.courseTitles.length
-                          ? `In ${d.courseTitles.join(", ")}`
+                          ? `Available to students in the ${
+                              d.courseTitles.length === 1 ? "course" : "courses"
+                            } ${d.courseTitles.join(", ")}`
                           : "Personal — not in a course"}
                       </TileNote>
                     }
@@ -4161,24 +4169,21 @@ export function TeachSpace({ account, languages, onClose }) {
               )}
             </section>
 
-            {/* --- how people get in --- */}
+            {/* --- how people get in ---
+                 Only the student code lives here. The teacher code hands over
+                 control of the material, so who holds it is the
+                 administrator's decision to make, in the admin space. */}
             <section className="at-panel">
-              <p className="at-eyebrow">Join codes</p>
+              <p className="at-eyebrow">Join code</p>
               <Help>
-                One code lets people study, the other lets them teach.
+                This is the code students join with. Teacher codes are your
+                administrator's to hand out.
               </Help>
               <CodeBox
                 label="Student code"
                 code={c.code}
                 hint="Share this with a class so they can join and study."
               />
-              {c.teacherCode && (
-                <CodeBox
-                  label="Teacher code"
-                  code={c.teacherCode}
-                  hint="Only for another teacher — it gives them control of the material."
-                />
-              )}
             </section>
       </Screen>
     );
@@ -4203,7 +4208,7 @@ export function TeachSpace({ account, languages, onClose }) {
               languages={languages}
               busy={busy}
               error={error}
-              lead="Open a course to see its decks, its people and its codes."
+              lead="Open a course to see its decks, its people and its student code."
               emptyLead="You aren't teaching a course yet. Ask your administrator to add you, or join with a teacher code below."
               joinTitle="Join a course as a teacher"
               joinHint="Paste a teacher code another teacher or your administrator gave you."
@@ -4679,7 +4684,9 @@ export function TeachSpace({ account, languages, onClose }) {
                         <TileNote live={live}>
                           {live ? (
                             <>
-                              Students see it in <b>{inCourses.join(", ")}</b>
+                              Available to students in the{" "}
+                              {inCourses.length === 1 ? "course" : "courses"}{" "}
+                              <b>{inCourses.join(", ")}</b>
                             </>
                           ) : (
                             <>Not in a course yet — nobody can see it</>

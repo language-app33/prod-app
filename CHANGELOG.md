@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.39 — 9 September 2026
+
+- Learning → Courses no longer shows a "My courses" heading over nothing
+  before you have joined one. Until there is a first course, the screen is
+  the line saying what to do and the box to enter the code in.
+- The Play button in a listening exercise has a much larger icon and
+  slightly larger label. It is the one thing you press on that screen and it
+  was the size of a full stop.
+- A deck's line in Teaching and in Admin now says "Available to students in
+  the course *Arabic 101*" — naming one course or several — instead of
+  "Students see it in".
+- Teacher join codes are gone from the Teaching space; a course there shows
+  its student code only. A teacher code hands over control of the material,
+  so who holds one is the administrator's decision, and Admin is where it is
+  handed out.
+
 ## 0.38 — 9 September 2026
 
 - Saving a card could fail if somebody deleted one of its decks at the same

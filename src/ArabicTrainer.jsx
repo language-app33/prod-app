@@ -2719,7 +2719,9 @@ function AudioPrompt({ recs, autoPlay }) {
   return (
     <div>
       <button className="at-playbig" onClick={() => play(idx)}>
-        <span className="dot"><Icon name={state === "playing" ? "pause" : "play"} /></span>
+        {/* The icon is the target on a phone, so it is sized like one rather
+            than like a glyph sitting in the label's line. */}
+        <span className="dot"><Icon name={state === "playing" ? "pause" : "play"} size={36} /></span>
         {state === "loading" ? "Loading" : state === "missing" ? "Not on this device" : "Play"}
       </button>
       {list.length > 1 && (

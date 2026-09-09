@@ -890,12 +890,15 @@ button {
   font-family: var(--ui); font-size:13px; padding:2px 0; }
 .at-clipname:focus { outline:none; border-bottom:1px solid var(--brass); }
 .at-clipmeta { font-family: var(--mono); font-size:9px; color: var(--muted); white-space:nowrap; }
-.at-playbig { display:inline-flex; align-items:center; justify-content:center; gap:10px;
-  min-width:150px; padding:18px 26px; border-radius:999px; cursor:pointer;
+.at-playbig { display:inline-flex; align-items:center; justify-content:center; gap:12px;
+  min-width:170px; padding:16px 28px; border-radius:999px; cursor:pointer;
   background: var(--raised); border:1px solid var(--line); color: var(--text);
-  font-family: var(--ui); font-size:15px; font-weight:600; }
+  font-family: var(--ui); font-size:17px; font-weight:600; }
 .at-playbig:hover { background: var(--raised-hover); }
-.at-playbig .dot { color: var(--brass); font-size:20px; }
+/* The icon carries this button, so it is set at its own size rather than
+   at the label's, and centres itself instead of riding the text baseline. */
+.at-playbig .dot { color: var(--brass); display:inline-flex; align-items:center; }
+.at-playbig .dot .at-ic { vertical-align:0; }
 .at-voices { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
 .at-voice { font-family: var(--ui); font-size:14px; font-weight:800; cursor:pointer;
   background: var(--raised); border:2px solid var(--line); border-radius:999px;
