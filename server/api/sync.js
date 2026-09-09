@@ -1,4 +1,3 @@
-// @ts-check
 import { getStore } from "../store.js";
 import { createHash } from "node:crypto";
 

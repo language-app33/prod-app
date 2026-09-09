@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * The version has two jobs: name the release a person is on, and name the
  * build so it can be matched against GitHub. These are the ways either one

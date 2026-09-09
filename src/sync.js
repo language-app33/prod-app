@@ -1,5 +1,4 @@
-// @ts-check
-/** @import { Doc, ExerciseState, Form, Item } from "./types.js" */
+/** @import { Doc, ExerciseState, Form, Item, WireDoc } from "./types.js" */
 /*
  * Sync client.
  *
@@ -107,7 +106,7 @@ function mergeItem(a, b) {
 
 /**
  * @param {Doc} local
- * @param {Doc | null} remote
+ * @param {WireDoc | null} remote  Whatever came back, which may be from an older build.
  * @returns {Doc}
  */
 export function mergeData(local, remote) {
@@ -338,7 +337,7 @@ export async function pushClip(token, id, dataUrl) {
 }
 
 /* Every recording id the document refers to, across items and their forms. */
-/** @param {Doc} data */
+/** @param {WireDoc} data  Only the items are read, so a partial document will do. */
 export function clipIdsIn(data) {
   const ids = [];
   for (const it of data.items || []) {
@@ -366,7 +365,7 @@ const KNOWN_MISSING = new Set();
 
 /**
  * @param {string} token
- * @param {Doc} data
+ * @param {WireDoc} data  Only the items are read, so a partial document will do.
  * @param {{
  *   hasLocal: (id: string) => boolean | Promise<boolean>,
  *   readLocal: (id: string) => Promise<string | null>,

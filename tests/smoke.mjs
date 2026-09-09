@@ -1,4 +1,3 @@
-// @ts-check
 /* Renders the real app in jsdom against a stubbed server, and checks that
    the paths changed in this round actually run: sync keyed to the sign-in
    key, my-material with a version, legacy document cleanup, sparse
@@ -6,6 +5,7 @@
 import { JSDOM } from "jsdom";
 import { build } from "esbuild";
 import path from "node:path";
+import { must } from "./helpers.mjs";
 
 /* Built inside the project so the bundle's bare "react" imports resolve to
    the project's node_modules. */
@@ -293,22 +293,6 @@ check("clip sync uploaded nothing (no blob: URLs)", !calls.some((c) => c.startsW
 check("clip sync did not fetch course recordings as a side effect", !calls.some((c) => c.includes("action=clip")), calls.filter((c) => c.includes("clip")).join(","));
 
 /* ---- the manual session builder, now rendered through Screen ---- */
-/**
- * The one that has to be there.
- *
- * A query that misses is a broken harness, and without this the miss
- * shows up two lines later as "cannot read properties of null", which
- * names neither what was looked for nor where.
- * @template T
- * @param {T | null | undefined} value
- * @param {string} what
- * @returns {T}
- */
-function must(value, what) {
-  if (value === null || value === undefined) throw new Error(`expected to find ${what}`);
-  return value;
-}
-
 /** @param {RegExp} re */
 const clickNamed = (re) => {
   const b = buttonNamed(re);

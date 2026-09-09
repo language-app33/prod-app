@@ -14,7 +14,6 @@
  * Nothing in this file imports from the app, so it can be read and tested
  * on its own.
  */
-// @ts-check
 /** @import { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings } from "./types.js" */
 
 
@@ -172,8 +171,11 @@ export const EX = {
 /* An exercise that plays a recording and asks what was in it. The listening
    ones are exactly the specs prompted by audio — named here, beside the table
    it reads, so a fourth of them needs no second edit anywhere else. */
-/** @type {(type: string) => boolean} */
-export const isListening = (type) => !!EX[type] && EX[type].promptField === "audio";
+/* Takes nothing as well as a name: it is asked about whatever a stored
+   session holds, which may name an exercise that has since been retired,
+   or nothing at all. */
+/** @type {(type?: string | null) => boolean} */
+export const isListening = (type) => !!type && !!EX[type] && EX[type].promptField === "audio";
 
 /* "na" maps to nothing on purpose: a form whose number does not apply should
    carry no number label at all, not the letters "na". labelFor falls back to
@@ -225,14 +227,14 @@ export function editDistance(a, b) {
 const SENTENCE_MARK = /[.!?،؛؟]/;
 
 /**
- * @param {string} text
- * @param {Lang | null} [lang]
+ * @param {string | null} [text]  Whatever the card holds, which for an empty field is nothing at all.
+ * @param {{ guessKind?: (text: string) => string } | null} [lang]  A pack, or as much of one as the caller has: only its own rule is read.
  * @returns {string}
  */
 export function guessKind(text, lang = null) {
-  const own = lang && lang.guessKind;
-  if (own) return own(text);
   const t = String(text || "").trim();
+  const own = lang && lang.guessKind;
+  if (own) return own(t);
   if (!t) return "word";
   /* Punctuation, or four words or more: long enough to be a sentence
      whether or not it was punctuated. */
@@ -361,8 +363,16 @@ export function normViet(s, { stripTones }) {
    lets the same match blank the right word later.
    ------------------------------------------------------------------ */
 
-/** @type {(lang?: Lang | null) => boolean} */
-export const supportsContext = (lang) => !!(lang && lang.context && lang.context.matches);
+/* A predicate rather than a boolean, so that passing it says something:
+   everything below it may read `lang.context.matches` without asking
+   again whether this language has one. */
+/**
+ * @param {Partial<Lang> | null} [lang]
+ * @returns {lang is Lang}
+ */
+export function supportsContext(lang) {
+  return !!(lang && lang.context && lang.context.matches);
+}
 
 /**
  * @param {string} text
@@ -382,7 +392,7 @@ export function contextTokens(text, lang) {
 /**
  * @param {string} phrase
  * @param {string} word
- * @param {Lang} lang
+ * @param {Partial<Lang>} lang  A language that declares no context answers -1, which is the point.
  */
 export function findWordSlot(phrase, word, lang) {
   if (!supportsContext(lang) || !phrase || !word) return -1;
@@ -406,7 +416,7 @@ export function findWordSlot(phrase, word, lang) {
  */
 /**
  * @param {Record<string, any>[]} cards
- * @param {Lang} lang
+ * @param {Partial<Lang>} lang  A language that declares no context is reported as unsupported, not as empty.
  */
 export function contextCoverage(cards, lang) {
   const empty = { supported: false, words: [], counts: { word: 0, phrase: 0, sentence: 0 }, covered: 0, links: 0 };
@@ -1240,9 +1250,13 @@ export const LANGUAGES = {
 /** @type {(n: unknown) => number} */
 const positive = (n) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 1);
 
-/** @type {(lang?: Lang | null) => number} */
+/* Asked for one field, so that is what they ask for: a caller wanting to
+   know how large a script wants to be need not have a whole pack in hand,
+   and `unknown` rather than `number` because `positive` exists precisely
+   to survive a pack that wrote something a calc() could not use. */
+/** @type {(lang?: { scale?: unknown } | null) => number} */
 export const scaleOf = (lang) => positive(lang && lang.scale);
-/** @type {(lang?: Lang | null) => number} */
+/** @type {(lang?: { leading?: unknown } | null) => number} */
 export const leadingOf = (lang) => positive(lang && lang.leading);
 
 /*
@@ -1265,7 +1279,7 @@ const LATIN_SCALE = 0.78;
 
    --sscale and --sleading are the taught script's; --lscale belongs to the
    Latin beside it and is the same whichever language that is. */
-/** @param {Lang} lang */
+/** @param {{ scale?: unknown, leading?: unknown }} lang */
 export function scriptVars(lang) {
   return {
     "--sscale": String(scaleOf(lang)),

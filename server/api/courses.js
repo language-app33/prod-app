@@ -1,4 +1,3 @@
-// @ts-check
 /** @import { Card, Course, Deck, Flag, User } from "../../src/types.js" */
 /**
  * The document store, as store.js hands it over. Named rather than repeated

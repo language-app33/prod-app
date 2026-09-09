@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * Which release is this, and which build?
  *

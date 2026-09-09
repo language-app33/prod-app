@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * The stacking order, read off the stylesheet.
  *
@@ -20,7 +19,9 @@ import { readFileSync } from "node:fs";
 const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, ""); // comments can hold anything
 
-/* The tokens the layers are named by. */
+/* The tokens the layers are named by. Read out of the stylesheet, so what
+   is in it is what is keyed here. */
+/** @type {Record<string, number>} */
 const tokens = {};
 for (const [, name, value] of css.matchAll(/--(z-[a-z]+)\s*:\s*([^;]+);/g)) {
   tokens[`--${name}`] = Number(String(value).trim());
@@ -31,6 +32,9 @@ for (const [, name, value] of css.matchAll(/--(z-[a-z]+)\s*:\s*([^;]+);/g)) {
  * two-class selector, and the two never compete for the same element, so
  * "the last declaration wins" is the whole cascade for this file.
  */
+/* Selector to effective z-index, keyed by whatever selectors the file
+   actually holds. */
+/** @type {Record<string, number>} */
 const layer = {};
 for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
   const found = /(?:^|;)\s*z-index\s*:\s*([^;]+)/.exec(body);
@@ -108,6 +112,7 @@ test("dialogs sit above every screen", () => {
  * carry several rules, so taking the first would miss a declaration made
  * further down; they are all joined instead.
  */
+/** @param {string} selector */
 const rule = (selector) => {
   const parts = [];
   const needle = "\n" + selector + " {";

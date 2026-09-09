@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * The records the app and the server pass between them.
  *
@@ -361,6 +360,18 @@
  * @property {Record<string, any>} log
  * @property {Settings} settings  Every document has them; EMPTY is where the defaults live.
  * @property {Millis} [settingsUpdated]
+ */
+
+/**
+ * A document as it arrives: from the server, from an import, or from a
+ * device on an older build.
+ *
+ * Every field is optional because every reader already treats it that way
+ * — mergeData guards items, tombstones, log and settings one at a time,
+ * and has to, since a document written a year ago carries only the fields
+ * that existed then. A `Doc` is what this device holds and always
+ * complete; this is what it is handed.
+ * @typedef {Partial<Doc>} WireDoc
  */
 
 /* ---- reported problems ---- */

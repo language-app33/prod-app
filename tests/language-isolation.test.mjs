@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * The app must not know any language's rules.
  *
@@ -21,6 +20,7 @@ import path from "node:path";
 import * as LANG from "../src/languages.js";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
+/** @param {string} name */
 const src = (name) => path.join(here, "..", "src", name);
 
 /* Everything that renders or drives the app. languages.js is the one file
@@ -32,6 +32,10 @@ const APP_FILES = ["ArabicTrainer.jsx", "spaces.jsx", "shared.jsx", "gallery.jsx
    Vietnamese, he/He for Hebrew. Add a prefix here when a fourth arrives. */
 const LANGUAGE_SPECIFIC = /^(ar|vi|he)[A-Z]|^(norm|check|split)(Ar|Viet|He)$/;
 
+/**
+ * @param {string} source
+ * @returns {string[]}
+ */
 function importedNames(source) {
   const m = source.match(/import\s*\{([^}]*)\}\s*from\s*["']\.\/languages\.js["']/);
   if (!m) return [];
@@ -83,6 +87,8 @@ for (const file of APP_FILES) {
  * range. Vietnamese is written in the Latin alphabet and cannot be told
  * apart from ordinary text by character range.
  */
+/* Keyed by file, and only the files that hold any. */
+/** @type {Record<string, string[]>} */
 const ALLOWED_SCRIPT = {
   /* The card sheet's placeholder — "the form". Behind OWN_CARDS, so unreachable.
      The importer's worked example used to be here too; it now comes from the

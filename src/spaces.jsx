@@ -1,4 +1,3 @@
-// @ts-check
 /** @import { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.js" */
 /** @typedef {React.ReactNode} Node */
 /**
@@ -3355,7 +3354,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
  * Read-only. It writes nothing and suggests nothing; the whole job is the
  * number at the top.
  */
-/** @param {{ cards: Card[], lang: Lang }} props */
+/*
+ * `lang` is as much of a pack as there is, not a whole one: the first
+ * thing this does is say so when the language describes no way to find a
+ * word inside a phrase, and a prop typed `Lang` would make that branch
+ * unreachable — which is the opposite of the point.
+ */
+/** @param {{ cards: Card[], lang: Partial<Lang> }} props */
 function ContextReport({ cards, lang }) {
   const [open, setOpen] = useState(false);
   const report = useMemo(() => contextCoverage(cards, lang), [cards, lang]);

@@ -1,4 +1,3 @@
-// @ts-check
 /** @import { Card, Course, Deck, Doc, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Question, Settings, User } from "./types.js" */
 /** @typedef {React.ReactNode} Node */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";

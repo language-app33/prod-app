@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * Tests for the types themselves.
  *

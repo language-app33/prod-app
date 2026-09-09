@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * The whole site in one process: the built app, and the two endpoints
  * behind /api.

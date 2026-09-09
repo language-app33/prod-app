@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * Where each component is used, found by reading the source.
  *
@@ -156,7 +155,7 @@ export function render(uses) {
  *
  * The gallery itself is not counted: it renders one of everything.
  */
-/** @type {Record<string, { file: string, line: number, where: string }[]>} */\nexport const COMPONENT_USES = {
+/** @type {Record<string, { file: string, line: number, where: string, as?: string }[]>} */\nexport const COMPONENT_USES = {
 ${body}
 };
 `;

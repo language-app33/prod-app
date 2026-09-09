@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * Ordering and narrowing a list of cards.
  *
@@ -47,6 +46,7 @@ await build({
 });
 const { localIdFor, cardToItem, serverCardId } = await import(path.join(out, "shared.js"));
 
+/** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
 
 test("a recording on any form counts as the card having one", () => {
@@ -77,8 +77,8 @@ test("a card made before the date was recorded falls back rather than lying", ()
 
 test("newest first, and the other way round", () => {
   const list = [card({ id: "old", created: 1 }), card({ id: "new", created: 9 })];
-  assert.deepEqual(sortCards(list, "added").map((c) => c.id), ["new", "old"]);
-  assert.deepEqual(sortCards(list, "added", false).map((c) => c.id), ["old", "new"]);
+  assert.deepEqual(sortCards(list, "added").map((/** @type {any} */ c) => c.id), ["new", "old"]);
+  assert.deepEqual(sortCards(list, "added", false).map((/** @type {any} */ c) => c.id), ["old", "new"]);
 });
 
 test("ordering by a yes/no still has an order inside each group", () => {
@@ -90,7 +90,7 @@ test("ordering by a yes/no still has an order inside each group", () => {
     card({ id: "loud-old", clips: ["a"], updated: 1 }),
     card({ id: "loud-new", clips: ["a"], updated: 5 }),
   ];
-  assert.deepEqual(sortCards(list, "audio").map((c) => c.id), ["loud-new", "loud-old", "silent-new"]);
+  assert.deepEqual(sortCards(list, "audio").map((/** @type {any} */ c) => c.id), ["loud-new", "loud-old", "silent-new"]);
 });
 
 test("sorting never disturbs the list it was given", () => {
@@ -98,12 +98,12 @@ test("sorting never disturbs the list it was given", () => {
      mutate state directly and the change would not always be seen. */
   const list = [card({ id: "a", created: 1 }), card({ id: "b", created: 2 })];
   sortCards(list, "added");
-  assert.deepEqual(list.map((c) => c.id), ["a", "b"]);
+  assert.deepEqual(list.map((/** @type {any} */ c) => c.id), ["a", "b"]);
 });
 
 test("an order nobody asked for leaves the list alone", () => {
   const list = [card({ id: "a" }), card({ id: "b" })];
-  assert.deepEqual(sortCards(list, "nonsense").map((c) => c.id), ["a", "b"]);
+  assert.deepEqual(sortCards(list, "nonsense").map((/** @type {any} */ c) => c.id), ["a", "b"]);
 });
 
 test("filtering by recordings and by forms, together", () => {
@@ -113,7 +113,8 @@ test("filtering by recordings and by forms, together", () => {
     card({ id: "many", subs: [{}] }),
     card({ id: "heard-many", clips: ["a"], subs: [{}] }),
   ];
-  const ids = (f) => filterCards(list, f).map((c) => c.id);
+  const ids = (/** @type {Record<string, any>} */ f) =>
+    filterCards(list, f).map((/** @type {any} */ c) => c.id);
   assert.deepEqual(ids({}), ["plain", "heard", "many", "heard-many"]);
   assert.deepEqual(ids({ audio: "with" }), ["heard", "heard-many"]);
   assert.deepEqual(ids({ audio: "without" }), ["plain", "many"]);

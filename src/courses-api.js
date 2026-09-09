@@ -6,7 +6,6 @@
  * throws with the server's own error string, which the screens turn into
  * something a person can read.
  */
-// @ts-check
 /** @import { Card, Flag, LangId, User } from "./types.js" */
 
 const ENDPOINT = "/api/courses";

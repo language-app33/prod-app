@@ -1,4 +1,3 @@
-// @ts-check
 /** @import { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.js" */
 /**
  * Anything React will render: an element, a string, a list of them, or

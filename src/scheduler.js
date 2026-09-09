@@ -1,4 +1,3 @@
-// @ts-check
 /** @import { Clock, ExerciseState, Form, Item } from "./types.js" */
 /*
  * When a card comes back.
@@ -232,12 +231,17 @@ export function difficulty(s) {
  * What comes back are forms, not cards: the card is the first of them, and
  * the rest carry no tags, no lock and no deck. Everything downstream reads
  * the wording and the schedule, which is all a form has and all it needs.
- * @param {Item} item
+ *
+ * Takes nothing as well as a card: callers walk whatever they were handed
+ * — a card looked up by an id that has since been withdrawn, most often —
+ * and the guard below is what makes that a one-entry list rather than a
+ * crash. The tests cover it, so the signature says it.
+ * @param {Item | null | undefined} item
  * @returns {{ unit: Form, isSub: boolean }[]}
  */
 export function unitsOf(item) {
   /** @type {{ unit: Form, isSub: boolean }[]} */
-  const units = [{ unit: item, isSub: false }];
+  const units = [{ unit: /** @type {Form} */ (item), isSub: false }];
   for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
   return units;
 }

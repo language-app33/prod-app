@@ -8,14 +8,21 @@
    * language pack where the server wanted a language id was that bug, and
    * it reached production because every reader it passed was happy.
    *
-   * The important setting is checkJs: false. Turning it on would check all
-   * 19k lines at once and bury the first commit under errors nobody asked
-   * for. Instead each file opts in by starting with `// @ts-check`, so the
-   * project is always green and adoption is a file at a time.
+   * checkJs was false while this was being adopted, and each file opted in
+   * by starting with `// @ts-check`: turning it on at the outset would
+   * have buried the first commit under 19k lines of errors nobody asked
+   * for, and the per-file comment made adoption a file at a time with the
+   * project green after every one.
    *
-   * strict is on from the start for the same reason: it only applies to
-   * what has opted in, so it costs nothing until a file asks for it — and
-   * a file adopted under loose rules would have to be done twice.
+   * Every file is adopted now, so the opt-in has been removed and this is
+   * true by default. That is the point of the change rather than tidiness:
+   * with checkJs false, a file added tomorrow would be checked only if
+   * somebody remembered the comment, which is the same failure the CI
+   * config warns about a few lines into its own file.
+   *
+   * strict has been on from the start. It cost nothing while adoption was
+   * partial, because it only applied to what had opted in — and a file
+   * adopted under loose rules would have had to be done twice.
    */
   "compilerOptions": {
     "target": "ES2022",
@@ -29,7 +36,7 @@
     "jsx": "react-jsx",
 
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "noEmit": true,
     "strict": true,
 

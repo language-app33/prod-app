@@ -1,4 +1,3 @@
-// @ts-check
 /** @import { Lang } from "./types.js" */
 /** @typedef {React.ReactNode} Node */
 /** @typedef {{ file: string, line: number, where: string }} Use */

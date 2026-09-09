@@ -8,7 +8,6 @@
  *
  * Everything lives on this device, in this browser. Nothing is sent anywhere.
  */
-// @ts-check
 
 const PREFIX = "arabic-trainer:";
 

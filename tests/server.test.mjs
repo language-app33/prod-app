@@ -1,4 +1,3 @@
-// @ts-check
 /*
  * The server as the browser meets it: over a socket, through the same
  * routing, with nothing stubbed. The first test is the one that matters —
@@ -8,6 +7,7 @@
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { must } from "./helpers.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -40,23 +40,6 @@ async function listenSomewhere(server) {
   const at = server.address();
   if (!at || typeof at === "string") throw new Error("expected a port, got a socket");
   return `http://127.0.0.1:${at.port}`;
-}
-
-/**
- * The one that has to be there.
- *
- * A `find` that misses is a broken test, and without this the miss shows
- * up three lines later as "cannot read properties of undefined" — which
- * names neither what was looked for nor where. It also tells the checker
- * that everything after it is the thing, not perhaps-nothing.
- * @template T
- * @param {T | undefined | null} value
- * @param {string} what
- * @returns {T}
- */
-function must(value, what) {
-  assert.ok(value, `expected to find ${what}`);
-  return value;
 }
 
 /**

@@ -1,4 +1,3 @@
-// @ts-check
 /**
  * A write refused by its condition reports modified: false rather than
  * throwing; the sync endpoint turns that into a 409.
