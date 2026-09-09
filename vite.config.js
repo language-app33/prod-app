@@ -1,3 +1,4 @@
+// @ts-check
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
@@ -19,6 +20,7 @@ const VERSION = appVersion();
  * The gap between the two is the useful part: it is how the app can tell
  * you a deploy landed but you are still looking at the old one.
  */
+/** @returns {import("vite").Plugin} */
 function emitVersion() {
   return {
     name: "taleb33-version",

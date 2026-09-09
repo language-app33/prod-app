@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * What the linter is here for.
  *
