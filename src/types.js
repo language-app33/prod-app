@@ -34,6 +34,136 @@
  * @typedef {number} Millis
  */
 
+/* ---- exercises and grammar ---- */
+
+/**
+ * One exercise type: what it shows, what it asks for, and what a card must
+ * carry for it to be askable at all. The registry everything derives from —
+ * which states a card keeps, what a session may pick, what the settings
+ * list — so retiring a type is one edit.
+ * @typedef {object} ExerciseSpec
+ * @property {string} instruction
+ * @property {string} label        May contain {Script}/{translit} placeholders.
+ * @property {string} short
+ * @property {string[]} needs      Fields a card must have for this to be asked.
+ * @property {string} question
+ * @property {string} placeholder
+ * @property {string} promptField  "audio" marks the listening exercises.
+ * @property {string} answerField
+ * @property {string} answerMode
+ * @property {string} [hintField]
+ * @property {string} [hintLabel]
+ * @property {string} [hintHideLabel]
+ * @property {boolean} [gentle]    Recognition rather than production.
+ * @property {boolean} [retired]   Still defined so stored states can be read.
+ * @property {boolean} [quizAttr]  Asks a derived property rather than the word.
+ */
+
+/**
+ * A grammatical axis a word varies along — number, gender, addressee.
+ * @typedef {object} GrammarDim
+ * @property {string} label
+ * @property {string} field
+ * @property {boolean} required
+ * @property {[string, string][]} options  [stored value, what to show].
+ * @property {string} [default]  What a new or unreadable value becomes.
+ * @property {boolean} [retired]
+ */
+
+/* ---- a language ----
+
+   The pack in LANGUAGES: everything language-specific in one object, which
+   is what lets the rest of the app know nothing about any particular
+   language. Optional means genuinely absent from at least one pack today,
+   not merely forgettable — Hebrew declares no scale, Vietnamese no script
+   regex, and only Vietnamese has a lexical axis. Writing that down is what
+   stops a reader assuming all three are always there. */
+
+/**
+ * One row of the importer's worked example, in this language.
+ * @typedef {object} LangSample
+ * @property {string} ar
+ * @property {string} en
+ * @property {string} lat
+ */
+
+/**
+ * Something computed from a word rather than stored on it — a root, a
+ * spelling with the tone taken off. `compute` returns the key that gathers
+ * words together.
+ * @typedef {object} Derived
+ * @property {string} id
+ * @property {string} label
+ * @property {(word: string) => string} compute
+ * @property {boolean} groups     Whether it gathers words in the Progress tab.
+ * @property {boolean} quizzable  Whether it can be asked as an exercise.
+ * @property {string} [heading]   What to call the words it gathers, in this language's terms.
+ * @property {string} [short]
+ * @property {{ id: string, label: string, merges: string[] }[]} [classes] The classes it is graded in, which may be fewer than the language writes.
+ */
+
+/**
+ * A leniency the teacher can set on a course.
+ * @typedef {object} LangOption
+ * @property {string} key
+ * @property {string} label
+ * @property {string} help
+ * @property {[string, string][]} [choices] Absent on a plain on/off.
+ * @property {boolean} [toggle]
+ */
+
+/**
+ * What each shade of not-quite-right is called. The tiers are the same in
+ * every language; only the words for them differ.
+ * @typedef {object} Verdicts
+ * @property {string} partial
+ * @property {string} missing
+ * @property {string} near
+ * @property {string} bare
+ */
+
+/**
+ * A language pack. Everything language-specific lives here, so that
+ * divergent copies of a grader or an editor cannot exist.
+ * @typedef {object} Lang
+ * @property {LangId} id
+ * @property {string} name
+ * @property {string} nativeName
+ * @property {string} direction    "rtl" or "ltr".
+ * @property {string} scriptLabel
+ * @property {string} scriptShort
+ * @property {RegExp} [script]     How to recognise the script. Latin-written languages have none.
+ * @property {number} [scale]      Type scale against Arabic, which is 1 by definition.
+ * @property {number} [leading]
+ * @property {LangSample[]} sample
+ * @property {string} translitLabel
+ * @property {string[]} grammar    Which axes of GRAMMAR this language uses.
+ * @property {Verdicts} verdicts
+ * @property {Derived[]} derived
+ * @property {(word: string) => string} similarityKey
+ * @property {string} similarityMode
+ * @property {{ matches: (token: string, word: string) => boolean, tokens?: (text: string) => string[] }} context A pack may split a phrase its own way; none does yet, and contextTokens() reads it.
+ * @property {boolean} translitDrilled
+ * @property {string} formsLabel
+ * @property {string} fontStack
+ * @property {{ rows: string[][], extras: string[], marks: string[], marksLabel: string }} keys
+ * @property {(given: string, expected: string, settings?: any) => any} check
+ * @property {LangOption[]} options
+ * @property {string[]} rules
+ * @property {{ key: string, label: string, help: string }} [lexical] Only where the language has one.
+ * @property {(text: string) => string} [guessKind] A pack's own rule for word/phrase/sentence. None has one yet; guessKind() reads it.
+ */
+
+/**
+ * The learner's settings, as the document stores them.
+ *
+ * Deliberately open: most keys are the leniency options a language pack
+ * declares, so which ones exist depends on the language and cannot be
+ * listed here. `language` is the one every reader relies on, and the one
+ * worth naming.
+ * @typedef {{ language?: LangId } & Record<string, any>} Settings
+ */
+
 /* ---- people ---- */
 
 /**
