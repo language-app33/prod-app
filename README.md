@@ -18,6 +18,8 @@ npm run dev        # Vite alone: the UI only, with no API behind it
 npm run build      # production build into dist/
 npm test           # unit tests, including the server (no browser needed)
 npm run test:smoke # renders the whole app in jsdom against a stubbed server
+npm run typecheck  # types, for the files that have opted in — see Types below
+npm run check      # all of it, as CI runs it
 ```
 
 Node 22 or newer. The tests need no configuration; `test:smoke` builds the
@@ -120,6 +122,37 @@ A few rules the code follows, learned the hard way:
   exercise type; states that have never been answered are not stored.
 - **Merging is idempotent.** Sync can run twice with the same input and
   nothing changes.
+
+### Types
+
+The code is JavaScript and stays JavaScript. TypeScript reads it without
+compiling it: `npm run typecheck`, which `npm run check` and CI both run.
+
+**A file is checked only if it starts with `// @ts-check`.** That is the
+whole convention. Turning it on everywhere would have meant a few hundred
+errors on day one and `strict` off to get a green build; this way `strict`
+is on, every commit is green, and a file is adopted when somebody has
+reason to.
+
+To adopt one: add the comment, run `npm run typecheck`, and describe the
+shapes with JSDoc until it is quiet. Nothing is renamed and nothing is
+compiled, so the server still runs from source and the tests still import
+plain modules.
+
+The records both sides pass are in `src/types.js` — a card, a deck, a
+course, an account, a report, a language pack. It has no runtime value; it
+exists so the two ends of a request describe the same thing. `LangId` is a
+string and a `Lang` is the pack that has one, and sending the second where
+the first was wanted is the bug that prompted all of this.
+
+`tests/types.test-d.js` tests the types themselves. Node does not run it;
+tsc does, and its assertions are `@ts-expect-error` comments, which fail
+the build if the thing they mark stops being an error. It is the only way
+to test that something is *rejected*.
+
+Types are a second reader, not a replacement for the tests. They would not
+have caught reporting a card by the device's id instead of the server's —
+both are strings. `tests/cards.test.mjs` catches that one.
 
 ## Notes on the data
 

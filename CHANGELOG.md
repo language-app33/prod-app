@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.38 — 9 September 2026
+
+- Saving a card could fail if somebody deleted one of its decks at the same
+  moment. The save re-read the deck to pick up the change and got nothing
+  back, then tried to use it anyway. It now keeps the copy it already had.
+  Rare, and the sort of rare that happens on the one afternoon two people
+  are tidying decks together.
+- Everything else in this release is under the floor: the code is now read
+  by a type checker as well as by the linter and the tests, a file at a
+  time, starting with the ones where the app and the server hand things to
+  each other. It found the bug above. `README.md` says how it works, for
+  anyone working on the code.
+
 ## 0.37 — 9 September 2026
 
 - Reports in Admin → Flags named the wrong card, which showed up in two
