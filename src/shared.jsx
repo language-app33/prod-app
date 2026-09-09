@@ -1,3 +1,10 @@
+// @ts-check
+/** @import { Card, Deck, ExerciseState, Item, Lang, LangId, Millis } from "./types.js" */
+/**
+ * Anything React will render: an element, a string, a list of them, or
+ * nothing. Written once because nearly every component here takes one.
+ * @typedef {React.ReactNode} Node
+ */
 /*
  * The handful of pieces the trainer needs at startup, kept apart from the
  * rest of spaces.jsx so that the onboarding, teaching and admin screens can
@@ -23,6 +30,7 @@ import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE, scriptVars }
  *   permanent, yours alone    -> a plain confirm
  *   reversible                -> no dialog; just do it
  */
+/** @param {{ permanent?: boolean, affectsOthers?: boolean, name?: string }} what */
 export function confirmStrength({ permanent, affectsOthers, name }) {
   if (!permanent) return {};
   if (affectsOthers && name) return { confirmWord: name };
@@ -41,6 +49,7 @@ export function confirmStrength({ permanent, affectsOthers, name }) {
    list are the same icon.
    ------------------------------------------------------------------ */
 
+/** @type {Record<string, string>} */
 const ICONS = {
   add: "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z",
   search:
@@ -105,6 +114,7 @@ const ICONS = {
     "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z",
 };
 
+/** @param {{ name: string, size?: number }} props */
 export function Icon({ name, size = 20 }) {
   const d = ICONS[name];
   if (!d) return null;
@@ -134,13 +144,25 @@ export function Icon({ name, size = 20 }) {
 /* One recording, wherever it comes from. The teaching space holds server
    hashes; the learning space holds local ids that may need fetching. Passing
    the loader in means one player rather than three. */
+/**
+ * @param {{
+ *   hash: string,
+ *   label?: string | null,
+ *   index: number,
+ *   onRemove?: () => void,
+ *   load?: (hash: string) => Promise<string | null>,
+ * }} props
+ */
 function ClipRow({ hash, label, index, onRemove, load }) {
   const [state, setState] = useState("idle"); // idle | loading | playing
   const [error, setError] = useState("");
   /* Asked before removing. A recording is a minute of somebody's voice and
      the × sits a thumb's width from Play, which is a poor trade for a
      control that used to act on the first tap. */
-  const [asking, setAsking] = useState(null);
+  const [asking, setAsking] = useState(
+    /** @type {Parameters<typeof askConfirm>[0] | null} */ (null)
+  );
+  /** @type {React.MutableRefObject<HTMLAudioElement | null>} */
   const audio = useRef(null);
 
   /* An object URL made for this row is this row's to release. */
@@ -266,6 +288,11 @@ function ClipRow({ hash, label, index, onRemove, load }) {
 /* --- plural -------------------------------------------------------
    Written out by hand forty-four times before this, always the same
    way, occasionally with the wrong noun. */
+/**
+ * @param {number} n
+ * @param {string} one
+ * @param {string} [many] Only where adding "s" is wrong.
+ */
 export function plural(n, one, many) {
   const word = n === 1 ? one : many || `${one}s`;
   return `${n} ${word}`;
@@ -275,6 +302,17 @@ export function plural(n, one, many) {
    Four looks and two sizes. The class strings used to be assembled at
    the call site, which is how "sm ghost" and "ghost sm" both came to
    exist, along with a stray "at-btn" with no variant at all. */
+/**
+ * @param {{
+ *   variant?: "default" | "primary" | "ghost" | "danger",
+ *   size?: "sm",
+ *   wide?: boolean,
+ *   icon?: string,
+ *   iconSize?: number,
+ *   className?: string,
+ *   children?: Node,
+ * } & Record<string, any>} props
+ */
 export function Button({
   variant = "default", // default | primary | ghost | danger
   size, // sm
@@ -309,6 +347,15 @@ export function Button({
    outline without the fill. It exists so an icon can sit in a row beside a
    ghost Button without reading as the heavier of the two, which is what the
    hint button did next to "I don't know". */
+/**
+ * @param {{
+ *   icon: string,
+ *   label: string,
+ *   danger?: boolean,
+ *   ghost?: boolean,
+ *   className?: string,
+ * } & Record<string, any>} props
+ */
 export function IconButton({ icon, label, danger, ghost, className = "", ...rest }) {
   return (
     <button
@@ -342,6 +389,7 @@ export function IconButton({ icon, label, danger, ghost, className = "", ...rest
  * Its own glyph rather than an Icon: the set is single-path and filled, and
  * a keyboard reads as a keyboard only with the keys punched out of it.
  */
+/** @param {{ on?: boolean, onClick?: () => void, label?: string }} props */
 export function KeysButton({ on, onClick, label = "On-screen keys" }) {
   return (
     <button
@@ -370,9 +418,11 @@ export function KeysButton({ on, onClick, label = "On-screen keys" }) {
   );
 }
 
+/** @param {{ children?: Node, className?: string }} props */
 export function Lede({ children, className = "" }) {
   return <p className={`at-lede${className ? " " + className : ""}`}>{children}</p>;
 }
+/** @param {{ children?: Node, className?: string } & Record<string, any>} props */
 export function Help({ children, className = "", ...rest }) {
   return (
     <p className={`at-hint${className ? " " + className : ""}`} {...rest}>
@@ -380,6 +430,7 @@ export function Help({ children, className = "", ...rest }) {
     </p>
   );
 }
+/** @param {{ children?: Node, className?: string }} props */
 export function Meta({ children, className = "" }) {
   return <span className={`at-meta${className ? " " + className : ""}`}>{children}</span>;
 }
@@ -388,6 +439,7 @@ export function Meta({ children, className = "" }) {
    Every failure, warning, confirmation and "working…" line. The same
    error used to read as a red toast on one screen and grey helper text
    on another, purely by which idiom the screen happened to use. */
+/** @param {{ kind?: "info" | "error" | "warn" | "ok" | "busy", children?: Node, plain?: boolean }} props */
 export function Notice({ kind = "info", children, plain }) {
   if (!children) return null;
   return (
@@ -400,6 +452,12 @@ export function Notice({ kind = "info", children, plain }) {
 /* --- Section ------------------------------------------------------
    An eyebrow, an optional count, an optional lede. Thirty-two hand
    assembled copies of this shape, each with its own inline margins. */
+/**
+ * @param {{
+ *   title?: Node, count?: number, lede?: Node,
+ *   action?: Node, children?: Node, className?: string,
+ * }} props
+ */
 export function Section({ title, count, lede, action, children, className = "" }) {
   return (
     <div className={`at-section${className ? " " + className : ""}`}>
@@ -418,6 +476,7 @@ export function Section({ title, count, lede, action, children, className = "" }
 /* --- Empty --------------------------------------------------------
    Sixteen different ad-hoc versions of "there is nothing here",
    fifteen of which did not use the class that existed for it. */
+/** @param {{ title?: Node, children?: Node, action?: Node }} props */
 export function Empty({ title, children, action }) {
   return (
     <div className="at-empty2">
@@ -442,6 +501,7 @@ export function Empty({ title, children, action }) {
 
    The page reserves room underneath from .at-footextra's presence, so
    the last line of an answer is never left under the foot. */
+/** @param {{ above?: Node, children?: Node, className?: string }} props */
 export function StickyFoot({ above, children, className }) {
   return (
     <div className={`at-foot${className ? " " + className : ""}`}>
@@ -458,10 +518,12 @@ export function StickyFoot({ above, children, className }) {
    on / or ; because both were accepted when the convention was typed by
    hand; joined with / only. An empty answer is dropped on the way out, so
    a field that was added and never filled leaves nothing behind. */
+/** @param {string} value */
 export function splitAlternatives(value) {
   const parts = String(value || "").split(/[/;]/).map((x) => x.trim());
   return parts.length ? parts : [""];
 }
+/** @param {string[]} list */
 export function joinAlternatives(list) {
   return (list || []).map((x) => String(x || "").trim()).filter(Boolean).join(" / ");
 }
@@ -470,6 +532,17 @@ export function joinAlternatives(list) {
    Pick one of a few. Replaces eighteen groups of buttons that each
    toggled their own "primary" class, and tells assistive software what
    is chosen, which none of them did. */
+/**
+ * Pick one from a few. Options may be {value, label} or bare values.
+ * @param {{
+ *   options: ({ value: string, label?: Node } | string)[],
+ *   value?: string,
+ *   onChange: (value: string) => void,
+ *   size?: string | null,
+ *   label?: string,
+ *   disabled?: boolean,
+ * } & Record<string, any>} props
+ */
 export function Segmented({ options, value, onChange, size = "sm", label, disabled, ...rest }) {
   return (
     <div
@@ -503,6 +576,14 @@ export function Segmented({ options, value, onChange, size = "sm", label, disabl
 /* --- Tabs ---------------------------------------------------------
    The trainer, the teaching space and the admin space each had their
    own copy of this, and only one of them said which tab was current. */
+/**
+ * @param {{
+ *   tabs: [string, string, string?][],
+ *   value?: string,
+ *   onChange: (key: string) => void,
+ *   label?: string,
+ * }} props Each tab is [key, label, iconName].
+ */
 export function Tabs({ tabs, value, onChange, label = "Section" }) {
   return (
     <div className="at-nav2" role="tablist" aria-label={label}>
@@ -527,6 +608,13 @@ export function Tabs({ tabs, value, onChange, label = "Section" }) {
 /* --- Stat ---------------------------------------------------------
    One big number with its label, instead of a font size written inline
    on a paragraph borrowed from somewhere else. */
+/**
+ * @param {{
+ *   value?: Node, label?: Node, big?: boolean,
+ *   lang?: string, dir?: string,
+ *   style?: React.CSSProperties, className?: string,
+ * }} props
+ */
 export function Stat({ value, label, big, lang, dir, style, className = "" }) {
   return (
     <div className={`at-stat2${big ? " big" : ""}`}>
@@ -542,6 +630,12 @@ export function Stat({ value, label, big, lang, dir, style, className = "" }) {
    A label, a control, and the helper text underneath. Forty-eight
    hand-built copies, nine of which carried marginBottom:0 to undo a
    default that is now handled by the stylesheet. */
+/**
+ * @param {{
+ *   label?: Node, hint?: Node, optional?: boolean,
+ *   htmlFor?: string, children?: Node, className?: string,
+ * }} props
+ */
 export function Field({ label, hint, optional, htmlFor, children, className = "" }) {
   return (
     <div className={`at-field${className ? " " + className : ""}`}>
@@ -562,11 +656,21 @@ export function Field({ label, hint, optional, htmlFor, children, className = ""
    whatever is waiting to be confirmed, the error and busy lines, then a
    tab strip and the tab's contents. Both built that by hand, which is how
    one of them came to show the busy line and the other not. */
+/**
+ * @param {{
+ *   tabs: [string, string, string?][],
+ *   tab?: string,
+ *   onTab: (key: string) => void,
+ *   error?: Node, busy?: boolean, label?: string,
+ *   dialog?: Node, children?: Node,
+ * }} props
+ */
 export function SpaceFrame({ tabs, tab, onTab, error, busy, label = "Section", dialog, children }) {
   /* The frame is a fixed panel that scrolls inside itself, so the page's
      own scroll position is not the one a tab change has to reset — this
      is. Switching tabs from halfway down a long list used to hand you the
      next tab already scrolled past its heading. */
+  /** @type {React.MutableRefObject<HTMLDivElement | null>} */
   const bodyRef = useRef(null);
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
@@ -603,11 +707,16 @@ export function SpaceFrame({ tabs, tab, onTab, error, busy, label = "Section", d
 /* --- language naming ----------------------------------------------
    Lived in spaces.jsx, so the trainer built its own "not set" fallback
    with a ternary and the two could disagree. */
+/**
+ * @param {Record<LangId, Lang>} languages
+ * @param {LangId} [id]
+ */
 export function languageName(languages, id) {
   if (!id) return "Language not set";
   return ((languages || {})[id] || {}).name || id;
 }
 
+/** @param {{ languages: Record<LangId, Lang>, id?: LangId }} props */
 export function LanguageTag({ languages, id }) {
   return <span className={`at-flag ${id ? "forms" : "flagged"}`}>{languageName(languages, id)}</span>;
 }
@@ -617,8 +726,19 @@ export function LanguageTag({ languages, id }) {
    tiles built from the same classes, showing different things and
    counting forms two different ways. One tile, with what differs
    passed in. */
+/**
+ * @param {{
+ *   card: Card | Item,
+ *   lang?: Lang,
+ *   showLat?: boolean,
+ *   meta?: Node,
+ *   actions?: Node,
+ *   onClick?: () => void,
+ *   className?: string,
+ * }} props
+ */
 export function CardTile({ card, lang, showLat, meta, actions, onClick, className }) {
-  const L = lang || {};
+  const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   return (
     <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
@@ -684,6 +804,7 @@ export const FLAG_NOTE_MAX = 500;
 /* What a flag of this kind is called, for a screen showing one that was
    sent by somebody else. Falls back to the stored key rather than to
    nothing: a kind this build does not know about is still a report. */
+/** @param {string} kind */
 export function flagTitle(kind) {
   const found = FLAG_KINDS.find((k) => k.key === kind);
   return found ? found.title : String(kind || "Something else");
@@ -693,6 +814,7 @@ export function flagTitle(kind) {
    A date small enough for the foot of a tile. The year is left off when
    it is this one, because "6 Sep" is what you would say out loud and the
    year only earns its space when it is not the obvious one. */
+/** @param {Millis} [ms] */
 export function shortDate(ms) {
   if (!ms) return "";
   const d = new Date(ms);
@@ -709,6 +831,7 @@ export function shortDate(ms) {
    not enough — an administrator asking whether somebody has opened the app
    since being told to wants the hour, not the date. Empty for a moment
    that never happened, so the caller decides what to say instead. */
+/** @param {Millis} [ms] */
 export function dateTime(ms) {
   if (!ms) return "";
   const d = new Date(ms);
@@ -726,6 +849,13 @@ export function dateTime(ms) {
 /* --- Tile ---------------------------------------------------------
    The deck and course tile. Lived in spaces.jsx, which meant the one
    library the docs point at did not actually hold it. */
+/**
+ * @param {{
+ *   title?: Node, meta?: Node,
+ *   onOpen?: () => void,
+ *   actions?: Node, footer?: Node,
+ * }} props
+ */
 export function Tile({ title, meta, onOpen, actions, footer }) {
   return (
     /* data-open marks a tile that actually opens something, so only those
@@ -744,6 +874,7 @@ export function Tile({ title, meta, onOpen, actions, footer }) {
 }
 
 /* The line under a deck's rule: whether anyone can see it. */
+/** @param {{ live?: boolean, children?: Node }} props */
 export function TileNote({ live, children }) {
   return (
     <div className="at-reach">
@@ -753,8 +884,10 @@ export function TileNote({ live, children }) {
   );
 }
 
+/** @param {((hash: string) => Promise<string | null>) | undefined} load Absent on a read-only list. */
 export function useClipPlayer(load) {
   const [state, setState] = useState("idle"); // idle | loading | playing | missing
+  /** @type {React.MutableRefObject<HTMLAudioElement | null>} */
   const audio = useRef(null);
   const url = useRef("");
 
@@ -772,6 +905,7 @@ export function useClipPlayer(load) {
     []
   );
 
+  /** @param {string} id */
   const play = async (id) => {
     if (state === "playing") {
       if (audio.current) audio.current.pause();
@@ -781,7 +915,7 @@ export function useClipPlayer(load) {
     setState("loading");
     let src = null;
     try {
-      src = await load(id);
+      src = load ? await load(id) : null;
     } catch (e) {
       src = null;
     }
@@ -812,6 +946,12 @@ export function useClipPlayer(load) {
 
 /* The button that goes with it, so play/pause looks the same wherever
    a recording appears. */
+/**
+ * @param {{
+ *   state?: "idle" | "loading" | "playing" | "missing",
+ *   onClick?: () => void, className?: string, label?: string,
+ * }} props
+ */
 export function PlayButton({ state, onClick, className = "", label = "Play" }) {
   return (
     <button
@@ -828,6 +968,13 @@ export function PlayButton({ state, onClick, className = "", label = "Play" }) {
 }
 
 /* Clips may be plain ids or objects carrying their own label. */
+/**
+ * @param {{
+ *   clips?: (string | { id: string, label?: string })[],
+ *   onChange?: (clips: (string | { id: string, label?: string })[]) => void,
+ *   load?: (hash: string) => Promise<string | null>,
+ * }} props Read-only lists — a card's own recordings — pass no loader.
+ */
 export function ClipList({ clips, onChange, load }) {
   const list = clips || [];
   if (!list.length) return null;
@@ -879,6 +1026,20 @@ const PAGE_SIZE = 120;
  * options are Segmented's own. `quiet` is the value that counts as "not
  * narrowing", used only to decide whether to flag the button.
  */
+/**
+ * How to order a list, and what to leave out of it. A group's `quiet`
+ * value is the setting that counts as not narrowing, which is how the
+ * button knows whether to show a count.
+ * @param {{
+ *   groups?: {
+ *     key?: string, label?: string, value?: string, quiet?: string,
+ *     onChange: (value: string) => void,
+ *     options?: { value: string, label?: Node, note?: Node }[],
+ *   }[],
+ *   note?: Node,
+ *   label?: string,
+ * }} props
+ */
 export function FilterBar({ groups, note, label = "Sort and filter" }) {
   const [open, setOpen] = useState(false);
   const live = (groups || []).filter((g) => g && g.options && g.options.length > 1);
@@ -909,7 +1070,7 @@ export function FilterBar({ groups, note, label = "Sort and filter" }) {
                   Compact would take the width the labels want and hang off
                   the side of the bar. */}
               <Segmented
-                options={g.options}
+                options={g.options || []}
                 value={g.value}
                 onChange={g.onChange}
                 label={g.label}
@@ -936,6 +1097,15 @@ export function FilterBar({ groups, note, label = "Sort and filter" }) {
  *
  * Options are { value, label, note }, and `quiet` is the value that means
  * "everything" — usually the first one.
+ */
+/**
+ * @param {{
+ *   icon?: string, label?: string,
+ *   options?: { value: string, label?: Node, note?: Node }[],
+ *   value?: string,
+ *   onChange: (value: string) => void,
+ *   quiet?: string,
+ * }} props
  */
 export function FilterMenu({ icon = "tune", label, options, value, onChange, quiet = "" }) {
   const [open, setOpen] = useState(false);
@@ -996,6 +1166,37 @@ export function FilterMenu({ icon = "tune", label, options, value, onChange, qui
   );
 }
 
+/**
+ * The standard list frame: New button, search, Select mode, bulk-action
+ * tray, empty state, and paging.
+ *
+ * Generic in the item, so `match`, `renderItem` and `itemKey` all see the
+ * same thing the caller passed in `items` rather than an `any`.
+ * @template {{ id: string }} T
+ * @param {{
+ *   noun: string,
+ *   plural?: string,
+ *   tools?: Node,
+ *   filters?: Node,
+ *   count?: Node,
+ *   items: T[],
+ *   itemKey?: (item: T) => string,
+ *   match?: (item: T, lowercasedQuery: string) => boolean,
+ *   size?: "large" | "small",
+ *   onNew?: () => void,
+ *   renderItem: (item: T, state: { selecting: boolean, selected: boolean }) => Node,
+ *   selected?: Set<string>,
+ *   onSelectedChange?: (chosen: Set<string>) => void,
+ *   bulkActions?: {
+ *     label: string,
+ *     danger?: boolean,
+ *     icon?: string,
+ *     onClick: (ids: string[]) => void,
+ *   }[],
+ *   empty?: Node,
+ *   busy?: boolean,
+ * }} props
+ */
 export function ItemList({
   noun, // "course", "deck", "person", "card"
   plural,
@@ -1026,8 +1227,9 @@ export function ItemList({
   matchRef.current = match;
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q || !matchRef.current) return items;
-    return items.filter((it) => matchRef.current(it, q));
+    const m = matchRef.current;
+    if (!q || !m) return items;
+    return items.filter((it) => m(it, q));
   }, [items, query]);
 
   useEffect(() => {
@@ -1045,6 +1247,7 @@ export function ItemList({
     if (onSelectedChange) onSelectedChange(new Set());
   };
 
+  /** @param {string} id */
   const toggle = (id) => {
     if (!onSelectedChange) return;
     const next = new Set(picked);
@@ -1172,7 +1375,7 @@ export function ItemList({
             <span className="at-bulkcount">{picked.size} selected</span>
           </div>
           <div className="at-bulkrow">
-            {bulkActions.map((a) =>
+            {(bulkActions || []).map((a) =>
               a.danger ? (
                 <button
                   key={a.label}
@@ -1212,14 +1415,20 @@ export function ItemList({
    card the same way.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{ card: Card, lang?: Lang, decks: Deck[] }} props
+ */
 export function CardReadout({ card, lang, decks }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   const dims = dimsOf(L);
-  const forms = [card].concat(card.subs || []);
+  /** @type {Record<string, any>[]} */
+  const forms = [card, ...(card.subs || [])];
   const titles = (card.decks || [])
-    .map((id) => (decks.find((d) => d.id === id) || {}).title)
+    .map((/** @type {string} */ id) => decks.find((d) => d.id === id))
+    .map((d) => d && d.title)
     .filter(Boolean);
 
+  /** @param {{ label?: Node, children?: Node }} props */
   const Row = ({ label, children }) =>
     children ? (
       <div className="at-readrow">
@@ -1311,6 +1520,14 @@ export function CardReadout({ card, lang, decks }) {
    for a keyboard and a screen reader.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   options: { id: string, title?: Node, note?: Node }[],
+ *   chosen?: string[],
+ *   onToggle?: (id: string, wasOn: boolean) => void,
+ *   empty?: Node,
+ * }} props
+ */
 export function CheckList({ options, chosen, onToggle, empty }) {
   if (!options.length) {
     return empty ? (
@@ -1322,10 +1539,10 @@ export function CheckList({ options, chosen, onToggle, empty }) {
   return (
     <div className="at-ticklist">
       {options.map((o) => {
-        const on = chosen.includes(o.id);
+        const on = (chosen || []).includes(o.id);
         return (
           <label className="at-tickrow" key={o.id}>
-            <input type="checkbox" checked={on} onChange={() => onToggle(o.id, on)} />
+            <input type="checkbox" checked={on} onChange={() => onToggle && onToggle(o.id, on)} />
             <span className="at-tickbody">
               <b>{o.title}</b>
               {o.note ? <i>{o.note}</i> : null}
@@ -1363,7 +1580,7 @@ export function CheckList({ options, chosen, onToggle, empty }) {
  * looks the same.
  */
 function useAppHost() {
-  const [host, setHost] = useState(null);
+  const [host, setHost] = useState(/** @type {Element | null} */ (null));
   useEffect(() => {
     setHost(document.querySelector(".at") || document.body);
   }, []);
@@ -1398,6 +1615,7 @@ function useAppHost() {
 
 const SNACK_DWELL_MS = 4000;
 
+/** @param {{ message?: Node, kind?: string, onDismiss?: () => void }} props */
 export function Snackbar({ message, kind = "info", onDismiss }) {
   const host = useAppHost();
 
@@ -1423,8 +1641,12 @@ export function Snackbar({ message, kind = "info", onDismiss }) {
  * assemble: render `node` once, near the end of the tree, and call `show`
  * from anywhere.
  */
+/** @param {{ dwell?: number }} [opts] */
 export function useSnackbarState({ dwell = SNACK_DWELL_MS } = {}) {
-  const [snack, setSnack] = useState(null);
+  const [snack, setSnack] = useState(
+    /** @type {{ id: number, message: string, kind: string } | null} */ (null)
+  );
+  /** @type {React.MutableRefObject<ReturnType<typeof setTimeout> | null>} */
   const timer = useRef(null);
   /* Numbered so that a second message remounts the pill rather than
      swapping the text inside the old one: without it the entrance is played
@@ -1438,7 +1660,7 @@ export function useSnackbarState({ dwell = SNACK_DWELL_MS } = {}) {
   }, []);
 
   const show = useCallback(
-    (message, kind = "info") => {
+    (/** @type {unknown} */ message, /** @type {string} */ kind = "info") => {
       const text = String(message == null ? "" : message).trim();
       /* An empty message would show an empty pill, which reads as a bug. */
       if (!text) return;
@@ -1455,7 +1677,9 @@ export function useSnackbarState({ dwell = SNACK_DWELL_MS } = {}) {
 
   /* A message raised by the last thing a screen did before unmounting would
      otherwise leave its timer running against a gone component. */
-  useEffect(() => () => timer.current && clearTimeout(timer.current), []);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
 
   return {
     show,
@@ -1478,9 +1702,11 @@ export function useSnackbarState({ dwell = SNACK_DWELL_MS } = {}) {
  * renders these components with nothing hosting them, and a notification
  * that goes nowhere is not worth taking a screen down for.
  */
-const SnackbarContext = React.createContext(null);
+/** @type {(message: string, kind?: string) => void} */
 const noSnackbar = () => {};
+const SnackbarContext = React.createContext(noSnackbar);
 
+/** @param {{ show?: (message: string, kind?: string) => void, children?: Node }} props */
 export function SnackbarProvider({ show, children }) {
   return <SnackbarContext.Provider value={show || noSnackbar}>{children}</SnackbarContext.Provider>;
 }
@@ -1496,6 +1722,7 @@ export function useSnackbar() {
    open another one. */
 /* Every open screen, oldest first. Only the last one answers Escape, so a
    screen opened on top of another doesn't take both down with one key. */
+/** @type {any[]} */
 const SCREEN_STACK = [];
 
 /*
@@ -1558,16 +1785,27 @@ export function scrollToTop() {
  * again on the way back. Untouched here: it is older than this and worth
  * fixing on its own terms, by keeping the frame mounted.
  */
+/** @param {unknown} key */
 export function useScrollTop(key) {
   useEffect(() => {
     scrollToTop();
   }, [key]);
 }
 
+/**
+ * @param {{
+ *   title?: Node,
+ *   onBack?: () => void,
+ *   action?: Node, children?: Node, footer?: Node,
+ *   backLabel?: string,
+ * }} props
+ */
 export function Screen({ title, onBack, action, children, footer, backLabel = "Back" }) {
-  const self = useRef({});
+  /** @type {React.MutableRefObject<{ el: Element | null, close?: () => void }>} */
+  const self = useRef({ el: null });
   /* The screen's own element, so the stack can be checked against the
      document rather than trusted. See reconcileScreens. */
+  /** @type {React.MutableRefObject<HTMLDivElement | null>} */
   const elRef = useRef(null);
   const host = useAppHost();
 
@@ -1578,6 +1816,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
      Keyed on the title because that is what a screen has instead of an
      id; renaming the thing you are looking at scrolls you up, which is
      rare and cheap next to arriving halfway down every time. */
+  /** @type {React.MutableRefObject<HTMLDivElement | null>} */
   const bodyRef = useRef(null);
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
@@ -1600,7 +1839,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
   const onBackRef = useRef(onBack);
   onBackRef.current = onBack;
   useEffect(() => {
-    const onKey = (e) => {
+    const onKey = (/** @type {KeyboardEvent} */ e) => {
       if (e.key !== "Escape") return;
       /* Same reason as the class: a stale entry on top would otherwise
          swallow Escape for every screen underneath it. */
@@ -1625,7 +1864,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
      and no z-index of its own, so it is not a stacking context — mounting
      inside it escapes the space's layer while staying in the theme. */
   const view = (
-    <div className="at-screen over" ref={elRef} role="dialog" aria-modal="true" aria-label={title}>
+    <div className="at-screen over" ref={elRef} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
       <div className="at-screenhead">
         {onBack ? (
           <button className="at-back" onClick={onBack} aria-label={backLabel}>
@@ -1654,6 +1893,14 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
 
 /* Choosing one language: a radio list, one row per option, the same
    wherever a language is asked for. */
+/**
+ * @param {{
+ *   languages: Record<LangId, Lang>,
+ *   value?: LangId,
+ *   onChange: (id: LangId) => void,
+ *   label?: string, name?: string,
+ * }} props
+ */
 export function LanguageRadio({ languages, value, onChange, label = "Language", name = "lang" }) {
   return (
     <div className="at-field" role="radiogroup" aria-label={label}>
@@ -1683,6 +1930,13 @@ export function LanguageRadio({ languages, value, onChange, label = "Language", 
  * rule in confirmStrength. Fifteen call sites used to pass six different
  * shapes and each host had to know them all.
  */
+/**
+ * @param {{
+ *   title?: Node, body?: Node, verb?: string, name?: string,
+ *   permanent?: boolean, affectsOthers?: boolean,
+ *   action: () => any, then?: (result: any) => void,
+ * }} ask
+ */
 export function askConfirm({ title, body, verb, name, permanent, affectsOthers, action, then }) {
   return {
     title,
@@ -1694,6 +1948,20 @@ export function askConfirm({ title, body, verb, name, permanent, affectsOthers, 
   };
 }
 
+/**
+ * `confirmWord` makes the person type a word before the button enables —
+ * for the things that cannot be undone.
+ * @param {{
+ *   title?: Node,
+ *   body?: Node,
+ *   confirmLabel?: string,
+ *   confirmWord?: string,
+ *   busy?: boolean,
+ *   danger?: boolean,
+ *   onCancel: () => void,
+ *   onConfirm: () => void,
+ * }} props
+ */
 export function ConfirmModal({
   title,
   body,
@@ -1711,7 +1979,7 @@ export function ConfirmModal({
     !confirmWord || typed.trim().toLowerCase() === String(confirmWord).trim().toLowerCase();
 
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onCancel();
+    const onKey = (/** @type {KeyboardEvent} */ e) => e.key === "Escape" && onCancel();
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1727,7 +1995,7 @@ export function ConfirmModal({
         className={`at-modal${danger ? " danger" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={typeof title === "string" ? title : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="at-modaltitle">{title}</h3>
@@ -1778,6 +2046,10 @@ export function ConfirmModal({
    Half a second is the usual figure for this and it holds here: long
    enough that a healthy round trip never reaches it, short enough that
    somebody who has started to wonder is told before they wonder twice. */
+/**
+ * @param {boolean | undefined} waiting
+ * @param {number} [ms]
+ */
 export function useSlowWait(waiting, ms = 500) {
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -1806,23 +2078,38 @@ export function useSlowWait(waiting, ms = 500) {
    Held against the handle it was fetched for, so the next person to sign in on
    this device is shown nothing of the last one's, and what was kept for them
    is dropped the moment a different handle asks. */
+/** @type {Record<string, { handle: string, shown: any } | null>} */
 const spaceHeld = { admin: null, teach: null };
 const spaceWatchers = new Set();
 
 /* Quietly: the space itself, keeping the slot level with what it is
    showing. Nothing to tell anyone, since the teller is the only one
    showing it. */
+/**
+ * @param {"admin" | "teach"} space
+ * @param {string} handle
+ * @param {any} shown
+ */
 export function rememberSpace(space, handle, shown) {
   spaceHeld[space] = { handle, shown };
 }
 
 /* Out loud: a fetch made on somebody else's behalf, which whoever is on
    screen should take. */
+/**
+ * @param {"admin" | "teach"} space
+ * @param {string} handle
+ * @param {any} shown
+ */
 function deliverSpace(space, handle, shown) {
   rememberSpace(space, handle, shown);
   for (const watcher of [...spaceWatchers]) watcher(space, handle, shown);
 }
 
+/**
+ * @param {"admin" | "teach"} space
+ * @param {string} handle
+ */
 export function recallSpace(space, handle) {
   const held = spaceHeld[space];
   if (!held) return null;
@@ -1836,11 +2123,16 @@ export function recallSpace(space, handle) {
 /* A space on screen taking contents fetched for it elsewhere. The callback
    is held in a ref so that a space does not have to memoise it to avoid
    resubscribing on every render. */
+/**
+ * @param {"admin" | "teach"} space
+ * @param {string} handle
+ * @param {(shown: any) => void} adopt
+ */
 export function useFreshSpace(space, handle, adopt) {
   const latest = useRef(adopt);
   latest.current = adopt;
   useEffect(() => {
-    const watcher = (which, whose, shown) => {
+    const watcher = (/** @type {string} */ which, /** @type {string} */ whose, /** @type {any} */ shown) => {
       if (which === space && whose === handle) latest.current(shown);
     };
     spaceWatchers.add(watcher);
@@ -1851,6 +2143,7 @@ export function useFreshSpace(space, handle, adopt) {
 }
 
 /* The administrator's whole view of the site, in one request. */
+/** @param {string} handle */
 export async function pullAdmin(handle) {
   const data = await API.adminOverview();
   deliverSpace("admin", handle, data);
@@ -1861,13 +2154,14 @@ export async function pullAdmin(handle) {
    One failing call shouldn't blank the screen, so what arrives is taken
    and what didn't is reported — and what was already held stands in for
    the part that failed. */
+/** @param {string} handle */
 export async function pullTeaching(handle) {
   const [c, d, k] = await Promise.allSettled([API.myCourses(), API.myDecks(), API.myCards()]);
   const before = recallSpace("teach", handle) || { courses: [], decks: [], cards: [] };
   const shown = {
     courses:
       c.status === "fulfilled"
-        ? (c.value.courses || []).filter((x) => x.role === "teacher")
+        ? (c.value.courses || []).filter((/** @type {{ role: string }} */ x) => x.role === "teacher")
         : before.courses,
     decks: d.status === "fulfilled" ? d.value.decks || [] : before.decks,
     cards: k.status === "fulfilled" ? k.value.cards || [] : before.cards,
@@ -1881,6 +2175,10 @@ export async function pullTeaching(handle) {
    that fetched once at mount goes quietly stale — a deleted course sits there
    until the app is reloaded. Re-fetch whenever this window comes back to the
    foreground, and occasionally while it stays there. */
+/**
+ * @param {() => void} refresh
+ * @param {number} [everyMs]
+ */
 export function useLiveRefresh(refresh, everyMs = 45000) {
   useEffect(() => {
     if (!refresh) return undefined;
@@ -1898,8 +2196,16 @@ export function useLiveRefresh(refresh, everyMs = 45000) {
   }, [refresh, everyMs]);
 }
 
+/** @type {Record<string, string>} */
 const MODE_LABEL = { learn: "Learning", teach: "Teaching", admin: "Admin" };
 
+/**
+ * @param {{
+ *   mode: string,
+ *   modes: string[],
+ *   onChange: (mode: string) => void,
+ * }} props
+ */
 export function ModeSelector({ mode, modes, onChange }) {
   const [open, setOpen] = useState(false);
 
@@ -1944,9 +2250,18 @@ export function ModeSelector({ mode, modes, onChange }) {
 }
 
 /* A local id derived from the server's, so progress survives a refresh. */
+/** @type {(cardId: string) => string} */
 export const localIdFor = (cardId) => `srv${cardId}`;
 
 /* Turn what the server holds into what the trainer expects. */
+/**
+ * @param {Card} card
+ * @param {string} deckTitle
+ * @param {string} courseId
+ * @param {string} deckId
+ * @param {() => Record<string, ExerciseState>} freshStates
+ * @returns {Item}
+ */
 export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
   const forms = (card.subs || []).map((sb, i) => ({
     id: `${localIdFor(card.id)}-f${i}`,
@@ -2007,6 +2322,7 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
  * mistake with no symptom on this side: the report is accepted, filed, and
  * read at the other end as being about a card the site has never held.
  */
+/** @param {Item | null | undefined} item */
 export function serverCardId(item) {
   if (!item) return "";
   if (item.source && item.source.cardId) return item.source.cardId;
@@ -2023,6 +2339,11 @@ export function serverCardId(item) {
  * forty-five-second check costs a few bytes rather than a request per
  * course, one per deck, and a rewrite of every card.
  */
+/**
+ * @param {Item[]} items
+ * @param {() => Record<string, ExerciseState>} freshStates
+ * @param {string} [knownVersion]
+ */
 export async function pullCourses(items, freshStates, knownVersion) {
   const r = await API.myMaterial(knownVersion || "");
   if (r.unchanged) {
@@ -2030,8 +2351,10 @@ export async function pullCourses(items, freshStates, knownVersion) {
   }
   const enrolled = r.courses || [];
   const decks = r.decks || [];
-  const cardsByDeck = new Map((r.cards || []).map((x) => [x.deckId, x.cards || []]));
+  /** @type {Map<string, Card[]>} */
+  const cardsByDeck = new Map((r.cards || []).map((/** @type {{ deckId: string, cards?: Card[] }} */ x) => [x.deckId, x.cards || []]));
 
+  /** @type {Item[]} */
   const incoming = [];
   for (const deck of decks) {
     for (const card of cardsByDeck.get(deck.id) || []) {
@@ -2046,7 +2369,7 @@ export async function pullCourses(items, freshStates, knownVersion) {
     courses: enrolled,
     /* The same fold again, against whatever the cards are by the time the
        caller adopts the result. */
-    fold: (current) => foldCourses(current, incoming),
+    fold: (/** @type {Item[]} */ current) => foldCourses(current, incoming),
     version: r.version || "",
     teaches: !!r.teaches,
   };
@@ -2054,8 +2377,13 @@ export async function pullCourses(items, freshStates, knownVersion) {
 
 /* Fold fresh course cards into the person's cards: progress kept, wording
    taken from the teacher, withdrawn cards named so they can be tombstoned. */
+/**
+ * @param {Item[]} items
+ * @param {Item[]} incoming
+ */
 export function foldCourses(items, incoming) {
   const byId = new Map(items.map((i) => [i.id, i]));
+  /** @type {Item[]} */
   const kept = [];
   for (const fresh of incoming) {
     const existing = byId.get(fresh.id);
@@ -2064,7 +2392,7 @@ export function foldCourses(items, incoming) {
       kept.push({
         ...fresh,
         s: existing.s,
-        subs: fresh.subs.map((f, i) => ({ ...f, s: (existing.subs[i] || {}).s || f.s })),
+        subs: (fresh.subs || []).map((f, i) => ({ ...f, s: ((existing.subs || [])[i] || {}).s || f.s })),
       });
     } else {
       kept.push(fresh);

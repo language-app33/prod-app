@@ -121,6 +121,9 @@ trainer as `FormField` (it has its own unrelated `Field`).
 ### `CheckList` — 4 uses
 Pick several. `options, chosen, onToggle, empty`
 
+`chosen` is an array of ids, and `onToggle` is called `(id, wasOn)` — the
+second argument saves the caller working out which way the tick just went.
+
 ### `LanguageRadio` — 4 uses
 A proper radio list of languages. `languages, value, onChange, label, name`
 
@@ -136,7 +139,12 @@ empty state, and paging at 120 items.
 selected, onSelectedChange, bulkActions, filters, count, empty, busy`
 
 `match` is `(item, lowercasedQuery) => boolean`. `bulkActions` is
-`[{ label, danger, onClick(ids) }]`.
+`[{ label, danger, icon, onClick(ids) }]`, and **`ids` is an array, not the
+Set the list keeps internally** — the tray spreads it before calling, and
+every caller reaches for `.includes` or `.length`.
+
+`itemKey` defaults to reading `.id`, so items need one unless you pass your
+own.
 
 ### `CardTile` — 2 uses
 One card tile for both the learner's and the teacher's lists.
@@ -182,6 +190,10 @@ leaking one object URL per clip is a bug this hook exists to prevent.
 
 ### `ClipList` — 2 uses
 A list of recordings with playback. `clips, onChange, load`
+
+A clip is a bare hash or `{ id, label }`; both are stored. `load` is
+optional — a read-only list, like the one in `CardReadout`, passes none and
+its play buttons resolve to "missing" rather than fetching.
 
 ---
 
