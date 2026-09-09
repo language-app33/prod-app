@@ -234,10 +234,20 @@ test("the quiet way out is text, like the flag beside it", () => {
     "the quiet button has picked up a rule of its own again");
 });
 
-test("the flag menu opens upward once the flag is at the foot", () => {
-  /* Below it is the bar and then the edge of the screen. */
+test("the flag menu covers the answer bar rather than floating over it", () => {
+  /* It used to open upward from the flag button, leaving Continue live an
+     inch below Send. Anchored to the foot's own bottom edge it takes the
+     bar's place while it is open, and its own Back button is the way out.
+     Both halves are needed: the bar is blurred, which makes a stacking
+     context of it, so without a layer of its own the menu would be painted
+     under a bar it is sitting exactly on top of. */
   const body = rule(".at-footextra .at-flagmenu");
-  assert.match(body, /bottom:\s*100%/, "the menu would open off the bottom of the screen");
+  assert.match(body, /bottom:\s*0/, "the menu no longer reaches the foot of the screen");
+  assert.match(body, /position:\s*absolute/);
+  assert.ok(layer[".at-footextra .at-flagmenu"] > 0,
+    "the menu has no layer, so the answer bar paints over it");
+  assert.match(rule(".at-footextra .at-flagwrap"), /position:\s*static/,
+    "the menu is measured from the flag button again, which cannot reach past the bar");
 });
 
 test("the verdict is one size, and a large one", () => {

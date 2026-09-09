@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.40 — 9 September 2026
+
+- Reporting a problem with a question is one panel now, and it stands on
+  top of the bar at the foot rather than floating above it — so Continue is
+  no longer live an inch below Send while you are part way through saying
+  what was wrong.
+- The panel says "Flag a problem" at its top, which is what the button it
+  covers said.
+- Everything in it is there from the moment it opens: the box for
+  "Something else", and Back and Send under the three options. Picking one
+  now only picks it — nothing is sent until you press Send, and Send waits
+  until something is chosen. Before, picking one of the first two sent the
+  report there and then, and the only way to reach a button was to pick
+  "Something else".
+
 ## 0.39 — 9 September 2026
 
 - Learning → Courses no longer shows a "My courses" heading over nothing

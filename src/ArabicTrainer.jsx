@@ -2804,28 +2804,28 @@ export function noCardsYet(courseCount) {
  */
 function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }) {
   const [open, setOpen] = useState(false);
-  /* The typed issue while "Something else" is open, and null the rest of
-     the time — which is also what says whether the menu is showing its
-     three cards or the box. */
-  const [note, setNote] = useState(/** @type {any | null} */ (null));
+  /* Which of the three is being reported, and the words for the one that
+     asks for them. Picking no longer sends: the two buttons that act on
+     this are on screen from the moment the menu opens, so what a press on
+     an option does is choose, and Send is what sends. */
+  const [picked, setPicked] = useState(/** @type {FlagKind | null} */ (null));
+  const [note, setNote] = useState("");
 
   function close() {
     setOpen(false);
-    setNote(null);
+    setPicked(null);
+    setNote("");
   }
 
-  /**
-   * @param {string} kind
-   * @param {string} [text]
-   */
-  /**
-   * @param {FlagKind} kind
-   * @param {string} [text]
-   */
-  function send(kind, text) {
-    const k = FLAG_KINDS.find((x) => x.key === kind);
-    if (k && k.fixes && !ok && !overridden) onOverride();
-    onFlag(kind, text || "");
+  const chosen = FLAG_KINDS.find((k) => k.key === picked);
+  /* "Something else" covers whatever the other two don't, so on its own it
+     says nothing an administrator could act on: it needs the words. */
+  const ready = !!chosen && (!chosen.asks || !!note.trim());
+
+  function send() {
+    if (!chosen || !ready) return;
+    if (chosen.fixes && !ok && !overridden) onOverride();
+    onFlag(chosen.key, chosen.asks ? note.trim() : "");
     close();
   }
 
@@ -2855,14 +2855,22 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
               {flagged ? "Flagged" : "Flag a problem"}
             </button>
 
+            {/* Everything at once: what this is, the three things it can
+                be, the box for the third, and the way out and the way to
+                send. It covers the foot rather than floating above it —
+                nothing is behind it to press by accident, and the heading
+                says what the button it is standing on top of said. */}
             {open && (
               <div className="at-flagmenu" data-el="flag-menu">
-                {note === null ? (
-                  FLAG_KINDS.map((k) => (
+                <p className="at-flagmenu-label" data-el="flag-menu-label">
+                  Flag a problem
+                </p>
+                {FLAG_KINDS.map((k) => (
+                  <React.Fragment key={k.key}>
                     <button
-                      key={k.key}
-                      className="at-flagopt"
-                      onClick={() => (k.asks ? setNote("") : send(k.key))}
+                      className={`at-flagopt${picked === k.key ? " on" : ""}`}
+                      aria-pressed={picked === k.key}
+                      onClick={() => setPicked(k.key)}
                     >
                       <span className="at-flagopt-title">{k.title}</span>
                       <span className="at-flagopt-what">{k.what}</span>
@@ -2872,38 +2880,38 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
                         <span className="at-flagopt-does">Counts it correct</span>
                       )}
                     </button>
-                  ))
-                ) : (
-                  <div className="at-flagnote" data-el="flag-note">
-                    <label className="at-flagopt-title" htmlFor="flag-note-input">
-                      What went wrong?
-                    </label>
-                    <textarea
-                      id="flag-note-input"
-                      data-el="flag-note-input"
-                      className="at-input at-flagtext"
-                      rows={3}
-                      maxLength={FLAG_NOTE_MAX}
-                      autoFocus
-                      placeholder="The recording plays the wrong word…"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                    <div className="at-row at-flagnoterow">
-                      <Button size="sm" onClick={() => setNote(null)}>
-                        Back
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={!note.trim()}
-                        onClick={() => send("other", note.trim())}
-                      >
-                        Send
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                    {/* The box belongs to the option, so it stands under it
+                        from the start rather than taking the place of the
+                        list a press later. Typing in it is a way of picking
+                        that option, because that is plainly what it means. */}
+                    {k.asks && (
+                      <div className="at-flagnote" data-el="flag-note">
+                        <textarea
+                          id="flag-note-input"
+                          data-el="flag-note-input"
+                          className="at-input at-flagtext"
+                          rows={2}
+                          maxLength={FLAG_NOTE_MAX}
+                          placeholder="The recording plays the wrong word…"
+                          value={note}
+                          onFocus={() => setPicked(k.key)}
+                          onChange={(e) => {
+                            setNote(e.target.value);
+                            setPicked(k.key);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+                <div className="at-row at-flagnoterow">
+                  <Button size="sm" onClick={close}>
+                    Back
+                  </Button>
+                  <Button size="sm" variant="primary" disabled={!ready} onClick={send}>
+                    Send
+                  </Button>
+                </div>
               </div>
             )}
           </div>

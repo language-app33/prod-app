@@ -575,22 +575,40 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       opts.length > 0 && opts.every((o) =>
         o.querySelector(".at-flagopt-title") && o.querySelector(".at-flagopt-what")),
       opts.map((o) => o.innerHTML.slice(0, 40)).join(" | "));
+    /* The menu stands on top of the flag button, so it has to say what it
+       is itself — otherwise the screen holds three options and nothing
+       naming what they are options about. */
+    check("and the menu says what it is",
+      /Flag a problem/.test(
+        (document.querySelector('[data-el="flag-menu-label"]') || {}).textContent || ""),
+      (menu && menu.textContent || "").slice(0, 40));
 
-    /* "Something else" is the one that says nothing by itself, so it asks
-       rather than sends. */
+    /* Everything is there from the start: the box for the option that has
+       to be said in words, and the two buttons that act on the choice. The
+       box used to take the place of the list one press in, and the buttons
+       came with it — so until you had picked, there was nothing on screen
+       to press but the options themselves, and picking sent. */
+    const noteBox = document.querySelector('[data-el="flag-note"]');
+    const noteInput = document.querySelector('[data-el="flag-note-input"]');
+    check("Something else brings its box with it, before anything is picked",
+      !!noteBox && !!noteInput && !!menu && menu.contains(noteBox),
+      noteBox ? "" : "no note box");
+    check("and Back and Send are on screen from the start",
+      !!buttonNamed(/^Back$/) && !!buttonNamed(/^Send$/),
+      [...document.querySelectorAll(".at-flagmenu button")].map((b) => b.textContent).join(" | "));
+    check("Send waits for one of them to be picked",
+      buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
+
+    /* Picking is now picking: nothing leaves the device until Send. */
     const somethingElse = opts.find((o) => /Something else/.test(o.textContent));
     click(somethingElse);
     await sleep(80);
-    const noteBox = document.querySelector('[data-el="flag-note"]');
-    const noteInput = document.querySelector('[data-el="flag-note-input"]');
-    check("picking Something else asks what went wrong instead of sending",
-      !!noteBox && !!noteInput && !document.querySelector(".at-flagopt-title ~ .at-flagopt-what"),
-      noteBox ? "" : "no note box");
-    check("and nothing was reported on the way there",
-      !calls.some((c) => c.includes("report-flag")), calls.filter((c) => c.includes("flag")).join(","));
-    const sendBtn = buttonNamed(/^Send$/);
-    check("Send waits for something to send", !!sendBtn && sendBtn.disabled,
-      sendBtn ? String(sendBtn.disabled) : "no Send button");
+    check("picking Something else says so rather than sending",
+      !!somethingElse && somethingElse.getAttribute("aria-pressed") === "true" &&
+        !calls.some((c) => c.includes("report-flag")),
+      somethingElse ? String(somethingElse.getAttribute("aria-pressed")) : "no option");
+    check("and it still waits, because it is the one that has to be said in words",
+      buttonState(/^Send$/).disabled, String(buttonState(/^Send$/).disabled));
 
     /* jsdom's value setter is the React-controlled one, so the change has
        to be made the way a keystroke makes it. */
