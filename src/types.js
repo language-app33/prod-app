@@ -248,6 +248,71 @@
  * @property {Millis} [created]
  */
 
+/* ---- the schedule ---- */
+
+/**
+ * How one exercise type on one card is going. States that have never been
+ * answered are not stored, so every field here is present once it exists.
+ * @typedef {object} ExerciseState
+ * @property {string} phase   "new" | "learning" | "review" | "relearning".
+ * @property {number} step
+ * @property {number} ease
+ * @property {number} interval  In days.
+ * @property {Millis} due
+ * @property {number} reps
+ * @property {number} lapses
+ * @property {number} right
+ * @property {number} wrong
+ * @property {number} skips
+ * @property {number} near
+ * @property {any[]} hist
+ * @property {Millis} updated
+ */
+
+/**
+ * Where the time and the jitter come from. Defaulted at the scheduler
+ * rather than at each call site, so a caller that says nothing gets the
+ * real world and a test that passes one object gets a world that holds
+ * still.
+ * @typedef {{ now?: () => number, random?: () => number }} Clock
+ */
+
+/* ---- the device's own document ---- */
+
+/**
+ * A card as it lives on a device: the teacher's wording plus this
+ * learner's progress.
+ *
+ * Its id is not the server's id for the same card — course material
+ * arrives named srv<cardId> — which is what `source` is for. Reporting the
+ * wrong one of the two is invisible here, because both are strings, so the
+ * comment is the whole warning the type can give.
+ * @typedef {Record<string, any> & {
+ *   id: string,
+ *   ar: string,
+ *   en: string,
+ *   lat: string,
+ *   s?: Record<string, ExerciseState>,
+ *   subs?: Item[],
+ *   source?: { courseId: string, deckId: string, cardId: string, rev: number },
+ *   locked?: boolean,
+ *   updated?: Millis,
+ * }} Item
+ */
+
+/**
+ * The whole document one person's devices share, as it goes over the wire.
+ * Merging two of these is idempotent: the same input twice changes
+ * nothing.
+ * @typedef {object} Doc
+ * @property {number} version
+ * @property {Item[]} items
+ * @property {Record<string, Millis>} tombstones  Withdrawn cards, so a sync does not hand them back.
+ * @property {Record<string, any>} log
+ * @property {Settings} [settings]
+ * @property {Millis} [settingsUpdated]
+ */
+
 /* ---- reported problems ---- */
 
 /**
