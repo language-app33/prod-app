@@ -708,7 +708,7 @@ export function SpaceFrame({ tabs, tab, onTab, error, busy, label = "Section", d
    Lived in spaces.jsx, so the trainer built its own "not set" fallback
    with a ternary and the two could disagree. */
 /**
- * @param {Record<LangId, Lang>} languages
+ * @param {Record<string, { name?: string }>} languages Only the name is read.
  * @param {LangId} [id]
  */
 export function languageName(languages, id) {
@@ -716,7 +716,7 @@ export function languageName(languages, id) {
   return ((languages || {})[id] || {}).name || id;
 }
 
-/** @param {{ languages: Record<LangId, Lang>, id?: LangId }} props */
+/** @param {{ languages: Record<string, { name?: string }>, id?: LangId }} props */
 export function LanguageTag({ languages, id }) {
   return <span className={`at-flag ${id ? "forms" : "flagged"}`}>{languageName(languages, id)}</span>;
 }
@@ -1416,7 +1416,11 @@ export function ItemList({
    ------------------------------------------------------------------ */
 
 /**
- * @param {{ card: Card, lang?: Lang, decks: Deck[] }} props
+ * @param {{
+ *   card: Card,
+ *   lang?: Lang,
+ *   decks: { id: string, title?: string }[],
+ * }} props Only a deck's id and title are read, to name where the card lives.
  */
 export function CardReadout({ card, lang, decks }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
@@ -1895,7 +1899,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
    wherever a language is asked for. */
 /**
  * @param {{
- *   languages: Record<LangId, Lang>,
+ *   languages: Record<string, { id: LangId, name: string }>,
  *   value?: LangId,
  *   onChange: (id: LangId) => void,
  *   label?: string, name?: string,

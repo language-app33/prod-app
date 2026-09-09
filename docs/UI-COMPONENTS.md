@@ -149,7 +149,11 @@ own.
 ### `CardTile` — 2 uses
 One card tile for both the learner's and the teacher's lists.
 
-`card, lang, deckTitles, showLat, meta, actions, onClick`
+`card, lang, showLat, meta, actions, onClick, className`
+
+`meta` is the one line of small print, and the caller decides what it says.
+It replaced a `deckTitles` prop, which this file and the gallery both went
+on advertising for a while afterwards.
 
 ### `Tile` — 7 uses
 The generic deck/course tile. `title, meta, onOpen, actions, footer`

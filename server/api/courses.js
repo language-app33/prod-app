@@ -645,9 +645,13 @@ export default async (req) => {
           if (!goneFrom) removals.set(did, (goneFrom = new Set()));
           goneFrom.add(id);
         }
-        let theirs = owned.get(card.owner);
-        if (!theirs) owned.set(card.owner, (theirs = []));
-        theirs.push(id);
+        /* A card from before owners were recorded has no per-owner list to
+           prune, so there is nothing to remember it under. */
+        if (card.owner) {
+          let theirs = owned.get(card.owner);
+          if (!theirs) owned.set(card.owner, (theirs = []));
+          theirs.push(id);
+        }
         result.deleted.push(id);
       }
       await pullFromDecks(removals);

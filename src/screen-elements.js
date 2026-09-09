@@ -22,6 +22,7 @@ export const QUESTION = "The question screen";
 export const ANSWER = "The answer screen";
 
 /* [name, what it is, an example of what it holds] */
+/** @type {[string, [string, string, string][]][]} */
 export const SCREEN_ELEMENTS = [
   [BOTH, [
     ["card", "The whole exercise block — everything between the progress bar and the buttons at the foot.", ""],

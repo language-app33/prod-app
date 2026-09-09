@@ -10,6 +10,7 @@
  *
  * The gallery itself is not counted: it renders one of everything.
  */
+/** @type {Record<string, { file: string, line: number, where: string }[]>} */
 export const COMPONENT_USES = {
   Button: [
     { file: "ArabicTrainer.jsx", line: 2548, where: "AfterAnswer" },
@@ -131,7 +132,7 @@ export const COMPONENT_USES = {
   ],
   ClipList: [
     { file: "ArabicTrainer.jsx", line: 5959, where: "ReviewItem" },
-    { file: "shared.jsx", line: 1465, where: "CardReadout" },
+    { file: "shared.jsx", line: 1469, where: "CardReadout" },
     { file: "spaces.jsx", line: 2804, where: "Recordings" },
   ],
   ConfirmModal: [
@@ -335,8 +336,8 @@ export const COMPONENT_USES = {
     { file: "shared.jsx", line: 1312, where: "ItemList" },
     { file: "shared.jsx", line: 1388, where: "ItemList" },
     { file: "shared.jsx", line: 1397, where: "ItemList" },
-    { file: "shared.jsx", line: 1627, where: "Snackbar" },
-    { file: "shared.jsx", line: 1871, where: "Screen" },
+    { file: "shared.jsx", line: 1631, where: "Snackbar" },
+    { file: "shared.jsx", line: 1875, where: "Screen" },
     { file: "spaces.jsx", line: 733, where: "CoursesPage" },
     { file: "spaces.jsx", line: 847, where: "CourseSettings" },
     { file: "spaces.jsx", line: 898, where: "CourseSettings" },
@@ -473,7 +474,7 @@ export const COMPONENT_USES = {
     { file: "spaces.jsx", line: 3058, where: "CardEditor" },
   ],
   Snackbar: [
-    { file: "shared.jsx", line: 1689, where: "useSnackbarState" },
+    { file: "shared.jsx", line: 1693, where: "useSnackbarState" },
   ],
   SnackbarProvider: [
     { file: "ArabicTrainer.jsx", line: 3816, where: "ArabicTrainer" },

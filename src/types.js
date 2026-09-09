@@ -200,7 +200,7 @@
  * without knowing which language uses which.
  * @typedef {CardForm & {
  *   id: string,
- *   owner: string,
+ *   owner?: string,
  *   lang: LangId,
  *   note?: string,
  *   subs?: CardForm[],

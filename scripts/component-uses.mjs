@@ -138,7 +138,7 @@ export function render(uses) {
  *
  * The gallery itself is not counted: it renders one of everything.
  */
-export const COMPONENT_USES = {
+/** @type {Record<string, { file: string, line: number, where: string }[]>} */\nexport const COMPONENT_USES = {
 ${body}
 };
 `;
