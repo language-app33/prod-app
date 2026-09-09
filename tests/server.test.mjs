@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * The server as the browser meets it: over a socket, through the same
  * routing, with nothing stubbed. The first test is the one that matters —
@@ -25,18 +26,76 @@ const ADMIN_KEY = "test-admin-key";
 process.env.ADMIN_KEY = ADMIN_KEY;
 const { createApp } = await import("../server/index.js");
 
+/**
+ * Start a server on a port the machine picks, and say where it landed.
+ *
+ * `address()` answers for the whole family of servers, including the ones
+ * on a unix socket that report a path rather than a port. These are always
+ * on a port, and this is where that is said once.
+ * @param {import("node:http").Server} server
+ * @returns {Promise<string>}
+ */
+async function listenSomewhere(server) {
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve(undefined)));
+  const at = server.address();
+  if (!at || typeof at === "string") throw new Error("expected a port, got a socket");
+  return `http://127.0.0.1:${at.port}`;
+}
+
+/**
+ * The one that has to be there.
+ *
+ * A `find` that misses is a broken test, and without this the miss shows
+ * up three lines later as "cannot read properties of undefined" — which
+ * names neither what was looked for nor where. It also tells the checker
+ * that everything after it is the thing, not perhaps-nothing.
+ * @template T
+ * @param {T | undefined | null} value
+ * @param {string} what
+ * @returns {T}
+ */
+function must(value, what) {
+  assert.ok(value, `expected to find ${what}`);
+  return value;
+}
+
+/**
+ * What the admin overview answered, named.
+ *
+ * The endpoint's answer is JSON and arrives untyped, so saying here which
+ * record it is is what makes the navigation below checked: a test that
+ * reads a field the overview does not carry is then a failure at the
+ * checker rather than an `undefined` compared against `undefined`.
+ * @param {{ json: any }} r
+ * @returns {import("../src/types.js").AdminOverview}
+ */
+const overviewOf = (r) => r.json;
+
+/**
+ * The courses a person is in, as `my-courses` answers.
+ * @param {{ json: any }} r
+ * @returns {import("../src/types.js").Course[]}
+ */
+const coursesOf = (r) => r.json.courses;
+
 const server = createApp();
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const origin = `http://127.0.0.1:${server.address().port}`;
+const origin = await listenSomewhere(server);
 
 after(async () => {
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => server.close(() => resolve(undefined)));
   await rm(dir, { recursive: true, force: true });
 });
 
 /* Deliberately not the app's client: this checks the wire, so it reads the
    body as text and parses it the same way a browser would have to. */
+/**
+ * One request against the running server, with the two headers the two
+ * endpoints authenticate by.
+ * @param {string} pathname
+ * @param {{ method?: string, key?: string, token?: string, body?: unknown }} [opts]
+ */
 async function api(pathname, { method = "GET", key, token, body } = {}) {
+  /** @type {Record<string, string>} */
   const headers = { "content-type": "application/json" };
   if (key) headers["x-key"] = key;
   if (token) headers["x-sync-token"] = token;
@@ -148,10 +207,13 @@ test("the deployed version is whatever is in dist, read fresh", async () => {
   /* A server pointed at a dist of our own, so the file can be changed
      underneath it. */
   process.env.DIST_DIR = distDir;
+  /* The query string is a cache-buster: it makes Node load a second copy
+     of the module, so this server reads DIST_DIR afresh. The checker
+     resolves the specifier literally and finds no such file. */
+  // @ts-expect-error the ?query is for Node's module cache, not for a path
   const mod = await import(`../server/index.js?version-test`);
   const own = mod.createApp();
-  await new Promise((resolve) => own.listen(0, "127.0.0.1", resolve));
-  const at = `http://127.0.0.1:${own.address().port}/api/version`;
+  const at = `${await listenSomewhere(own)}/api/version`;
 
   const unbuilt = await fetch(at);
   assert.equal(unbuilt.status, 404, "no dist yet, so nothing to report");
@@ -264,20 +326,21 @@ test("signing in, practising and writing a card are recorded apart", async () =>
   const handle = made.json.user.handle;
   const mine = async () => {
     const r = await api("/api/courses?action=admin-overview", { key });
-    return r.json.users.find((u) => u.handle === handle);
+    return must(overviewOf(r).users.find((u) => u.handle === handle), `user ${handle}`);
   };
 
   /* Signing up counts as being seen, and as nothing else: an account that
      has never been opened must not look like one that has been used. */
   let u = await mine();
-  assert.ok(u.lastSeen, "signing up did not record being seen");
+  const seenAt = must(u.lastSeen, "lastSeen after signing up");
   assert.equal(u.lastLearned, undefined, "a new account has not practiced");
   assert.equal(u.lastTaught, undefined, "a new account has not written anything");
 
   await new Promise((r) => setTimeout(r, 5));
   await api("/api/courses?action=practiced", { method: "POST", key, body: {} });
   const practiced = await mine();
-  assert.ok(practiced.lastLearned > u.lastSeen, "practising was not recorded");
+  const learnedAt = must(practiced.lastLearned, "lastLearned after practising");
+  assert.ok(learnedAt > seenAt, "practising was not recorded");
   assert.equal(practiced.lastTaught, undefined, "practising is not teaching work");
 
   await new Promise((r) => setTimeout(r, 5));
@@ -286,21 +349,26 @@ test("signing in, practising and writing a card are recorded apart", async () =>
   });
   assert.equal(card.status, 200, card.text);
   const taught = await mine();
-  assert.ok(taught.lastTaught > practiced.lastLearned, "writing a card was not recorded");
-  assert.equal(taught.lastLearned, practiced.lastLearned, "writing a card is not practising");
+  const taughtAt = must(taught.lastTaught, "lastTaught after writing a card");
+  assert.ok(taughtAt > learnedAt, "writing a card was not recorded");
+  assert.equal(taught.lastLearned, learnedAt, "writing a card is not practising");
 
   /* Making a deck counts too, and later than the card did. */
   await new Promise((r) => setTimeout(r, 5));
   await api("/api/courses?action=create-deck", { method: "POST", key, body: { title: "Lesson 1" } });
   const deck = await mine();
-  assert.ok(deck.lastTaught > taught.lastTaught, "making a deck was not recorded");
+  const deckAt = must(deck.lastTaught, "lastTaught after making a deck");
+  assert.ok(deckAt > taughtAt, "making a deck was not recorded");
 
   /* Reading is not work: opening the app moves being seen and nothing else. */
   await new Promise((r) => setTimeout(r, 5));
   await api("/api/courses?action=whoami", { key });
   const seen = await mine();
-  assert.ok(seen.lastSeen > deck.lastSeen, "signing in did not move being seen");
-  assert.equal(seen.lastTaught, deck.lastTaught, "reading is not teaching work");
+  assert.ok(
+    must(seen.lastSeen, "lastSeen after signing in") > must(deck.lastSeen, "lastSeen before"),
+    "signing in did not move being seen"
+  );
+  assert.equal(seen.lastTaught, deckAt, "reading is not teaching work");
   assert.equal(seen.lastLearned, deck.lastLearned, "reading is not practising");
 });
 
@@ -381,7 +449,7 @@ test("SIGTERM stops it cleanly, and npm has nothing to report", async () => {
 
   /* Wait until it is actually up: signalling mid-startup would prove
      nothing about the handler. */
-  await new Promise((resolve, reject) => {
+  await /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     const giveUp = setTimeout(() => reject(new Error(`never started: ${out}`)), 10000);
     const look = setInterval(() => {
       if (/listening on/.test(out)) {
@@ -390,7 +458,7 @@ test("SIGTERM stops it cleanly, and npm has nothing to report", async () => {
         resolve();
       }
     }, 50);
-  });
+  }));
 
   const stopped = new Promise((resolve) => child.on("exit", (code, signal) => resolve({ code, signal })));
   child.kill("SIGTERM");
@@ -449,7 +517,7 @@ test("an admin can rename a course, and nothing else about it moves", async () =
   assert.equal(renamed.json.title, "Beginner Arabic", "trimmed on the way in");
 
   const list = await api("/api/courses?action=admin-overview", { key });
-  const after = list.json.courses.find((c) => c.id === before.id);
+  const after = must(overviewOf(list).courses.find((c) => c.id === before.id), "the renamed course");
   assert.equal(after.title, "Beginner Arabic");
   assert.equal(after.id, before.id, "the id is what everything else is keyed by");
   assert.equal(after.code, before.code, "the student code still works");
@@ -461,7 +529,11 @@ test("an admin can rename a course, and nothing else about it moves", async () =
   /* And the student still reaches it, which is the thing a broken rename
      would quietly take away. */
   const theirs = await api("/api/courses?action=my-courses", { key: student.json.key });
-  assert.equal(theirs.json.courses.find((c) => c.id === before.id).title, "Beginner Arabic");
+  const stillTheirs = must(
+    coursesOf(theirs).find((c) => c.id === before.id),
+    "the renamed course, from the student's side"
+  );
+  assert.equal(stillTheirs.title, "Beginner Arabic");
 });
 
 test("a course cannot be renamed to nothing, and only an admin can rename one", async () => {
@@ -493,8 +565,11 @@ test("a course cannot be renamed to nothing, and only an admin can rename one", 
   });
   assert.equal(missing.status, 404);
 
-  const still = (await api("/api/courses?action=admin-overview", { key: admin.json.key }))
-    .json.courses.find((c) => c.id === course.id);
+  const still = must(
+    overviewOf(await api("/api/courses?action=admin-overview", { key: admin.json.key }))
+      .courses.find((c) => c.id === course.id),
+    "the course that kept its name"
+  );
   assert.equal(still.title, "Keeps Its Name", "none of that changed the name");
 });
 
@@ -521,8 +596,11 @@ test("a new person can be created into both roles at once", async () => {
   assert.equal(made.status, 200, made.text);
   const h = made.json.user.handle;
 
-  const after = (await api("/api/courses?action=admin-overview", { key })).json.courses
-    .find((c) => c.id === course.id);
+  const after = must(
+    overviewOf(await api("/api/courses?action=admin-overview", { key })).courses
+      .find((c) => c.id === course.id),
+    "the course just joined"
+  );
   assert.deepEqual(after.teachers, [h], "teaching");
   assert.deepEqual(after.students, [h], "and studying, from the one request");
 
@@ -531,8 +609,8 @@ test("a new person can be created into both roles at once", async () => {
     method: "POST", key, body: { displayName: "Rana", courseId: course.id, roles: ["student"] },
   });
   const rana = one.json.user.handle;
-  const two = (await api("/api/courses?action=admin-overview", { key })).json.courses
-    .find((c) => c.id === course.id);
+  const two = must(overviewOf(await api("/api/courses?action=admin-overview", { key }))
+    .courses.find((c) => c.id === course.id), "the course after adding Rana");
   assert.deepEqual(two.teachers, [h], "Rana is not made a teacher");
   assert.deepEqual(two.students, [h, rana]);
 
@@ -540,8 +618,8 @@ test("a new person can be created into both roles at once", async () => {
   const none = await api("/api/courses?action=admin-create-user", {
     method: "POST", key, body: { displayName: "Nobody", courseId: course.id, roles: [] },
   });
-  const three = (await api("/api/courses?action=admin-overview", { key })).json.courses
-    .find((c) => c.id === course.id);
+  const three = must(overviewOf(await api("/api/courses?action=admin-overview", { key }))
+    .courses.find((c) => c.id === course.id), "the course after adding nobody");
   assert.equal(three.teachers.length + three.students.length, 3, "nobody was added");
   assert.ok(none.json.user.handle, "but the account exists");
 
@@ -550,8 +628,8 @@ test("a new person can be created into both roles at once", async () => {
   const old = await api("/api/courses?action=admin-create-user", {
     method: "POST", key, body: { displayName: "Legacy", courseId: course.id, role: "student" },
   });
-  const four = (await api("/api/courses?action=admin-overview", { key })).json.courses
-    .find((c) => c.id === course.id);
+  const four = must(overviewOf(await api("/api/courses?action=admin-overview", { key }))
+    .courses.find((c) => c.id === course.id), "the course after the legacy role");
   assert.ok(four.students.includes(old.json.user.handle), "added as the student they asked for");
   assert.ok(!four.teachers.includes(old.json.user.handle));
 });
@@ -573,8 +651,11 @@ test("removing one role leaves the other, and removing the last one leaves the c
   await api("/api/courses?action=assign-teacher", { method: "POST", key, body: { courseId: course.id, handle: h } });
   await api("/api/courses?action=assign-student", { method: "POST", key, body: { courseId: course.id, handle: h } });
 
-  const seen = async () => (await api("/api/courses?action=admin-overview", { key })).json.courses
-    .find((c) => c.id === course.id);
+  const seen = async () => must(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .courses.find((c) => c.id === course.id),
+    "the course whose roles are being changed"
+  );
   const both = await seen();
   assert.deepEqual([both.teachers, both.students], [[h], [h]]);
 
@@ -617,7 +698,7 @@ test("a student's flag reaches the administrator, and says who sent it and when"
   });
   assert.equal(sent.status, 200, sent.text);
 
-  const seen = (await api("/api/courses?action=admin-overview", { key })).json.flags;
+  const seen = overviewOf(await api("/api/courses?action=admin-overview", { key })).flags;
   const mine = seen.find((f) => f.id === sent.json.id);
   assert.ok(mine, "the flag is in the overview");
   assert.equal(mine.kind, "strict");
@@ -630,8 +711,8 @@ test("a student's flag reaches the administrator, and says who sent it and when"
   await api("/api/courses?action=rename", {
     method: "POST", key: student.json.key, body: { displayName: "Tariq S" },
   });
-  const renamed = (await api("/api/courses?action=admin-overview", { key })).json.flags
-    .find((f) => f.id === sent.json.id);
+  const renamed = must(overviewOf(await api("/api/courses?action=admin-overview", { key }))
+    .flags.find((f) => f.id === sent.json.id), "the flag after its sender was renamed");
   assert.equal(renamed.handleName, "Tariq S");
 
   /* Cleared, and gone for good. */
@@ -639,7 +720,7 @@ test("a student's flag reaches the administrator, and says who sent it and when"
     method: "POST", key, body: { flagIds: [sent.json.id] },
   });
   assert.equal(cleared.json.deleted, 1);
-  const after = (await api("/api/courses?action=admin-overview", { key })).json.flags;
+  const after = overviewOf(await api("/api/courses?action=admin-overview", { key })).flags;
   assert.equal(after.find((f) => f.id === sent.json.id), undefined, "and it does not come back");
 });
 
@@ -696,14 +777,14 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
   const deck = (await api("/api/courses?action=create-deck", {
     method: "POST", key, body: { title: "Flagged Lesson", lang: "ar-PS" },
   })).json.deck;
-  const make = async (ar, en) => (await api("/api/courses?action=save-card", {
+  const make = async (/** @type {string} */ ar, /** @type {string} */ en) => (await api("/api/courses?action=save-card", {
     method: "POST", key, body: { card: { ar, en, lang: "ar-PS" }, decks: [deck.id] },
   })).json.card;
   const untouched = await make("كِتاب", "book");
   const edited = await make("بيت", "house");
   const deleted = await make("باب", "door");
 
-  const flag = async (cardId) => (await api("/api/courses?action=report-flag", {
+  const flag = async (/** @type {string} */ cardId) => (await api("/api/courses?action=report-flag", {
     method: "POST", key: student.json.key,
     body: { kind: "data", cardId, exercise: "ar2en", language: "ar-PS" },
   })).json.id;
@@ -725,8 +806,8 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
   });
   await api("/api/courses?action=delete-card", { method: "POST", key, body: { cardId: deleted.id } });
 
-  const seen = (await api("/api/courses?action=admin-overview", { key })).json.flags;
-  const stateOf = (id) => (seen.find((f) => f.id === id) || {}).cardState;
+  const seen = overviewOf(await api("/api/courses?action=admin-overview", { key })).flags;
+  const stateOf = (/** @type {string} */ id) => seen.find((f) => f.id === id)?.cardState;
   assert.equal(stateOf(ids.untouched), "here", "a card nobody has touched says nothing");
   assert.equal(stateOf(ids.edited), "edited", "one saved since may already be fixed");
   assert.equal(stateOf(ids.deleted), "gone", "and one deleted since cannot be opened");
@@ -734,7 +815,7 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
   /* The bug this heals: every one of these read as a card that could not
      be found, about material the learner did not make and cannot change. */
   assert.equal(stateOf(ids.prefixed), "here", "a report naming the device's own id still finds the card");
-  const healed = seen.find((f) => f.id === ids.prefixed);
+  const healed = must(seen.find((f) => f.id === ids.prefixed), "the flag sent under the device's id");
   assert.equal(healed.cardId, untouched.id, "and it is handed back under the card's real id");
 
   /* And the card itself can be read from here, which is the only way in:
@@ -793,8 +874,8 @@ test("an older report still finds its card, and does not invent an edit", async 
   const index = JSON.parse((await store.get("index:flags", { type: "text" })) || "[]");
   await store.set("index:flags", JSON.stringify(index.concat([old.id])));
 
-  const seen = (await api("/api/courses?action=admin-overview", { key })).json.flags
-    .find((f) => f.id === old.id);
+  const seen = must(overviewOf(await api("/api/courses?action=admin-overview", { key }))
+    .flags.find((f) => f.id === old.id), "the flag written before revisions were kept");
   assert.equal(seen.cardState, "here", "nothing is claimed about a card it cannot compare");
   assert.equal(seen.cardId, card.id, "and it names the card the way the site does");
 

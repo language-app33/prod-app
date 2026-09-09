@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * The reference in Admin → App and the screens it describes, kept in step.
  *

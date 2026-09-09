@@ -1,3 +1,4 @@
+// @ts-check
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mergeData, compactItem, isFreshState, syncClips, clipIdsIn } from "../src/sync.js";

@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * The app must not know any language's rules.
  *

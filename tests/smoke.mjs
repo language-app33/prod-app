@@ -1,3 +1,4 @@
+// @ts-check
 /* Renders the real app in jsdom against a stubbed server, and checks that
    the paths changed in this round actually run: sync keyed to the sign-in
    key, my-material with a version, legacy document cleanup, sparse
@@ -39,25 +40,44 @@ const dom = new JSDOM(`<!doctype html><html><body><div id="root"></div></body></
   pretendToBeVisual: true,
 });
 const w = dom.window;
+
+/*
+ * The browser APIs jsdom does not bring, stood in for.
+ *
+ * Every one of these is a deliberate part-implementation: the app touches
+ * a corner of each, and what is here is that corner. They are cast rather
+ * than completed because completing them would be writing a browser —
+ * `matchMedia` would gain a `media`, a `dispatchEvent` and an `onchange`
+ * that nothing reads, and the stub would say less about what the app uses,
+ * not more.
+ */
+const anyGlobal = /** @type {Record<string, any>} */ (/** @type {unknown} */ (globalThis));
+const anyWindow = /** @type {Record<string, any>} */ (/** @type {unknown} */ (w));
+
 for (const k of ["window", "document", "navigator", "HTMLElement", "Node", "Event", "CustomEvent", "localStorage", "sessionStorage", "requestAnimationFrame", "cancelAnimationFrame", "getComputedStyle"]) {
-  Object.defineProperty(globalThis, k, { value: w[k], configurable: true, writable: true });
+  Object.defineProperty(globalThis, k, { value: anyWindow[k], configurable: true, writable: true });
 }
-w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
-globalThis.matchMedia = w.matchMedia;
+anyWindow.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} });
+anyGlobal.matchMedia = anyWindow.matchMedia;
 w.URL.createObjectURL = () => "blob:https://taleb.test/x";
 w.URL.revokeObjectURL = () => {};
 globalThis.URL.createObjectURL = w.URL.createObjectURL;
 globalThis.URL.revokeObjectURL = w.URL.revokeObjectURL;
-globalThis.Audio = class { play() { return Promise.resolve(); } pause() {} };
-w.Audio = globalThis.Audio;
+anyGlobal.Audio = class { play() { return Promise.resolve(); } pause() {} };
+anyWindow.Audio = anyGlobal.Audio;
 Object.defineProperty(w, "crypto", { value: globalThis.crypto, configurable: true });
-delete w.indexedDB; // exercise the no-IndexedDB fallback path
+delete anyWindow.indexedDB; // exercise the no-IndexedDB fallback path
 
 /* ---- the fake server ---- */
+/** @type {string[]} */
 const calls = [];
 /* The bodies of any flags reported, so what was sent can be read rather
    than merely counted. */
+/** @type {any[]} */
 const reported = [];
+/* `data` is the wire document: JSON as the sync endpoint stores it, which
+   the checks below navigate field by field. */
+/** @type {Map<string, { etag: string, data: any }>} */
 const remoteDocs = new Map(); // token -> {etag, data}
 const account = { handle: "sara-4f2a", displayName: "Sara", key: "amber-cedar-harbour-lantern-1a2b", admin: false };
 const card = {
@@ -79,7 +99,18 @@ let versionHits = 0;
 /* The build the bundle was compiled with — see the define above — so the
    app and the server agree until a test makes them disagree. */
 let deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
-w.fetch = globalThis.fetch = async (input, opts = {}) => {
+/**
+ * The whole server, as far as the app is concerned.
+ *
+ * Duck-typed on purpose: it answers with the two readers the clients
+ * actually use — json() and text() — rather than a whole Response, and it
+ * takes the three request fields they actually send. What the app touches
+ * is what is written here, so a change to what it touches fails here
+ * instead of being quietly satisfied by a fuller stand-in.
+ * @param {string | URL | Request} input
+ * @param {{ method?: string, body?: string, headers?: Record<string, string> }} [opts]
+ */
+const fakeFetch = async (input, opts = {}) => {
   const url = new URL(String(input), "https://taleb.test");
   const method = opts.method || "GET";
   const action = url.searchParams.get("action");
@@ -87,6 +118,10 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
   /* Both readers, because the courses client reads the body as text and
      the sync client calls json(). A stub that offered only one would let a
      change to either slip through here. */
+  /**
+   * @param {unknown} body
+   * @param {number} [status]
+   */
   const json = (body, status = 200) => ({
     ok: status < 300,
     status,
@@ -117,20 +152,20 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
     if (action === "report-flag") {
-      reported.push(JSON.parse(opts.body));
+      reported.push(JSON.parse(opts.body || "{}"));
       return json({ ok: true, id: "flag-1" });
     }
     return json({ error: "unknown-action" }, 400);
   }
   if (url.pathname === "/api/sync") {
-    const token = opts.headers && opts.headers["x-sync-token"];
+    const token = (opts.headers || {})["x-sync-token"] || "";
     if (url.searchParams.get("audio")) return json({ error: "not-found" }, 404);
     if (method === "GET") {
       const doc = remoteDocs.get(token);
       return json(doc ? { etag: doc.etag, data: doc.data } : { etag: null, data: null });
     }
     if (method === "POST") {
-      const body = JSON.parse(opts.body);
+      const body = JSON.parse(opts.body || "{}");
       const etag = `e${remoteDocs.size + 1}-${Date.now()}`;
       remoteDocs.set(token, { etag, data: body.data });
       return json({ ok: true, etag });
@@ -142,6 +177,7 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
   }
   return json({ error: "nope" }, 404);
 };
+anyWindow.fetch = anyGlobal.fetch = fakeFetch;
 
 /* ---- what the device held before this build: a signed-in account and a
    document from an older build carrying its own private sync key ---- */
@@ -151,6 +187,7 @@ localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
   version: 3, items: [], tombstones: {}, log: {}, settings: { language: "ar-PS" },
   account: { handle: "me-0000", displayName: "Me", key: legacyKey },
 }));
+/** @param {string} s */
 const sha = async (s) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))).map((b) => b.toString(16).padStart(2, "0")).join("");
 const legacyToken = await sha(legacyKey);
 const realToken = await sha(account.key);
@@ -177,25 +214,35 @@ remoteDocs.set(realToken, {
 });
 
 /* ---- render ---- */
+/** @type {string[]} */
 const errors = [];
 const origError = console.error;
-console.error = (...a) => { errors.push(a.map(String).join(" ")); };
+console.error = (/** @type {unknown[]} */ ...a) => { errors.push(a.map(String).join(" ")); };
 const { storage } = await import(path.join(out, "storage.js"));
-w.storage = globalThis.window.storage = storage;
+anyWindow.storage = anyGlobal.window.storage = storage;
 const React = (await import("react")).default;
 const { createRoot } = await import("react-dom/client");
 const App = (await import(path.join(out, "ArabicTrainer.js"))).default;
-const root = createRoot(document.getElementById("root"));
+const mount = document.getElementById("root");
+if (!mount) throw new Error("the jsdom page has no #root to render into");
+const root = createRoot(mount);
 root.render(React.createElement(App));
 
+/** @param {number} ms */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 await sleep(1500);   // load, whoami, my-material, first sync
 // a second refresh should hit the version and come back unchanged
 w.dispatchEvent(new w.Event("focus"));
 await sleep(600);
 
-const text = document.body.textContent;
+const text = document.body.textContent || "";
+/** @type {string[]} */
 const results = [];
+/**
+ * @param {string} label
+ * @param {unknown} ok
+ * @param {string} [detail]
+ */
 const check = (label, ok, detail = "") => results.push(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? " — " + detail : ""}`);
 
 check("app rendered the home screen", /Cards ready to practice/.test(text), text.slice(0, 80).replace(/\s+/g, " "));
@@ -205,10 +252,13 @@ check("material fetched via one request, no my-courses/course-decks/deck-cards",
 check("second refresh was answered 'unchanged' (version round-tripped)", materialHits >= 2);
 check("synced under the sign-in key's token", remoteDocs.has(realToken));
 check("legacy private document deleted", !remoteDocs.has(legacyToken), calls.filter((c) => c.startsWith("DELETE")).join(","));
-const stored = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
+const stored = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
 check("stored document no longer carries an account", !("account" in stored));
-const byId = Object.fromEntries(stored.items.map((i) => [i.id, i]));
-check("both course cards and both old cards landed in storage", stored.items.length === 4 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((i) => i.id).join(",")}`);
+/* Everything below reads the app's own two documents — the one in storage
+   and the one on the wire — as the JSON they are. */
+/** @type {Record<string, any>} */
+const byId = Object.fromEntries(stored.items.map((/** @type {any} */ i) => [i.id, i]));
+check("both course cards and both old cards landed in storage", stored.items.length === 4 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
 
 /* What a course card is, rather than what it used to be told it was. Every
    one of them arrived labelled "word" — which is why the practice filter did
@@ -228,7 +278,7 @@ check("a v2 card gains no state for the retired exercise",
   byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
 check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
 check("every card counts as ready to practice", /Cards ready to practice\s*4/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
-const wire = remoteDocs.get(realToken) && remoteDocs.get(realToken).data;
+const wire = remoteDocs.get(realToken)?.data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
    along untouched, because sync unions whatever keys either side has so that
@@ -236,20 +286,54 @@ const wire = remoteDocs.get(realToken) && remoteDocs.get(realToken).data;
    That is deliberate, and the reason a retired type's state is left alone
    rather than filtered out of the document. */
 const V2_KEYS = ["mean", "read", "write"];
-const typeStates = (i) => Object.keys(i.s).filter((k) => !V2_KEYS.includes(k));
-check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((i) => typeStates(i).length <= 1), wire ? wire.items.map((i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
-check("the retired exercise is never written into the document", wire && wire.items.every((i) => !("ar2tr" in i.s)), wire ? wire.items.map((i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
+const typeStates = (/** @type {any} */ i) => Object.keys(i.s).filter((k) => !V2_KEYS.includes(k));
+check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((/** @type {any} */ i) => typeStates(i).length <= 1), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
+check("the retired exercise is never written into the document", wire && wire.items.every((/** @type {any} */ i) => !("ar2tr" in i.s)), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
 check("clip sync uploaded nothing (no blob: URLs)", !calls.some((c) => c.startsWith("POST /api/sync?audio")));
 check("clip sync did not fetch course recordings as a side effect", !calls.some((c) => c.includes("action=clip")), calls.filter((c) => c.includes("clip")).join(","));
 
 /* ---- the manual session builder, now rendered through Screen ---- */
+/**
+ * The one that has to be there.
+ *
+ * A query that misses is a broken harness, and without this the miss
+ * shows up two lines later as "cannot read properties of null", which
+ * names neither what was looked for nor where.
+ * @template T
+ * @param {T | null | undefined} value
+ * @param {string} what
+ * @returns {T}
+ */
+function must(value, what) {
+  if (value === null || value === undefined) throw new Error(`expected to find ${what}`);
+  return value;
+}
+
+/** @param {RegExp} re */
 const clickNamed = (re) => {
-  const b = [...document.querySelectorAll("button")].find((x) => re.test(x.textContent));
+  const b = buttonNamed(re);
   if (b) b.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
   return !!b;
 };
+/** @param {Element | null | undefined} el */
 const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles: true, cancelable: true }));
-const buttonNamed = (re) => [...document.querySelectorAll("button")].find((b) => re.test(b.textContent));
+/** @param {RegExp} re */
+const buttonNamed = (re) =>
+  [...document.querySelectorAll("button")].find((b) => re.test(b.textContent || ""));
+
+/**
+ * A button by its label, described whether or not it is there.
+ *
+ * The walk below asks three things of the same button — that it exists,
+ * whether it is disabled, and what it says — and asked each separately,
+ * which re-read the DOM between them and left every use to cope with a
+ * miss again. Read once, said three ways.
+ * @param {RegExp} re
+ */
+const buttonState = (re) => {
+  const b = buttonNamed(re);
+  return { there: !!b, disabled: !!b && b.disabled, label: (b && b.textContent) || "" };
+};
 
 check("the manual session builder opens", clickNamed(/Build a session|Choose what to practice|Pick cards/) || true);
 await sleep(300);
@@ -262,45 +346,45 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      Ultimate is the longest session on offer to hand somebody by default. */
   const modeCards = [...document.querySelectorAll(".at-modecard")];
   check("the modes are all offered, none of them chosen", modeCards.length > 1 && !modeCards.some((b) => b.classList.contains("on")),
-    `${modeCards.length} modes, ${modeCards.filter((b) => b.classList.contains("on")).map((b) => b.textContent.slice(0, 12)).join(",") || "none"} lit`);
+    `${modeCards.length} modes, ${modeCards.filter((b) => b.classList.contains("on")).map((b) => (b.textContent || "").slice(0, 12)).join(",") || "none"} lit`);
 
-  const next = () => buttonNamed(/^(Next|Choose a mode|Choose at least one card)$/);
-  check("and you cannot go on until you choose one", !!next() && next().disabled, (next() && next().textContent) || "no button");
-  check("the button says what is missing rather than sitting dead", !!next() && /Choose a mode/.test(next().textContent),
-    (next() && next().textContent) || "");
+  const next = () => buttonState(/^(Next|Choose a mode|Choose at least one card)$/);
+  check("and you cannot go on until you choose one", next().there && next().disabled, next().label || "no button");
+  check("the button says what is missing rather than sitting dead", next().there && /Choose a mode/.test(next().label),
+    next().label);
 
-  click(modeCards.find((b) => /Regular/.test(b.textContent)));
+  click(modeCards.find((b) => /Regular/.test(b.textContent || "")));
   await sleep(80);
-  check("choosing one lets you go on", !!next() && !next().disabled && /^Next$/.test(next().textContent),
-    (next() && next().textContent) || "");
+  check("choosing one lets you go on", next().there && !next().disabled && /^Next$/.test(next().label),
+    next().label);
 
   /* Cards, which had no default and still should not. */
-  click(next());
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
   await sleep(120);
   check("no card is chosen for you either", !document.querySelector(".at-tagpick.on, .at-minicard.on"));
   const everything = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Everything/.test(b.textContent));
   click(everything);
   await sleep(80);
-  click(next());
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
   await sleep(120);
 
   /* Length: two segmented controls, and on opening neither should have a
      segment lit. */
   const lit = [...document.querySelectorAll(".at-lengthgroup .on, .at-lengthgroup [aria-checked=true], .at-lengthgroup [aria-selected=true]")];
   check("no length is chosen for you", lit.length === 0, lit.map((e) => e.textContent).join(","));
-  const start = () => buttonNamed(/^(Start|Choose a length)$/);
+  const start = () => buttonState(/^(Start|Choose a length)$/);
   check("and it says so instead of starting a session you did not describe",
-    !!start() && start().disabled && /Choose a length/.test(start().textContent),
-    (start() && start().textContent) || "no button");
+    start().there && start().disabled && /Choose a length/.test(start().label),
+    start().label || "no button");
 
-  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => b.textContent.trim() === "10"));
+  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => (b.textContent || "").trim() === "10"));
   await sleep(80);
-  check("choosing a length is all that was left", !!start() && !start().disabled && /^Start$/.test(start().textContent),
-    (start() && start().textContent) || "");
+  check("choosing a length is all that was left", start().there && !start().disabled && /^Start$/.test(start().label),
+    start().label);
 
   /* The whole point of the walk: it still builds. Two new blocking
      conditions are two new ways to wedge the builder shut. */
-  click(start());
+  clickNamed(/^(Start|Choose a length)$/);
   await sleep(400);
   check("a hand-built session actually starts", !!document.querySelector(".at-instruction"),
     document.body.textContent.slice(0, 120));
@@ -319,9 +403,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     await sleep(250);
   }
   check("a question asking for the script was reached", !!scriptField,
-    document.body.textContent.slice(0, 90));
-  if (scriptField) {
-    const wrap = scriptField.parentElement;
+    (document.body.textContent || "").slice(0, 90));
+  const wrap = scriptField && scriptField.parentElement;
+  if (wrap) {
     check("the answer field carries the keys button in its corner",
       wrap.classList.contains("at-inputwrap") && !!wrap.querySelector(".at-keybtn"),
       wrap.className);
@@ -330,11 +414,11 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("and the wrapper says which end of the line that is",
       wrap.classList.contains("rtl"), wrap.className);
     check("and nothing is left of the labelled button under the box",
-      !document.querySelector(".at-kbtoggle") && !/Show on-screen keys/.test(document.body.textContent));
+      !document.querySelector(".at-kbtoggle") && !/Show on-screen keys/.test(document.body.textContent || ""));
 
     /* It says what it is and whether it is on, which is all a button with
        no words on it has to go on. */
-    const keys = wrap.querySelector(".at-keybtn");
+    const keys = must(wrap.querySelector(".at-keybtn"), "the keys button in the answer field");
     check("the icon-only button is named for a screen reader",
       keys.getAttribute("aria-label") === "On-screen keys" && keys.getAttribute("aria-pressed") !== null,
       `${keys.getAttribute("aria-label")} / pressed=${keys.getAttribute("aria-pressed")}`);
@@ -345,7 +429,8 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("and it opens and closes the keys",
       !!document.querySelector(".at-kb") !== wasOpen,
       `was ${wasOpen ? "open" : "shut"}, now ${document.querySelector(".at-kb") ? "open" : "shut"}`);
-    check("the button shows which it is", wrap.querySelector(".at-keybtn").getAttribute("aria-pressed") === String(!wasOpen));
+    check("the button shows which it is",
+      must(wrap.querySelector(".at-keybtn"), "the keys button").getAttribute("aria-pressed") === String(!wasOpen));
     click(wrap.querySelector(".at-keybtn"));
     await sleep(120);
   }
@@ -373,10 +458,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
        not a comment — it is text, and it renders. Nothing else here would
        have caught it: every name was present and every class was right,
        and the card simply had a paragraph of source code across the top. */
-    const card = document.querySelector(".at-exercise");
+    const card = must(document.querySelector(".at-exercise"), "the exercise card");
     check("no source comment leaked into the card",
-      !/\/\*|\*\/|data-el name/.test(card.textContent),
-      card.textContent.slice(0, 100));
+      !/\/\*|\*\/|data-el name/.test(card.textContent || ""),
+      (card.textContent || "").slice(0, 100));
 
     /* The gap that a duplicated className attribute used to swallow. */
     const box = document.querySelector('[data-el="answer-box"]');
@@ -410,7 +495,8 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
         !!val && val.classList.contains("at-hintvalue") && !!val.firstElementChild,
         val ? val.className : "no hint value");
       check("and the value inside it is named too",
-        !!val && val.firstElementChild.getAttribute("data-el") === "hint-value-text",
+        !!val && !!val.firstElementChild &&
+          val.firstElementChild.getAttribute("data-el") === "hint-value-text",
         val && val.firstElementChild ? val.firstElementChild.outerHTML.slice(0, 60) : "");
     }
 
@@ -447,7 +533,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const inBox = alsoBox ? [...alsoBox.children].map((e) => e.getAttribute("data-el")) : [];
     const FAMILY = ["also-context", "also-script", "also-hint", "also-audio", "related-words"];
     check("and everything in it is one of the blocks that were loose on the page",
-      inBox.length > 0 && inBox.every((n) => FAMILY.includes(n)), inBox.join(" ") || "empty");
+      inBox.length > 0 && inBox.every((n) => FAMILY.includes(n || "")), inBox.join(" ") || "empty");
     /* It used to sit three blocks below its own siblings, under the notes. */
     const heard = inBox.indexOf("also-audio");
     check("how it sounds sits with its siblings, not below the notes",
@@ -464,12 +550,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
        bar, same place on the screen, so a long answer can never push it
        out of reach. */
     const cont = document.querySelector('[data-el="continue-button"]');
+    const contBar = cont && cont.parentElement;
     check("continue is in the bar pinned to the foot of the screen",
-      !!cont && cont.parentElement.classList.contains("at-answerbar"),
-      cont ? cont.parentElement.className : "no continue button");
+      !!contBar && contBar.classList.contains("at-answerbar"),
+      contBar ? contBar.className : "no continue button");
     check("and it is the only thing in it, so it takes the whole width",
-      !!cont && cont.parentElement.children.length === 1,
-      cont ? String(cont.parentElement.children.length) : "");
+      !!contBar && contBar.children.length === 1,
+      contBar ? String(contBar.children.length) : "");
 
     /* Flagging is pinned with it, one step above. It used to trail below
        the answer, so on a long one you had to scroll to reach the button
@@ -481,9 +568,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !!foot && !!flag && foot.contains(flag), foot ? foot.className : "no foot");
     check("and it sits above the bar, not inside it",
       !!flag && !!flag.closest(".at-footextra") && !flag.closest(".at-answerbar"),
-      flag ? flag.parentElement.className : "no flag");
+      flag && flag.parentElement ? flag.parentElement.className : "no flag");
     check("the bar is the last thing in the foot, so the flag is above it",
-      !!foot && foot.lastElementChild.classList.contains("at-answerbar"),
+      !!foot && !!foot.lastElementChild && foot.lastElementChild.classList.contains("at-answerbar"),
       foot ? [...foot.children].map((c) => c.className).join(" | ") : "");
 
     /* What can be wrong, as cards rather than as a list of labels: a title
@@ -496,8 +583,8 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const menu = document.querySelector('[data-el="flag-menu"]');
     const opts = menu ? [...menu.querySelectorAll(".at-flagopt")] : [];
     check("the flag button opens the menu, and says that it has",
-      !!menu && flag.getAttribute("aria-expanded") === "true",
-      menu ? String(flag.getAttribute("aria-expanded")) : "no menu");
+      !!menu && !!flag && flag.getAttribute("aria-expanded") === "true",
+      menu && flag ? String(flag.getAttribute("aria-expanded")) : "no menu");
     check("it offers the three things that can be wrong", opts.length === 3,
       opts.map((o) => o.textContent).join(" | "));
     check("each is a card: what it is, and when to pick it",
@@ -523,12 +610,16 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 
     /* jsdom's value setter is the React-controlled one, so the change has
        to be made the way a keystroke makes it. */
-    const setValue = Object.getOwnPropertyDescriptor(w.HTMLTextAreaElement.prototype, "value").set;
-    setValue.call(noteInput, "the recording plays a different word");
-    noteInput.dispatchEvent(new w.Event("input", { bubbles: true }));
+    const setValue = must(
+      Object.getOwnPropertyDescriptor(w.HTMLTextAreaElement.prototype, "value"),
+      "the textarea's value descriptor"
+    ).set;
+    must(setValue, "the textarea's value setter")
+      .call(must(noteInput, "the flag note box"), "the recording plays a different word");
+    must(noteInput, "the flag note box").dispatchEvent(new w.Event("input", { bubbles: true }));
     await sleep(60);
-    check("typing enables it", !buttonNamed(/^Send$/).disabled);
-    click(buttonNamed(/^Send$/));
+    check("typing enables it", !buttonState(/^Send$/).disabled);
+    clickNamed(/^Send$/);
     await sleep(120);
     check("sending reports it to the server",
       calls.some((c) => c.includes("report-flag")), calls.slice(-3).join(", "));
@@ -552,10 +643,11 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the card is named by its id on the server, not this device's",
       typeof sentFlag.cardId === "string" && !/^srv/.test(sentFlag.cardId),
       String(sentFlag.cardId));
+    const flagBtn = document.querySelector('[data-el="flag-button"]');
     check("the menu closes and the button says so",
       !document.querySelector('[data-el="flag-menu"]') &&
-        /Flagged/.test(document.querySelector('[data-el="flag-button"]').textContent),
-      document.querySelector('[data-el="flag-button"]').textContent);
+        /Flagged/.test((flagBtn && flagBtn.textContent) || ""),
+      (flagBtn && flagBtn.textContent) || "no flag button");
 
     /* The naming scheme, kept honest. A -label or a -text is the second or
        third name of a block, so the block itself has to exist and has to be
@@ -567,7 +659,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const all = new Set(inCard.map((e) => e.getAttribute("data-el")));
     const orphans = [];
     for (const el of inCard) {
-      const n = el.getAttribute("data-el");
+      const n = el.getAttribute("data-el") || "";
       const m = /^(.*)-(label|text)$/.exec(n);
       if (!m) continue;
       const block = document.querySelector(`[data-el="${m[1]}"]`);
@@ -582,7 +674,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
        particular one did. */
     check("the blocks that hold the extras after an answer are named",
       ["also-hint", "also-context", "also-script", "also-audio", "related-words"].some((n) => all.has(n)),
-      [...all].filter((n) => n.startsWith("also") || n === "related-words").join(" ") || "none on this card");
+      [...all].filter((n) => (n || "").startsWith("also") || n === "related-words").join(" ") || "none on this card");
 
     click(buttonNamed(/Continue|Next/));
     await sleep(300);
@@ -592,7 +684,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      room for the fixed chrome, and none of that chrome renders during an
      exercise — so the class that takes the room back has to be on while a
      question is up, and off the moment it isn't. */
-  const root = document.querySelector(".at");
+  const root = must(document.querySelector(".at"), "the app's root element");
   check("an exercise reclaims the room reserved for the chrome",
     root.classList.contains("in-exercise"), root.className);
 
@@ -603,10 +695,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   click(buttonNamed(/^Leave$/));
   await sleep(250);
   check("and you can leave it again", !document.querySelector(".at-instruction"),
-    document.body.textContent.slice(0, 80));
+    (document.body.textContent || "").slice(0, 80));
+  const back = must(document.querySelector(".at"), "the app's root element");
   check("and gives it back, so the chrome has somewhere to sit",
-    !document.querySelector(".at").classList.contains("in-exercise"),
-    document.querySelector(".at").className);
+    !back.classList.contains("in-exercise"), back.className);
 
   /* Kept for the browser check, which needs cards to have a session at
      all and cannot make them through the UI in reasonable time. */
@@ -634,13 +726,15 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   const ver = document.querySelector(".at-cver");
   check("the corner menu carries a version", !!ver,
     ver ? "" : document.querySelector(".at-cmenu") ? "menu open, no version line" : "the menu did not open");
+  const verHead = ver && ver.querySelector("b");
+  const verWhen = ver && ver.querySelector("i");
   check("the headline is the release, not a hash",
-    !!ver && /^Version 0\.1\b/.test(ver.querySelector("b").textContent.trim()),
-    (ver && ver.querySelector("b").textContent) || "");
-  check("it names the build this bundle came from", !!ver && /abc1234/.test(ver.textContent),
+    !!verHead && /^Version 0\.1\b/.test((verHead.textContent || "").trim()),
+    (verHead && verHead.textContent) || "");
+  check("it names the build this bundle came from", !!ver && /abc1234/.test(ver.textContent || ""),
     (ver && ver.textContent) || "");
   check("it says when, so two deploys in a day are distinguishable",
-    !!ver && /\d/.test(ver.querySelector("i").textContent), (ver && ver.querySelector("i").textContent) || "");
+    !!verWhen && /\d/.test(verWhen.textContent || ""), (verWhen && verWhen.textContent) || "");
   /* Three looks, side by side, one lit — rather than one button that
      cycled and made you tap twice to go back one. */
   const appearance = document.querySelector(".at-cseg .at-segmented");
@@ -693,7 +787,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       act ? `${act.tagName} "${act.textContent.trim()}"` : "none");
     const syncs = () => calls.filter((c) => c === "POST /api/sync").length;
     const before = syncs();
-    click(row.querySelector(".at-clinetext"));
+    click(must(row, "the sync row").querySelector(".at-clinetext"));
     await sleep(90);
     check("tapping the row starts nothing", syncs() === before, `${before} → ${syncs()}`);
     click(act);
@@ -837,13 +931,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(300);
   const open = document.querySelector(".at-screen .at-readout, .at-readout");
   check("tapping one opens the whole card", !!open,
-    document.body.textContent.slice(0, 100).replace(/\s+/g, " "));
+    (document.body.textContent || "").slice(0, 100).replace(/\s+/g, " "));
   /* The same readout the Cards tab opens, not a second description of a
      card written for this screen. */
+  const tileWord = tile && tile.querySelector(".ar");
   check("and it is the card the tile was showing",
-    !!open && open.textContent.includes(tile.querySelector(".ar").textContent.trim()),
-    open ? open.textContent.slice(0, 60).replace(/\s+/g, " ") : "(nothing open)");
-  click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent) || b.getAttribute("aria-label") === "Back"));
+    !!open && !!tileWord && (open.textContent || "").includes((tileWord.textContent || "").trim()),
+    open ? (open.textContent || "").slice(0, 60).replace(/\s+/g, " ") : "(nothing open)");
+  click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent || "") || b.getAttribute("aria-label") === "Back"));
   await sleep(250);
   click(buttonNamed(/^Home$/));
   await sleep(300);
@@ -861,10 +956,13 @@ if (input) {
   check(
     "answer input is declared as the card's language (or none for English), never hard-coded 'ar'",
     lang === null || lang === "ar-PS",
-    `lang=${lang}, exercise: ${instruction.textContent}`
+    `lang=${lang}, exercise: ${instruction && instruction.textContent}`
   );
-  const setter = Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value").set;
-  setter.call(input, "book");
+  const setter = must(
+    Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+    "the input's value descriptor"
+  ).set;
+  must(setter, "the input's value setter").call(input, "book");
   input.dispatchEvent(new w.Event("input", { bubbles: true }));
   await sleep(50);
   click(buttonNamed(/^Check$/));
@@ -877,13 +975,13 @@ if (input) {
 }
 await sleep(200);
 check("the answer was marked", /The answer is:|Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(document.body.textContent),
-  (document.querySelector('[data-el="verdict"]') || {}).textContent || document.body.textContent.slice(0, 80));
+  (document.querySelector('[data-el="verdict"]') || {}).textContent || (document.body.textContent || "").slice(0, 80));
 click(buttonNamed(/Continue|Next/));
 await sleep(900); // the 600 ms save debounce
-const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
-const answered = after.items.find((i) => i.id === "srv" + card.id) || { s: {}, subs: [] };
-check("the course card is still in storage after the session", after.items.some((i) => i.id === "srv" + card.id), `items=${after.items.map((i) => i.id).join(",")}`);
-const storedStates = [...Object.keys(answered.s), ...(answered.subs || []).flatMap((sb) => Object.keys(sb.s))];
+const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+const answered = after.items.find((/** @type {any} */ i) => i.id === "srv" + card.id) || { s: {}, subs: [] };
+check("the course card is still in storage after the session", after.items.some((/** @type {any} */ i) => i.id === "srv" + card.id), `items=${after.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+const storedStates = [...Object.keys(answered.s), ...(answered.subs || []).flatMap((/** @type {any} */ sb) => Object.keys(sb.s))];
 check("exactly the answered state is stored on the answered card, and nothing untouched", storedStates.length <= 1, `stored states: ${storedStates.join(",")}`);
 check("no console errors during the session", errors.length === 0, errors.slice(0, 3).join(" | "));
 
@@ -1094,7 +1192,16 @@ check("no console errors during the session", errors.length === 0, errors.slice(
    * sounds you get during a session are long enough to register as a
    * verdict rather than a click.
    */
+  /*
+   * Every note one sound schedules, as a level and a span.
+   *
+   * The stub stands in for an AudioContext and answers only what the sound
+   * engine reaches for, which is what makes it a check of the engine and
+   * not of the browser.
+   */
+  /** @param {string} kind */
   const played = (kind) => {
+    /** @type {{ at: number, level: number, ends: number }[]} */
     const notes = [];
     const stub = {
       currentTime: 0,
@@ -1107,7 +1214,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         notes.push(n);
         return {
           gain: {
+            /**
+             * @param {number} v
+             * @param {number} t
+             */
             setValueAtTime(v, t) { n.at = t; },
+            /**
+             * @param {number} v
+             * @param {number} t
+             */
             exponentialRampToValueAtTime(v, t) {
               if (v > n.level) n.level = v;
               if (t > n.ends) n.ends = t;
@@ -1118,15 +1233,18 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       },
       destination: {},
     };
-    SOUNDS[kind](stub);
+    SOUNDS[kind](/** @type {AudioContext} */ (/** @type {unknown} */ (stub)));
     return notes;
   };
   /* The worst moment: every note that is still sounding at the loudest
      one's peak, added together. Exponential decay means this over-counts,
      which is the direction a headroom check should err in. */
+/** @typedef {{ at: number, level: number, ends: number }} Note */
+  /** @param {Note[]} notes */
   const loudest = (notes) =>
     Math.max(...notes.map((n) => notes.filter((o) => o.at <= n.at && o.ends >= n.at)
       .reduce((sum, o) => sum + o.level, 0)));
+  /** @param {Note[]} notes */
   const runs = (notes) => Math.max(...notes.map((n) => n.ends)) - Math.min(...notes.map((n) => n.at));
 
   setSounds("loud");
@@ -1136,7 +1254,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check(`${kind} has headroom at loud`, peak < 1, `${peak.toFixed(2)} of full scale`);
   }
   /* The four you hear in a session: right, wrong, given up, and moving on. */
-  for (const [kind, least] of [["correct", 0.55], ["wrong", 0.55], ["warn", 0.35], ["tick", 0.14]]) {
+  /** @type {[string, number][]} */
+  const HEARD = [["correct", 0.55], ["wrong", 0.55], ["warn", 0.35], ["tick", 0.14]];
+  for (const [kind, least] of HEARD) {
     const len = runs(played(kind));
     check(`${kind} lasts long enough to be noticed`, len >= least,
       `${len.toFixed(2)}s, wanted ${least}s`);
@@ -1205,8 +1325,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      hears nothing assumes the app is broken, where one who hears something
      unexpected reaches for the setting. */
   check("something unrecognised is not silence", soundLevelOf("banana") === "loud");
-  const stored2 = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3"));
-  const byId2 = Object.fromEntries(stored2.items.map((i) => [i.id, i]));
+  const stored2 = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  /** @type {Record<string, any>} */
+  const byId2 = Object.fromEntries(stored2.items.map((/** @type {any} */ i) => [i.id, i]));
   /* oldclient1 is ar + en + lat and has no recordings, so it supports the
      reading and writing types and none of the listening ones. */
   const card1 = byId2.oldclient1;
@@ -1223,11 +1344,11 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("the answered questions are left exactly as they were",
     out2[0] === queue[0], `first=${JSON.stringify(out2[0])}`);
   check("no listening exercise survives the rewrite",
-    out2.every((e) => !["rec2en", "rec2ar", "rec2attr"].includes(e.type)),
-    out2.map((e) => e.type).join(","));
+    out2.every((/** @type {any} */ e) => !["rec2en", "rec2ar", "rec2attr"].includes(e.type)),
+    out2.map((/** @type {any} */ e) => e.type).join(","));
   check("the question in front of you is replaced, not skipped",
     out2.length > 1 && out2[1].id === card1.id && out2[1].type !== "rec2en",
-    out2.map((e) => e.type).join(","));
+    out2.map((/** @type {any} */ e) => e.type).join(","));
   /* Prefer a question the card is not already being asked: with ar2en and
      en2ar already in the queue, the free one is tr2ar. */
   const one = withoutListening(
@@ -1241,12 +1362,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     set,
   );
   check("a substitute avoids what the card is already being asked",
-    one[1].type === "tr2ar", one.map((e) => e.type).join(","));
+    one[1].type === "tr2ar", one.map((/** @type {any} */ e) => e.type).join(","));
 
   /* And when every alternative is already queued, repeat one rather than
      drop the practice — the card is still worth answering. */
   check("with nothing free it still substitutes rather than dropping",
-    out2.length === queue.length, out2.map((e) => e.type).join(","));
+    out2.length === queue.length, out2.map((/** @type {any} */ e) => e.type).join(","));
 
   /* A card with nothing but sound to offer: the entry goes, rather than
      sitting in the queue unanswerable. */

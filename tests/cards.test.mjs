@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * Ordering and narrowing a list of cards.
  *

@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * When a card comes back.
  *

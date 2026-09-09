@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * The generated list of call sites, checked against the source.
  *

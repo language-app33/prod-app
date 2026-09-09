@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * The stacking order, read off the stylesheet.
  *
