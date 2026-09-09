@@ -13,6 +13,16 @@
    about, so it is told that these imports exist and carry nothing. */
 declare module "*.css";
 
+/*
+ * Stamped into the bundle at build time by vite.config.js, so the corner
+ * menu can say which build it is running — see scripts/version.mjs. They
+ * exist in the built app and in nothing the checker can follow, which is
+ * why eslint.config.js has to declare them as globals too.
+ */
+declare const __APP_RELEASE__: string;
+declare const __APP_VERSION__: string;
+declare const __BUILT_AT__: string;
+
 interface Window {
   /*
    * The learner's app was written against the Claude artifact storage API

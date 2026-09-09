@@ -1,5 +1,5 @@
 // @ts-check
-/** @import { Clock, ExerciseState } from "./types.js" */
+/** @import { Clock, ExerciseState, Form, Item } from "./types.js" */
 /*
  * When a card comes back.
  *
@@ -226,13 +226,20 @@ export function difficulty(s) {
 
 /* A card, then each of its forms — a plural, a feminine — each of which
    carries its own progress. */
-/** @param {Record<string, any>} item */
+/**
+ * A card and its other forms, each drilled in its own right.
+ *
+ * What comes back are forms, not cards: the card is the first of them, and
+ * the rest carry no tags, no lock and no deck. Everything downstream reads
+ * the wording and the schedule, which is all a form has and all it needs.
+ * @param {Item} item
+ * @returns {{ unit: Form, isSub: boolean }[]}
+ */
 export function unitsOf(item) {
-  return [{ unit: item, isSub: false }].concat(
-    /** @type {Record<string, any>[]} */ ((item && item.subs) || []).map(
-      (sb) => ({ unit: sb, isSub: true })
-    )
-  );
+  /** @type {{ unit: Form, isSub: boolean }[]} */
+  const units = [{ unit: item, isSub: false }];
+  for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
+  return units;
 }
 
 /*
@@ -244,14 +251,16 @@ export function unitsOf(item) {
  * phrases that show a word in use — neither of which belongs in here.
  */
 /**
- * @param {Record<string, any>} it
- * @param {(unit: Record<string, any>) => string[]} typesOf
+ * @param {Item} it
+ * @param {(unit: Form) => string[]} typesOf
  */
 export function familyMaturity(it, typesOf) {
   let worst = null;
   for (const { unit } of unitsOf(it)) {
     for (const t of typesOf(unit)) {
-      const m = maturity(unit.s[t]);
+      const st = unit.s && unit.s[t];
+      if (!st) continue;
+      const m = maturity(st);
       if (worst === null || MATURITY_ORDER.indexOf(m) < MATURITY_ORDER.indexOf(worst)) worst = m;
     }
   }
@@ -259,14 +268,16 @@ export function familyMaturity(it, typesOf) {
 }
 
 /**
- * @param {Record<string, any>} it
- * @param {(unit: Record<string, any>) => string[]} typesOf
+ * @param {Item} it
+ * @param {(unit: Form) => string[]} typesOf
  */
 export function itemDifficulty(it, typesOf) {
   const rated = [];
   for (const { unit } of unitsOf(it)) {
     for (const t of typesOf(unit)) {
-      const d = difficulty(unit.s[t]);
+      const st = unit.s && unit.s[t];
+      if (!st) continue;
+      const d = difficulty(st);
       if (d !== "unrated") rated.push(d);
     }
   }

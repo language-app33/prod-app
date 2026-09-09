@@ -1,5 +1,5 @@
 // @ts-check
-/** @import { Card, Deck, ExerciseState, Item, Lang, LangId, Millis } from "./types.js" */
+/** @import { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.js" */
 /**
  * Anything React will render: an element, a string, a list of them, or
  * nothing. Written once because nearly every component here takes one.
@@ -534,10 +534,17 @@ export function joinAlternatives(list) {
    is chosen, which none of them did. */
 /**
  * Pick one from a few. Options may be {value, label} or bare values.
+ *
+ * Generic in the value because not every choice here is a word: the
+ * session sheet picks a number of questions and a number of minutes, and
+ * the settings screen picks an on or an off. The value goes out and comes
+ * back untouched, and turning it into a string on the way would put the
+ * parsing back on every caller.
+ * @template {string | number | boolean} T
  * @param {{
- *   options: ({ value: string, label?: Node } | string)[],
- *   value?: string,
- *   onChange: (value: string) => void,
+ *   options: ({ value: T, label?: Node } | T)[],
+ *   value?: T | null,
+ *   onChange: (value: T) => void,
  *   size?: string | null,
  *   label?: string,
  *   disabled?: boolean,
@@ -727,8 +734,10 @@ export function LanguageTag({ languages, id }) {
    counting forms two different ways. One tile, with what differs
    passed in. */
 /**
+ * The card is a form rather than a `Card` or an `Item`, because both
+ * sides show these: only the wording is read, and that is all a form is.
  * @param {{
- *   card: Card | Item,
+ *   card: Form,
  *   lang?: Lang,
  *   showLat?: boolean,
  *   meta?: Node,
@@ -777,6 +786,7 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
  * the one that cannot be sent on its own, because it covers everything not
  * listed and so has to be said in words.
  */
+/** @type {{ key: FlagKind, title: string, what: string, fixes?: boolean, asks?: boolean }[]} */
 export const FLAG_KINDS = [
   {
     key: "strict",
@@ -1418,8 +1428,13 @@ export function ItemList({
    ------------------------------------------------------------------ */
 
 /**
+ * The card is described by what this reads rather than as a `Card`,
+ * because both sides pass one: the teacher a card as the server holds it,
+ * the learner an item as this device holds it. Neither is the other, and
+ * the fields below are the ones they agree on.
+ *
  * @param {{
- *   card: Card,
+ *   card: Record<string, any> & { subs?: Record<string, any>[], decks?: string[] },
  *   lang?: Lang,
  *   decks: { id: string, title?: string }[],
  * }} props Only a deck's id and title are read, to name where the card lives.
@@ -2349,14 +2364,43 @@ export function serverCardId(item) {
  * course, one per deck, and a rewrite of every card.
  */
 /**
+ * The two answers are told apart by `unchanged`, which is why it is a
+ * literal `true` on one and absent on the other rather than a boolean on
+ * both: `if (r.unchanged) return;` is then enough for the checker to know
+ * that everything below the guard is the full answer.
+ *
+ * @typedef {object} CoursesUnchanged
+ * @property {true} unchanged
+ * @property {string} version
+ * @property {boolean} teaches
+ */
+/**
+ * @typedef {object} Folded
+ * @property {Item[]} items
+ * @property {number} added
+ * @property {number} gone
+ * @property {string[]} goneIds
+ */
+/**
+ * @typedef {Folded & {
+ *   unchanged?: false,
+ *   decks: Deck[],
+ *   courses: Course[],
+ *   fold: (current: Item[]) => Folded,
+ *   version: string,
+ *   teaches: boolean,
+ * }} CoursesPulled
+ */
+/**
  * @param {Item[]} items
  * @param {() => Record<string, ExerciseState>} freshStates
  * @param {string} [knownVersion]
+ * @returns {Promise<CoursesUnchanged | CoursesPulled>}
  */
 export async function pullCourses(items, freshStates, knownVersion) {
   const r = await API.myMaterial(knownVersion || "");
   if (r.unchanged) {
-    return { unchanged: true, version: r.version, teaches: !!r.teaches };
+    return { unchanged: true, version: r.version || "", teaches: !!r.teaches };
   }
   const enrolled = r.courses || [];
   const decks = r.decks || [];

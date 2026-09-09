@@ -129,7 +129,7 @@
  * @property {LangId} id
  * @property {string} name
  * @property {string} nativeName
- * @property {string} direction    "rtl" or "ltr".
+ * @property {"rtl" | "ltr"} direction  Written out rather than left as a string, because it is handed straight to an element's dir attribute.
  * @property {string} scriptLabel
  * @property {string} scriptShort
  * @property {RegExp} [script]     How to recognise the script. Latin-written languages have none.
@@ -274,8 +274,23 @@
  * @property {number} wrong
  * @property {number} skips
  * @property {number} near
- * @property {any[]} hist
+ * @property {number[]} hist  The last six outings, 1 right and 0 wrong. Numbers rather than booleans because they are what the stored documents already hold.
  * @property {Millis} updated
+ */
+
+/**
+ * One question in a session's queue: which card, which of its forms, and
+ * which exercise to ask.
+ *
+ * It is a plan rather than the question itself — nothing here is the
+ * wording on screen. `resolveUnit` turns the two ids back into the card
+ * and the form, and the exercise is built from those at the moment it is
+ * shown, so a card edited mid-session is asked as it now reads.
+ * @typedef {object} Question
+ * @property {string} id  The card.
+ * @property {string | null} [subId]  Which of its extra forms, when the question is about one of those rather than the card itself.
+ * @property {string} type  The exercise, keyed into EX.
+ * @property {string} [ctx]  The phrase the word is stood in, for the exercises that need one.
  */
 
 /**
@@ -289,6 +304,29 @@
 /* ---- the device's own document ---- */
 
 /**
+ * One of a card's forms: the card itself, or one of the other ways the
+ * same thing is said.
+ *
+ * A form is the unit an exercise is actually about — it is what carries
+ * the wording, the recordings and the schedule. A card is a form plus
+ * everything that belongs to the card as a whole: which decks it is in,
+ * whether it is locked, where it came from. The scheduler walks forms; the
+ * card list shows cards. Keeping them apart is what stops a sub-form being
+ * handed somewhere that will ask it which decks it is in — it has none.
+ * @typedef {Record<string, any> & {
+ *   id: string,
+ *   ar: string,
+ *   en: string,
+ *   lat: string,
+ *   note?: string,
+ *   recs?: any[],
+ *   s?: Record<string, ExerciseState>,
+ *   created?: Millis,
+ *   updated?: Millis,
+ * }} Form
+ */
+
+/**
  * A card as it lives on a device: the teacher's wording plus this
  * learner's progress.
  *
@@ -296,16 +334,19 @@
  * arrives named srv<cardId> — which is what `source` is for. Reporting the
  * wrong one of the two is invisible here, because both are strings, so the
  * comment is the whole warning the type can give.
- * @typedef {Record<string, any> & {
- *   id: string,
- *   ar: string,
- *   en: string,
- *   lat: string,
- *   s?: Record<string, ExerciseState>,
- *   subs?: Item[],
+ *
+ * The index signature is what lets a language's own grammar fields — which
+ * differ per language and are not knowable here — sit alongside the ones
+ * every card has. It also means an unlisted field reads as `any`, so the
+ * fields worth checking are the ones written out.
+ * @typedef {Form & {
+ *   kind?: string,
+ *   tags: string[],
+ *   flags?: any[],
+ *   subs?: Form[],
  *   source?: { courseId: string, deckId: string, cardId: string, rev: number },
  *   locked?: boolean,
- *   updated?: Millis,
+ *   created: Millis,
  * }} Item
  */
 
@@ -318,7 +359,7 @@
  * @property {Item[]} items
  * @property {Record<string, Millis>} tombstones  Withdrawn cards, so a sync does not hand them back.
  * @property {Record<string, any>} log
- * @property {Settings} [settings]
+ * @property {Settings} settings  Every document has them; EMPTY is where the defaults live.
  * @property {Millis} [settingsUpdated]
  */
 

@@ -1,5 +1,5 @@
 // @ts-check
-/** @import { Doc, ExerciseState, Item } from "./types.js" */
+/** @import { Doc, ExerciseState, Form, Item } from "./types.js" */
 /*
  * Sync client.
  *
@@ -98,7 +98,7 @@ function mergeItem(a, b) {
      same way — by form, then by exercise type. Taking the whole list from
      one side threw away the other device's work on any form it had drilled. */
   const subs = (base.subs || []).map((sb) => {
-    const twin = (other.subs || []).find((/** @type {Item} */ x) => x.id === sb.id);
+    const twin = (other.subs || []).find((/** @type {Form} */ x) => x.id === sb.id);
     return twin ? { ...sb, s: mergeStates(sb.s, twin.s) } : sb;
   });
 
