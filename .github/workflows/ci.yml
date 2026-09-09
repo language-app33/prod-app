@@ -44,6 +44,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # The types, for the files that have opted into being checked. A
+      # wrong shape passed across a boundary is the one defect class the
+      # linter and the tests both read straight past.
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Unit tests
         run: npm run test:unit
 

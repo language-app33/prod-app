@@ -1,0 +1,45 @@
+{
+  /* What the type checker is here for, and why it is set up this way.
+   *
+   * The app is JavaScript and stays JavaScript. This adds a second reader
+   * of it — one that knows what shape everything is — beside the linter and
+   * the tests. It is aimed at one class of defect the other two miss: a
+   * value of the wrong shape passed across a boundary. Sending a whole
+   * language pack where the server wanted a language id was that bug, and
+   * it reached production because every reader it passed was happy.
+   *
+   * The important setting is checkJs: false. Turning it on would check all
+   * 19k lines at once and bury the first commit under errors nobody asked
+   * for. Instead each file opts in by starting with `// @ts-check`, so the
+   * project is always green and adoption is a file at a time.
+   *
+   * strict is on from the start for the same reason: it only applies to
+   * what has opted in, so it costs nothing until a file asks for it — and
+   * a file adopted under loose rules would have to be done twice.
+   */
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    /* The app is bundled by Vite and the server is run by Node with real
+       ESM. Both resolve the extension-bearing relative imports this code
+       is written with ("./shared.jsx"), which "bundler" allows and the
+       older node resolution modes argue about. */
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": true,
+
+    /* Nothing here is compiled by tsc, so these only affect what it will
+       accept while reading. */
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "server", "scripts", "tests", "vite.config.js", "eslint.config.js"],
+  "exclude": ["node_modules", "dist", "dev-dist", "tests/.smoke-build", "tests/.cards-build"]
+}
