@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.37 — 9 September 2026
+
+- Reports in Admin → Flags named the wrong card, which showed up in two
+  ways. Some were marked "the learner's own card" — about course material
+  the learner did not make and cannot change, and in a version of the app
+  where making your own cards is switched off, so there is no such thing.
+  Others offered **Open card** and then said the card no longer existed,
+  about cards sitting untouched in a deck.
+- One cause behind both: course material reaches a device under its own
+  local name, and the report carried that rather than the card's name on
+  the site, so nothing could ever be found under it. The app now reports
+  the card's own id, and the server recognises the local form as well, so
+  the reports already sent are readable rather than lost.
+- A report about a card the site genuinely does not hold now says "No card
+  on the site" rather than claiming it belongs to the learner — and it is
+  kept apart from "Card deleted", which means the card was there when the
+  report was sent and has gone since.
+- A report made before this recorded what it needed no longer guesses. It
+  says nothing about whether the card has been edited, because it cannot
+  know, and its Open card button works.
+
 ## 0.36 — 9 September 2026
 
 - Admin → Flags gives each report the full width of the screen. They were

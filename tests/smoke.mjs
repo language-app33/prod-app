@@ -544,6 +544,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       typeof sentFlag.language === "string" && /^[a-z]{2}-[A-Z]{2}$/.test(sentFlag.language) &&
         !!sentFlag.cardId && !!sentFlag.exercise && !!sentFlag.prompt,
       JSON.stringify(sentFlag).slice(0, 200));
+    /* The card named the way the server names it, not the way this device
+       does. Course material arrives as items called srv<cardId>, and a
+       report carrying that id points at a card nobody can open — which is
+       what it did for a release: every one of them read on screen as a
+       card the site had never held. */
+    check("the card is named by its id on the server, not this device's",
+      typeof sentFlag.cardId === "string" && !/^srv/.test(sentFlag.cardId),
+      String(sentFlag.cardId));
     check("the menu closes and the button says so",
       !document.querySelector('[data-el="flag-menu"]') &&
         /Flagged/.test(document.querySelector('[data-el="flag-button"]').textContent),

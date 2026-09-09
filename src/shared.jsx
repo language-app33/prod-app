@@ -1996,6 +1996,24 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
 }
 
 /*
+ * And back the other way: what the server calls the card an item came from.
+ *
+ * localIdFor is not reversible by taking the prefix off, because an item
+ * may be a form of a card rather than the card, and because an item that
+ * was never a course card has no server id at all. `source` is the honest
+ * answer and every course card carries one.
+ *
+ * It exists because reporting an item's own id for a course card is a
+ * mistake with no symptom on this side: the report is accepted, filed, and
+ * read at the other end as being about a card the site has never held.
+ */
+export function serverCardId(item) {
+  if (!item) return "";
+  if (item.source && item.source.cardId) return item.source.cardId;
+  return item.id || "";
+}
+
+/*
  * Fetch every course the person studies and fold its cards into the local
  * ones. Anything already here keeps its progress; anything the teacher has
  * withdrawn goes. Cards the person made themselves are untouched.

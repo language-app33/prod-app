@@ -195,6 +195,11 @@ A list of recordings with playback. `clips, onChange, load`
   Use these rather than glyph characters.
 - **`plural(n, noun)`** — `plural(3, "card")` → `"3 cards"`. Use it instead of
   writing `${n} card${n === 1 ? "" : "s"}`.
+- **`localIdFor(cardId)` / `serverCardId(item)`** — a card has two names,
+  the server's and the device's, and these are the two directions between
+  them. Anything sent back to the server uses `serverCardId`; taking the
+  prefix off by hand is wrong, because a form of a card is not the card and
+  an item that was never course material has no server name at all.
 - **`FLAG_KINDS` / `flagTitle(kind)` / `FLAG_NOTE_MAX`** — the three things a
   learner can say is wrong with a question, each with a `title` and the
   `what` line under it. The trainer renders the list; Admin → Flags names

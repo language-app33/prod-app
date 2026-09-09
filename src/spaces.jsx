@@ -1039,15 +1039,14 @@ function exerciseLabel(languages, langId, type) {
  * What became of the card a report is about, said on the report itself.
  *
  * A report is only worth acting on while the thing it describes is still
- * there to act on, and three of these four say it is not — or not quite.
- * The server works out which by comparing the card's revision now against
- * the one it stood at when the flag was sent.
+ * there to act on, and each of these says it is not — or not quite. The
+ * server works out which by comparing the card's revision now against the
+ * one it stood at when the flag was sent.
  *
  * "here" is the ordinary case and has no entry: a card that is exactly as
  * it was needs nothing said about it, and a chip on every tile would be a
- * chip nobody reads. `openable` says whether there is still a card to
- * open — for an older report, made before any of this was recorded, the
- * honest answer is to offer the button and let the fetch say.
+ * chip nobody reads. It is also what a report says when the comparison
+ * cannot be made — nothing, rather than a guess.
  */
 const CARD_STATES = {
   edited: {
@@ -1062,10 +1061,14 @@ const CARD_STATES = {
     what: "The card has been deleted since this was reported. There is nothing left to open.",
     openable: false,
   },
-  own: {
-    label: "The learner's own card",
-    tone: "",
-    what: "A card this person made for themselves. It lives on their device and the site does not hold it.",
+  /* Not the same as deleted, and worth telling apart: the card was already
+     not on the site when the report arrived, so nothing was lost between
+     then and now. A deck withdrawn before the student's device caught up
+     is the way it happens. */
+  absent: {
+    label: "No card on the site",
+    tone: "flagged",
+    what: "The site did not hold this card even when the report was sent. There is nothing to open.",
     openable: false,
   },
 };

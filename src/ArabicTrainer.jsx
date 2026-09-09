@@ -20,6 +20,7 @@ import {
   Screen,
   Section,
   Segmented,
+  serverCardId,
   SnackbarProvider,
   Stat,
   StickyFoot,
@@ -3378,7 +3379,10 @@ export default function ArabicTrainer() {
     API.reportFlag({
       kind,
       note: said,
-      cardId: parentItem.id,
+      /* The card's id on the server, which is not the item's id here:
+         course material arrives as items named srv<cardId>, and a report
+         naming the local one points at nothing an administrator can open. */
+      cardId: serverCardId(parentItem),
       exercise: exercise.type,
       subId: exercise.subId || null,
       /* The id, not the pack: what is stored has to survive being read by

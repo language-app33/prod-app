@@ -711,9 +711,13 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
     untouched: await flag(untouched.id),
     edited: await flag(edited.id),
     deleted: await flag(deleted.id),
-    /* A card the learner made for themselves. It never reached the server,
-       so it is missing for a different reason than a deleted one. */
-    own: await flag("local-only-card"),
+    /* A card the site does not hold at all. Missing for a different reason
+       than a deleted one: nothing was lost between the report and now. */
+    absent: await flag("no-such-card"),
+    /* Course material reaches a device under a prefixed id, and for one
+       release the app reported that rather than the card's own. Those
+       reports are about a card that is sitting right there. */
+    prefixed: await flag(`srv${untouched.id}`),
   };
 
   await api("/api/courses?action=save-card", {
@@ -726,7 +730,12 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
   assert.equal(stateOf(ids.untouched), "here", "a card nobody has touched says nothing");
   assert.equal(stateOf(ids.edited), "edited", "one saved since may already be fixed");
   assert.equal(stateOf(ids.deleted), "gone", "and one deleted since cannot be opened");
-  assert.equal(stateOf(ids.own), "own", "a card the site never held is not a deleted one");
+  assert.equal(stateOf(ids.absent), "absent", "a card the site never held is not a deleted one");
+  /* The bug this heals: every one of these read as a card that could not
+     be found, about material the learner did not make and cannot change. */
+  assert.equal(stateOf(ids.prefixed), "here", "a report naming the device's own id still finds the card");
+  const healed = seen.find((f) => f.id === ids.prefixed);
+  assert.equal(healed.cardId, untouched.id, "and it is handed back under the card's real id");
 
   /* And the card itself can be read from here, which is the only way in:
      Admin lists decks, not cards. */
@@ -739,6 +748,57 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
   assert.equal(missing.status, 404);
   assert.equal(missing.json.error, "no-card");
 
+  const prefixed = await api(`/api/courses?action=admin-card&card=srv${untouched.id}`, { key });
+  assert.equal(prefixed.status, 200, "including one asked for under the id a report of that vintage carries");
+  assert.equal(prefixed.json.card.id, untouched.id);
+
   const nosy = await api(`/api/courses?action=admin-card&card=${untouched.id}`, { key: student.json.key });
   assert.equal(nosy.status, 403, "a student cannot read any card they please");
+});
+
+/*
+ * A report made before the card's revision was recorded says nothing about
+ * whether the card has changed — but it must still say whether there is one
+ * to open, and it must not claim an edit it cannot know about. Written
+ * against a flag record of that vintage, because that is what is on disk.
+ */
+test("an older report still finds its card, and does not invent an edit", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Iman" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const deck = (await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Older Reports", lang: "ar-PS" },
+  })).json.deck;
+  let card = (await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [deck.id] },
+  })).json.card;
+  /* Saved again, so it is past rev 1 — the number a missing one would be
+     compared against if the code guessed. */
+  card = (await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { ...card, lat: "shams" }, decks: [deck.id] },
+  })).json.card;
+  assert.ok(card.rev > 1, "the card has been saved more than once");
+
+  /* A flag as the release before this one wrote them: no cardKnown, no
+     cardRev, and the device's own id for the card. */
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+  const old = {
+    id: "aged00000000dead", kind: "data", note: "", handle: admin.json.user.handle,
+    handleName: "Iman", cardId: `srv${card.id}`, exercise: "ar2en", subId: null,
+    language: "ar-PS", prompt: "شمس", meaning: "sun", at: Date.now() - 60000,
+  };
+  await store.set(`flag:${old.id}`, JSON.stringify(old));
+  const index = JSON.parse((await store.get("index:flags", { type: "text" })) || "[]");
+  await store.set("index:flags", JSON.stringify(index.concat([old.id])));
+
+  const seen = (await api("/api/courses?action=admin-overview", { key })).json.flags
+    .find((f) => f.id === old.id);
+  assert.equal(seen.cardState, "here", "nothing is claimed about a card it cannot compare");
+  assert.equal(seen.cardId, card.id, "and it names the card the way the site does");
+
+  const opened = await api(`/api/courses?action=admin-card&card=${seen.cardId}`, { key });
+  assert.equal(opened.status, 200, "so the card it points at actually opens");
+  assert.equal(opened.json.card.en, "sun");
 });

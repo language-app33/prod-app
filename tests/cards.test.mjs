@@ -31,6 +31,21 @@ await build({
 const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, CARD_SORTS } =
   await import(path.join(out, "spaces.js"));
 
+/* The two halves of card identity live in shared.jsx, so it is bundled the
+   same way. They are one subject with the sorting above: what a card is
+   called, on the device and on the server. */
+await build({
+  entryPoints: [path.join(here, "..", "src", "shared.jsx")],
+  outfile: path.join(out, "shared.js"),
+  bundle: true,
+  format: "esm",
+  jsx: "automatic",
+  external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
+  loader: { ".jsx": "jsx" },
+  logLevel: "silent",
+});
+const { localIdFor, cardToItem, serverCardId } = await import(path.join(out, "shared.js"));
+
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
 
 test("a recording on any form counts as the card having one", () => {
@@ -116,4 +131,28 @@ test("every order offered has a label and a way to read a card", () => {
     assert.equal(typeof sort.of, "function", key);
   }
   assert.deepEqual(Object.keys(CARD_SORTS), ["added", "changed", "audio", "forms"]);
+});
+
+/*
+ * A card has two names — the server's and the device's — and everything
+ * sent back to the server has to use the first. Reporting a problem used
+ * the second, which is accepted, filed, and read at the other end as a
+ * report about a card the site has never held.
+ */
+test("a course card knows its name on the server, whatever it is called here", () => {
+  const item = cardToItem(
+    { id: "k9f2a1b3c4d5", ar: "كِتاب", en: "book", lang: "ar-PS", rev: 3, subs: [{ ar: "كُتُب", en: "books" }] },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal(item.id, localIdFor("k9f2a1b3c4d5"), "the device gives it its own id");
+  assert.notEqual(item.id, "k9f2a1b3c4d5", "which is not the server's");
+  assert.equal(serverCardId(item), "k9f2a1b3c4d5", "and the server's is what goes back");
+});
+
+test("and an item that was never a course card has only the one name", () => {
+  assert.equal(serverCardId({ id: "mine-1" }), "mine-1");
+  assert.equal(serverCardId(null), "");
+  assert.equal(serverCardId({}), "");
+  /* A source with nothing useful in it is no source at all. */
+  assert.equal(serverCardId({ id: "mine-2", source: {} }), "mine-2");
 });

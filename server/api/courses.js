@@ -106,11 +106,28 @@ const K = {
  */
 const FLAG_KINDS = ["strict", "data", "other"];
 const FLAG_NOTE_MAX = 500;
+
 /* Enough to keep every flag a real site accumulates between one look and
    the next, and a ceiling so a stuck client cannot fill the disk. The
    oldest go first, which is also the order they stop being worth reading
    in. */
 const MAX_FLAGS = 500;
+
+/*
+ * The card a report is about, named the way this server names cards.
+ *
+ * Course material reaches a device as an item whose id is the card's id
+ * with "srv" in front of it, and for one release the app reported that id
+ * rather than the card's own. Every report made in that window points at a
+ * card that cannot be found — which read on screen as "the learner's own
+ * card", about material the learner did not make and cannot change.
+ *
+ * Taken off here as well as fixed in the app, because the reports already
+ * stored are the ones worth reading. Safe to strip unconditionally: a card
+ * id made here is "k" and twelve hex digits, so none of them begins with
+ * these three letters.
+ */
+const cardIdOf = (id) => String(id || "").replace(/^srv/, "");
 
 /* Strong reads come from the origin, eventual ones from the edge. Anything
    that reads in order to write back must be strong, and so must anything a
@@ -354,11 +371,11 @@ export default async (req) => {
          a copy: what an administrator needs to know is "is this still the
          card they were looking at", and one number answers that.
 
-         `cardKnown` is the difference between a card the site holds and
-         one the learner made for themselves, which lives only on their
-         device. Both are missing from the store when the flag is read;
-         only one of them was deleted. */
-      const cardId = String(body.cardId || "").slice(0, 64);
+         `cardKnown` is whether the site held the card at all when the
+         report arrived. A card already gone by then and one deleted since
+         are both missing when the report is read, and only one of them is
+         news to whoever is reading it. */
+      const cardId = cardIdOf(String(body.cardId || "").slice(0, 64));
       const flagged = cardId ? await readJson(store, K.card(cardId)) : null;
 
       const flag = {
@@ -1127,18 +1144,18 @@ export default async (req) => {
         }));
         /*
          * What became of each flagged card, which decides what the report
-         * is still worth. A card edited since is probably already fixed; a
-         * card deleted since cannot be opened at all; and a card the site
-         * never held is one of the learner's own, which nobody here can
-         * change. Saying so on the report is the difference between a list
-         * to work through and a list to guess at.
+         * is still worth: one edited since is probably already fixed, one
+         * deleted since cannot be opened at all, and one the site did not
+         * hold even when the report arrived is nobody here's to change.
+         * Saying so on the report is the difference between a list to work
+         * through and a list to guess at.
          *
          * Read once per card rather than once per flag: several reports
          * about one bad card is the normal case, and it is the whole reason
          * they are worth reading together.
          */
         const flaggedIds = [
-          ...new Set(flagRows.filter((f) => f && f.cardKnown && f.cardId).map((f) => f.cardId)),
+          ...new Set(flagRows.filter(Boolean).map((f) => cardIdOf(f.cardId)).filter(Boolean)),
         ];
         const flaggedCards = await readManyJson(store, flaggedIds.map((id) => K.card(id)), EVENTUAL);
         const revOf = new Map();
@@ -1151,22 +1168,30 @@ export default async (req) => {
         const flags = flagRows
           .filter(Boolean)
           .map((f) => {
-            /* A flag sent before any of this was recorded knows nothing
-               about its card either way, and saying "deleted" about a card
-               that is sitting there would be worse than saying nothing. */
-            const rev = revOf.has(f.cardId) ? revOf.get(f.cardId) : undefined;
-            const cardState =
-              !f.cardId || f.cardKnown === undefined
-                ? "unknown"
-                : !f.cardKnown
-                ? "own"
-                : rev === null
-                ? "gone"
-                : rev !== (f.cardRev || 1)
-                ? "edited"
-                : "here";
+            const cardId = cardIdOf(f.cardId);
+            /* Where the card stands now, and where it stood when the report
+               was sent. The second is missing from a report made before it
+               was recorded, and worthless on one that recorded "no such
+               card" and whose card the prefix above has since found — in
+               both cases the number to compare against does not exist, and
+               inventing one would mark every card past its first save as
+               edited. Whether it is still there is the half that always
+               answers, and it is the half that decides what can be
+               opened. */
+            const rev = cardId ? revOf.get(cardId) : null;
+            const wasAt = f.cardKnown === false ? undefined : f.cardRev;
+            let cardState;
+            if (rev === null || rev === undefined) {
+              /* Not there now. Was it there when this was sent? */
+              cardState = f.cardKnown === false || !cardId ? "absent" : "gone";
+            } else if (wasAt === undefined) {
+              cardState = "here";
+            } else {
+              cardState = rev === wasAt ? "here" : "edited";
+            }
             return {
               ...f,
+              cardId,
               handleName: nameOf[f.handle] || f.handleName || f.handle,
               cardState,
             };
@@ -1482,7 +1507,7 @@ export default async (req) => {
          to look at a card from here — and a report about a card you cannot
          open is a report you have to go hunting for. */
       if (action === "admin-card") {
-        const card = await readJson(store, K.card(String(url.searchParams.get("card") || "")));
+        const card = await readJson(store, K.card(cardIdOf(url.searchParams.get("card"))));
         if (!card) return json({ error: "no-card" }, 404);
         /* Named `decks` because that is what CardReadout reads it as. */
         return json({ ok: true, card: { ...card, decks: await decksHolding(card) } });
