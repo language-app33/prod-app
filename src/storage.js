@@ -8,10 +8,12 @@
  *
  * Everything lives on this device, in this browser. Nothing is sent anywhere.
  */
+// @ts-check
 
 const PREFIX = "arabic-trainer:";
 
 export const storage = {
+  /** @param {string} key */
   async get(key) {
     const value = localStorage.getItem(PREFIX + key);
     // The artifact API throws for a missing key rather than returning null,
@@ -20,6 +22,10 @@ export const storage = {
     return { key, value, shared: false };
   },
 
+  /**
+   * @param {string} key
+   * @param {string} value
+   */
   async set(key, value) {
     try {
       localStorage.setItem(PREFIX + key, value);
@@ -31,12 +37,15 @@ export const storage = {
     }
   },
 
+  /** @param {string} key */
   async delete(key) {
     localStorage.removeItem(PREFIX + key);
     return { key, deleted: true, shared: false };
   },
 
+  /** @param {string} [prefix] */
   async list(prefix = "") {
+    /** @type {string[]} */
     const keys = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);

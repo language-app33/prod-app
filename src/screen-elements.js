@@ -1,3 +1,4 @@
+// @ts-check
 /*
  * The elements of a question and an answer.
  *
