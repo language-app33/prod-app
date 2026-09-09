@@ -102,7 +102,8 @@ server/
   store.js         documents on disk, with the conditional writes sync needs
   api/
     sync.js        the per-person sync document
-    courses.js     accounts, courses, decks, cards, recordings, backups
+    courses.js     accounts, courses, decks, cards, recordings, reported
+                   problems, backups
 tests/
 ```
 

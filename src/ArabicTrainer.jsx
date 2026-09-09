@@ -7,6 +7,8 @@ import {
   ConfirmModal,
   Empty,
   Field as FormField,
+  FLAG_KINDS,
+  FLAG_NOTE_MAX,
   Help,
   Icon,
   IconButton,
@@ -2462,17 +2464,24 @@ export function noCardsYet(courseCount) {
  * and the interval follows from that. All that's left is a quiet way to
  * say the check got it wrong, or that something about the item is off.
  */
-const FLAG_KINDS = [
-  { key: "strict", label: "The check was too strict", fixes: true },
-  { key: "data", label: "This card's data is wrong" },
-  { key: "audio", label: "The recording is unclear or missing", audioOnly: true },
-  { key: "other", label: "Something else" },
-];
-
-function AfterAnswer({ ok, overridden, hasAudio, onOverride, onFlag, flagged, onContinue }) {
+function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }) {
   const [open, setOpen] = useState(false);
+  /* The typed issue while "Something else" is open, and null the rest of
+     the time — which is also what says whether the menu is showing its
+     three cards or the box. */
+  const [note, setNote] = useState(null);
 
-  const kinds = FLAG_KINDS.filter((k) => !k.audioOnly || hasAudio);
+  function close() {
+    setOpen(false);
+    setNote(null);
+  }
+
+  function send(kind, text) {
+    const k = FLAG_KINDS.find((x) => x.key === kind);
+    if (k && k.fixes && !ok && !overridden) onOverride();
+    onFlag(kind, text || "");
+    close();
+  }
 
   return (
     <div className="at-after">
@@ -2493,28 +2502,62 @@ function AfterAnswer({ ok, overridden, hasAudio, onOverride, onFlag, flagged, on
             <button
               className={`at-flagbtn${flagged ? " on" : ""}`}
               data-el="flag-button"
-              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              onClick={() => (open ? close() : setOpen(true))}
             >
               <Icon name="flag" size={16} />
               {flagged ? "Flagged" : "Flag a problem"}
             </button>
 
             {open && (
-              <div className="at-flagmenu">
-                {kinds.map((k) => (
-                  <button
-                    key={k.key}
-                    className="at-flagopt"
-                    onClick={() => {
-                      if (k.fixes && !ok && !overridden) onOverride();
-                      onFlag(k.key);
-                      setOpen(false);
-                    }}
-                  >
-                    {k.label}
-                    {k.fixes && !ok && !overridden && <span>counts it correct</span>}
-                  </button>
-                ))}
+              <div className="at-flagmenu" data-el="flag-menu">
+                {note === null ? (
+                  FLAG_KINDS.map((k) => (
+                    <button
+                      key={k.key}
+                      className="at-flagopt"
+                      onClick={() => (k.asks ? setNote("") : send(k.key))}
+                    >
+                      <span className="at-flagopt-title">{k.title}</span>
+                      <span className="at-flagopt-what">{k.what}</span>
+                      {/* Said only where it is true: on a right answer, or
+                          one already overturned, there is nothing to count. */}
+                      {k.fixes && !ok && !overridden && (
+                        <span className="at-flagopt-does">Counts it correct</span>
+                      )}
+                    </button>
+                  ))
+                ) : (
+                  <div className="at-flagnote" data-el="flag-note">
+                    <label className="at-flagopt-title" htmlFor="flag-note-input">
+                      What went wrong?
+                    </label>
+                    <textarea
+                      id="flag-note-input"
+                      data-el="flag-note-input"
+                      className="at-input at-flagtext"
+                      rows={3}
+                      maxLength={FLAG_NOTE_MAX}
+                      autoFocus
+                      placeholder="The recording plays the wrong word…"
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                    />
+                    <div className="at-row at-flagnoterow">
+                      <Button size="sm" onClick={() => setNote(null)}>
+                        Back
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={!note.trim()}
+                        onClick={() => send("other", note.trim())}
+                      >
+                        Send
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -3294,9 +3337,25 @@ export default function ArabicTrainer() {
     if (inputRef.current) inputRef.current.blur();
   }
 
-  /* Record a problem against the item, so it can be found and fixed later. */
-  function flagCurrent(kind) {
+  /*
+   * Record a problem against the item, so it can be found and fixed later.
+   *
+   * Twice over, because the two copies answer different questions. The one
+   * on the card is the learner's own mark on their own document — it is
+   * what makes a flagged card findable on this device, and it stands
+   * whether or not there is a server to reach. The one sent to the server
+   * is the report: it lands in Admin → Flags, where somebody who can
+   * actually change the card will see it, and it carries enough of the
+   * question with it to be read months later, after the card has been
+   * edited or withdrawn.
+   *
+   * The send is not waited on. A flag is worth making and not worth
+   * stopping a session over, so the menu closes either way and the pill
+   * says which of the two happened.
+   */
+  function flagCurrent(kind, note) {
     if (!parentItem || !exercise) return;
+    const said = String(note || "").slice(0, FLAG_NOTE_MAX);
     setFlaggedNow(true);
     sfx("tick");
     persist((cur) => {
@@ -3306,11 +3365,33 @@ export default function ArabicTrainer() {
       const it = { ...next.items[idx] };
       it.flags = (it.flags || [])
         .filter((f) => !(f.kind === kind && f.ex === exercise.type && f.subId === (exercise.subId || null)))
-        .concat([{ kind, ex: exercise.type, subId: exercise.subId || null, at: now() }]);
+        .concat([{ kind, ex: exercise.type, subId: exercise.subId || null, note: said, at: now() }]);
       it.updated = now();
       next.items[idx] = it;
       return next;
     });
+
+    if (!account) {
+      flash("Noted on this device. Sign in to report it.", "warn");
+      return;
+    }
+    API.reportFlag({
+      kind,
+      note: said,
+      cardId: parentItem.id,
+      exercise: exercise.type,
+      subId: exercise.subId || null,
+      /* The id, not the pack: what is stored has to survive being read by
+         a build whose pack for it has moved on. */
+      language: langOf(settings).id,
+      /* A copy of the question, not a pointer to it: the card can be
+         edited or withdrawn between the flag and somebody reading it, and
+         a report that says only "card k3f2" is then unreadable. */
+      prompt: parentItem.ar || "",
+      meaning: parentItem.en || "",
+    })
+      .then(() => flash("Thanks — that's been reported.", "good"))
+      .catch(() => flash("Noted on this device. We couldn't reach the server.", "warn"));
   }
 
   function applyGrade() {
@@ -4147,7 +4228,6 @@ Cards ready to practice
                         ok={checked.ok}
                         overridden={overridden}
                         flagged={flaggedNow}
-                        hasAudio={spec.promptField === "audio" || (item.recs || []).length > 0}
                         onOverride={() => setOverridden(true)}
                         onFlag={flagCurrent}
                         onContinue={applyGrade}
@@ -4189,6 +4269,11 @@ Cards ready to practice
                              still on the screen is not the same test. */
                           <IconButton
                             icon="help"
+                            /* Ghost, like the "I don't know" beside it: the
+                               two are the same kind of thing — a way of not
+                               answering yet — and a filled button next to a
+                               ghost one read as the louder of the pair. */
+                            ghost
                             label={hintOpen ? spec.hintHideLabel : spec.hintLabel}
                             className={`at-hintbtn${hintOpen ? " on" : ""}`}
                             data-el="hint-button"

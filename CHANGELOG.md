@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.35 — 9 September 2026
+
+- Flagging a bad question now asks what was wrong in a way that can be
+  answered. The four one-line options are three cards, each with a title
+  and a line saying when to pick it: "My answer should have been
+  accepted", "The card's data is incorrect", and "Something else" — which
+  opens a box to say what happened in your own words. Two of the old
+  labels described the machinery rather than the complaint, and the
+  reports that came back were guesses as often as not.
+- What you send now reaches somebody who can act on it. Admin has a Flags
+  tab listing every report — what was wrong, the question it was about,
+  the words the person added, who sent it and when — newest first,
+  searchable, and cleared once the card is fixed. Until now a flag was
+  only a private mark on your own copy of the card, which nobody else
+  could ever see.
+- A flag carries a copy of the question rather than a pointer to the card,
+  so it still reads months later, after the card has been edited or
+  withdrawn. Nothing else about your practice is sent.
+- The hint button on a question is drawn like the "I don't know" beside
+  it — an outline rather than a filled block. The two are the same sort of
+  thing, and the filled one read as the louder of the pair.
+
 ## 0.34 — 8 September 2026
 
 - Sync now brings every space you belong to up to date, not just your own

@@ -303,12 +303,19 @@ export function Button({
 }
 
 /* An icon on its own still needs a name: it is the only label a screen
-   reader has to go on. */
-export function IconButton({ icon, label, danger, className = "", ...rest }) {
+   reader has to go on.
+
+   `ghost` is the same not-quite-a-button as Button's ghost variant — the
+   outline without the fill. It exists so an icon can sit in a row beside a
+   ghost Button without reading as the heavier of the two, which is what the
+   hint button did next to "I don't know". */
+export function IconButton({ icon, label, danger, ghost, className = "", ...rest }) {
   return (
     <button
       type="button"
-      className={`at-icon${danger ? " danger" : ""}${className ? " " + className : ""}`}
+      className={`at-icon${danger ? " danger" : ""}${ghost ? " ghost" : ""}${
+        className ? " " + className : ""
+      }`}
       title={label}
       aria-label={label}
       {...rest}
@@ -628,6 +635,58 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
       {actions ? <div className="at-miniacts">{actions}</div> : null}
     </div>
   );
+}
+
+/* --- what can be wrong with a question ----------------------------
+ *
+ * Three things, each shown as a card: a title saying what is wrong, and a
+ * line saying when to pick it. The list was four one-line labels, and two
+ * of them were guesses about what a label meant — "The check was too
+ * strict" describes the marking rather than the complaint, and someone
+ * whose recording was silent had to choose between "the card's data" and
+ * "something else" with nothing to go on. A sentence under each title
+ * costs a line and removes the guessing, which is what makes the reports
+ * worth reading at the other end.
+ *
+ * Here rather than in the trainer because both ends need it: the learner
+ * picks from this list, and Admin → Flags names what they picked. Two
+ * copies of it would be two vocabularies for one thing, and the admin one
+ * would be the one that went stale.
+ *
+ * `fixes` marks the option that also overturns the marking; `asks` marks
+ * the one that cannot be sent on its own, because it covers everything not
+ * listed and so has to be said in words.
+ */
+export const FLAG_KINDS = [
+  {
+    key: "strict",
+    title: "My answer should have been accepted",
+    what: "What you typed means the same thing, and the check marked it wrong.",
+    fixes: true,
+  },
+  {
+    key: "data",
+    title: "The card's data is incorrect",
+    what: "The word, its meaning, one of its forms or its recording is wrong.",
+  },
+  {
+    key: "other",
+    title: "Something else",
+    what: "Anything the two above don't cover. Tell us what happened.",
+    asks: true,
+  },
+];
+
+/* Long enough for a paragraph explaining what went wrong, short enough
+   that the report stays a report. The server enforces the same number. */
+export const FLAG_NOTE_MAX = 500;
+
+/* What a flag of this kind is called, for a screen showing one that was
+   sent by somebody else. Falls back to the stored key rather than to
+   nothing: a kind this build does not know about is still a report. */
+export function flagTitle(kind) {
+  const found = FLAG_KINDS.find((k) => k.key === kind);
+  return found ? found.title : String(kind || "Something else");
 }
 
 /* --- shortDate ----------------------------------------------------

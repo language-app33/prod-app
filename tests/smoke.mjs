@@ -55,6 +55,9 @@ delete w.indexedDB; // exercise the no-IndexedDB fallback path
 
 /* ---- the fake server ---- */
 const calls = [];
+/* The bodies of any flags reported, so what was sent can be read rather
+   than merely counted. */
+const reported = [];
 const remoteDocs = new Map(); // token -> {etag, data}
 const account = { handle: "sara-4f2a", displayName: "Sara", key: "amber-cedar-harbour-lantern-1a2b", admin: false };
 const card = {
@@ -113,6 +116,10 @@ w.fetch = globalThis.fetch = async (input, opts = {}) => {
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
+    if (action === "report-flag") {
+      reported.push(JSON.parse(opts.body));
+      return json({ ok: true, id: "flag-1" });
+    }
     return json({ error: "unknown-action" }, 400);
   }
   if (url.pathname === "/api/sync") {
@@ -478,6 +485,69 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the bar is the last thing in the foot, so the flag is above it",
       !!foot && foot.lastElementChild.classList.contains("at-answerbar"),
       foot ? [...foot.children].map((c) => c.className).join(" | ") : "");
+
+    /* What can be wrong, as cards rather than as a list of labels: a title
+       saying what it is and a line saying when to pick it. The labels alone
+       left two of the four to be guessed at, and a guessed flag is worse
+       than none — it is a report that sends whoever reads it to the wrong
+       thing. */
+    click(flag);
+    await sleep(80);
+    const menu = document.querySelector('[data-el="flag-menu"]');
+    const opts = menu ? [...menu.querySelectorAll(".at-flagopt")] : [];
+    check("the flag button opens the menu, and says that it has",
+      !!menu && flag.getAttribute("aria-expanded") === "true",
+      menu ? String(flag.getAttribute("aria-expanded")) : "no menu");
+    check("it offers the three things that can be wrong", opts.length === 3,
+      opts.map((o) => o.textContent).join(" | "));
+    check("each is a card: what it is, and when to pick it",
+      opts.length > 0 && opts.every((o) =>
+        o.querySelector(".at-flagopt-title") && o.querySelector(".at-flagopt-what")),
+      opts.map((o) => o.innerHTML.slice(0, 40)).join(" | "));
+
+    /* "Something else" is the one that says nothing by itself, so it asks
+       rather than sends. */
+    const somethingElse = opts.find((o) => /Something else/.test(o.textContent));
+    click(somethingElse);
+    await sleep(80);
+    const noteBox = document.querySelector('[data-el="flag-note"]');
+    const noteInput = document.querySelector('[data-el="flag-note-input"]');
+    check("picking Something else asks what went wrong instead of sending",
+      !!noteBox && !!noteInput && !document.querySelector(".at-flagopt-title ~ .at-flagopt-what"),
+      noteBox ? "" : "no note box");
+    check("and nothing was reported on the way there",
+      !calls.some((c) => c.includes("report-flag")), calls.filter((c) => c.includes("flag")).join(","));
+    const sendBtn = buttonNamed(/^Send$/);
+    check("Send waits for something to send", !!sendBtn && sendBtn.disabled,
+      sendBtn ? String(sendBtn.disabled) : "no Send button");
+
+    /* jsdom's value setter is the React-controlled one, so the change has
+       to be made the way a keystroke makes it. */
+    const setValue = Object.getOwnPropertyDescriptor(w.HTMLTextAreaElement.prototype, "value").set;
+    setValue.call(noteInput, "the recording plays a different word");
+    noteInput.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(60);
+    check("typing enables it", !buttonNamed(/^Send$/).disabled);
+    click(buttonNamed(/^Send$/));
+    await sleep(120);
+    check("sending reports it to the server",
+      calls.some((c) => c.includes("report-flag")), calls.slice(-3).join(", "));
+    /* What is sent has to be readable at the other end months later, by an
+       administrator who never saw the card: the typed words, the question
+       itself, and a language named by its id rather than by handing over
+       the whole pack. */
+    const sentFlag = reported[reported.length - 1] || {};
+    check("what it sends carries the person's own words",
+      sentFlag.kind === "other" && sentFlag.note === "the recording plays a different word",
+      JSON.stringify(sentFlag).slice(0, 120));
+    check("and the question, with the language named as an id",
+      typeof sentFlag.language === "string" && /^[a-z]{2}-[A-Z]{2}$/.test(sentFlag.language) &&
+        !!sentFlag.cardId && !!sentFlag.exercise && !!sentFlag.prompt,
+      JSON.stringify(sentFlag).slice(0, 200));
+    check("the menu closes and the button says so",
+      !document.querySelector('[data-el="flag-menu"]') &&
+        /Flagged/.test(document.querySelector('[data-el="flag-button"]').textContent),
+      document.querySelector('[data-el="flag-button"]').textContent);
 
     /* The naming scheme, kept honest. A -label or a -text is the second or
        third name of a block, so the block itself has to exist and has to be

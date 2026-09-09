@@ -13,6 +13,7 @@ import {
   contextCoverage,
   dimsOf,
   dimValues,
+  exOf,
   findWordSlot,
   guessKind,
   supportsContext,
@@ -32,6 +33,7 @@ import {
   Field,
   FilterBar,
   FilterMenu,
+  flagTitle,
   Help,
   Icon,
   IconButton,
@@ -1018,6 +1020,33 @@ function CourseSettings({
    Administrator
    ------------------------------------------------------------------ */
 
+/*
+ * Which question a flag was about, in the words the app itself uses for it.
+ *
+ * An exercise's label is written per language — "Arabic script → English",
+ * "Listen → tone" — so naming one needs the pack it was asked in. A flag
+ * sent from a language this build no longer carries falls back to the bare
+ * type, which is less to read but still says which of eight it was.
+ */
+function exerciseLabel(languages, langId, type) {
+  if (!type) return "";
+  const lang = languages[langId];
+  const spec = lang ? exOf(type, lang) : null;
+  return spec && spec.label ? spec.label : type;
+}
+
+/* And how to set it: the same direction and script the app writes that
+   language in everywhere else. Both are undefined for a language this
+   build does not carry, which leaves the browser's own defaults — the
+   right answer when there is nothing better to say. */
+const dirOf = (languages, langId) =>
+  (languages[langId] && languages[langId].direction) || undefined;
+function scriptStyle(languages, langId) {
+  const lang = languages[langId];
+  if (!lang) return undefined;
+  return { ...(lang.fontStack ? { fontFamily: lang.fontStack } : null), ...scriptVars(lang) };
+}
+
 export function AdminSpace({ account, languages, onClose }) {
   const [tab, setTab] = useState("courses");
   const [data, setData] = useState(() => recallSpace("admin", account.handle));
@@ -1036,6 +1065,7 @@ export function AdminSpace({ account, languages, onClose }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [elementsOpen, setElementsOpen] = useState(false);
   const [selDecks, setSelDecks] = useState(() => new Set());
+  const [selFlags, setSelFlags] = useState(() => new Set());
   const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
   /* Whose decks to show: a handle, or "" for everyone's. Search already
      matches the maker's name, but only if you know whose name to type —
@@ -1110,6 +1140,8 @@ export function AdminSpace({ account, languages, onClose }) {
   const users = (data && data.users) || [];
   const courses = (data && data.courses) || [];
   const decks = (data && data.decks) || [];
+  /* Newest first, as the server sends them. */
+  const flags = (data && data.flags) || [];
 
   /* Everyone who has actually made a deck, with how many — read off the
      decks rather than off the people, so the menu never offers a name that
@@ -1235,6 +1267,7 @@ export function AdminSpace({ account, languages, onClose }) {
         ["courses", "Courses", "school"],
         ["people", "People", "group"],
         ["decks", "Decks", "folder"],
+        ["flags", "Flags", "flag"],
         ["app", "App", "tune"],
       ]}
       tab={tab}
@@ -1801,6 +1834,107 @@ export function AdminSpace({ account, languages, onClose }) {
                 )}
               />
 
+            </>
+          )}
+
+          {/*
+            * What learners said was wrong, newest first.
+            *
+            * Sent from the answer screen, where the problem was met. This is
+            * the only place they are read: a teacher can see a card, but a
+            * report is about the site rather than about one deck, and half
+            * of them are about the marking rather than the material.
+            *
+            * A report is the whole record — there is no reply and no
+            * resolved state. What answers a flag is the card being fixed,
+            * and once it is, the report is done with and deleted.
+            */}
+          {tab === "flags" && (
+            <>
+              <Lede>
+                Problems learners reported from the answer screen — what was wrong, on which
+                question, and who said so. Fix the card, then clear the report.
+              </Lede>
+              <ItemList
+                noun="flag"
+                items={flags}
+                size="small"
+                busy={busy}
+                empty="Nothing reported. Learners flag a question from the answer screen, and what they send lands here."
+                match={(f, q) =>
+                  flagTitle(f.kind).toLowerCase().includes(q) ||
+                  (f.handleName || "").toLowerCase().includes(q) ||
+                  (f.note || "").toLowerCase().includes(q) ||
+                  (f.prompt || "").toLowerCase().includes(q) ||
+                  (f.meaning || "").toLowerCase().includes(q)
+                }
+                selected={selFlags}
+                onSelectedChange={setSelFlags}
+                bulkActions={[
+                  {
+                    label: "Clear",
+                    danger: true,
+                    onClick: (ids) =>
+                      setConfirm({
+                        title: `Clear ${plural(ids.length, "flag")}?`,
+                        confirmLabel: "Clear them",
+                        body: (
+                          <p>
+                            They go for good. Nothing about the cards changes — clearing a report
+                            says it has been dealt with, not that it was right.
+                          </p>
+                        ),
+                        action: async () => {
+                          await API.deleteFlags([...ids]);
+                          setSelFlags(new Set());
+                        },
+                      }),
+                  },
+                ]}
+                renderItem={(f) => (
+                  <Tile
+                    title={flagTitle(f.kind)}
+                    meta={`${f.handleName || f.handle} · ${dateTime(f.at)}`}
+                    actions={
+                      <IconButton
+                        icon="delete"
+                        label="Clear this report"
+                        danger
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirm({
+                            title: "Clear this report?",
+                            confirmLabel: "Clear it",
+                            body: <p>It goes for good. Nothing about the card changes.</p>,
+                            action: () => API.deleteFlags([f.id]),
+                          });
+                        }}
+                      />
+                    }
+                    footer={
+                      <div className="at-flagreport">
+                        {/* The question as it was asked, copied into the
+                            report when it was sent: the card may have been
+                            edited or withdrawn since, and an id on its own
+                            would say nothing. Set in its own script and
+                            direction, like every other place the app shows
+                            a word — a right-to-left word laid out
+                            left-to-right is the thing an administrator
+                            would misread first. */}
+                        {f.prompt && (
+                          <p className="at-flagreport-q" lang={f.language} dir={dirOf(languages, f.language)}
+                            style={scriptStyle(languages, f.language)}>
+                            {f.prompt}
+                          </p>
+                        )}
+                        {f.meaning && <p className="at-flagreport-en">{f.meaning}</p>}
+                        {f.note && <p className="at-flagreport-note">{f.note}</p>}
+                        <Help>{exerciseLabel(languages, f.language, f.exercise)}</Help>
+                      </div>
+                    }
+                  />
+                )}
+              />
             </>
           )}
 

@@ -105,6 +105,13 @@ export const rename = (displayName) => call("rename", { body: { displayName } })
 export const practiced = () => call("practiced", { body: {} });
 export const claimAdmin = (adminKey) => call("claim-admin", { body: { adminKey } });
 
+/* ---- flags ----
+   "Something about this question is wrong." Sent by whoever hit it, read in
+   Admin → Flags by whoever can fix it. The report carries a copy of the
+   question rather than a pointer to the card, so it still says something
+   after the card has been edited or withdrawn. */
+export const reportFlag = (flag) => call("report-flag", { body: flag });
+
 /* ---- courses ---- */
 export const myCourses = () => call("my-courses");
 export const createCourse = (title, language, description) =>
@@ -166,6 +173,9 @@ export const renameCourse = (courseId, title) =>
   call("admin-rename-course", { body: { courseId, title } });
 export const setCourseLanguage = (courseId, language) =>
   call("admin-course-language", { body: { courseId, language } });
+/* Flags are read with the rest of the overview; this is the only thing done
+   to them. Dealt with means dealt with — there is nothing to keep. */
+export const deleteFlags = (flagIds) => call("admin-delete-flags", { body: { flagIds } });
 
 /* Turn a server error into something worth reading. */
 export function explain(err) {
@@ -203,6 +213,8 @@ export function explain(err) {
       "no-deck": "That deck no longer exists.",
       "no-user": "No account with that handle.",
       "no-card": "That card no longer exists.",
+      "bad-flag": "That isn't a kind of problem this app reports.",
+      "note-required": "Say what went wrong and it can be looked into.",
       "name-required": "A name is needed.",
       "title-required": "A title is needed.",
       "too-large": "That is too big to store.",

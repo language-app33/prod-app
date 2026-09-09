@@ -66,8 +66,8 @@ eight jobs and became impossible to restyle.
 
 | Component | Use for | Uses |
 |---|---|---|
-| `Lede` | the intro paragraph under a title | 6 |
-| `Help` | helper text under a control | 83 |
+| `Lede` | the intro paragraph under a title | 8 |
+| `Help` | helper text under a control | 94 |
 | `Meta` | small print beside content | 0 |
 | `Notice` | errors, warnings, success, busy | 12 |
 
@@ -82,16 +82,20 @@ instead; treat it as available rather than established.
 
 ## Controls
 
-### `Button` — 90 uses
+### `Button` — 97 uses
 `variant="default" | "primary" | "ghost" | "danger"`, `size="sm"`, `wide`,
 `icon="add"`, `iconSize`, plus anything a `<button>` takes.
 
 Pass `icon` rather than an `<Icon>` child — that way the spacing is consistent.
 
-### `IconButton` — 12 uses
+### `IconButton` — 15 uses
 An icon-only button. `label` is **required** and becomes the accessible name.
 
-`icon, label, danger, className, ...rest`
+`icon, label, danger, ghost, className, ...rest`
+
+`ghost` is the same outline-without-fill as `Button`'s ghost variant. Use it
+when the icon stands in a row beside ghost `Button`s — the hint button next
+to "I don't know" — so the two read as the same weight.
 
 ### `Segmented` — 17 uses
 Pick one from a few. Reports `aria-pressed`.
@@ -124,7 +128,7 @@ A proper radio list of languages. `languages, value, onChange, label, name`
 
 ## Lists and tiles
 
-### `ItemList` — 8 uses
+### `ItemList` — 9 uses
 The standard list frame: New button, search, Select mode, bulk-action tray,
 empty state, and paging at 120 items.
 
@@ -139,7 +143,7 @@ One card tile for both the learner's and the teacher's lists.
 
 `card, lang, deckTitles, showLat, meta, actions, onClick`
 
-### `Tile` — 6 uses
+### `Tile` — 7 uses
 The generic deck/course tile. `title, meta, onOpen, actions, footer`
 
 Lived in `spaces.jsx` until recently, which made this file wrong about where
@@ -186,10 +190,16 @@ A list of recordings with playback. `clips, onChange, load`
 - **`Icon`** — 22 uses. `name, size=20`. Available names: `add, search, close,
   delete, edit, tune, check, back, save, folder, cards, person, group, key,
   download, verify, play, pause, view, select, school, copy, refresh, mic,
-  remove, chevronDown, chevronUp, menu, help, theme, language, lock`.
+  remove, chevronDown, chevronUp, soundOff, flag, menu, help, theme, language,
+  lock`.
   Use these rather than glyph characters.
 - **`plural(n, noun)`** — `plural(3, "card")` → `"3 cards"`. Use it instead of
   writing `${n} card${n === 1 ? "" : "s"}`.
+- **`FLAG_KINDS` / `flagTitle(kind)` / `FLAG_NOTE_MAX`** — the three things a
+  learner can say is wrong with a question, each with a `title` and the
+  `what` line under it. The trainer renders the list; Admin → Flags names
+  what came back with `flagTitle`. Not components, but they live here for
+  the same reason: two copies would be two vocabularies for one thing.
 - **`languageName(languages, id)`** / **`LanguageTag`** — one place that knows
   how to name a language, including the "not set" case.
 - **`useLiveRefresh(fn, everyMs = 45000)`** — refresh on focus, on visibility

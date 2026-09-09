@@ -87,8 +87,30 @@ const K = {
   myCards: (owner) => `mycards:${owner}`,
   code: (c) => `code:${String(c).toLowerCase()}`,
   clip: (h) => `clip:${h}`,
+  flag: (id) => `flag:${id}`,
   index: (what) => `index:${what}`,
 };
+
+/*
+ * Reported problems.
+ *
+ * A learner who hits a bad question says so from the answer screen, and
+ * the report has to reach somebody who can change the card — which the
+ * learner's own document never does, since the server cannot read it. So a
+ * flag is its own small record here: what was wrong, on which question, by
+ * whom, and when.
+ *
+ * The kinds are the three the app offers, listed here as well because a
+ * kind the app never sends is a kind nothing can read, and an open field
+ * would fill the admin screen with whatever anyone posted.
+ */
+const FLAG_KINDS = ["strict", "data", "other"];
+const FLAG_NOTE_MAX = 500;
+/* Enough to keep every flag a real site accumulates between one look and
+   the next, and a ceiling so a stuck client cannot fill the disk. The
+   oldest go first, which is also the order they stop being worth reading
+   in. */
+const MAX_FLAGS = 500;
 
 /* Strong reads come from the origin, eventual ones from the edge. Anything
    that reads in order to write back must be strong, and so must anything a
@@ -307,6 +329,50 @@ export default async (req) => {
       if (!displayName) return json({ error: "name-required" }, 400);
       await writeJson(store, K.user(mine), { ...me, displayName });
       return json({ ok: true, displayName });
+    }
+
+    /*
+     * "Something about this question is wrong."
+     *
+     * Anyone signed in may send one: the people who meet a bad card are
+     * the students, and a student who has to find a teacher to tell is a
+     * student who does not tell. The reporter's name is copied in beside
+     * their handle, so the report still says who sent it after the account
+     * is gone.
+     */
+    if (action === "report-flag") {
+      const kind = String(body.kind || "");
+      if (!FLAG_KINDS.includes(kind)) return json({ error: "bad-flag" }, 400);
+      const note = String(body.note || "").trim().slice(0, FLAG_NOTE_MAX);
+      /* "Something else" is the option that says nothing by itself. Sent
+         empty it is a report nobody can act on, so it is refused here as
+         well as disabled in the app. */
+      if (kind === "other" && !note) return json({ error: "note-required" }, 400);
+
+      const flag = {
+        id: randomBytes(8).toString("hex"),
+        kind,
+        note,
+        handle: mine,
+        handleName: me.displayName || mine,
+        cardId: String(body.cardId || "").slice(0, 64),
+        exercise: String(body.exercise || "").slice(0, 40),
+        subId: body.subId ? String(body.subId).slice(0, 64) : null,
+        language: String(body.language || "").slice(0, 20),
+        prompt: String(body.prompt || "").slice(0, 200),
+        meaning: String(body.meaning || "").slice(0, 200),
+        at: Date.now(),
+      };
+      await writeJson(store, K.flag(flag.id), flag);
+
+      /* Newest last, the way every other index here grows. Trimmed on the
+         way in rather than on the way out, so the list an administrator
+         reads is never one the server would have refused to keep. */
+      const ids = ((await readJson(store, K.index("flags"))) || []).concat([flag.id]);
+      const dropped = ids.slice(0, Math.max(0, ids.length - MAX_FLAGS));
+      for (const id of dropped) await store.delete(K.flag(id)).catch(() => {});
+      await writeJson(store, K.index("flags"), ids.slice(dropped.length));
+      return json({ ok: true, id: flag.id });
     }
 
     /* One-time promotion, so the first admin can exist at all. */
@@ -1008,11 +1074,13 @@ export default async (req) => {
         const userIds = (await readJson(store, K.index("users"))) || [];
         const courseIds = (await readJson(store, K.index("courses"))) || [];
         const deckIds = (await readJson(store, K.index("decks"))) || [];
+        const flagIds = (await readJson(store, K.index("flags"))) || [];
 
-        const [courseRows, userRows, deckRows] = await Promise.all([
+        const [courseRows, userRows, deckRows, flagRows] = await Promise.all([
           readManyJson(store, courseIds.map((id) => K.course(id))),
           readManyJson(store, userIds.map((h) => K.user(h))),
           readManyJson(store, deckIds.map((id) => K.deck(id))),
+          readManyJson(store, flagIds.map((id) => K.flag(id))),
         ]);
         const courses = courseRows.filter(Boolean);
         const users = [];
@@ -1043,7 +1111,15 @@ export default async (req) => {
             .map((l) => (courses.find((c) => c.id === l.courseId) || {}).title)
             .filter(Boolean),
         }));
-        return json({ ok: true, users, courses, decks });
+        /* Newest first: a flags list is read from the top, and what came in
+           since the last look is the part worth reading. The reporter's
+           current name wins over the one copied in when it was sent, so a
+           person who has since been renamed is not two people here. */
+        const flags = flagRows
+          .filter(Boolean)
+          .map((f) => ({ ...f, handleName: nameOf[f.handle] || f.handleName || f.handle }))
+          .sort((a, b) => (b.at || 0) - (a.at || 0));
+        return json({ ok: true, users, courses, decks, flags });
       }
 
       /* A lost key: the handle survives, so memberships and progress do too. */
@@ -1346,6 +1422,18 @@ export default async (req) => {
         await writeJson(store, K.code(code), course.id);
         await writeJson(store, K.course(course.id), { ...course, [which]: code });
         return json({ ok: true, code, which });
+      }
+
+      /* Dealt with, or not worth keeping. There is no state on a flag
+         beyond existing, because a half-read list of "resolved" markers is
+         a second thing to keep tidy and the first one is the card. */
+      if (action === "admin-delete-flags") {
+        const wanted = new Set((Array.isArray(body.flagIds) ? body.flagIds : []).map(String));
+        if (!wanted.size) return json({ ok: true, deleted: 0 });
+        const ids = (await readJson(store, K.index("flags"))) || [];
+        for (const id of ids) if (wanted.has(id)) await store.delete(K.flag(id)).catch(() => {});
+        await writeJson(store, K.index("flags"), ids.filter((id) => !wanted.has(id)));
+        return json({ ok: true, deleted: ids.filter((id) => wanted.has(id)).length });
       }
     }
 

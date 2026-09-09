@@ -587,3 +587,96 @@ test("removing one role leaves the other, and removing the last one leaves the c
   const gone = await seen();
   assert.deepEqual([gone.teachers, gone.students], [[], []], "and the last one takes them out");
 });
+
+/*
+ * Reporting a bad question.
+ *
+ * The learner's own document never reaches anyone who could fix a card —
+ * the server cannot read it — so a flag is its own record here, and this is
+ * the whole of its life: a student sends one, the administrator reads it
+ * with the rest of the overview, and clears it once the card is fixed.
+ */
+test("a student's flag reaches the administrator, and says who sent it and when", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rania" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Tariq" } });
+
+  const before = Date.now();
+  const sent = await api("/api/courses?action=report-flag", {
+    method: "POST",
+    key: student.json.key,
+    body: {
+      kind: "strict",
+      cardId: "card-1",
+      exercise: "ar2en",
+      language: "ar-PS",
+      prompt: "كِتاب",
+      meaning: "book",
+    },
+  });
+  assert.equal(sent.status, 200, sent.text);
+
+  const seen = (await api("/api/courses?action=admin-overview", { key })).json.flags;
+  const mine = seen.find((f) => f.id === sent.json.id);
+  assert.ok(mine, "the flag is in the overview");
+  assert.equal(mine.kind, "strict");
+  assert.equal(mine.handle, student.json.user.handle, "by which user");
+  assert.equal(mine.handleName, "Tariq", "under the name an administrator would recognise");
+  assert.ok(mine.at >= before && mine.at <= Date.now(), "and when");
+  assert.equal(mine.prompt, "كِتاب", "with a copy of the question, not just the card id");
+
+  /* Renaming does not leave two people in the list. */
+  await api("/api/courses?action=rename", {
+    method: "POST", key: student.json.key, body: { displayName: "Tariq S" },
+  });
+  const renamed = (await api("/api/courses?action=admin-overview", { key })).json.flags
+    .find((f) => f.id === sent.json.id);
+  assert.equal(renamed.handleName, "Tariq S");
+
+  /* Cleared, and gone for good. */
+  const cleared = await api("/api/courses?action=admin-delete-flags", {
+    method: "POST", key, body: { flagIds: [sent.json.id] },
+  });
+  assert.equal(cleared.json.deleted, 1);
+  const after = (await api("/api/courses?action=admin-overview", { key })).json.flags;
+  assert.equal(after.find((f) => f.id === sent.json.id), undefined, "and it does not come back");
+});
+
+test("a flag nobody could act on is refused, and only an administrator reads them", async () => {
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Layla" } });
+  const key = student.json.key;
+
+  const unknown = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "vibes", cardId: "c1" },
+  });
+  assert.equal(unknown.status, 400);
+  assert.equal(unknown.json.error, "bad-flag");
+
+  /* "Something else" says nothing on its own, so it has to say something. */
+  const empty = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "other", note: "   ", cardId: "c1" },
+  });
+  assert.equal(empty.status, 400);
+  assert.equal(empty.json.error, "note-required");
+
+  const said = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "other", note: "  the recording is silent  ", cardId: "c1" },
+  });
+  assert.equal(said.status, 200, said.text);
+
+  /* Reading them is the administrator's, and so is clearing them. */
+  const nosy = await api("/api/courses?action=admin-overview", { key });
+  assert.equal(nosy.status, 403);
+  const clearing = await api("/api/courses?action=admin-delete-flags", {
+    method: "POST", key, body: { flagIds: [said.json.id] },
+  });
+  assert.equal(clearing.status, 403);
+
+  /* Signing in is the whole of the permission to send one: the people who
+     meet a bad card are the students. */
+  const anon = await api("/api/courses?action=report-flag", {
+    method: "POST", body: { kind: "data", cardId: "c1" },
+  });
+  assert.equal(anon.status, 401);
+});

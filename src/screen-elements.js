@@ -68,7 +68,10 @@ export const SCREEN_ELEMENTS = [
     ["related-word", "One of those words, with what it means.", "كُتُب — books"],
     ["bare-note", "A nudge when a right answer was typed without its marks.", "The harakat are above — worth a look."],
     ["card-note", "The teacher's own note on the card, if there is one.", ""],
-    ["flag-button", "Reports a problem with the question.", "⚑ Flag a problem"],
+    ["flag-button", "Opens the list of what can be wrong with the question, and closes it again.", "⚑ Flag a problem"],
+    ["flag-menu", "The list it opens: one card per kind of problem, each with a line saying when to pick it.", ""],
+    ["flag-note", "What replaces those cards when Something else is picked — the problem in your own words.", "What went wrong?"],
+    ["flag-note-input", "The box you type it into. Nothing is sent until there is something in it.", ""],
     ["continue-button", "The way on, in the bar at the foot.", "Continue"],
   ]],
 ];

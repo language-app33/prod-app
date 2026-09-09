@@ -440,10 +440,11 @@ export function ComponentGallery() {
       <Row
         name="IconButton"
         what="An icon on its own."
-        note="label is required — it is the only name a screen reader has to go on."
+        note="label is required — it is the only name a screen reader has to go on. ghost is the same outline-without-fill as Button's, for an icon standing in a row beside ghost buttons — the hint button beside “I don't know”."
       >
         <V label="default"><IconButton icon="edit" label="Edit" /></V>
         <V label="danger"><IconButton icon="delete" label="Delete" danger /></V>
+        <V label="ghost"><IconButton icon="help" label="Show meaning" ghost /></V>
       </Row>
 
       <Row
