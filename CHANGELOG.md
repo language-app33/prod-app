@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.53 — 10 September 2026
+
+- Every deploy reported a crash, and every deploy cut off whatever request
+  was in flight. Neither was the deploy failing: the host was starting the
+  server through npm, so the signal that says "stop now" reached npm and
+  stopped there. The server never heard it, and npm's own death by signal
+  is a non-zero exit, which is what the crash notice was reporting.
+- The deploy now starts the server directly, which is a one-line file in the
+  repository rather than a setting in a dashboard, and the shutdown the
+  server has always been careful about actually runs.
+
 ## 0.52 — 10 September 2026
 
 - Backing up and restoring are screens of their own now, and both ask what
