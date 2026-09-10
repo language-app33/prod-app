@@ -1,3 +1,4 @@
+/** @import { Doc, ExerciseState, Form, Item, WireDoc } from "./types.js" */
 /*
  * Sync client.
  *
@@ -33,6 +34,7 @@ export function loadSyncConfig() {
   return { token: "", phrase: "", lastSync: 0, uploaded: [] };
 }
 
+/** @param {Record<string, any>} cfg */
 export function saveSyncConfig(cfg) {
   try {
     localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
@@ -42,6 +44,7 @@ export function saveSyncConfig(cfg) {
 }
 
 /* The passphrase itself never leaves the device — only its digest. */
+/** @param {string} passphrase */
 export async function tokenFor(passphrase) {
   const bytes = new TextEncoder().encode(String(passphrase).trim());
   const digest = await crypto.subtle.digest("SHA-256", bytes);
@@ -64,7 +67,13 @@ export function suggestPassphrase() {
 /* Progress for one form: each exercise type kept from whichever device
    answered it most recently, so two devices drilling different exercises
    both keep their work. */
+/**
+ * @param {Record<string, ExerciseState>} [sa]
+ * @param {Record<string, ExerciseState>} [sb]
+ * @returns {Record<string, ExerciseState>}
+ */
 function mergeStates(sa = {}, sb = {}) {
+  /** @type {Record<string, ExerciseState>} */
   const s = {};
   for (const t of new Set([...Object.keys(sa), ...Object.keys(sb)])) {
     if (!sa[t]) s[t] = sb[t];
@@ -74,6 +83,11 @@ function mergeStates(sa = {}, sb = {}) {
   return s;
 }
 
+/**
+ * @param {Item} a
+ * @param {Item} b
+ * @returns {Item}
+ */
 function mergeItem(a, b) {
   // Text fields, tags, kind and note come from whichever was edited last.
   const base = (a.updated || 0) >= (b.updated || 0) ? a : b;
@@ -83,13 +97,18 @@ function mergeItem(a, b) {
      same way — by form, then by exercise type. Taking the whole list from
      one side threw away the other device's work on any form it had drilled. */
   const subs = (base.subs || []).map((sb) => {
-    const twin = (other.subs || []).find((x) => x.id === sb.id);
+    const twin = (other.subs || []).find((/** @type {Form} */ x) => x.id === sb.id);
     return twin ? { ...sb, s: mergeStates(sb.s, twin.s) } : sb;
   });
 
   return { ...base, s: mergeStates(a.s, b.s), subs };
 }
 
+/**
+ * @param {Doc} local
+ * @param {WireDoc | null} remote  Whatever came back, which may be from an older build.
+ * @returns {Doc}
+ */
 export function mergeData(local, remote) {
   if (!remote || !Array.isArray(remote.items)) return local;
 
@@ -150,6 +169,10 @@ export function mergeData(local, remote) {
    one starts clean. */
 const SYNC_TIMEOUT_MS = 30000;
 
+/**
+ * @param {string} url
+ * @param {RequestInit} [opts]
+ */
 async function fetchT(url, opts = {}) {
   const abort = new AbortController();
   const deadline = setTimeout(() => abort.abort(), SYNC_TIMEOUT_MS);
@@ -160,6 +183,7 @@ async function fetchT(url, opts = {}) {
   }
 }
 
+/** @param {string} token */
 async function pull(token) {
   const res = await fetchT(ENDPOINT, { headers: { "x-sync-token": token } });
   if (res.status === 401) throw new Error("bad-passphrase");
@@ -167,6 +191,11 @@ async function pull(token) {
   return res.json();
 }
 
+/**
+ * @param {string} token
+ * @param {string | null} etag
+ * @param {Doc} data
+ */
 async function push(token, etag, data) {
   const res = await fetchT(ENDPOINT, {
     method: "POST",
@@ -189,6 +218,7 @@ async function push(token, etag, data) {
    it is left out here and recreated there. In memory every state is always
    present; only what is stored and sent is sparse. */
 
+/** @param {ExerciseState | null | undefined} s */
 export function isFreshState(s) {
   return (
     !s ||
@@ -202,12 +232,21 @@ export function isFreshState(s) {
   );
 }
 
+/**
+ * @param {Record<string, ExerciseState>} [s]
+ * @returns {Record<string, ExerciseState>}
+ */
 function compactStates(s) {
+  /** @type {Record<string, ExerciseState>} */
   const out = {};
   for (const [t, st] of Object.entries(s || {})) if (!isFreshState(st)) out[t] = st;
   return out;
 }
 
+/**
+ * @param {Item} it
+ * @returns {Item}
+ */
 export function compactItem(it) {
   return {
     ...it,
@@ -218,6 +257,10 @@ export function compactItem(it) {
 
 /* Strip anything device-specific before it goes up, and every state that
    says nothing. */
+/**
+ * @param {Doc} data
+ * @returns {Doc}
+ */
 function forWire(data) {
   return {
     version: data.version,
@@ -232,6 +275,10 @@ function forWire(data) {
 /*
  * One round trip: pull, merge, push. Returns the merged document and
  * whether it differs from what we had, so the caller can adopt it.
+ */
+/**
+ * @param {Doc} local
+ * @param {string} token
  */
 export async function syncOnce(local, token) {
   let { etag, data: remote } = await pull(token);
@@ -260,6 +307,10 @@ export async function syncOnce(local, token) {
    of uploaded ids keeps this from re-checking every clip every sync.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {string} token
+ * @param {string} id
+ */
 export async function pullClip(token, id) {
   const res = await fetchT(`${ENDPOINT}?audio=${encodeURIComponent(id)}`, {
     headers: { "x-sync-token": token },
@@ -270,6 +321,11 @@ export async function pullClip(token, id) {
   return body.data || null;
 }
 
+/**
+ * @param {string} token
+ * @param {string} id
+ * @param {string} dataUrl
+ */
 export async function pushClip(token, id, dataUrl) {
   const res = await fetchT(`${ENDPOINT}?audio=${encodeURIComponent(id)}`, {
     method: "POST",
@@ -281,6 +337,7 @@ export async function pushClip(token, id, dataUrl) {
 }
 
 /* Every recording id the document refers to, across items and their forms. */
+/** @param {WireDoc} data  Only the items are read, so a partial document will do. */
 export function clipIdsIn(data) {
   const ids = [];
   for (const it of data.items || []) {
@@ -306,6 +363,16 @@ export function clipIdsIn(data) {
    uploaded from another device later is still found after a reload. */
 const KNOWN_MISSING = new Set();
 
+/**
+ * @param {string} token
+ * @param {WireDoc} data  Only the items are read, so a partial document will do.
+ * @param {{
+ *   hasLocal: (id: string) => boolean | Promise<boolean>,
+ *   readLocal: (id: string) => Promise<string | null>,
+ *   writeLocal: (id: string, url: string) => void | Promise<void>,
+ *   uploaded?: Iterable<string>,
+ * }} store
+ */
 export async function syncClips(token, data, { hasLocal, readLocal, writeLocal, uploaded }) {
   const ids = clipIdsIn(data);
   let pulled = 0;
@@ -351,6 +418,7 @@ export async function syncClips(token, data, { hasLocal, readLocal, writeLocal, 
   return { pulled, pushed, uploaded: [...known] };
 }
 
+/** @param {string} token */
 export async function forgetRemote(token) {
   await fetchT(ENDPOINT, { method: "DELETE", headers: { "x-sync-token": token } });
 }

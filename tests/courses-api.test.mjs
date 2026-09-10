@@ -2,9 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 /* The client reads window.location and localStorage at call time, so both
-   have to exist before the module is imported. */
-globalThis.window = { location: { origin: "https://taleb.test" } };
-globalThis.localStorage = {
+   have to exist before the module is imported.
+ *
+ * Part-implementations, cast: what is here is what the client reaches for,
+ * and completing them would be standing in for a browser rather than
+ * saying what this module needs from one. */
+const anyGlobal = /** @type {Record<string, any>} */ (/** @type {unknown} */ (globalThis));
+anyGlobal.window = { location: { origin: "https://taleb.test" } };
+anyGlobal.localStorage = {
   getItem: () => null,
   setItem: () => {},
   removeItem: () => {},
@@ -14,8 +19,13 @@ const API = await import("../src/courses-api.js");
 
 /* A stand-in for whatever answered: the body is text, as it is in a
    browser, so a non-JSON answer is reported the way a real one would be. */
+/**
+ * @param {number} status
+ * @param {string} body
+ * @param {string} [contentType]
+ */
 function answer(status, body, contentType = "application/json") {
-  globalThis.fetch = async () => ({
+  anyGlobal.fetch = async () => ({
     ok: status < 300,
     status,
     headers: { get: () => contentType },

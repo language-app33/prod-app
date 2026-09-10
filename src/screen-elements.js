@@ -21,6 +21,7 @@ export const QUESTION = "The question screen";
 export const ANSWER = "The answer screen";
 
 /* [name, what it is, an example of what it holds] */
+/** @type {[string, [string, string, string][]][]} */
 export const SCREEN_ELEMENTS = [
   [BOTH, [
     ["card", "The whole exercise block — everything between the progress bar and the buttons at the foot.", ""],
@@ -69,8 +70,10 @@ export const SCREEN_ELEMENTS = [
     ["bare-note", "A nudge when a right answer was typed without its marks.", "The harakat are above — worth a look."],
     ["card-note", "The teacher's own note on the card, if there is one.", ""],
     ["flag-button", "Opens the list of what can be wrong with the question, and closes it again.", "⚑ Flag a problem"],
-    ["flag-menu", "The list it opens: one card per kind of problem, each with a line saying when to pick it.", ""],
-    ["flag-note", "What replaces those cards when Something else is picked — the problem in your own words.", "What went wrong?"],
+    ["flag-menu", "The panel it opens over the bar: one card per kind of problem, each with a line saying when to pick it, and Back and Send under them.", ""],
+    ["flag-menu-label", "The heading at the top of that panel, naming what it is for.", "Flag a problem"],
+    ["flag-menu-lede", "The line under that heading, saying why reporting one is worth the half minute.", "Any issue or feedback you report helps us improve the app."],
+    ["flag-note", "The lower half of Something else — the problem in your own words, there from the start.", ""],
     ["flag-note-input", "The box you type it into. Nothing is sent until there is something in it.", ""],
     ["continue-button", "The way on, in the bar at the foot.", "Continue"],
   ]],

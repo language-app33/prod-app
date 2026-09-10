@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { must } from "./helpers.mjs";
 import {
   arSkeleton,
   checkAr,
@@ -196,10 +197,10 @@ test("a language may answer for itself, and the app never decides", () => {
   /* The point of this living in the language layer: a script written
      without spaces between words needs a different rule entirely, and gets
      one without the app knowing. */
-  const noSpaces = { id: "xx", guessKind: () => "sentence" };
+  const noSpaces = { guessKind: () => "sentence" };
   assert.equal(guessKind("باب", noSpaces), "sentence");
   /* And a pack that says nothing gets the default. */
-  assert.equal(guessKind("باب", { id: "yy" }), "word");
+  assert.equal(guessKind("باب", {}), "word");
 });
 
 test("neither language pack overrides it today", () => {
@@ -288,7 +289,7 @@ test("coverage counts the words that have a context, and every context each has"
   /* Most contexts first, because that is the order worth reading. */
   assert.equal(r.words[0].ar, "كتاب");
   assert.equal(r.words[0].contexts.length, 2);
-  assert.equal(r.words.at(-1).contexts.length, 0);
+  assert.equal((r.words.at(-1) || { contexts: [] }).contexts.length, 0);
 });
 
 test("a collection with no phrases at all reports honestly", () => {
@@ -358,7 +359,9 @@ test("every pack resolves a usable type scale", () => {
      positive and finite wherever they are read, because they end up
      inside a calc() and a bad one would silently drop the declaration. */
   for (const [id, lang] of Object.entries(LANGUAGES)) {
-    for (const [what, n] of [["scale", scaleOf(lang)], ["leading", leadingOf(lang)]]) {
+    /** @type {[string, number][]} */
+    const sizes = [["scale", scaleOf(lang)], ["leading", leadingOf(lang)]];
+    for (const [what, n] of sizes) {
       assert.equal(typeof n, "number", `${id} ${what}`);
       assert.ok(Number.isFinite(n) && n > 0, `${id} ${what} is ${n}`);
     }
@@ -374,9 +377,9 @@ test("every pack resolves a usable type scale", () => {
 test("a pack that says nothing about size renders at full size", () => {
   /* The case every future pack starts in — Hebrew is in it today — so it
      has to be the safe one rather than a crash or a zero. */
-  assert.equal(scaleOf({ id: "xx" }), 1);
-  assert.equal(leadingOf({ id: "xx" }), 1);
-  assert.deepEqual(scriptVars({ id: "xx" }), { "--sscale": "1", "--sleading": "1", "--lscale": "0.78" });
+  assert.equal(scaleOf({}), 1);
+  assert.equal(leadingOf({}), 1);
+  assert.deepEqual(scriptVars({}), { "--sscale": "1", "--sleading": "1", "--lscale": "0.78" });
   /* And a value that could not work in a calc() falls back rather than
      poisoning every rule that reads it. */
   for (const bad of [0, -1, NaN, Infinity, "big", null]) {
@@ -400,7 +403,7 @@ test("the Latin beside the script is the same size whatever is being taught", ()
      the word and its meaning come out at one size again. */
   const ls = Object.keys(LANGUAGES).map((id) => scriptVars(LANGUAGES[id])["--lscale"]);
   assert.equal(new Set(ls).size, 1, `Latin was sized differently per course: ${ls.join(", ")}`);
-  assert.equal(scriptVars({ id: "xx" })["--lscale"], ls[0], "a pack that says nothing still sizes Latin");
+  assert.equal(scriptVars({})["--lscale"], ls[0], "a pack that says nothing still sizes Latin");
   assert.equal(scriptVars(LANGUAGES["vi-Hue"])["--sscale"], ls[0],
     "Vietnamese is Latin, so its own factor and Latin's have to agree");
 });
@@ -413,7 +416,7 @@ test("every language that groups words says what the grouping is called", () => 
     const group = (lang.derived || []).find((d) => d.groups);
     if (!group) continue;
     assert.equal(typeof group.heading, "string", `${id} groups words without a heading`);
-    assert.ok(group.heading.length > 0, id);
+    assert.ok((group.heading || "").length > 0, id);
   }
 });
 
@@ -422,10 +425,10 @@ test("Arabic groups by root and needs no quizzable property to do it", () => {
      quiz, and the old code demanded both — so the root families it had
      already computed were thrown away on every answer. */
   const ar = LANGUAGES["ar-PS"];
-  const group = ar.derived.find((d) => d.groups);
+  const group = must(ar.derived.find((d) => d.groups), "Arabic's grouping");
   assert.equal(group.id, "root");
   assert.equal(ar.derived.some((d) => d.quizzable), false);
-  assert.match(group.heading, /root/i);
+  assert.match(group.heading || "", /root/i);
 });
 
 test("the root key gathers a family and nothing else", () => {
@@ -439,10 +442,10 @@ test("the root key gathers a family and nothing else", () => {
 
 test("Hebrew groups by root the way Arabic does", () => {
   const he = LANGUAGES["he-IL"];
-  const group = he.derived.find((d) => d.groups);
+  const group = must(he.derived.find((d) => d.groups), "Hebrew's grouping");
   assert.equal(group.id, "root");
   assert.equal(group.compute, heRootKey);
-  assert.match(group.heading, /root/i);
+  assert.match(group.heading || "", /root/i);
   assert.equal(he.derived.some((d) => d.quizzable), false);
 });
 
@@ -497,5 +500,5 @@ test("what arSkeleton did, and why it could never have grouped anything", () => 
      kept its own spelling as its key. Kept because similarity still reads
      it; it is no longer what gathers a family. */
   assert.notEqual(arSkeleton("كتاب"), arSkeleton("كاتب"));
-  assert.equal(LANGUAGES["ar-PS"].derived.find((d) => d.groups).compute, arRootKey);
+  assert.equal(must(LANGUAGES["ar-PS"].derived.find((d) => d.groups), "Arabic's grouping").compute, arRootKey);
 });

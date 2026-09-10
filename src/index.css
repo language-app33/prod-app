@@ -299,6 +299,17 @@ button {
 .at-flagbtn.on { color: var(--brass); }
 .at-flagmenu { display:flex; flex-direction:column; gap:6px; margin-top:8px;
   border:2px solid var(--line); border-radius: var(--r); background: var(--surface); padding:8px; }
+/* What the menu is, said where the button that opened it used to be — the
+   menu stands on top of it now, so without this line the screen has three
+   options on it and nothing saying what they are options about. Centred,
+   over a panel whose own contents are all left-aligned: it is the head of
+   the thing, not the first item in it. */
+.at-flagmenu-label { margin:4px 2px 0; text-align:center;
+  font-size:15px; font-weight:800; color: var(--text); }
+/* And why it is worth doing, under it. Two lines at 320px, so the panel
+   pays a line for it and not more. */
+.at-flagmenu-lede { margin:3px 8px 6px; text-align:center;
+  font-size:12px; font-weight:500; line-height:1.4; color: var(--muted); }
 /* Each option is a card rather than a line: a title says what is wrong and
    the line under it says when to pick that one, which is the part a bare
    label left the reader to guess at. Outlined, so three of them read as
@@ -314,10 +325,28 @@ button {
    also changes the answer you just gave. */
 .at-flagopt-does { font-size:11px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color: var(--jade); margin-top:3px; }
-/* Saying it in your own words. The box takes the place of the three cards
-   rather than opening under them: the menu is pinned above the foot bar,
-   and growing it downwards would push it off the screen. */
-.at-flagnote { display:flex; flex-direction:column; gap:8px; padding:2px; }
+/* Saying it in your own words. It sits under the option it belongs to,
+   from the moment the menu opens: a box that appears where the options
+   were, one press in, hid the list you were choosing from.
+
+   And it is drawn as the lower half of that option rather than as a thing
+   beside it — the card's own outline carried on down around it, the menu's
+   gap taken back, no rule between them. Two separate outlines read as two
+   things, and the box read as a fourth choice sitting under three. */
+.at-flagopt.asks { border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
+  padding-bottom:9px; }
+.at-flagnote { display:flex; flex-direction:column; gap:8px;
+  margin-top:-6px; padding:0 12px 11px;
+  background: var(--raised); border:2px solid var(--line); border-top:0;
+  border-radius:0 0 var(--r-sm) var(--r-sm); }
+/* Inside that shape the box is a well rather than a second card: it is
+   where the words go, not another thing to choose. */
+.at-flagnote .at-flagtext { border-radius: var(--r-sm); padding:9px 11px; min-height:62px; }
+/* The one option that is chosen, told apart the way a chosen thing is told
+   apart everywhere else here — and its box lights with it, because they
+   are one option. */
+.at-flagopt.on { border-color: var(--accent); background: var(--raised-hover); }
+.at-flagopt.asks.on + .at-flagnote { border-color: var(--accent); background: var(--raised-hover); }
 .at-flagtext { font-size:15px; font-weight:500; resize:vertical; min-height:76px; }
 .at-flagnoterow { margin-top:0; }
 .at-flag.flagged { color: var(--rose); border-color: var(--rose-soft); }
@@ -624,6 +653,10 @@ button {
 .at-flagfoot { display:flex; align-items:center; justify-content:space-between;
   gap:10px; flex-wrap:wrap; }
 .at-flagfoot > .at-hint { margin:0; }
+/* The start of those words in the report's own title, which is what tells
+   three reports of the same kind apart. Lighter than the title it follows
+   so the kind still leads. */
+.at-flagsaid { font-weight:600; color: var(--text-soft); }
 /* Somebody's own words, set apart as somebody's own words. */
 .at-flagreport-note { margin:0; font-size:13px; color: var(--text-soft);
   border-left:3px solid var(--line); padding-left:10px; overflow-wrap:anywhere;
@@ -819,6 +852,16 @@ button {
 .at-cverbtn:disabled { opacity:.55; cursor: default; }
 .at-screen { position:fixed; inset:0; z-index: var(--z-screen); background: var(--bg);
   display:flex; flex-direction:column; }
+/* A screen opened to do one small thing and come straight back comes up
+   from the foot of the window. 140ms is deliberately shorter than a screen
+   transition usually is: long enough to say where it came from, short
+   enough that it is over before the hand that opened it has settled, which
+   is what makes it read as a panel rather than as somewhere new. Only the
+   opening is animated — a way out that lingers is a way out that feels
+   slow. */
+.at-screen.rise { animation: at-rise 140ms cubic-bezier(.2,.7,.3,1); }
+@keyframes at-rise { from { transform: translateY(6%); opacity:.4; } to { transform:none; opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .at-screen.rise { animation:none; } }
 .at-screenhead { display:flex; align-items:center; gap:12px; padding:14px 16px;
   padding-top:calc(14px + 46px); border-bottom:2px solid var(--line); background: var(--surface); }
 /* A screen that sits above the chrome has no chrome to clear, so the room
@@ -890,18 +933,39 @@ button {
   font-family: var(--ui); font-size:13px; padding:2px 0; }
 .at-clipname:focus { outline:none; border-bottom:1px solid var(--brass); }
 .at-clipmeta { font-family: var(--mono); font-size:9px; color: var(--muted); white-space:nowrap; }
-.at-playbig { display:inline-flex; align-items:center; justify-content:center; gap:10px;
-  min-width:150px; padding:18px 26px; border-radius:999px; cursor:pointer;
+.at-playbig { display:inline-flex; align-items:center; justify-content:center; gap:12px;
+  min-width:170px; padding:16px 28px; border-radius:999px; cursor:pointer;
   background: var(--raised); border:1px solid var(--line); color: var(--text);
-  font-family: var(--ui); font-size:15px; font-weight:600; }
+  font-family: var(--ui); font-size:17px; font-weight:600; }
 .at-playbig:hover { background: var(--raised-hover); }
-.at-playbig .dot { color: var(--brass); font-size:20px; }
-.at-voices { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
-.at-voice { font-family: var(--ui); font-size:14px; font-weight:800; cursor:pointer;
-  background: var(--raised); border:2px solid var(--line); border-radius:999px;
-  width:34px; height:34px; color: var(--muted); }
-.at-voice.on { border-color: var(--brass); color: var(--brass); }
-.at-voice:hover { color: var(--text); border-color: var(--muted); }
+/* The icon carries this button, so it is set at its own size rather than
+   at the label's, and centres itself instead of riding the text baseline. */
+.at-playbig .dot { color: var(--brass); display:inline-flex; align-items:center; }
+.at-playbig .dot .at-ic { vertical-align:0; }
+/* One recording or two, in a row that centres either. The numbered row of
+   voices that used to sit under the button is gone with the thing it
+   picked: a question offers this word and this word said slowly, and
+   ranking the takes a teacher happened to make was never the question. */
+/* Stretched, so the two are one height whatever is in them. */
+.at-playrow { display:flex; gap:10px; justify-content:center; align-items:stretch; }
+/* Side by side they share the row rather than the second landing under the
+   first: two at their full size do not fit a 320px screen. */
+.at-playbig.twin { min-width:0; flex:2 1 0; gap:8px;
+  padding-inline:10px; font-size:15px; white-space:nowrap; }
+/* The one the card's progress did not ask for takes a third of the row to
+   the other's two. A ratio rather than a measurement: it holds at every
+   width, where a fixed size has to be guessed against the narrowest screen
+   and looks stunted on the rest. The height is the one thing it keeps — a
+   short button beside a tall one reads as a lesser kind of control rather
+   than as the same thing offered more quietly. What it gives up besides
+   the width is the fill and the brass on its icon, which is what the eye
+   goes to; both come back on hover, so it reads as quiet rather than as
+   switched off. */
+.at-playbig.quiet { background:transparent; color: var(--muted);
+  flex:1 1 0; font-size:14px; gap:6px; }
+.at-playbig.quiet .dot { color: var(--muted); }
+.at-playbig.quiet:hover { background: var(--raised); color: var(--text); }
+.at-playbig.quiet:hover .dot { color: var(--brass); }
 .at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px 16px 8px;
   margin-bottom:14px; background: var(--surface); }
 .at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
@@ -1153,6 +1217,12 @@ button {
   background: var(--raised); border-color: var(--line); color: var(--faint);
   filter:none; }
 .at-btn.ghost:disabled { background:transparent; }
+/* The button that uploads a file is a label with the file input inside it,
+   so it is never itself :disabled — the input is, and the label has to be
+   told to look it. */
+.at-btn:has(input:disabled) { cursor:default; box-shadow:none;
+  background: var(--raised); border-color: var(--line); color: var(--faint); }
+.at-btn.ghost:has(input:disabled) { background:transparent; }
 /* The answer bar: the three ways forward from a question, pinned to the
    foot of the screen rather than following the answer box down the page.
 
@@ -1194,11 +1264,33 @@ button {
   background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-top:1px solid var(--line); }
 .at-footextra + .at-answerbar.at-row { border-top: 0; }
-.at-footextra .at-flagwrap { margin-top:0; }
-/* Opens upward. Below the button is the bar and then the edge of the
-   screen, so a menu dropping down would open into nothing. */
-.at-footextra .at-flagmenu { position:absolute; left:0; right:0; bottom:100%;
-  margin:0 0 8px; box-shadow: var(--shadow); }
+/* The menu takes the foot over rather than hovering above it. It used to
+   open upward from the flag button, which left the answer bar showing
+   underneath it — Continue an inch below Send, live, while you were part
+   way through saying what was wrong with the question. Anchored to the
+   foot's own bottom edge it covers the bar and the flag line both, and
+   the way out of it is the Back button inside it.
+
+   Absolute against .at-foot, which is the fixed element: the wrap around
+   the button gives up being the frame of reference, and so does the strip
+   — a backdrop-filter makes an element the frame for anything positioned
+   inside it, which pinned the menu to the strip's own bottom edge, which
+   is the top of the bar. Blurring what is behind a strip nothing can see
+   buys nothing, so while the menu is up it does not. The layer is what
+   puts it over the bar — the bar's blur makes a stacking context of its
+   own, and a later sibling with one wins on source order alone. */
+.at-footextra .at-flagwrap { margin-top:0; position:static; }
+.at-footextra:has(.at-flagmenu) { -webkit-backdrop-filter:none; backdrop-filter:none; }
+/* And the bar is not merely painted over: hidden, it leaves the tab order
+   too, so the way on cannot be reached by keyboard from behind the menu
+   that is standing on it. */
+.at-footextra:has(.at-flagmenu) + .at-answerbar { visibility:hidden; }
+.at-footextra .at-flagmenu { position:absolute; left:0; right:0; bottom:0;
+  z-index: var(--z-raised);
+  margin:0; box-shadow: var(--shadow);
+  /* With the keyboard up on a short screen there may be less room than
+     there is menu, and the buttons are the part that must stay reachable. */
+  max-height: calc(100dvh - 24px); overflow-y:auto; }
 /* The bar owns its whole width and has nothing beside it, so it can afford
    a tighter gap and narrower margins than a row sitting inside the page.
    Those pixels are not saved: the step-down formula sizes the type from

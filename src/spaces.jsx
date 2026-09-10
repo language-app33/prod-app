@@ -1,3 +1,35 @@
+/** @import { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.js" */
+/** @typedef {React.ReactNode} Node */
+/**
+ * Whatever is waiting on a yes: the confirmation to show, and what to do
+ * if the answer is yes. Assembled at the call site rather than declared as
+ * a component's props, because only one of these can be on screen at a
+ * time and every screen builds its own.
+ * @typedef {{
+ *   title?: Node,
+ *   body?: Node,
+ *   confirmLabel?: string,
+ *   confirmWord?: string,
+ *   closeAfter?: boolean,
+ *   kind?: string,
+ *   ids?: string[],
+ *   card?: Card,
+ *   action: () => any,
+ * }} Pending
+ */
+/** How a backup or a restore is going. */
+/**
+ * @typedef {{
+ *   state: string,
+ *   done?: number,
+ *   total?: number,
+ *   note?: string,
+ *   counts?: Record<string, number>,
+ *   file?: any,
+ *   manifest?: any,
+ *   takenAt?: number,
+ * }} Progress
+ */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.js";
 
@@ -28,10 +60,14 @@ import {
   splitAlternatives,
   joinAlternatives,
   CheckList,
+  CLIP_KINDS,
   ClipList,
+  clipHashes,
+  clipsOf,
   ConfirmModal,
   Field,
   FilterBar,
+  formHasAudio,
   FilterMenu,
   flagTitle,
   Help,
@@ -78,13 +114,14 @@ export { ConfirmModal, useLiveRefresh, cardToItem, localIdFor };
    First run
    ------------------------------------------------------------------ */
 
+/** @param {{ onDone: (account?: User & { key: string }) => void }} props */
 export function Onboarding({ onDone }) {
   const [step, setStep] = useState("choose"); // choose | new | existing | key
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [made, setMade] = useState(null);
+  const [made, setMade] = useState(/** @type {User & { key: string } | null} */ (null));
   const [showKey, setShowKey] = useState(false);
   /* Asked for only once the server has said it wants one, so a site that
      lets anyone sign up never shows the field. */
@@ -101,7 +138,7 @@ export function Onboarding({ onDone }) {
       setMade(account);
       setStep("key");
     } catch (e) {
-      if (String(e && e.message) === "signup-code-required") {
+      if (String(e && /** @type {any} */ (e).message) === "signup-code-required") {
         setCodeNeeded(true);
         setError(signupCode.trim() ? "That invitation code isn't right." : "");
       } else {
@@ -336,6 +373,7 @@ export function Onboarding({ onDone }) {
 
 
 /* A name in a roster, marked when it is the person reading it. */
+/** @param {{ name?: string, handle?: string, me?: string }} props `me` is the handle to compare against, so the row can say "(me)". */
 export function PersonName({ name, handle, me }) {
   return (
     <>
@@ -350,6 +388,7 @@ export function PersonName({ name, handle, me }) {
    the app since being asked to wants the hour, not the day. Never having
    happened is said in words rather than left as a dash, because a dash and
    a value that failed to load look the same. */
+/** @param {{ label?: Node, at?: number, never?: Node }} props */
 function WhenRow({ label, at, never }) {
   return (
     <div className="at-whenrow">
@@ -375,6 +414,14 @@ function WhenRow({ label, at, never }) {
    administrator looking for somebody to cover a class actually wants. A
    course with none set says nothing here rather than "Language not set" —
    the course's own tile is where that gets fixed. */
+/**
+ * @param {{
+ *   label?: Node,
+ *   tone?: string,
+ *   courses?: { title: string, language?: LangId }[],
+ *   languages: Record<LangId, Lang>,
+ * }} props
+ */
 function BelongRow({ label, tone, courses, languages }) {
   const list = (courses || []).map((c) => (typeof c === "string" ? { title: c } : c));
   if (!list.length) return null;
@@ -395,6 +442,7 @@ function BelongRow({ label, tone, courses, languages }) {
 
 /* A "modal" is now a screen. Kept under this name so nothing that opens one
    has to change; what it opens is the standard full-screen shell. */
+/** @param {{ title?: Node, children?: Node, onClose: () => void }} props */
 export function Modal({ title, children, onClose }) {
   return (
     <Screen title={title} onBack={onClose}>
@@ -421,6 +469,12 @@ export function Modal({ title, children, onClose }) {
 
 
 
+/**
+ * @param {{
+ *   label?: Node, code?: string, hint?: Node,
+ *   onNew?: () => void, busy?: boolean,
+ * }} props
+ */
 export function CodeBox({ label, code, hint, onNew, busy }) {
   return (
     <div className="at-codeblock">
@@ -429,7 +483,7 @@ export function CodeBox({ label, code, hint, onNew, busy }) {
         <b>{code || "—"}</b>
         <Button variant="ghost" size="sm"
           disabled={!code}
-          onClick={() => navigator.clipboard && navigator.clipboard.writeText(code)}
+          onClick={() => navigator.clipboard && navigator.clipboard.writeText(code || "")}
           icon="copy"
         >
           Copy
@@ -445,6 +499,9 @@ export function CodeBox({ label, code, hint, onNew, busy }) {
 
 
 /* The bar that appears once something is ticked. */
+/**
+ * @param {{ count: number, noun: string, onClear?: () => void, children?: Node }} props
+ */
 export function SelectionBar({ count, noun, onClear, children }) {
   if (!count) return null;
   return (
@@ -479,6 +536,87 @@ const BACKUP_CONCURRENCY = 4;
 const RESTORE_BYTES = 3 * 1024 * 1024; // per request, under the function's own limit
 
 /*
+ * What a backup is made of, in the parts an administrator would name.
+ *
+ * One list, read by all four things that need it — what to put in a file,
+ * what to take out of one, what a file turns out to hold, and what a clear
+ * removes — so the words on those four screens cannot drift apart and a
+ * part cannot be added to one of them and forgotten by the others.
+ *
+ * `kinds` are the chunk kinds the server's manifest names; `prefixes` are
+ * the keys those chunks hold, which is what a file has to be filtered by on
+ * the way back in. The two are separate because the server batches by one
+ * and stores by the other: cards travel as "card" and "owncards" chunks and
+ * live under card: and mycards:.
+ */
+/** @type {{ key: string, title: string, what: string, kinds: string[], prefixes: string[], index?: string, count: string, unit: string }[]} */
+const BACKUP_PARTS = [
+  {
+    key: "people",
+    title: "People",
+    what: "Accounts and their names, with the fingerprint of each sign-in key — never the keys themselves.",
+    kinds: ["user", "keymap"],
+    prefixes: ["user:", "key:"],
+    index: "users",
+    count: "users",
+    unit: "account",
+  },
+  {
+    key: "courses",
+    title: "Courses",
+    what: "Who teaches each one, who studies it, and which decks it uses.",
+    kinds: ["course"],
+    prefixes: ["course:"],
+    index: "courses",
+    count: "courses",
+    unit: "course",
+  },
+  {
+    key: "decks",
+    title: "Decks",
+    what: "Deck names, and which courses each deck belongs to.",
+    kinds: ["deck"],
+    prefixes: ["deck:"],
+    index: "decks",
+    count: "decks",
+    unit: "deck",
+  },
+  {
+    key: "cards",
+    title: "Cards",
+    what: "Every card's wording, its other forms and its grammar. Not the audio.",
+    kinds: ["card", "owncards"],
+    prefixes: ["card:", "mycards:", "owncards:"],
+    count: "cards",
+    unit: "card",
+  },
+  {
+    key: "clips",
+    title: "Recordings",
+    what: "The audio itself, which is nearly all of the size of a backup.",
+    kinds: ["clip"],
+    prefixes: ["clip:"],
+    count: "clips",
+    unit: "recording",
+  },
+];
+
+/** Every part, which is what a backup means unless somebody says otherwise. */
+const ALL_PARTS = BACKUP_PARTS.map((p) => p.key);
+
+/** @param {string[]} parts */
+const partsChosen = (parts) => BACKUP_PARTS.filter((p) => parts.includes(p.key));
+
+/* Which parts a file holds. Files made before a backup could be partial say
+   nothing, and a file that says nothing holds everything — which was true
+   of every file made until now. */
+/** @param {any} file */
+function includedIn(file) {
+  const said = file && file.manifest && file.manifest.includes;
+  return Array.isArray(said) && said.length ? said.filter((k) => ALL_PARTS.includes(k)) : ALL_PARTS;
+}
+
+/*
  * Builds the file as a Blob, chunk by chunk, in the order the manifest
  * lists them. Each chunk's JSON goes into the Blob as soon as its turn
  * comes and is not kept: the old version collected every record into one
@@ -489,14 +627,45 @@ const RESTORE_BYTES = 3 * 1024 * 1024; // per request, under the function's own 
  * over each chunk as it passes: counts per kind, and whether every deck
  * and recording that is referred to is actually in the file.
  */
-async function buildBackup(onProgress) {
+/**
+ * @param {(done: number, total: number) => void} onProgress
+ * @param {string[]} [parts] Which of BACKUP_PARTS to put in. Everything by
+ *   default, which is what a backup meant before it could be less.
+ */
+async function buildBackup(onProgress, parts = ALL_PARTS) {
   const { manifest } = await API.backupManifest();
-  const plan = manifest.plan || [];
-  const { plan: _drop, ...kept } = manifest;
+  const chosen = partsChosen(parts);
+  const kinds = new Set(chosen.flatMap((p) => p.kinds));
+  const plan = (manifest.plan || []).filter((/** @type {any} */ c) => kinds.has(c.kind));
+  const { plan: _drop, ...whole } = manifest;
+  /* The file says what it holds, and its counts are the counts of what it
+     holds — not of the site. A file that claimed the site's numbers would
+     be a file that fails its own check the moment it is verified. */
+  const kept = {
+    ...whole,
+    includes: chosen.map((p) => p.key),
+    counts: Object.fromEntries(
+      Object.entries(whole.counts || {}).map(([k, v]) => [
+        k,
+        BACKUP_PARTS.some((p) => p.count === k && !parts.includes(p.key)) ? 0 : v,
+      ])
+    ),
+    /* An index for a part that was left out would name records the file
+       does not carry, and a restore folds indexes into what is there. */
+    indexes: Object.fromEntries(
+      Object.entries(whole.indexes || {}).filter(([what]) =>
+        chosen.some((p) => p.index === what)
+      )
+    ),
+    chunks: (whole.chunks || []).filter((/** @type {any} */ c) => kinds.has(c.kind)),
+  };
 
+  /** @type {Record<string, any>} */
+  /** @type {Record<string, string>} */
   const digests = {};
   const seen = new Set();
   const refs = { decks: new Set(), clips: new Set() };
+  /** @type {Record<string, number>} */
   const counts = { "user:": 0, "course:": 0, "deck:": 0, "card:": 0, "clip:": 0 };
 
   let blob = new Blob(
@@ -536,8 +705,7 @@ async function buildBackup(onProgress) {
         for (const prefix of Object.keys(counts)) if (key.startsWith(prefix)) counts[prefix] += 1;
         if (key.startsWith("course:")) for (const id of value.decks || []) refs.decks.add(id);
         if (key.startsWith("card:")) {
-          for (const h of value.clips || []) refs.clips.add(h);
-          for (const sb of value.subs || []) for (const h of sb.clips || []) refs.clips.add(h);
+          for (const h of clipHashes(value)) refs.clips.add(h);
         }
       }
       const json = JSON.stringify(records);
@@ -554,23 +722,29 @@ async function buildBackup(onProgress) {
 
   const problems = [];
   const expect = [
-    ["users", "user:", manifest.counts && manifest.counts.users],
-    ["courses", "course:", manifest.counts && manifest.counts.courses],
-    ["decks", "deck:", manifest.counts && manifest.counts.decks],
-    ["cards", "card:", manifest.counts && manifest.counts.cards],
-    ["clips", "clip:", manifest.counts && manifest.counts.clips],
+    ["users", "user:", kept.counts && kept.counts.users],
+    ["courses", "course:", kept.counts && kept.counts.courses],
+    ["decks", "deck:", kept.counts && kept.counts.decks],
+    ["cards", "card:", kept.counts && kept.counts.cards],
+    ["clips", "clip:", kept.counts && kept.counts.clips],
   ];
   for (const [label, prefix, want] of expect) {
     if (want !== undefined && counts[prefix] !== want) {
       problems.push(`${label}: manifest says ${want}, file holds ${counts[prefix]}.`);
     }
   }
-  let danglingDecks = 0;
-  for (const id of refs.decks) if (!seen.has(`deck:${id}`)) danglingDecks += 1;
-  let danglingClips = 0;
-  for (const h of refs.clips) if (!seen.has(`clip:${h}`)) danglingClips += 1;
-  if (danglingDecks) problems.push(`${danglingDecks} deck reference(s) point outside the file.`);
-  if (danglingClips) problems.push(`${danglingClips} recording(s) are referenced but missing.`);
+  /* A part left out on purpose is not a part missing: only what the file
+     says it holds is held to holding it. */
+  if (parts.includes("decks")) {
+    let dangling = 0;
+    for (const id of refs.decks) if (!seen.has(`deck:${id}`)) dangling += 1;
+    if (dangling) problems.push(`${dangling} deck reference(s) point outside the file.`);
+  }
+  if (parts.includes("clips")) {
+    let dangling = 0;
+    for (const h of refs.clips) if (!seen.has(`clip:${h}`)) dangling += 1;
+    if (dangling) problems.push(`${dangling} recording(s) are referenced but missing.`);
+  }
 
   return { blob, manifest: kept, problems };
 }
@@ -582,10 +756,22 @@ async function buildBackup(onProgress) {
  * record in the file overwrites the one on the site with the same key,
  * and nothing else is touched.
  */
-async function restoreBackup(file, onProgress) {
+/**
+ * @param {any} file
+ * @param {(done: number, total: number) => void} onProgress
+ * @param {string[]} [parts] Which of BACKUP_PARTS to put back. A file may
+ *   hold more than is wanted — the recordings when only the wording is
+ *   being recovered, everybody's accounts when one course is.
+ */
+async function restoreBackup(file, onProgress, parts = ALL_PARTS) {
   const records = file.records || {};
-  const keys = Object.keys(records).filter((k) => !k.startsWith("index:"));
+  const chosen = partsChosen(parts);
+  const wanted = (/** @type {string} */ k) =>
+    chosen.some((p) => p.prefixes.some((prefix) => k.startsWith(prefix)));
+  const keys = Object.keys(records).filter((k) => !k.startsWith("index:") && wanted(k));
+  /** @type {Record<string, any>[]} */
   const batches = [];
+  /** @type {Record<string, any>} */
   let batch = {};
   let size = 0;
   let n = 0;
@@ -605,9 +791,15 @@ async function restoreBackup(file, onProgress) {
   if (n) batches.push(batch);
 
   const indexes = (file.manifest && file.manifest.indexes) || {};
+  /** @type {Record<string, any>} */
   const last = {};
   for (const [what, list] of Object.entries(indexes)) {
-    if (Array.isArray(list)) last[`index:${what}`] = list;
+    if (!Array.isArray(list)) continue;
+    /* An index goes back only with the records it names. Restoring
+       index:users without the accounts would leave the site listing people
+       it cannot read. */
+    if (!chosen.some((p) => p.index === what)) continue;
+    last[`index:${what}`] = list;
   }
   if (Object.keys(last).length) batches.push(last);
 
@@ -621,13 +813,16 @@ async function restoreBackup(file, onProgress) {
 }
 
 /* What a finished file says about itself, checked against what it holds. */
-function verifyBackup(file) {
+/** @param {any} file */
+export function verifyBackup(file) {
   const problems = [];
   if (!file || file.format !== "language-app-backup") return ["Not a backup file."];
   const m = file.manifest || {};
   const rec = file.records || {};
+  const has = includedIn(file);
   if (m.version !== 1) problems.push(`Made by a different version (${m.version}).`);
 
+  /** @type {(prefix: string) => number} */
   const count = (prefix) => Object.keys(rec).filter((k) => k.startsWith(prefix)).length;
   const expect = [
     ["users", "user:", m.counts && m.counts.users],
@@ -652,12 +847,17 @@ function verifyBackup(file) {
       for (const id of value.decks || []) if (!rec[`deck:${id}`]) danglingDecks += 1;
     }
     if (key.startsWith("card:")) {
-      const all = [...(value.clips || []), ...(value.subs || []).flatMap((sb) => sb.clips || [])];
-      for (const h of all) if (!rec[`clip:${h}`]) danglingClips += 1;
+      for (const h of clipHashes(value)) if (!rec[`clip:${h}`]) danglingClips += 1;
     }
   }
-  if (danglingDecks) problems.push(`${danglingDecks} deck reference(s) point outside the file.`);
-  if (danglingClips) problems.push(`${danglingClips} recording(s) are referenced but missing.`);
+  /* Only what the file set out to hold is held to holding it: a backup of
+     the wording alone is not a broken backup for having no audio in it. */
+  if (has.includes("decks") && danglingDecks) {
+    problems.push(`${danglingDecks} deck reference(s) point outside the file.`);
+  }
+  if (has.includes("clips") && danglingClips) {
+    problems.push(`${danglingClips} recording(s) are referenced but missing.`);
+  }
   return problems;
 }
 
@@ -670,6 +870,23 @@ function verifyBackup(file) {
    is passed in rather than the page being written twice.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   courses: Course[],
+ *   languages: Record<LangId, Lang>,
+ *   busy?: boolean,
+ *   error?: Node,
+ *   lead?: Node,
+ *   emptyLead?: Node,
+ *   joinTitle?: Node,
+ *   joinHint?: Node,
+ *   joinPlaceholder?: string,
+ *   joinNote?: Node,
+ *   onJoin: (code: string) => any,
+ *   renderCourse: (course: Course) => Node,
+ *   footer?: Node,
+ * }} props
+ */
 export function CoursesPage({
   courses,
   languages,
@@ -695,18 +912,24 @@ export function CoursesPage({
 
       <Notice kind="error">{error}</Notice>
 
-      <section className="at-section">
-        <h3 className="at-sectionhead">My courses</h3>
-        <ItemList
-          noun="course"
-          items={courses}
-          size="large"
-          busy={busy}
-          empty=""
-          match={(c, q) => c.title.toLowerCase().includes(q)}
-          renderItem={renderCourse}
-        />
-      </section>
+      {/* Nobody's courses is not a list with nothing in it: the heading over
+          an empty box only asks what went missing. The lead above already
+          says what to do, so the join box below is the whole screen until
+          there is a first course. */}
+      {courses.length > 0 && (
+        <section className="at-section">
+          <h3 className="at-sectionhead">My courses</h3>
+          <ItemList
+            noun="course"
+            items={courses}
+            size="large"
+            busy={busy}
+            empty=""
+            match={(c, q) => c.title.toLowerCase().includes(q)}
+            renderItem={renderCourse}
+          />
+        </section>
+      )}
 
       {/* The heading names the section; the box holds only the doing. */}
       <section className="at-section">
@@ -766,7 +989,15 @@ export function CoursesPage({
  * quietly enrol them — because guessing is what filled this list with
  * duplicates in the first place.
  */
+/**
+ * @param {{
+ *   handle: string, name?: string,
+ *   me?: string, teaching: boolean, studying: boolean, busy?: boolean,
+ *   onSetRole: (role: "teacher" | "student", on: boolean) => void,
+ * }} props The caller knows whose row this is, so only the answer comes back.
+ */
 function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }) {
+  /** @type {(key: "teacher" | "student", cls: string, label: string, on: boolean) => Node} */
   const role = (key, cls, label, on) => (
     <button
       type="button"
@@ -794,6 +1025,21 @@ function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }) {
   );
 }
 
+/**
+ * @param {{
+ *   course: Course,
+ *   users: User[],
+ *   languages: Record<LangId, Lang>,
+ *   account: User,
+ *   busy?: boolean,
+ *   onRename: (title: string) => void,
+ *   onSetLanguage: (id: LangId) => void,
+ *   onNewCode: (which: "teacher" | "student") => void,
+ *   onSetRole: (handle: string, name: string, role: "teacher" | "student", on: boolean) => void,
+ *   onDelete: () => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function CourseSettings({
   course,
   users,
@@ -813,7 +1059,7 @@ function CourseSettings({
   /* The title being edited, or null when it is not. Started from the course
      rather than kept in step with it, so a rename in flight is not
      overwritten by the refresh that follows the last one. */
-  const [renaming, setRenaming] = useState(null);
+  const [renaming, setRenaming] = useState(/** @type {string | null} */ (null));
 
   /*
    * One row per person, not one per membership. Teaching and studying are
@@ -822,6 +1068,7 @@ function CourseSettings({
    * each took away both.
    */
   const people = [...new Set([...c.teachers, ...c.students])];
+  /** @type {(h: string) => string} */
   const nameOf = (h) => {
     const u = users.find((x) => x.handle === h);
     return u ? u.displayName : h;
@@ -1028,9 +1275,14 @@ function CourseSettings({
  * sent from a language this build no longer carries falls back to the bare
  * type, which is less to read but still says which of eight it was.
  */
+/**
+ * @param {Record<LangId, Lang>} languages
+ * @param {LangId} [langId]
+ * @param {string} [type]
+ */
 function exerciseLabel(languages, langId, type) {
   if (!type) return "";
-  const lang = languages[langId];
+  const lang = languages[langId || ""];
   const spec = lang ? exOf(type, lang) : null;
   return spec && spec.label ? spec.label : type;
 }
@@ -1048,6 +1300,7 @@ function exerciseLabel(languages, langId, type) {
  * chip nobody reads. It is also what a report says when the comparison
  * cannot be made — nothing, rather than a guess.
  */
+/** @type {Record<string, { label: string, tone: string, what: string, openable: boolean }>} */
 const CARD_STATES = {
   edited: {
     label: "Card edited since",
@@ -1073,31 +1326,65 @@ const CARD_STATES = {
   },
 };
 
+/*
+ * The gist of what somebody typed, for the head of their report.
+ *
+ * A screen of reports headed "Something else" three times over says only
+ * that three people had something else to say. The words are what tells
+ * them apart, so the first of them go in the title — a line's worth, cut
+ * at a word, with the whole of it still set out below.
+ */
+/** @param {string} [text] */
+function gistOf(text) {
+  /* Sixty is about two lines of a tile's title on a phone. Longer and the
+     head of the report starts to be the report, which is the job of the
+     block underneath. */
+  const line = String(text || "").trim().split("\n")[0].trim();
+  if (line.length <= 60) return line;
+  const cut = line.slice(0, 60);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 30 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
 /* And how to set it: the same direction and script the app writes that
    language in everywhere else. Both are undefined for a language this
    build does not carry, which leaves the browser's own defaults — the
    right answer when there is nothing better to say. */
+/** @type {(languages: Record<LangId, Lang>, langId?: LangId) => string | undefined} */
 const dirOf = (languages, langId) =>
-  (languages[langId] && languages[langId].direction) || undefined;
+  (languages[langId || ""] && languages[langId || ""].direction) || undefined;
+/**
+ * @param {Record<LangId, Lang>} languages
+ * @param {LangId} [langId]
+ */
 function scriptStyle(languages, langId) {
-  const lang = languages[langId];
+  const lang = languages[langId || ""];
   if (!lang) return undefined;
   return { ...(lang.fontStack ? { fontFamily: lang.fontStack } : null), ...scriptVars(lang) };
 }
 
+/** @param {{ account: User, languages: Record<LangId, Lang>, onClose: () => void }} props */
 export function AdminSpace({ account, languages, onClose }) {
   const [tab, setTab] = useState("courses");
-  const [data, setData] = useState(() => recallSpace("admin", account.handle));
+  const [data, setData] = useState(
+    /** @type {import("./types.js").AdminOverview | null} */ (recallSpace("admin", account.handle))
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [lang, setLang] = useState(Object.keys(languages)[0]);
-  const [newKey, setNewKey] = useState(null);
+  const [newKey, setNewKey] = useState(/** @type {Record<string, any> | null} */ (null));
   const [makingCourse, setMakingCourse] = useState(false);
-  const [makingUser, setMakingUser] = useState(null); // the form, while open
-  const [openCourse2, setOpenCourse2] = useState(null); // a course being settled
+  const [makingUser, setMakingUser] = useState(/** @type {{ name: string, courseId: string, roles: string[] } | null} */ (null)); // the form, while open
+  const [openCourse2, setOpenCourse2] = useState(/** @type {string | null} */ (null)); // a course being settled
   const [selPeople, setSelPeople] = useState(() => new Set());
-  const [backup, setBackup] = useState(null); // { state, done, total, note }
+  const [backup, setBackup] = useState(/** @type {Progress | null} */ (null)); // { state, done, total, note }
+  /* Which of the two backup screens is open, and the file the restore one
+     is working from — held here rather than in the screen so choosing a
+     file survives a re-render of the tab underneath. */
+  const [backupMode, setBackupMode] = useState(/** @type {"download" | "restore" | null} */ (null));
+  const [restoreFile, setRestoreFile] = useState(/** @type {{ parsed: any, name: string } | null} */ (null));
+  const [clearing, setClearing] = useState(false);
   /* Off until asked for: the gallery renders a specimen of every component,
      which is a lot of markup to carry on a tab that is mostly about backups. */
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -1108,8 +1395,8 @@ export function AdminSpace({ account, languages, onClose }) {
      arrives after the flag does, so the screen is up while it is fetched
      rather than after — a blank second on a tap is what a spinner is
      for. */
-  const [openCard, setOpenCard] = useState(null);
-  const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
+  const [openCard, setOpenCard] = useState(/** @type {{ flag: Flag, card: Card | null, error: string } | null} */ (null));
+  const [deckAction, setDeckAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
   /* Whose decks to show: a handle, or "" for everyone's. Search already
      matches the maker's name, but only if you know whose name to type —
      which is the thing an administrator looking at decks made by six
@@ -1117,9 +1404,9 @@ export function AdminSpace({ account, languages, onClose }) {
   const [deckOwner, setDeckOwner] = useState("");
   /* One slot for whatever is waiting to be confirmed, so only one of these
      can ever be on screen at a time. */
-  const [confirm, setConfirm] = useState(null);
+  const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null));
 
-  const refresh = useCallback(async (background) => {
+  const refresh = useCallback(async (/** @type {boolean} */ background = false) => {
     /* A background poll must not flash "Working" or grey the buttons out
        from under someone mid-click; only a deliberate refresh does that. */
     if (!background) setBusy(true);
@@ -1167,6 +1454,10 @@ export function AdminSpace({ account, languages, onClose }) {
      whatever the call returned when the message wants to name the thing —
      "Beginner Arabic created" rather than "Saved". Said after the refresh,
      so the lists are already showing what it is confirming. */
+  /**
+   * @param {() => Promise<any>} fn
+   * @param {string | ((out: any) => string)} [done]
+   */
   async function run(fn, done) {
     setBusy(true);
     try {
@@ -1184,6 +1475,7 @@ export function AdminSpace({ account, languages, onClose }) {
      than carried by the overview: Admin holds decks, not cards, and a site
      with five hundred reports would otherwise be sending five hundred
      cards to a screen showing one. */
+  /** @param {Flag} flag */
   async function openFlaggedCard(flag) {
     setOpenCard({ flag, card: null, error: "" });
     try {
@@ -1206,6 +1498,7 @@ export function AdminSpace({ account, languages, onClose }) {
   /* Everyone who has actually made a deck, with how many — read off the
      decks rather than off the people, so the menu never offers a name that
      would narrow the list to nothing. */
+  /** @type {{ value: string, label: string, count: number }[]} */
   const deckMakers = [];
   for (const d of decks) {
     const found = deckMakers.find((m) => m.value === d.owner);
@@ -1424,7 +1717,7 @@ export function AdminSpace({ account, languages, onClose }) {
                     } teaching · ${c.students.length} studying · ${plural(c.decks.length, "deck")}`}
                     onOpen={() => setOpenCourse2(c.id)}
                     actions={
-                      <IconButton icon="edit" label="Course settings" onClick={(e) => {
+                      <IconButton icon="edit" label="Course settings" onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
                           setOpenCourse2(c.id);
                         }} />
@@ -1489,8 +1782,8 @@ export function AdminSpace({ account, languages, onClose }) {
                           async () => {
                             const r = await API.createUser(
                               makingUser.name.trim(),
-                              makingUser.courseId || undefined,
-                              makingUser.roles
+                              makingUser.courseId || "",
+                              /** @type {("teacher" | "student")[]} */ (makingUser.roles)
                             );
                             setNewKey({
                               name: r.user.displayName,
@@ -1517,7 +1810,7 @@ export function AdminSpace({ account, languages, onClose }) {
                       value={makingUser.name}
                       autoFocus
                       onChange={(e) =>
-                        setMakingUser((u) => ({ ...u, name: e.target.value }))
+                        setMakingUser((/** @type {any} */ u) => ({ ...u, name: e.target.value }))
                       }
                     />
 </Field>
@@ -1529,7 +1822,7 @@ export function AdminSpace({ account, languages, onClose }) {
                           key={c.id}
                           className={`at-ck${makingUser.courseId === c.id ? " on" : ""}`}
                           onClick={() =>
-                            setMakingUser((u) => ({
+                            setMakingUser((/** @type {any} */ u) => ({
                               ...u,
                               courseId: u.courseId === c.id ? "" : c.id,
                             }))
@@ -1571,10 +1864,10 @@ export function AdminSpace({ account, languages, onClose }) {
                               className={`at-role ${cls}${on ? " on" : ""}`}
                               aria-pressed={on}
                               onClick={() =>
-                                setMakingUser((u) => ({
+                                setMakingUser((/** @type {any} */ u) => ({
                                   ...u,
                                   roles: on
-                                    ? u.roles.filter((r) => r !== value)
+                                    ? u.roles.filter((/** @type {string} */ r) => r !== value)
                                     : u.roles.concat([value]),
                                 }))
                               }
@@ -1864,9 +2157,9 @@ export function AdminSpace({ account, languages, onClose }) {
                 renderItem={(d) => (
                   <Tile
                     title={d.title}
-                    meta={`${d.ownerName} · ${plural(d.cardCount, "card")}`}
+                    meta={`${d.ownerName} · ${plural(d.cardCount || 0, "card")}`}
                     actions={
-                        <IconButton icon="delete" label="Delete deck" danger onClick={(e) => {
+                        <IconButton icon="delete" label="Delete deck" danger onClick={(/** @type {React.MouseEvent} */ e) => {
                             e.stopPropagation();
                             setConfirm({
                               title: `Delete ${d.title}?`,
@@ -1874,7 +2167,7 @@ export function AdminSpace({ account, languages, onClose }) {
                               confirmWord: d.title,
                               body: (
                                 <p>
-                                  Its {plural(d.cardCount, "card")} go with it,
+                                  Its {plural(d.cardCount || 0, "card")} go with it,
                                   out of every course it is in and out of the apps of everyone
                                   studying it. {d.ownerName} loses the work.
                                 </p>
@@ -1886,7 +2179,9 @@ export function AdminSpace({ account, languages, onClose }) {
                     footer={
                       <TileNote live={d.courseTitles.length > 0}>
                         {d.courseTitles.length
-                          ? `In ${d.courseTitles.join(", ")}`
+                          ? `Available to students in the ${
+                              d.courseTitles.length === 1 ? "course" : "courses"
+                            } ${d.courseTitles.join(", ")}`
                           : "Personal — not in a course"}
                       </TileNote>
                     }
@@ -1984,10 +2279,24 @@ export function AdminSpace({ account, languages, onClose }) {
                   },
                 ]}
                 renderItem={(f) => {
-                  const state = CARD_STATES[f.cardState] || null;
+                  const state = CARD_STATES[f.cardState || ""] || null;
+                  const gist = gistOf(f.note);
+                  /* The words are in the title now, so the report does not
+                     say them twice — unless the title could not hold all of
+                     them, which is the only reason to set them out below. */
+                  const said = String(f.note || "").trim();
+                  const rest = said && said !== gist ? f.note : "";
                   return (
                     <Tile
-                      title={flagTitle(f.kind)}
+                      title={
+                        <>
+                          {flagTitle(f.kind)}
+                          {/* Their words, at the weight of an answer rather
+                              than of a heading: what the report is called
+                              is still the first thing read. */}
+                          {gist && <span className="at-flagsaid">: {gist}</span>}
+                        </>
+                      }
                       /* Spelled out rather than left as a name beside a
                          date: on a screen of reports about other people's
                          cards, a bare name reads as easily as whose card it
@@ -1999,7 +2308,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             <Button
                               size="sm"
                               icon="view"
-                              onClick={(e) => {
+                              onClick={(/** @type {React.MouseEvent} */ e) => {
                                 e.stopPropagation();
                                 openFlaggedCard(f);
                               }}
@@ -2011,7 +2320,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             icon="delete"
                             label="Clear this report"
                             danger
-                            onClick={(e) => {
+                            onClick={(/** @type {React.MouseEvent} */ e) => {
                               e.stopPropagation();
                               setConfirm({
                                 title: "Clear this report?",
@@ -2025,6 +2334,13 @@ export function AdminSpace({ account, languages, onClose }) {
                       }
                       footer={
                         <div className="at-flagreport">
+                          {/* The rest of what they wrote, where the title
+                              ran out — so it carries straight on from the
+                              line above rather than turning up between the
+                              question and the small facts under it, which
+                              is where it used to sit and read as a caption
+                              on the wrong thing. */}
+                          {rest && <p className="at-flagreport-note">{rest}</p>}
                           {/* The question as it was asked, copied into the
                               report when it was sent: the card may have been
                               edited or withdrawn since, and an id on its own
@@ -2040,7 +2356,6 @@ export function AdminSpace({ account, languages, onClose }) {
                             </p>
                           )}
                           {f.meaning && <p className="at-flagreport-en">{f.meaning}</p>}
-                          {f.note && <p className="at-flagreport-note">{f.note}</p>}
                           <div className="at-flagfoot">
                             <Help>{exerciseLabel(languages, f.language, f.exercise)}</Help>
                             {/* What became of the card since. Said on the
@@ -2082,43 +2397,38 @@ export function AdminSpace({ account, languages, onClose }) {
               </Help>
 
               <div className="at-row at-mt1">
-                <Button variant="primary"
-                  disabled={!!backup && backup.state === "running"}
-                  onClick={async () => {
-                    setBackup({ state: "running", done: 0, total: 0, note: "" });
-                    try {
-                      const { blob, manifest, problems } = await buildBackup((done, total) =>
-                        setBackup({ state: "running", done, total, note: "" })
-                      );
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      const stamp = new Date(manifest.takenAt)
-                        .toISOString()
-                        .slice(0, 16)
-                        .replace(/[:T]/g, "-");
-                      a.href = url;
-                      a.download = `backup-${stamp}.json`;
-                      a.click();
-                      /* Revoking straight away can cancel the download in
-                         some browsers; a moment later is soon enough. */
-                      setTimeout(() => URL.revokeObjectURL(url), 60000);
-                      setBackup({
-                        state: "done",
-                        counts: manifest.counts,
-                        takenAt: manifest.takenAt,
-                        note: problems.join(" "),
-                      });
-                    } catch (e) {
-                      setBackup({ state: "failed", note: API.explain(e) });
-                    }
-                  }}
-                >
-                  {backup && backup.state === "running" ? "Working…" : "Download a backup"}
+                <Button variant="primary" onClick={() => setBackupMode("download")} icon="download">
+                  Back up the site
                 </Button>
 
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setRestoreFile(null);
+                    setBackupMode("restore");
+                  }}
+                  icon="refresh"
+                >
+                  Restore a backup
+                </Button>
+              </div>
+
+              {/* Verifying needs no options and no screen: it is one file in,
+                  one answer out, and the answer is wanted where the question
+                  was asked. */}
+              <p className="at-eyebrow at-mt5">Verify a backup</p>
+              <Help>
+                Reads a file you already have and checks it against what it says
+                about itself: that every part it lists actually arrived, and that
+                nothing it points at is missing. A download cut short, or a file
+                half-copied off a laptop, looks perfectly good sitting on disk —
+                this is how you find out on a quiet afternoon rather than during
+                a recovery.
+              </Help>
+              <div className="at-row at-mt1">
                 <label className="at-btn ghost" style={{ cursor: "pointer" }}>
                   <Icon name="verify" />
-                  Check a file
+                  Verify a backup
                   <input
                     type="file"
                     accept="application/json,.json"
@@ -2142,78 +2452,15 @@ export function AdminSpace({ account, languages, onClose }) {
                     }}
                   />
                 </label>
-
-                <label className="at-btn ghost" style={{ cursor: "pointer" }}>
-                  <Icon name="refresh" />
-                  Restore a file
-                  <input
-                    type="file"
-                    accept="application/json,.json"
-                    className="at-hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files && e.target.files[0];
-                      e.target.value = "";
-                      if (!f) return;
-                      let parsed;
-                      try {
-                        parsed = JSON.parse(await f.text());
-                      } catch (err) {
-                        setBackup({ state: "bad", note: "That file isn't readable as JSON." });
-                        return;
-                      }
-                      const problems = verifyBackup(parsed);
-                      const counts = (parsed.manifest && parsed.manifest.counts) || {};
-                      setConfirm({
-                        title: "Restore this backup?",
-                        confirmLabel: "Restore",
-                        confirmWord: "restore",
-                        body: (
-                          <>
-                            <p>
-                              {counts.users || 0} people, {counts.courses || 0} courses,{" "}
-                              {counts.decks || 0} decks, {counts.cards || 0} cards and{" "}
-                              {counts.clips || 0} recordings, taken{" "}
-                              {parsed.manifest && parsed.manifest.takenAt
-                                ? new Date(parsed.manifest.takenAt).toLocaleString()
-                                : "at an unknown time"}
-                              .
-                            </p>
-                            <p>
-                              Everything in the file is written back over whatever has the same
-                              name on the site. Anything made since the backup is left alone.
-                            </p>
-                            {problems.length ? (
-                              <p style={{ marginBottom: 0, color: "var(--rose)" }}>
-                                {problems.join(" ")}
-                              </p>
-                            ) : null}
-                          </>
-                        ),
-                        action: async () => {
-                          setBackup({ state: "restoring", done: 0, total: 0, note: "" });
-                          const written = await restoreBackup(parsed, (done, total) =>
-                            setBackup({ state: "restoring", done, total, note: "" })
-                          );
-                          setBackup({
-                            state: "restored",
-                            counts,
-                            takenAt: parsed.manifest && parsed.manifest.takenAt,
-                            note: `${written} records written.`,
-                          });
-                        },
-                      });
-                    }}
-                  />
-                </label>
               </div>
 
-              {backup && backup.state === "restoring" && backup.total > 0 && (
+              {backup && backup.state === "restoring" && (backup.total || 0) > 0 && (
                 <Help>
                   Writing {backup.done} of {backup.total} parts…
                 </Help>
               )}
 
-              {backup && backup.state === "running" && backup.total > 0 && (
+              {backup && backup.state === "running" && (backup.total || 0) > 0 && (
                 <Help>
                   Fetching {backup.done} of {backup.total} parts…
                 </Help>
@@ -2267,6 +2514,22 @@ export function AdminSpace({ account, languages, onClose }) {
                 anyone able to restore it can change who has access.
               </Help>
 
+              {/* Last on the tab, under everything it could undo. */}
+              <p className="at-eyebrow at-mt6" style={{ color: "var(--rose)" }}>
+                Danger zone
+              </p>
+              <Help>
+                Removes what a backup would have held — the same parts, chosen
+                the same way — from the site, for everyone. There is no undo and
+                no confirmation email: a backup file is the only way back, so
+                take one first. It asks for the deploy's admin key as well.
+              </Help>
+              <div className="at-row at-mt1">
+                <Button variant="danger" onClick={() => setClearing(true)} icon="delete">
+                  Clear data
+                </Button>
+              </div>
+
               <p className="at-eyebrow at-mt6">Components</p>
               <Help>
                 Every reusable component, rendered live with its variants. Worth a look before
@@ -2311,6 +2574,115 @@ export function AdminSpace({ account, languages, onClose }) {
               )}
             </>
           )}
+
+          {backupMode && (
+            <BackupScreen
+              mode={backupMode}
+              file={restoreFile ? restoreFile.parsed : null}
+              fileName={restoreFile ? restoreFile.name : ""}
+              busy={!!backup && (backup.state === "running" || backup.state === "restoring")}
+              progress={
+                backup && (backup.state === "running" || backup.state === "restoring")
+                  ? { done: backup.done || 0, total: backup.total || 0 }
+                  : null
+              }
+              onPickFile={(parsed, name) => setRestoreFile({ parsed, name })}
+              onClose={() => setBackupMode(null)}
+              onDownload={async (parts) => {
+                setBackup({ state: "running", done: 0, total: 0, note: "" });
+                try {
+                  const { blob, manifest, problems } = await buildBackup(
+                    (done, total) => setBackup({ state: "running", done, total, note: "" }),
+                    parts
+                  );
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  const stamp = new Date(manifest.takenAt)
+                    .toISOString()
+                    .slice(0, 16)
+                    .replace(/[:T]/g, "-");
+                  a.href = url;
+                  /* Named for what is in it, so a folder of these can be
+                     read without opening any of them. */
+                  a.download = `backup-${stamp}${
+                    parts.length === ALL_PARTS.length ? "" : `-${parts.join("-")}`
+                  }.json`;
+                  a.click();
+                  /* Revoking straight away can cancel the download in
+                     some browsers; a moment later is soon enough. */
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                  setBackup({
+                    state: "done",
+                    counts: manifest.counts,
+                    takenAt: manifest.takenAt,
+                    note: problems.join(" "),
+                  });
+                  setBackupMode(null);
+                } catch (e) {
+                  setBackup({ state: "failed", note: API.explain(e) });
+                }
+              }}
+              onRestore={(parts) => {
+                const parsed = restoreFile && restoreFile.parsed;
+                if (!parsed) return;
+                const problems = verifyBackup(parsed);
+                const counts = (parsed.manifest && parsed.manifest.counts) || {};
+                const naming = partsChosen(parts).map((p) => p.title.toLowerCase()).join(", ");
+                setConfirm({
+                  title: "Restore this backup?",
+                  confirmLabel: "Restore",
+                  confirmWord: "restore",
+                  body: (
+                    <>
+                      <p>
+                        Putting back {naming}, taken{" "}
+                        {parsed.manifest && parsed.manifest.takenAt
+                          ? new Date(parsed.manifest.takenAt).toLocaleString()
+                          : "at an unknown time"}
+                        .
+                      </p>
+                      <p>
+                        Everything in the file is written back over whatever has the same
+                        name on the site. Anything made since the backup is left alone.
+                      </p>
+                      {problems.length ? (
+                        <p style={{ marginBottom: 0, color: "var(--rose)" }}>
+                          {problems.join(" ")}
+                        </p>
+                      ) : null}
+                    </>
+                  ),
+                  action: async () => {
+                    setBackup({ state: "restoring", done: 0, total: 0, note: "" });
+                    const written = await restoreBackup(
+                      parsed,
+                      (done, total) => setBackup({ state: "restoring", done, total, note: "" }),
+                      parts
+                    );
+                    setBackup({
+                      state: "restored",
+                      counts,
+                      takenAt: parsed.manifest && parsed.manifest.takenAt,
+                      note: `${written} records written.`,
+                    });
+                    setBackupMode(null);
+                    setRestoreFile(null);
+                  },
+                });
+              }}
+            />
+          )}
+
+          {clearing && (
+            <ClearScreen
+              onClose={() => setClearing(false)}
+              onClear={async (adminKey, parts) => {
+                const r = await API.clearData(adminKey, parts);
+                await refresh();
+                return r;
+              }}
+            />
+          )}
     </SpaceFrame>
   );
 }
@@ -2319,6 +2691,7 @@ export function AdminSpace({ account, languages, onClose }) {
    Becoming the administrator — once, from Account settings
    ------------------------------------------------------------------ */
 
+/** @param {{ onDone: (claimed?: boolean) => void }} props */
 export function ClaimAdmin({ onDone }) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
@@ -2391,7 +2764,7 @@ export function ClaimAdmin({ onDone }) {
 /* A blank form carries every grammatical value any language might use, so a
    card written in one language is not quietly stripped when opened in
    another. Which of them the editor actually shows is the language's call. */
-const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], ...dimValues({}) });
+const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], slowClips: [], ...dimValues({}) });
 
 /* One answer, or several: a field per accepted answer, a + after the last
    to add another and a − on every extra. What is stored is still one
@@ -2400,8 +2773,17 @@ const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], ...dimValues({}) 
    now a button. The list is local state seeded from the stored string —
    deriving it on every render would drop an added field the moment it was
    added, because an empty answer joins to nothing. */
+/**
+ * @param {{
+ *   value?: string,
+ *   onChange: (value: string) => void,
+ *   render: (value: string, onChange: (v: string) => void) => Node,
+ *   addLabel?: string,
+ * }} props
+ */
 function Alternatives({ value, onChange, render, addLabel = "Add another accepted answer" }) {
-  const [list, setList] = useState(() => splitAlternatives(value));
+  const [list, setList] = useState(() => splitAlternatives(value || ""));
+  /** @param {string[]} next */
   const commit = (next) => {
     setList(next);
     onChange(joinAlternatives(next));
@@ -2425,8 +2807,12 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
   );
 }
 
+/**
+ * @param {{ lang: Lang, value?: string, onChange: (value: string) => void }} props
+ */
 function ScriptInput({ lang, value, onChange }) {
   const [keys, setKeys] = useState(false);
+  /** @type {React.MutableRefObject<HTMLInputElement | null>} */
   const ref = useRef(null);
 
   return (
@@ -2492,12 +2878,14 @@ function ScriptInput({ lang, value, onChange }) {
   );
 }
 
+/** @param {Blob} blob */
 async function hashOf(blob) {
   const buf = await blob.arrayBuffer();
   const digest = await crypto.subtle.digest("SHA-256", buf);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** @param {Blob} blob */
 function blobToDataUrl(blob) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -2520,6 +2908,307 @@ function blobToDataUrl(blob) {
    optional actions, and a slot under the rule for whatever matters where it
    is being shown. Six near-identical copies of this used to exist. */
 /* ------------------------------------------------------------------
+   Backing up and putting back
+
+   Both directions on one screen, because they are one question asked twice:
+   which parts of the site is this about? A backup that can only ever be the
+   whole site is a backup nobody takes on a Tuesday, and a restore that can
+   only be all of it is a restore nobody dares run — the file holds every
+   account, and what was wanted was one course's cards back.
+
+   The parts are BACKUP_PARTS, which is also what a clear removes, so the
+   three screens name the same things in the same words.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   mode: "download" | "restore",
+ *   file?: any,
+ *   fileName?: string,
+ *   onDownload: (parts: string[]) => void,
+ *   onRestore: (parts: string[]) => void,
+ *   onPickFile: (file: any, name: string) => void,
+ *   progress?: { done: number, total: number } | null,
+ *   busy?: boolean,
+ *   onClose: () => void,
+ * }} props
+ */
+function BackupScreen({
+  mode,
+  file,
+  fileName,
+  onDownload,
+  onRestore,
+  onPickFile,
+  progress,
+  busy,
+  onClose,
+}) {
+  const restoring = mode === "restore";
+  /* Everything, until somebody says otherwise: the whole site is what a
+     backup is for, and the parts are there for the times it is not. On a
+     restore it is what the file actually holds, because offering to put
+     back what is not in the file is offering nothing. */
+  const held = file ? includedIn(file) : ALL_PARTS;
+  const [parts, setParts] = useState(ALL_PARTS);
+  const [readErr, setReadErr] = useState("");
+  useEffect(() => {
+    if (file) setParts(includedIn(file));
+  }, [file]);
+
+  const counts = (file && file.manifest && file.manifest.counts) || null;
+  const chosen = parts.filter((p) => !restoring || held.includes(p));
+  const nothing = !chosen.length;
+
+  return (
+    <Screen
+      title={restoring ? "Restore" : "Back up"}
+      onBack={onClose}
+      rise
+      action={
+        restoring ? (
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={!file || nothing || busy}
+            onClick={() => onRestore(chosen)}
+          >
+            <Icon name="refresh" />
+            {busy ? "Restoring…" : "Restore"}
+          </Button>
+        ) : (
+          <Button variant="primary" size="sm" disabled={nothing || busy} onClick={() => onDownload(chosen)}>
+            <Icon name="download" />
+            {busy ? "Working…" : "Download"}
+          </Button>
+        )
+      }
+    >
+      <Help>
+        {restoring
+          ? "Everything you tick is written back over whatever has the same name on the site. Anything made since the backup is left alone, and anything you leave unticked is left in the file."
+          : "Tick what the file should hold. All of it is the backup to keep; less of it is for when you want the wording of every card without a gigabyte of audio behind it."}
+      </Help>
+
+      {restoring && (
+        <div className="at-row at-mt3">
+          <label className="at-btn ghost" style={{ cursor: "pointer" }}>
+            <Icon name="folder" />
+            {file ? "Choose a different file" : "Choose a file"}
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="at-hidden"
+              onChange={async (e) => {
+                const f = e.target.files && e.target.files[0];
+                e.target.value = "";
+                if (!f) return;
+                setReadErr("");
+                try {
+                  onPickFile(JSON.parse(await f.text()), f.name);
+                } catch (err) {
+                  setReadErr("That file isn't readable as JSON.");
+                }
+              }}
+            />
+          </label>
+        </div>
+      )}
+
+      <Notice kind="error">{readErr}</Notice>
+
+      {restoring && file && (
+        <div className="at-sub at-mt3">
+          <p className="at-eyebrow">{fileName || "The file"}</p>
+          <Help>
+            Taken{" "}
+            {file.manifest && file.manifest.takenAt
+              ? new Date(file.manifest.takenAt).toLocaleString()
+              : "at an unknown time"}
+            .
+          </Help>
+          {verifyBackup(file).length ? (
+            <p className="at-hint" style={{ marginBottom: 0, color: "var(--rose)" }}>
+              {verifyBackup(file).join(" ")}
+            </p>
+          ) : (
+            <Help>Checked: it holds everything it says it holds.</Help>
+          )}
+        </div>
+      )}
+
+      {(!restoring || file) && (
+        <div className="at-field at-mt4">
+          <CheckList
+            options={BACKUP_PARTS.filter((p) => !restoring || held.includes(p.key)).map((p) => ({
+              id: p.key,
+              title: p.title,
+              note:
+                counts && counts[p.count] !== undefined
+                  ? `${p.what} ${plural(counts[p.count], p.unit)} in the file.`
+                  : p.what,
+            }))}
+            chosen={parts}
+            onToggle={(id, on) =>
+              setParts((x) => (on ? x.filter((k) => k !== id) : x.concat([id])))
+            }
+          />
+          {restoring && held.length < ALL_PARTS.length && (
+            <Help>
+              {plural(ALL_PARTS.length - held.length, "part")} of the site
+              {ALL_PARTS.length - held.length === 1 ? " is" : " are"} not in this file, so
+              {ALL_PARTS.length - held.length === 1 ? " it is" : " they are"} not offered here.
+            </Help>
+          )}
+          {nothing && <Help>Nothing ticked, so there is nothing to do.</Help>}
+        </div>
+      )}
+
+      {progress && progress.total > 0 && (
+        <Help>
+          {restoring ? "Writing" : "Fetching"} {progress.done} of {progress.total} parts…
+        </Help>
+      )}
+    </Screen>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Clearing the site
+
+   The other end of a restore, and the only screen in the app that removes
+   things wholesale. It asks for the deploy's admin key as well as an
+   administrator's account, because being signed in as an administrator is
+   a thing a borrowed phone is, and this is not an action to leave one tap
+   away from a menu.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   onClear: (adminKey: string, parts: string[]) => Promise<any>,
+ *   onClose: () => void,
+ * }} props
+ */
+function ClearScreen({ onClear, onClose }) {
+  /* Nothing ticked to begin with. A screen that opens with every box
+     already ticked is a screen where the dangerous thing is one tap away,
+     and the tap is the wrong one to make easy. */
+  const [parts, setParts] = useState(/** @type {string[]} */ ([]));
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(/** @type {any | null} */ (null));
+  const [asking, setAsking] = useState(false);
+
+  const naming = partsChosen(parts).map((p) => p.title.toLowerCase()).join(", ");
+
+  return (
+    <Screen
+      title="Clear data"
+      onBack={onClose}
+      rise
+      action={
+        <Button
+          variant="danger"
+          size="sm"
+          disabled={!parts.length || !key.trim() || busy}
+          onClick={() => setAsking(true)}
+        >
+          <Icon name="delete" />
+          {busy ? "Clearing…" : "Clear"}
+        </Button>
+      }
+    >
+      <Notice kind="warn">
+        What this removes is gone from the site. There is no undo, and the only
+        way back is a backup file — so take one first, even if you are sure.
+      </Notice>
+
+      <div className="at-field at-mt4">
+        <label className="at-label">What to clear</label>
+        <CheckList
+          options={BACKUP_PARTS.map((p) => ({ id: p.key, title: p.title, note: p.what }))}
+          chosen={parts}
+          onToggle={(id, on) => setParts((x) => (on ? x.filter((k) => k !== id) : x.concat([id])))}
+        />
+        {parts.includes("people") && (
+          <Help>
+            Your own account is kept, whatever else goes: a site nobody can sign
+            in to is not a site anyone can put right. Remove it from People
+            afterwards if you mean to.
+          </Help>
+        )}
+      </div>
+
+      <Field label="Admin key">
+        <input
+          className="at-input"
+          type="password"
+          autoComplete="off"
+          value={key}
+          placeholder="The key this deploy was set up with"
+          onChange={(e) => setKey(e.target.value)}
+        />
+        <Help>
+          The same key that makes someone an administrator. It lives with
+          whoever runs the deploy, not on the site, which is what makes it
+          worth asking for here.
+        </Help>
+      </Field>
+
+      <Notice kind="error">{error}</Notice>
+
+      {done && (
+        <div className="at-sub at-mt4">
+          <p className="at-eyebrow">Cleared</p>
+          <div className="at-flags">
+            {BACKUP_PARTS.map((p) =>
+              done[p.count] ? (
+                <span className="at-flag" key={p.key}>
+                  {plural(done[p.count], p.unit)}
+                </span>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+
+      {asking && (
+        <ConfirmModal
+          title={`Clear ${naming}?`}
+          confirmLabel="Clear it"
+          confirmWord="clear"
+          busy={busy}
+          body={
+            <p>
+              Every {naming.includes(",") ? "one of those" : naming} on the site
+              goes, for everyone, with no undo. A backup file is the only way
+              back.
+            </p>
+          }
+          onCancel={() => setAsking(false)}
+          onConfirm={async () => {
+            setAsking(false);
+            setBusy(true);
+            setError("");
+            try {
+              const r = await onClear(key.trim(), parts);
+              setDone(r.removed || {});
+              setParts([]);
+              setKey("");
+            } catch (e) {
+              setError(API.explain(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      )}
+    </Screen>
+  );
+}
+
+/* ------------------------------------------------------------------
    Choosing which decks a course carries
 
    Membership is a property of the deck, and deck settings is still where a
@@ -2530,7 +3219,18 @@ function blobToDataUrl(blob) {
    round, and only writes what actually changed.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   course: Course,
+ *   decks: Deck[],
+ *   langOfDeck: (deck: Deck) => string,
+ *   busy?: boolean,
+ *   onSave: (added: string[], removed: string[]) => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
+  /** @type {(d: Deck) => boolean} */
   const inCourse = (d) => (d.courses || []).some((l) => l.courseId === course.id);
   const [chosen, setChosen] = useState(() => new Set(decks.filter(inCourse).map((d) => d.id)));
   const [query, setQuery] = useState("");
@@ -2575,7 +3275,7 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
             options={shown.map((d) => ({
               id: d.id,
               title: d.title,
-              note: `${(langOfDeck(d) || {}).name} · ${plural(d.cardCount, "card")}`,
+              note: `${langOfDeck(d)} · ${plural(d.cardCount || 0, "card")}`,
             }))}
             chosen={[...chosen]}
             onToggle={(id) =>
@@ -2607,6 +3307,19 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
    at the top right — so the two feel like one app rather than two.
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   deck: Deck | null,
+ *   choices: Record<LangId, Lang>,
+ *   mustAsk?: boolean,
+ *   initialLang?: LangId,
+ *   busy?: boolean,
+ *   courses?: Course[],
+ *   languages: Record<LangId, Lang>,
+ *   onSave: (title: string, lang: LangId, picked: string[]) => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function DeckEditor({
   deck,
   choices,
@@ -2736,24 +3449,93 @@ function DeckEditor({
   );
 }
 
-function Recordings({ clips, onChange }) {
+/*
+ * The recordings on one form, as the card editor shows them.
+ *
+ * Listening stays here, where the rest of the form is: the quickest way to
+ * check that a card's audio is the right audio is to press play beside the
+ * word it belongs to. Making one does not — recording and uploading are a
+ * job with its own controls, its own permissions prompt and its own way of
+ * going wrong, and they used to sit in the middle of a form as four
+ * buttons, which is how a card editor becomes a console.
+ */
+/**
+ * @param {{
+ *   form: { clips?: string[], slowClips?: string[] },
+ *   onOpen: () => void,
+ * }} props
+ */
+function Recordings({ form, onOpen }) {
+  const made = clipsOf(form);
+  return (
+    <Field label="Recordings">
+      <ClipList clips={made} />
+      <div className="at-chips" style={{ marginTop: made.length ? 10 : 0 }}>
+        <Button size="sm" onClick={onOpen} icon="mic">
+          {made.length ? "Record or upload" : "Add a recording"}
+        </Button>
+      </div>
+      {!made.length && (
+        <Help>
+          A recording lets this form be practiced by ear as well as by sight.
+          You can make one at regular speed, a slow one, or both.
+        </Help>
+      )}
+    </Field>
+  );
+}
 
-  const [recording, setRecording] = useState(false);
+/*
+ * Making them: a screen of its own, one section per speed.
+ *
+ * One recorder rather than two, pointed at whichever section asked for it —
+ * two would mean two live microphones the moment somebody pressed the
+ * second button while the first was still running.
+ */
+/**
+ * @param {{
+ *   title: string,
+ *   form: { clips?: string[], slowClips?: string[] },
+ *   onChange: (next: { clips: string[], slowClips: string[] }) => void,
+ *   onClose: () => void,
+ * }} props
+ */
+function RecordingScreen({ title, form, onChange, onClose }) {
+  const [recording, setRecording] = useState(/** @type {"clips" | "slowClips" | ""} */ (""));
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  /** @type {React.MutableRefObject<MediaRecorder | null>} */
   const rec = useRef(null);
+  /** @type {React.MutableRefObject<ReturnType<typeof setInterval> | null>} */
   const tick = useRef(null);
-  const list = clips || [];
 
-  useEffect(() => () => tick.current && clearInterval(tick.current), []);
+  useEffect(() => () => {
+    if (tick.current) clearInterval(tick.current);
+  }, []);
 
-  async function store(blob) {
+  /** @param {"clips" | "slowClips"} key */
+  const listOf = (key) => form[key] || [];
+  /**
+   * @param {"clips" | "slowClips"} key
+   * @param {string[]} next
+   */
+  const put = (key, next) =>
+    onChange({
+      clips: key === "clips" ? next : form.clips || [],
+      slowClips: key === "slowClips" ? next : form.slowClips || [],
+    });
+
+  /**
+   * @param {Blob} blob
+   * @param {"clips" | "slowClips"} key
+   */
+  async function store(blob, key) {
     setBusy("Saving…");
     try {
       const hash = await hashOf(blob);
       await API.putClip(hash, await blobToDataUrl(blob));
-      onChange(list.concat([hash]));
+      put(key, listOf(key).concat([hash]));
     } catch (e) {
       setError(API.explain(e));
     } finally {
@@ -2761,7 +3543,8 @@ function Recordings({ clips, onChange }) {
     }
   }
 
-  async function begin() {
+  /** @param {"clips" | "slowClips"} key */
+  async function begin(key) {
     setError("");
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices) {
       setError("This browser won't let the app use the microphone");
@@ -2770,22 +3553,25 @@ function Recordings({ clips, onChange }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream, { audioBitsPerSecond: 24000 });
+      /** @type {Blob[]} */
       const chunks = [];
       mr.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        store(new Blob(chunks, { type: mr.mimeType || "audio/webm" }));
+        store(new Blob(chunks, { type: mr.mimeType || "audio/webm" }), key);
       };
       rec.current = mr;
       setElapsed(0);
-      setRecording(true);
+      setRecording(key);
       const from = Date.now();
       tick.current = setInterval(() => setElapsed(Date.now() - from), 100);
       mr.start();
-      setTimeout(() => mr.state !== "inactive" && end(), 15000);
+      /* A slow reading is a longer one, so the cap allows for it: the old
+         fifteen seconds was set when there was one speed to record. */
+      setTimeout(() => mr.state !== "inactive" && end(), 25000);
     } catch (e) {
       setError(
-        String(e && e.name) === "NotAllowedError"
+        String(e && /** @type {any} */ (e).name) === "NotAllowedError"
           ? "Microphone permission was refused"
           : "Couldn't reach the microphone"
       );
@@ -2794,44 +3580,73 @@ function Recordings({ clips, onChange }) {
 
   function end() {
     if (tick.current) clearInterval(tick.current);
-    setRecording(false);
+    setRecording("");
     if (rec.current && rec.current.state !== "inactive") rec.current.stop();
   }
 
   return (
-    <Field label="Recordings">
-
-      <ClipList clips={list} onChange={onChange} />
-
-      <div className="at-chips" style={{ marginTop: list.length ? 10 : 0 }}>
-        {recording ? (
-          <Button variant="danger" size="sm" onClick={end} icon="pause">Stop — {(elapsed / 1000).toFixed(1)}s</Button>
-        ) : (
-          <Button size="sm" onClick={begin} disabled={!!busy} icon="mic">{busy || "Record"}</Button>
-        )}
-        <label className="at-btn sm ghost">
-          <Icon name="download" />
-          Upload a file
-          <input
-            type="file"
-            accept="audio/*"
-            className="at-hidden"
-            onChange={(e) => {
-              const f = e.target.files && e.target.files[0];
-              if (f) store(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-      </div>
-
+    <Screen title={title} onBack={onClose} rise backLabel="Back to the card">
+      <Help>
+        Record either, both or neither. A card with no recording is still a
+        card — it just cannot be practiced by ear.
+      </Help>
       <Notice kind="error">{error}</Notice>
-      {!error && !list.length && (
-        <Help>
-          A recording lets this form be practiced by ear as well as by sight.
-        </Help>
-      )}
-    </Field>
+
+      {CLIP_KINDS.map((kind) => {
+        const list = listOf(kind.key);
+        const mine = recording === kind.key;
+        return (
+          <section className="at-panel" key={kind.key}>
+            <p className="at-eyebrow">{kind.title}</p>
+            <Help>{kind.what}</Help>
+
+            {/* Numbered takes rather than named speeds: which speed these
+                are is the heading directly above them. */}
+            <ClipList
+              clips={list.map((id, i) => ({ id, label: `Take ${i + 1}` }))}
+              onChange={(next) =>
+                put(kind.key, next.map((c) => (typeof c === "string" ? c : c.id)))
+              }
+            />
+
+            <div className="at-chips" style={{ marginTop: list.length ? 10 : 0 }}>
+              {mine ? (
+                <Button variant="danger" size="sm" onClick={end} icon="pause">
+                  Stop — {(elapsed / 1000).toFixed(1)}s
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => begin(kind.key)}
+                  disabled={!!busy || !!recording}
+                  icon="mic"
+                >
+                  {busy || `Record ${kind.short.toLowerCase()}`}
+                </Button>
+              )}
+              {/* An upload beside every Record, because a teacher who has
+                  the file already should never have to play it into a
+                  microphone to get it onto the card. */}
+              <label className="at-btn sm ghost">
+                <Icon name="download" />
+                Upload a file
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="at-hidden"
+                  disabled={!!recording}
+                  onChange={(e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) store(f, kind.key);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </section>
+        );
+      })}
+    </Screen>
   );
 }
 
@@ -2848,6 +3663,16 @@ function Recordings({ clips, onChange }) {
  *
  * A pairing already accepted stays whichever way the matcher later votes,
  * so improving the matcher can never silently drop a teacher's decision.
+ */
+/**
+ * @param {{
+ *   lang: Lang,
+ *   text: string,
+ *   cards: Card[],
+ *   selfId?: string,
+ *   chosen: string[],
+ *   onChange: (ids: string[]) => void,
+ * }} props
  */
 function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
   const kind = guessKind(text, lang);
@@ -2902,6 +3727,20 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
   );
 }
 
+/**
+ * @param {{
+ *   card: Card | null,
+ *   lang: Lang,
+ *   decks: Deck[],
+ *   inDecks?: string[],
+ *   allCards: Card[],
+ *   onSave: (forms: any, note: string, decks: string[], uses: string[]) => void,
+ *   onDelete?: () => void,
+ *   onClose: () => void,
+ *   busy?: boolean,
+ *   confirming?: Node,
+ * }} props
+ */
 function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming }) {
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
@@ -2916,6 +3755,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             lat: card.lat || "",
             ...dimValues(card),
             clips: card.clips || [],
+            slowClips: card.slowClips || [],
           },
           ...(card.subs || []).map((s) => ({ ...blankForm(), ...s })),
         ]
@@ -2927,6 +3767,10 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
   const [uses, setUses] = useState((card && card.uses) || []);
+  /* Which form's recordings are being made, or null. The screen for them
+     opens over this one and hands its results straight back into the form,
+     so nothing about a card is saved any earlier than it was. */
+  const [recording, setRecording] = useState(/** @type {number | null} */ (null));
 
   const main = forms[0];
   /* English, not "English or a transliteration": with typing the
@@ -2934,6 +3778,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      romanisation supports one exercise type, and no student could ever
      practice it. Better to say so here than to save something inert. */
   const canSave = main.ar.trim() && main.en.trim();
+  /** @type {(i: number, next: any) => void} */
   const setForm = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
   return (
@@ -2976,7 +3821,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       setForms((x) =>
                         x
                           .slice(0, i + 1)
-                          .concat([{ ...x[i], clips: [] }])
+                          .concat([{ ...x[i], clips: [], slowClips: [] }])
                           .concat(x.slice(i + 1))
                       )
                     }
@@ -3034,7 +3879,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               )}
 
               <div className="at-field">
-                <Recordings clips={f.clips} onChange={(v) => setForm(i, { ...f, clips: v })} />
+                <Recordings form={f} onOpen={() => setRecording(i)} />
               </div>
 
               {(!drillsTranslit || dims.length || (i === 0 && lang.lexical)) && (
@@ -3058,11 +3903,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       <Segmented
                         label={dim.label}
                         options={dim.options.map(([value, label]) => ({ value, label }))}
-                        value={f[dim.field]}
+                        value={/** @type {any} */ (f)[dim.field]}
                         onChange={(v) =>
                           setForm(i, {
                             ...f,
-                            [dim.field]: !dim.required && f[dim.field] === v ? "" : v,
+                            [dim.field]: !dim.required && /** @type {any} */ (f)[dim.field] === v ? "" : v,
                           })
                         }
                       />
@@ -3073,9 +3918,9 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                     <Field label={lang.lexical.label}>
                       <input
                         className="at-input"
-                        value={f[lang.lexical.key] || ""}
+                        value={/** @type {any} */ (f)[lang.lexical.key] || ""}
                         placeholder={lang.lexical.help || ""}
-                        onChange={(e) => setForm(i, { ...f, [lang.lexical.key]: e.target.value })}
+                        onChange={(e) => setForm(i, { ...f, [lang.lexical ? lang.lexical.key : ""]: e.target.value })}
                       />
                     </Field>
                   )}
@@ -3135,6 +3980,16 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </Button>
           )}
       </Screen>
+      {/* Above the editor rather than instead of it: closing it puts the
+          form back exactly as it was left, scroll position included. */}
+      {recording !== null && forms[recording] && (
+        <RecordingScreen
+          title={forms.length > 1 ? `Recordings · form ${recording + 1}` : "Recordings"}
+          form={forms[recording]}
+          onChange={(next) => setForm(recording, { ...forms[recording], ...next })}
+          onClose={() => setRecording(null)}
+        />
+      )}
     </>
   );
 }
@@ -3151,6 +4006,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
  * Read-only. It writes nothing and suggests nothing; the whole job is the
  * number at the top.
  */
+/*
+ * `lang` is as much of a pack as there is, not a whole one: the first
+ * thing this does is say so when the language describes no way to find a
+ * word inside a phrase, and a prop typed `Lang` would make that branch
+ * unreachable — which is the opposite of the point.
+ */
+/** @param {{ cards: Card[], lang: Partial<Lang> }} props */
 function ContextReport({ cards, lang }) {
   const [open, setOpen] = useState(false);
   const report = useMemo(() => contextCoverage(cards, lang), [cards, lang]);
@@ -3257,10 +4119,12 @@ function ContextReport({ cards, lang }) {
 
 /* Recordings live on each form, not on the card, so a card counts as having
    one if any of its forms does. */
+/** @type {(c: Card) => boolean} */
 export const cardHasAudio = (c) =>
-  ((c.clips || []).length > 0) || (c.subs || []).some((sb) => (sb.clips || []).length > 0);
+  formHasAudio(c) || (c.subs || []).some(formHasAudio);
 
 /* The main form is a form. A card with two subs has three. */
+/** @type {(c: Card) => number} */
 export const cardFormCount = (c) => 1 + (c.subs || []).length;
 
 /*
@@ -3272,9 +4136,12 @@ export const cardFormCount = (c) => 1 + (c.subs || []).length;
  * upper bound. Backfilling would have been worse — it would have written
  * today's date over the answer.
  */
+/** @type {(c: Card) => number} */
 export const cardAdded = (c) => c.created || c.updated || 0;
+/** @type {(c: Card) => number} */
 export const cardChanged = (c) => c.updated || c.created || 0;
 
+/** @type {Record<string, { label: string, of: (c: Card) => any, numeric?: boolean, then?: (c: Card) => any }>} */
 export const CARD_SORTS = {
   added: { label: "Added", of: cardAdded, numeric: true },
   changed: { label: "Changed", of: cardChanged, numeric: true },
@@ -3282,12 +4149,17 @@ export const CARD_SORTS = {
      untouched behind it, so a second key decides within each group —
      otherwise the order inside a group would be whatever the server
      happened to return. */
-  audio: { label: "Recordings", of: (c) => (cardHasAudio(c) ? 1 : 0), then: cardChanged },
+  audio: { label: "Recordings", of: (/** @type {Card} */ c) => (cardHasAudio(c) ? 1 : 0), then: cardChanged },
   forms: { label: "Forms", of: cardFormCount, then: cardChanged },
 };
 
+/**
+ * @param {Card[]} cards
+ * @param {string} key
+ * @param {boolean} [newestFirst]
+ */
 export function sortCards(cards, key, newestFirst = true) {
-  const sort = CARD_SORTS[key];
+  const sort = CARD_SORTS[key || ""];
   if (!sort) return cards;
   const dir = newestFirst ? -1 : 1;
   return [...cards].sort((a, b) => {
@@ -3298,6 +4170,10 @@ export function sortCards(cards, key, newestFirst = true) {
   });
 }
 
+/**
+ * @param {Card[]} cards
+ * @param {{ audio?: string, forms?: string }} [filters]
+ */
 export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
   return cards.filter((c) => {
     if (audio === "with" && !cardHasAudio(c)) return false;
@@ -3308,39 +4184,44 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
   });
 }
 
+/** @param {{ account: User, languages: Record<LangId, Lang>, onClose: () => void }} props */
 export function TeachSpace({ account, languages, onClose }) {
   /* What this space was showing when it was last left — see lastShown.
      Asked once, at the first render: recall forgets another person's
      contents when it is asked for them, which is not something to do
      again on every keystroke. */
+  /** @type {React.MutableRefObject<{ courses: Course[], decks: Deck[], cards: Card[] } | null>} */
   const held = useRef(null);
   if (held.current === null) held.current = recallSpace("teach", account.handle) || false;
+  /** @type {{ courses: Course[], decks: Deck[], cards: Card[] } | null} */
   const last = held.current || null;
   const [tab, setTab] = useState("courses");
-  const [courses, setCourses] = useState(() => (last ? last.courses : []));
-  const [decks, setDecks] = useState(() => (last ? last.decks : []));
+  const [courses, setCourses] = useState(/** @type {Course[]} */ (last ? last.courses : []));
+  const [decks, setDecks] = useState(/** @type {Deck[]} */ (last ? last.decks : []));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [courseView, setCourseView] = useState(null);
-  const [openDeck, setOpenDeck] = useState(null);
-  const [cards, setCards] = useState(() => (last ? last.cards : []));
-  const [editing, setEditing] = useState(null); // {card|null, decks:[]}
-  const [naming, setNaming] = useState(null); // "new" | deck
-  const [confirm, setConfirm] = useState(null); // whatever is awaiting a yes
-  const [viewing, setViewing] = useState(null); // a card being read, not edited
+  const [courseView, setCourseView] = useState(/** @type {any | null} */ (null));
+  const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ (null));
+  const [cards, setCards] = useState(/** @type {Card[]} */ (last ? last.cards : []));
+  const [editing, setEditing] = useState(
+    /** @type {{ card: Card | null, decks: string[], lang?: LangId } | null} */ (null)
+  ); // {card|null, decks:[], lang}
+  const [naming, setNaming] = useState(/** @type {any | null} */ (null)); // "new" | deck
+  const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null)); // whatever is awaiting a yes
+  const [viewing, setViewing] = useState(/** @type {any} */ (null)); // a card being read, not edited
   const [selCards, setSelCards] = useState(() => new Set());
-  const [cardAction, setCardAction] = useState(null); // "add" | "remove"
-  const [newCardLang, setNewCardLang] = useState(null);
-  const [managingDecks, setManagingDecks] = useState(null); // a course id
+  const [cardAction, setCardAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
+  const [newCardLang, setNewCardLang] = useState(/** @type {LangId | null} */ (null));
+  const [managingDecks, setManagingDecks] = useState(/** @type {string | null} */ (null)); // a course id
   /* Already teaching something? Then this is a rare errand, folded away. */
   const [joinNote, setJoinNote] = useState("");
   const [selDecks, setSelDecks] = useState(() => new Set());
-  const [deckAction, setDeckAction] = useState(null); // "add" | "remove"
-  const [pickedDecks, setPickedDecks] = useState([]);
-  const [pickedCourses, setPickedCourses] = useState([]);
+  const [deckAction, setDeckAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
+  const [pickedDecks, setPickedDecks] = useState(/** @type {string[]} */ ([]));
+  const [pickedCourses, setPickedCourses] = useState(/** @type {string[]} */ ([]));
 
-  const refresh = useCallback(async (background) => {
+  const refresh = useCallback(async (/** @type {boolean} */ background = false) => {
     if (!background) setBusy(true);
     try {
       /* pullTeaching takes what arrives and says what didn't, so a failing
@@ -3389,7 +4270,8 @@ export function TeachSpace({ account, languages, onClose }) {
   /* The languages this person actually teaches. One means nothing to ask
      about; several mean every new deck and card has to say which it is. */
   const teachingLangs = useMemo(() => {
-    const ids = [];
+    /** @type {string[]} */
+  const ids = [];
     for (const c of courses) {
       if (c.language && languages[c.language] && !ids.includes(c.language)) ids.push(c.language);
     }
@@ -3400,7 +4282,8 @@ export function TeachSpace({ account, languages, onClose }) {
      while that course's language is still being sorted out. */
   const knownLangs = useMemo(() => {
     if (teachingLangs.length) return teachingLangs;
-    const ids = [];
+    /** @type {string[]} */
+  const ids = [];
     for (const d of decks) {
       if (d.lang && languages[d.lang] && !ids.includes(d.lang)) ids.push(d.lang);
     }
@@ -3436,6 +4319,10 @@ export function TeachSpace({ account, languages, onClose }) {
 
   /* See the note on AdminSpace's run: `done` is the confirmation, and may
      be a function of what the call returned. */
+  /**
+   * @param {() => Promise<any>} fn
+   * @param {string | ((out: any) => string)} [done]
+   */
   async function run(fn, done) {
     setBusy(true);
     try {
@@ -3454,6 +4341,7 @@ export function TeachSpace({ account, languages, onClose }) {
      be followed by three more requests, each reading every deck and course
      on the site; the background check still runs, so the lists cannot drift
      for long even if something here is missed. */
+  /** @param {any} r */
   function absorbSaved(r) {
     const card = r && r.card;
     if (!card) return;
@@ -3468,6 +4356,7 @@ export function TeachSpace({ account, languages, onClose }) {
     absorbDecks(r.decks);
   }
 
+  /** @param {Deck[]} records */
   function absorbDecks(records) {
     if (!Array.isArray(records) || !records.length) return;
     setDecks((prev) =>
@@ -3478,6 +4367,7 @@ export function TeachSpace({ account, languages, onClose }) {
     );
   }
 
+  /** @param {string[]} ids */
   function absorbDeleted(ids) {
     const gone = new Set(ids);
     if (!gone.size) return;
@@ -3492,6 +4382,7 @@ export function TeachSpace({ account, languages, onClose }) {
     );
   }
 
+  /** @type {(deck: Deck) => Lang | undefined} */
   const langOfDeck = (deck) => {
     if (deck && deck.lang && languages[deck.lang]) return languages[deck.lang];
     for (const link of (deck && deck.courses) || []) {
@@ -3501,9 +4392,10 @@ export function TeachSpace({ account, languages, onClose }) {
     return languages[soleLang] || languages[Object.keys(languages)[0]];
   };
 
+  /** @type {(card: Card) => Lang | undefined} */
   const langOfCard = (card) =>
     (card && card.lang && languages[card.lang]) ||
-    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || {});
+    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || /** @type {any} */ ({}));
 
   /* ---- naming a deck takes over the screen, like a card ---- */
   if (naming) {
@@ -3528,7 +4420,7 @@ export function TeachSpace({ account, languages, onClose }) {
                 await API.createDeck(title, "", lang || soleLang);
               } else {
                 if (title !== existing.title) await API.renameDeck(existing.id, title);
-                const was = (existing.courses || []).map((l) => l.courseId);
+                const was = (existing.courses || []).map((/** @type {any} */ l) => l.courseId);
                 for (const id of picked) if (!was.includes(id)) await API.attachDeck(existing.id, id);
                 for (const id of was) if (!picked.includes(id)) await API.detachDeck(existing.id, id);
               }
@@ -3551,11 +4443,11 @@ export function TeachSpace({ account, languages, onClose }) {
        is going into. With one language taught there is never a choice. */
     const editLang =
       (editing.lang && languages[editing.lang]) ||
-      (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || { courses: [] }));
+      (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || /** @type {any} */ ({ courses: [] })));
     return (
       <CardEditor
         card={editing.card}
-        lang={editLang}
+        lang={editLang || LANGUAGES[DEFAULT_LANGUAGE]}
         decks={decks}
         inDecks={editing.decks}
         busy={busy}
@@ -3573,10 +4465,11 @@ export function TeachSpace({ account, languages, onClose }) {
                   lat: main.lat.trim(),
                   ...dimValues(main),
                   clips: main.clips || [],
+                  slowClips: main.slowClips || [],
                   note: note.trim(),
                   lang: (editLang || {}).id || "",
                   uses,
-                  subs: subs.filter((f) => f.ar.trim() || f.en.trim()),
+                  subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
                 },
                 inDecks
               );
@@ -3591,9 +4484,16 @@ export function TeachSpace({ account, languages, onClose }) {
             (main) => `${main.en.trim() || main.ar.trim() || "Card"} saved`
           )
         }
-        onDelete={editing.card ? () => setConfirm({ kind: "card", card: editing.card }) : undefined}
+        onDelete={
+          editing.card
+            ? (() => {
+                const doomed = editing.card;
+                return () => setConfirm({ kind: "card", card: doomed, action: () => {} });
+              })()
+            : undefined
+        }
         confirming={
-          confirm && confirm.kind === "card" ? (
+          confirm && confirm.kind === "card" && confirm.card ? (
             <ConfirmModal
               title={`Delete "${confirm.card.en || confirm.card.ar}"?`}
               confirmLabel="Delete the card"
@@ -3608,8 +4508,10 @@ export function TeachSpace({ account, languages, onClose }) {
               onCancel={() => setConfirm(null)}
               onConfirm={() =>
                 run(async () => {
-                  await API.deleteCard(confirm.card.id);
-                  absorbDeleted([confirm.card.id]);
+                  const gone = confirm.card;
+                  if (!gone) return;
+                  await API.deleteCard(gone.id);
+                  absorbDeleted([gone.id]);
                   setConfirm(null);
                   setEditing(null);
                 })
@@ -3642,7 +4544,7 @@ export function TeachSpace({ account, languages, onClose }) {
             </Help>
 
             <Section title="In context" className="at-mt5">
-              <ContextReport cards={mine} lang={langOfDeck(d)} />
+              <ContextReport cards={mine} lang={langOfDeck(d) || LANGUAGES[DEFAULT_LANGUAGE]} />
             </Section>
 
             <ItemList
@@ -3680,7 +4582,7 @@ export function TeachSpace({ account, languages, onClose }) {
                 {
                   label: "Delete",
                   danger: true,
-                  onClick: (ids) => setConfirm({ kind: "cards", ids }),
+                  onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
                 },
               ]}
               renderItem={(c) => (
@@ -3694,7 +4596,7 @@ export function TeachSpace({ account, languages, onClose }) {
                       <IconButton
                         icon="edit"
                         label="Edit"
-                        onClick={(e) => {
+                        onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
                           setEditing({ card: c, decks: c.decks || [] });
                         }}
@@ -3703,9 +4605,9 @@ export function TeachSpace({ account, languages, onClose }) {
                         icon="delete"
                         label="Delete"
                         danger
-                        onClick={(e) => {
+                        onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
-                          setConfirm({ kind: "cards", ids: [c.id] });
+                          setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
                         }}
                       />
                     </>
@@ -3736,7 +4638,7 @@ export function TeachSpace({ account, languages, onClose }) {
 
         {confirm && confirm.kind === "cards" && (
           <ConfirmModal
-            title={`Delete ${plural(confirm.ids.length, "card")}?`}
+            title={`Delete ${plural((confirm.ids || []).length, "card")}?`}
             confirmLabel="Delete them"
             busy={busy}
             body={
@@ -3748,7 +4650,7 @@ export function TeachSpace({ account, languages, onClose }) {
             onCancel={() => setConfirm(null)}
             onConfirm={() =>
               run(async () => {
-                const r = await API.deleteCards(confirm.ids);
+                const r = await API.deleteCards(confirm.ids || []);
                 absorbDeleted(r.deleted || confirm.ids);
                 setConfirm(null);
                 setSelCards(new Set());
@@ -3776,7 +4678,7 @@ export function TeachSpace({ account, languages, onClose }) {
       <DeckPicker
         course={c}
         decks={decks}
-        langOfDeck={langOfDeck}
+        langOfDeck={(d) => (langOfDeck(d) || {}).name || ""}
         busy={busy}
         onClose={() => setManagingDecks(null)}
         onSave={(added, removed) =>
@@ -3806,8 +4708,9 @@ export function TeachSpace({ account, languages, onClose }) {
       return null;
     }
     const mine = decks.filter((d) => (d.courses || []).some((l) => l.courseId === c.id));
-    const addedOn = (d) => {
-      const link = (d.courses || []).find((l) => l.courseId === c.id);
+    /** @type {(d: Deck) => any} */
+  const addedOn = (d) => {
+      const link = (d.courses || []).find((/** @type {any} */ l) => l.courseId === c.id);
       return link && link.addedAt ? new Date(link.addedAt).toLocaleDateString() : null;
     };
     return (
@@ -3842,10 +4745,10 @@ export function TeachSpace({ account, languages, onClose }) {
                   <Tile
                     key={d.id}
                     title={d.title}
-                    meta={`${(langOfDeck(d) || {}).name} · ${plural(d.cardCount, "card")}`}
+                    meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}`}
                     onOpen={() => setOpenDeck(d.id)}
                     actions={
-                      <IconButton icon="edit" label="Deck settings" onClick={(e) => {
+                      <IconButton icon="edit" label="Deck settings" onClick={(/** @type {React.MouseEvent} */ e) => {
                           e.stopPropagation();
                           setNaming(d);
                         }} />
@@ -3911,24 +4814,21 @@ export function TeachSpace({ account, languages, onClose }) {
               )}
             </section>
 
-            {/* --- how people get in --- */}
+            {/* --- how people get in ---
+                 Only the student code lives here. The teacher code hands over
+                 control of the material, so who holds it is the
+                 administrator's decision to make, in the admin space. */}
             <section className="at-panel">
-              <p className="at-eyebrow">Join codes</p>
+              <p className="at-eyebrow">Join code</p>
               <Help>
-                One code lets people study, the other lets them teach.
+                This is the code students join with. Teacher codes are your
+                administrator's to hand out.
               </Help>
               <CodeBox
                 label="Student code"
                 code={c.code}
                 hint="Share this with a class so they can join and study."
               />
-              {c.teacherCode && (
-                <CodeBox
-                  label="Teacher code"
-                  code={c.teacherCode}
-                  hint="Only for another teacher — it gives them control of the material."
-                />
-              )}
             </section>
       </Screen>
     );
@@ -3953,7 +4853,7 @@ export function TeachSpace({ account, languages, onClose }) {
               languages={languages}
               busy={busy}
               error={error}
-              lead="Open a course to see its decks, its people and its codes."
+              lead="Open a course to see its decks, its people and its student code."
               emptyLead="You aren't teaching a course yet. Ask your administrator to add you, or join with a teacher code below."
               joinTitle="Join a course as a teacher"
               joinHint="Paste a teacher code another teacher or your administrator gave you."
@@ -4022,7 +4922,7 @@ export function TeachSpace({ account, languages, onClose }) {
 
               {confirm && confirm.kind === "cards" && (
                 <ConfirmModal
-                  title={`Delete ${plural(confirm.ids.length, "card")}?`}
+                  title={`Delete ${plural((confirm.ids || []).length, "card")}?`}
                   confirmLabel="Delete them"
                   busy={busy}
                   body={
@@ -4034,7 +4934,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   onCancel={() => setConfirm(null)}
                   onConfirm={() =>
                     run(async () => {
-                      const r = await API.deleteCards(confirm.ids);
+                      const r = await API.deleteCards(confirm.ids || []);
                       absorbDeleted(r.deleted || confirm.ids);
                       setConfirm(null);
                       setSelCards(new Set());
@@ -4059,7 +4959,7 @@ export function TeachSpace({ account, languages, onClose }) {
                     options={decks.map((d) => ({
                       id: d.id,
                       title: d.title,
-                      note: `${plural(d.cardCount, "card")}`,
+                      note: `${plural(d.cardCount || 0, "card")}`,
                     }))}
                     chosen={pickedDecks}
                     onToggle={(id, on) =>
@@ -4229,7 +5129,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   {
                     label: "Delete",
                     danger: true,
-                    onClick: (ids) => setConfirm({ kind: "cards", ids }),
+                    onClick: (ids) => setConfirm({ kind: "cards", ids, action: () => {} }),
                   },
                 ]}
                 renderItem={(c) => (
@@ -4243,7 +5143,7 @@ export function TeachSpace({ account, languages, onClose }) {
                         <IconButton
                           icon="edit"
                           label="Edit"
-                          onClick={(e) => {
+                          onClick={(/** @type {React.MouseEvent} */ e) => {
                             e.stopPropagation();
                             setEditing({ card: c, decks: c.decks || [] });
                           }}
@@ -4252,9 +5152,9 @@ export function TeachSpace({ account, languages, onClose }) {
                           icon="delete"
                           label="Delete"
                           danger
-                          onClick={(e) => {
+                          onClick={(/** @type {React.MouseEvent} */ e) => {
                             e.stopPropagation();
-                            setConfirm({ kind: "cards", ids: [c.id] });
+                            setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
                           }}
                         />
                       </>
@@ -4398,15 +5298,15 @@ export function TeachSpace({ account, languages, onClose }) {
                   return (
                     <Tile
                       title={d.title}
-                      meta={`${(langOfDeck(d) || {}).name} · ${plural(d.cardCount, "card")}`}
+                      meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}`}
                       onOpen={() => setOpenDeck(d.id)}
                       actions={
                         <>
-                          <IconButton icon="edit" label="Deck settings" onClick={(e) => {
+                          <IconButton icon="edit" label="Deck settings" onClick={(/** @type {React.MouseEvent} */ e) => {
                               e.stopPropagation();
                               setNaming(d);
                             }} />
-                          <IconButton icon="delete" label="Delete deck" danger onClick={(e) => {
+                          <IconButton icon="delete" label="Delete deck" danger onClick={(/** @type {React.MouseEvent} */ e) => {
                               e.stopPropagation();
                               setConfirm({
                                 kind: "deck",
@@ -4415,7 +5315,7 @@ export function TeachSpace({ account, languages, onClose }) {
                                 confirmWord: d.title,
                                 body: (
                                   <p>
-                                    Its {plural(d.cardCount, "card")} go with
+                                    Its {plural(d.cardCount || 0, "card")} go with
                                     it, out of every course and out of the apps of everyone
                                     studying it. There is no undoing this.
                                   </p>
@@ -4429,7 +5329,9 @@ export function TeachSpace({ account, languages, onClose }) {
                         <TileNote live={live}>
                           {live ? (
                             <>
-                              Students see it in <b>{inCourses.join(", ")}</b>
+                              Available to students in the{" "}
+                              {inCourses.length === 1 ? "course" : "courses"}{" "}
+                              <b>{inCourses.join(", ")}</b>
                             </>
                           ) : (
                             <>Not in a course yet — nobody can see it</>
@@ -4457,6 +5359,18 @@ export function TeachSpace({ account, languages, onClose }) {
    ------------------------------------------------------------------ */
 
 
+/**
+ * @param {{
+ *   courses: Course[],
+ *   decks: (Deck & { courseId: string, courseTitle?: string })[],
+ *   languages: Record<LangId, Lang>,
+ *   busy?: boolean,
+ *   error?: Node,
+ *   onJoin: (code: string) => Promise<any>,
+ *   onRefresh?: () => void,
+ *   onPractise: (deckTitle: string) => void,
+ * }} props
+ */
 export function StudentCourses({
   courses,
   decks,
@@ -4504,7 +5418,7 @@ export function StudentCourses({
             actions={
               mine.length ? (
                 <Button size="sm"
-                  onClick={(e) => {
+                  onClick={(/** @type {React.MouseEvent} */ e) => {
                     e.stopPropagation();
                     onPractise(mine[0].title);
                   }}

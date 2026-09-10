@@ -30,6 +30,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
+/** @param {unknown} sha */
 const short = (sha) => String(sha || "").trim().slice(0, 7);
 
 function fromGit() {
@@ -52,6 +53,7 @@ function fromGit() {
  * 0.2. The second digit is a counter rather than a decimal, so 0.9 is
  * followed by 0.10.
  */
+/** @param {unknown} version */
 export function formatRelease(version) {
   const m = /^(\d+)\.(\d+)/.exec(String(version || "").trim());
   return m ? `${m[1]}.${m[2]}` : "";

@@ -1,5 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { must } from "./helpers.mjs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -16,7 +17,7 @@ test("a document round-trips, and a missing one reads as null", async () => {
   const store = getStore("t1");
   assert.equal(await store.get("user:sara"), null);
   await store.set("user:sara", JSON.stringify({ handle: "sara" }));
-  assert.deepEqual(JSON.parse(await store.get("user:sara")), { handle: "sara" });
+  assert.deepEqual(JSON.parse(must(await store.get("user:sara"), "the document just written")), { handle: "sara" });
 });
 
 test("keys with colons and slashes stay separate documents", async () => {
@@ -31,9 +32,9 @@ test("getWithMetadata reports an ETag that follows the content", async () => {
   const store = getStore("t3");
   assert.equal(await store.getWithMetadata("doc"), null);
   await store.set("doc", "first");
-  const a = await store.getWithMetadata("doc");
+  const a = must(await store.getWithMetadata("doc"), "the document after the first write");
   await store.set("doc", "second");
-  const b = await store.getWithMetadata("doc");
+  const b = must(await store.getWithMetadata("doc"), "the document after the second write");
   assert.equal(a.data, "first");
   assert.equal(b.data, "second");
   assert.notEqual(a.etag, b.etag);
@@ -51,7 +52,7 @@ test("onlyIfNew writes once and then refuses", async () => {
 test("onlyIfMatch refuses a write built on a stale read", async () => {
   const store = getStore("t5");
   await store.set("doc", "one");
-  const { etag } = await store.getWithMetadata("doc");
+  const { etag } = must(await store.getWithMetadata("doc"), "the document just written");
 
   /* Somebody else writes in between, so the ETag the caller holds is no
      longer the current one. */
@@ -60,7 +61,7 @@ test("onlyIfMatch refuses a write built on a stale read", async () => {
   assert.equal(stale.modified, false);
   assert.equal(await store.get("doc"), "two");
 
-  const current = await store.getWithMetadata("doc");
+  const current = must(await store.getWithMetadata("doc"), "the document as it now stands");
   const fresh = await store.set("doc", "four", { onlyIfMatch: current.etag });
   assert.equal(fresh.modified, true);
   assert.equal(await store.get("doc"), "four");
@@ -69,7 +70,7 @@ test("onlyIfMatch refuses a write built on a stale read", async () => {
 test("onlyIfMatch against a document that is gone does not recreate it", async () => {
   const store = getStore("t6");
   await store.set("doc", "one");
-  const { etag } = await store.getWithMetadata("doc");
+  const { etag } = must(await store.getWithMetadata("doc"), "the document before it is deleted");
   await store.delete("doc");
   const result = await store.set("doc", "two", { onlyIfMatch: etag });
   assert.equal(result.modified, false);
@@ -84,7 +85,7 @@ test("deleting what was never there is not an error", async () => {
 test("concurrent onlyIfMatch writes on one ETag: exactly one wins", async () => {
   const store = getStore("t8");
   await store.set("doc", "base");
-  const { etag } = await store.getWithMetadata("doc");
+  const { etag } = must(await store.getWithMetadata("doc"), "the document every writer starts from");
 
   const results = await Promise.all(
     Array.from({ length: 8 }, (_, i) => store.set("doc", `w${i}`, { onlyIfMatch: etag })),

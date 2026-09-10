@@ -1,3 +1,8 @@
+/**
+ * A write refused by its condition reports modified: false rather than
+ * throwing; the sync endpoint turns that into a 409.
+ * @typedef {{ onlyIfNew?: boolean, onlyIfMatch?: string }} WriteCondition
+ */
 /*
  * Storage, in the shape the endpoints already expect.
  *
@@ -50,11 +55,13 @@ export function resolveDataRoot(env = process.env, cwd = process.cwd()) {
 const resolved = resolveDataRoot();
 const ROOT = resolved.root;
 
+/** @type {(text: string) => string} */
 const etagOf = (text) => createHash("sha256").update(text).digest("hex").slice(0, 32);
 
 /* Keys carry colons and are otherwise arbitrary, so they are percent-encoded
    rather than trusted as filenames. Encoding is reversible, which keeps the
    directory legible when something has to be looked at by hand. */
+/** @type {(dir: string, key: string) => string} */
 const fileFor = (dir, key) => path.join(dir, encodeURIComponent(key));
 
 /*
@@ -63,8 +70,15 @@ const fileFor = (dir, key) => path.join(dir, encodeURIComponent(key));
  * every request, so a promise chain per key is a sufficient lock — and,
  * unlike a lock file, it cannot be left behind by a crash.
  */
+/** @type {Map<string, Promise<any>>} */
 const chains = new Map();
 
+/**
+ * @template T
+ * @param {string} key
+ * @param {() => Promise<T>} work
+ * @returns {Promise<T>}
+ */
 function underLock(key, work) {
   const previous = chains.get(key) || Promise.resolve();
   /* Chain on settlement rather than success: one failed write must not
@@ -83,20 +97,27 @@ function underLock(key, work) {
   return next;
 }
 
+/** @param {string} name */
 export function getStore(name) {
   const dir = path.join(ROOT, encodeURIComponent(name));
+  /** @type {Promise<string | undefined> | null} */
   let ready = null;
   const ensureDir = () => (ready = ready || mkdir(dir, { recursive: true }));
 
+  /** @param {string} key */
   async function readRaw(key) {
     try {
       return await readFile(fileFor(dir, key), "utf8");
     } catch (err) {
-      if (err && err.code === "ENOENT") return null;
+      if (err && /** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT") return null;
       throw err;
     }
   }
 
+  /**
+   * @param {string} key
+   * @param {string} text
+   */
   async function writeRaw(key, text) {
     await ensureDir();
     const target = fileFor(dir, key);
@@ -116,11 +137,19 @@ export function getStore(name) {
     /* The endpoints only ever ask for text, and consistency describes
        Netlify's edge, which a single process does not have: every read here
        is strong, so the option is accepted and ignored. */
-    async get(key) {
+    /**
+     * @param {string} key
+     * @param {{ type?: string, consistency?: string }} [_opts] Accepted and ignored, as above.
+     */
+    async get(key, _opts) {
       return readRaw(key);
     },
 
-    async getWithMetadata(key) {
+    /**
+     * @param {string} key
+     * @param {{ type?: string, consistency?: string }} [_opts] Accepted and ignored, as above.
+     */
+    async getWithMetadata(key, _opts) {
       const data = await readRaw(key);
       if (data === null) return null;
       return { data, etag: etagOf(data) };
@@ -132,6 +161,11 @@ export function getStore(name) {
      *   onlyIfMatch  write only when the stored ETag is the one given
      * A refused write reports modified: false rather than throwing, and the
      * endpoint turns that into a 409.
+     */
+    /**
+     * @param {string} key
+     * @param {unknown} value
+     * @param {WriteCondition} [opts]
      */
     async set(key, value, opts = {}) {
       const text = String(value);
@@ -149,13 +183,14 @@ export function getStore(name) {
       });
     },
 
+    /** @param {string} key */
     async delete(key) {
       try {
         await unlink(fileFor(dir, key));
       } catch (err) {
         /* Deleting what isn't there is not a failure; the endpoints delete
            optimistically in several places. */
-        if (!err || err.code !== "ENOENT") throw err;
+        if (!err || /** @type {NodeJS.ErrnoException} */ (err).code !== "ENOENT") throw err;
       }
     },
 

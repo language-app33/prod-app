@@ -1,3 +1,5 @@
+/** @import { Card, Course, Deck, Doc, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Question, Settings, User } from "./types.js" */
+/** @typedef {React.ReactNode} Node */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Button,
@@ -47,6 +49,7 @@ import {
    a genuinely broken deploy from reloading for ever. */
 const RELOADED_FLAG = "at-chunk-reloaded";
 
+/** @param {unknown} err */
 function recoverChunk(err) {
   let already = false;
   try {
@@ -62,6 +65,10 @@ function recoverChunk(err) {
   throw err;
 }
 
+/* The name is checked against what spaces.jsx actually exports: a lazy
+   import spells its component as a string, so a typo is a blank screen at
+   the moment someone opens the space, and nothing before. */
+/** @type {(name: keyof typeof import("./spaces.jsx")) => React.ComponentType<any>} */
 const fromSpaces = (name) =>
   React.lazy(() =>
     import("./spaces.jsx")
@@ -144,9 +151,12 @@ import {
  * a word in use, neither of which belongs in the scheduler — so it is
  * handed in here, at the one place that has both.
  */
+/** @type {(it: Item) => string} */
 const familyMaturity = (it) => familyMaturityOf(it, (u) => availableTypes(u));
+/** @type {(it: Item) => string} */
 const itemDifficulty = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
+import { applyUpdate, holdUpdates } from "./updates.js";
 import {
   syncClips,
   loadSyncConfig,
@@ -193,6 +203,12 @@ const MAX_CLIP_BYTES = 400000;
 const AUDIO_BITRATE = 24000;
 
 
+/* Nobody, for the account screen when nobody is signed in. It renders
+   either way, and this is what it renders as. */
+/** @type {User & { key: string }} */
+const EMPTY_ACCOUNT = { handle: "", displayName: "", admin: false, created: 0, key: "" };
+
+/** @type {Doc} */
 const EMPTY = {
   version: 3,
   items: [],
@@ -226,7 +242,9 @@ const now = () => Date.now();
 
 
 
+/** @type {Record<string, string>} */
 const MATURITY_LABEL = { new: "New", learning: "Learning", young: "Young", mature: "Mature" };
+/** @type {Record<string, string>} */
 const MATURITY_COLOR = {
   new: "var(--raised)",
   learning: "var(--rose)",
@@ -239,6 +257,7 @@ const MATURITY_COLOR = {
    ------------------------------------------------------------------ */
 
 const HARD_BACKLOG_LIMIT = 10;
+/** @type {Record<string, number>} */
 const DIFF_RANK = { easy: 0, steady: 1, unrated: 2, hard: 3 };
 
 
@@ -248,8 +267,11 @@ const DIFF_RANK = { easy: 0, steady: 1, unrated: 2, hard: 3 };
    Items
    ------------------------------------------------------------------ */
 
+/** @param {unknown} input */
 function cleanTags(input) {
   const raw = Array.isArray(input) ? input : String(input || "").split(",");
+  /** @type {string[]} */
+  /** @type {any[]} */
   const out = [];
   for (const t of raw) {
     const tag = String(t).trim().replace(/\s+/g, " ");
@@ -262,6 +284,7 @@ function cleanTags(input) {
 
 /* A sub-item is a form of its parent — a plural, a feminine — carrying the
    same three fields and its own progress, but no decks of its own. */
+/** @param {Record<string, any>} [src] */
 function makeSub(src = {}) {
   const { ar = "", lat = "", en = "", note = "", recs = [] } = src;
   return {
@@ -271,6 +294,9 @@ function makeSub(src = {}) {
     en: en.trim(),
     ...dimValues(src),
     note: note.trim(),
+    /* The language it is written in, kept on the form itself — see
+       settingsFor. A card made here is in whatever the app is set to. */
+    lang: activeLang().id,
     recs: recs || [],
     created: now(),
     updated: now(),
@@ -278,6 +304,7 @@ function makeSub(src = {}) {
   };
 }
 
+/** @param {Record<string, any>} [src] */
 function makeItem(src = {}) {
   const {
     ar = "",
@@ -297,13 +324,14 @@ function makeItem(src = {}) {
     lat: lat.trim(),
     en: en.trim(),
     kind: kind || guessKind(text, activeLang()),
+    lang: activeLang().id,
     note: note.trim(),
     tags: cleanTags(tags),
     locked: false,
     flags: [],
     recs: recs || [],
     ...dimValues(src),
-    subs: (subs || []).map((x) => (x.id ? x : makeSub(x))),
+    subs: (subs || []).map((/** @type {Record<string, any>} */ x) => (x.id ? x : makeSub(x))),
     created: now(),
     updated: now(),
     s,
@@ -311,11 +339,53 @@ function makeItem(src = {}) {
 }
 
 
+/* ------------------------------------------------------------------
+   One app, more than one language
+
+   Somebody in two courses has both piles of cards in one app, and the app
+   has one language set — so everything read from the settings was right for
+   half their cards and wrong for the other half: which exercises a card
+   supports, how an answer is marked, which way its script runs.
+
+   The card knows better than the settings do, and says so: every form
+   carries the language it is written in. These two turn that into the
+   answer every reader already asks for — the settings, read in the language
+   this particular card is in. Everything downstream keeps taking settings,
+   which is why this is two small functions rather than a new argument on
+   forty.
+   ------------------------------------------------------------------ */
+/**
+ * @param {Form | null | undefined} unit
+ * @param {Settings} settings
+ * @returns {LangId}
+ */
+const langIdOf = (unit, settings) =>
+  ((unit && unit.lang) || settings.language || DEFAULT_LANGUAGE);
+
+/**
+ * @param {Settings} settings
+ * @param {Form | null | undefined} unit
+ * @returns {Settings}
+ */
+function settingsFor(settings, unit) {
+  const id = langIdOf(unit, settings);
+  /* The same object when the card is in the app's own language, which is
+     the ordinary case: a new object on every call would defeat every memo
+     that takes settings. */
+  if (id === settings.language || !LANGUAGES[id]) return settings;
+  return { ...settings, language: id };
+}
+
+/**
+ * @param {Item} item
+ * @param {Settings} settings
+ */
 function drillableUnits(item, settings) {
   return unitsOf(item).filter(({ unit }) => enabledTypes(unit, settings).length >= 2);
 }
 
 /* Totals for the list indicators: how many forms, how many clips. */
+/** @param {Item} it */
 function familyCounts(it) {
   const units = unitsOf(it);
   let clips = 0;
@@ -330,6 +400,7 @@ function familyCounts(it) {
    plain functions called from anywhere, not hooks. It is set during render
    from the state that owns it. */
 let listenOffUntil = 0;
+/** @param {number} until */
 function setListenOffUntil(until) {
   listenOffUntil = until || 0;
 }
@@ -351,6 +422,7 @@ function setListenOffUntil(until) {
 
 let CONTEXT_INDEX = new Map();
 
+/** @param {Map<string, any[]>} map */
 function setContextIndex(map) {
   CONTEXT_INDEX = map || new Map();
 }
@@ -358,6 +430,10 @@ function setContextIndex(map) {
 /* The phrases that show this form in use. Keyed by unit id, so a plural
    held as a form of its card gets its own contexts rather than its
    parent's. */
+/**
+ * @param {string} unitId
+ * @returns {any[]}
+ */
 function contextsFor(unitId) {
   return CONTEXT_INDEX.get(unitId) || [];
 }
@@ -370,6 +446,10 @@ function contextsFor(unitId) {
  * matcher: a phrase may hold the plural rather than the singular the card
  * leads with, and asking for the wrong form would be a question with no
  * right answer.
+ */
+/**
+ * @param {Item[]} items
+ * @param {Lang} lang
  */
 function buildContextIndex(items, lang) {
   const index = new Map();
@@ -413,6 +493,10 @@ function buildContextIndex(items, lang) {
  * before it meets any of them twice. Random choice would leave one context
  * unseen for a surprisingly long time.
  */
+/**
+ * @param {Form} unit
+ * @param {string} type
+ */
 function pickContext(unit, type) {
   const list = contextsFor(unit.id).filter((c) =>
     EX[type] && EX[type].needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
@@ -423,6 +507,11 @@ function pickContext(unit, type) {
 }
 
 /* The phrase with the target word taken out, as the question shows it. */
+/**
+ * @param {any} context
+ * @param {Lang} lang
+ * @param {string} [blank]
+ */
 function blankedPhrase(context, lang, blank = "____") {
   const tokens = contextTokens(context.ar, lang);
   if (context.slot < 0 || context.slot >= tokens.length) return context.ar;
@@ -431,6 +520,7 @@ function blankedPhrase(context, lang, blank = "____") {
 
 /* Whether a type may be asked at this moment. Only the clock makes this
    false, so it is deliberately not part of what a card "supports". */
+/** @param {string} type */
 function typeAllowedNow(type) {
   return !(listenOffUntil > Date.now() && isListening(type));
 }
@@ -461,6 +551,7 @@ const LEARNED_PING_MS = 15 * 60 * 1000;
    answer between tunnels making its own failed request. */
 const LEARNED_RETRY_MS = 60 * 1000;
 let learnedQuietUntil = 0;
+/** @param {User | null} account */
 function reportLearning(account) {
   if (!account || now() < learnedQuietUntil) return;
   learnedQuietUntil = now() + LEARNED_PING_MS;
@@ -482,18 +573,33 @@ function reportLearning(account) {
  * else to offer — a recording and a spelling, no English — drops out of the
  * rest of the session; there is genuinely nothing to ask.
  */
+/**
+ * @param {Question[]} exercises
+ * @param {number} from
+ * @param {Item[]} items
+ * @param {Settings} settings
+ * @returns {Question[]}
+ */
 export function withoutListening(exercises, from, items, settings) {
+  /** @param {Question} ex */
   const keyOf = (ex) => `${ex.id} ${ex.subId || ""}`;
+  /** @type {Map<string, Set<string>>} */
   const used = new Map();
+  /**
+   * @param {Question} ex
+   * @param {string} type
+   */
   const note = (ex, type) => {
     const k = keyOf(ex);
-    if (!used.has(k)) used.set(k, new Set());
-    used.get(k).add(type);
+    let seen = used.get(k);
+    if (!seen) used.set(k, (seen = new Set()));
+    seen.add(type);
   };
   /* Everything already planned counts, answered or not: a substitute should
      be a different question, not the one queued two turns later. */
   for (const ex of exercises) if (!isListening(ex.type)) note(ex, ex.type);
 
+  /** @type {Question[]} */
   const tail = [];
   for (const ex of exercises.slice(from)) {
     if (!isListening(ex.type)) {
@@ -501,11 +607,10 @@ export function withoutListening(exercises, from, items, settings) {
       continue;
     }
     const resolved = resolveUnit(items, ex);
+    if (!resolved) continue;
     /* Filtered here rather than trusting the clock, so this answers the same
        way whenever it is called — including from a test. */
-    const options = (resolved ? enabledTypes(resolved.unit, settings) : []).filter(
-      (t) => !isListening(t)
-    );
+    const options = enabledTypes(resolved.unit, settings).filter((t) => !isListening(t));
     if (!options.length) continue;
     const seen = used.get(keyOf(ex)) || new Set();
     const pick = options.find((t) => !seen.has(t)) || options[0];
@@ -526,6 +631,11 @@ export function withoutListening(exercises, from, items, settings) {
    holds, and the preview rows, the weak-card count and unitFullyLearnt all
    ask it that. Silencing here would make a card look broken, or call it
    fully learnt while a third of its exercises were merely paused. */
+/**
+ * @param {Form} it
+ * @param {Lang} [lang]
+ * @returns {string[]}
+ */
 function availableTypes(it, lang = activeLang()) {
   const attr = quizAttrOf(lang);
   const drillsTranslit = lang.translitDrilled !== false;
@@ -550,20 +660,42 @@ function availableTypes(it, lang = activeLang()) {
   });
 }
 
+/**
+ * @param {Form} it
+ * @param {Settings} settings
+ * @returns {string[]}
+ */
 function enabledTypes(it, settings) {
   /* The language comes from the settings in hand, not from the module-level
-     pointer — that is only set during render, and this runs from anywhere. */
-  return availableTypes(it, langOf(settings)).filter(
+     pointer — that is only set during render, and this runs from anywhere.
+     Read in the card's own language, so a Vietnamese card is not asked
+     whether it supports the exercises Arabic declares. */
+  return availableTypes(it, langOf(settingsFor(settings, it))).filter(
     (t) => settings.types[t] && typeAllowedNow(t)
   );
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
    family is drillable when its main form qualifies. */
+/* A card that has never been answered carries no schedule at all, so every
+   reader of one wants the empty record rather than a crash. Said once here
+   because the alternative is the same guard at three dozen call sites, and
+   the sites that forgot it were only ever found by someone hitting them. */
+/**
+ * @param {Form} unit
+ * @returns {Record<string, ExerciseState>}
+ */
+const statesOf = (unit) => unit.s || {};
+
+/**
+ * @param {Item} it
+ * @param {Settings} settings
+ */
 function isDrillable(it, settings) {
-  return settings.kinds[it.kind] && enabledTypes(it, settings).length >= 2;
+  return settings.kinds[it.kind || ""] && enabledTypes(it, settings).length >= 2;
 }
 
+/** @type {<T>(arr: T[]) => T[]} */
 const shuffle = (arr) => {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -577,11 +709,15 @@ const shuffle = (arr) => {
    Similarity — rule 3
    ------------------------------------------------------------------ */
 
+/**
+ * @param {Item} a
+ * @param {Item} b
+ */
 function similarity(a, b) {
   let score = 0;
 
-  const tagsA = new Set(a.tags);
-  const sharedTags = b.tags.filter((t) => tagsA.has(t)).length;
+  const tagsA = new Set(a.tags || []);
+  const sharedTags = (b.tags || []).filter((t) => tagsA.has(t)).length;
   score += sharedTags * 3;
 
   /* What counts as "alike" is the language's business: shared consonants in
@@ -605,11 +741,12 @@ function similarity(a, b) {
 
   if (a.kind === b.kind) score += 0.5;
   // Added in the same sitting — usually the same lesson.
-  if (Math.abs(a.created - b.created) < 10 * MIN) score += 1.5;
+  if (Math.abs((a.created || 0) - (b.created || 0)) < 10 * MIN) score += 1.5;
 
   return score;
 }
 
+/** @type {Record<string, number>} */
 const COHESION_POOL = { off: 1, balanced: 3, strong: 6 };
 
 /* ------------------------------------------------------------------
@@ -641,10 +778,12 @@ const MODES = {
 };
 
 /* Did this form go wrong in either of its last two outings? */
+/** @param {Form} unit */
 function hasRecentMistake(unit) {
+  const states = statesOf(unit);
   let sawHistory = false;
   for (const t of availableTypes(unit)) {
-    const h = unit.s[t].hist || [];
+    const h = states[t].hist || [];
     if (h.length) {
       sawHistory = true;
       if (h.slice(-2).some((x) => !x)) return true;
@@ -652,7 +791,7 @@ function hasRecentMistake(unit) {
   }
   // Nothing recorded yet — fall back to whether it has ever gone wrong.
   if (!sawHistory) {
-    return availableTypes(unit).some((t) => (unit.s[t].wrong || 0) > 0 || (unit.s[t].lapses || 0) > 0);
+    return availableTypes(unit).some((t) => (states[t].wrong || 0) > 0 || (states[t].lapses || 0) > 0);
   }
   return false;
 }
@@ -662,10 +801,17 @@ function hasRecentMistake(unit) {
  * material allows it. A greedy pass: take the next exercise whose type
  * differs from the one before, preferring a different item too.
  */
+/**
+ * @param {Question[]} list
+ * @returns {Question[]}
+ */
 function varyTypes(list) {
+  /** @type {Question[]} */
   const out = [];
   const rest = list.slice();
+  /** @type {string | null} */
   let prevType = null;
+  /** @type {string | null} */
   let prevId = null;
   while (rest.length) {
     let pick = rest.findIndex((e) => e.type !== prevType && (e.id !== prevId || rest.length === 1));
@@ -679,6 +825,26 @@ function varyTypes(list) {
   return out;
 }
 
+/**
+ * `reason` names why a session came back empty, so the button that asked
+ * for it can say something rather than appear broken. `items` and `units`
+ * are the sizes of what was built, and are there only when there is one.
+ * @typedef {object} Session
+ * @property {Question[]} exercises
+ * @property {string | null} reason
+ * @property {number} [items]
+ * @property {number} [units]
+ */
+/**
+ * @param {object} args
+ * @param {Item[]} args.items
+ * @param {Settings} args.settings
+ * @param {(it: Item) => boolean} args.inDeck
+ * @param {boolean} [args.practice]
+ * @param {boolean} [args.includeAll]
+ * @param {number} [args.budget]
+ * @returns {Session}
+ */
 function buildSession({ items, settings, inDeck, practice, includeAll, budget: budgetIn }) {
   const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
@@ -689,15 +855,16 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
   /* --- candidate families --- */
   let candidates = pool.map((it) => {
     const units = drillableUnits(it, settings);
-    const dues = [];
+    /** @type {number[]} */
+  const dues = [];
     for (const { unit } of units) {
-      for (const t of enabledTypes(unit, settings)) dues.push(unit.s[t].due || 0);
+      for (const t of enabledTypes(unit, settings)) dues.push(statesOf(unit)[t].due || 0);
     }
     const ready = units.some(({ unit }) =>
-      enabledTypes(unit, settings).some((t) => stateReady(unit.s[t]))
+      enabledTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
     );
     const isNew = units.every(({ unit }) =>
-      enabledTypes(unit, settings).every((t) => unit.s[t].phase === "new")
+      enabledTypes(unit, settings).every((t) => statesOf(unit)[t].phase === "new")
     );
     return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew };
   });
@@ -709,7 +876,9 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
       const backlog = pool.filter((it) =>
         drillableUnits(it, settings).some(({ unit }) =>
           enabledTypes(unit, settings).some(
-            (t) => difficulty(unit.s[t]) === "hard" && maturity(unit.s[t]) !== "mature"
+            (t) =>
+              difficulty(statesOf(unit)[t]) === "hard" &&
+              maturity(statesOf(unit)[t]) !== "mature"
           )
         )
       ).length;
@@ -735,7 +904,8 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
   const reach = COHESION_POOL[settings.cohesion] || 1;
   const shortlist = candidates.slice(0, Math.min(candidates.length, Math.max(wanted, wanted * reach)));
 
-  const chosen = [shortlist.shift()];
+  const first = shortlist.shift();
+  const chosen = first ? [first] : [];
   while (chosen.length < wanted && shortlist.length) {
     let bestIdx = 0;
     if (settings.cohesion !== "off") {
@@ -749,7 +919,9 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
         }
       });
     }
-    chosen.push(shortlist.splice(bestIdx, 1)[0]);
+    const next = shortlist.splice(bestIdx, 1)[0];
+    if (!next) break;
+    chosen.push(next);
   }
 
   if (settings.warmup) {
@@ -765,8 +937,8 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
     const subs = c.units
       .filter((u) => u.isSub)
       .sort((a, b) => {
-        const da = Math.min(...enabledTypes(a.unit, settings).map((t) => a.unit.s[t].due || 0));
-        const db = Math.min(...enabledTypes(b.unit, settings).map((t) => b.unit.s[t].due || 0));
+        const da = Math.min(...enabledTypes(a.unit, settings).map((t) => statesOf(a.unit)[t].due || 0));
+        const db = Math.min(...enabledTypes(b.unit, settings).map((t) => statesOf(b.unit)[t].due || 0));
         return da - db;
       });
     const take = parent.concat(subs).slice(0, MAX_UNITS_PER_FAMILY);
@@ -775,8 +947,8 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
       const types = enabledTypes(unit, settings);
       const ordered = TYPES.filter((t) => types.includes(t));
       const readyFirst = ordered
-        .filter((t) => stateReady(unit.s[t]))
-        .concat(ordered.filter((t) => !stateReady(unit.s[t])));
+        .filter((t) => stateReady(statesOf(unit)[t]))
+        .concat(ordered.filter((t) => !stateReady(statesOf(unit)[t])));
       const picked = readyFirst.slice(0, Math.min(Math.max(2, perUnit), ordered.length));
       picked.sort((x, y) => TYPES.indexOf(x) - TYPES.indexOf(y));
       plans.push({ id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked });
@@ -812,12 +984,17 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
 }
 
 /* Every exercise type this form supports is already mature. */
+/** @param {Form} unit */
 function unitFullyLearnt(unit) {
   const types = availableTypes(unit);
-  return types.length > 0 && types.every((t) => maturity(unit.s[t]) === "mature");
+  return types.length > 0 && types.every((t) => maturity(statesOf(unit)[t]) === "mature");
 }
 
 /* Exercise types follow from the mode, so there is nothing to choose. */
+/**
+ * @param {string} mode
+ * @param {Settings} settings
+ */
 function typesForMode(mode, settings) {
   /* The second place the quiet window has to be honoured: the manual builder
      comes through here rather than through enabledTypes. Get started draws on
@@ -828,6 +1005,7 @@ function typesForMode(mode, settings) {
 }
 
 /* Ultimate drills every type on every card; the rest take a sample. */
+/** @param {string} mode */
 function everyTypeMode(mode) {
   return mode === "ultimate";
 }
@@ -836,6 +1014,15 @@ function everyTypeMode(mode) {
  * A session assembled by hand. Fully learnt forms are left out — there is
  * nothing to gain from drilling them — and the caller is told which cards
  * were skipped for that reason so it can say so.
+ */
+/**
+ * @param {{
+ *   items: Item[],
+ *   settings: Settings,
+ *   ids: Set<string> | string[],
+ *   mode: string,
+ *   count?: number,
+ * }} plan
  */
 function buildManualSession({ items, settings, ids, mode, count }) {
   const chosen = new Set(ids);
@@ -848,7 +1035,7 @@ function buildManualSession({ items, settings, ids, mode, count }) {
   const minTypes = mode === "started" ? 1 : 2;
   if (allowed.size < minTypes) return { exercises: [], reason: "no-variety" };
 
-  const pool = items.filter((i) => chosen.has(i.id) && settings.kinds[i.kind]);
+  const pool = items.filter((i) => chosen.has(i.id) && settings.kinds[i.kind || ""]);
   const perUnit = Math.max(2, settings.perItem);
   const plans = [];
   const learnt = [];
@@ -891,7 +1078,7 @@ function buildManualSession({ items, settings, ids, mode, count }) {
      then space the types out. Ultimate ignores the length: it runs until
      everything has gone right at least once. */
   const ordered = varyTypes(shuffle(plans));
-  const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, Math.max(4, count));
+  const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, Math.max(4, count || 0));
 
   /* The same minimum again, and the one easily missed: when every card chosen
      supports a single gentle type the whole session is that one type, so
@@ -911,6 +1098,10 @@ function buildManualSession({ items, settings, ids, mode, count }) {
 }
 
 /* Resolve an exercise back to the item and the specific form it drills. */
+/**
+ * @param {Item[]} items
+ * @param {Question | null | undefined} ex
+ */
 function resolveUnit(items, ex) {
   if (!ex) return null;
   const parent = items.find((i) => i.id === ex.id);
@@ -976,6 +1167,11 @@ function resolveUnit(items, ex) {
  * change: this returned nothing at all for Arabic before, because it asked
  * for a quizzable property that Arabic has no reason to declare.
  */
+/**
+ * @param {Item[]} items
+ * @param {Lang} lang
+ * @param {string} text
+ */
 function relatedWords(items, lang, text) {
   const group = groupAttrOf(lang);
   const apart = quizAttrOf(lang);
@@ -983,6 +1179,7 @@ function relatedWords(items, lang, text) {
   const key = derivedValue(group, text);
   if (!key) return [];
   const mine = apart ? derivedValue(apart, text) : null;
+  /** @type {{ text: string, en: string, id: string }[]} */
   const out = [];
   const seen = new Set();
   for (const it of items) {
@@ -1067,6 +1264,7 @@ export const WRONG_VERDICT = "Incorrect. The correct answer is:";
 /* Giving up is not getting it wrong: nothing was offered to be incorrect.
    The answer is simply handed over. */
 export const SKIPPED_VERDICT = "The answer is:";
+/** @param {number} n */
 export function praiseFor(n) {
   return PRAISE[((n % PRAISE.length) + PRAISE.length) % PRAISE.length];
 }
@@ -1080,6 +1278,7 @@ export function praiseFor(n) {
 
    Renders nothing — not even the invitation — when there is nothing to
    put in it, so "Learn more" is never a promise the box cannot keep. */
+/** @param {{ children?: Node, open?: boolean, onToggle?: () => void }} props */
 function AlsoBox({ children, open, onToggle }) {
   const shown = React.Children.toArray(children).filter(Boolean);
   if (!shown.length) return null;
@@ -1104,6 +1303,7 @@ function AlsoBox({ children, open, onToggle }) {
   );
 }
 
+/** @param {{ pairs: any[], settings: Settings }} props */
 function RelatedWords({ pairs, settings }) {
   if (!pairs || !pairs.length) return null;
   const lang = langOf(settings);
@@ -1131,6 +1331,9 @@ function RelatedWords({ pairs, settings }) {
    Import / export
    ------------------------------------------------------------------ */
 
+/* Open, because the loops below add a name per grammatical field and per
+   language, and a column heading is whatever the file happened to say. */
+/** @type {Record<string, string>} */
 const FIELD_ALIASES = {
   ar: "ar", arabic: "ar", script: "ar",
   lat: "lat", latin: "lat", tr: "lat", translit: "lat", transliteration: "lat", roman: "lat",
@@ -1148,6 +1351,7 @@ for (const f of grammarFields()) FIELD_ALIASES[f] = f;
 /* And every language answers to what it calls its own columns — "Hebrew",
    "Pronunciation note" — so a table headed in the language's own terms is
    read as a table. Only "Arabic" was written in above, by hand. */
+/** @type {(label: unknown) => string} */
 const aliasKey = (label) => String(label || "").toLowerCase().replace(/[^a-z]/g, "");
 for (const L of Object.values(LANGUAGES)) {
   if (L.scriptLabel) FIELD_ALIASES[aliasKey(L.scriptLabel)] = "ar";
@@ -1159,10 +1363,12 @@ const FIELD_ORDER = ["en", "ar", "lat", "tags", "note"].concat(grammarFields());
    learnt: a markdown table with the language's own column names and two
    rows from its pack, and the same rows as a bare placeholder. It used to
    be an Arabic table for everyone. */
+/** @param {Lang} L */
 function sampleTable(L) {
   const rows = L.sample || [];
   const head = ["English", L.scriptLabel, L.translitLabel, "Decks"];
   const decks = ["class 12 june", "numbers"];
+  /** @type {(cells: string[]) => string} */
   const line = (cells) => `| ${cells.join(" | ")} |`;
   return [
     line(head),
@@ -1170,6 +1376,7 @@ function sampleTable(L) {
     ...rows.map((r, i) => line([r.en, r.ar, r.lat || "", decks[i] || ""])),
   ].join("\n");
 }
+/** @param {Lang} L */
 function samplePlaceholder(L) {
   return (L.sample || [])
     .map((r, i) => [r.en, r.ar, r.lat, i === 0 ? "class 12 june" : ""].filter(Boolean).join(" | "))
@@ -1178,10 +1385,12 @@ function samplePlaceholder(L) {
 const MD_SEPARATOR = /^:?-+:?$/;
 const ESC = "\u0000";
 
+/** @param {string} line */
 function splitRow(line) {
   return (line.includes("\t") ? line.split("\t") : line.split("|")).map((p) => p.trim());
 }
 
+/** @param {string} cell */
 function stripMd(cell) {
   return cell
     .split(ESC)
@@ -1193,6 +1402,7 @@ function stripMd(cell) {
     .trim();
 }
 
+/** @param {string} line */
 function mdCells(line) {
   return line
     .replace(/\\\|/g, ESC)
@@ -1202,6 +1412,7 @@ function mdCells(line) {
     .map(stripMd);
 }
 
+/** @param {string} [line] */
 function isSeparatorLine(line) {
   if (!line) return false;
   const t = line.trim();
@@ -1210,17 +1421,37 @@ function isSeparatorLine(line) {
   return cells.length > 0 && cells.every((c) => MD_SEPARATOR.test(c));
 }
 
+/**
+ * @param {string[]} cells
+ * @returns {string[] | null}
+ */
 function readHeader(cells) {
   if (cells.length < 2) return null;
   const map = cells.map((c) => FIELD_ALIASES[c.toLowerCase().replace(/[^a-z]/g, "")]);
   return map.every(Boolean) ? map : null;
 }
 
+/**
+ * A row read out of a pasted table: the fields every card has, plus
+ * whichever grammatical fields the language declares, which is why the
+ * type is open.
+ * @typedef {Record<string, any> & { ar: string, lat: string, en: string, note: string, tags: string[] }} ParsedRow
+ */
+/**
+ * `skipped` rides on the array because the importer wants both the rows
+ * and the count of lines that held nothing, and the callers all read the
+ * rows first.
+ * @param {string} text
+ * @param {string[]} [knownTags]
+ * @returns {ParsedRow[] & { skipped?: number }}
+ */
 function parseLines(text, knownTags = []) {
+  /** @type {ParsedRow[] & { skipped?: number }} */
   const out = [];
   const known = new Set(knownTags.map((t) => t.toLowerCase()));
   const lines = String(text).split(/\r?\n/);
   const mdMode = lines.some((l) => l.trim().startsWith("|"));
+  /** @type {string[] | null} */
   let order = null;
   let skipped = 0;
 
@@ -1228,6 +1459,7 @@ function parseLines(text, knownTags = []) {
     const line = lines[li].trim();
     if (!line || line.startsWith("#")) continue;
 
+    /** @type {string[]} */
     let cells;
     if (mdMode) {
       if (!line.startsWith("|")) continue;
@@ -1250,11 +1482,13 @@ function parseLines(text, knownTags = []) {
       }
     }
 
+    /** @type {Record<string, string>} */
     const row = { ar: "", lat: "", en: "", tags: "", note: "" };
     for (const f of grammarFields()) row[f] = "";
+    /** @type {{ value: string, i: number }[]} */
     const loose = [];
 
-    cells.forEach((cell, i) => {
+    cells.forEach((/** @type {string} */ cell, /** @type {number} */ i) => {
       const m = cell.match(/^([A-Za-z]+)\s*[:=]\s*([\s\S]*)$/);
       const key = m && FIELD_ALIASES[m[1].toLowerCase()];
       if (key) row[key] = m[2].trim();
@@ -1279,11 +1513,11 @@ function parseLines(text, knownTags = []) {
       } else {
         const values = loose.map((c) => c.value);
         const arIdx = values.findIndex((v) => inScript(v));
-        if (arIdx !== -1 && !row.ar) row.ar = values.splice(arIdx, 1)[0];
+        if (arIdx !== -1 && !row.ar) row.ar = values.splice(arIdx, 1)[0] || "";
         if (values.length > 1 && known.size && !row.tags) {
           const parts = cleanTags(values[values.length - 1]);
           if (parts.length && parts.every((t) => known.has(t.toLowerCase()))) {
-            row.tags = values.pop();
+            row.tags = values.pop() || "";
           }
         }
         const slots = FIELD_ORDER.filter((k) => !row[k]);
@@ -1330,6 +1564,10 @@ function parseLines(text, knownTags = []) {
 const V2_MAP = { mean: "ar2en", write: "en2ar" };
 const OLD_INTERVALS = [0, 1, 2, 4, 9, 21];
 
+/**
+ * @param {Record<string, any> | null | undefined} s
+ * @returns {ExerciseState}
+ */
 function liftState(s) {
   if (!s) return freshState();
   if (s.phase) return { ...freshState(), ...s };
@@ -1345,6 +1583,10 @@ function liftState(s) {
   };
 }
 
+/**
+ * @param {Record<string, any>} [old]
+ * @returns {Record<string, ExerciseState>}
+ */
 function liftStates(old = {}) {
   const s = freshStates();
   for (const [oldKey, newKey] of Object.entries(V2_MAP)) {
@@ -1357,6 +1599,7 @@ function liftStates(old = {}) {
   return s;
 }
 
+/** @param {Record<string, any>} it */
 function liftItem(it) {
   return {
     ...it,
@@ -1365,7 +1608,7 @@ function liftItem(it) {
     flags: it.flags || [],
     recs: it.recs || [],
     ...dimValues(it),
-    subs: (it.subs || []).map((sb) => ({
+    subs: (it.subs || []).map((/** @type {Record<string, any>} */ sb) => ({
       ...sb,
       ...dimValues(sb),
       recs: sb.recs || [],
@@ -1375,6 +1618,7 @@ function liftItem(it) {
   };
 }
 
+/** @param {Record<string, any> | null | undefined} parsedIn */
 function merge(parsedIn) {
   /* A stored or imported document never carries an account: the sync
      secret belongs to this device's sign-in, not to the data. */
@@ -1423,6 +1667,7 @@ async function loadData() {
 
 /* Stored sparse: states that have never been answered are left out and
    put back on load. See compactItem in sync.js for why. */
+/** @param {Doc} data */
 async function saveData(data) {
   if (!window.storage) return false;
   try {
@@ -1448,6 +1693,7 @@ async function saveData(data) {
    rather than judging it.
    ------------------------------------------------------------------ */
 
+/** @type {AudioContext | null} */
 let audioCtx = null;
 let lastSound = 0;
 
@@ -1473,19 +1719,21 @@ let soundGain = SOUND_LEVELS.loud;
  * working — and it maps to loud rather than soft because the whole reason
  * this became a choice is that on was too quiet.
  */
+/** @param {unknown} value */
 export function soundLevelOf(value) {
   if (value === false || value === "off") return "off";
   if (value === "soft") return "soft";
   return "loud";
 }
 
+/** @param {string | boolean} level */
 export function setSounds(level) {
   soundGain = SOUND_LEVELS[soundLevelOf(level)];
 }
 
 function ctx() {
   if (typeof window === "undefined") return null;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const Ctx = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
   if (!Ctx) return null;
   if (!audioCtx) audioCtx = new Ctx();
   // Browsers start it suspended until you've interacted with the page.
@@ -1494,8 +1742,19 @@ function ctx() {
 }
 
 /* One note: a shaped blip with an optional pitch slide. */
+/**
+ * @param {AudioContext} c
+ * @param {{
+ *   freq: number,
+ *   at?: number,
+ *   dur?: number,
+ *   type?: OscillatorType,
+ *   peak?: number,
+ *   to?: number,
+ * }} shape `to` glides the pitch there across the note's length.
+ */
 function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
-  const level = peak * soundGain;
+  const level = peak * (soundGain || 0);
   /* exponentialRampToValueAtTime cannot reach zero, and the ramps below
      start and end at 0.0001 — so a peak at or under that is not quiet, it
      is a ramp that goes the wrong way. Silence is handled by not playing. */
@@ -1522,6 +1781,7 @@ function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
 /* Exported so the smoke run can add up what each one schedules and fail if
    the total would clip. There is no OfflineAudioContext outside a browser,
    so what it renders them against is a stub that records the notes. */
+/** @type {Record<string, (c: AudioContext) => void>} */
 export const SOUNDS = {
   /* Four notes up a major triad with the top one held, so it arrives, goes
      somewhere and lands rather than being over before it registers. Still
@@ -1575,6 +1835,7 @@ export const SOUNDS = {
   },
 };
 
+/** @param {string} kind */
 function sfx(kind) {
   if (!soundGain || !SOUNDS[kind]) return;
   // Rate limit, so a fast run of answers doesn't turn into a chirp storm.
@@ -1605,6 +1866,7 @@ function sfx(kind) {
 
 const DB_NAME = "arabic-trainer";
 const DB_STORE = "clips";
+/** @type {Promise<IDBDatabase | null> | null} */
 let dbPromise = null;
 
 /* How long a cold open may take. Safari's first open of a database on a
@@ -1619,6 +1881,7 @@ function openClipDb() {
       if (typeof indexedDB === "undefined") return resolve(null);
       const req = indexedDB.open(DB_NAME, 1);
       let settled = false;
+      /** @param {IDBDatabase | null} db */
       const settle = (db) => {
         if (settled) return;
         settled = true;
@@ -1648,6 +1911,16 @@ function openClipDb() {
   return dbPromise;
 }
 
+/*
+ * Every read and write goes through here, and every one of them answers
+ * rather than throwing: a browser with the database walled off (private
+ * browsing, a blocked origin) has to leave the app working, not stop it.
+ */
+/**
+ * @param {IDBTransactionMode} mode
+ * @param {(store: IDBObjectStore) => IDBRequest | void} fn
+ * @returns {Promise<any>}
+ */
 function idbRun(mode, fn) {
   return openClipDb().then(
     (db) =>
@@ -1672,6 +1945,10 @@ function idbRun(mode, fn) {
 
 /* --- conversions --- */
 
+/**
+ * @param {Blob} blob
+ * @returns {Promise<string>}
+ */
 function blobToBase64(blob) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -1681,6 +1958,7 @@ function blobToBase64(blob) {
   });
 }
 
+/** @param {unknown} dataUrl */
 function base64ToBlob(dataUrl) {
   const [head, body] = String(dataUrl).split(",");
   const mime = (head.match(/data:([^;]+)/) || [])[1] || "audio/webm";
@@ -1692,6 +1970,10 @@ function base64ToBlob(dataUrl) {
 
 /* --- the API the rest of the app uses --- */
 
+/**
+ * @param {string} id
+ * @param {Blob} blob
+ */
 async function saveClipBlob(id, blob) {
   const ok = await idbRun("readwrite", (st) => st.put(blob, id));
   if (ok !== undefined) return true;
@@ -1706,9 +1988,11 @@ async function saveClipBlob(id, blob) {
 /* Clips the server has already said it doesn't hold, and when it said so.
    Remembered for a few minutes rather than the whole session: a recording
    published a moment ago can take up to a minute to reach every edge. */
+/** @type {Map<string, Millis>} */
 const MISSING_CLIPS = new Map();
 const MISSING_FOR_MS = 5 * 60000;
 
+/** @param {string} id */
 function knownMissing(id) {
   const at = MISSING_CLIPS.get(id);
   if (at === undefined) return false;
@@ -1720,6 +2004,10 @@ function knownMissing(id) {
 }
 
 /* What this device holds, and nothing else: no network, no side effects. */
+/**
+ * @param {string} id
+ * @returns {Promise<Blob | null>}
+ */
 async function localClipBlob(id) {
   const found = await idbRun("readonly", (st) => st.get(id));
   if (found) return found;
@@ -1733,6 +2021,7 @@ async function localClipBlob(id) {
 }
 
 /* Is it here? Answered from the key alone, without reading the bytes. */
+/** @param {string} id */
 async function hasClipLocal(id) {
   const key = await idbRun("readonly", (st) => st.getKey(id));
   if (key !== undefined && key !== null) return true;
@@ -1745,11 +2034,13 @@ async function hasClipLocal(id) {
 }
 
 /* The recording as a data URL, for sending to the sync store. */
+/** @param {string} id */
 async function clipDataUrl(id) {
   const blob = await localClipBlob(id);
   return blob ? blobToBase64(blob) : null;
 }
 
+/** @param {string} id */
 async function clipBlob(id) {
   const here = await localClipBlob(id);
   if (here) return here;
@@ -1777,7 +2068,7 @@ async function clipBlob(id) {
     /* Being unable to reach the server is not the same as the server not
        having it. Only the second is remembered; the first is worth retrying
        when the connection comes back. */
-    if (e && e.message !== "offline") MISSING_CLIPS.set(id, now());
+    if (!(typeof e === "object" && e && "message" in e && e.message === "offline")) MISSING_CLIPS.set(id, now());
   }
   return null;
 }
@@ -1785,11 +2076,13 @@ async function clipBlob(id) {
 /* A playable URL. Made for one player and handed back to it; the player
    revokes it when it is done. Keeping one alive per clip for the life of
    the app kept every recording in memory once it had been touched. */
+/** @param {string} id */
 async function clipUrl(id) {
   const blob = await clipBlob(id);
   return blob ? URL.createObjectURL(blob) : null;
 }
 
+/** @param {string} id */
 async function dropClip(id) {
   await idbRun("readwrite", (st) => st.delete(id));
   try {
@@ -1809,6 +2102,10 @@ async function clipStats() {
 /* Fetch whatever recordings the given ids name that aren't here yet, a few
    at a time. Used to warm a session before it starts and, from Account
    settings, to take a whole course offline. */
+/**
+ * @param {Iterable<string>} ids
+ * @param {{ concurrency?: number, onProgress?: (done: number, fetched: number) => void }} [opts]
+ */
 async function warmClips(ids, { concurrency = 3, onProgress } = {}) {
   const queue = [...new Set(ids)];
   let done = 0;
@@ -1833,15 +2130,24 @@ async function warmClips(ids, { concurrency = 3, onProgress } = {}) {
 }
 
 /* Still useful wherever a data URL is what's in hand. */
+/**
+ * @param {string} id
+ * @param {string} dataUrl
+ */
 function saveClip(id, dataUrl) {
   return saveClipBase64(id, dataUrl);
 }
 
+/**
+ * @param {string} id
+ * @param {string} dataUrl
+ */
 async function saveClipBase64(id, dataUrl) {
   return saveClipBlob(id, base64ToBlob(dataUrl));
 }
 
 /* One-off move of anything left in the old text store. */
+/** @param {string[]} ids */
 async function migrateClips(ids) {
   const db = await openClipDb();
   if (!db) return 0;
@@ -1882,22 +2188,35 @@ const CRC_TABLE = (() => {
   return t;
 })();
 
+/** @param {Uint8Array} bytes */
 function crc32(bytes) {
   let c = 0xffffffff;
   for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 
+/** @param {number} n */
 function u32(n) {
   return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
 }
+/** @param {number} n */
 function u16(n) {
   return [n & 255, (n >>> 8) & 255];
 }
 
+/** @typedef {{ name: string, blob: Blob }} ZipEntry */
+/**
+ * @param {ZipEntry[]} entries
+ * @returns {Promise<Blob>}
+ */
 async function makeZip(entries) {
   const enc = new TextEncoder();
+  /* Blob parts rather than plain byte arrays: they are only ever handed
+     to the Blob at the end, and a view onto a shared buffer is a part but
+     not a Uint8Array<ArrayBuffer>. */
+  /** @type {BlobPart[]} */
   const chunks = [];
+  /** @type {BlobPart[]} */
   const central = [];
   let offset = 0;
 
@@ -1925,7 +2244,7 @@ async function makeZip(entries) {
     offset += local.length + nameBytes.length + data.length;
   }
 
-  const centralSize = central.reduce((n, c) => n + c.length, 0);
+  const centralSize = central.reduce((n, c) => n + /** @type {Uint8Array} */ (c).length, 0);
   const end = new Uint8Array([
     0x50, 0x4b, 0x05, 0x06, ...u16(0), ...u16(0),
     ...u16(entries.length), ...u16(entries.length),
@@ -1935,6 +2254,10 @@ async function makeZip(entries) {
   return new Blob([...chunks, ...central, end], { type: "application/zip" });
 }
 
+/**
+ * @param {Blob} blob
+ * @returns {Promise<ZipEntry[]>}
+ */
 async function readZip(blob) {
   const buf = new Uint8Array(await blob.arrayBuffer());
   const view = new DataView(buf.buffer);
@@ -1952,6 +2275,7 @@ async function readZip(blob) {
 
   const count = view.getUint16(eocd + 10, true);
   let p = view.getUint32(eocd + 16, true);
+  /** @type {ZipEntry[]} */
   const out = [];
 
   for (let i = 0; i < count; i++) {
@@ -1991,6 +2315,7 @@ async function readZip(blob) {
    you have ever made.
    ------------------------------------------------------------------ */
 
+/** @param {string} id */
 const AUDIO_KEY = (id) => `audio-${id}`;
 
 const RECORD_MIMES = [
@@ -2022,11 +2347,18 @@ function canRecord() {
 
 
 /* Live capture. Mono, and opus where the browser offers it. */
+/**
+ * @param {(blob: Blob) => void} onStop
+ * @param {(err: unknown) => void} onError
+ */
 function startRecorder(onStop, onError) {
   const mime = pickMime();
   let stopped = false;
+  /** @type {MediaRecorder | null} */
   let rec = null;
+  /** @type {MediaStream | null} */
   let stream = null;
+  /** @type {Blob[]} */
   const chunks = [];
 
   navigator.mediaDevices
@@ -2068,12 +2400,13 @@ function startRecorder(onStop, onError) {
  * only worth doing for files big enough to matter. Falls back to the
  * original bytes wherever the browser can't oblige.
  */
+/** @param {File} file */
 async function compressAudio(file) {
   const raw = await file.arrayBuffer();
   if (raw.byteLength <= 60000 || !canRecord()) return { blob: file, mime: file.type };
 
   try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const Ctx = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
     const ctx = new Ctx();
     const buf = await ctx.decodeAudioData(raw.slice(0));
     if (buf.duration > MAX_RECORD_MS / 1000) {
@@ -2091,9 +2424,11 @@ async function compressAudio(file) {
       ...(mime ? { mimeType: mime } : {}),
       audioBitsPerSecond: AUDIO_BITRATE,
     });
+    /** @type {Blob[]} */
     const chunks = [];
     rec.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
 
+    /** @type {Promise<void>} */
     const done = new Promise((res) => {
       rec.onstop = () => res();
     });
@@ -2113,6 +2448,7 @@ async function compressAudio(file) {
   }
 }
 
+/** @param {number} n */
 function formatBytes(n) {
   if (!n) return "—";
   if (n < 1024) return `${n} B`;
@@ -2137,7 +2473,7 @@ function useFinePointer() {
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia(query);
-    const onChange = (e) => setFine(e.matches);
+    const onChange = (/** @type {MediaQueryListEvent} */ e) => setFine(e.matches);
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else mq.addListener(onChange);
     return () => {
@@ -2149,11 +2485,13 @@ function useFinePointer() {
 }
 
 /* Detects the phone's own keyboard via the visual viewport shrinking. */
+/** @typedef {{ open: boolean, height: number | null, overlap: number }} SoftKeyboard */
 function useSoftKeyboard() {
-  const [kb, setKb] = useState({ open: false, height: null, overlap: 0 });
+  const [kb, setKb] = useState(/** @type {SoftKeyboard} */ ({ open: false, height: null, overlap: 0 }));
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    /** @type {SoftKeyboard} */
     let last = { open: false, height: null, overlap: 0 };
     const onChange = () => {
       const open = vv.height / window.innerHeight < 0.78;
@@ -2201,6 +2539,7 @@ function useSoftKeyboard() {
  * KeysButton. A keyboard that owned the state could only put its own toggle
  * below itself, which is where it used to be.
  */
+/** @param {string} [mode] */
 function useKeysOpen(mode = "auto") {
   const fine = useFinePointer();
   /* A fine pointer means a mouse, and a mouse has no keyboard of the
@@ -2210,9 +2549,20 @@ function useKeysOpen(mode = "auto") {
   useEffect(() => {
     setOpen(wanted);
   }, [wanted]);
-  return [open, setOpen];
+  /* Tupled, so the pair destructures the way useState's does rather than
+     as the union of its two halves. */
+  return /** @type {const} */ ([open, setOpen]);
 }
 
+/**
+ * @param {{
+ *   onKey: (key: string) => void,
+ *   onBack: () => void,
+ *   onClear: () => void,
+ *   onHide: () => void,
+ *   lang: Lang,
+ * }} props
+ */
 function Keyboard({ onKey, onBack, onClear, onHide, lang }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   const rows = L.keys.rows;
@@ -2266,6 +2616,12 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }) {
   );
 }
 
+/**
+ * @param {React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>} ref
+ * @param {string} value
+ * @param {(next: string) => void} setValue
+ * @param {string} ch
+ */
 function caretInsert(ref, value, setValue, ch) {
   const el = ref.current;
   if (!el) return setValue(value + ch);
@@ -2285,6 +2641,11 @@ function caretInsert(ref, value, setValue, ch) {
   });
 }
 
+/**
+ * @param {React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>} ref
+ * @param {string} value
+ * @param {(next: string) => void} setValue
+ */
 function caretBackspace(ref, value, setValue) {
   const el = ref.current;
   if (!el) return setValue(value.slice(0, -1));
@@ -2311,6 +2672,7 @@ function caretBackspace(ref, value, setValue) {
    ------------------------------------------------------------------ */
 
 /* The target language's own script, however it is written. */
+/** @param {{ text?: string, kind?: string, lang?: Lang, name?: string }} props */
 function Arabic({ text, kind, lang, name }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   return (
@@ -2326,11 +2688,52 @@ function Arabic({ text, kind, lang, name }) {
   );
 }
 
+/* One shared empty array, so a card with no recordings hands the player
+   the same value every render and does not restart it. */
+/** @type {any[]} */
 const NO_RECS = [];
 
-function AudioPrompt({ recs, autoPlay }) {
+/** @param {{ recs?: any[], autoPlay?: boolean }} props */
+/*
+ * Which speed a question leads with.
+ *
+ * Slow while a card is still being learnt — a first meeting, and the meeting
+ * after a lapse, are exactly where hearing the parts of a word helps — and
+ * the real thing from the point it is being reviewed, because recognising
+ * it at speed is the skill being trained and a learner who is only ever
+ * offered the slow one never practices it.
+ *
+ * Read off the card's listening progress rather than the question in front
+ * of you, so the answer is the same wherever the player appears on the
+ * screen. A type that has never been answered is not stored at all, so an
+ * empty record means new, which leads slow.
+ *
+ * The lead is a default and nothing more: both recordings stay on screen
+ * and either can be pressed.
+ */
+/**
+ * @param {Form} unit
+ * @param {string} [type] The exercise being asked, when it is a listening one.
+ * @returns {"regular" | "slow"}
+ */
+export function leadSpeed(unit, type) {
+  const states = statesOf(unit);
+  const asked = type && isListening(type) ? [type] : Object.keys(states).filter(isListening);
+  if (!asked.length) return "slow";
+  const grown = asked.every((t) => {
+    const m = states[t] ? maturity(states[t]) : "new";
+    return m === "young" || m === "mature";
+  });
+  return grown ? "regular" : "slow";
+}
+
+/**
+ * @param {{ recs?: any[], autoPlay?: boolean, lead?: "regular" | "slow" }} props
+ */
+function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
   const [idx, setIdx] = useState(0);
   const [state, setState] = useState("idle");
+  /** @type {React.MutableRefObject<HTMLAudioElement | null>} */
   const audioRef = useRef(null);
   const urlRef = useRef("");
   const list = recs || NO_RECS;
@@ -2338,13 +2741,48 @@ function AudioPrompt({ recs, autoPlay }) {
      fires when any of them changes and not only the first. */
   const signature = list.map((r) => r.id).join("|");
 
+  /*
+   * At most one of each speed, and the ordinary one first.
+   *
+   * A card may hold several takes at either speed — a teacher recording
+   * twice to get it right leaves both — and a question is not the place to
+   * choose between them: what a learner wants here is this word, and this
+   * word said slowly, not a numbered rank of the takes that exist. The rest
+   * are still on the card, and the teacher's screen still lists them all.
+   */
+  const iReg = list.findIndex((r) => r.speed !== "slow");
+  const iSlow = list.findIndex((r) => r.speed === "slow");
+  /** @type {{ i: number, slow: boolean }[]} */
+  const takes = [];
+  if (iReg >= 0) takes.push({ i: iReg, slow: false });
+  if (iSlow >= 0) takes.push({ i: iSlow, slow: true });
+  /* A card with nothing but slow recordings would otherwise show none. */
+  if (!takes.length && list.length) takes.push({ i: 0, slow: false });
+  /* The one the card's progress asks for, if the card has it: a lead that
+     is not there is not a lead, and the other one is then the whole
+     offering rather than a quiet second choice. */
+  const leadSlow = lead === "slow" && iSlow >= 0;
+  /* The one being led with goes first. The pair is built ordinary-then-slow
+     because that is the order they are recorded in; what is read left to
+     right is which of them this question is about. */
+  if (leadSlow) takes.reverse();
+  const opens = takes.length ? takes[0].i : 0;
+
   const releaseUrl = () => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = "";
   };
 
+  /* Stop where it is. The button has said Pause since the icons went in and
+     did not: pressing it called play again, which loaded the clip afresh
+     and started it over — the one thing "pause" cannot mean. */
+  const pause = () => {
+    if (audioRef.current) audioRef.current.pause();
+    setState("idle");
+  };
+
   const play = useCallback(
-    async (i) => {
+    async (/** @type {number} */ i) => {
       const rec = list[i];
       if (!rec) return;
       setState("loading");
@@ -2359,6 +2797,11 @@ function AudioPrompt({ recs, autoPlay }) {
       urlRef.current = url;
       el.src = url;
       el.onended = () => setState("idle");
+      /* Paused by anything else — the other button taking the element, a
+         headset, the phone's own controls — reads the same as pausing here.
+         Only ever a step down from playing, so it cannot undo the state a
+         moment before the clip starts. */
+      el.onpause = () => setState((v) => (v === "playing" ? "idle" : v));
       /* A clip that cannot be decoded used to leave the button on "playing"
          for good; now it reads as missing, which is what it is. */
       el.onerror = () => setState("missing");
@@ -2378,9 +2821,11 @@ function AudioPrompt({ recs, autoPlay }) {
   );
 
   useEffect(() => {
-    setIdx(0);
+    setIdx(opens);
     setState("idle");
-    if (autoPlay) play(0);
+    /* The ordinary speed is what plays by itself: the slow one is a thing
+       to reach for, not the question as it is asked. */
+    if (autoPlay) play(opens);
     return () => {
       if (audioRef.current) audioRef.current.pause();
       releaseUrl();
@@ -2394,32 +2839,55 @@ function AudioPrompt({ recs, autoPlay }) {
   if (!list.length) return <Notice kind="warn">No recording for this form.</Notice>;
 
   return (
-    <div>
-      <button className="at-playbig" onClick={() => play(idx)}>
-        <span className="dot"><Icon name={state === "playing" ? "pause" : "play"} /></span>
-        {state === "loading" ? "Loading" : state === "missing" ? "Not on this device" : "Play"}
-      </button>
-      {list.length > 1 && (
-        <div className="at-voices">
-          {list.map((r, i) => (
-            <button
-              key={r.id}
-              className={`at-voice${i === idx ? " on" : ""}`}
-              onClick={() => {
-                setIdx(i);
-                play(i);
-              }}
-              aria-label={`Recording ${i + 1}`}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className={`at-playrow${takes.length > 1 ? " twin" : ""}`}>
+      {takes.map(({ i, slow }) => {
+        const mine = idx === i;
+        return (
+          <button
+            key={list[i].id}
+            className={`at-playbig${takes.length > 1 ? " twin" : ""}${
+              takes.length > 1 && slow !== leadSlow ? " quiet" : ""
+            }`}
+            onClick={() => {
+              /* Pressing the one that is playing stops it; pressing the
+                 other switches to it. */
+              if (mine && state === "playing") {
+                pause();
+                return;
+              }
+              setIdx(i);
+              play(i);
+            }}
+          >
+            {/* The icon is the target on a phone, so it is sized like one
+                rather than like a glyph sitting in the label's line — and
+                it is what tells the two apart at a glance, the label being
+                the thing you read second. */}
+            <span className="dot">
+              <Icon
+                name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"}
+                /* Smaller on the one taking the narrower third of the row,
+                   so what it holds is in proportion to the room it has. */
+                size={takes.length > 1 && slow !== leadSlow ? 26 : 36}
+              />
+            </span>
+            {mine && state === "loading"
+              ? "Loading"
+              : mine && state === "missing"
+              ? "Not on this device"
+              : slow
+              ? "Slow"
+              : takes.length > 1
+              ? "Regular"
+              : "Play"}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
+/** @param {{ value?: string, field?: string, kind?: string, lang?: Lang, name?: string }} props */
 function Field({ value, field, kind, lang, name }) {
   if (!value) return null;
   if (field === "ar")
@@ -2454,6 +2922,7 @@ function Field({ value, field, kind, lang, name }) {
  * else, so any reason given here would be a guess wrong two times in
  * three.
  */
+/** @param {number} courseCount */
 export function noCardsYet(courseCount) {
   if (!courseCount) return "Join a course and the decks your teacher shares will appear here.";
   const them = courseCount === 1 ? "it" : "them";
@@ -2465,22 +2934,40 @@ export function noCardsYet(courseCount) {
  * and the interval follows from that. All that's left is a quiet way to
  * say the check got it wrong, or that something about the item is off.
  */
+/**
+ * @param {{
+ *   ok?: boolean,
+ *   overridden?: boolean,
+ *   onOverride: () => void,
+ *   onFlag: (kind: FlagKind, note?: string) => void,
+ *   flagged?: boolean,
+ *   onContinue: () => void,
+ * }} props
+ */
 function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }) {
   const [open, setOpen] = useState(false);
-  /* The typed issue while "Something else" is open, and null the rest of
-     the time — which is also what says whether the menu is showing its
-     three cards or the box. */
-  const [note, setNote] = useState(null);
+  /* Which of the three is being reported, and the words for the one that
+     asks for them. Picking no longer sends: the two buttons that act on
+     this are on screen from the moment the menu opens, so what a press on
+     an option does is choose, and Send is what sends. */
+  const [picked, setPicked] = useState(/** @type {FlagKind | null} */ (null));
+  const [note, setNote] = useState("");
 
   function close() {
     setOpen(false);
-    setNote(null);
+    setPicked(null);
+    setNote("");
   }
 
-  function send(kind, text) {
-    const k = FLAG_KINDS.find((x) => x.key === kind);
-    if (k && k.fixes && !ok && !overridden) onOverride();
-    onFlag(kind, text || "");
+  const chosen = FLAG_KINDS.find((k) => k.key === picked);
+  /* "Something else" covers whatever the other two don't, so on its own it
+     says nothing an administrator could act on: it needs the words. */
+  const ready = !!chosen && (!chosen.asks || !!note.trim());
+
+  function send() {
+    if (!chosen || !ready) return;
+    if (chosen.fixes && !ok && !overridden) onOverride();
+    onFlag(chosen.key, chosen.asks ? note.trim() : "");
     close();
   }
 
@@ -2510,14 +2997,28 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
               {flagged ? "Flagged" : "Flag a problem"}
             </button>
 
+            {/* Everything at once: what this is, the three things it can
+                be, the box for the third, and the way out and the way to
+                send. It covers the foot rather than floating above it —
+                nothing is behind it to press by accident, and the heading
+                says what the button it is standing on top of said. */}
             {open && (
               <div className="at-flagmenu" data-el="flag-menu">
-                {note === null ? (
-                  FLAG_KINDS.map((k) => (
+                <p className="at-flagmenu-label" data-el="flag-menu-label">
+                  Flag a problem
+                </p>
+                {/* Why it is worth the half minute. Reporting a bad question
+                    is a favour done for the next person to meet it, and
+                    nothing on the screen said so. */}
+                <p className="at-flagmenu-lede" data-el="flag-menu-lede">
+                  Any issue or feedback you report helps us improve the app.
+                </p>
+                {FLAG_KINDS.map((k) => (
+                  <React.Fragment key={k.key}>
                     <button
-                      key={k.key}
-                      className="at-flagopt"
-                      onClick={() => (k.asks ? setNote("") : send(k.key))}
+                      className={`at-flagopt${k.asks ? " asks" : ""}${picked === k.key ? " on" : ""}`}
+                      aria-pressed={picked === k.key}
+                      onClick={() => setPicked(k.key)}
                     >
                       <span className="at-flagopt-title">{k.title}</span>
                       <span className="at-flagopt-what">{k.what}</span>
@@ -2527,38 +3028,39 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
                         <span className="at-flagopt-does">Counts it correct</span>
                       )}
                     </button>
-                  ))
-                ) : (
-                  <div className="at-flagnote" data-el="flag-note">
-                    <label className="at-flagopt-title" htmlFor="flag-note-input">
-                      What went wrong?
-                    </label>
-                    <textarea
-                      id="flag-note-input"
-                      data-el="flag-note-input"
-                      className="at-input at-flagtext"
-                      rows={3}
-                      maxLength={FLAG_NOTE_MAX}
-                      autoFocus
-                      placeholder="The recording plays the wrong word…"
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                    />
-                    <div className="at-row at-flagnoterow">
-                      <Button size="sm" onClick={() => setNote(null)}>
-                        Back
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={!note.trim()}
-                        onClick={() => send("other", note.trim())}
-                      >
-                        Send
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                    {/* Not a box under the option but the rest of it: joined
+                        to the card above with no seam, and lit with it when
+                        it is the one chosen. Typing in it is a way of
+                        picking that option, because that is plainly what it
+                        means. */}
+                    {k.asks && (
+                      <div className="at-flagnote" data-el="flag-note">
+                        <textarea
+                          id="flag-note-input"
+                          data-el="flag-note-input"
+                          className="at-input at-flagtext"
+                          rows={2}
+                          maxLength={FLAG_NOTE_MAX}
+                          placeholder="The recording plays the wrong word…"
+                          value={note}
+                          onFocus={() => setPicked(k.key)}
+                          onChange={(e) => {
+                            setNote(e.target.value);
+                            setPicked(k.key);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+                <div className="at-row at-flagnoterow">
+                  <Button size="sm" onClick={close}>
+                    Back
+                  </Button>
+                  <Button size="sm" variant="primary" disabled={!ready} onClick={send}>
+                    Send
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -2587,6 +3089,7 @@ function loadTeaches() {
     return false;
   }
 }
+/** @param {boolean} yes */
 function saveTeaches(yes) {
   try {
     localStorage.setItem(TEACHES_KEY, yes ? "1" : "0");
@@ -2610,6 +3113,7 @@ function loadListenOff() {
     return 0;
   }
 }
+/** @param {Millis} until */
 function saveListenOff(until) {
   try {
     localStorage.setItem(LISTEN_OFF_KEY, String(until || 0));
@@ -2628,8 +3132,16 @@ export default function ArabicTrainer() {
      to toggle it was removed, and this was left reading as though it
      still worked — so it is always empty and every read below takes
      the unfiltered path. */
-  const [deck] = useState([]);
-  const [session, setSession] = useState(null); // { exercises, practice, items }
+  const [deck] = useState(/** @type {any[]} */ ([]));
+  const [session, setSession] = useState(/** @type {any | null} */ (null)); // { exercises, practice, items }
+  /* A newly deployed build takes the page over by itself — see updates.js.
+     Mid-question is the one moment where that would land on top of
+     something, so a session in flight holds it until the session ends or
+     the app is put away. */
+  useEffect(() => {
+    holdUpdates(!!session);
+    return () => holdUpdates(false);
+  }, [session]);
   /* Null until the person has set up or signed in; the app shows the
      welcome screens until then. */
   const [account, setAccount] = useState(() => API.loadAccount());
@@ -2650,7 +3162,7 @@ export default function ArabicTrainer() {
   const accountAdmin = !!(account && account.admin);
   /* A teacher opens into teaching; everyone else into learning. */
   const [space, setSpace] = useState(() => (loadTeaches() ? "teach" : "learn"));
-  const [screen, setScreen] = useState(null); // null | "account" | "prefs"
+  const [screen, setScreen] = useState(/** @type {string | null} */ (null)); // null | "account" | "prefs"
   /* Remembered, because it decides whether the Teaching option exists at all.
      Deriving it only from a fresh network call meant a slow or failed request
      took the space selector away, with no way back but signing out. */
@@ -2668,21 +3180,28 @@ export default function ArabicTrainer() {
      the memos that decide what is drillable run below this line and go
      through enabledTypes, so the flag has to be true before they do. */
   setListenOffUntil(listenOff);
-  const [myCourses, setMyCourses] = useState([]);
+  const [myCourses, setMyCourses] = useState(/** @type {Course[]} */ ([]));
   /* An empty list means two different things until the first pull comes
      back: "not in any course" and "not asked yet". They look the same and
      read very differently to someone who has joined one. */
   const [coursesKnown, setCoursesKnown] = useState(false);
   /* A deck the person asked to practice from the Courses tab, handed to the
      cards tab once it is on screen. */
-  const [deckWanted, setDeckWanted] = useState(null);
-  const [courseDecks, setCourseDecks] = useState([]);
+  const [deckWanted, setDeckWanted] = useState(/** @type {string | null} */ (null));
+  const [courseDecks, setCourseDecks] = useState(/** @type {Deck[]} */ ([]));
   const [courseBusy, setCourseBusy] = useState(false);
   const [courseError, setCourseError] = useState("");
 
   /* Teaching is a role on a course, so it has to be asked about — and the
      material request answers it, so it is no longer asked twice. */
   const [building, setBuilding] = useState(false);
+  /* Which language the session on screen is drawn from: a language id, ""
+     for all of them at once, or null for never asked — which is what keeps
+     the picker from opening with an answer already marked. It stays on the
+     last answer so "Keep going" means more of the same. */
+  const [sessionLang, setSessionLang] = useState(/** @type {LangId | "" | null} */ (null));
+  /* And whether the question is being put. */
+  const [picking, setPicking] = useState(false);
   /* The version of course material this device last received. Per device
      and per launch, so the first check after opening is always a full one. */
   const materialVersion = useRef("");
@@ -2713,8 +3232,8 @@ export default function ArabicTrainer() {
   const [, setNow_] = useState(0);
   const [qi, setQi] = useState(0);
   const [typed, setTyped] = useState("");
-  const [checked, setChecked] = useState(null);
-  const [pairs, setPairs] = useState([]); // minimal pairs for the answered card
+  const [checked, setChecked] = useState(/** @type {any | null} */ (null));
+  const [pairs, setPairs] = useState(/** @type {any[]} */ ([])); // minimal pairs for the answered card
   const [skipped, setSkipped] = useState(false);
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
@@ -2725,10 +3244,13 @@ export default function ArabicTrainer() {
   const [leaving, setLeaving] = useState(false);
   const [tally, setTally] = useState({ ok: 0, no: 0 });
 
+  /** @type {React.MutableRefObject<ReturnType<typeof setTimeout> | null>} */
   const timer = useRef(null);
+  /** @type {React.MutableRefObject<HTMLInputElement | null>} */
   const inputRef = useRef(null);
+  /** @type {React.MutableRefObject<ReturnType<typeof setTimeout> | null>} */
   const undoTimer = useRef(null);
-  const [lastDeleted, setLastDeleted] = useState(null);
+  const [lastDeleted, setLastDeleted] = useState(/** @type {Item[] | null} */ (null));
   /* Every short-lived message the app says, here and in the teaching and
      admin screens below, which reach it through SnackbarProvider. */
   const snack = useSnackbarState();
@@ -2745,6 +3267,7 @@ export default function ArabicTrainer() {
      sync failed, and this holds why. A hole rather than a name, so it
      is clear the value is unread on purpose. */
   const [, setSyncError] = useState("");
+  /** @type {React.MutableRefObject<ReturnType<typeof setTimeout> | null>} */
   const syncTimer = useRef(null);
   const syncing = useRef(false);
   const fromSync = useRef(false);
@@ -2754,7 +3277,7 @@ export default function ArabicTrainer() {
      first course refresh, say — used to each build on the state before the
      other's change and the second silently undid the first. */
   const dataRef = useRef(data);
-  const commit = useCallback((next) => {
+  const commit = useCallback((/** @type {Doc} */ next) => {
     dataRef.current = next;
     setData(next);
   }, []);
@@ -2764,7 +3287,9 @@ export default function ArabicTrainer() {
   }, []);
 
   const runSync = useCallback(
-    async (token) => {
+    /* Defaulted rather than required: most callers have no token in hand
+       and want whatever this device is already signed in with. */
+    async (/** @type {string} */ token = "") => {
       const key = token || loadSyncConfig().token;
       if (!key || syncing.current) return;
       syncing.current = true;
@@ -2803,7 +3328,11 @@ export default function ArabicTrainer() {
           const res = await syncClips(key, merged, {
             hasLocal: hasClipLocal,
             readLocal: clipDataUrl,
-            writeLocal: (id, url) => saveClip(id, url),
+            /* The result is dropped on purpose: a clip that will not save
+               locally is a slower next launch, not a failed sync. */
+            writeLocal: async (/** @type {string} */ id, /** @type {string} */ url) => {
+              await saveClip(id, url);
+            },
             uploaded,
           });
           uploaded = res.uploaded;
@@ -2828,7 +3357,9 @@ export default function ArabicTrainer() {
             .catch(() => {});
         }
       } catch (err) {
-        const msg = String((err && err.message) || err);
+        const msg = String(
+    (err && typeof err === "object" && "message" in err && err.message) || err
+  );
         setSyncError(
           msg === "bad-passphrase"
             ? "Passphrase rejected"
@@ -2883,7 +3414,9 @@ export default function ArabicTrainer() {
     }
     if (syncTimer.current) clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(() => runSync(), 4000);
-    return () => syncTimer.current && clearTimeout(syncTimer.current);
+    return () => {
+      if (syncTimer.current) clearTimeout(syncTimer.current);
+    };
   }, [data, ready, syncCfg.token, runSync]);
 
   // Heartbeat for the countdown on a timed session.
@@ -2948,7 +3481,7 @@ export default function ArabicTrainer() {
      refresh is in flight — grading, flagging — so it builds on what is
      current rather than on the render it was created in. */
   const persist = useCallback(
-    (nextOrFn) => {
+    (/** @type {Doc | ((cur: Doc) => Doc | null)} */ nextOrFn) => {
       const next = typeof nextOrFn === "function" ? nextOrFn(dataRef.current) : nextOrFn;
       if (!next || next === dataRef.current) return;
       commit(next);
@@ -2968,13 +3501,33 @@ export default function ArabicTrainer() {
   const [keysOpen, setKeysOpen] = useKeysOpen(settings.keyboard);
   // Keep the module-level pointer in step, for the pure helpers that have no
   // settings to hand. Derived from state, so it cannot drift.
-  setActiveLang(settings.language);
+  setActiveLang(settings.language || DEFAULT_LANGUAGE);
 
   /* And the same for where each word turns up. Rebuilt only when the cards
      change: it walks every phrase against every word it claims to teach,
      which is not work to repeat on a keystroke. */
   const contextIndex = useMemo(
-    () => buildContextIndex(items, langOf(settings)),
+    /* A language at a time, then merged: finding one word inside another is
+       a language's own rule — Arabic peels prefixes — and running one
+       language's rule over another's cards would pair words that have
+       nothing to do with each other. Nothing collides in the merge: the
+       keys are form ids, and a form is in one language. */
+    () => {
+      /** @type {Map<LangId, Item[]>} */
+      const byLang = new Map();
+      for (const it of items) {
+        const id = langIdOf(it, settings);
+        byLang.set(id, (byLang.get(id) || []).concat([it]));
+      }
+      /** @type {Map<string, any[]>} */
+      const merged = new Map();
+      for (const [id, list] of byLang) {
+        for (const [unitId, found] of buildContextIndex(list, LANGUAGES[id] || langOf(settings))) {
+          merged.set(unitId, found);
+        }
+      }
+      return merged;
+    },
   /* Only the language, not the whole settings object: this walks
      every phrase against every word it claims to teach, which is not
      work to repeat because a checkbox moved. */
@@ -2993,13 +3546,14 @@ export default function ArabicTrainer() {
   }, [items]);
 
   const allTags = useMemo(() => {
-    const counts = {};
-    for (const it of items) for (const t of it.tags) counts[t] = (counts[t] || 0) + 1;
+    /** @type {Record<string, number>} */
+  const counts = {};
+    for (const it of items) for (const t of it.tags || []) counts[t] = (counts[t] || 0) + 1;
     return Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
   }, [items]);
 
   const inDeck = useCallback(
-    (it) => deck.length === 0 || it.tags.some((t) => deck.includes(t)),
+    (/** @type {Item} */ it) => deck.length === 0 || (it.tags || []).some((t) => deck.includes(t)),
     [deck]
   );
 
@@ -3008,19 +3562,56 @@ export default function ArabicTrainer() {
     [items, settings, inDeck]
   );
 
-  const readyCount = useMemo(
-    () =>
-      drillable.filter((it) =>
+  /** @type {(pool: Item[]) => number} */
+  const countReady = useCallback(
+    (pool) =>
+      pool.filter((it) =>
         drillableUnits(it, settings).some(({ unit }) =>
-          enabledTypes(unit, settings).some((t) => stateReady(unit.s[t]))
+          enabledTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
         )
       ).length,
-    [drillable, settings]
+    [settings]
   );
+
+  const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
+
+  /*
+   * The languages this person actually has cards in, with how much of each
+   * is ready. More than one and a session has to say which it is, because
+   * an app set to one language and a session drawn from both is what used
+   * to happen: Vietnamese cards marked by Arabic's rules, laid out
+   * right-to-left, and offered exercises Vietnamese does not have.
+   *
+   * Read off the cards rather than off the courses: a card kept after a
+   * course ended is still a card in that language.
+   */
+  const langChoices = useMemo(() => {
+    /** @type {Map<LangId, Item[]>} */
+    const byLang = new Map();
+    for (const it of drillable) {
+      const id = langIdOf(it, settings);
+      byLang.set(id, (byLang.get(id) || []).concat([it]));
+    }
+    return [...byLang.entries()]
+      .map(([id, list]) => ({
+        id,
+        name: (LANGUAGES[id] || {}).name || id,
+        ready: countReady(list),
+        total: list.length,
+      }))
+      /* The app's own language leads; the rest by how much is waiting. */
+      .sort((a, b) =>
+        a.id === settings.language ? -1 : b.id === settings.language ? 1 : b.ready - a.ready
+      );
+  }, [drillable, settings, countReady]);
 
   /* ---------------- session ---------------- */
 
   /* A session assembled by hand on the Build screen. */
+  /** @param {{ ids: Set<string> | string[], mode: string, count?: number, minutes?: number }} plan */
+  /**
+   * @param {{ ids: string[] | Set<string>, mode: string, count?: number, minutes?: number }} plan
+   */
   function beginManual({ ids, mode, count, minutes }) {
     const built = buildManualSession({ items, settings, ids, mode, count });
     setBuilding(false);
@@ -3049,7 +3640,9 @@ export default function ArabicTrainer() {
 
   /* Bring down whatever the courses hold and fold it into the cards. */
   const refreshCourses = useCallback(
-    async (announce) => {
+    /* Three answers, not two: silent, speak only if something moved, or
+       speak either way. */
+    async (/** @type {boolean | "changes"} */ announce) => {
       if (!account) return;
       /* A focus and a visibility change arrive together when a tab comes
          back; one refresh at a time is enough. */
@@ -3078,7 +3671,8 @@ export default function ArabicTrainer() {
            and leaving the app on its default meant a Vietnamese course was
            shown in Arabic script, typed on an Arabic keyboard and marked by
            the Arabic rules — which looks exactly like the course not working. */
-        const courseLangs = [];
+        /** @type {string[]} */
+    const courseLangs = [];
         for (const c of r.courses) {
           if (c.language && LANGUAGES[c.language] && !courseLangs.includes(c.language)) {
             courseLangs.push(c.language);
@@ -3172,6 +3766,8 @@ export default function ArabicTrainer() {
   const syncEverything = useCallback(async () => {
     setSpacesBusy(true);
     try {
+      /* Only whether each one settled matters here, not what it returned. */
+      /** @type {Promise<unknown>[]} */
       const jobs = [runSync()];
       if (account) jobs.push(refreshCourses("changes"));
       if (account && (teaches || account.admin))
@@ -3206,6 +3802,7 @@ export default function ArabicTrainer() {
      Done here on purpose rather than as a side effect of sync, so the first
      sync on a new device no longer downloads every recording in every
      course before it does anything else. */
+  /** @param {{ exercises?: Question[] }} built */
   function warmSession(built) {
     const ids = [];
     for (const ex of built.exercises || []) {
@@ -3215,8 +3812,16 @@ export default function ArabicTrainer() {
     if (ids.length) warmClips(ids).catch(() => {});
   }
 
-  function begin(practice) {
-    const built = buildSession({ items, settings, inDeck, practice });
+  /**
+   * @param {boolean} [practice]
+   * @param {LangId | "" | null} [langId] One language, or "" for all of them
+   *   together. Kept for the next session started from here — "Keep going"
+   *   means more of what you were just doing.
+   */
+  function begin(practice, langId = sessionLang) {
+    setSessionLang(langId || "");
+    const pool = langId ? items.filter((it) => langIdOf(it, settings) === langId) : items;
+    const built = buildSession({ items: pool, settings, inDeck, practice });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that
@@ -3239,6 +3844,7 @@ export default function ArabicTrainer() {
   /* Send every card back to the beginning: the cards, forms, decks and
      recordings stay, only what the app has learnt about you goes. */
   function resetScheduling() {
+    /** @type {Item[]} */
     const cleared = items.map((it) => ({
       ...it,
       s: freshStates(),
@@ -3266,7 +3872,21 @@ export default function ArabicTrainer() {
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);
-  const spec = exercise ? exOf(exercise.type, langOf(settings)) : null;
+  /*
+   * The language of the question on screen, which is the card's rather than
+   * the app's. In a session drawn from one language they are the same
+   * thing; in a mixed one an Arabic question can be followed by a
+   * Vietnamese one, and each has to be laid out, typed and marked in its
+   * own — everything below reads this rather than the settings.
+   *
+   * The module-level pointer follows it too, for the pure helpers that are
+   * called with nothing to look it up from. Set unconditionally: with no
+   * question up this is the app's own language, which is what it was.
+   */
+  const qSettings = settingsFor(settings, item || parentItem);
+  const qLang = langOf(qSettings);
+  setActiveLang(qLang.id);
+  const spec = exercise ? exOf(exercise.type, qLang) : null;
   /* The phrase this question shows the word in, if it is that sort of
      question. Chosen when the queue was built and named on the exercise, so
      it stays put; looked up again here because only the id travels. */
@@ -3287,9 +3907,9 @@ export default function ArabicTrainer() {
 
   function submit() {
     if (!item || checked) return;
-    const result = checkAnswer(typed, item, exercise.type, settings);
+    const result = checkAnswer(typed, item, exercise.type, qSettings);
     sfx(result.ok ? "correct" : "wrong");
-    setPairs(relatedWords(items, langOf(settings), item.ar));
+    setPairs(relatedWords(items, qLang, item.ar));
     setChecked(result);
     // Drop the phone keyboard so the answer and grades are visible.
     if (inputRef.current) inputRef.current.blur();
@@ -3316,7 +3936,7 @@ export default function ArabicTrainer() {
       flash("Nothing left in this session that works without sound");
       return;
     }
-    setSession((s) => (s ? { ...s, exercises: next } : s));
+    setSession((/** @type {Session | null} */ s) => (s ? { ...s, exercises: next } : s));
     /* The question at this index is a different one now, so nothing typed
        against the old one should survive. */
     resetExercise();
@@ -3332,7 +3952,7 @@ export default function ArabicTrainer() {
 
   function giveUp() {
     sfx("warn");
-    setPairs(relatedWords(items, langOf(settings), item ? item.ar : ""));
+    setPairs(relatedWords(items, qLang, item ? item.ar : ""));
     setSkipped(true);
     setChecked({ ok: false, reason: "skipped" });
     if (inputRef.current) inputRef.current.blur();
@@ -3353,6 +3973,10 @@ export default function ArabicTrainer() {
    * The send is not waited on. A flag is worth making and not worth
    * stopping a session over, so the menu closes either way and the pill
    * says which of the two happened.
+   */
+  /**
+   * @param {FlagKind} kind
+   * @param {string} [note]
    */
   function flagCurrent(kind, note) {
     if (!parentItem || !exercise) return;
@@ -3387,19 +4011,19 @@ export default function ArabicTrainer() {
       subId: exercise.subId || null,
       /* The id, not the pack: what is stored has to survive being read by
          a build whose pack for it has moved on. */
-      language: langOf(settings).id,
+      language: qLang.id,
       /* A copy of the question, not a pointer to it: the card can be
          edited or withdrawn between the flag and somebody reading it, and
          a report that says only "card k3f2" is then unreadable. */
       prompt: parentItem.ar || "",
       meaning: parentItem.en || "",
     })
-      .then(() => flash("Thanks — that's been reported.", "good"))
+      .then(() => flash("Thank you for the feedback 🫶", "good"))
       .catch(() => flash("Noted on this device. We couldn't reach the server.", "warn"));
   }
 
   function applyGrade() {
-    if (!item || !exercise) return;
+    if (!item || !parentItem || !exercise) return;
     /* Before the grading, not after: a question answered is learning done,
        whether it was right or wrong. */
     reportLearning(account);
@@ -3427,7 +4051,7 @@ export default function ArabicTrainer() {
         : it;
       if (!target) return cur;
 
-      const before = target.s[exercise.type] || freshState();
+      const before = statesOf(target)[exercise.type] || freshState();
       let s;
       if (!practice || rating !== "good") {
         s = reschedule(before, rating);
@@ -3465,7 +4089,7 @@ export default function ArabicTrainer() {
     }));
 
     if (!correct) {
-      setSession((s2) => ({ ...s2, exercises: s2.exercises.concat([{ ...exercise }]) }));
+      setSession((/** @type {any} */ s2) => ({ ...s2, exercises: s2.exercises.concat([{ ...exercise }]) }));
     }
     setQi((i) => i + 1);
     resetExercise();
@@ -3476,6 +4100,7 @@ export default function ArabicTrainer() {
 
   /* ---------------- items ---------------- */
 
+  /** @param {any[]} list */
   function addItems(list) {
     const fresh = list.filter((p) => p.ar || p.lat || p.en).map(makeItem);
     if (!fresh.length) return 0;
@@ -3486,6 +4111,10 @@ export default function ArabicTrainer() {
   /* Editing keeps every existing progress record. Sub-items are matched by
      id where they already exist, so correcting a plural's spelling doesn't
      reset what you've learnt about it. */
+  /**
+   * @param {string} id
+   * @param {Record<string, any>} patch
+   */
   function updateItem(id, patch) {
     const target = items.find((i) => i.id === id);
     if (target && target.locked && !("locked" in patch)) {
@@ -3496,6 +4125,7 @@ export default function ArabicTrainer() {
       ...data,
       items: items.map((i) => {
         if (i.id !== id) return i;
+        /** @type {Item} */
         const next = { ...i, updated: now() };
         for (const [k, v] of Object.entries(patch)) {
           if (k === "subs" || k === "s") continue;
@@ -3504,7 +4134,7 @@ export default function ArabicTrainer() {
         }
         if (patch.subs) {
           const old = new Map((i.subs || []).map((x) => [x.id, x]));
-          next.subs = patch.subs.map((draft) => {
+          next.subs = patch.subs.map((/** @type {Record<string, any>} */ draft) => {
             const prev = draft.id && old.get(draft.id);
             return prev
               ? {
@@ -3530,11 +4160,16 @@ export default function ArabicTrainer() {
   }
 
   /* Set the same field on many items — used by the bulk bar. */
+  /**
+   * @param {string[]} ids
+   * @param {Record<string, any>} patch
+   */
   function bulkEdit(ids, patch) {
     updateMany(unlockedOf(ids), (i) => ({ ...i, ...patch }));
   }
 
   /* Locked items are left alone by anything that changes them. */
+  /** @param {string[]} ids */
   function unlockedOf(ids) {
     const set = new Set(ids);
     const targets = items.filter((i) => set.has(i.id));
@@ -3543,20 +4178,29 @@ export default function ArabicTrainer() {
     return targets.filter((i) => !i.locked).map((i) => i.id);
   }
 
+  /**
+   * @param {string[]} ids
+   * @param {string} tag
+   */
   function tagMany(ids, tag) {
     const clean = cleanTags(tag)[0];
     if (!clean) return;
     updateMany(unlockedOf(ids), (i) =>
-      i.tags.includes(clean) ? i : { ...i, tags: i.tags.concat([clean]) }
+      (i.tags || []).includes(clean) ? i : { ...i, tags: (i.tags || []).concat([clean]) }
     );
   }
 
+  /**
+   * @param {string[]} ids
+   * @param {boolean} locked
+   */
   function setLockedMany(ids, locked) {
     sfx("tick");
     updateMany(ids, (i) => ({ ...i, locked }));
     flash(`${plural(ids.length, "item")} ${locked ? "locked" : "unlocked"}`);
   }
 
+  /** @param {string[]} ids */
   function removeItems(ids) {
     const set = new Set(Array.isArray(ids) ? ids : [ids]);
     const targets = items.filter((i) => set.has(i.id));
@@ -3585,6 +4229,10 @@ export default function ArabicTrainer() {
   /* A short message for things quietly refused, so a locked card doesn't
      just silently fail to delete — and for the ones that worked, so a save
      is not answered with silence. The two are told apart by kind. */
+  /**
+   * @param {string} msg
+   * @param {string} [kind]
+   */
   function flash(msg, kind) {
     snack.show(msg, kind);
   }
@@ -3603,6 +4251,10 @@ export default function ArabicTrainer() {
   }
 
   /* Apply the same change to many items at once. */
+  /**
+   * @param {string[]} ids
+   * @param {(it: Item) => Item} fn
+   */
   function updateMany(ids, fn) {
     const set = new Set(ids);
     persist({
@@ -3611,6 +4263,7 @@ export default function ArabicTrainer() {
     });
   }
 
+  /** @type {(k: string, v: any) => void} */
   const setSetting = (k, v) =>
     persist({
       ...data,
@@ -3623,6 +4276,7 @@ export default function ArabicTrainer() {
       settingsUpdated: now(),
     });
 
+  /** @type {(group: string, k: string) => void} */
   const toggleIn = (group, k) =>
     persist({
       ...data,
@@ -3684,10 +4338,12 @@ export default function ArabicTrainer() {
      document — settings, history and the sync secret included — so an old
      backup wiped everything added since, and someone else's backup signed
      you into their sync. */
+  /** @param {any} parsed */
   function absorb(parsed) {
     return merge(mergeData(dataRef.current, merge(parsed)));
   }
 
+  /** @param {any} parsed */
   function confirmImport(parsed) {
     const n = (parsed.items || []).length;
     return window.confirm(
@@ -3696,6 +4352,7 @@ export default function ArabicTrainer() {
     );
   }
 
+  /** @param {File} file */
   async function importZip(file) {
     if (!OWN) return;
     flash("Reading the backup…");
@@ -3725,6 +4382,7 @@ export default function ArabicTrainer() {
     }
   }
 
+  /** @param {File} file */
   function importFile(file) {
     if (!OWN) return;
     if (/\.zip$/i.test(file.name)) return importZip(file);
@@ -3764,7 +4422,7 @@ export default function ArabicTrainer() {
     return (
       <div className={`at ${settings.theme || "auto"}`}>
         <React.Suspense fallback={<ChunkFallback />}>
-          <Onboarding onDone={(a) => setAccount(a)} />
+          <Onboarding onDone={(/** @type {any} */ a) => setAccount(a)} />
         </React.Suspense>
       </div>
     );
@@ -3798,17 +4456,19 @@ export default function ArabicTrainer() {
       /* Every rule that lays out the language being learnt reads these two.
          Nothing set them, so the fallbacks applied and Vietnamese was laid
          out right-to-left, like Arabic. */
-      style={{
-        "--sdir": langOf(settings).direction || "ltr",
-        "--sfont": langOf(settings).fontStack,
+      /* Cast because these are custom properties: React's style type
+         knows the CSS properties by name and nothing that starts --. */
+      style={/** @type {React.CSSProperties} */ ({
+        "--sdir": qLang.direction || "ltr",
+        "--sfont": qLang.fontStack,
         /* And how large that script wants to be against the sizes in the
            stylesheet, which were tuned against Arabic. */
-        ...scriptVars(langOf(settings)),
+        ...scriptVars(qLang),
         /* What the answer bar is lifted by. Set here rather than on the bar
            so the page can reserve the same room underneath its content. */
         "--kb-overlap": `${kb.overlap || 0}px`,
         ...(kbOpen && kb.height ? { minHeight: kb.height } : null),
-      }}
+      })}
     >
       {/* Everything below here can say something without being handed a
           callback to say it with — the teaching and admin screens above all,
@@ -3874,8 +4534,11 @@ Cards ready to practice
                   </Help>
 
                   <div className="at-row">
+                    {/* One language and the button starts a session, as it
+                        always did. Two and it asks first: which pile this
+                        is, or both at once. */}
                     <Button variant="primary"
-                      onClick={() => begin(false)}
+                      onClick={() => (langChoices.length > 1 ? setPicking(true) : begin(false, ""))}
                       disabled={!readyCount}
                     >
                       Start session
@@ -3923,7 +4586,7 @@ Cards ready to practice
             {session && session.learnt && session.learnt.length > 0 && qi === 0 && (
               <Help className="at-learntnote">
                 Already learnt, so not in this session:{" "}
-                {session.learnt.map((x) => x.en || x.ar || x.lat).join(", ")}
+                {session.learnt.map((/** @type {Item} */ x) => x.en || x.ar || x.lat).join(", ")}
               </Help>
             )}
 
@@ -4003,14 +4666,18 @@ Cards ready to practice
                       /* A context question plays the whole phrase, not the
                          word: hearing it in running speech is the exercise.
                          Everything else plays the card's own recording. */
-                      <AudioPrompt recs={context ? context.recs : item.recs} autoPlay />
+                      <AudioPrompt
+                        recs={context ? context.recs : item.recs}
+                        autoPlay
+                        lead={leadSpeed(item, exercise.type)}
+                      />
                     ) : spec.promptField === "context" ? (
                       <Field
                         /* The phrase can go between building the queue and
                            reaching this question — the teacher unticks it,
                            or the deck is withdrawn. Asking for the word on
                            its own is a lesser question, not a broken one. */
-                        value={context ? blankedPhrase(context, langOf(settings)) : item.en}
+                        value={context ? blankedPhrase(context, qLang) : item.en}
                         field={context ? "ar" : "en"}
                         kind="phrase"
                         name="question-prompt-text"
@@ -4057,7 +4724,7 @@ Cards ready to practice
                         label="Your answer"
                         data-el="answer-choices"
                         disabled={!!checked}
-                        options={((quizAttrOf(langOf(settings)) || {}).classes || []).map((c) => ({
+                        options={((quizAttrOf(qLang) || {}).classes || []).map((c) => ({
                           value: c.id,
                           label: c.label,
                         }))}
@@ -4073,7 +4740,7 @@ Cards ready to practice
                       <div
                         className={
                           spec.answerMode === "ar"
-                            ? `at-inputwrap${langOf(settings).direction === "rtl" ? " rtl" : ""}`
+                            ? `at-inputwrap${qLang.direction === "rtl" ? " rtl" : ""}`
                             : undefined
                         }
                       >
@@ -4083,8 +4750,8 @@ Cards ready to practice
                              input is declared as that language — not as Arabic,
                              which sent Vietnamese answers through an Arabic
                              spellchecker and read them out as Arabic. */
-                          lang={spec.answerMode === "ar" ? langOf(settings).id : undefined}
-                          dir={spec.answerMode === "ar" ? langOf(settings).direction : undefined}
+                          lang={spec.answerMode === "ar" ? qLang.id : undefined}
+                          dir={spec.answerMode === "ar" ? qLang.direction : undefined}
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
                             checked ? (checked.ok ? " ok" : " no") : ""
                           }`}
@@ -4111,7 +4778,7 @@ Cards ready to practice
 
                   {!checked && spec.answerMode === "ar" && keysOpen && (
                     <Keyboard
-                      lang={langOf(settings)}
+                      lang={qLang}
                       onKey={(ch) => caretInsert(inputRef, typed, setTyped, ch)}
                       onBack={() => caretBackspace(inputRef, typed, setTyped)}
                       onClear={() => setTyped("")}
@@ -4134,7 +4801,7 @@ Cards ready to practice
                           : WRONG_VERDICT}
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
-                        <Help data-el="verdict-reason">{verdictText(checked, langOf(settings))}</Help>
+                        <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
                       )}
                       {/* A right answer is already on screen in the box above,
                           so repeating it says nothing. It is shown when the
@@ -4157,7 +4824,7 @@ Cards ready to practice
                           the box between the nudge and the thing to look
                           at. */}
                       {checked.reason === "bare" && (
-                        <Help data-el="bare-note">{verdictWord(langOf(settings), "bare")}</Help>
+                        <Help data-el="bare-note">{verdictWord(qLang, "bare")}</Help>
                       )}
 
                       {/* Everything after the answer is a second thing worth
@@ -4213,14 +4880,14 @@ Cards ready to practice
                             <p className="at-alsolabel" data-el="also-audio-label">
                               This is how it sounds
                             </p>
-                            <AudioPrompt recs={item.recs} />
+                            <AudioPrompt recs={item.recs} lead={leadSpeed(item)} />
                           </div>
                         )}
                         {/* Asked here rather than inside RelatedWords: an
                             element that renders null is still an element,
                             and the box counts what it was given. */}
                         {pairs && pairs.length > 0 && (
-                          <RelatedWords pairs={pairs} settings={settings} />
+                          <RelatedWords pairs={pairs} settings={qSettings} />
                         )}
                       </AlsoBox>
                       {item.note && (
@@ -4362,12 +5029,7 @@ Cards ready to practice
             myCourses={myCourses}
             settings={settings}
             onPractice={(ids, mode) =>
-              beginManual({
-                ids,
-                types: TYPES.filter((t) => settings.types[t]),
-                mode,
-                count: settings.sessionSize,
-              })
+              beginManual({ ids, mode, count: settings.sessionSize })
             }
           />
         )}
@@ -4384,6 +5046,19 @@ Cards ready to practice
           />
         )}
 
+        {picking && (
+          <SessionLanguages
+            choices={langChoices}
+            ready={readyCount}
+            chosen={sessionLang}
+            onPick={(id) => {
+              setPicking(false);
+              begin(false, id);
+            }}
+            onClose={() => setPicking(false)}
+          />
+        )}
+
         {tab === "courses" && (
           <React.Suspense fallback={<ChunkFallback />}>
           <StudentCourses
@@ -4392,12 +5067,12 @@ Cards ready to practice
             languages={LANGUAGES}
             busy={courseBusy}
             error={courseError}
-            onJoin={async (code) => {
+            onJoin={async (/** @type {string} */ code) => {
               await API.joinCourse(code);
               await refreshCourses(true);
             }}
             onRefresh={() => refreshCourses(true)}
-            onPractise={(deckTitle) => {
+            onPractise={(/** @type {string} */ deckTitle) => {
               /* The cards tab owns its own filter, so ask for it by name and
                  let that tab apply it when it mounts. */
               setDeckWanted(deckTitle);
@@ -4451,7 +5126,9 @@ Cards ready to practice
             toggleIn={toggleIn}
             onReset={resetScheduling}
             allClipIds={allClipIds}
-            account={account || { handle: "", displayName: "", key: "" }}
+            /* Signed out, the account screen is still reachable and still
+               has to render. What it shows is nobody, not a half-account. */
+            account={account || EMPTY_ACCOUNT}
             isAdmin={!!(account && account.admin)}
             onOpenAdmin={() => {
               setScreen(null);
@@ -4474,6 +5151,7 @@ Cards ready to practice
               saveTeaches(false);
             }}
             onBecameAdmin={() =>
+              account &&
               API.whoAmI(account.key).then((r) => {
                 const merged = { ...r.user, key: account.key };
                 API.saveAccount(merged);
@@ -4481,7 +5159,8 @@ Cards ready to practice
                 flash("You are now the administrator");
               })
             }
-            onRename={(name) => {
+            onRename={(/** @type {string} */ name) => {
+              if (!account) return;
               API.rename(name).catch(() => {});
               const merged = { ...account, displayName: name };
               API.saveAccount(merged);
@@ -4550,6 +5229,7 @@ Cards ready to practice
    one per tab. The card is looked up again by id, so a screen left open
    shows what was last synced rather than the copy its tile was drawn
    from. */
+/** @param {{ card: Item, items: Item[], onBack: () => void, action?: Node }} props */
 function CardScreen({ card, items, onBack, action }) {
   const live = items.find((i) => i.id === card.id) || card;
   return (
@@ -4572,6 +5252,27 @@ function CardScreen({ card, items, onBack, action }) {
    ================================================================== */
 
 
+/**
+ * @param {{
+ *   items: Item[],
+ *   allTags: string[],
+ *   data: any,
+ *   settings: Settings,
+ *   courseDecks?: Deck[],
+ *   myCourses?: Course[],
+ *   deckWanted?: string | null,
+ *   onDeckWantedUsed: () => void,
+ *   onExportAll: () => void,
+ *   onAdd: (items: any[]) => void,
+ *   onUpdate: (id: string, patch: any) => void,
+ *   onRemove: (id: string) => void,
+ *   onRemoveMany: (ids: string[]) => void,
+ *   onBulkEdit: (ids: string[], patch: any) => void,
+ *   onSetLocked: (ids: string[], locked: boolean) => void,
+ *   onTagMany: (ids: string[], tag: string) => void,
+ *   onImport: (file: any) => void,
+ * }} props The handlers are all required: this tab does nothing on its own, and the one caller passes every one of them.
+ */
 function ItemsTab({
   items,
   allTags,
@@ -4591,9 +5292,9 @@ function ItemsTab({
   onTagMany,
   onImport,
 }) {
-  const [sheet, setSheet] = useState(null); // null | "single" | "bulk" | {edit:item}
+  const [sheet, setSheet] = useState(/** @type {any | null} */ (null)); // null | "single" | "bulk" | {edit:item}
   const [q, setQ] = useState("");
-  const [filterTags, setFilterTags] = useState([]);
+  const [filterTags, setFilterTags] = useState(/** @type {string[]} */ ([]));
 
   /* Someone tapped "practice" on a deck elsewhere; show just that deck. */
   useEffect(() => {
@@ -4602,8 +5303,8 @@ function ItemsTab({
     setQ("");
     if (onDeckWantedUsed) onDeckWantedUsed();
   }, [deckWanted, onDeckWantedUsed]);
-  const [selected, setSelected] = useState(() => new Set());
-  const [confirmId, setConfirmId] = useState(null);
+  const [selected, setSelected] = useState(/** @type {Set<string>} */ (new Set()));
+  const [confirmId, setConfirmId] = useState(/** @type {any | null} */ (null));
 
   useEffect(() => {
     if (!confirmId) return;
@@ -4652,10 +5353,10 @@ function ItemsTab({
     () =>
       OWN
         ? [
-            { label: "Lock", onClick: (ids) => onSetLocked(ids, true) },
-            { label: "Unlock", onClick: (ids) => onSetLocked(ids, false) },
-            { label: "Add a tag", onClick: (ids) => setBulk({ kind: "tag", ids, tag: "" }) },
-            { label: "Delete", danger: true, onClick: (ids) => setBulk({ kind: "delete", ids }) },
+            { label: "Lock", onClick: (/** @type {string[]} */ ids) => onSetLocked(ids, true) },
+            { label: "Unlock", onClick: (/** @type {string[]} */ ids) => onSetLocked(ids, false) },
+            { label: "Add a tag", onClick: (/** @type {string[]} */ ids) => setBulk({ kind: "tag", ids, tag: "" }) },
+            { label: "Delete", danger: true, onClick: (/** @type {string[]} */ ids) => setBulk({ kind: "delete", ids }) },
           ]
         : [],
     [onSetLocked]
@@ -4663,7 +5364,7 @@ function ItemsTab({
 
   /* Both used to be a browser prompt and a browser confirm — the only two
      places in the app that left it to the browser to ask. */
-  const [bulk, setBulk] = useState(null);
+  const [bulk, setBulk] = useState(/** @type {any | null} */ (null));
 
   return (
     <>
@@ -4835,7 +5536,22 @@ function ItemsTab({
 /* Label, RTL input, and an on-screen keyboard that only appears while the
    field is focused — otherwise it dominates every form it sits in.
    preventDefault on mousedown keeps focus when a key is tapped. */
+/**
+ * @param {{
+ *   label?: Node, hint?: Node, value: string,
+ *   onChange: (value: string) => void,
+ *   mode?: string, placeholder?: string,
+ *   inputRef?: React.MutableRefObject<HTMLInputElement | null>,
+ *   lang?: Lang,
+ * }} props
+ */
 function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef, lang }) {
+  /* The field already reads the active language for the input's own script
+     and direction. The keyboard needs a pack too, and two of the three call
+     sites pass none — which used to hand `undefined` to a component that
+     reads its rows off it, the moment someone opened the keys. */
+  const L = lang || activeLang();
+  /** @type {React.MutableRefObject<any | null>} */
   const own = useRef(null);
   const ref = inputRef || own;
   const [focused, setFocused] = useState(false);
@@ -4867,7 +5583,7 @@ function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef
             onBack={() => caretBackspace(ref, value, onChange)}
             onClear={() => onChange("")}
             onHide={() => setKeysOpen(false)}
-            lang={lang}
+            lang={L}
           />
         </div>
       )}
@@ -4880,6 +5596,7 @@ function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef
    Recordings editor — one per unit, several clips each
    ------------------------------------------------------------------ */
 
+/** @param {{ rec: any, onPlay: (rec: any) => void | Promise<void> }} props */
 function ClipPlayer({ rec, onPlay }) {
   const [busy, setBusy] = useState(false);
   return (
@@ -4898,21 +5615,31 @@ function ClipPlayer({ rec, onPlay }) {
   );
 }
 
+/** @param {{ recs?: any[], onChange: (recs: any[]) => void, label?: string }} props */
 function RecordingsField({ recs, onChange, label = "Recordings" }) {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [working, setWorking] = useState("");
+  /** @type {React.MutableRefObject<any | null>} */
+  /** @type {React.MutableRefObject<ReturnType<typeof startRecorder> | null>} */
   const handle = useRef(null);
   const started = useRef(0);
+  /** @type {React.MutableRefObject<ReturnType<typeof setInterval> | null>} */
   const tick = useRef(null);
+  /** @type {React.MutableRefObject<HTMLAudioElement | null>} */
   const audioRef = useRef(null);
 
-  useEffect(() => () => handle.current && handle.current.stop(), []);
+  useEffect(() => () => {
+    if (handle.current) handle.current.stop();
+  }, []);
 
   const urlRef = useRef("");
-  useEffect(() => () => urlRef.current && URL.revokeObjectURL(urlRef.current), []);
+  useEffect(() => () => {
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+  }, []);
 
+  /** @param {{ id: string }} rec */
   async function play(rec) {
     const url = await clipUrl(rec.id);
     if (!url) {
@@ -4944,7 +5671,7 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
 
     handle.current = startRecorder(
       async (blob) => {
-        clearInterval(tick.current);
+        if (tick.current) clearInterval(tick.current);
         setRecording(false);
         const dur = (now() - started.current) / 1000;
         if (blob.size > MAX_CLIP_BYTES) {
@@ -4963,10 +5690,10 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
         );
       },
       (err) => {
-        clearInterval(tick.current);
+        if (tick.current) clearInterval(tick.current);
         setRecording(false);
         setError(
-          String(err && err.name) === "NotAllowedError"
+          (err instanceof Error ? err.name : "") === "NotAllowedError"
             ? "Microphone permission was refused"
             : "Couldn't reach the microphone"
         );
@@ -4974,7 +5701,9 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
     );
 
     // Hard stop, so a forgotten recording can't run away.
-    setTimeout(() => handle.current && handle.current.stop(), MAX_RECORD_MS);
+    setTimeout(() => {
+      if (handle.current) handle.current.stop();
+    }, MAX_RECORD_MS);
   }
 
   function end() {
@@ -4982,6 +5711,7 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
     if (handle.current) handle.current.stop();
   }
 
+  /** @param {File} file */
   async function upload(file) {
     setError("");
     setWorking("Compressing…");
@@ -5091,8 +5821,23 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
    place that knows them. */
 const BLANK_SUB = { ar: "", lat: "", en: "", ...dimValues({}), note: "", recs: [] };
 
+/**
+ * @param {{
+ *   mode?: string, initial?: any, allTags: string[],
+ *   settings: Settings,
+ *   onSave: (item: any) => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
   const lang = langOf(settings);
+  /* Held once: only some languages declare a lexical axis, and reading it
+     off the pack at each use makes every one of them a separate question
+     about whether this language has one. */
+  const lexical = lang.lexical;
+  /* Open, because the grammatical fields dimValues() spreads in differ per
+     language and the tags are one editable string here, not a list. */
+  /** @returns {Record<string, any>} */
   const blank = () => ({
     ar: "",
     lat: "",
@@ -5116,18 +5861,20 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
           kind: initial.kind || "",
           note: initial.note || "",
           tags: (initial.tags || []).join(", "),
-          subs: (initial.subs || []).map((x) => ({ ...x })),
+          subs: (initial.subs || []).map((/** @type {Record<string, any>} */ x) => ({ ...x })),
         }
       : blank()
   );
   const [step, setStep] = useState("form");
   // In add mode you can stack up several items and check them together.
-  const [queue, setQueue] = useState([]);
+  const [queue, setQueue] = useState(/** @type {any[]} */ ([]));
   // When set, the form is editing that queued item rather than adding a new one.
-  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingIndex, setEditingIndex] = useState(/** @type {number | null} */ (null));
+  /** @type {React.MutableRefObject<HTMLInputElement | null>} */
   const arRef = useRef(null);
 
-  const set = (k, v) => setDraft((d) => ({ ...d, [k]: v }));
+  const set = (/** @type {string} */ k, /** @type {any} */ v) =>
+    setDraft((d) => ({ ...d, [k]: v }));
   const canSave = [draft.ar, draft.lat, draft.en].some((v) => v.trim());
 
   const previewItem = useMemo(() => makeItem(draft), [draft]);
@@ -5139,6 +5886,11 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
     [queue, draft, canSave]
   );
 
+  /**
+   * @param {number} i
+   * @param {string} k
+   * @param {any} v
+   */
   function setSub(i, k, v) {
     setDraft((d) => {
       const subs = d.subs.slice();
@@ -5147,7 +5899,11 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
     });
   }
 
-  const tidy = (d) => ({ ...d, subs: (d.subs || []).filter((x) => x.ar || x.en || x.lat) });
+  /** @param {Record<string, any>} d */
+  const tidy = (d) => ({
+    ...d,
+    subs: (d.subs || []).filter((/** @type {Record<string, any>} */ x) => x.ar || x.en || x.lat),
+  });
 
   /* Stack the current form and start a fresh one, keeping the filing
      details that usually carry across a batch. */
@@ -5174,6 +5930,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
   }
 
   /* Open one of the queued items back up in the form. */
+  /** @param {number} i */
   function editQueued(i) {
     setDraft(queue[i]);
     setEditingIndex(i);
@@ -5338,13 +6095,13 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
                   />
                 </div>
               ))}
-              {lang.lexical && (
-                <FormField label={<>{lang.lexical.label} <span className="at-optional">optional</span></>}>
+              {lexical && (
+                <FormField label={<>{lexical.label} <span className="at-optional">optional</span></>}>
                   <input
                     className="at-input"
-                    value={draft[lang.lexical.key] || ""}
-                    placeholder={lang.lexical.help || ""}
-                    onChange={(e) => set(lang.lexical.key, e.target.value)}
+                    value={draft[lexical.key] || ""}
+                    placeholder={lexical.help || ""}
+                    onChange={(e) => set(lexical.key, e.target.value)}
                   />
                 </FormField>
               )}
@@ -5379,7 +6136,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
               </div>
             ) : (
               <>
-                {draft.subs.map((sb, i) => (
+                {draft.subs.map((/** @type {Record<string, any>} */ sb, /** @type {number} */ i) => (
                   <div className="at-subedit" key={i}>
                     <div className="at-subedithead">
                       <span className="at-formtag">{labelFor(sb) || "form"}</span>
@@ -5387,7 +6144,10 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
                         className="at-x"
                         aria-label="Remove form"
                         onClick={() =>
-                          setDraft((d) => ({ ...d, subs: d.subs.filter((_, j) => j !== i) }))
+                          setDraft((d) => ({
+                            ...d,
+                            subs: d.subs.filter((/** @type {unknown} */ _, /** @type {number} */ j) => j !== i),
+                          }))
                         }
                       >
                         <Icon name="close" />
@@ -5547,12 +6307,77 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
 }
 
 /* ------------------------------------------------------------------
+   Which language this session is
+
+   Only ever asked of somebody studying more than one, and asked at the
+   moment it matters — on the way into a session, rather than as a setting
+   somewhere that has to be remembered and put back afterwards.
+
+   Each row starts the session on the tap, because a picker where every
+   choice needs confirming is two taps for a question with one answer. All
+   languages together is a row like the others rather than a switch beside
+   them: it is another way to practice, not a modifier on the choice above.
+   ------------------------------------------------------------------ */
+/**
+ * @param {{
+ *   choices: { id: LangId, name: string, ready: number, total: number }[],
+ *   ready: number,
+ *   chosen: LangId | "" | null,
+ *   onPick: (id: LangId | "") => void,
+ *   onClose: () => void,
+ * }} props
+ */
+function SessionLanguages({ choices, ready, chosen, onPick, onClose }) {
+  /** @param {number} n */
+  const waiting = (n) => (n ? `${plural(n, "card")} ready` : "nothing ready just now");
+  return (
+    <Screen title="Which language?" onBack={onClose} rise backLabel="Not now">
+      <Help>
+        You're studying more than one. Pick the one to practice, or take them
+        all in one session.
+      </Help>
+      <div className="at-cklist">
+        {choices.map((c) => (
+          <button
+            key={c.id}
+            className={`at-ck${chosen === c.id ? " on" : ""}`}
+            disabled={!c.ready}
+            onClick={() => onPick(c.id)}
+          >
+            <span className="at-cktext">
+              <b>{c.name}</b>
+              <i>{waiting(c.ready)}</i>
+            </span>
+          </button>
+        ))}
+        <button
+          className={`at-ck${chosen === "" ? " on" : ""}`}
+          disabled={!ready}
+          onClick={() => onPick("")}
+        >
+          <span className="at-cktext">
+            <b>All languages</b>
+            <i>{waiting(ready)}, mixed together</i>
+          </span>
+        </button>
+      </div>
+    </Screen>
+  );
+}
+
+/* ------------------------------------------------------------------
    Full-screen: build a session by hand
    ------------------------------------------------------------------ */
 
 const COUNT_CHOICES = [10, 20, 30, 50];
 const TIME_CHOICES = [2, 3, 5, 10];
 
+/**
+ * @param {{
+ *   items: Item[], allTags: string[], settings: Settings,
+ *   onStart: (plan: any) => void, onClose: () => void,
+ * }} props
+ */
 function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
   const [step, setStep] = useState(0);
   /* No mode until one is chosen. A pre-selected card looks like an answer
@@ -5561,7 +6386,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
      is the last one to hand somebody by default. */
   const [mode, setMode] = useState("");
   const [picked, setPicked] = useState(() => new Set());
-  const [openTag, setOpenTag] = useState(null);
+  const [openTag, setOpenTag] = useState(/** @type {string | null} */ (null));
   /* "" until one of the two is chosen — the same reason the mode starts
      unset. It used to open on 20 questions already lit, which is a length
      nobody asked for sitting where the answer goes. */
@@ -5571,7 +6396,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const onKey = (/** @type {KeyboardEvent} */ e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -5607,19 +6432,19 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
     );
   }, [eligible, q]);
 
-  const toggleOne = (id) =>
+  const toggleOne = (/** @type {string} */ id) =>
     setPicked((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
 
-  const tagState = (group) => {
+  const tagState = (/** @type {Item[]} */ group) => {
     const on = group.filter((i) => picked.has(i.id)).length;
     return on === 0 ? "none" : on === group.length ? "all" : "some";
   };
 
-  const toggleTag = (group) =>
+  const toggleTag = (/** @type {Item[]} */ group) =>
     setPicked((prev) => {
       const next = new Set(prev);
       const all = group.every((i) => next.has(i.id));
@@ -5675,7 +6500,8 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
    * room for them, and the button keeps its verb.
    */
   const LABEL_LIMIT = 26;
-  const onButton = (reason) => (reason && reason.length <= LABEL_LIMIT ? reason : "");
+  const onButton = (/** @type {string} */ reason) =>
+    reason && reason.length <= LABEL_LIMIT ? reason : "";
   const spelledOut = [stepProblem, last ? problem : ""].find(
     (r) => r && r.length > LABEL_LIMIT
   );
@@ -5759,7 +6585,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
                       </span>
                       <span className="nm">{name}</span>
                       <span className="ct">
-                        {group.filter((i) => picked.has(i.id)).length}/{group.length}
+                        {group.filter((/** @type {Item} */ i) => picked.has(i.id)).length}/{group.length}
                       </span>
                     </button>
                     <button
@@ -5772,7 +6598,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
                   </div>
                   {openTag === name && (
                     <div className="at-tagpickcards">
-                      {group.map((it) => (
+                      {group.map((/** @type {Item} */ it) => (
                         <button
                           key={it.id}
                           className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
@@ -5899,6 +6725,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
 
 
 /* A read-only rendering of what is about to be saved. */
+/**
+ * @param {{
+ *   item: Item, units: { unit: Form, isSub: boolean }[], index: number, total: number,
+ *   onRemove?: () => void, onEdit?: () => void,
+ * }} props
+ */
 function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
   const counts = familyCounts(item);
   return (
@@ -5957,7 +6789,10 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
             {unit.note && <p className="at-note">{unit.note}</p>}
 
             <ClipList
-                    clips={(unit.recs || []).map((r, i) => ({ id: r.id, label: r.label || `Voice ${i + 1}` }))}
+                    clips={(unit.recs || []).map((/** @type {any} */ r, /** @type {number} */ i) => ({
+                      id: r.id,
+                      label: r.label || `Voice ${i + 1}`,
+                    }))}
                     load={clipUrl}
                   />
 
@@ -6009,6 +6844,14 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
    Full-screen: add many, with a review step
    ------------------------------------------------------------------ */
 
+/**
+ * @param {{
+ *   allTags: string[],
+ *   onAdd: (items: any[]) => void,
+ *   onImport: (file: File) => void,
+ *   onClose: () => void,
+ * }} props
+ */
 function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
   const [bulk, setBulk] = useState("");
   const [step, setStep] = useState("paste");
@@ -6118,7 +6961,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
       ) : (
         <>
           <Help>
-            Every row as it will be stored. {parsed.skipped > 0 && `${parsed.skipped} line(s) couldn't be read and were dropped. `}
+            Every row as it will be stored. {!!parsed.skipped && `${parsed.skipped} line(s) couldn't be read and were dropped. `}
             {weak > 0 && (
               <span className="at-warn">
                 {plural(weak, "item")} lack two exercise types and won't be
@@ -6159,11 +7002,13 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
 
 /* How far along a whole family is: the mean across every form and every
    exercise type it supports. 1 means every one of them is mature. */
+/** @param {Item} it */
 function itemProgress(it) {
+  /** @type {number[]} */
   const vals = [];
   for (const { unit } of unitsOf(it)) {
     for (const t of availableTypes(unit)) {
-      const st = unit.s[t];
+      const st = statesOf(unit)[t];
       if (st.phase === "new") vals.push(0);
       else if (st.phase === "review") vals.push(Math.min(1, (st.interval || 0) / MATURE_DAYS));
       else vals.push(0.15);
@@ -6178,6 +7023,7 @@ function itemProgress(it) {
    small card in the app. A real button rather than a div with a click on
    it: it has nothing interactive inside it, so it can be the one thing
    you press, and reach with a keyboard. */
+/** @param {{ item: Item, progress?: any, onOpen?: () => void }} props */
 function ItemProgressCard({ item, progress, onOpen }) {
   const p = progress === undefined ? itemProgress(item) : progress;
   const done = p !== null && p >= 1;
@@ -6211,99 +7057,122 @@ function ItemProgressCard({ item, progress, onOpen }) {
 /* Progress per card is worked out once per change of the cards, in the tab,
    and handed down — not once per section and again per tile on every
    render. */
-const TagSection = React.memo(function TagSection({
-  name,
-  items: group,
-  open,
-  onToggle,
-  onPractice,
-  progressOf,
-  onOpen,
-}) {
-  const [arming, setArming] = useState(false);
-  const scored = group.map((it) => progressOf.get(it.id)).filter((x) => x != null);
-  const mean = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : 0;
-  const done = scored.filter((x) => x >= 1).length;
+const TagSection = React.memo(
+  /**
+   * @param {{
+   *   name: string,
+   *   items: Item[],
+   *   open: boolean,
+   *   onToggle: () => void,
+   *   onPractice: (ids: string[], mode: string) => void,
+   *   progressOf: Map<string, number | null>,
+   *   onOpen: (it: Item) => void,
+   * }} props
+   */
+  function TagSection({
+    name,
+    items: group,
+    open,
+    onToggle,
+    onPractice,
+    progressOf,
+    onOpen,
+  }) {
+    const [arming, setArming] = useState(false);
+    const scored = group
+      .map((it) => progressOf.get(it.id))
+      .filter((/** @type {number | null | undefined} x */ x) => x != null);
+    const mean = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : 0;
+    const done = scored.filter((x) => x >= 1).length;
 
-  return (
-    <div className="at-tagsec">
-      <div className="at-tagsecbar">
-        <span className="nm">{name}</span>
-        <button
-          className={`at-btn sm${arming ? " primary" : " ghost"}`}
-          onClick={() => setArming((v) => !v)}
-        >
-          <Icon name={arming ? "close" : "cards"} size={16} />
-          {arming ? "Cancel" : "Practice"}
-        </button>
-        <span className="ct">
-          {done}/{group.length} learnt
-        </span>
-        <button
-          className="at-icon at-chev"
-          onClick={onToggle}
-          aria-expanded={open}
-          aria-label={open ? `Hide ${name}` : `Show ${name}`}
-          title={open ? "Hide cards" : "Show cards"}
-        >
-          <Icon name={open ? "chevronUp" : "chevronDown"} size={18} />
-        </button>
-      </div>
-
-      {arming && (
-        <div className="at-modepick">
-          <p className="at-miniq">
-            How should these {plural(group.length, "card")} be practiced?
-          </p>
-          {Object.entries(MODES).map(([key, m]) => (
-            <button
-              key={key}
-              className="at-modepickopt"
-              onClick={() => {
-                setArming(false);
-                onPractice(group.map((i) => i.id), key);
-              }}
-            >
-              <b>{m.label}</b>
-              <span>{m.blurb}</span>
-            </button>
-          ))}
+    return (
+      <div className="at-tagsec">
+        <div className="at-tagsecbar">
+          <span className="nm">{name}</span>
+          <button
+            className={`at-btn sm${arming ? " primary" : " ghost"}`}
+            onClick={() => setArming((v) => !v)}
+          >
+            <Icon name={arming ? "close" : "cards"} size={16} />
+            {arming ? "Cancel" : "Practice"}
+          </button>
+          <span className="ct">
+            {done}/{group.length} learnt
+          </span>
+          <button
+            className="at-icon at-chev"
+            onClick={onToggle}
+            aria-expanded={open}
+            aria-label={open ? `Hide ${name}` : `Show ${name}`}
+            title={open ? "Hide cards" : "Show cards"}
+          >
+            <Icon name={open ? "chevronUp" : "chevronDown"} size={18} />
+          </button>
         </div>
-      )}
-      <div className="at-pbar lg">
-        <i
-          className={done === group.length && group.length ? "full" : ""}
-          style={{ width: `${Math.max(2, mean * 100)}%` }}
-        />
-      </div>
-      {open && (
-        <div className="at-pgrid">
-          {group.map((it) => (
-            <ItemProgressCard
-              item={it}
-              key={it.id}
-              progress={progressOf.get(it.id)}
-              onOpen={() => onOpen(it)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-});
 
+        {arming && (
+          <div className="at-modepick">
+            <p className="at-miniq">
+              How should these {plural(group.length, "card")} be practiced?
+            </p>
+            {Object.entries(MODES).map(([key, m]) => (
+              <button
+                key={key}
+                className="at-modepickopt"
+                onClick={() => {
+                  setArming(false);
+                  onPractice(group.map((i) => i.id), key);
+                }}
+              >
+                <b>{m.label}</b>
+                <span>{m.blurb}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="at-pbar lg">
+          <i
+            className={done === group.length && group.length ? "full" : ""}
+            style={{ width: `${Math.max(2, mean * 100)}%` }}
+          />
+        </div>
+        {open && (
+          <div className="at-pgrid">
+            {group.map((it) => (
+              <ItemProgressCard
+                item={it}
+                key={it.id}
+                progress={progressOf.get(it.id)}
+                onOpen={() => onOpen(it)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+);
+
+/**
+ * @param {{
+ *   data: any, items: Item[], myCourses?: Course[],
+ *   settings: Settings, onPractice: (ids: string[], mode: string) => void,
+ * }} props
+ */
 function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
   // Collapsed by default: the point of this screen is the overview.
   const [open, setOpen] = useState(() => new Set());
-  const [viewing, setViewing] = useState(null);
+  const [viewing, setViewing] = useState(/** @type {any | null} */ (null));
 
   const progressOf = useMemo(() => {
+    /** @type {Map<string, number | null>} */
     const m = new Map();
     for (const it of items) m.set(it.id, itemProgress(it));
     return m;
   }, [items]);
 
   const buckets = ["new", "learning", "young", "mature"];
+  /** @type {Record<string, number>} */
   const totals = { new: 0, learning: 0, young: 0, mature: 0 };
   for (const it of items) totals[familyMaturity(it)] += 1;
 
@@ -6329,7 +7198,7 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
     return out;
   }, [items]);
 
-  const toggle = (name) =>
+  const toggle = (/** @type {string} */ name) =>
     setOpen((prev) => {
       const next = new Set(prev);
       next.has(name) ? next.delete(name) : next.add(name);
@@ -6455,6 +7324,12 @@ function Guide() {
    to anyone else — the handle does the public work.
    ------------------------------------------------------------------ */
 
+/*
+ * The sign-in key is on the account this device holds, not on a `User`:
+ * a User is what everyone else sees, and the key is the one part of it
+ * that never leaves the device that signed in.
+ */
+/** @param {{ me: User & { key: string }, onRename: (name: string) => void }} props */
 function AccountPanel({ me, onRename }) {
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -6537,6 +7412,7 @@ function AccountPanel({ me, onRename }) {
 
 /* Closing an account is irreversible, so it asks for the handle rather
    than a yes/no anyone taps through. */
+/** @param {{ handle: string, onClosed: () => void }} props */
 function CloseAccount({ handle, onClosed }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
@@ -6605,6 +7481,7 @@ function CloseAccount({ handle, onClosed }) {
    around it.
    ------------------------------------------------------------------ */
 
+/** @param {string | null} [name] */
 const initialsOf = (name) =>
   String(name || "?")
     .split(/\s+/)
@@ -6613,7 +7490,9 @@ const initialsOf = (name) =>
     .join("")
     .toUpperCase() || "?";
 
+/** @type {Record<string, string>} */
 const SPACE_LABEL = { learn: "Learning", teach: "Teaching", admin: "Admin" };
+/** @type {Record<string, string>} */
 const SPACE_ICON = { learn: "cards", teach: "school", admin: "tune" };
 
 /* Which part of the app you are in, sitting beside the account menu.
@@ -6623,6 +7502,7 @@ const SPACE_ICON = { learn: "cards", teach: "school", admin: "tune" };
    A row rather than a dropdown: there are at most three, and moving this out
    of the menu was about reaching them in one tap. Shown only to people with
    somewhere to go — a student who only studies sees nothing. */
+/** @param {{ space: string, spaces: string[], onSpace: (space: string) => void }} props */
 function SpaceSwitch({ space, spaces, onSpace }) {
   if (!spaces || spaces.length < 2) return null;
   return (
@@ -6669,6 +7549,7 @@ const APP_COMMIT = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev"
 const APP_BUILT_AT = typeof __BUILT_AT__ === "string" ? __BUILT_AT__ : "";
 
 /* Short and local: enough to tell two deploys on the same day apart. */
+/** @param {string} [iso] */
 function buildStamp(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -6685,7 +7566,7 @@ function AppVersion() {
   /* null while asking, then the server's answer, or false if it could not
      be reached — which is not an error worth showing: offline is a normal
      state for this app, and it says nothing about the deploy. */
-  const [deployed, setDeployed] = useState(null);
+  const [deployed, setDeployed] = useState(/** @type {any | null} */ (null));
   const [busy, setBusy] = useState(false);
   /* The reload waits for the new worker to take over, which takes a
      moment — so the button says it is working rather than looking like
@@ -6745,66 +7626,13 @@ function AppVersion() {
      and only the hash tells them apart. */
   const stale = deployed && deployed.commit !== APP_COMMIT;
 
-  /*
-   * Reload onto the build that is actually deployed.
-   *
-   * The hard part is not the reload, it is that a reload is answered by
-   * whichever service worker is in charge at that moment. Asking the
-   * worker to look for an update and then reloading straight away — which
-   * is what this did — reloads while the old worker is still in charge,
-   * so the old files come back and the button looks broken. Press it
-   * again a moment later and it works, because by then the new worker has
-   * taken over. That is the two presses.
-   *
-   * So: ask for the update, then wait for the new worker to actually take
-   * control before reloading. The worker this app ships calls
-   * skipWaiting and clientsClaim, so it takes over by itself once it has
-   * installed; controllerchange is the event that says it has.
-   */
-  async function reload() {
+  /* Reload onto the build that is actually deployed. The waiting for the
+     new worker to take over is in updates.js, with the rest of it: what
+     this button does by hand is what the app now does by itself, and the
+     two had drifted into two versions of the same dance. */
+  function reload() {
     setReloading(true);
-    let done = false;
-    const go = () => {
-      if (done) return;
-      done = true;
-      window.location.reload();
-    };
-    /* Never leave the button spinning: if no new worker arrives — the
-       update was already applied, there is no worker at all, or something
-       went wrong out of our sight — reload anyway. */
-    const giveUp = setTimeout(go, 5000);
-
-    try {
-      const sw = navigator.serviceWorker;
-      const reg = sw && (await sw.getRegistration());
-      if (!reg) return go();
-
-      /* Whoever takes over, whenever, this is the moment to reload. */
-      sw.addEventListener("controllerchange", go, { once: true });
-
-      await reg.update();
-
-      const fresh = reg.installing || reg.waiting;
-      /* Nothing new to wait for: either it had already updated in the
-         background, or the deploy is not reachable from here. Reloading
-         is still the right answer — the page may simply be running an
-         older bundle than the worker already holds. */
-      if (!fresh) return go();
-
-      /* Belt and braces for a worker built without skipWaiting, where it
-         would otherwise sit in waiting until every tab is closed. */
-      const nudge = () => reg.waiting && reg.waiting.postMessage({ type: "SKIP_WAITING" });
-      nudge();
-      fresh.addEventListener("statechange", () => {
-        nudge();
-        if (fresh.state === "activated") go();
-      });
-    } catch (e) {
-      /* No worker, or it refused. Reloading is still worth a try. */
-      go();
-    } finally {
-      if (done) clearTimeout(giveUp);
-    }
+    return applyUpdate();
   }
 
   return (
@@ -6839,6 +7667,13 @@ function AppVersion() {
   );
 }
 
+/**
+ * @param {{
+ *   account: User | null, syncState?: string, onSyncNow: () => void,
+ *   theme?: string, onTheme: (theme: string) => void,
+ *   onAccount: () => void, onPrefs: () => void, onGuide: () => void,
+ * }} props
+ */
 function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }) {
   const [open, setOpen] = useState(false);
 
@@ -6970,6 +7805,17 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
    reached from the menu in the corner.
    ------------------------------------------------------------------ */
 
+/*
+ * A router, not a screen of its own: which of the three it shows is the
+ * caller's `kind`. The rest of the props are the two screens' own, which
+ * is why they are asked for together — there is one caller and it passes
+ * both sets.
+ */
+/**
+ * @param {{ kind?: string, onClose: () => void }
+ *   & React.ComponentProps<typeof AccountSettings>
+ *   & React.ComponentProps<typeof AppPreferences>} props
+ */
 function SettingsScreen({ kind, onClose, ...rest }) {
   const title =
     kind === "account" ? "Account settings" : kind === "guide" ? "How it works" : "App preferences";
@@ -6986,6 +7832,19 @@ function SettingsScreen({ kind, onClose, ...rest }) {
   );
 }
 
+/**
+ * @param {{
+ *   account: User & { key: string },
+ *   onRename: (name: string) => void,
+ *   onReset?: () => void,
+ *   isAdmin?: boolean,
+ *   onOpenAdmin?: () => void,
+ *   onBecameAdmin?: () => void,
+ *   onCloseAccount: () => void,
+ *   onLogOut: () => void,
+ *   allClipIds?: string[],
+ * }} props
+ */
 function AccountSettings({
   account,
   onRename,
@@ -6998,8 +7857,8 @@ function AccountSettings({
   allClipIds = [],
 }) {
   /* The storage figures moved here with the section that shows them. */
-  const [stats, setStats] = useState(null);
-  const [warming, setWarming] = useState(null); // { done, total, fetched }
+  const [stats, setStats] = useState(/** @type {any | null} */ (null));
+  const [warming, setWarming] = useState(/** @type {any | null} */ (null)); // { done, total, fetched }
 
   async function downloadAll() {
     const total = new Set(allClipIds).size;
@@ -7154,7 +8013,7 @@ function AccountSettings({
                 onCancel={() => setResetting(false)}
                 onConfirm={() => {
                   setResetting(false);
-                  onReset();
+                  if (onReset) onReset();
                 }}
               />
             )}
@@ -7174,6 +8033,13 @@ function AccountSettings({
   );
 }
 
+/**
+ * @param {{
+ *   settings: Settings,
+ *   setSetting: (key: string, value: any) => void,
+ *   toggleIn: (key: string, value: any) => void,
+ * }} props
+ */
 function AppPreferences({ settings, setSetting, toggleIn }) {
   const [advanced, setAdvanced] = useState(false);
 
@@ -7402,7 +8268,7 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
                     options={
                       opt.toggle
                         ? [{ value: false, label: "Exact" }, { value: true, label: "Lenient" }]
-                        : opt.choices.map(([value, label]) => ({ value, label }))
+                        : (opt.choices || []).map(([value, label]) => ({ value, label }))
                     }
                     value={opt.toggle ? !!settings[opt.key] : settings[opt.key]}
                     onChange={(v) => setSetting(opt.key, v)}
@@ -7424,12 +8290,17 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
   );
 }
 
+/**
+ * @param {Item[]} pool
+ * @param {Settings} settings
+ */
 function nextDueLine(pool, settings) {
+  /** @type {Millis[]} */
   const future = [];
   for (const it of pool) {
     for (const { unit } of drillableUnits(it, settings)) {
       for (const t of enabledTypes(unit, settings)) {
-        const d = unit.s[t].due || 0;
+        const d = statesOf(unit)[t].due || 0;
         if (d > now()) future.push(d);
       }
     }

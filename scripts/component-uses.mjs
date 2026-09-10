@@ -24,6 +24,7 @@ const FILES = ["src/shared.jsx", "src/ArabicTrainer.jsx", "src/spaces.jsx"];
 
 /* Comments hold example markup — the library's own doc comments are full of
    <Screen …> — so they have to go before anything is counted. */
+/** @param {string} source */
 function stripComments(source) {
   let out = "";
   let i = 0;
@@ -54,7 +55,13 @@ export function libraryComponents() {
 
 /* A file may rename what it imports: the trainer takes Field as FormField,
    so counting "<Field" there would find nothing at all. */
+/**
+ * @param {string} source
+ * @param {string[]} components
+ * @returns {Map<string, string>}
+ */
 function localNames(source, components) {
+  /** @type {Map<string, string>} */
   const map = new Map();
   for (const name of components) map.set(name, name);
   const block = /import\s*\{([\s\S]*?)\}\s*from\s*["']\.\/shared\.jsx["']/.exec(source);
@@ -72,6 +79,10 @@ function localNames(source, components) {
 
 /* The nearest declaration at the left margin: which component the call site
    is inside. Good enough to find the place, and it does not need a parser. */
+/**
+ * @param {string[]} lines
+ * @param {number} index
+ */
 function enclosing(lines, index) {
   for (let i = index; i >= 0; i--) {
     const m = /^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+(\w+)|^(?:export\s+)?const\s+(\w+)\s*=/.exec(lines[i]);
@@ -80,8 +91,13 @@ function enclosing(lines, index) {
   return "(top level)";
 }
 
+/**
+ * Where each component of the library is used, in the app's own files.
+ * @typedef {{ file: string, line: number, where: string, as?: string }} Use
+ */
 export function scan() {
   const components = libraryComponents();
+  /** @type {Record<string, Use[]>} */
   const uses = Object.fromEntries(components.map((name) => [name, []]));
 
   for (const rel of FILES) {
@@ -113,6 +129,7 @@ export function scan() {
   return uses;
 }
 
+/** @param {Record<string, Use[]>} uses */
 export function render(uses) {
   const body = Object.entries(uses)
     .map(([name, list]) => {
@@ -138,7 +155,7 @@ export function render(uses) {
  *
  * The gallery itself is not counted: it renders one of everything.
  */
-export const COMPONENT_USES = {
+/** @type {Record<string, { file: string, line: number, where: string, as?: string }[]>} */\nexport const COMPONENT_USES = {
 ${body}
 };
 `;

@@ -1,3 +1,4 @@
+/** @import { Clock, ExerciseState, Form, Item } from "./types.js" */
 /*
  * When a card comes back.
  *
@@ -42,13 +43,17 @@ export const MATURE_DAYS = 21;
  * one object gets a world that holds still.
  */
 export const REAL_CLOCK = { now: Date.now, random: Math.random };
+/** @type {(clock?: Clock) => number} */
 const timeOf = (clock) => (clock && clock.now ? clock.now() : Date.now());
+/** @type {(clock?: Clock) => number} */
 const jitterOf = (clock) => (clock && clock.random ? clock.random() : Math.random());
 
+/** @type {(e: number) => number} */
 const clampEase = (e) => Math.max(MIN_EASE, Math.min(MAX_EASE, e));
 
 /* ±5%, so a hundred cards learnt on one evening do not all come back on
    one evening. */
+/** @type {(clock?: Clock) => number} */
 const fuzz = (clock) => 0.95 + jitterOf(clock) * 0.1;
 
 export function freshState() {
@@ -71,7 +76,12 @@ export function freshState() {
 
 /* One fresh state per exercise type. Takes the list so the caller decides
    what "every type" means — the app passes the real one. */
+/**
+ * @param {string[]} [types]
+ * @returns {Record<string, ExerciseState>}
+ */
 export function freshStates(types = TYPES) {
+  /** @type {Record<string, ExerciseState>} */
   const s = {};
   for (const t of types) s[t] = freshState();
   return s;
@@ -81,8 +91,15 @@ export function freshStates(types = TYPES) {
    Spaced repetition (SM-2)
    ------------------------------------------------------------------ */
 
+/**
+ * @param {ExerciseState} prev
+ * @param {string} rating
+ * @param {Clock} [clock]
+ * @returns {ExerciseState}
+ */
 export function reschedule(prev, rating, clock = REAL_CLOCK) {
   const at = timeOf(clock);
+  /** @type {(n: number) => number} */
   const inDays = (n) => at + n * DAY;
   const s = { ...prev };
   s.reps += 1;
@@ -159,10 +176,15 @@ export function reschedule(prev, rating, clock = REAL_CLOCK) {
 /* A state with no record yet has never been asked and so is ready by
    definition. In memory every state should exist; this is the guard for
    the render that happens before a lift catches up. */
+/**
+ * @param {ExerciseState | null | undefined} s
+ * @param {Clock} [clock]
+ */
 export function stateReady(s, clock = REAL_CLOCK) {
   return !s || s.phase === "new" || (s.due || 0) <= timeOf(clock);
 }
 
+/** @param {ExerciseState} s Read on entry with no guard, unlike stateReady. */
 export function maturity(s) {
   if (s.phase === "new") return "new";
   if (s.phase === "learning" || s.phase === "relearning") return "learning";
@@ -175,6 +197,7 @@ export const MATURITY_ORDER = ["new", "learning", "young", "mature"];
    Automatic difficulty
    ------------------------------------------------------------------ */
 
+/** @param {ExerciseState} s Read on entry with no guard, unlike stateReady. */
 export function difficultyScore(s) {
   const attempts = (s.right || 0) + (s.wrong || 0);
   if (!attempts) return 0;
@@ -187,6 +210,7 @@ export function difficultyScore(s) {
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
+/** @param {ExerciseState} s Read on entry with no guard, unlike stateReady. */
 export function difficulty(s) {
   if ((s.right || 0) + (s.wrong || 0) < 2) return "unrated";
   const score = difficultyScore(s);
@@ -201,10 +225,25 @@ export function difficulty(s) {
 
 /* A card, then each of its forms — a plural, a feminine — each of which
    carries its own progress. */
+/**
+ * A card and its other forms, each drilled in its own right.
+ *
+ * What comes back are forms, not cards: the card is the first of them, and
+ * the rest carry no tags, no lock and no deck. Everything downstream reads
+ * the wording and the schedule, which is all a form has and all it needs.
+ *
+ * Takes nothing as well as a card: callers walk whatever they were handed
+ * — a card looked up by an id that has since been withdrawn, most often —
+ * and the guard below is what makes that a one-entry list rather than a
+ * crash. The tests cover it, so the signature says it.
+ * @param {Item | null | undefined} item
+ * @returns {{ unit: Form, isSub: boolean }[]}
+ */
 export function unitsOf(item) {
-  return [{ unit: item, isSub: false }].concat(
-    ((item && item.subs) || []).map((sb) => ({ unit: sb, isSub: true }))
-  );
+  /** @type {{ unit: Form, isSub: boolean }[]} */
+  const units = [{ unit: /** @type {Form} */ (item), isSub: false }];
+  for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
+  return units;
 }
 
 /*
@@ -215,22 +254,34 @@ export function unitsOf(item) {
  * in because the answer depends on the language pack and on the index of
  * phrases that show a word in use — neither of which belongs in here.
  */
+/**
+ * @param {Item} it
+ * @param {(unit: Form) => string[]} typesOf
+ */
 export function familyMaturity(it, typesOf) {
   let worst = null;
   for (const { unit } of unitsOf(it)) {
     for (const t of typesOf(unit)) {
-      const m = maturity(unit.s[t]);
+      const st = unit.s && unit.s[t];
+      if (!st) continue;
+      const m = maturity(st);
       if (worst === null || MATURITY_ORDER.indexOf(m) < MATURITY_ORDER.indexOf(worst)) worst = m;
     }
   }
   return worst || "new";
 }
 
+/**
+ * @param {Item} it
+ * @param {(unit: Form) => string[]} typesOf
+ */
 export function itemDifficulty(it, typesOf) {
   const rated = [];
   for (const { unit } of unitsOf(it)) {
     for (const t of typesOf(unit)) {
-      const d = difficulty(unit.s[t]);
+      const st = unit.s && unit.s[t];
+      if (!st) continue;
+      const d = difficulty(st);
       if (d !== "unrated") rated.push(d);
     }
   }
@@ -244,6 +295,7 @@ export function itemDifficulty(it, typesOf) {
    Saying when, in words
    ------------------------------------------------------------------ */
 
+/** @param {number} ms */
 export function formatGap(ms) {
   if (ms <= 0) return "now";
   const m = ms / MIN;
@@ -264,6 +316,10 @@ export function formatGap(ms) {
  * recorded here rather than fixed: whoever builds the first streak or
  * heatmap needs to pass the learner's offset in, and should find this
  * paragraph when they do.
+ */
+/**
+ * @param {number} [t]
+ * @param {Clock} [clock]
  */
 export function dayKey(t, clock = REAL_CLOCK) {
   return new Date(t === undefined ? timeOf(clock) : t).toISOString().slice(0, 10);

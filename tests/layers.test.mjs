@@ -19,7 +19,9 @@ import { readFileSync } from "node:fs";
 const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8")
   .replace(/\/\*[\s\S]*?\*\//g, ""); // comments can hold anything
 
-/* The tokens the layers are named by. */
+/* The tokens the layers are named by. Read out of the stylesheet, so what
+   is in it is what is keyed here. */
+/** @type {Record<string, number>} */
 const tokens = {};
 for (const [, name, value] of css.matchAll(/--(z-[a-z]+)\s*:\s*([^;]+);/g)) {
   tokens[`--${name}`] = Number(String(value).trim());
@@ -30,6 +32,9 @@ for (const [, name, value] of css.matchAll(/--(z-[a-z]+)\s*:\s*([^;]+);/g)) {
  * two-class selector, and the two never compete for the same element, so
  * "the last declaration wins" is the whole cascade for this file.
  */
+/* Selector to effective z-index, keyed by whatever selectors the file
+   actually holds. */
+/** @type {Record<string, number>} */
 const layer = {};
 for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
   const found = /(?:^|;)\s*z-index\s*:\s*([^;]+)/.exec(body);
@@ -107,6 +112,7 @@ test("dialogs sit above every screen", () => {
  * carry several rules, so taking the first would miss a declaration made
  * further down; they are all joined instead.
  */
+/** @param {string} selector */
 const rule = (selector) => {
   const parts = [];
   const needle = "\n" + selector + " {";
@@ -228,10 +234,32 @@ test("the quiet way out is text, like the flag beside it", () => {
     "the quiet button has picked up a rule of its own again");
 });
 
-test("the flag menu opens upward once the flag is at the foot", () => {
-  /* Below it is the bar and then the edge of the screen. */
+test("the flag menu covers the answer bar rather than floating over it", () => {
+  /* It used to open upward from the flag button, leaving Continue live an
+     inch below Send. Anchored to the foot's own bottom edge it takes the
+     bar's place while it is open, and its own Back button is the way out.
+     Both halves are needed: the bar is blurred, which makes a stacking
+     context of it, so without a layer of its own the menu would be painted
+     under a bar it is sitting exactly on top of. */
   const body = rule(".at-footextra .at-flagmenu");
-  assert.match(body, /bottom:\s*100%/, "the menu would open off the bottom of the screen");
+  assert.match(body, /bottom:\s*0/, "the menu no longer reaches the foot of the screen");
+  assert.match(body, /position:\s*absolute/);
+  assert.ok(layer[".at-footextra .at-flagmenu"] > 0,
+    "the menu has no layer, so the answer bar paints over it");
+  assert.match(rule(".at-footextra .at-flagwrap"), /position:\s*static/,
+    "the menu is measured from the flag button again, which cannot reach past the bar");
+});
+
+test("a screen that rises does it quickly, and not at all if you asked for less motion", () => {
+  /* It comes up from the foot of the window to say it is a step to the side
+     of what is underneath. That only works if it is over almost at once: a
+     long entrance turns a panel into somewhere new. */
+  const body = rule(".at-screen.rise");
+  assert.ok(body, "no screen rises any more");
+  const ms = Number((/(\d+)ms/.exec(body) || [])[1]);
+  assert.ok(ms > 0 && ms <= 200, `the rise takes ${ms}ms, which is long enough to be a journey`);
+  assert.match(css, /prefers-reduced-motion[\s\S]*?\.at-screen\.rise\s*\{\s*animation:\s*none/,
+    "the rise ignores a request for less motion");
 });
 
 test("the verdict is one size, and a large one", () => {

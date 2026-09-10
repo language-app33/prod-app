@@ -1,0 +1,52 @@
+{
+  /* What the type checker is here for, and why it is set up this way.
+   *
+   * The app is JavaScript and stays JavaScript. This adds a second reader
+   * of it — one that knows what shape everything is — beside the linter and
+   * the tests. It is aimed at one class of defect the other two miss: a
+   * value of the wrong shape passed across a boundary. Sending a whole
+   * language pack where the server wanted a language id was that bug, and
+   * it reached production because every reader it passed was happy.
+   *
+   * checkJs was false while this was being adopted, and each file opted in
+   * by starting with `// @ts-check`: turning it on at the outset would
+   * have buried the first commit under 19k lines of errors nobody asked
+   * for, and the per-file comment made adoption a file at a time with the
+   * project green after every one.
+   *
+   * Every file is adopted now, so the opt-in has been removed and this is
+   * true by default. That is the point of the change rather than tidiness:
+   * with checkJs false, a file added tomorrow would be checked only if
+   * somebody remembered the comment, which is the same failure the CI
+   * config warns about a few lines into its own file.
+   *
+   * strict has been on from the start. It cost nothing while adoption was
+   * partial, because it only applied to what had opted in — and a file
+   * adopted under loose rules would have had to be done twice.
+   */
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    /* The app is bundled by Vite and the server is run by Node with real
+       ESM. Both resolve the extension-bearing relative imports this code
+       is written with ("./shared.jsx"), which "bundler" allows and the
+       older node resolution modes argue about. */
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+
+    /* Nothing here is compiled by tsc, so these only affect what it will
+       accept while reading. */
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src", "server", "scripts", "tests", "vite.config.js", "eslint.config.js"],
+  "exclude": ["node_modules", "dist", "dev-dist", "tests/.smoke-build", "tests/.cards-build"]
+}

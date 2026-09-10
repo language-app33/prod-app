@@ -1,3 +1,6 @@
+/** @import { Lang } from "./types.js" */
+/** @typedef {React.ReactNode} Node */
+/** @typedef {{ file: string, line: number, where: string }} Use */
 /*
  * The component gallery.
  *
@@ -88,6 +91,7 @@ const ADMIN = "Admin";
 const START = "Signing in";
 const PARTS = "Inside another component";
 
+/** @type {Record<string, [string, string]>} */
 const PLACES = {
   /* The learner's app */
   ArabicTrainer: [LEARN, "The app around everything else"],
@@ -104,6 +108,7 @@ const PLACES = {
   AlsoBox: [LEARN, "A practice session · what else is worth knowing"],
   AudioPrompt: [LEARN, "A practice session · playing a recording"],
   ManualSessionSheet: [LEARN, "Building a session by hand"],
+  SessionLanguages: [LEARN, "Starting a session · which language"],
   ItemsTab: [LEARN, "The Cards tab"],
   ItemSheet: [LEARN, "The Cards tab · one card's details"],
   CardScreen: [LEARN, "Opening a card from a tile"],
@@ -128,12 +133,15 @@ const PLACES = {
   WordsUsed: [TEACH, "Editing a card · the words a phrase teaches"],
   ScriptInput: [TEACH, "Editing a card · writing in the language"],
   Recordings: [TEACH, "Editing a card · its recordings"],
+  RecordingScreen: [TEACH, "Editing a card · making a recording"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
   SelectionBar: [TEACH, "When several cards are selected"],
   CodeBox: [TEACH, "A code to hand out"],
 
   /* Admin */
   AdminSpace: [ADMIN, "The Admin space"],
+  BackupScreen: [ADMIN, "App · backing up and restoring"],
+  ClearScreen: [ADMIN, "App · clearing the site"],
 
   /* Before you are signed in */
   Onboarding: [START, "Signing in and joining a course"],
@@ -158,6 +166,7 @@ const PLACES = {
 
 /* Not in the table: say something readable rather than nothing, and put
    it under whichever part of the app its file belongs to. */
+/** @type {Record<string, string>} */
 const FILE_PART = {
   "ArabicTrainer.jsx": LEARN,
   "spaces.jsx": TEACH,
@@ -165,6 +174,7 @@ const FILE_PART = {
   "gallery.jsx": ADMIN,
 };
 
+/** @param {Use} use */
 export function placeOf(use) {
   const known = PLACES[use.where];
   if (known) return { part: known[0], name: known[1], known: true };
@@ -177,12 +187,14 @@ export function placeOf(use) {
 /* Every place it is used, gathered by part of the app. Several uses in
    one place become one line with a count, because "six times on the
    preferences screen" is the useful shape, not six identical rows. */
+/** @param {Use[]} uses */
 function groupUses(uses) {
+  /** @type {Map<string, Map<string, number>>} */
   const byPart = new Map();
   for (const use of uses) {
     const { part, name } = placeOf(use);
     if (!byPart.has(part)) byPart.set(part, new Map());
-    const places = byPart.get(part);
+    const places = byPart.get(part) || new Map();
     places.set(name, (places.get(name) || 0) + 1);
   }
   /* A fixed order, so the list reads the same way every time and the
@@ -192,12 +204,13 @@ function groupUses(uses) {
     .filter((part) => byPart.has(part))
     .map((part) => ({
       part,
-      places: [...byPart.get(part).entries()]
+      places: [...(byPart.get(part) || new Map()).entries()]
         .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .map(([name, count]) => ({ name, count })),
     }));
 }
 
+/** @param {{ name: string }} props */
 function Uses({ name }) {
   const uses = COMPONENT_USES[name];
   /* Hooks and helpers have a row but no call sites gathered for them. */
@@ -242,8 +255,14 @@ function Uses({ name }) {
  * each render, so a second render counts from one again and the numbers
  * are the document order every time.
  */
-const GalleryCount = React.createContext(null);
+/* The running numbers for a row and the specimens inside it. */
+const GalleryCount = React.createContext(
+  /** @type {{ n: number, row: number } | null} */ (null)
+);
 
+/**
+ * @param {{ name: string, what?: Node, note?: Node, children?: Node }} props
+ */
 function Row({ name, what, note, children }) {
   const uses = COMPONENT_USES[name];
   const tally = React.useContext(GalleryCount);
@@ -272,6 +291,9 @@ function Row({ name, what, note, children }) {
 
 /* A labelled specimen inside a row, so a variant can be pointed at by
    name rather than by position. */
+/**
+ * @param {{ label?: Node, children?: Node, wide?: boolean }} props
+ */
 function V({ label, children, wide }) {
   const spec = React.useContext(GalleryCount);
   const id = spec && spec.row ? `${spec.row}.${(spec.n += 1)}` : "";
@@ -346,7 +368,7 @@ export function ComponentGallery() {
   );
 
   /* Fresh every render, so the numbers are always document order. */
-  const tally = { row: 0 };
+  const tally = { row: 0, n: 0 };
 
   return (
     <GalleryCount.Provider value={tally}>
@@ -698,8 +720,8 @@ export function ComponentGallery() {
       </Row>
 
       <Row name="CardTile" what="One card tile, for the learner's list and the teacher's alike.">
-        <V label="card + lang + deckTitles" wide>
-          <CardTile card={SAMPLE_CARD} lang={SAMPLE_LANG} deckTitles={["Lesson 1"]} showLat />
+        <V label="card + lang + meta" wide>
+          <CardTile card={SAMPLE_CARD} lang={SAMPLE_LANG} meta="Lesson 1" showLat />
         </V>
       </Row>
 

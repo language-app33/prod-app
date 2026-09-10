@@ -8,6 +8,196 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.52 — 10 September 2026
+
+- Backing up and restoring are screens of their own now, and both ask what
+  the file should hold: people, courses, decks, cards, recordings. All of it
+  is the backup to keep; less of it is for the times you want the wording of
+  every card without a gigabyte of audio behind it, or one part of a site
+  put back without touching the rest.
+- A restore offers only the parts the file actually holds, and a file that
+  was made without a part is no longer reported as a broken file for not
+  having it.
+- "Check a file" and "Restore a file" are now "Verify a backup" and "Restore
+  a backup", and verifying says what it is for: a download cut short or a
+  file half-copied off a laptop looks perfectly good sitting on disk, and
+  this is how you find out on a quiet afternoon rather than during a
+  recovery.
+- Admin → App has a danger zone: clear the site of the same parts a backup
+  is made of. It asks for the deploy's admin key as well as an
+  administrator's account, and keeps the account of whoever runs it — a site
+  nobody can sign in to is not a site anyone can put right.
+
+## 0.51 — 10 September 2026
+
+- Getting onto a newly deployed version took a press of Reload and two
+  refreshes. It now takes one refresh, or none: the app puts itself onto
+  the new build as soon as the new version has arrived, and Reload does it
+  in a single press.
+- What was happening: the app's offline copy is kept by a worker that hands
+  over as soon as a new one is installed, and installing it is something a
+  page load does. So the load that fetched the new version was still
+  showing the old one, and only the load after that showed the new — while
+  pressing Reload part way through the handover started it again.
+- It waits for a moment that isn't in the way: never in the middle of a
+  question, and an app left open takes the new version the next time it is
+  put away, so coming back to it is coming back to the current one.
+
+## 0.50 — 10 September 2026
+
+- The two recordings on a listening question now split the row two thirds
+  to one: the one the card is asking for takes the wider share, the other
+  the narrower. Both are the same height and both still say what they are —
+  the difference is how much room each has, which holds the same on a small
+  phone as on a large one.
+
+## 0.49 — 10 September 2026
+
+- The recording the card is asking for now sits on the left, whichever
+  speed it is, and the other one to the right of it. The quieter one is the
+  same height as its neighbour again — a short button beside a tall one
+  read as a lesser kind of control — and gives up width instead: the
+  padding either side goes, so it takes only the room its icon and label
+  need.
+
+## 0.48 — 10 September 2026
+
+- Pressing the button while a recording is playing now stops it. It had
+  said Pause since the icons went in and started the clip over instead,
+  which is the one thing pause cannot mean. Pressing the other recording
+  still switches straight to it.
+- The recording a card's progress did not ask for is now smaller as well as
+  quieter, so which of the two the question is about can be seen without
+  reading either label. It is still a full-sized thing to press.
+
+## 0.47 — 10 September 2026
+
+- Which recording a listening question opens with now follows how far along
+  the card is. While a word is new, being learnt, or has just been missed,
+  the slow one plays and the ordinary one waits quietly beside it; from the
+  point the card is being reviewed it is the other way round, because
+  hearing the word at the speed it is really said is the thing being
+  learnt.
+- Both are always there and either can be pressed — the one the card did
+  not ask for simply gives up its fill and the colour on its icon, and takes
+  them back when you reach for it. Nothing about this changes how an answer
+  is marked or when the card comes round again.
+
+## 0.46 — 10 September 2026
+
+- A listening question now offers at most two buttons: the word, and the
+  word said slowly. Where a card holds both they sit side by side, told
+  apart by their icons — a solid play triangle, and the same triangle in a
+  broken circle. The ordinary one is what plays by itself.
+- The numbered row of voices under the button is gone with the thing it
+  picked. A teacher who recorded a word three times to get it right left
+  three takes on the card; ranking them was never a question a learner
+  wanted put to them. All of them are still on the card, and the teacher's
+  screen still lists every one.
+
+## 0.45 — 10 September 2026
+
+- If you're studying more than one language, Start session now asks which
+  one — or offers all of them in a single mixed session. With one language
+  it starts straight away, as before. Whichever you pick is what "Keep
+  going" carries on with.
+- Underneath that, a card now says which language it is in and is treated
+  accordingly: how its answer is marked, which exercises it supports, which
+  way its script runs, and which keys the answer box offers. Before, all of
+  that came from the one language the app was set to, so somebody in two
+  courses had half their cards read by the other language's rules.
+- Cards already on a device are taken to be in the language the app is set
+  to, which is what they were made under; course material says for itself
+  from the next time it arrives.
+
+## 0.44 — 10 September 2026
+
+- A card can now hold two kinds of recording: the word at regular speed,
+  and the word said slowly. Either, both or neither — a teacher decides per
+  form, and each recording says on it which it is.
+- Making them has moved off the card editor and onto a screen of its own,
+  which comes up from the foot of the window and goes again. The editor
+  still lists what a form has and plays it, which is the part you want
+  while you are looking at the words.
+- On that screen each speed has its own section saying in a line what it is
+  for, and each can be recorded on the spot or uploaded from a file.
+- A slow recording reaches a learner named as such, beside the ordinary one
+  rather than in place of it: a listening exercise still plays the word as
+  it is really said.
+
+## 0.43 — 10 September 2026
+
+- On a long report in Admin → Flags, the words now sit directly under the
+  title they carry on from, rather than between the question and the small
+  facts under it, where they read as a caption on the wrong thing. The
+  title takes a shorter run at them — about two lines — so the head of the
+  report does not become the report.
+
+## 0.42 — 10 September 2026
+
+- A report in Admin → Flags no longer says the same words twice. Since the
+  title took them over, the block underneath only holds what the title
+  could not — a long report, or one written over several lines — and a
+  short one is said once.
+
+## 0.41 — 10 September 2026
+
+- The flag panel's heading is centred, and under it a line says why it is
+  worth the half minute: any issue or feedback you report helps us improve
+  the app.
+- The box for "Something else" is drawn as the lower half of that option
+  rather than as a fourth thing sitting under three — one outline around
+  both, and it lights with the option when that is the one chosen.
+- Sending one now says "Thank you for the feedback 🫶".
+- Admin → Flags heads each report with the words that were typed —
+  "Something else: I don't understand how this app works" — so a screen of
+  them can be read down rather than opened one at a time. The whole of what
+  was written is still set out on the report itself.
+
+## 0.40 — 9 September 2026
+
+- Reporting a problem with a question is one panel now, and it stands on
+  top of the bar at the foot rather than floating above it — so Continue is
+  no longer live an inch below Send while you are part way through saying
+  what was wrong.
+- The panel says "Flag a problem" at its top, which is what the button it
+  covers said.
+- Everything in it is there from the moment it opens: the box for
+  "Something else", and Back and Send under the three options. Picking one
+  now only picks it — nothing is sent until you press Send, and Send waits
+  until something is chosen. Before, picking one of the first two sent the
+  report there and then, and the only way to reach a button was to pick
+  "Something else".
+
+## 0.39 — 9 September 2026
+
+- Learning → Courses no longer shows a "My courses" heading over nothing
+  before you have joined one. Until there is a first course, the screen is
+  the line saying what to do and the box to enter the code in.
+- The Play button in a listening exercise has a much larger icon and
+  slightly larger label. It is the one thing you press on that screen and it
+  was the size of a full stop.
+- A deck's line in Teaching and in Admin now says "Available to students in
+  the course *Arabic 101*" — naming one course or several — instead of
+  "Students see it in".
+- Teacher join codes are gone from the Teaching space; a course there shows
+  its student code only. A teacher code hands over control of the material,
+  so who holds one is the administrator's decision, and Admin is where it is
+  handed out.
+
+## 0.38 — 9 September 2026
+
+- Saving a card could fail if somebody deleted one of its decks at the same
+  moment. The save re-read the deck to pick up the change and got nothing
+  back, then tried to use it anyway. It now keeps the copy it already had.
+  Rare, and the sort of rare that happens on the one afternoon two people
+  are tidying decks together.
+- Everything else in this release is under the floor: the code is now read
+  by a type checker as well as by the linter and the tests, a file at a
+  time, starting with the ones where the app and the server hand things to
+  each other. It found the bug above. `README.md` says how it works, for
+  anyone working on the code.
+
 ## 0.37 — 9 September 2026
 
 - Reports in Admin → Flags named the wrong card, which showed up in two

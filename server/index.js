@@ -8,6 +8,7 @@
  * to apply the routing and cache headers netlify.toml used to describe.
  */
 
+/** @import { IncomingMessage, Server, ServerResponse } from "node:http" */
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
@@ -26,6 +27,9 @@ const PORT = Number(process.env.PORT) || 3000;
    refused outright, rather than buffered and then rejected. */
 const MAX_BODY_BYTES = 12 * 1024 * 1024;
 
+/* Open, because the path a request arrives on is a string like any
+   other and the lookup below has to be able to miss. */
+/** @type {Record<string, (req: Request) => Promise<Response>>} */
 const ROUTES = { "/api/courses": courses, "/api/sync": sync };
 
 /*
@@ -38,6 +42,7 @@ const ROUTES = { "/api/courses": courses, "/api/sync": sync };
  * the answer is that it is current: the browser is asking it precisely
  * because the copy it holds may be stale.
  */
+/** @param {ServerResponse} res */
 async function serveVersion(res) {
   const text = await readFile(path.join(DIST, "version.json"), "utf8").catch(() => null);
   if (text === null) return asJson(res, { error: "unbuilt" }, 404);
@@ -48,6 +53,7 @@ async function serveVersion(res) {
   }
 }
 
+/** @type {Record<string, string>} */
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -68,17 +74,23 @@ const TYPES = {
    names under /assets, so those can be kept forever; the service worker and
    the manifest must never be stale or an installed app won't see an
    update. */
+/** @param {string} urlPath */
 function cacheFor(urlPath) {
   if (urlPath.startsWith("/assets/")) return "public, max-age=31536000, immutable";
   if (urlPath === "/sw.js" || urlPath === "/manifest.webmanifest") return "no-cache";
   return "public, max-age=0, must-revalidate";
 }
 
+/**
+ * @param {IncomingMessage} req
+ * @returns {Promise<Buffer>}
+ */
 function readBody(req) {
   return new Promise((resolve, reject) => {
+    /** @type {Buffer[]} */
     const chunks = [];
     let size = 0;
-    req.on("data", (chunk) => {
+    req.on("data", (/** @type {Buffer} */ chunk) => {
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
         reject(Object.assign(new Error("too-large"), { tooLarge: true }));
@@ -92,9 +104,13 @@ function readBody(req) {
   });
 }
 
+/**
+ * @param {IncomingMessage} req
+ * @param {Buffer} [body]
+ */
 function toRequest(req, body) {
   const host = req.headers.host || `localhost:${PORT}`;
-  const url = new URL(req.url, `http://${host}`);
+  const url = new URL(req.url || "/", `http://${host}`);
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value === undefined) continue;
@@ -106,11 +122,19 @@ function toRequest(req, body) {
   return new Request(url.toString(), {
     method: req.method,
     headers,
-    body: hasBody && body && body.length ? body : undefined,
+    /* A Buffer is a Uint8Array and Request takes one. The DOM's BodyInit
+       is written for views onto a plain ArrayBuffer, which is narrower
+       than what Node hands out and than what the runtime accepts. */
+    body: hasBody && body && body.length ? /** @type {BodyInit} */ (body) : undefined,
   });
 }
 
+/**
+ * @param {ServerResponse} res
+ * @param {Response} response
+ */
 async function sendResponse(res, response) {
+  /** @type {Record<string, string>} */
   const headers = {};
   response.headers.forEach((value, name) => {
     headers[name] = value;
@@ -120,6 +144,11 @@ async function sendResponse(res, response) {
   res.end(buffer);
 }
 
+/**
+ * @param {ServerResponse} res
+ * @param {unknown} body
+ * @param {number} status
+ */
 const asJson = (res, body, status) => {
   const text = JSON.stringify(body);
   res.writeHead(status, {
@@ -130,6 +159,11 @@ const asJson = (res, body, status) => {
   res.end(text);
 };
 
+/**
+ * @param {ServerResponse} res
+ * @param {string} urlPath
+ * @param {string} [method]
+ */
 async function serveStatic(res, urlPath, method) {
   /* Resolve first, then check the result is still inside dist: that catches
      traversal however it was spelled, including encoded forms. */
@@ -172,7 +206,7 @@ async function serveStatic(res, urlPath, method) {
 export function createApp() {
   return createServer(async (req, res) => {
     try {
-      const urlPath = new URL(req.url, "http://localhost").pathname;
+      const urlPath = new URL(req.url || "/", "http://localhost").pathname;
 
       if (urlPath === "/api/version") return await serveVersion(res);
 
@@ -183,7 +217,9 @@ export function createApp() {
         try {
           body = await readBody(req);
         } catch (err) {
-          if (err && err.tooLarge) return asJson(res, { error: "too-large" }, 413);
+          if (typeof err === "object" && err && "tooLarge" in err) {
+            return asJson(res, { error: "too-large" }, 413);
+          }
           throw err;
         }
         const response = await handler(toRequest(req, body));
@@ -230,6 +266,7 @@ export function createApp() {
  */
 const SHUTDOWN_GRACE_MS = 5000;
 
+/** @param {Server} server */
 function closeOn(server) {
   let closing = false;
   for (const signal of ["SIGTERM", "SIGINT"]) {

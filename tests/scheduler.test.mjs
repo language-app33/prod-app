@@ -38,15 +38,32 @@ import {
   dayKey,
 } from "../src/scheduler.js";
 import { TYPES } from "../src/languages.js";
+/** @import { ExerciseState, Item } from "../src/types.js" */
 
 /* A Tuesday, so nothing depends on it being midnight or a month boundary. */
 const T = Date.UTC(2026, 8, 8, 12, 0, 0);
 const still = { now: () => T, random: () => 0.5 }; // 0.5 -> fuzz of exactly 1
+/** @param {number} random */
 const clock = (random) => ({ now: () => T, random: () => random });
 
 /* A state partway through review, so the interval maths has something to
    multiply. */
+/* Built from freshState rather than written out: a state the app holds is
+   always complete — freshState fills every field and nothing removes one —
+   so a fixture with only the two fields a reader happens to look at would
+   be testing a shape that cannot occur, and would go on passing if that
+   reader started looking at a third. */
+/**
+ * @param {Partial<ExerciseState>} [over]
+ * @returns {ExerciseState}
+ */
 const reviewing = (over = {}) => ({ ...freshState(), phase: "review", interval: 10, ease: 2.5, ...over });
+
+/**
+ * @param {Partial<ExerciseState>} [over]
+ * @returns {ExerciseState}
+ */
+const state = (over = {}) => ({ ...freshState(), ...over });
 
 /* ------------------------------------------------------------------
    Learning a card for the first time
@@ -211,9 +228,9 @@ test("rescheduling never mutates the state it was given", () => {
    ------------------------------------------------------------------ */
 
 test("a card is ready when its due time has come, and not before", () => {
-  assert.equal(stateReady({ phase: "review", due: T - 1 }, still), true);
-  assert.equal(stateReady({ phase: "review", due: T }, still), true, "exactly due counts as ready");
-  assert.equal(stateReady({ phase: "review", due: T + 1 }, still), false);
+  assert.equal(stateReady(state({ phase: "review", due: T - 1 }), still), true);
+  assert.equal(stateReady(state({ phase: "review", due: T }), still), true, "exactly due counts as ready");
+  assert.equal(stateReady(state({ phase: "review", due: T + 1 }), still), false);
 });
 
 test("a card never answered is ready, even with no state at all", () => {
@@ -223,26 +240,26 @@ test("a card never answered is ready, even with no state at all", () => {
 
 test("maturity is new, then learning, then young, then mature", () => {
   assert.equal(maturity(freshState()), "new");
-  assert.equal(maturity({ phase: "learning", interval: 0 }), "learning");
-  assert.equal(maturity({ phase: "relearning", interval: 40 }), "learning",
+  assert.equal(maturity(state({ phase: "learning", interval: 0 })), "learning");
+  assert.equal(maturity(state({ phase: "relearning", interval: 40 })), "learning",
     "a card being relearnt is not mature, however long its interval was");
   /* Written out rather than expressed in MATURE_DAYS: a threshold checked
      against itself is a sentence that cannot be false, and moving the
      constant would move this test silently along with it. Three weeks is
      the promise, so three weeks is what is written down. */
   assert.equal(MATURE_DAYS, 21, "three weeks");
-  assert.equal(maturity({ phase: "review", interval: 20 }), "young");
-  assert.equal(maturity({ phase: "review", interval: 21 }), "mature");
+  assert.equal(maturity(state({ phase: "review", interval: 20 })), "young");
+  assert.equal(maturity(state({ phase: "review", interval: 21 })), "mature");
 });
 
 test("difficulty needs two attempts before it says anything", () => {
-  assert.equal(difficulty({ right: 1, wrong: 0 }), "unrated");
-  assert.equal(difficulty({ right: 2, wrong: 0, ease: 2.5 }), "easy");
+  assert.equal(difficulty(state({ right: 1, wrong: 0 })), "unrated");
+  assert.equal(difficulty(state({ right: 2, wrong: 0, ease: 2.5 })), "easy");
 });
 
 test("a card failed repeatedly scores harder than one answered cleanly", () => {
-  const clean = difficultyScore({ right: 10, wrong: 0, ease: 2.5 });
-  const rough = difficultyScore({ right: 2, wrong: 8, ease: 1.8, lapses: 3 });
+  const clean = difficultyScore(state({ right: 10, wrong: 0, ease: 2.5 }));
+  const rough = difficultyScore(state({ right: 2, wrong: 8, ease: 1.8, lapses: 3 }));
   assert.ok(rough > clean, `${rough} should exceed ${clean}`);
   assert.equal(clean, 0);
   assert.ok(rough <= 100 && rough >= 0, "the score stays inside 0-100");
@@ -254,35 +271,50 @@ test("a card failed repeatedly scores harder than one answered cleanly", () => {
 
 const twoTypes = () => ["ar2en", "en2ar"];
 
+/* A card, complete, so the fixtures below stand for something the app can
+   actually hold. Only `s` and `subs` are ever varied here — the rest is
+   what every card carries and what the family readers walk past. */
+/**
+ * @param {Partial<Item>} [over]
+ * @returns {Item}
+ */
+const card = (over = {}) => ({
+  id: "a", ar: "كتاب", en: "book", lat: "kitaab", tags: [], created: 0, updated: 0,
+  s: freshStates(), subs: [], ...over,
+});
+
 test("a family is only as grown-up as its weakest form", () => {
-  const mature = { s: { ar2en: { phase: "review", interval: 40 }, en2ar: { phase: "review", interval: 40 } } };
-  const item = { ...mature, subs: [{ s: { ar2en: freshState(), en2ar: freshState() } }] };
-  assert.equal(familyMaturity({ ...mature, subs: [] }, twoTypes), "mature");
+  const grown = { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) };
+  const item = card({ s: grown, subs: [card({ id: "a-f0", s: { ar2en: freshState(), en2ar: freshState() } })] });
+  assert.equal(familyMaturity(card({ s: grown }), twoTypes), "mature");
   assert.equal(familyMaturity(item, twoTypes), "new",
     "one untouched plural holds the whole family at new");
 });
 
 test("a family is as hard as its hardest form", () => {
-  const easy = { right: 10, wrong: 0, ease: 2.5 };
-  const hard = { right: 1, wrong: 9, ease: 1.4, lapses: 4, skips: 3 };
-  const item = { s: { ar2en: easy, en2ar: easy }, subs: [{ s: { ar2en: hard, en2ar: easy } }] };
+  const easy = state({ right: 10, wrong: 0, ease: 2.5 });
+  const hard = state({ right: 1, wrong: 9, ease: 1.4, lapses: 4, skips: 3 });
+  const item = card({
+    s: { ar2en: easy, en2ar: easy },
+    subs: [card({ id: "a-f0", s: { ar2en: hard, en2ar: easy } })],
+  });
   assert.equal(itemDifficulty(item, twoTypes), "hard");
-  assert.equal(itemDifficulty({ s: { ar2en: easy, en2ar: easy } }, twoTypes), "easy");
+  assert.equal(itemDifficulty(card({ s: { ar2en: easy, en2ar: easy } }), twoTypes), "easy");
 });
 
 test("a card whose types are all unsupported reports new, not a crash", () => {
   /* This is the shape behind a real hole: switch off every exercise type a
      card supports and it stays in the New pile with nothing ever offered.
      The maths does not crash on it, which is why the hole is quiet. */
-  assert.equal(familyMaturity({ s: {}, subs: [] }, () => []), "new");
-  assert.equal(itemDifficulty({ s: {}, subs: [] }, () => []), "unrated");
+  assert.equal(familyMaturity(card({ s: {} }), () => []), "new");
+  assert.equal(itemDifficulty(card({ s: {} }), () => []), "unrated");
 });
 
 test("unitsOf lists the card first, then each of its forms", () => {
-  const item = { id: "a", subs: [{ id: "b" }, { id: "c" }] };
+  const item = card({ subs: [card({ id: "b" }), card({ id: "c" })] });
   assert.deepEqual(unitsOf(item).map((u) => [u.unit.id, u.isSub]),
     [["a", false], ["b", true], ["c", true]]);
-  assert.deepEqual(unitsOf({ id: "a" }).map((u) => u.unit.id), ["a"], "a card with no forms");
+  assert.deepEqual(unitsOf(card()).map((u) => u.unit.id), ["a"], "a card with no forms");
   assert.deepEqual(unitsOf(undefined).map((u) => u.unit), [undefined], "and no crash on nothing");
 });
 

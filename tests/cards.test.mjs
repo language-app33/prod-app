@@ -46,6 +46,28 @@ await build({
 });
 const { localIdFor, cardToItem, serverCardId } = await import(path.join(out, "shared.js"));
 
+/* And which recording a question leads with, which is a plain function of a
+   card's progress and belongs with the rest of them. The trainer is bundled
+   the same way; nothing in it touches a browser on the way in. */
+await build({
+  entryPoints: [path.join(here, "..", "src", "ArabicTrainer.jsx")],
+  outfile: path.join(out, "trainer.js"),
+  bundle: true,
+  format: "esm",
+  jsx: "automatic",
+  external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
+  loader: { ".jsx": "jsx" },
+  logLevel: "silent",
+  define: {
+    "process.env.NODE_ENV": '"development"',
+    __APP_RELEASE__: '"0"',
+    __APP_VERSION__: '"test"',
+    __BUILT_AT__: '"0"',
+  },
+});
+const { leadSpeed } = await import(path.join(out, "trainer.js"));
+
+/** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
 
 test("a recording on any form counts as the card having one", () => {
@@ -56,6 +78,12 @@ test("a recording on any form counts as the card having one", () => {
   assert.equal(cardHasAudio(card({ clips: ["a"] })), true);
   assert.equal(cardHasAudio(card({ subs: [{ clips: ["b"] }] })), true);
   assert.equal(cardHasAudio(card({ subs: [{ clips: [] }] })), false);
+  /* And a card recorded only slowly has been recorded. It is the second
+     list rather than a mark on the first, so anything that asks "is there
+     audio here" has to ask about both or call such a card silent — which
+     is what the audio filter and the sort would have done. */
+  assert.equal(cardHasAudio(card({ slowClips: ["s"] })), true);
+  assert.equal(cardHasAudio(card({ subs: [{ slowClips: ["s"] }] })), true);
 });
 
 test("the main form is a form", () => {
@@ -76,8 +104,8 @@ test("a card made before the date was recorded falls back rather than lying", ()
 
 test("newest first, and the other way round", () => {
   const list = [card({ id: "old", created: 1 }), card({ id: "new", created: 9 })];
-  assert.deepEqual(sortCards(list, "added").map((c) => c.id), ["new", "old"]);
-  assert.deepEqual(sortCards(list, "added", false).map((c) => c.id), ["old", "new"]);
+  assert.deepEqual(sortCards(list, "added").map((/** @type {any} */ c) => c.id), ["new", "old"]);
+  assert.deepEqual(sortCards(list, "added", false).map((/** @type {any} */ c) => c.id), ["old", "new"]);
 });
 
 test("ordering by a yes/no still has an order inside each group", () => {
@@ -89,7 +117,7 @@ test("ordering by a yes/no still has an order inside each group", () => {
     card({ id: "loud-old", clips: ["a"], updated: 1 }),
     card({ id: "loud-new", clips: ["a"], updated: 5 }),
   ];
-  assert.deepEqual(sortCards(list, "audio").map((c) => c.id), ["loud-new", "loud-old", "silent-new"]);
+  assert.deepEqual(sortCards(list, "audio").map((/** @type {any} */ c) => c.id), ["loud-new", "loud-old", "silent-new"]);
 });
 
 test("sorting never disturbs the list it was given", () => {
@@ -97,12 +125,12 @@ test("sorting never disturbs the list it was given", () => {
      mutate state directly and the change would not always be seen. */
   const list = [card({ id: "a", created: 1 }), card({ id: "b", created: 2 })];
   sortCards(list, "added");
-  assert.deepEqual(list.map((c) => c.id), ["a", "b"]);
+  assert.deepEqual(list.map((/** @type {any} */ c) => c.id), ["a", "b"]);
 });
 
 test("an order nobody asked for leaves the list alone", () => {
   const list = [card({ id: "a" }), card({ id: "b" })];
-  assert.deepEqual(sortCards(list, "nonsense").map((c) => c.id), ["a", "b"]);
+  assert.deepEqual(sortCards(list, "nonsense").map((/** @type {any} */ c) => c.id), ["a", "b"]);
 });
 
 test("filtering by recordings and by forms, together", () => {
@@ -112,7 +140,8 @@ test("filtering by recordings and by forms, together", () => {
     card({ id: "many", subs: [{}] }),
     card({ id: "heard-many", clips: ["a"], subs: [{}] }),
   ];
-  const ids = (f) => filterCards(list, f).map((c) => c.id);
+  const ids = (/** @type {Record<string, any>} */ f) =>
+    filterCards(list, f).map((/** @type {any} */ c) => c.id);
   assert.deepEqual(ids({}), ["plain", "heard", "many", "heard-many"]);
   assert.deepEqual(ids({ audio: "with" }), ["heard", "heard-many"]);
   assert.deepEqual(ids({ audio: "without" }), ["plain", "many"]);
@@ -147,6 +176,71 @@ test("a course card knows its name on the server, whatever it is called here", (
   assert.equal(item.id, localIdFor("k9f2a1b3c4d5"), "the device gives it its own id");
   assert.notEqual(item.id, "k9f2a1b3c4d5", "which is not the server's");
   assert.equal(serverCardId(item), "k9f2a1b3c4d5", "and the server's is what goes back");
+});
+
+/*
+ * Slow while a word is being learnt, the real thing once it is being
+ * reviewed. The second half is the one that matters: a learner only ever
+ * offered the slow recording never practices hearing the word as it is
+ * actually said, which is the skill.
+ */
+test("which recording leads follows how far along the card is", () => {
+  /** @param {string} phase @param {number} [interval] */
+  const heard = (phase, interval = 0) => ({ s: { rec2en: { phase, interval, due: 0 } } });
+
+  assert.equal(leadSpeed({ s: {} }), "slow", "a card never listened to starts slow");
+  assert.equal(leadSpeed(heard("new"), "rec2en"), "slow");
+  assert.equal(leadSpeed(heard("learning"), "rec2en"), "slow");
+  /* The meeting after a lapse is exactly where the parts of a word help. */
+  assert.equal(leadSpeed(heard("relearning"), "rec2en"), "slow");
+  assert.equal(leadSpeed(heard("review", 3), "rec2en"), "regular");
+  assert.equal(leadSpeed(heard("review", 40), "rec2en"), "regular");
+
+  /* Two listening exercises, and one of them still being learnt: the
+     cautious answer is the one that holds. */
+  assert.equal(
+    leadSpeed({ s: { rec2en: { phase: "review", interval: 40, due: 0 }, rec2ar: { phase: "learning", interval: 0, due: 0 } } }),
+    "slow"
+  );
+  /* Progress at reading says nothing about hearing it, so a card read
+     fluently and never heard still leads slow. */
+  assert.equal(leadSpeed({ s: { ar2en: { phase: "review", interval: 40, due: 0 } } }), "slow");
+});
+
+test("a course card arrives saying which language it is in, on every form", () => {
+  /* The device holds one pile of cards and the app has one language set, so
+     without this a student in an Arabic course and a Vietnamese one had
+     half their cards marked, laid out and drilled by the other language's
+     rules. The card knows; the forms are what an exercise is about, so they
+     have to know too. */
+  const item = cardToItem(
+    { id: "k1", ar: "cà phê", en: "coffee", lang: "vi-Hue", subs: [{ ar: "cà phê sữa", en: "milk coffee" }] },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal(item.lang, "vi-Hue");
+  assert.equal(item.subs[0].lang, "vi-Hue");
+});
+
+test("a card recorded at both speeds reaches the learner as both, named", () => {
+  /* The ordinary recording first and unnamed, so a listening question plays
+     the real thing; the slow one after it and named, so what it is is said
+     rather than left as "Voice 2". */
+  const item = cardToItem(
+    {
+      id: "k1", ar: "كِتاب", en: "book", lang: "ar-PS",
+      clips: ["fast"], slowClips: ["slow"],
+      subs: [{ ar: "كُتُب", en: "books", slowClips: ["subslow"] }],
+    },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.deepEqual(item.recs.map((/** @type {any} */ r) => [r.id, r.label]),
+    [["fast", ""], ["slow", "Slow"]]);
+  assert.deepEqual(item.subs[0].recs.map((/** @type {any} */ r) => [r.id, r.label]),
+    [["subslow", "Slow"]], "a form recorded only slowly still arrives with it");
+  /* And each says its speed as a field rather than only inside its name:
+     the player shows one of each and picks by this, and picking by reading
+     a label back is guessing. */
+  assert.deepEqual(item.recs.map((/** @type {any} */ r) => r.speed), ["regular", "slow"]);
 });
 
 test("and an item that was never a course card has only the one name", () => {
