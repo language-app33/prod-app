@@ -819,6 +819,68 @@ export function flagTitle(kind) {
   return found ? found.title : String(kind || "Something else");
 }
 
+/* --- the two speeds a word is recorded at -------------------------
+ *
+ * A word said at the speed it is really said, and the same word said
+ * slowly enough to hear its parts, are two different recordings doing two
+ * different jobs — and a teacher may make either, both, or neither.
+ *
+ * They are two fields on the form rather than one list with a mark on each
+ * entry: which speed a recording is at is the only thing that distinguishes
+ * them, and a mark is a thing that can be lost in a merge, a backup or an
+ * older client. Two lists cannot lose it.
+ *
+ * Here rather than in the teaching space because both ends need it: the
+ * teacher records against these, and the learner's card shows what it got
+ * under the same names.
+ */
+/** @type {{ key: "clips" | "slowClips", title: string, short: string, what: string }[]} */
+export const CLIP_KINDS = [
+  {
+    key: "clips",
+    title: "Regular speed",
+    short: "Regular",
+    what: "The word as it is really said. This is what a listening exercise plays.",
+  },
+  {
+    key: "slowClips",
+    title: "Slow",
+    short: "Slow",
+    what: "The same word said slowly, so a learner can hear each sound in it.",
+  },
+];
+
+/* Every recording on one form, named by the speed it was made at, in the
+   shape ClipList reads. Numbered only where there is more than one of a
+   speed — "Slow" alone says more than "Slow 1". */
+/** @param {{ clips?: string[], slowClips?: string[] }} [form] */
+export function clipsOf(form) {
+  /** @type {{ id: string, label: string }[]} */
+  const out = [];
+  for (const kind of CLIP_KINDS) {
+    const list = (form && form[kind.key]) || [];
+    for (let i = 0; i < list.length; i++) {
+      out.push({ id: list[i], label: list.length > 1 ? `${kind.short} ${i + 1}` : kind.short });
+    }
+  }
+  return out;
+}
+
+/* Whether a form has any recording at all, whichever speed it is at. */
+/** @param {{ clips?: string[], slowClips?: string[] }} [form] */
+export const formHasAudio = (form) =>
+  CLIP_KINDS.some((k) => ((form && form[k.key]) || []).length > 0);
+
+/* Every recording a whole card refers to, its other forms included — for
+   the places that care about the bytes rather than about the card: a backup
+   checking that nothing it names is missing. */
+/** @param {{ clips?: string[], slowClips?: string[], subs?: { clips?: string[], slowClips?: string[] }[] }} card */
+export function clipHashes(card) {
+  /** @param {{ clips?: string[], slowClips?: string[] }} form */
+  const on = (form) => CLIP_KINDS.flatMap((k) => form[k.key] || []);
+  return [...on(card || {}), ...((card && card.subs) || []).flatMap(on)];
+}
+
 /* --- shortDate ----------------------------------------------------
    A date small enough for the foot of a tile. The year is left off when
    it is this one, because "6 Sep" is what you would say out loud and the
@@ -1474,15 +1536,16 @@ export function CardReadout({ card, lang, decks }) {
           <p className="at-readmeaning">{f.en}</p>
           {f.lat ? <p className="at-readlat">{f.lat}</p> : null}
 
-          {(f.clips || []).length ? (
+          {clipsOf(f).length ? (
             <>
               <p className="at-eyebrow at-mt4">
                 Recordings
               </p>
               <p className="at-hint">
-                How it sounds. Cards with a recording can be practiced by ear.
+                How it sounds, at each speed it was recorded at. Cards with a
+                recording can be practiced by ear.
               </p>
-              <ClipList clips={f.clips} />
+              <ClipList clips={clipsOf(f)} />
             </>
           ) : null}
 
@@ -1818,9 +1881,13 @@ export function useScrollTop(key) {
  *   onBack?: () => void,
  *   action?: Node, children?: Node, footer?: Node,
  *   backLabel?: string,
- * }} props
+ *   rise?: boolean,
+ * }} props `rise` is for a screen opened to do one small thing and leave
+ *   again — it comes up from the foot of the window rather than appearing,
+ *   which says it is a step to the side of what is underneath rather than
+ *   somewhere new.
  */
-export function Screen({ title, onBack, action, children, footer, backLabel = "Back" }) {
+export function Screen({ title, onBack, action, children, footer, backLabel = "Back", rise }) {
   /** @type {React.MutableRefObject<{ el: Element | null, close?: () => void }>} */
   const self = useRef({ el: null });
   /* The screen's own element, so the stack can be checked against the
@@ -1884,7 +1951,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
      and no z-index of its own, so it is not a stacking context — mounting
      inside it escapes the space's layer while staying in the theme. */
   const view = (
-    <div className="at-screen over" ref={elRef} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
+    <div className={`at-screen over${rise ? " rise" : ""}`} ref={elRef} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
       <div className="at-screenhead">
         {onBack ? (
           <button className="at-back" onClick={onBack} aria-label={backLabel}>
@@ -2276,6 +2343,20 @@ export function ModeSelector({ mode, modes, onChange }) {
 /** @type {(cardId: string) => string} */
 export const localIdFor = (cardId) => `srv${cardId}`;
 
+/* The recordings on one form, as the trainer holds them: the ordinary ones
+   first and unnamed, the slow ones after and named, so a card that has both
+   plays the real one by default and offers the slow one beside it. */
+/** @param {{ clips?: string[], slowClips?: string[] }} form */
+function recsOf(form) {
+  return clipsOf(form).map((c) => ({
+    id: c.id,
+    label: c.label.startsWith("Regular") ? "" : c.label,
+    mime: "",
+    size: 0,
+    dur: 0,
+  }));
+}
+
 /* Turn what the server holds into what the trainer expects. */
 /**
  * @param {Card} card
@@ -2293,7 +2374,7 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     en: sb.en || "",
     ...dimValues(sb),
     note: "",
-    recs: (sb.clips || []).map((h) => ({ id: h, label: "", mime: "", size: 0, dur: 0 })),
+    recs: recsOf(sb),
     created: Date.now(),
     updated: Date.now(),
     s: freshStates(),
@@ -2319,7 +2400,7 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     tags: [deckTitle],
     locked: true,
     flags: [],
-    recs: (card.clips || []).map((h) => ({ id: h, label: "", mime: "", size: 0, dur: 0 })),
+    recs: recsOf(card),
     ...dimValues(card),
     subs: forms,
     source: { courseId, deckId, cardId: card.id, rev: card.rev || 1 },

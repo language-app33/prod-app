@@ -57,6 +57,12 @@ test("a recording on any form counts as the card having one", () => {
   assert.equal(cardHasAudio(card({ clips: ["a"] })), true);
   assert.equal(cardHasAudio(card({ subs: [{ clips: ["b"] }] })), true);
   assert.equal(cardHasAudio(card({ subs: [{ clips: [] }] })), false);
+  /* And a card recorded only slowly has been recorded. It is the second
+     list rather than a mark on the first, so anything that asks "is there
+     audio here" has to ask about both or call such a card silent — which
+     is what the audio filter and the sort would have done. */
+  assert.equal(cardHasAudio(card({ slowClips: ["s"] })), true);
+  assert.equal(cardHasAudio(card({ subs: [{ slowClips: ["s"] }] })), true);
 });
 
 test("the main form is a form", () => {
@@ -149,6 +155,24 @@ test("a course card knows its name on the server, whatever it is called here", (
   assert.equal(item.id, localIdFor("k9f2a1b3c4d5"), "the device gives it its own id");
   assert.notEqual(item.id, "k9f2a1b3c4d5", "which is not the server's");
   assert.equal(serverCardId(item), "k9f2a1b3c4d5", "and the server's is what goes back");
+});
+
+test("a card recorded at both speeds reaches the learner as both, named", () => {
+  /* The ordinary recording first and unnamed, so a listening question plays
+     the real thing; the slow one after it and named, so what it is is said
+     rather than left as "Voice 2". */
+  const item = cardToItem(
+    {
+      id: "k1", ar: "كِتاب", en: "book", lang: "ar-PS",
+      clips: ["fast"], slowClips: ["slow"],
+      subs: [{ ar: "كُتُب", en: "books", slowClips: ["subslow"] }],
+    },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.deepEqual(item.recs.map((/** @type {any} */ r) => [r.id, r.label]),
+    [["fast", ""], ["slow", "Slow"]]);
+  assert.deepEqual(item.subs[0].recs.map((/** @type {any} */ r) => [r.id, r.label]),
+    [["subslow", "Slow"]], "a form recorded only slowly still arrives with it");
 });
 
 test("and an item that was never a course card has only the one name", () => {

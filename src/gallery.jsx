@@ -132,6 +132,7 @@ const PLACES = {
   WordsUsed: [TEACH, "Editing a card · the words a phrase teaches"],
   ScriptInput: [TEACH, "Editing a card · writing in the language"],
   Recordings: [TEACH, "Editing a card · its recordings"],
+  RecordingScreen: [TEACH, "Editing a card · making a recording"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
   SelectionBar: [TEACH, "When several cards are selected"],
   CodeBox: [TEACH, "A code to hand out"],

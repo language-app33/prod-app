@@ -852,6 +852,16 @@ button {
 .at-cverbtn:disabled { opacity:.55; cursor: default; }
 .at-screen { position:fixed; inset:0; z-index: var(--z-screen); background: var(--bg);
   display:flex; flex-direction:column; }
+/* A screen opened to do one small thing and come straight back comes up
+   from the foot of the window. 140ms is deliberately shorter than a screen
+   transition usually is: long enough to say where it came from, short
+   enough that it is over before the hand that opened it has settled, which
+   is what makes it read as a panel rather than as somewhere new. Only the
+   opening is animated — a way out that lingers is a way out that feels
+   slow. */
+.at-screen.rise { animation: at-rise 140ms cubic-bezier(.2,.7,.3,1); }
+@keyframes at-rise { from { transform: translateY(6%); opacity:.4; } to { transform:none; opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .at-screen.rise { animation:none; } }
 .at-screenhead { display:flex; align-items:center; gap:12px; padding:14px 16px;
   padding-top:calc(14px + 46px); border-bottom:2px solid var(--line); background: var(--surface); }
 /* A screen that sits above the chrome has no chrome to clear, so the room
@@ -1189,6 +1199,12 @@ button {
   background: var(--raised); border-color: var(--line); color: var(--faint);
   filter:none; }
 .at-btn.ghost:disabled { background:transparent; }
+/* The button that uploads a file is a label with the file input inside it,
+   so it is never itself :disabled — the input is, and the label has to be
+   told to look it. */
+.at-btn:has(input:disabled) { cursor:default; box-shadow:none;
+  background: var(--raised); border-color: var(--line); color: var(--faint); }
+.at-btn.ghost:has(input:disabled) { background:transparent; }
 /* The answer bar: the three ways forward from a question, pinned to the
    foot of the screen rather than following the answer box down the page.
 

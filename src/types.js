@@ -187,7 +187,11 @@
  * @property {string} ar   The word in the language's own script.
  * @property {string} en   What it means.
  * @property {string} lat  How it is pronounced, in Latin letters.
- * @property {string[]} [clips] Recording hashes.
+ * @property {string[]} [clips] Recording hashes, said at ordinary speed.
+ * @property {string[]} [slowClips] The same, said slowly. Kept apart rather
+ *   than mixed in with the others: which one a learner is hearing is the
+ *   whole point of having both, and a list that lost track of it would be a
+ *   list of recordings at unknown speeds.
  */
 
 /**

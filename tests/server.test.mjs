@@ -265,6 +265,43 @@ test("a card remembers which words it teaches, and keeps the list clean", async 
 });
 
 /*
+ * The two speeds a word can be recorded at. They are two lists on the card
+ * rather than one list with a mark on each entry, so the server has to keep
+ * both — a card that came back with its slow recordings dropped would have
+ * lost them at the next save, quietly and for good.
+ */
+test("a card keeps its recordings at both speeds, on every form", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", ar: "كِتاب", en: "book", lang: "ar-PS",
+        clips: ["a".repeat(64)], slowClips: ["b".repeat(64)],
+        subs: [{ ar: "كُتُب", en: "books", slowClips: ["c".repeat(64)] }],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.deepEqual(saved.json.card.clips, ["a".repeat(64)]);
+  assert.deepEqual(saved.json.card.slowClips, ["b".repeat(64)]);
+  assert.deepEqual(saved.json.card.subs[0].slowClips, ["c".repeat(64)]);
+  /* A form recorded only slowly still answers the ordinary question with a
+     list, not with nothing: every reader of a card takes both as arrays. */
+  assert.deepEqual(saved.json.card.subs[0].clips, []);
+
+  /* And a card that says nothing about the slow ones has an empty list. */
+  const plain = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id: "", ar: "بيت", en: "house", lang: "ar-PS" }, decks: [] },
+  });
+  assert.deepEqual(plain.json.card.slowClips, []);
+});
+
+/*
  * When a card was made. Nothing recorded it before, so sorting a card list
  * by "added" had nothing to sort by.
  */

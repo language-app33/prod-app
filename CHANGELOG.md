@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.44 — 10 September 2026
+
+- A card can now hold two kinds of recording: the word at regular speed,
+  and the word said slowly. Either, both or neither — a teacher decides per
+  form, and each recording says on it which it is.
+- Making them has moved off the card editor and onto a screen of its own,
+  which comes up from the foot of the window and goes again. The editor
+  still lists what a form has and plays it, which is the part you want
+  while you are looking at the words.
+- On that screen each speed has its own section saying in a line what it is
+  for, and each can be recorded on the spot or uploaded from a file.
+- A slow recording reaches a learner named as such, beside the ordinary one
+  rather than in place of it: a listening exercise still plays the word as
+  it is really said.
+
 ## 0.43 — 10 September 2026
 
 - On a long report in Admin → Flags, the words now sit directly under the

@@ -763,9 +763,15 @@ export default async (req) => {
                 grammarFields().map((f) => [f, String(sb[f] || "").slice(0, 40)])
               ),
               clips: Array.isArray(sb.clips) ? sb.clips.slice(0, 12) : [],
+              slowClips: Array.isArray(sb.slowClips) ? sb.slowClips.slice(0, 12) : [],
             }))
           : [],
         clips: Array.isArray(card.clips) ? card.clips.slice(0, 12) : [],
+        /* The same word said slowly, kept as its own list — see CLIP_KINDS
+           in the app. Stored the same way and capped the same way: the
+           server does not know which speed is which, only that a card may
+           carry two lists of recordings rather than one. */
+        slowClips: Array.isArray(card.slowClips) ? card.slowClips.slice(0, 12) : [],
         /* Which word cards this one teaches by containing them. A phrase
            the teacher recorded is a context for the words inside it, and
            this is the teacher's confirmation of which those are — never the
@@ -1375,7 +1381,11 @@ export default async (req) => {
           ...new Set(
             cards.filter(Boolean).flatMap((c) => [
               ...(c.clips || []),
-              ...(c.subs || []).flatMap((/** @type {Record<string, any>} */ sb) => sb.clips || []),
+              ...(c.slowClips || []),
+              ...(c.subs || []).flatMap((/** @type {Record<string, any>} */ sb) => [
+                ...(sb.clips || []),
+                ...(sb.slowClips || []),
+              ]),
             ])
           ),
         ];

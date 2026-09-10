@@ -60,10 +60,14 @@ import {
   splitAlternatives,
   joinAlternatives,
   CheckList,
+  CLIP_KINDS,
   ClipList,
+  clipHashes,
+  clipsOf,
   ConfirmModal,
   Field,
   FilterBar,
+  formHasAudio,
   FilterMenu,
   flagTitle,
   Help,
@@ -593,8 +597,7 @@ async function buildBackup(onProgress) {
         for (const prefix of Object.keys(counts)) if (key.startsWith(prefix)) counts[prefix] += 1;
         if (key.startsWith("course:")) for (const id of value.decks || []) refs.decks.add(id);
         if (key.startsWith("card:")) {
-          for (const h of value.clips || []) refs.clips.add(h);
-          for (const sb of value.subs || []) for (const h of sb.clips || []) refs.clips.add(h);
+          for (const h of clipHashes(value)) refs.clips.add(h);
         }
       }
       const json = JSON.stringify(records);
@@ -720,8 +723,7 @@ function verifyBackup(file) {
       for (const id of value.decks || []) if (!rec[`deck:${id}`]) danglingDecks += 1;
     }
     if (key.startsWith("card:")) {
-      const all = [...(value.clips || []), ...(value.subs || []).flatMap((/** @type {any} */ sb) => sb.clips || [])];
-      for (const h of all) if (!rec[`clip:${h}`]) danglingClips += 1;
+      for (const h of clipHashes(value)) if (!rec[`clip:${h}`]) danglingClips += 1;
     }
   }
   if (danglingDecks) problems.push(`${danglingDecks} deck reference(s) point outside the file.`);
@@ -2569,7 +2571,7 @@ export function ClaimAdmin({ onDone }) {
 /* A blank form carries every grammatical value any language might use, so a
    card written in one language is not quietly stripped when opened in
    another. Which of them the editor actually shows is the language's call. */
-const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], ...dimValues({}) });
+const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], slowClips: [], ...dimValues({}) });
 
 /* One answer, or several: a field per accepted answer, a + after the last
    to add another and a − on every extra. What is stored is still one
@@ -2953,12 +2955,59 @@ function DeckEditor({
   );
 }
 
-/**
- * @param {{ clips?: string[], onChange: (clips: string[]) => void }} props
+/*
+ * The recordings on one form, as the card editor shows them.
+ *
+ * Listening stays here, where the rest of the form is: the quickest way to
+ * check that a card's audio is the right audio is to press play beside the
+ * word it belongs to. Making one does not — recording and uploading are a
+ * job with its own controls, its own permissions prompt and its own way of
+ * going wrong, and they used to sit in the middle of a form as four
+ * buttons, which is how a card editor becomes a console.
  */
-function Recordings({ clips, onChange }) {
+/**
+ * @param {{
+ *   form: { clips?: string[], slowClips?: string[] },
+ *   onOpen: () => void,
+ * }} props
+ */
+function Recordings({ form, onOpen }) {
+  const made = clipsOf(form);
+  return (
+    <Field label="Recordings">
+      <ClipList clips={made} />
+      <div className="at-chips" style={{ marginTop: made.length ? 10 : 0 }}>
+        <Button size="sm" onClick={onOpen} icon="mic">
+          {made.length ? "Record or upload" : "Add a recording"}
+        </Button>
+      </div>
+      {!made.length && (
+        <Help>
+          A recording lets this form be practiced by ear as well as by sight.
+          You can make one at regular speed, a slow one, or both.
+        </Help>
+      )}
+    </Field>
+  );
+}
 
-  const [recording, setRecording] = useState(false);
+/*
+ * Making them: a screen of its own, one section per speed.
+ *
+ * One recorder rather than two, pointed at whichever section asked for it —
+ * two would mean two live microphones the moment somebody pressed the
+ * second button while the first was still running.
+ */
+/**
+ * @param {{
+ *   title: string,
+ *   form: { clips?: string[], slowClips?: string[] },
+ *   onChange: (next: { clips: string[], slowClips: string[] }) => void,
+ *   onClose: () => void,
+ * }} props
+ */
+function RecordingScreen({ title, form, onChange, onClose }) {
+  const [recording, setRecording] = useState(/** @type {"clips" | "slowClips" | ""} */ (""));
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -2966,19 +3015,33 @@ function Recordings({ clips, onChange }) {
   const rec = useRef(null);
   /** @type {React.MutableRefObject<ReturnType<typeof setInterval> | null>} */
   const tick = useRef(null);
-  const list = clips || [];
 
   useEffect(() => () => {
     if (tick.current) clearInterval(tick.current);
   }, []);
 
-  /** @param {Blob} blob */
-  async function store(blob) {
+  /** @param {"clips" | "slowClips"} key */
+  const listOf = (key) => form[key] || [];
+  /**
+   * @param {"clips" | "slowClips"} key
+   * @param {string[]} next
+   */
+  const put = (key, next) =>
+    onChange({
+      clips: key === "clips" ? next : form.clips || [],
+      slowClips: key === "slowClips" ? next : form.slowClips || [],
+    });
+
+  /**
+   * @param {Blob} blob
+   * @param {"clips" | "slowClips"} key
+   */
+  async function store(blob, key) {
     setBusy("Saving…");
     try {
       const hash = await hashOf(blob);
       await API.putClip(hash, await blobToDataUrl(blob));
-      onChange(list.concat([hash]));
+      put(key, listOf(key).concat([hash]));
     } catch (e) {
       setError(API.explain(e));
     } finally {
@@ -2986,7 +3049,8 @@ function Recordings({ clips, onChange }) {
     }
   }
 
-  async function begin() {
+  /** @param {"clips" | "slowClips"} key */
+  async function begin(key) {
     setError("");
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices) {
       setError("This browser won't let the app use the microphone");
@@ -2996,19 +3060,21 @@ function Recordings({ clips, onChange }) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream, { audioBitsPerSecond: 24000 });
       /** @type {Blob[]} */
-    const chunks = [];
+      const chunks = [];
       mr.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        store(new Blob(chunks, { type: mr.mimeType || "audio/webm" }));
+        store(new Blob(chunks, { type: mr.mimeType || "audio/webm" }), key);
       };
       rec.current = mr;
       setElapsed(0);
-      setRecording(true);
+      setRecording(key);
       const from = Date.now();
       tick.current = setInterval(() => setElapsed(Date.now() - from), 100);
       mr.start();
-      setTimeout(() => mr.state !== "inactive" && end(), 15000);
+      /* A slow reading is a longer one, so the cap allows for it: the old
+         fifteen seconds was set when there was one speed to record. */
+      setTimeout(() => mr.state !== "inactive" && end(), 25000);
     } catch (e) {
       setError(
         String(e && /** @type {any} */ (e).name) === "NotAllowedError"
@@ -3020,44 +3086,73 @@ function Recordings({ clips, onChange }) {
 
   function end() {
     if (tick.current) clearInterval(tick.current);
-    setRecording(false);
+    setRecording("");
     if (rec.current && rec.current.state !== "inactive") rec.current.stop();
   }
 
   return (
-    <Field label="Recordings">
-
-      <ClipList clips={list} onChange={(next) => onChange(/** @type {any} */ (next))} />
-
-      <div className="at-chips" style={{ marginTop: list.length ? 10 : 0 }}>
-        {recording ? (
-          <Button variant="danger" size="sm" onClick={end} icon="pause">Stop — {(elapsed / 1000).toFixed(1)}s</Button>
-        ) : (
-          <Button size="sm" onClick={begin} disabled={!!busy} icon="mic">{busy || "Record"}</Button>
-        )}
-        <label className="at-btn sm ghost">
-          <Icon name="download" />
-          Upload a file
-          <input
-            type="file"
-            accept="audio/*"
-            className="at-hidden"
-            onChange={(e) => {
-              const f = e.target.files && e.target.files[0];
-              if (f) store(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
-      </div>
-
+    <Screen title={title} onBack={onClose} rise backLabel="Back to the card">
+      <Help>
+        Record either, both or neither. A card with no recording is still a
+        card — it just cannot be practiced by ear.
+      </Help>
       <Notice kind="error">{error}</Notice>
-      {!error && !list.length && (
-        <Help>
-          A recording lets this form be practiced by ear as well as by sight.
-        </Help>
-      )}
-    </Field>
+
+      {CLIP_KINDS.map((kind) => {
+        const list = listOf(kind.key);
+        const mine = recording === kind.key;
+        return (
+          <section className="at-panel" key={kind.key}>
+            <p className="at-eyebrow">{kind.title}</p>
+            <Help>{kind.what}</Help>
+
+            {/* Numbered takes rather than named speeds: which speed these
+                are is the heading directly above them. */}
+            <ClipList
+              clips={list.map((id, i) => ({ id, label: `Take ${i + 1}` }))}
+              onChange={(next) =>
+                put(kind.key, next.map((c) => (typeof c === "string" ? c : c.id)))
+              }
+            />
+
+            <div className="at-chips" style={{ marginTop: list.length ? 10 : 0 }}>
+              {mine ? (
+                <Button variant="danger" size="sm" onClick={end} icon="pause">
+                  Stop — {(elapsed / 1000).toFixed(1)}s
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={() => begin(kind.key)}
+                  disabled={!!busy || !!recording}
+                  icon="mic"
+                >
+                  {busy || `Record ${kind.short.toLowerCase()}`}
+                </Button>
+              )}
+              {/* An upload beside every Record, because a teacher who has
+                  the file already should never have to play it into a
+                  microphone to get it onto the card. */}
+              <label className="at-btn sm ghost">
+                <Icon name="download" />
+                Upload a file
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="at-hidden"
+                  disabled={!!recording}
+                  onChange={(e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (f) store(f, kind.key);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          </section>
+        );
+      })}
+    </Screen>
   );
 }
 
@@ -3166,6 +3261,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             lat: card.lat || "",
             ...dimValues(card),
             clips: card.clips || [],
+            slowClips: card.slowClips || [],
           },
           ...(card.subs || []).map((s) => ({ ...blankForm(), ...s })),
         ]
@@ -3177,6 +3273,10 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
   const [uses, setUses] = useState((card && card.uses) || []);
+  /* Which form's recordings are being made, or null. The screen for them
+     opens over this one and hands its results straight back into the form,
+     so nothing about a card is saved any earlier than it was. */
+  const [recording, setRecording] = useState(/** @type {number | null} */ (null));
 
   const main = forms[0];
   /* English, not "English or a transliteration": with typing the
@@ -3227,7 +3327,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       setForms((x) =>
                         x
                           .slice(0, i + 1)
-                          .concat([{ ...x[i], clips: [] }])
+                          .concat([{ ...x[i], clips: [], slowClips: [] }])
                           .concat(x.slice(i + 1))
                       )
                     }
@@ -3285,7 +3385,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               )}
 
               <div className="at-field">
-                <Recordings clips={f.clips} onChange={(v) => setForm(i, { ...f, clips: v })} />
+                <Recordings form={f} onOpen={() => setRecording(i)} />
               </div>
 
               {(!drillsTranslit || dims.length || (i === 0 && lang.lexical)) && (
@@ -3386,6 +3486,16 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </Button>
           )}
       </Screen>
+      {/* Above the editor rather than instead of it: closing it puts the
+          form back exactly as it was left, scroll position included. */}
+      {recording !== null && forms[recording] && (
+        <RecordingScreen
+          title={forms.length > 1 ? `Recordings · form ${recording + 1}` : "Recordings"}
+          form={forms[recording]}
+          onChange={(next) => setForm(recording, { ...forms[recording], ...next })}
+          onClose={() => setRecording(null)}
+        />
+      )}
     </>
   );
 }
@@ -3517,7 +3627,7 @@ function ContextReport({ cards, lang }) {
    one if any of its forms does. */
 /** @type {(c: Card) => boolean} */
 export const cardHasAudio = (c) =>
-  ((c.clips || []).length > 0) || (c.subs || []).some((sb) => (sb.clips || []).length > 0);
+  formHasAudio(c) || (c.subs || []).some(formHasAudio);
 
 /* The main form is a form. A card with two subs has three. */
 /** @type {(c: Card) => number} */
@@ -3861,6 +3971,7 @@ export function TeachSpace({ account, languages, onClose }) {
                   lat: main.lat.trim(),
                   ...dimValues(main),
                   clips: main.clips || [],
+                  slowClips: main.slowClips || [],
                   note: note.trim(),
                   lang: (editLang || {}).id || "",
                   uses,

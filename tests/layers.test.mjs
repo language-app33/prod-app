@@ -250,6 +250,18 @@ test("the flag menu covers the answer bar rather than floating over it", () => {
     "the menu is measured from the flag button again, which cannot reach past the bar");
 });
 
+test("a screen that rises does it quickly, and not at all if you asked for less motion", () => {
+  /* It comes up from the foot of the window to say it is a step to the side
+     of what is underneath. That only works if it is over almost at once: a
+     long entrance turns a panel into somewhere new. */
+  const body = rule(".at-screen.rise");
+  assert.ok(body, "no screen rises any more");
+  const ms = Number((/(\d+)ms/.exec(body) || [])[1]);
+  assert.ok(ms > 0 && ms <= 200, `the rise takes ${ms}ms, which is long enough to be a journey`);
+  assert.match(css, /prefers-reduced-motion[\s\S]*?\.at-screen\.rise\s*\{\s*animation:\s*none/,
+    "the rise ignores a request for less motion");
+});
+
 test("the verdict is one size, and a large one", () => {
   /* It is the same sentence every time, so it lands in the same place at
      the same weight whatever the exercise put on the screen. Sized from
