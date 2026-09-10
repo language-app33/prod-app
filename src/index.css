@@ -952,6 +952,14 @@ button {
    keeps its size — it is what tells them apart — so the label gives way. */
 .at-playbig.twin { min-width:0; flex:0 1 190px; gap:8px;
   padding-inline:14px; font-size:15px; white-space:nowrap; }
+/* The one the card's progress did not ask for. Still full size, because it
+   is still something to press with a thumb — what it gives up is the fill
+   and the brass on its icon, which is what the eye goes to. It comes back
+   on hover, so it reads as quiet rather than as switched off. */
+.at-playbig.quiet { background:transparent; color: var(--muted); }
+.at-playbig.quiet .dot { color: var(--muted); }
+.at-playbig.quiet:hover { background: var(--raised); color: var(--text); }
+.at-playbig.quiet:hover .dot { color: var(--brass); }
 .at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px 16px 8px;
   margin-bottom:14px; background: var(--surface); }
 .at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:10px;

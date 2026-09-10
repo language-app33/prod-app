@@ -2693,7 +2693,43 @@ function Arabic({ text, kind, lang, name }) {
 const NO_RECS = [];
 
 /** @param {{ recs?: any[], autoPlay?: boolean }} props */
-function AudioPrompt({ recs, autoPlay }) {
+/*
+ * Which speed a question leads with.
+ *
+ * Slow while a card is still being learnt — a first meeting, and the meeting
+ * after a lapse, are exactly where hearing the parts of a word helps — and
+ * the real thing from the point it is being reviewed, because recognising
+ * it at speed is the skill being trained and a learner who is only ever
+ * offered the slow one never practices it.
+ *
+ * Read off the card's listening progress rather than the question in front
+ * of you, so the answer is the same wherever the player appears on the
+ * screen. A type that has never been answered is not stored at all, so an
+ * empty record means new, which leads slow.
+ *
+ * The lead is a default and nothing more: both recordings stay on screen
+ * and either can be pressed.
+ */
+/**
+ * @param {Form} unit
+ * @param {string} [type] The exercise being asked, when it is a listening one.
+ * @returns {"regular" | "slow"}
+ */
+export function leadSpeed(unit, type) {
+  const states = statesOf(unit);
+  const asked = type && isListening(type) ? [type] : Object.keys(states).filter(isListening);
+  if (!asked.length) return "slow";
+  const grown = asked.every((t) => {
+    const m = states[t] ? maturity(states[t]) : "new";
+    return m === "young" || m === "mature";
+  });
+  return grown ? "regular" : "slow";
+}
+
+/**
+ * @param {{ recs?: any[], autoPlay?: boolean, lead?: "regular" | "slow" }} props
+ */
+function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
   const [idx, setIdx] = useState(0);
   const [state, setState] = useState("idle");
   /** @type {React.MutableRefObject<HTMLAudioElement | null>} */
@@ -2721,7 +2757,11 @@ function AudioPrompt({ recs, autoPlay }) {
   if (iSlow >= 0) takes.push({ i: iSlow, slow: true });
   /* A card with nothing but slow recordings would otherwise show none. */
   if (!takes.length && list.length) takes.push({ i: 0, slow: false });
-  const opens = takes.length ? takes[0].i : 0;
+  /* The one the card's progress asks for, if the card has it: a lead that
+     is not there is not a lead, and the other one is then the whole
+     offering rather than a quiet second choice. */
+  const leadSlow = lead === "slow" && iSlow >= 0;
+  const opens = leadSlow ? iSlow : takes.length ? takes[0].i : 0;
 
   const releaseUrl = () => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -2787,7 +2827,9 @@ function AudioPrompt({ recs, autoPlay }) {
         return (
           <button
             key={list[i].id}
-            className={`at-playbig${takes.length > 1 ? " twin" : ""}`}
+            className={`at-playbig${takes.length > 1 ? " twin" : ""}${
+              takes.length > 1 && slow !== leadSlow ? " quiet" : ""
+            }`}
             onClick={() => {
               setIdx(i);
               play(i);
@@ -4587,7 +4629,11 @@ Cards ready to practice
                       /* A context question plays the whole phrase, not the
                          word: hearing it in running speech is the exercise.
                          Everything else plays the card's own recording. */
-                      <AudioPrompt recs={context ? context.recs : item.recs} autoPlay />
+                      <AudioPrompt
+                        recs={context ? context.recs : item.recs}
+                        autoPlay
+                        lead={leadSpeed(item, exercise.type)}
+                      />
                     ) : spec.promptField === "context" ? (
                       <Field
                         /* The phrase can go between building the queue and
@@ -4797,7 +4843,7 @@ Cards ready to practice
                             <p className="at-alsolabel" data-el="also-audio-label">
                               This is how it sounds
                             </p>
-                            <AudioPrompt recs={item.recs} />
+                            <AudioPrompt recs={item.recs} lead={leadSpeed(item)} />
                           </div>
                         )}
                         {/* Asked here rather than inside RelatedWords: an

@@ -46,6 +46,27 @@ await build({
 });
 const { localIdFor, cardToItem, serverCardId } = await import(path.join(out, "shared.js"));
 
+/* And which recording a question leads with, which is a plain function of a
+   card's progress and belongs with the rest of them. The trainer is bundled
+   the same way; nothing in it touches a browser on the way in. */
+await build({
+  entryPoints: [path.join(here, "..", "src", "ArabicTrainer.jsx")],
+  outfile: path.join(out, "trainer.js"),
+  bundle: true,
+  format: "esm",
+  jsx: "automatic",
+  external: ["react", "react-dom", "react-dom/client", "react/jsx-runtime"],
+  loader: { ".jsx": "jsx" },
+  logLevel: "silent",
+  define: {
+    "process.env.NODE_ENV": '"development"',
+    __APP_RELEASE__: '"0"',
+    __APP_VERSION__: '"test"',
+    __BUILT_AT__: '"0"',
+  },
+});
+const { leadSpeed } = await import(path.join(out, "trainer.js"));
+
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
 
@@ -155,6 +176,35 @@ test("a course card knows its name on the server, whatever it is called here", (
   assert.equal(item.id, localIdFor("k9f2a1b3c4d5"), "the device gives it its own id");
   assert.notEqual(item.id, "k9f2a1b3c4d5", "which is not the server's");
   assert.equal(serverCardId(item), "k9f2a1b3c4d5", "and the server's is what goes back");
+});
+
+/*
+ * Slow while a word is being learnt, the real thing once it is being
+ * reviewed. The second half is the one that matters: a learner only ever
+ * offered the slow recording never practices hearing the word as it is
+ * actually said, which is the skill.
+ */
+test("which recording leads follows how far along the card is", () => {
+  /** @param {string} phase @param {number} [interval] */
+  const heard = (phase, interval = 0) => ({ s: { rec2en: { phase, interval, due: 0 } } });
+
+  assert.equal(leadSpeed({ s: {} }), "slow", "a card never listened to starts slow");
+  assert.equal(leadSpeed(heard("new"), "rec2en"), "slow");
+  assert.equal(leadSpeed(heard("learning"), "rec2en"), "slow");
+  /* The meeting after a lapse is exactly where the parts of a word help. */
+  assert.equal(leadSpeed(heard("relearning"), "rec2en"), "slow");
+  assert.equal(leadSpeed(heard("review", 3), "rec2en"), "regular");
+  assert.equal(leadSpeed(heard("review", 40), "rec2en"), "regular");
+
+  /* Two listening exercises, and one of them still being learnt: the
+     cautious answer is the one that holds. */
+  assert.equal(
+    leadSpeed({ s: { rec2en: { phase: "review", interval: 40, due: 0 }, rec2ar: { phase: "learning", interval: 0, due: 0 } } }),
+    "slow"
+  );
+  /* Progress at reading says nothing about hearing it, so a card read
+     fluently and never heard still leads slow. */
+  assert.equal(leadSpeed({ s: { ar2en: { phase: "review", interval: 40, due: 0 } } }), "slow");
 });
 
 test("a course card arrives saying which language it is in, on every form", () => {

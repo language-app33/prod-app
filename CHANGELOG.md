@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.47 — 10 September 2026
+
+- Which recording a listening question opens with now follows how far along
+  the card is. While a word is new, being learnt, or has just been missed,
+  the slow one plays and the ordinary one waits quietly beside it; from the
+  point the card is being reviewed it is the other way round, because
+  hearing the word at the speed it is really said is the thing being
+  learnt.
+- Both are always there and either can be pressed — the one the card did
+  not ask for simply gives up its fill and the colour on its icon, and takes
+  them back when you reach for it. Nothing about this changes how an answer
+  is marked or when the card comes round again.
+
 ## 0.46 — 10 September 2026
 
 - A listening question now offers at most two buttons: the word, and the
