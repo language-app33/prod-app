@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.51 — 10 September 2026
+
+- Getting onto a newly deployed version took a press of Reload and two
+  refreshes. It now takes one refresh, or none: the app puts itself onto
+  the new build as soon as the new version has arrived, and Reload does it
+  in a single press.
+- What was happening: the app's offline copy is kept by a worker that hands
+  over as soon as a new one is installed, and installing it is something a
+  page load does. So the load that fetched the new version was still
+  showing the old one, and only the load after that showed the new — while
+  pressing Reload part way through the handover started it again.
+- It waits for a moment that isn't in the way: never in the middle of a
+  question, and an app left open takes the new version the next time it is
+  put away, so coming back to it is coming back to the current one.
+
 ## 0.50 — 10 September 2026
 
 - The two recordings on a listening question now split the row two thirds

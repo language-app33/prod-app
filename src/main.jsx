@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { storage, requestPersistence } from "./storage.js";
+import { watchForUpdates } from "./updates.js";
 import ArabicTrainer from "./ArabicTrainer.jsx";
 import "./index.css";
 
@@ -9,6 +10,10 @@ window.storage = storage;
 
 // Ask for durable storage before first paint. Harmless if unsupported.
 requestPersistence();
+
+/* Before anything renders: a newly deployed worker can take charge at any
+   moment, including during the first paint, and this is what notices. */
+watchForUpdates();
 
 /*
  * The last line of defence. A render error anywhere used to leave a blank

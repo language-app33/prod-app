@@ -156,6 +156,7 @@ const familyMaturity = (it) => familyMaturityOf(it, (u) => availableTypes(u));
 /** @type {(it: Item) => string} */
 const itemDifficulty = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
+import { applyUpdate, holdUpdates } from "./updates.js";
 import {
   syncClips,
   loadSyncConfig,
@@ -3133,6 +3134,14 @@ export default function ArabicTrainer() {
      the unfiltered path. */
   const [deck] = useState(/** @type {any[]} */ ([]));
   const [session, setSession] = useState(/** @type {any | null} */ (null)); // { exercises, practice, items }
+  /* A newly deployed build takes the page over by itself — see updates.js.
+     Mid-question is the one moment where that would land on top of
+     something, so a session in flight holds it until the session ends or
+     the app is put away. */
+  useEffect(() => {
+    holdUpdates(!!session);
+    return () => holdUpdates(false);
+  }, [session]);
   /* Null until the person has set up or signed in; the app shows the
      welcome screens until then. */
   const [account, setAccount] = useState(() => API.loadAccount());
@@ -7617,66 +7626,13 @@ function AppVersion() {
      and only the hash tells them apart. */
   const stale = deployed && deployed.commit !== APP_COMMIT;
 
-  /*
-   * Reload onto the build that is actually deployed.
-   *
-   * The hard part is not the reload, it is that a reload is answered by
-   * whichever service worker is in charge at that moment. Asking the
-   * worker to look for an update and then reloading straight away — which
-   * is what this did — reloads while the old worker is still in charge,
-   * so the old files come back and the button looks broken. Press it
-   * again a moment later and it works, because by then the new worker has
-   * taken over. That is the two presses.
-   *
-   * So: ask for the update, then wait for the new worker to actually take
-   * control before reloading. The worker this app ships calls
-   * skipWaiting and clientsClaim, so it takes over by itself once it has
-   * installed; controllerchange is the event that says it has.
-   */
-  async function reload() {
+  /* Reload onto the build that is actually deployed. The waiting for the
+     new worker to take over is in updates.js, with the rest of it: what
+     this button does by hand is what the app now does by itself, and the
+     two had drifted into two versions of the same dance. */
+  function reload() {
     setReloading(true);
-    let done = false;
-    const go = () => {
-      if (done) return;
-      done = true;
-      window.location.reload();
-    };
-    /* Never leave the button spinning: if no new worker arrives — the
-       update was already applied, there is no worker at all, or something
-       went wrong out of our sight — reload anyway. */
-    const giveUp = setTimeout(go, 5000);
-
-    try {
-      const sw = navigator.serviceWorker;
-      const reg = sw && (await sw.getRegistration());
-      if (!reg) return go();
-
-      /* Whoever takes over, whenever, this is the moment to reload. */
-      sw.addEventListener("controllerchange", go, { once: true });
-
-      await reg.update();
-
-      const fresh = reg.installing || reg.waiting;
-      /* Nothing new to wait for: either it had already updated in the
-         background, or the deploy is not reachable from here. Reloading
-         is still the right answer — the page may simply be running an
-         older bundle than the worker already holds. */
-      if (!fresh) return go();
-
-      /* Belt and braces for a worker built without skipWaiting, where it
-         would otherwise sit in waiting until every tab is closed. */
-      const nudge = () => reg.waiting && reg.waiting.postMessage({ type: "SKIP_WAITING" });
-      nudge();
-      fresh.addEventListener("statechange", () => {
-        nudge();
-        if (fresh.state === "activated") go();
-      });
-    } catch (e) {
-      /* No worker, or it refused. Reloading is still worth a try. */
-      go();
-    } finally {
-      if (done) clearTimeout(giveUp);
-    }
+    return applyUpdate();
   }
 
   return (
