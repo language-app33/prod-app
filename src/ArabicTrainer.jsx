@@ -2863,7 +2863,12 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
                 it is what tells the two apart at a glance, the label being
                 the thing you read second. */}
             <span className="dot">
-              <Icon name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"} size={36} />
+              <Icon
+                name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"}
+                /* Smaller on the one taking the narrower third of the row,
+                   so what it holds is in proportion to the room it has. */
+                size={takes.length > 1 && slow !== leadSlow ? 26 : 36}
+              />
             </span>
             {mine && state === "loading"
               ? "Loading"

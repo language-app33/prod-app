@@ -946,23 +946,23 @@ button {
    voices that used to sit under the button is gone with the thing it
    picked: a question offers this word and this word said slowly, and
    ranking the takes a teacher happened to make was never the question. */
-/* Centred rather than stretched, so a quieter button can be a smaller one
-   instead of being pulled up to its neighbour's height. */
-.at-playrow { display:flex; gap:10px; justify-content:center; align-items:center; }
-/* Side by side they share the width rather than the second landing under
-   the first: two at their full size do not fit a 320px screen. The icon
-   keeps its size — it is what tells them apart — so the label gives way. */
-.at-playbig.twin { min-width:0; flex:0 1 190px; gap:8px;
-  padding-inline:14px; font-size:15px; white-space:nowrap; }
-/* The one the card's progress did not ask for. It keeps the height of the
-   one beside it — a short button next to a tall one reads as a lesser kind
-   of control rather than as the same thing offered more quietly, and the
-   pair no longer sits level. What it gives up is width: the padding either
-   side goes, so it takes the room its icon and label need and no more. And
-   the fill, and the brass on its icon, which is what the eye goes to.
-   Both come back on hover, so it reads as quiet rather than switched off. */
+/* Stretched, so the two are one height whatever is in them. */
+.at-playrow { display:flex; gap:10px; justify-content:center; align-items:stretch; }
+/* Side by side they share the row rather than the second landing under the
+   first: two at their full size do not fit a 320px screen. */
+.at-playbig.twin { min-width:0; flex:2 1 0; gap:8px;
+  padding-inline:10px; font-size:15px; white-space:nowrap; }
+/* The one the card's progress did not ask for takes a third of the row to
+   the other's two. A ratio rather than a measurement: it holds at every
+   width, where a fixed size has to be guessed against the narrowest screen
+   and looks stunted on the rest. The height is the one thing it keeps — a
+   short button beside a tall one reads as a lesser kind of control rather
+   than as the same thing offered more quietly. What it gives up besides
+   the width is the fill and the brass on its icon, which is what the eye
+   goes to; both come back on hover, so it reads as quiet rather than as
+   switched off. */
 .at-playbig.quiet { background:transparent; color: var(--muted);
-  flex:0 0 auto; padding-inline:8px; gap:6px; }
+  flex:1 1 0; font-size:14px; gap:6px; }
 .at-playbig.quiet .dot { color: var(--muted); }
 .at-playbig.quiet:hover { background: var(--raised); color: var(--text); }
 .at-playbig.quiet:hover .dot { color: var(--brass); }

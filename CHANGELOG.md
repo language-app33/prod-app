@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.50 — 10 September 2026
+
+- The two recordings on a listening question now split the row two thirds
+  to one: the one the card is asking for takes the wider share, the other
+  the narrower. Both are the same height and both still say what they are —
+  the difference is how much room each has, which holds the same on a small
+  phone as on a large one.
+
 ## 0.49 — 10 September 2026
 
 - The recording the card is asking for now sits on the left, whichever
