@@ -2761,7 +2761,11 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
      is not there is not a lead, and the other one is then the whole
      offering rather than a quiet second choice. */
   const leadSlow = lead === "slow" && iSlow >= 0;
-  const opens = leadSlow ? iSlow : takes.length ? takes[0].i : 0;
+  /* The one being led with goes first. The pair is built ordinary-then-slow
+     because that is the order they are recorded in; what is read left to
+     right is which of them this question is about. */
+  if (leadSlow) takes.reverse();
+  const opens = takes.length ? takes[0].i : 0;
 
   const releaseUrl = () => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -2859,13 +2863,7 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
                 it is what tells the two apart at a glance, the label being
                 the thing you read second. */}
             <span className="dot">
-              <Icon
-                name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"}
-                /* Smaller on the one the card did not ask for: the icon is
-                   what the eye goes to, so it is what says which of the two
-                   this question is about. */
-                size={takes.length > 1 && slow !== leadSlow ? 26 : 36}
-              />
+              <Icon name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"} size={36} />
             </span>
             {mine && state === "loading"
               ? "Loading"

@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.49 — 10 September 2026
+
+- The recording the card is asking for now sits on the left, whichever
+  speed it is, and the other one to the right of it. The quieter one is the
+  same height as its neighbour again — a short button beside a tall one
+  read as a lesser kind of control — and gives up width instead: the
+  padding either side goes, so it takes only the room its icon and label
+  need.
+
 ## 0.48 — 10 September 2026
 
 - Pressing the button while a recording is playing now stops it. It had
