@@ -2768,6 +2768,14 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
     urlRef.current = "";
   };
 
+  /* Stop where it is. The button has said Pause since the icons went in and
+     did not: pressing it called play again, which loaded the clip afresh
+     and started it over — the one thing "pause" cannot mean. */
+  const pause = () => {
+    if (audioRef.current) audioRef.current.pause();
+    setState("idle");
+  };
+
   const play = useCallback(
     async (/** @type {number} */ i) => {
       const rec = list[i];
@@ -2784,6 +2792,11 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
       urlRef.current = url;
       el.src = url;
       el.onended = () => setState("idle");
+      /* Paused by anything else — the other button taking the element, a
+         headset, the phone's own controls — reads the same as pausing here.
+         Only ever a step down from playing, so it cannot undo the state a
+         moment before the clip starts. */
+      el.onpause = () => setState((v) => (v === "playing" ? "idle" : v));
       /* A clip that cannot be decoded used to leave the button on "playing"
          for good; now it reads as missing, which is what it is. */
       el.onerror = () => setState("missing");
@@ -2831,6 +2844,12 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
               takes.length > 1 && slow !== leadSlow ? " quiet" : ""
             }`}
             onClick={() => {
+              /* Pressing the one that is playing stops it; pressing the
+                 other switches to it. */
+              if (mine && state === "playing") {
+                pause();
+                return;
+              }
               setIdx(i);
               play(i);
             }}
@@ -2840,7 +2859,13 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
                 it is what tells the two apart at a glance, the label being
                 the thing you read second. */}
             <span className="dot">
-              <Icon name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"} size={36} />
+              <Icon
+                name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"}
+                /* Smaller on the one the card did not ask for: the icon is
+                   what the eye goes to, so it is what says which of the two
+                   this question is about. */
+                size={takes.length > 1 && slow !== leadSlow ? 26 : 36}
+              />
             </span>
             {mine && state === "loading"
               ? "Loading"

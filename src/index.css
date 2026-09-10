@@ -946,17 +946,21 @@ button {
    voices that used to sit under the button is gone with the thing it
    picked: a question offers this word and this word said slowly, and
    ranking the takes a teacher happened to make was never the question. */
-.at-playrow { display:flex; gap:10px; justify-content:center; align-items:stretch; }
+/* Centred rather than stretched, so a quieter button can be a smaller one
+   instead of being pulled up to its neighbour's height. */
+.at-playrow { display:flex; gap:10px; justify-content:center; align-items:center; }
 /* Side by side they share the width rather than the second landing under
    the first: two at their full size do not fit a 320px screen. The icon
    keeps its size — it is what tells them apart — so the label gives way. */
 .at-playbig.twin { min-width:0; flex:0 1 190px; gap:8px;
   padding-inline:14px; font-size:15px; white-space:nowrap; }
-/* The one the card's progress did not ask for. Still full size, because it
-   is still something to press with a thumb — what it gives up is the fill
-   and the brass on its icon, which is what the eye goes to. It comes back
-   on hover, so it reads as quiet rather than as switched off. */
-.at-playbig.quiet { background:transparent; color: var(--muted); }
+/* The one the card's progress did not ask for: smaller, and without the
+   fill or the brass on its icon. Smaller but not small — 44px of height is
+   the floor for anything a thumb has to hit, and this is still a thing to
+   press. Colour and fill come back on hover, so it reads as quiet rather
+   than as switched off. */
+.at-playbig.quiet { background:transparent; color: var(--muted);
+  flex:0 1 150px; min-height:44px; padding:10px 14px; font-size:14px; gap:6px; }
 .at-playbig.quiet .dot { color: var(--muted); }
 .at-playbig.quiet:hover { background: var(--raised); color: var(--text); }
 .at-playbig.quiet:hover .dot { color: var(--brass); }

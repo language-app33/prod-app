@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.48 — 10 September 2026
+
+- Pressing the button while a recording is playing now stops it. It had
+  said Pause since the icons went in and started the clip over instead,
+  which is the one thing pause cannot mean. Pressing the other recording
+  still switches straight to it.
+- The recording a card's progress did not ask for is now smaller as well as
+  quieter, so which of the two the question is about can be seen without
+  reading either label. It is still a full-sized thing to press.
+
 ## 0.47 — 10 September 2026
 
 - Which recording a listening question opens with now follows how far along
