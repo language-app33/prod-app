@@ -301,10 +301,15 @@ button {
   border:2px solid var(--line); border-radius: var(--r); background: var(--surface); padding:8px; }
 /* What the menu is, said where the button that opened it used to be — the
    menu stands on top of it now, so without this line the screen has three
-   options on it and nothing saying what they are options about. */
-.at-flagmenu-label { margin:2px 2px 4px; text-align:left;
-  font-size:13px; font-weight:700; color: var(--muted);
-  letter-spacing:.04em; text-transform:uppercase; }
+   options on it and nothing saying what they are options about. Centred,
+   over a panel whose own contents are all left-aligned: it is the head of
+   the thing, not the first item in it. */
+.at-flagmenu-label { margin:4px 2px 0; text-align:center;
+  font-size:15px; font-weight:800; color: var(--text); }
+/* And why it is worth doing, under it. Two lines at 320px, so the panel
+   pays a line for it and not more. */
+.at-flagmenu-lede { margin:3px 8px 6px; text-align:center;
+  font-size:12px; font-weight:500; line-height:1.4; color: var(--muted); }
 /* Each option is a card rather than a line: a title says what is wrong and
    the line under it says when to pick that one, which is the part a bare
    label left the reader to guess at. Outlined, so three of them read as
@@ -322,11 +327,26 @@ button {
   text-transform:uppercase; color: var(--jade); margin-top:3px; }
 /* Saying it in your own words. It sits under the option it belongs to,
    from the moment the menu opens: a box that appears where the options
-   were, one press in, hid the list you were choosing from. */
-.at-flagnote { display:flex; flex-direction:column; gap:8px; padding:2px; }
+   were, one press in, hid the list you were choosing from.
+
+   And it is drawn as the lower half of that option rather than as a thing
+   beside it — the card's own outline carried on down around it, the menu's
+   gap taken back, no rule between them. Two separate outlines read as two
+   things, and the box read as a fourth choice sitting under three. */
+.at-flagopt.asks { border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
+  padding-bottom:9px; }
+.at-flagnote { display:flex; flex-direction:column; gap:8px;
+  margin-top:-6px; padding:0 12px 11px;
+  background: var(--raised); border:2px solid var(--line); border-top:0;
+  border-radius:0 0 var(--r-sm) var(--r-sm); }
+/* Inside that shape the box is a well rather than a second card: it is
+   where the words go, not another thing to choose. */
+.at-flagnote .at-flagtext { border-radius: var(--r-sm); padding:9px 11px; min-height:62px; }
 /* The one option that is chosen, told apart the way a chosen thing is told
-   apart everywhere else here. */
+   apart everywhere else here — and its box lights with it, because they
+   are one option. */
 .at-flagopt.on { border-color: var(--accent); background: var(--raised-hover); }
+.at-flagopt.asks.on + .at-flagnote { border-color: var(--accent); background: var(--raised-hover); }
 .at-flagtext { font-size:15px; font-weight:500; resize:vertical; min-height:76px; }
 .at-flagnoterow { margin-top:0; }
 .at-flag.flagged { color: var(--rose); border-color: var(--rose-soft); }
@@ -633,6 +653,10 @@ button {
 .at-flagfoot { display:flex; align-items:center; justify-content:space-between;
   gap:10px; flex-wrap:wrap; }
 .at-flagfoot > .at-hint { margin:0; }
+/* The start of those words in the report's own title, which is what tells
+   three reports of the same kind apart. Lighter than the title it follows
+   so the kind still leads. */
+.at-flagsaid { font-weight:600; color: var(--text-soft); }
 /* Somebody's own words, set apart as somebody's own words. */
 .at-flagreport-note { margin:0; font-size:13px; color: var(--text-soft);
   border-left:3px solid var(--line); padding-left:10px; overflow-wrap:anywhere;

@@ -2865,10 +2865,16 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
                 <p className="at-flagmenu-label" data-el="flag-menu-label">
                   Flag a problem
                 </p>
+                {/* Why it is worth the half minute. Reporting a bad question
+                    is a favour done for the next person to meet it, and
+                    nothing on the screen said so. */}
+                <p className="at-flagmenu-lede" data-el="flag-menu-lede">
+                  Any issue or feedback you report helps us improve the app.
+                </p>
                 {FLAG_KINDS.map((k) => (
                   <React.Fragment key={k.key}>
                     <button
-                      className={`at-flagopt${picked === k.key ? " on" : ""}`}
+                      className={`at-flagopt${k.asks ? " asks" : ""}${picked === k.key ? " on" : ""}`}
                       aria-pressed={picked === k.key}
                       onClick={() => setPicked(k.key)}
                     >
@@ -2880,10 +2886,11 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
                         <span className="at-flagopt-does">Counts it correct</span>
                       )}
                     </button>
-                    {/* The box belongs to the option, so it stands under it
-                        from the start rather than taking the place of the
-                        list a press later. Typing in it is a way of picking
-                        that option, because that is plainly what it means. */}
+                    {/* Not a box under the option but the rest of it: joined
+                        to the card above with no seam, and lit with it when
+                        it is the one chosen. Typing in it is a way of
+                        picking that option, because that is plainly what it
+                        means. */}
                     {k.asks && (
                       <div className="at-flagnote" data-el="flag-note">
                         <textarea
@@ -3780,7 +3787,7 @@ export default function ArabicTrainer() {
       prompt: parentItem.ar || "",
       meaning: parentItem.en || "",
     })
-      .then(() => flash("Thanks — that's been reported.", "good"))
+      .then(() => flash("Thank you for the feedback 🫶", "good"))
       .catch(() => flash("Noted on this device. We couldn't reach the server.", "warn"));
   }
 

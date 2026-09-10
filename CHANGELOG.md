@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.41 — 10 September 2026
+
+- The flag panel's heading is centred, and under it a line says why it is
+  worth the half minute: any issue or feedback you report helps us improve
+  the app.
+- The box for "Something else" is drawn as the lower half of that option
+  rather than as a fourth thing sitting under three — one outline around
+  both, and it lights with the option when that is the one chosen.
+- Sending one now says "Thank you for the feedback 🫶".
+- Admin → Flags heads each report with the words that were typed —
+  "Something else: I don't understand how this app works" — so a screen of
+  them can be read down rather than opened one at a time. The whole of what
+  was written is still set out on the report itself.
+
 ## 0.40 — 9 September 2026
 
 - Reporting a problem with a question is one panel now, and it stands on

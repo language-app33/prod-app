@@ -1194,6 +1194,23 @@ const CARD_STATES = {
   },
 };
 
+/*
+ * The gist of what somebody typed, for the head of their report.
+ *
+ * A screen of reports headed "Something else" three times over says only
+ * that three people had something else to say. The words are what tells
+ * them apart, so the first of them go in the title — a line's worth, cut
+ * at a word, with the whole of it still set out below.
+ */
+/** @param {string} [text] */
+function gistOf(text) {
+  const line = String(text || "").trim().split("\n")[0].trim();
+  if (line.length <= 80) return line;
+  const cut = line.slice(0, 80);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > 40 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
 /* And how to set it: the same direction and script the app writes that
    language in everywhere else. Both are undefined for a language this
    build does not carry, which leaves the browser's own defaults — the
@@ -2122,9 +2139,18 @@ export function AdminSpace({ account, languages, onClose }) {
                 ]}
                 renderItem={(f) => {
                   const state = CARD_STATES[f.cardState || ""] || null;
+                  const gist = gistOf(f.note);
                   return (
                     <Tile
-                      title={flagTitle(f.kind)}
+                      title={
+                        <>
+                          {flagTitle(f.kind)}
+                          {/* Their words, at the weight of an answer rather
+                              than of a heading: what the report is called
+                              is still the first thing read. */}
+                          {gist && <span className="at-flagsaid">: {gist}</span>}
+                        </>
+                      }
                       /* Spelled out rather than left as a name beside a
                          date: on a screen of reports about other people's
                          cards, a bare name reads as easily as whose card it
