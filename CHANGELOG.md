@@ -8,6 +8,13 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.42 — 10 September 2026
+
+- A report in Admin → Flags no longer says the same words twice. Since the
+  title took them over, the block underneath only holds what the title
+  could not — a long report, or one written over several lines — and a
+  short one is said once.
+
 ## 0.41 — 10 September 2026
 
 - The flag panel's heading is centred, and under it a line says why it is

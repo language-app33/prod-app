@@ -2140,6 +2140,11 @@ export function AdminSpace({ account, languages, onClose }) {
                 renderItem={(f) => {
                   const state = CARD_STATES[f.cardState || ""] || null;
                   const gist = gistOf(f.note);
+                  /* The words are in the title now, so the report does not
+                     say them twice — unless the title could not hold all of
+                     them, which is the only reason to set them out below. */
+                  const said = String(f.note || "").trim();
+                  const rest = said && said !== gist ? f.note : "";
                   return (
                     <Tile
                       title={
@@ -2203,7 +2208,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             </p>
                           )}
                           {f.meaning && <p className="at-flagreport-en">{f.meaning}</p>}
-                          {f.note && <p className="at-flagreport-note">{f.note}</p>}
+                          {rest && <p className="at-flagreport-note">{rest}</p>}
                           <div className="at-flagfoot">
                             <Help>{exerciseLabel(languages, f.language, f.exercise)}</Help>
                             {/* What became of the card since. Said on the
