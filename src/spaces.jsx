@@ -1204,11 +1204,14 @@ const CARD_STATES = {
  */
 /** @param {string} [text] */
 function gistOf(text) {
+  /* Sixty is about two lines of a tile's title on a phone. Longer and the
+     head of the report starts to be the report, which is the job of the
+     block underneath. */
   const line = String(text || "").trim().split("\n")[0].trim();
-  if (line.length <= 80) return line;
-  const cut = line.slice(0, 80);
+  if (line.length <= 60) return line;
+  const cut = line.slice(0, 60);
   const space = cut.lastIndexOf(" ");
-  return `${(space > 40 ? cut.slice(0, space) : cut).trimEnd()}…`;
+  return `${(space > 30 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 /* And how to set it: the same direction and script the app writes that
@@ -2193,6 +2196,13 @@ export function AdminSpace({ account, languages, onClose }) {
                       }
                       footer={
                         <div className="at-flagreport">
+                          {/* The rest of what they wrote, where the title
+                              ran out — so it carries straight on from the
+                              line above rather than turning up between the
+                              question and the small facts under it, which
+                              is where it used to sit and read as a caption
+                              on the wrong thing. */}
+                          {rest && <p className="at-flagreport-note">{rest}</p>}
                           {/* The question as it was asked, copied into the
                               report when it was sent: the card may have been
                               edited or withdrawn since, and an id on its own
@@ -2208,7 +2218,6 @@ export function AdminSpace({ account, languages, onClose }) {
                             </p>
                           )}
                           {f.meaning && <p className="at-flagreport-en">{f.meaning}</p>}
-                          {rest && <p className="at-flagreport-note">{rest}</p>}
                           <div className="at-flagfoot">
                             <Help>{exerciseLabel(languages, f.language, f.exercise)}</Help>
                             {/* What became of the card since. Said on the
