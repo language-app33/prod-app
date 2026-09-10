@@ -187,6 +187,10 @@ test("a card recorded at both speeds reaches the learner as both, named", () => 
     [["fast", ""], ["slow", "Slow"]]);
   assert.deepEqual(item.subs[0].recs.map((/** @type {any} */ r) => [r.id, r.label]),
     [["subslow", "Slow"]], "a form recorded only slowly still arrives with it");
+  /* And each says its speed as a field rather than only inside its name:
+     the player shows one of each and picks by this, and picking by reading
+     a label back is guessing. */
+  assert.deepEqual(item.recs.map((/** @type {any} */ r) => r.speed), ["regular", "slow"]);
 });
 
 test("and an item that was never a course card has only the one name", () => {

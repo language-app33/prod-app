@@ -2704,6 +2704,25 @@ function AudioPrompt({ recs, autoPlay }) {
      fires when any of them changes and not only the first. */
   const signature = list.map((r) => r.id).join("|");
 
+  /*
+   * At most one of each speed, and the ordinary one first.
+   *
+   * A card may hold several takes at either speed — a teacher recording
+   * twice to get it right leaves both — and a question is not the place to
+   * choose between them: what a learner wants here is this word, and this
+   * word said slowly, not a numbered rank of the takes that exist. The rest
+   * are still on the card, and the teacher's screen still lists them all.
+   */
+  const iReg = list.findIndex((r) => r.speed !== "slow");
+  const iSlow = list.findIndex((r) => r.speed === "slow");
+  /** @type {{ i: number, slow: boolean }[]} */
+  const takes = [];
+  if (iReg >= 0) takes.push({ i: iReg, slow: false });
+  if (iSlow >= 0) takes.push({ i: iSlow, slow: true });
+  /* A card with nothing but slow recordings would otherwise show none. */
+  if (!takes.length && list.length) takes.push({ i: 0, slow: false });
+  const opens = takes.length ? takes[0].i : 0;
+
   const releaseUrl = () => {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = "";
@@ -2744,9 +2763,11 @@ function AudioPrompt({ recs, autoPlay }) {
   );
 
   useEffect(() => {
-    setIdx(0);
+    setIdx(opens);
     setState("idle");
-    if (autoPlay) play(0);
+    /* The ordinary speed is what plays by itself: the slow one is a thing
+       to reach for, not the question as it is asked. */
+    if (autoPlay) play(opens);
     return () => {
       if (audioRef.current) audioRef.current.pause();
       releaseUrl();
@@ -2760,30 +2781,37 @@ function AudioPrompt({ recs, autoPlay }) {
   if (!list.length) return <Notice kind="warn">No recording for this form.</Notice>;
 
   return (
-    <div>
-      <button className="at-playbig" onClick={() => play(idx)}>
-        {/* The icon is the target on a phone, so it is sized like one rather
-            than like a glyph sitting in the label's line. */}
-        <span className="dot"><Icon name={state === "playing" ? "pause" : "play"} size={36} /></span>
-        {state === "loading" ? "Loading" : state === "missing" ? "Not on this device" : "Play"}
-      </button>
-      {list.length > 1 && (
-        <div className="at-voices">
-          {list.map((r, i) => (
-            <button
-              key={r.id}
-              className={`at-voice${i === idx ? " on" : ""}`}
-              onClick={() => {
-                setIdx(i);
-                play(i);
-              }}
-              aria-label={`Recording ${i + 1}`}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className={`at-playrow${takes.length > 1 ? " twin" : ""}`}>
+      {takes.map(({ i, slow }) => {
+        const mine = idx === i;
+        return (
+          <button
+            key={list[i].id}
+            className={`at-playbig${takes.length > 1 ? " twin" : ""}`}
+            onClick={() => {
+              setIdx(i);
+              play(i);
+            }}
+          >
+            {/* The icon is the target on a phone, so it is sized like one
+                rather than like a glyph sitting in the label's line — and
+                it is what tells the two apart at a glance, the label being
+                the thing you read second. */}
+            <span className="dot">
+              <Icon name={mine && state === "playing" ? "pause" : slow ? "slow" : "play"} size={36} />
+            </span>
+            {mine && state === "loading"
+              ? "Loading"
+              : mine && state === "missing"
+              ? "Not on this device"
+              : slow
+              ? "Slow"
+              : takes.length > 1
+              ? "Regular"
+              : "Play"}
+          </button>
+        );
+      })}
     </div>
   );
 }

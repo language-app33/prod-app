@@ -79,6 +79,11 @@ const ICONS = {
   verify:
     "M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z",
   play: "M8 5v14l11-7z",
+  /* The same triangle inside a circle drawn as a broken line: play, but not
+     at the speed the solid one runs at. It is what every video player uses
+     for slow motion, so it is not a private symbol this app invented. */
+  slow:
+    "M13.05 9.79 10 7.5v9l3.05-2.29L16 12l-2.95-2.21zM11 4.07V2.05c-2.01.2-3.84 1-5.32 2.21L7.1 5.69c1.11-.86 2.44-1.44 3.9-1.62zM5.69 7.1 4.26 5.68C3.05 7.16 2.25 8.99 2.05 11h2.02c.18-1.46.76-2.79 1.62-3.9zM4.07 13H2.05c.2 2.01 1 3.84 2.21 5.32l1.43-1.43c-.86-1.11-1.44-2.44-1.62-3.89zm1.61 6.74C7.16 20.95 9 21.75 11 21.95v-2.02c-1.46-.18-2.79-.76-3.9-1.62l-1.42 1.43zM22 12c0 5.16-3.92 9.42-8.95 9.95v-2.02C16.97 19.41 20 16.05 20 12s-3.03-7.41-6.95-7.93V2.05C18.08 2.58 22 6.84 22 12z",
   pause: "M6 19h4V5H6v14zm8-14v14h4V5h-4z",
   view:
     "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z",
@@ -852,15 +857,22 @@ export const CLIP_KINDS = [
 
 /* Every recording on one form, named by the speed it was made at, in the
    shape ClipList reads. Numbered only where there is more than one of a
-   speed — "Slow" alone says more than "Slow 1". */
+   speed — "Slow" alone says more than "Slow 1". The speed is carried as
+   well as written into the label, because the app has to sort recordings by
+   it and reading a label back is not sorting, it is guessing. */
 /** @param {{ clips?: string[], slowClips?: string[] }} [form] */
 export function clipsOf(form) {
-  /** @type {{ id: string, label: string }[]} */
+  /** @type {{ id: string, label: string, speed: "regular" | "slow" }[]} */
   const out = [];
   for (const kind of CLIP_KINDS) {
     const list = (form && form[kind.key]) || [];
+    const speed = kind.key === "slowClips" ? "slow" : "regular";
     for (let i = 0; i < list.length; i++) {
-      out.push({ id: list[i], label: list.length > 1 ? `${kind.short} ${i + 1}` : kind.short });
+      out.push({
+        id: list[i],
+        label: list.length > 1 ? `${kind.short} ${i + 1}` : kind.short,
+        speed,
+      });
     }
   }
   return out;
@@ -2350,7 +2362,11 @@ export const localIdFor = (cardId) => `srv${cardId}`;
 function recsOf(form) {
   return clipsOf(form).map((c) => ({
     id: c.id,
-    label: c.label.startsWith("Regular") ? "" : c.label,
+    label: c.speed === "slow" ? c.label : "",
+    /* What the player sorts on. A recording the learner made themselves
+       carries no speed, which reads as the ordinary one — which is what it
+       is. */
+    speed: c.speed,
     mime: "",
     size: 0,
     dur: 0,

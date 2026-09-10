@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.46 — 10 September 2026
+
+- A listening question now offers at most two buttons: the word, and the
+  word said slowly. Where a card holds both they sit side by side, told
+  apart by their icons — a solid play triangle, and the same triangle in a
+  broken circle. The ordinary one is what plays by itself.
+- The numbered row of voices under the button is gone with the thing it
+  picked. A teacher who recorded a word three times to get it right left
+  three takes on the card; ranking them was never a question a learner
+  wanted put to them. All of them are still on the card, and the teacher's
+  screen still lists every one.
+
 ## 0.45 — 10 September 2026
 
 - If you're studying more than one language, Start session now asks which

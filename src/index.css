@@ -942,12 +942,16 @@ button {
    at the label's, and centres itself instead of riding the text baseline. */
 .at-playbig .dot { color: var(--brass); display:inline-flex; align-items:center; }
 .at-playbig .dot .at-ic { vertical-align:0; }
-.at-voices { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
-.at-voice { font-family: var(--ui); font-size:14px; font-weight:800; cursor:pointer;
-  background: var(--raised); border:2px solid var(--line); border-radius:999px;
-  width:34px; height:34px; color: var(--muted); }
-.at-voice.on { border-color: var(--brass); color: var(--brass); }
-.at-voice:hover { color: var(--text); border-color: var(--muted); }
+/* One recording or two, in a row that centres either. The numbered row of
+   voices that used to sit under the button is gone with the thing it
+   picked: a question offers this word and this word said slowly, and
+   ranking the takes a teacher happened to make was never the question. */
+.at-playrow { display:flex; gap:10px; justify-content:center; align-items:stretch; }
+/* Side by side they share the width rather than the second landing under
+   the first: two at their full size do not fit a 320px screen. The icon
+   keeps its size — it is what tells them apart — so the label gives way. */
+.at-playbig.twin { min-width:0; flex:0 1 190px; gap:8px;
+  padding-inline:14px; font-size:15px; white-space:nowrap; }
 .at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px 16px 8px;
   margin-bottom:14px; background: var(--surface); }
 .at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
