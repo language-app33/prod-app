@@ -234,7 +234,13 @@ button {
    lines are reserved whatever the wording, and a short one is centred in
    them, so everything below starts in the same place every time. It still
    grows if a language ever needs a third. */
-.at-instruction { font-family: var(--ui); font-size:19px; font-weight:700; color: var(--text);
+/* Grey, not full ink: it says the same thing on every exercise of a kind,
+   and once you have read it twice it is a label rather than something to
+   read again. The word being asked about is what the eye should land on,
+   and it is the one that carries the ink. --muted is the grey the app
+   already uses for secondary text — 5.9:1 on the dark ground and 4.9:1 on
+   the light, so it passes AA at any size. */
+.at-instruction { font-family: var(--ui); font-size:19px; font-weight:700; color: var(--muted);
   margin:0 0 8px; line-height:1.4; min-height:2.8em;
   display:flex; align-items:center; justify-content:center; text-align:center; }
 .at-answerlabel { font-family: var(--ui); font-size:13px; font-weight:700; letter-spacing:.05em;
@@ -356,7 +362,7 @@ button {
    is:" to two lines at 320px, which is narrower than any phone it will
    meet; 30px and above take three there. Only the phone keyboard changes
    it, and the keyboard is not the exercise. */
-.at { --verdict: 28px; }
+.at { --verdict: 28px; --verdict-alone: 40px; }
 /* One line, always. The longest verdict — "Incorrect. The correct answer
    is:" — is 496px wide at 28px, and the page column is 288px on a 320px
    phone, so the size comes from the screen: the column's width divided by
@@ -372,6 +378,17 @@ button {
   font-size: min(var(--verdict), calc((100vw - 36px) / 18));
   color: var(--muted);
   margin:16px 0 0; }
+/* Except when it is on its own. A right answer typed in full has nothing
+   shown under it — the answer is already in the box above, so repeating it
+   says nothing — and the praise is then the whole of what came back rather
+   than the line introducing what did. It is sized as the thing being read.
+   The same one-line rule, taken against what it actually has to fit:
+   "Nicely done!" is the longest praise, 6.8px wide per pixel of type
+   against the wrong verdict's 17.7, so 7 with a little slack. That leaves
+   the cap holding it at 40px from a 320px phone up — 272px of the 288px
+   column there, and further inside it on anything wider. */
+.at-shout.alone {
+  font-size: min(var(--verdict-alone), calc((100vw - 36px) / 7)); }
 .at-after { margin-top:6px; }
 /* Session builder: tag and card selection. These matched nothing before,
    which is why they rendered as bare browser defaults. */
@@ -1698,7 +1715,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at-answerbox .at-input { height:52px; }
 .at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
 .at.kb-open .at-progress { height: 10px; }
-.at.kb-open { --verdict: 20px; }
+.at.kb-open { --verdict: 20px; --verdict-alone: 28px; }
 .at.kb-open .at-row { margin-top: 10px; }
 .at.kb-open .at-hint { margin-top: 4px; }
 @media (max-width:480px){
@@ -2030,11 +2047,11 @@ body.at-screening .at-spaces { display:none; }
 .at .at-exercise .at-ask > .at-latin {
   line-height: calc(1.5 * var(--sleading, 1));
   font-weight: 700;
-  /* Grey, not full ink: the question is what you read first, but it is not
-     the answer, and the two used to be the same weight of black. --muted is
-     the grey the app already uses for secondary text — 5.9:1 on the dark
-     ground and 4.9:1 on the light, so it passes AA at any size. */
-  color: var(--muted);
+  /* Full ink. This is the question — the word, the phrase, the thing being
+     asked about — and it is what the eye should land on first. The grey
+     belongs on the instruction above it, which reads the same on every
+     exercise of a kind. */
+  color: var(--text);
   margin: 0;
 }
 /* The one size, taken by each script's own factor. */

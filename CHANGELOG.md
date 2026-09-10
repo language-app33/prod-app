@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.54 — 10 September 2026
+
+- A right answer typed in full has nothing shown under the verdict — the
+  answer is already in the box you typed it into, and repeating it says
+  nothing. The praise is then the whole of what the screen came back with,
+  so it is now set large enough to be that: about half again the size of a
+  verdict that is introducing an answer below it. Everything else about it
+  is unchanged, and a verdict with an answer under it is the size it was.
+- On a question, the line telling you what to do is grey and the word being
+  asked about is in full ink. It was the other way round, which put the
+  weight on the sentence that reads the same on every exercise of a kind
+  rather than on the one thing that changes from card to card.
+
 ## 0.53 — 10 September 2026
 
 - Every deploy reported a crash, and every deploy cut off whatever request

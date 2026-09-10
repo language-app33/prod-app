@@ -283,6 +283,30 @@ test("the verdict is one size, and a large one", () => {
     `--verdict is set by ${owners.join(", ")}`);
 });
 
+test("a verdict standing on its own is the largest thing on the screen", () => {
+  /* The one exception to the size above, and it is not an exercise
+     talking: a right answer typed in full shows nothing under the
+     verdict, so the praise is the whole of what came back rather than the
+     line introducing what did. Same rule — capped, fitted to the screen,
+     one line — against the shorter string it actually has to fit. */
+  const alone = rule(".at-shout.alone");
+  assert.ok(alone, "a verdict on its own is not sized at all");
+  assert.match(alone, /font-size:\s*min\(var\(--verdict-alone\),\s*calc\(/,
+    "the lone verdict is not capped by --verdict-alone and fitted to the screen");
+  const caps = [...css.matchAll(/--verdict-alone:\s*(\d+)px/g)].map((m) => Number(m[1]));
+  const sizes = [...css.matchAll(/--verdict:\s*(\d+)px/g)].map((m) => Number(m[1]));
+  assert.equal(caps.length, sizes.length, "the two caps are not set in the same places");
+  assert.ok(caps.every((n, i) => n > sizes[i]),
+    `a lone verdict is ${caps.join(", ")}px against ${sizes.join(", ")}px, which is not larger`);
+  /* And it is still the one shape: nothing but the cap changes, so it
+     cannot start wrapping or shouting in a colour of its own. */
+  assert.doesNotMatch(alone, /color:|white-space:|font-weight:/,
+    "a lone verdict has started differing from the others in more than its size");
+  const aloneOwners = [...css.matchAll(/([^\n{}]+)\{[^{}]*--verdict-alone:/g)].map((m) => m[1].trim());
+  assert.deepEqual(aloneOwners, [".at", ".at.kb-open"],
+    `--verdict-alone is set by ${aloneOwners.join(", ")}`);
+});
+
 test("every rule that sets the script's size multiplies by the script's scale", () => {
   /* font-size sets the em box, not the height of a letter. The sizes here
      were tuned by eye against Arabic, and every script rule is shared

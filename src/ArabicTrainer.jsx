@@ -3896,6 +3896,16 @@ export default function ArabicTrainer() {
       ? contextsFor(item.id).find((c) => c.id === exercise.ctx) || null
       : null;
   const practice = !!(session && session.practice);
+  /* What the answer screen has to say, once there is one.
+     `answerRepeated` is whether the right answer is shown under the
+     verdict: it is not, when the answer was right and typed in full —
+     it is already in the box above, and repeating it says nothing.
+     Nothing else stands in for it, so in that one case the praise is the
+     whole of what the screen came back with, and it is sized as the thing
+     being read rather than as the line introducing the answer below. */
+  const answerRight = !!checked && (checked.ok || overridden);
+  const answerRepeated = !!checked && (!answerRight || checked.reason === "bare");
+  const verdictAlone = answerRight && !answerRepeated;
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -4789,7 +4799,7 @@ Cards ready to practice
                   {checked ? (
                     <>
                       <p
-                        className={`at-shout ${
+                        className={`at-shout ${verdictAlone ? "alone " : ""}${
                           checked.ok || overridden ? "ok" : skipped ? "skip" : "no"
                         }`}
                         data-el="verdict"
@@ -4809,7 +4819,7 @@ Cards ready to practice
                           they were right but typed the word bare, where the
                           box above holds their own unmarked spelling and the
                           nudge under it would otherwise point at nothing. */}
-                      {(!(checked.ok || overridden) || checked.reason === "bare") && (
+                      {answerRepeated && (
                         <div className="at-answermain" data-el="answer-value">
                           <Field
                             value={item[spec.answerField]}

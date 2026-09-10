@@ -46,7 +46,7 @@ export const SCREEN_ELEMENTS = [
     ["check-button", "Marks what you typed.", "Check"],
   ]],
   [ANSWER, [
-    ["verdict", "What happened. Rotating praise when right; one fixed line when not.", "Nicely done! · Incorrect. The correct answer is: · The answer is:"],
+    ["verdict", "What happened. Rotating praise when right; one fixed line when not. Larger when the praise is all the screen has to show.", "Nicely done! · Incorrect. The correct answer is: · The answer is:"],
     ["verdict-reason", "Why it was marked that way, when there is something worth saying.", "Right letters, wrong harakat"],
     ["answer-value", "The right answer. Shown only when you got it wrong or asked to see it.", ""],
     ["answer-value-text", "The right answer itself, in whichever language was asked for.", "كِتاب"],
