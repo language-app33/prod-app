@@ -140,6 +140,8 @@ const PLACES = {
 
   /* Admin */
   AdminSpace: [ADMIN, "The Admin space"],
+  BackupScreen: [ADMIN, "App · backing up and restoring"],
+  ClearScreen: [ADMIN, "App · clearing the site"],
 
   /* Before you are signed in */
   Onboarding: [START, "Signing in and joining a course"],

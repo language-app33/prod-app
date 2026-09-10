@@ -536,6 +536,87 @@ const BACKUP_CONCURRENCY = 4;
 const RESTORE_BYTES = 3 * 1024 * 1024; // per request, under the function's own limit
 
 /*
+ * What a backup is made of, in the parts an administrator would name.
+ *
+ * One list, read by all four things that need it — what to put in a file,
+ * what to take out of one, what a file turns out to hold, and what a clear
+ * removes — so the words on those four screens cannot drift apart and a
+ * part cannot be added to one of them and forgotten by the others.
+ *
+ * `kinds` are the chunk kinds the server's manifest names; `prefixes` are
+ * the keys those chunks hold, which is what a file has to be filtered by on
+ * the way back in. The two are separate because the server batches by one
+ * and stores by the other: cards travel as "card" and "owncards" chunks and
+ * live under card: and mycards:.
+ */
+/** @type {{ key: string, title: string, what: string, kinds: string[], prefixes: string[], index?: string, count: string, unit: string }[]} */
+const BACKUP_PARTS = [
+  {
+    key: "people",
+    title: "People",
+    what: "Accounts and their names, with the fingerprint of each sign-in key — never the keys themselves.",
+    kinds: ["user", "keymap"],
+    prefixes: ["user:", "key:"],
+    index: "users",
+    count: "users",
+    unit: "account",
+  },
+  {
+    key: "courses",
+    title: "Courses",
+    what: "Who teaches each one, who studies it, and which decks it uses.",
+    kinds: ["course"],
+    prefixes: ["course:"],
+    index: "courses",
+    count: "courses",
+    unit: "course",
+  },
+  {
+    key: "decks",
+    title: "Decks",
+    what: "Deck names, and which courses each deck belongs to.",
+    kinds: ["deck"],
+    prefixes: ["deck:"],
+    index: "decks",
+    count: "decks",
+    unit: "deck",
+  },
+  {
+    key: "cards",
+    title: "Cards",
+    what: "Every card's wording, its other forms and its grammar. Not the audio.",
+    kinds: ["card", "owncards"],
+    prefixes: ["card:", "mycards:", "owncards:"],
+    count: "cards",
+    unit: "card",
+  },
+  {
+    key: "clips",
+    title: "Recordings",
+    what: "The audio itself, which is nearly all of the size of a backup.",
+    kinds: ["clip"],
+    prefixes: ["clip:"],
+    count: "clips",
+    unit: "recording",
+  },
+];
+
+/** Every part, which is what a backup means unless somebody says otherwise. */
+const ALL_PARTS = BACKUP_PARTS.map((p) => p.key);
+
+/** @param {string[]} parts */
+const partsChosen = (parts) => BACKUP_PARTS.filter((p) => parts.includes(p.key));
+
+/* Which parts a file holds. Files made before a backup could be partial say
+   nothing, and a file that says nothing holds everything — which was true
+   of every file made until now. */
+/** @param {any} file */
+function includedIn(file) {
+  const said = file && file.manifest && file.manifest.includes;
+  return Array.isArray(said) && said.length ? said.filter((k) => ALL_PARTS.includes(k)) : ALL_PARTS;
+}
+
+/*
  * Builds the file as a Blob, chunk by chunk, in the order the manifest
  * lists them. Each chunk's JSON goes into the Blob as soon as its turn
  * comes and is not kept: the old version collected every record into one
@@ -546,11 +627,38 @@ const RESTORE_BYTES = 3 * 1024 * 1024; // per request, under the function's own 
  * over each chunk as it passes: counts per kind, and whether every deck
  * and recording that is referred to is actually in the file.
  */
-/** @param {(done: number, total: number) => void} onProgress */
-async function buildBackup(onProgress) {
+/**
+ * @param {(done: number, total: number) => void} onProgress
+ * @param {string[]} [parts] Which of BACKUP_PARTS to put in. Everything by
+ *   default, which is what a backup meant before it could be less.
+ */
+async function buildBackup(onProgress, parts = ALL_PARTS) {
   const { manifest } = await API.backupManifest();
-  const plan = manifest.plan || [];
-  const { plan: _drop, ...kept } = manifest;
+  const chosen = partsChosen(parts);
+  const kinds = new Set(chosen.flatMap((p) => p.kinds));
+  const plan = (manifest.plan || []).filter((/** @type {any} */ c) => kinds.has(c.kind));
+  const { plan: _drop, ...whole } = manifest;
+  /* The file says what it holds, and its counts are the counts of what it
+     holds — not of the site. A file that claimed the site's numbers would
+     be a file that fails its own check the moment it is verified. */
+  const kept = {
+    ...whole,
+    includes: chosen.map((p) => p.key),
+    counts: Object.fromEntries(
+      Object.entries(whole.counts || {}).map(([k, v]) => [
+        k,
+        BACKUP_PARTS.some((p) => p.count === k && !parts.includes(p.key)) ? 0 : v,
+      ])
+    ),
+    /* An index for a part that was left out would name records the file
+       does not carry, and a restore folds indexes into what is there. */
+    indexes: Object.fromEntries(
+      Object.entries(whole.indexes || {}).filter(([what]) =>
+        chosen.some((p) => p.index === what)
+      )
+    ),
+    chunks: (whole.chunks || []).filter((/** @type {any} */ c) => kinds.has(c.kind)),
+  };
 
   /** @type {Record<string, any>} */
   /** @type {Record<string, string>} */
@@ -614,23 +722,29 @@ async function buildBackup(onProgress) {
 
   const problems = [];
   const expect = [
-    ["users", "user:", manifest.counts && manifest.counts.users],
-    ["courses", "course:", manifest.counts && manifest.counts.courses],
-    ["decks", "deck:", manifest.counts && manifest.counts.decks],
-    ["cards", "card:", manifest.counts && manifest.counts.cards],
-    ["clips", "clip:", manifest.counts && manifest.counts.clips],
+    ["users", "user:", kept.counts && kept.counts.users],
+    ["courses", "course:", kept.counts && kept.counts.courses],
+    ["decks", "deck:", kept.counts && kept.counts.decks],
+    ["cards", "card:", kept.counts && kept.counts.cards],
+    ["clips", "clip:", kept.counts && kept.counts.clips],
   ];
   for (const [label, prefix, want] of expect) {
     if (want !== undefined && counts[prefix] !== want) {
       problems.push(`${label}: manifest says ${want}, file holds ${counts[prefix]}.`);
     }
   }
-  let danglingDecks = 0;
-  for (const id of refs.decks) if (!seen.has(`deck:${id}`)) danglingDecks += 1;
-  let danglingClips = 0;
-  for (const h of refs.clips) if (!seen.has(`clip:${h}`)) danglingClips += 1;
-  if (danglingDecks) problems.push(`${danglingDecks} deck reference(s) point outside the file.`);
-  if (danglingClips) problems.push(`${danglingClips} recording(s) are referenced but missing.`);
+  /* A part left out on purpose is not a part missing: only what the file
+     says it holds is held to holding it. */
+  if (parts.includes("decks")) {
+    let dangling = 0;
+    for (const id of refs.decks) if (!seen.has(`deck:${id}`)) dangling += 1;
+    if (dangling) problems.push(`${dangling} deck reference(s) point outside the file.`);
+  }
+  if (parts.includes("clips")) {
+    let dangling = 0;
+    for (const h of refs.clips) if (!seen.has(`clip:${h}`)) dangling += 1;
+    if (dangling) problems.push(`${dangling} recording(s) are referenced but missing.`);
+  }
 
   return { blob, manifest: kept, problems };
 }
@@ -645,10 +759,16 @@ async function buildBackup(onProgress) {
 /**
  * @param {any} file
  * @param {(done: number, total: number) => void} onProgress
+ * @param {string[]} [parts] Which of BACKUP_PARTS to put back. A file may
+ *   hold more than is wanted — the recordings when only the wording is
+ *   being recovered, everybody's accounts when one course is.
  */
-async function restoreBackup(file, onProgress) {
+async function restoreBackup(file, onProgress, parts = ALL_PARTS) {
   const records = file.records || {};
-  const keys = Object.keys(records).filter((k) => !k.startsWith("index:"));
+  const chosen = partsChosen(parts);
+  const wanted = (/** @type {string} */ k) =>
+    chosen.some((p) => p.prefixes.some((prefix) => k.startsWith(prefix)));
+  const keys = Object.keys(records).filter((k) => !k.startsWith("index:") && wanted(k));
   /** @type {Record<string, any>[]} */
   const batches = [];
   /** @type {Record<string, any>} */
@@ -672,11 +792,14 @@ async function restoreBackup(file, onProgress) {
 
   const indexes = (file.manifest && file.manifest.indexes) || {};
   /** @type {Record<string, any>} */
-  /** @type {Record<string, any>} */
-  /** @type {Record<string, any>} */
   const last = {};
   for (const [what, list] of Object.entries(indexes)) {
-    if (Array.isArray(list)) last[`index:${what}`] = list;
+    if (!Array.isArray(list)) continue;
+    /* An index goes back only with the records it names. Restoring
+       index:users without the accounts would leave the site listing people
+       it cannot read. */
+    if (!chosen.some((p) => p.index === what)) continue;
+    last[`index:${what}`] = list;
   }
   if (Object.keys(last).length) batches.push(last);
 
@@ -691,11 +814,12 @@ async function restoreBackup(file, onProgress) {
 
 /* What a finished file says about itself, checked against what it holds. */
 /** @param {any} file */
-function verifyBackup(file) {
+export function verifyBackup(file) {
   const problems = [];
   if (!file || file.format !== "language-app-backup") return ["Not a backup file."];
   const m = file.manifest || {};
   const rec = file.records || {};
+  const has = includedIn(file);
   if (m.version !== 1) problems.push(`Made by a different version (${m.version}).`);
 
   /** @type {(prefix: string) => number} */
@@ -726,8 +850,14 @@ function verifyBackup(file) {
       for (const h of clipHashes(value)) if (!rec[`clip:${h}`]) danglingClips += 1;
     }
   }
-  if (danglingDecks) problems.push(`${danglingDecks} deck reference(s) point outside the file.`);
-  if (danglingClips) problems.push(`${danglingClips} recording(s) are referenced but missing.`);
+  /* Only what the file set out to hold is held to holding it: a backup of
+     the wording alone is not a broken backup for having no audio in it. */
+  if (has.includes("decks") && danglingDecks) {
+    problems.push(`${danglingDecks} deck reference(s) point outside the file.`);
+  }
+  if (has.includes("clips") && danglingClips) {
+    problems.push(`${danglingClips} recording(s) are referenced but missing.`);
+  }
   return problems;
 }
 
@@ -1249,6 +1379,12 @@ export function AdminSpace({ account, languages, onClose }) {
   const [openCourse2, setOpenCourse2] = useState(/** @type {string | null} */ (null)); // a course being settled
   const [selPeople, setSelPeople] = useState(() => new Set());
   const [backup, setBackup] = useState(/** @type {Progress | null} */ (null)); // { state, done, total, note }
+  /* Which of the two backup screens is open, and the file the restore one
+     is working from — held here rather than in the screen so choosing a
+     file survives a re-render of the tab underneath. */
+  const [backupMode, setBackupMode] = useState(/** @type {"download" | "restore" | null} */ (null));
+  const [restoreFile, setRestoreFile] = useState(/** @type {{ parsed: any, name: string } | null} */ (null));
+  const [clearing, setClearing] = useState(false);
   /* Off until asked for: the gallery renders a specimen of every component,
      which is a lot of markup to carry on a tab that is mostly about backups. */
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -2261,43 +2397,38 @@ export function AdminSpace({ account, languages, onClose }) {
               </Help>
 
               <div className="at-row at-mt1">
-                <Button variant="primary"
-                  disabled={!!backup && backup.state === "running"}
-                  onClick={async () => {
-                    setBackup({ state: "running", done: 0, total: 0, note: "" });
-                    try {
-                      const { blob, manifest, problems } = await buildBackup((done, total) =>
-                        setBackup({ state: "running", done, total, note: "" })
-                      );
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      const stamp = new Date(manifest.takenAt)
-                        .toISOString()
-                        .slice(0, 16)
-                        .replace(/[:T]/g, "-");
-                      a.href = url;
-                      a.download = `backup-${stamp}.json`;
-                      a.click();
-                      /* Revoking straight away can cancel the download in
-                         some browsers; a moment later is soon enough. */
-                      setTimeout(() => URL.revokeObjectURL(url), 60000);
-                      setBackup({
-                        state: "done",
-                        counts: manifest.counts,
-                        takenAt: manifest.takenAt,
-                        note: problems.join(" "),
-                      });
-                    } catch (e) {
-                      setBackup({ state: "failed", note: API.explain(e) });
-                    }
-                  }}
-                >
-                  {backup && backup.state === "running" ? "Working…" : "Download a backup"}
+                <Button variant="primary" onClick={() => setBackupMode("download")} icon="download">
+                  Back up the site
                 </Button>
 
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setRestoreFile(null);
+                    setBackupMode("restore");
+                  }}
+                  icon="refresh"
+                >
+                  Restore a backup
+                </Button>
+              </div>
+
+              {/* Verifying needs no options and no screen: it is one file in,
+                  one answer out, and the answer is wanted where the question
+                  was asked. */}
+              <p className="at-eyebrow at-mt5">Verify a backup</p>
+              <Help>
+                Reads a file you already have and checks it against what it says
+                about itself: that every part it lists actually arrived, and that
+                nothing it points at is missing. A download cut short, or a file
+                half-copied off a laptop, looks perfectly good sitting on disk —
+                this is how you find out on a quiet afternoon rather than during
+                a recovery.
+              </Help>
+              <div className="at-row at-mt1">
                 <label className="at-btn ghost" style={{ cursor: "pointer" }}>
                   <Icon name="verify" />
-                  Check a file
+                  Verify a backup
                   <input
                     type="file"
                     accept="application/json,.json"
@@ -2318,69 +2449,6 @@ export function AdminSpace({ account, languages, onClose }) {
                       } catch (err) {
                         setBackup({ state: "bad", note: "That file isn't readable as JSON." });
                       }
-                    }}
-                  />
-                </label>
-
-                <label className="at-btn ghost" style={{ cursor: "pointer" }}>
-                  <Icon name="refresh" />
-                  Restore a file
-                  <input
-                    type="file"
-                    accept="application/json,.json"
-                    className="at-hidden"
-                    onChange={async (e) => {
-                      const f = e.target.files && e.target.files[0];
-                      e.target.value = "";
-                      if (!f) return;
-                      let parsed;
-                      try {
-                        parsed = JSON.parse(await f.text());
-                      } catch (err) {
-                        setBackup({ state: "bad", note: "That file isn't readable as JSON." });
-                        return;
-                      }
-                      const problems = verifyBackup(parsed);
-                      const counts = (parsed.manifest && parsed.manifest.counts) || {};
-                      setConfirm({
-                        title: "Restore this backup?",
-                        confirmLabel: "Restore",
-                        confirmWord: "restore",
-                        body: (
-                          <>
-                            <p>
-                              {counts.users || 0} people, {counts.courses || 0} courses,{" "}
-                              {counts.decks || 0} decks, {counts.cards || 0} cards and{" "}
-                              {counts.clips || 0} recordings, taken{" "}
-                              {parsed.manifest && parsed.manifest.takenAt
-                                ? new Date(parsed.manifest.takenAt).toLocaleString()
-                                : "at an unknown time"}
-                              .
-                            </p>
-                            <p>
-                              Everything in the file is written back over whatever has the same
-                              name on the site. Anything made since the backup is left alone.
-                            </p>
-                            {problems.length ? (
-                              <p style={{ marginBottom: 0, color: "var(--rose)" }}>
-                                {problems.join(" ")}
-                              </p>
-                            ) : null}
-                          </>
-                        ),
-                        action: async () => {
-                          setBackup({ state: "restoring", done: 0, total: 0, note: "" });
-                          const written = await restoreBackup(parsed, (done, total) =>
-                            setBackup({ state: "restoring", done, total, note: "" })
-                          );
-                          setBackup({
-                            state: "restored",
-                            counts,
-                            takenAt: parsed.manifest && parsed.manifest.takenAt,
-                            note: `${written} records written.`,
-                          });
-                        },
-                      });
                     }}
                   />
                 </label>
@@ -2446,6 +2514,22 @@ export function AdminSpace({ account, languages, onClose }) {
                 anyone able to restore it can change who has access.
               </Help>
 
+              {/* Last on the tab, under everything it could undo. */}
+              <p className="at-eyebrow at-mt6" style={{ color: "var(--rose)" }}>
+                Danger zone
+              </p>
+              <Help>
+                Removes what a backup would have held — the same parts, chosen
+                the same way — from the site, for everyone. There is no undo and
+                no confirmation email: a backup file is the only way back, so
+                take one first. It asks for the deploy's admin key as well.
+              </Help>
+              <div className="at-row at-mt1">
+                <Button variant="danger" onClick={() => setClearing(true)} icon="delete">
+                  Clear data
+                </Button>
+              </div>
+
               <p className="at-eyebrow at-mt6">Components</p>
               <Help>
                 Every reusable component, rendered live with its variants. Worth a look before
@@ -2489,6 +2573,115 @@ export function AdminSpace({ account, languages, onClose }) {
                 </React.Suspense>
               )}
             </>
+          )}
+
+          {backupMode && (
+            <BackupScreen
+              mode={backupMode}
+              file={restoreFile ? restoreFile.parsed : null}
+              fileName={restoreFile ? restoreFile.name : ""}
+              busy={!!backup && (backup.state === "running" || backup.state === "restoring")}
+              progress={
+                backup && (backup.state === "running" || backup.state === "restoring")
+                  ? { done: backup.done || 0, total: backup.total || 0 }
+                  : null
+              }
+              onPickFile={(parsed, name) => setRestoreFile({ parsed, name })}
+              onClose={() => setBackupMode(null)}
+              onDownload={async (parts) => {
+                setBackup({ state: "running", done: 0, total: 0, note: "" });
+                try {
+                  const { blob, manifest, problems } = await buildBackup(
+                    (done, total) => setBackup({ state: "running", done, total, note: "" }),
+                    parts
+                  );
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  const stamp = new Date(manifest.takenAt)
+                    .toISOString()
+                    .slice(0, 16)
+                    .replace(/[:T]/g, "-");
+                  a.href = url;
+                  /* Named for what is in it, so a folder of these can be
+                     read without opening any of them. */
+                  a.download = `backup-${stamp}${
+                    parts.length === ALL_PARTS.length ? "" : `-${parts.join("-")}`
+                  }.json`;
+                  a.click();
+                  /* Revoking straight away can cancel the download in
+                     some browsers; a moment later is soon enough. */
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                  setBackup({
+                    state: "done",
+                    counts: manifest.counts,
+                    takenAt: manifest.takenAt,
+                    note: problems.join(" "),
+                  });
+                  setBackupMode(null);
+                } catch (e) {
+                  setBackup({ state: "failed", note: API.explain(e) });
+                }
+              }}
+              onRestore={(parts) => {
+                const parsed = restoreFile && restoreFile.parsed;
+                if (!parsed) return;
+                const problems = verifyBackup(parsed);
+                const counts = (parsed.manifest && parsed.manifest.counts) || {};
+                const naming = partsChosen(parts).map((p) => p.title.toLowerCase()).join(", ");
+                setConfirm({
+                  title: "Restore this backup?",
+                  confirmLabel: "Restore",
+                  confirmWord: "restore",
+                  body: (
+                    <>
+                      <p>
+                        Putting back {naming}, taken{" "}
+                        {parsed.manifest && parsed.manifest.takenAt
+                          ? new Date(parsed.manifest.takenAt).toLocaleString()
+                          : "at an unknown time"}
+                        .
+                      </p>
+                      <p>
+                        Everything in the file is written back over whatever has the same
+                        name on the site. Anything made since the backup is left alone.
+                      </p>
+                      {problems.length ? (
+                        <p style={{ marginBottom: 0, color: "var(--rose)" }}>
+                          {problems.join(" ")}
+                        </p>
+                      ) : null}
+                    </>
+                  ),
+                  action: async () => {
+                    setBackup({ state: "restoring", done: 0, total: 0, note: "" });
+                    const written = await restoreBackup(
+                      parsed,
+                      (done, total) => setBackup({ state: "restoring", done, total, note: "" }),
+                      parts
+                    );
+                    setBackup({
+                      state: "restored",
+                      counts,
+                      takenAt: parsed.manifest && parsed.manifest.takenAt,
+                      note: `${written} records written.`,
+                    });
+                    setBackupMode(null);
+                    setRestoreFile(null);
+                  },
+                });
+              }}
+            />
+          )}
+
+          {clearing && (
+            <ClearScreen
+              onClose={() => setClearing(false)}
+              onClear={async (adminKey, parts) => {
+                const r = await API.clearData(adminKey, parts);
+                await refresh();
+                return r;
+              }}
+            />
           )}
     </SpaceFrame>
   );
@@ -2714,6 +2907,307 @@ function blobToDataUrl(blob) {
 /* One thing, as a tile: a deck, a course, a person. Title, a line of facts,
    optional actions, and a slot under the rule for whatever matters where it
    is being shown. Six near-identical copies of this used to exist. */
+/* ------------------------------------------------------------------
+   Backing up and putting back
+
+   Both directions on one screen, because they are one question asked twice:
+   which parts of the site is this about? A backup that can only ever be the
+   whole site is a backup nobody takes on a Tuesday, and a restore that can
+   only be all of it is a restore nobody dares run — the file holds every
+   account, and what was wanted was one course's cards back.
+
+   The parts are BACKUP_PARTS, which is also what a clear removes, so the
+   three screens name the same things in the same words.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   mode: "download" | "restore",
+ *   file?: any,
+ *   fileName?: string,
+ *   onDownload: (parts: string[]) => void,
+ *   onRestore: (parts: string[]) => void,
+ *   onPickFile: (file: any, name: string) => void,
+ *   progress?: { done: number, total: number } | null,
+ *   busy?: boolean,
+ *   onClose: () => void,
+ * }} props
+ */
+function BackupScreen({
+  mode,
+  file,
+  fileName,
+  onDownload,
+  onRestore,
+  onPickFile,
+  progress,
+  busy,
+  onClose,
+}) {
+  const restoring = mode === "restore";
+  /* Everything, until somebody says otherwise: the whole site is what a
+     backup is for, and the parts are there for the times it is not. On a
+     restore it is what the file actually holds, because offering to put
+     back what is not in the file is offering nothing. */
+  const held = file ? includedIn(file) : ALL_PARTS;
+  const [parts, setParts] = useState(ALL_PARTS);
+  const [readErr, setReadErr] = useState("");
+  useEffect(() => {
+    if (file) setParts(includedIn(file));
+  }, [file]);
+
+  const counts = (file && file.manifest && file.manifest.counts) || null;
+  const chosen = parts.filter((p) => !restoring || held.includes(p));
+  const nothing = !chosen.length;
+
+  return (
+    <Screen
+      title={restoring ? "Restore" : "Back up"}
+      onBack={onClose}
+      rise
+      action={
+        restoring ? (
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={!file || nothing || busy}
+            onClick={() => onRestore(chosen)}
+          >
+            <Icon name="refresh" />
+            {busy ? "Restoring…" : "Restore"}
+          </Button>
+        ) : (
+          <Button variant="primary" size="sm" disabled={nothing || busy} onClick={() => onDownload(chosen)}>
+            <Icon name="download" />
+            {busy ? "Working…" : "Download"}
+          </Button>
+        )
+      }
+    >
+      <Help>
+        {restoring
+          ? "Everything you tick is written back over whatever has the same name on the site. Anything made since the backup is left alone, and anything you leave unticked is left in the file."
+          : "Tick what the file should hold. All of it is the backup to keep; less of it is for when you want the wording of every card without a gigabyte of audio behind it."}
+      </Help>
+
+      {restoring && (
+        <div className="at-row at-mt3">
+          <label className="at-btn ghost" style={{ cursor: "pointer" }}>
+            <Icon name="folder" />
+            {file ? "Choose a different file" : "Choose a file"}
+            <input
+              type="file"
+              accept="application/json,.json"
+              className="at-hidden"
+              onChange={async (e) => {
+                const f = e.target.files && e.target.files[0];
+                e.target.value = "";
+                if (!f) return;
+                setReadErr("");
+                try {
+                  onPickFile(JSON.parse(await f.text()), f.name);
+                } catch (err) {
+                  setReadErr("That file isn't readable as JSON.");
+                }
+              }}
+            />
+          </label>
+        </div>
+      )}
+
+      <Notice kind="error">{readErr}</Notice>
+
+      {restoring && file && (
+        <div className="at-sub at-mt3">
+          <p className="at-eyebrow">{fileName || "The file"}</p>
+          <Help>
+            Taken{" "}
+            {file.manifest && file.manifest.takenAt
+              ? new Date(file.manifest.takenAt).toLocaleString()
+              : "at an unknown time"}
+            .
+          </Help>
+          {verifyBackup(file).length ? (
+            <p className="at-hint" style={{ marginBottom: 0, color: "var(--rose)" }}>
+              {verifyBackup(file).join(" ")}
+            </p>
+          ) : (
+            <Help>Checked: it holds everything it says it holds.</Help>
+          )}
+        </div>
+      )}
+
+      {(!restoring || file) && (
+        <div className="at-field at-mt4">
+          <CheckList
+            options={BACKUP_PARTS.filter((p) => !restoring || held.includes(p.key)).map((p) => ({
+              id: p.key,
+              title: p.title,
+              note:
+                counts && counts[p.count] !== undefined
+                  ? `${p.what} ${plural(counts[p.count], p.unit)} in the file.`
+                  : p.what,
+            }))}
+            chosen={parts}
+            onToggle={(id, on) =>
+              setParts((x) => (on ? x.filter((k) => k !== id) : x.concat([id])))
+            }
+          />
+          {restoring && held.length < ALL_PARTS.length && (
+            <Help>
+              {plural(ALL_PARTS.length - held.length, "part")} of the site
+              {ALL_PARTS.length - held.length === 1 ? " is" : " are"} not in this file, so
+              {ALL_PARTS.length - held.length === 1 ? " it is" : " they are"} not offered here.
+            </Help>
+          )}
+          {nothing && <Help>Nothing ticked, so there is nothing to do.</Help>}
+        </div>
+      )}
+
+      {progress && progress.total > 0 && (
+        <Help>
+          {restoring ? "Writing" : "Fetching"} {progress.done} of {progress.total} parts…
+        </Help>
+      )}
+    </Screen>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Clearing the site
+
+   The other end of a restore, and the only screen in the app that removes
+   things wholesale. It asks for the deploy's admin key as well as an
+   administrator's account, because being signed in as an administrator is
+   a thing a borrowed phone is, and this is not an action to leave one tap
+   away from a menu.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   onClear: (adminKey: string, parts: string[]) => Promise<any>,
+ *   onClose: () => void,
+ * }} props
+ */
+function ClearScreen({ onClear, onClose }) {
+  /* Nothing ticked to begin with. A screen that opens with every box
+     already ticked is a screen where the dangerous thing is one tap away,
+     and the tap is the wrong one to make easy. */
+  const [parts, setParts] = useState(/** @type {string[]} */ ([]));
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(/** @type {any | null} */ (null));
+  const [asking, setAsking] = useState(false);
+
+  const naming = partsChosen(parts).map((p) => p.title.toLowerCase()).join(", ");
+
+  return (
+    <Screen
+      title="Clear data"
+      onBack={onClose}
+      rise
+      action={
+        <Button
+          variant="danger"
+          size="sm"
+          disabled={!parts.length || !key.trim() || busy}
+          onClick={() => setAsking(true)}
+        >
+          <Icon name="delete" />
+          {busy ? "Clearing…" : "Clear"}
+        </Button>
+      }
+    >
+      <Notice kind="warn">
+        What this removes is gone from the site. There is no undo, and the only
+        way back is a backup file — so take one first, even if you are sure.
+      </Notice>
+
+      <div className="at-field at-mt4">
+        <label className="at-label">What to clear</label>
+        <CheckList
+          options={BACKUP_PARTS.map((p) => ({ id: p.key, title: p.title, note: p.what }))}
+          chosen={parts}
+          onToggle={(id, on) => setParts((x) => (on ? x.filter((k) => k !== id) : x.concat([id])))}
+        />
+        {parts.includes("people") && (
+          <Help>
+            Your own account is kept, whatever else goes: a site nobody can sign
+            in to is not a site anyone can put right. Remove it from People
+            afterwards if you mean to.
+          </Help>
+        )}
+      </div>
+
+      <Field label="Admin key">
+        <input
+          className="at-input"
+          type="password"
+          autoComplete="off"
+          value={key}
+          placeholder="The key this deploy was set up with"
+          onChange={(e) => setKey(e.target.value)}
+        />
+        <Help>
+          The same key that makes someone an administrator. It lives with
+          whoever runs the deploy, not on the site, which is what makes it
+          worth asking for here.
+        </Help>
+      </Field>
+
+      <Notice kind="error">{error}</Notice>
+
+      {done && (
+        <div className="at-sub at-mt4">
+          <p className="at-eyebrow">Cleared</p>
+          <div className="at-flags">
+            {BACKUP_PARTS.map((p) =>
+              done[p.count] ? (
+                <span className="at-flag" key={p.key}>
+                  {plural(done[p.count], p.unit)}
+                </span>
+              ) : null
+            )}
+          </div>
+        </div>
+      )}
+
+      {asking && (
+        <ConfirmModal
+          title={`Clear ${naming}?`}
+          confirmLabel="Clear it"
+          confirmWord="clear"
+          busy={busy}
+          body={
+            <p>
+              Every {naming.includes(",") ? "one of those" : naming} on the site
+              goes, for everyone, with no undo. A backup file is the only way
+              back.
+            </p>
+          }
+          onCancel={() => setAsking(false)}
+          onConfirm={async () => {
+            setAsking(false);
+            setBusy(true);
+            setError("");
+            try {
+              const r = await onClear(key.trim(), parts);
+              setDone(r.removed || {});
+              setParts([]);
+              setKey("");
+            } catch (e) {
+              setError(API.explain(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      )}
+    </Screen>
+  );
+}
+
 /* ------------------------------------------------------------------
    Choosing which decks a course carries
 

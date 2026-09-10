@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.52 — 10 September 2026
+
+- Backing up and restoring are screens of their own now, and both ask what
+  the file should hold: people, courses, decks, cards, recordings. All of it
+  is the backup to keep; less of it is for the times you want the wording of
+  every card without a gigabyte of audio behind it, or one part of a site
+  put back without touching the rest.
+- A restore offers only the parts the file actually holds, and a file that
+  was made without a part is no longer reported as a broken file for not
+  having it.
+- "Check a file" and "Restore a file" are now "Verify a backup" and "Restore
+  a backup", and verifying says what it is for: a download cut short or a
+  file half-copied off a laptop looks perfectly good sitting on disk, and
+  this is how you find out on a quiet afternoon rather than during a
+  recovery.
+- Admin → App has a danger zone: clear the site of the same parts a backup
+  is made of. It asks for the deploy's admin key as well as an
+  administrator's account, and keeps the account of whoever runs it — a site
+  nobody can sign in to is not a site anyone can put right.
+
 ## 0.51 — 10 September 2026
 
 - Getting onto a newly deployed version took a press of Reload and two

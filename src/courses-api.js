@@ -211,6 +211,13 @@ export const backupChunk = (keys) => call("admin-backup-chunk", { body: { keys }
 /** @type {(records: Record<string, unknown>) => Promise<any>} */
 export const restoreChunk = (records) => call("admin-restore-chunk", { body: { records } });
 
+/* Clearing what a backup would have held. Carries the deploy's admin key as
+   well as the signed-in administrator: this is the one call that removes
+   things wholesale, and being signed in as an administrator is a thing a
+   borrowed phone is. */
+/** @type {(adminKey: string, parts: string[]) => Promise<any>} */
+export const clearData = (adminKey, parts) => call("admin-clear", { body: { adminKey, parts } });
+
 /* `roles` is a list because someone can teach a course and study it, and
    asking for both when the person is made saves going back to add the
    second by hand. */

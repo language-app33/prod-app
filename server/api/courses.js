@@ -1491,6 +1491,114 @@ export default async (req) => {
         return json({ ok: true, written });
       }
 
+      /* ================= clearing =================
+
+         The other end of a restore, and the only endpoint on the site that
+         removes things wholesale. Two locks, because being signed in as an
+         administrator is a thing a borrowed phone is: the account has to be
+         an administrator, and the request has to carry the deploy's own
+         admin key — the same secret that makes someone an administrator in
+         the first place, which lives in the environment and not on the
+         site.
+
+         The acting administrator's own account is kept even when people are
+         being cleared. Deleting it mid-request would leave the site with no
+         way in but a fresh signup, and the whole point of asking for the
+         key is that the person holding it meant this. One account is easy
+         to remove afterwards from People; a site nobody can sign in to is
+         not easy to do anything with. */
+      if (action === "admin-clear") {
+        if (!me.admin) return json({ error: "admin-only" }, 403);
+        if (!process.env.ADMIN_KEY || String(body.adminKey || "") !== process.env.ADMIN_KEY) {
+          return json({ error: "bad-key" }, 403);
+        }
+        const want = new Set(
+          (Array.isArray(body.parts) ? body.parts : []).map((/** @type {unknown} */ p) => String(p))
+        );
+        if (!want.size) return json({ error: "nothing-chosen" }, 400);
+
+        const handles = await readIndex(store, "users");
+        const courseIds = await readIndex(store, "courses");
+        const deckIds = await readIndex(store, "decks");
+        const cardLists = await readManyJson(store, handles.map((h) => K.myCards(h)));
+        const cardIds = [...new Set(cardLists.flatMap((l) => l || []))];
+
+        /** @type {Record<string, number>} */
+        const removed = { users: 0, courses: 0, decks: 0, cards: 0, clips: 0 };
+
+        /* A recording is only reachable through the cards that use it, so
+           they are read before anything is deleted — clearing cards first
+           would strand every clip on the site with nothing left pointing
+           at it. */
+        if (want.has("clips")) {
+          const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
+          const hashes = [
+            ...new Set(
+              cards.filter(Boolean).flatMap((c) => [
+                ...(c.clips || []),
+                ...(c.slowClips || []),
+                ...(c.subs || []).flatMap((/** @type {Record<string, any>} */ sb) => [
+                  ...(sb.clips || []),
+                  ...(sb.slowClips || []),
+                ]),
+              ])
+            ),
+          ];
+          for (const h of hashes) {
+            await store.delete(K.clip(h));
+            removed.clips += 1;
+          }
+        }
+
+        if (want.has("cards")) {
+          for (const id of cardIds) {
+            await store.delete(K.card(id));
+            removed.cards += 1;
+          }
+          /* The lists that say who owns what are part of the cards, not of
+             the people: without them a card is unreachable anyway. */
+          for (const h of handles) await store.delete(K.myCards(h));
+        }
+
+        if (want.has("decks")) {
+          for (const id of deckIds) {
+            await store.delete(K.deck(id));
+            removed.decks += 1;
+          }
+          await writeJson(store, K.index("decks"), []);
+        }
+
+        if (want.has("courses")) {
+          const courses = await readManyJson(store, courseIds.map((id) => K.course(id)));
+          /* The join codes with them: a code is a key of its own pointing at
+             a course, and one left behind would point at nothing. */
+          for (const c of courses) {
+            if (!c) continue;
+            if (c.code) await store.delete(K.code(c.code));
+            if (c.teacherCode) await store.delete(K.code(c.teacherCode));
+          }
+          for (const id of courseIds) {
+            await store.delete(K.course(id));
+            removed.courses += 1;
+          }
+          await writeJson(store, K.index("courses"), []);
+        }
+
+        if (want.has("people")) {
+          const users = await readManyJson(store, handles.map((h) => K.user(h)));
+          for (const u of users) {
+            if (!u || u.handle === mine) continue;
+            if (u.keyHash) await store.delete(K.keyOf(u.keyHash));
+            await store.delete(K.user(u.handle));
+            await store.delete(K.myCards(u.handle));
+            removed.users += 1;
+          }
+          await writeJson(store, K.index("users"), handles.includes(mine) ? [mine] : []);
+        }
+
+        return json({ ok: true, removed, kept: want.has("people") ? mine : "" });
+      }
+
       if (action === "admin-create-user") {
         const displayName = String(body.displayName || "").trim().slice(0, 40);
         if (!displayName) return json({ error: "name-required" }, 400);

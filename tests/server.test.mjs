@@ -690,6 +690,89 @@ test("removing one role leaves the other, and removing the last one leaves the c
 });
 
 /*
+ * Clearing the site.
+ *
+ * The only endpoint that removes things wholesale, so what is checked is
+ * mostly what it refuses: a signed-in administrator without the deploy's
+ * key, the key without an administrator, and a request naming nothing. What
+ * it does do is take the parts it was given and leave the rest alone —
+ * clearing the recordings out of a site whose cards are wanted is the case
+ * this exists for.
+ */
+test("clearing takes the parts it is given, and refuses without the deploy's key", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Hala" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const course = (await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Clearable", language: "ar-PS" },
+  })).json.course;
+  const card = (await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "كتاب", en: "book", lang: "ar-PS", clips: ["a".repeat(64)] }, decks: [] },
+  })).json.card;
+
+  /* An administrator is not enough: the key is what says this was meant. */
+  const noKey = await api("/api/courses?action=admin-clear", {
+    method: "POST", key, body: { parts: ["courses"] },
+  });
+  assert.equal(noKey.status, 403, noKey.text);
+  assert.equal(noKey.json.error, "bad-key");
+  const wrongKey = await api("/api/courses?action=admin-clear", {
+    method: "POST", key, body: { adminKey: "not-it", parts: ["courses"] },
+  });
+  assert.equal(wrongKey.status, 403);
+
+  /* And the key is not enough either: it is asked for on top of the
+     account, not instead of it. */
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nour" } });
+  const notAdmin = await api("/api/courses?action=admin-clear", {
+    method: "POST", key: student.json.key, body: { adminKey: ADMIN_KEY, parts: ["courses"] },
+  });
+  assert.equal(notAdmin.status, 403);
+  assert.equal(notAdmin.json.error, "admin-only");
+
+  const nothing = await api("/api/courses?action=admin-clear", {
+    method: "POST", key, body: { adminKey: ADMIN_KEY, parts: [] },
+  });
+  assert.equal(nothing.status, 400);
+  assert.equal(nothing.json.error, "nothing-chosen");
+
+  /* Nothing above touched anything. */
+  const before = overviewOf(await api("/api/courses?action=admin-overview", { key }));
+  assert.ok(before.courses.some((/** @type {any} */ c) => c.id === course.id), "the course is still there");
+
+  /* One part, and only that part. */
+  const cleared = await api("/api/courses?action=admin-clear", {
+    method: "POST", key, body: { adminKey: ADMIN_KEY, parts: ["courses"] },
+  });
+  assert.equal(cleared.status, 200, cleared.text);
+  assert.equal(cleared.json.removed.courses >= 1, true);
+  assert.equal(cleared.json.removed.cards, 0, "cards were not asked for");
+
+  const after = overviewOf(await api("/api/courses?action=admin-overview", { key }));
+  assert.equal(after.courses.length, 0, "the courses are gone");
+  assert.ok(
+    (await api(`/api/courses?action=admin-card&card=${card.id}`, { key })).json.card,
+    "and the card is not"
+  );
+
+  /* The administrator doing the clearing keeps their own account, or the
+     site is left with no way in but a fresh signup. */
+  const people = await api("/api/courses?action=admin-clear", {
+    method: "POST", key, body: { adminKey: ADMIN_KEY, parts: ["people", "cards", "clips"] },
+  });
+  assert.equal(people.status, 200, people.text);
+  const left = overviewOf(await api("/api/courses?action=admin-overview", { key }));
+  assert.deepEqual(left.users.map((/** @type {any} */ u) => u.handle), [admin.json.user.handle],
+    "only the administrator who cleared it is left");
+  assert.equal(
+    (await api(`/api/courses?action=admin-card&card=${card.id}`, { key })).status,
+    404,
+    "and the cards went with the rest"
+  );
+});
+
+/*
  * Reporting a bad question.
  *
  * The learner's own document never reaches anyone who could fix a card —
