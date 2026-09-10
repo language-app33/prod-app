@@ -293,6 +293,9 @@ function makeSub(src = {}) {
     en: en.trim(),
     ...dimValues(src),
     note: note.trim(),
+    /* The language it is written in, kept on the form itself — see
+       settingsFor. A card made here is in whatever the app is set to. */
+    lang: activeLang().id,
     recs: recs || [],
     created: now(),
     updated: now(),
@@ -320,6 +323,7 @@ function makeItem(src = {}) {
     lat: lat.trim(),
     en: en.trim(),
     kind: kind || guessKind(text, activeLang()),
+    lang: activeLang().id,
     note: note.trim(),
     tags: cleanTags(tags),
     locked: false,
@@ -333,6 +337,43 @@ function makeItem(src = {}) {
   };
 }
 
+
+/* ------------------------------------------------------------------
+   One app, more than one language
+
+   Somebody in two courses has both piles of cards in one app, and the app
+   has one language set — so everything read from the settings was right for
+   half their cards and wrong for the other half: which exercises a card
+   supports, how an answer is marked, which way its script runs.
+
+   The card knows better than the settings do, and says so: every form
+   carries the language it is written in. These two turn that into the
+   answer every reader already asks for — the settings, read in the language
+   this particular card is in. Everything downstream keeps taking settings,
+   which is why this is two small functions rather than a new argument on
+   forty.
+   ------------------------------------------------------------------ */
+/**
+ * @param {Form | null | undefined} unit
+ * @param {Settings} settings
+ * @returns {LangId}
+ */
+const langIdOf = (unit, settings) =>
+  ((unit && unit.lang) || settings.language || DEFAULT_LANGUAGE);
+
+/**
+ * @param {Settings} settings
+ * @param {Form | null | undefined} unit
+ * @returns {Settings}
+ */
+function settingsFor(settings, unit) {
+  const id = langIdOf(unit, settings);
+  /* The same object when the card is in the app's own language, which is
+     the ordinary case: a new object on every call would defeat every memo
+     that takes settings. */
+  if (id === settings.language || !LANGUAGES[id]) return settings;
+  return { ...settings, language: id };
+}
 
 /**
  * @param {Item} item
@@ -625,8 +666,10 @@ function availableTypes(it, lang = activeLang()) {
  */
 function enabledTypes(it, settings) {
   /* The language comes from the settings in hand, not from the module-level
-     pointer — that is only set during render, and this runs from anywhere. */
-  return availableTypes(it, langOf(settings)).filter(
+     pointer — that is only set during render, and this runs from anywhere.
+     Read in the card's own language, so a Vietnamese card is not asked
+     whether it supports the exercises Arabic declares. */
+  return availableTypes(it, langOf(settingsFor(settings, it))).filter(
     (t) => settings.types[t] && typeAllowedNow(t)
   );
 }
@@ -3045,6 +3088,13 @@ export default function ArabicTrainer() {
   /* Teaching is a role on a course, so it has to be asked about — and the
      material request answers it, so it is no longer asked twice. */
   const [building, setBuilding] = useState(false);
+  /* Which language the session on screen is drawn from: a language id, ""
+     for all of them at once, or null for never asked — which is what keeps
+     the picker from opening with an answer already marked. It stays on the
+     last answer so "Keep going" means more of the same. */
+  const [sessionLang, setSessionLang] = useState(/** @type {LangId | "" | null} */ (null));
+  /* And whether the question is being put. */
+  const [picking, setPicking] = useState(false);
   /* The version of course material this device last received. Per device
      and per launch, so the first check after opening is always a full one. */
   const materialVersion = useRef("");
@@ -3350,7 +3400,27 @@ export default function ArabicTrainer() {
      change: it walks every phrase against every word it claims to teach,
      which is not work to repeat on a keystroke. */
   const contextIndex = useMemo(
-    () => buildContextIndex(items, langOf(settings)),
+    /* A language at a time, then merged: finding one word inside another is
+       a language's own rule — Arabic peels prefixes — and running one
+       language's rule over another's cards would pair words that have
+       nothing to do with each other. Nothing collides in the merge: the
+       keys are form ids, and a form is in one language. */
+    () => {
+      /** @type {Map<LangId, Item[]>} */
+      const byLang = new Map();
+      for (const it of items) {
+        const id = langIdOf(it, settings);
+        byLang.set(id, (byLang.get(id) || []).concat([it]));
+      }
+      /** @type {Map<string, any[]>} */
+      const merged = new Map();
+      for (const [id, list] of byLang) {
+        for (const [unitId, found] of buildContextIndex(list, LANGUAGES[id] || langOf(settings))) {
+          merged.set(unitId, found);
+        }
+      }
+      return merged;
+    },
   /* Only the language, not the whole settings object: this walks
      every phrase against every word it claims to teach, which is not
      work to repeat because a checkbox moved. */
@@ -3385,15 +3455,48 @@ export default function ArabicTrainer() {
     [items, settings, inDeck]
   );
 
-  const readyCount = useMemo(
-    () =>
-      drillable.filter((it) =>
+  /** @type {(pool: Item[]) => number} */
+  const countReady = useCallback(
+    (pool) =>
+      pool.filter((it) =>
         drillableUnits(it, settings).some(({ unit }) =>
           enabledTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
         )
       ).length,
-    [drillable, settings]
+    [settings]
   );
+
+  const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
+
+  /*
+   * The languages this person actually has cards in, with how much of each
+   * is ready. More than one and a session has to say which it is, because
+   * an app set to one language and a session drawn from both is what used
+   * to happen: Vietnamese cards marked by Arabic's rules, laid out
+   * right-to-left, and offered exercises Vietnamese does not have.
+   *
+   * Read off the cards rather than off the courses: a card kept after a
+   * course ended is still a card in that language.
+   */
+  const langChoices = useMemo(() => {
+    /** @type {Map<LangId, Item[]>} */
+    const byLang = new Map();
+    for (const it of drillable) {
+      const id = langIdOf(it, settings);
+      byLang.set(id, (byLang.get(id) || []).concat([it]));
+    }
+    return [...byLang.entries()]
+      .map(([id, list]) => ({
+        id,
+        name: (LANGUAGES[id] || {}).name || id,
+        ready: countReady(list),
+        total: list.length,
+      }))
+      /* The app's own language leads; the rest by how much is waiting. */
+      .sort((a, b) =>
+        a.id === settings.language ? -1 : b.id === settings.language ? 1 : b.ready - a.ready
+      );
+  }, [drillable, settings, countReady]);
 
   /* ---------------- session ---------------- */
 
@@ -3602,9 +3705,16 @@ export default function ArabicTrainer() {
     if (ids.length) warmClips(ids).catch(() => {});
   }
 
-  /** @param {boolean} [practice] */
-  function begin(practice) {
-    const built = buildSession({ items, settings, inDeck, practice });
+  /**
+   * @param {boolean} [practice]
+   * @param {LangId | "" | null} [langId] One language, or "" for all of them
+   *   together. Kept for the next session started from here — "Keep going"
+   *   means more of what you were just doing.
+   */
+  function begin(practice, langId = sessionLang) {
+    setSessionLang(langId || "");
+    const pool = langId ? items.filter((it) => langIdOf(it, settings) === langId) : items;
+    const built = buildSession({ items: pool, settings, inDeck, practice });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that
@@ -3655,7 +3765,21 @@ export default function ArabicTrainer() {
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);
-  const spec = exercise ? exOf(exercise.type, langOf(settings)) : null;
+  /*
+   * The language of the question on screen, which is the card's rather than
+   * the app's. In a session drawn from one language they are the same
+   * thing; in a mixed one an Arabic question can be followed by a
+   * Vietnamese one, and each has to be laid out, typed and marked in its
+   * own — everything below reads this rather than the settings.
+   *
+   * The module-level pointer follows it too, for the pure helpers that are
+   * called with nothing to look it up from. Set unconditionally: with no
+   * question up this is the app's own language, which is what it was.
+   */
+  const qSettings = settingsFor(settings, item || parentItem);
+  const qLang = langOf(qSettings);
+  setActiveLang(qLang.id);
+  const spec = exercise ? exOf(exercise.type, qLang) : null;
   /* The phrase this question shows the word in, if it is that sort of
      question. Chosen when the queue was built and named on the exercise, so
      it stays put; looked up again here because only the id travels. */
@@ -3676,9 +3800,9 @@ export default function ArabicTrainer() {
 
   function submit() {
     if (!item || checked) return;
-    const result = checkAnswer(typed, item, exercise.type, settings);
+    const result = checkAnswer(typed, item, exercise.type, qSettings);
     sfx(result.ok ? "correct" : "wrong");
-    setPairs(relatedWords(items, langOf(settings), item.ar));
+    setPairs(relatedWords(items, qLang, item.ar));
     setChecked(result);
     // Drop the phone keyboard so the answer and grades are visible.
     if (inputRef.current) inputRef.current.blur();
@@ -3721,7 +3845,7 @@ export default function ArabicTrainer() {
 
   function giveUp() {
     sfx("warn");
-    setPairs(relatedWords(items, langOf(settings), item ? item.ar : ""));
+    setPairs(relatedWords(items, qLang, item ? item.ar : ""));
     setSkipped(true);
     setChecked({ ok: false, reason: "skipped" });
     if (inputRef.current) inputRef.current.blur();
@@ -3780,7 +3904,7 @@ export default function ArabicTrainer() {
       subId: exercise.subId || null,
       /* The id, not the pack: what is stored has to survive being read by
          a build whose pack for it has moved on. */
-      language: langOf(settings).id,
+      language: qLang.id,
       /* A copy of the question, not a pointer to it: the card can be
          edited or withdrawn between the flag and somebody reading it, and
          a report that says only "card k3f2" is then unreadable. */
@@ -4228,11 +4352,11 @@ export default function ArabicTrainer() {
       /* Cast because these are custom properties: React's style type
          knows the CSS properties by name and nothing that starts --. */
       style={/** @type {React.CSSProperties} */ ({
-        "--sdir": langOf(settings).direction || "ltr",
-        "--sfont": langOf(settings).fontStack,
+        "--sdir": qLang.direction || "ltr",
+        "--sfont": qLang.fontStack,
         /* And how large that script wants to be against the sizes in the
            stylesheet, which were tuned against Arabic. */
-        ...scriptVars(langOf(settings)),
+        ...scriptVars(qLang),
         /* What the answer bar is lifted by. Set here rather than on the bar
            so the page can reserve the same room underneath its content. */
         "--kb-overlap": `${kb.overlap || 0}px`,
@@ -4303,8 +4427,11 @@ Cards ready to practice
                   </Help>
 
                   <div className="at-row">
+                    {/* One language and the button starts a session, as it
+                        always did. Two and it asks first: which pile this
+                        is, or both at once. */}
                     <Button variant="primary"
-                      onClick={() => begin(false)}
+                      onClick={() => (langChoices.length > 1 ? setPicking(true) : begin(false, ""))}
                       disabled={!readyCount}
                     >
                       Start session
@@ -4439,7 +4566,7 @@ Cards ready to practice
                            reaching this question — the teacher unticks it,
                            or the deck is withdrawn. Asking for the word on
                            its own is a lesser question, not a broken one. */
-                        value={context ? blankedPhrase(context, langOf(settings)) : item.en}
+                        value={context ? blankedPhrase(context, qLang) : item.en}
                         field={context ? "ar" : "en"}
                         kind="phrase"
                         name="question-prompt-text"
@@ -4486,7 +4613,7 @@ Cards ready to practice
                         label="Your answer"
                         data-el="answer-choices"
                         disabled={!!checked}
-                        options={((quizAttrOf(langOf(settings)) || {}).classes || []).map((c) => ({
+                        options={((quizAttrOf(qLang) || {}).classes || []).map((c) => ({
                           value: c.id,
                           label: c.label,
                         }))}
@@ -4502,7 +4629,7 @@ Cards ready to practice
                       <div
                         className={
                           spec.answerMode === "ar"
-                            ? `at-inputwrap${langOf(settings).direction === "rtl" ? " rtl" : ""}`
+                            ? `at-inputwrap${qLang.direction === "rtl" ? " rtl" : ""}`
                             : undefined
                         }
                       >
@@ -4512,8 +4639,8 @@ Cards ready to practice
                              input is declared as that language — not as Arabic,
                              which sent Vietnamese answers through an Arabic
                              spellchecker and read them out as Arabic. */
-                          lang={spec.answerMode === "ar" ? langOf(settings).id : undefined}
-                          dir={spec.answerMode === "ar" ? langOf(settings).direction : undefined}
+                          lang={spec.answerMode === "ar" ? qLang.id : undefined}
+                          dir={spec.answerMode === "ar" ? qLang.direction : undefined}
                           className={`at-input${spec.answerMode === "ar" ? " ar" : ""}${
                             checked ? (checked.ok ? " ok" : " no") : ""
                           }`}
@@ -4540,7 +4667,7 @@ Cards ready to practice
 
                   {!checked && spec.answerMode === "ar" && keysOpen && (
                     <Keyboard
-                      lang={langOf(settings)}
+                      lang={qLang}
                       onKey={(ch) => caretInsert(inputRef, typed, setTyped, ch)}
                       onBack={() => caretBackspace(inputRef, typed, setTyped)}
                       onClear={() => setTyped("")}
@@ -4563,7 +4690,7 @@ Cards ready to practice
                           : WRONG_VERDICT}
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
-                        <Help data-el="verdict-reason">{verdictText(checked, langOf(settings))}</Help>
+                        <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
                       )}
                       {/* A right answer is already on screen in the box above,
                           so repeating it says nothing. It is shown when the
@@ -4586,7 +4713,7 @@ Cards ready to practice
                           the box between the nudge and the thing to look
                           at. */}
                       {checked.reason === "bare" && (
-                        <Help data-el="bare-note">{verdictWord(langOf(settings), "bare")}</Help>
+                        <Help data-el="bare-note">{verdictWord(qLang, "bare")}</Help>
                       )}
 
                       {/* Everything after the answer is a second thing worth
@@ -4649,7 +4776,7 @@ Cards ready to practice
                             element that renders null is still an element,
                             and the box counts what it was given. */}
                         {pairs && pairs.length > 0 && (
-                          <RelatedWords pairs={pairs} settings={settings} />
+                          <RelatedWords pairs={pairs} settings={qSettings} />
                         )}
                       </AlsoBox>
                       {item.note && (
@@ -4805,6 +4932,19 @@ Cards ready to practice
             settings={settings}
             onStart={beginManual}
             onClose={() => setBuilding(false)}
+          />
+        )}
+
+        {picking && (
+          <SessionLanguages
+            choices={langChoices}
+            ready={readyCount}
+            chosen={sessionLang}
+            onPick={(id) => {
+              setPicking(false);
+              begin(false, id);
+            }}
+            onClose={() => setPicking(false)}
           />
         )}
 
@@ -6051,6 +6191,65 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
           )}
         </>
       )}
+    </Screen>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Which language this session is
+
+   Only ever asked of somebody studying more than one, and asked at the
+   moment it matters — on the way into a session, rather than as a setting
+   somewhere that has to be remembered and put back afterwards.
+
+   Each row starts the session on the tap, because a picker where every
+   choice needs confirming is two taps for a question with one answer. All
+   languages together is a row like the others rather than a switch beside
+   them: it is another way to practice, not a modifier on the choice above.
+   ------------------------------------------------------------------ */
+/**
+ * @param {{
+ *   choices: { id: LangId, name: string, ready: number, total: number }[],
+ *   ready: number,
+ *   chosen: LangId | "" | null,
+ *   onPick: (id: LangId | "") => void,
+ *   onClose: () => void,
+ * }} props
+ */
+function SessionLanguages({ choices, ready, chosen, onPick, onClose }) {
+  /** @param {number} n */
+  const waiting = (n) => (n ? `${plural(n, "card")} ready` : "nothing ready just now");
+  return (
+    <Screen title="Which language?" onBack={onClose} rise backLabel="Not now">
+      <Help>
+        You're studying more than one. Pick the one to practice, or take them
+        all in one session.
+      </Help>
+      <div className="at-cklist">
+        {choices.map((c) => (
+          <button
+            key={c.id}
+            className={`at-ck${chosen === c.id ? " on" : ""}`}
+            disabled={!c.ready}
+            onClick={() => onPick(c.id)}
+          >
+            <span className="at-cktext">
+              <b>{c.name}</b>
+              <i>{waiting(c.ready)}</i>
+            </span>
+          </button>
+        ))}
+        <button
+          className={`at-ck${chosen === "" ? " on" : ""}`}
+          disabled={!ready}
+          onClick={() => onPick("")}
+        >
+          <span className="at-cktext">
+            <b>All languages</b>
+            <i>{waiting(ready)}, mixed together</i>
+          </span>
+        </button>
+      </div>
     </Screen>
   );
 }

@@ -108,6 +108,7 @@ const PLACES = {
   AlsoBox: [LEARN, "A practice session · what else is worth knowing"],
   AudioPrompt: [LEARN, "A practice session · playing a recording"],
   ManualSessionSheet: [LEARN, "Building a session by hand"],
+  SessionLanguages: [LEARN, "Starting a session · which language"],
   ItemsTab: [LEARN, "The Cards tab"],
   ItemSheet: [LEARN, "The Cards tab · one card's details"],
   CardScreen: [LEARN, "Opening a card from a tile"],

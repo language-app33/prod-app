@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.45 — 10 September 2026
+
+- If you're studying more than one language, Start session now asks which
+  one — or offers all of them in a single mixed session. With one language
+  it starts straight away, as before. Whichever you pick is what "Keep
+  going" carries on with.
+- Underneath that, a card now says which language it is in and is treated
+  accordingly: how its answer is marked, which exercises it supports, which
+  way its script runs, and which keys the answer box offers. Before, all of
+  that came from the one language the app was set to, so somebody in two
+  courses had half their cards read by the other language's rules.
+- Cards already on a device are taken to be in the language the app is set
+  to, which is what they were made under; course material says for itself
+  from the next time it arrives.
+
 ## 0.44 — 10 September 2026
 
 - A card can now hold two kinds of recording: the word at regular speed,

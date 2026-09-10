@@ -322,6 +322,7 @@
  *   en: string,
  *   lat: string,
  *   note?: string,
+ *   lang?: LangId,
  *   recs?: any[],
  *   s?: Record<string, ExerciseState>,
  *   created?: Millis,

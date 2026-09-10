@@ -2374,6 +2374,12 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     en: sb.en || "",
     ...dimValues(sb),
     note: "",
+    /* Which language this is in, carried onto every form rather than onto
+       the card alone: a form is what an exercise is about, and what marks
+       an answer has to be the language the words are in — not whichever
+       language the app happens to be set to, which for somebody studying
+       two is right half the time. */
+    lang: card.lang,
     recs: recsOf(sb),
     created: Date.now(),
     updated: Date.now(),
@@ -2392,6 +2398,9 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
        app cannot yet see that one of these phrases contains one of these
        words. Asked of the language, which owns the rule. */
     kind: guessKind(card.ar || card.en || card.lat, LANGUAGES[card.lang]),
+    /* See the forms above: the card says what language it is in, and the
+       device keeps it. */
+    lang: card.lang,
     /* The word cards this one teaches by containing them, as the teacher
        confirmed them. Server card ids; the index that turns them into
        questions maps them to local ids. */

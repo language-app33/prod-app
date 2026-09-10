@@ -157,6 +157,20 @@ test("a course card knows its name on the server, whatever it is called here", (
   assert.equal(serverCardId(item), "k9f2a1b3c4d5", "and the server's is what goes back");
 });
 
+test("a course card arrives saying which language it is in, on every form", () => {
+  /* The device holds one pile of cards and the app has one language set, so
+     without this a student in an Arabic course and a Vietnamese one had
+     half their cards marked, laid out and drilled by the other language's
+     rules. The card knows; the forms are what an exercise is about, so they
+     have to know too. */
+  const item = cardToItem(
+    { id: "k1", ar: "cà phê", en: "coffee", lang: "vi-Hue", subs: [{ ar: "cà phê sữa", en: "milk coffee" }] },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal(item.lang, "vi-Hue");
+  assert.equal(item.subs[0].lang, "vi-Hue");
+});
+
 test("a card recorded at both speeds reaches the learner as both, named", () => {
   /* The ordinary recording first and unnamed, so a listening question plays
      the real thing; the slow one after it and named, so what it is is said
