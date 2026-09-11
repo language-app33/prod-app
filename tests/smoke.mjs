@@ -14,7 +14,7 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.ts", "src/gallery.tsx", "src/shared.tsx"],
+  entryPoints: ["src/ArabicTrainer.tsx", "src/storage.ts", "src/gallery.tsx", "src/shared.tsx"],
   bundle: true,
   format: "esm",
   splitting: true,
@@ -903,7 +903,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      place it can be. */
   {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync(path.resolve("src/ArabicTrainer.jsx"), "utf8");
+    const src = readFileSync(path.resolve("src/ArabicTrainer.tsx"), "utf8");
     const updates = readFileSync(path.resolve("src/updates.ts"), "utf8");
     const watching = updates.slice(updates.indexOf("export function watchForUpdates"));
     const applying = updates.slice(updates.indexOf("export function applyUpdate"));
@@ -1380,7 +1380,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      stop, so the source is checked for a second copy of it. */
   {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync(path.resolve("src/ArabicTrainer.jsx"), "utf8");
+    const src = readFileSync(path.resolve("src/ArabicTrainer.tsx"), "utf8");
     const invites = src.split("Join a course and").length - 1;
     check("the invitation is written once, not once per screen", invites === 1,
       `${invites} copies`);

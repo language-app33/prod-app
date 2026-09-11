@@ -93,10 +93,10 @@ src/
   languages.ts     every language-specific rule: grammar axes, grading,
                    keyboards, exercise definitions. Imports nothing from the
                    app, so it can be read and tested on its own.
-  ArabicTrainer.jsx  the learner's app: scheduler, session builder, screens
+  ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
   spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
-  shared.jsx       the component library both sides use
+  shared.tsx       the component library both sides use
   sync.ts          merging two devices' documents, and clip sync
   index.css        one stylesheet, with the design tokens at the top
 server/
@@ -129,14 +129,17 @@ Every file is checked, in `strict` mode, by `npm run typecheck` — which
 `npm run check` and CI both run. Nothing is compiled by tsc: it is a second
 reader, and the server still runs from source.
 
-**The tree is mixed, on purpose.** The modules that decide what a learner is
-asked are TypeScript; the screens are JavaScript with JSDoc types. They are
-being converted a file at a time from the leaves inward, and DECISIONS.md
-records why and in what order. Node 22 strips types on the way in, so a
-`.ts` module is imported by the tests and by the server exactly as a `.js`
-one was — no build step, no loader. What Node will not do is guess an
-extension, so **an import names the file it means**: `"./chance.ts"`,
-`"./shared.jsx"`.
+**`src` is TypeScript, and there is still no build step for it.** Node 22
+strips types on the way in, so a `.ts` module is imported by the tests and
+by the server exactly as a `.js` one was — no loader, no transpile, and
+nothing emitted by tsc. Only erasable syntax is used, which is what makes
+that true: no `enum`, no `namespace`, no parameter properties. DECISIONS.md
+records how the conversion went and what it found.
+
+What Node will not do is guess an extension, so **an import names the file
+it means**: `"./chance.ts"`, `"./shared.tsx"`. The server is JavaScript and
+stays JavaScript — it runs the same modules `src` does, and has nothing to
+gain from the move.
 
 The records both sides pass are in `src/types.ts` — a card, a deck, a
 course, an account, a report, a language pack. It has no runtime value; it

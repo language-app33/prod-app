@@ -50,7 +50,7 @@ const { localIdFor, cardToItem, serverCardId } = await import(path.join(out, "sh
    card's progress and belongs with the rest of them. The trainer is bundled
    the same way; nothing in it touches a browser on the way in. */
 await build({
-  entryPoints: [path.join(here, "..", "src", "ArabicTrainer.jsx")],
+  entryPoints: [path.join(here, "..", "src", "ArabicTrainer.tsx")],
   outfile: path.join(out, "trainer.js"),
   bundle: true,
   format: "esm",

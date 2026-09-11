@@ -11,7 +11,7 @@ interface Use {
 /*
  * The component gallery.
  *
- * Every reusable piece in shared.jsx, rendered for real and labelled with
+ * Every reusable piece in shared.tsx, rendered for real and labelled with
  * the name you would type to ask for it. Written against the live
  * components rather than described in prose, so it cannot quietly go out of
  * date the way a written list does: rename a prop and this stops looking
@@ -180,9 +180,9 @@ const PLACES: Record<string, [string, string]> = {
 /* Not in the table: say something readable rather than nothing, and put
    it under whichever part of the app its file belongs to. */
 const FILE_PART: Record<string, string> = {
-  "ArabicTrainer.jsx": LEARN,
+  "ArabicTrainer.tsx": LEARN,
   "spaces.tsx": TEACH,
-  "shared.jsx": PARTS,
+  "shared.tsx": PARTS,
   "gallery.tsx": ADMIN,
 };
 
@@ -633,7 +633,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="ModeSelector" what="A drop-down of the spaces." note="Nothing calls it — the app uses the icon strip in the corner instead. Its labels are a fixed map inside shared.jsx, so it only knows learn, teach and admin.">
+      <Row name="ModeSelector" what="A drop-down of the spaces." note="Nothing calls it — the app uses the icon strip in the corner instead. Its labels are a fixed map inside shared.tsx, so it only knows learn, teach and admin.">
         <V label="modes" wide>
           <ModeSelector mode={mode} modes={["learn", "teach", "admin"]} onChange={setMode} />
         </V>

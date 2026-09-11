@@ -7,7 +7,7 @@
  * anyone reading the list rather than the source. Both are failures of the
  * same promise, so both fail here.
  *
- * The names are read out of ArabicTrainer.jsx rather than maintained
+ * The names are read out of ArabicTrainer.tsx rather than maintained
  * twice: data-el on an element, and the `name` prop on a Field, which is
  * where the -text names come from.
  */
@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { SCREEN_ELEMENTS } from "../src/screen-elements.ts";
 
-const source = readFileSync(new URL("../src/ArabicTrainer.jsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("../src/ArabicTrainer.tsx", import.meta.url), "utf8");
 
 const inCode = new Set([
   ...[...source.matchAll(/data-el="([a-z-]+)"/g)].map((m) => m[1]),

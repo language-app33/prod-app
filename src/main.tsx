@@ -2,7 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { storage, requestPersistence } from "./storage.ts";
 import { watchForUpdates } from "./updates.ts";
-import ArabicTrainer from "./ArabicTrainer.jsx";
+import ArabicTrainer from "./ArabicTrainer.tsx";
 import "./index.css";
 
 // The component reads window.storage, so point it at the local adapter.

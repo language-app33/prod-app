@@ -27,7 +27,8 @@
  * act on. That is why this module has no writer in it at all.
  *
  * A plain module for the reason scheduler.ts is one: it decides what a
- * teacher is shown, and `node --test` cannot import a .jsx file.
+ * teacher is shown, so a test has to be able to reach it without the
+ * app around it.
  */
 
 import type { Lang } from "./types.ts";

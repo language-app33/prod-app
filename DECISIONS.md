@@ -186,13 +186,28 @@ initialiser, which infers `Set<unknown>` and was being handed to
 `ItemList`'s `Set<string>` — a mismatch that only exists because
 `shared` now says what it takes.
 
-**What is left.** `ArabicTrainer.jsx`, last and alone — 9k lines and 399
-annotations is not a slice of anything. It is named by
-`scripts/component-uses.mjs` and asserted about by
-`tests/component-uses.test.mjs`; both now resolve a file by its stem and
-match either extension, which was the fix to make before the first rename
-rather than after — a scan pinned to `.jsx` that stops matching does not
-fail, it reports that nothing uses anything.
+Last, `ArabicTrainer`, alone: 9k lines and 399 annotations is not a slice
+of anything. It went the same way as the two before it, which is the point
+— by the time it came round there was nothing left in it that had not
+already been met somewhere smaller. `Session`, `ParsedRow`, `ZipEntry` and
+`SoftKeyboard` were `@typedef`s the file's own signatures referred to; the
+card editor's draft carries a conversation's fields only when the card is
+a conversation, and now says so, with `|| []` at the twenty places that
+read them.
+
+**Done.** Every file under `src` is TypeScript. The server stays
+JavaScript with JSDoc: it runs the same modules and has nothing to gain
+from the move.
+
+**On the filename-keyed guards.** `scripts/component-uses.mjs` and
+`tests/component-uses.test.mjs` both named the three app files with their
+extensions. They resolve a file by its stem now, and match either
+extension. Fixing them first rather than after was the difference between
+a green run and a wrong one: a scan pinned to `.jsx` does not fail when the
+file moves — it finds nothing, writes a valid file, and reports that no
+component is used anywhere. `tests/smoke.mjs` has the opposite case a few
+lines apart, an esbuild *output* path that stays `.js` however the entry
+point is spelt, and it is commented where it sits.
 
 **On doing this with a script.** Every conversion past `answers` was
 driven by one: lift `@param {T} name` into `name: T`, keep the prose that

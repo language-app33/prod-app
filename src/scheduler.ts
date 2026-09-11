@@ -4,7 +4,7 @@
  * This is the spaced-repetition maths, and it lived inside the screen file
  * until it was moved here — which meant the one part of the app that
  * decides what you practise, and when, had no tests at all. It could not
- * have any: `node --test` cannot import a .jsx file, and every function
+ * have any: it was unreachable from a test, and every function
  * read the clock and the random number generator straight out of the
  * global scope, so "a good answer on a ten-day interval gives twenty-four
  * to twenty-seven days" was not a sentence a test could write down.
