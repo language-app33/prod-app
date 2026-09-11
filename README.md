@@ -22,8 +22,10 @@ npm run typecheck  # types: every file, strict — see Types below
 npm run check      # all of it, as CI runs it
 ```
 
-Node 22 or newer. The tests need no configuration; `test:smoke` builds the
-app into `tests/.smoke-build/`, which is git-ignored.
+Node 22.18 or newer — the first 22 that strips types without a flag, which
+the server and the tests both rely on. The tests need no configuration;
+`test:smoke` builds the app into `tests/.smoke-build/`, which is
+git-ignored.
 
 Use `npm run serve` to work on anything that touches an account, a course or
 sync. `npm run dev` runs Vite on its own, which serves no `/api`, so the app

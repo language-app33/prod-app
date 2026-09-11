@@ -45,6 +45,22 @@
     "noEmit": true,
     "strict": true,
 
+    /* What Node's type stripping can and cannot do, stated so that tsc
+       refuses what Node would refuse. It strips types and nothing else, so
+       no enum, namespace or parameter property (erasableSyntaxOnly); and
+       it cannot tell a type-only import from a real one, so an import of a
+       type has to say `import type` or Node looks for a runtime export
+       that is not there (verbatimModuleSyntax). Vite and esbuild elide
+       such imports, which is why a mistake here would pass the build and
+       fail the server. */
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+
+    /* Dead locals and dead imports, type-only imports included. ESLint's
+       no-unused-vars cannot see a name used only in a type, so for src
+       this is the rule and that one is off — see eslint.config.js. */
+    "noUnusedLocals": true,
+
     /* Node 22 strips types on the way in, so a .ts module is imported by
        the tests and by the server exactly as a .js one was, with no build
        step and no loader; what it will not do is guess an extension, so an

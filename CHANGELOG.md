@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.72 — 11 September 2026
+
+- Nothing you can see; an audit of 0.71. The linter had quietly stopped
+  reading the app the moment its files were renamed — its file pattern
+  named the old extensions — so the checks it exists for (a hook called
+  conditionally, a dependency list that lies) were off for every screen.
+  It reads them again, through a parser already in the tree.
+- Six imports the conversion left dead are gone, and a cast that let one
+  screen name a lookup table where a component was wanted is replaced by
+  a type that refuses it.
+- **Hosting: Node 22.18 or newer is now the stated floor** (it was "22").
+  The server imports a TypeScript file, and stripping types unflagged
+  began at 22.18. Earlier 22s fail at startup. If you deploy this, check
+  which 22 you are on.
+
 ## 0.71 — 11 September 2026
 
 - Nothing you can see. The migration 0.70 started is finished: every file

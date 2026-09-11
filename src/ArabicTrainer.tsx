@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type {
-  Card, Course, Deck, Doc, ExerciseSpec, ExerciseState, FlagKind, Form, Item,
+  Course, Deck, Doc, ExerciseState, FlagKind, Form, Item,
   Lang, LangId, Millis, Question, Settings, User,
 } from "./types.ts";
 import type { Node } from "./shared.tsx";
@@ -71,7 +71,15 @@ function recoverChunk(err: unknown) {
 /* The name is checked against what spaces.tsx actually exports: a lazy
    import spells its component as a string, so a typo is a blank screen at
    the moment someone opens the space, and nothing before. */
-const fromSpaces: (name: keyof typeof import("./spaces.tsx")) => React.ComponentType<any> = (name) =>
+type SpacesModule = typeof import("./spaces.tsx");
+/* Only the exports that are components. The module also exports plain
+   functions and tables, and naming one of those here would typecheck and
+   render nothing. */
+type SpaceName = {
+  [K in keyof SpacesModule]: SpacesModule[K] extends React.ComponentType<any> ? K : never;
+}[keyof SpacesModule];
+
+const fromSpaces = (name: SpaceName): React.ComponentType<any> =>
   React.lazy(() =>
     import("./spaces.tsx")
       .then((m) => {
@@ -80,7 +88,7 @@ const fromSpaces: (name: keyof typeof import("./spaces.tsx")) => React.Component
         } catch (e) {
           /* fine */
         }
-        return { default: m[name] as React.ComponentType<any> };
+        return { default: m[name] };
       })
       .catch(recoverChunk)
   );
@@ -6517,7 +6525,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
     /* Blank turns are dropped and the words each line uses are worked out
        here, on the way to being stored, so a scene edited a week later
        picks up whatever vocabulary has been added since. */
-    ...(scene ? { lines: linked((d.lines || []) || []) } : null),
+    ...(scene ? { lines: linked(d.lines || []) } : null),
   });
 
   /* Stack the current form and start a fresh one, keeping the filing
@@ -6824,7 +6832,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                           ...BLANK_LINE,
                           who:
                             (d.lines || []).length && (d.speakers || []).length > 1
-                              ? (Number((d.lines || [])[(d.lines || []).length - 1].who || 0) + 1) % (d.speakers || []).length
+                              ? (Number((d.lines || []).at(-1)?.who || 0) + 1) % (d.speakers || []).length
                               : 0,
                         },
                       ]),

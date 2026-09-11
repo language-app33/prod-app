@@ -1,4 +1,4 @@
-/** @import { Card, Course, Deck, Flag, User } from "../../src/types.ts" */
+/** @import { Card, Course, Deck, User } from "../../src/types.ts" */
 /**
  * The document store, as store.js hands it over. Named rather than repeated
  * at every helper below.

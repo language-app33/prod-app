@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
-import type { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.ts";
+import type { Card, Course, Deck, Flag, Lang, LangId, User } from "./types.ts";
 import type { Node } from "./shared.tsx";
 
 /*

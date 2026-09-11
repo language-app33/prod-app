@@ -209,6 +209,52 @@ component is used anywhere. `tests/smoke.mjs` has the opposite case a few
 lines apart, an esbuild *output* path that stays `.js` however the entry
 point is spelt, and it is commented where it sits.
 
+**What an audit of the finished conversion found.** Read for problems
+the rewrite itself created, which is a different question from whether
+the checks were green — they were, at every commit, and three of the
+findings are things a green check could not have said.
+
+*The linter had stopped reading the app.* Its glob was
+`src/**/*.{js,jsx}`, so once `src` was `.ts` and `.tsx` it matched one
+generated file and passed in silence. The two rules the config calls the
+ones that matter most — a hook called conditionally, a dependency array
+that lies — were off for every screen. `typescript-eslint` was the
+obvious repair and cannot be used: it reads the TypeScript compiler's JS
+API, and the compiler this project checks with (7, the native one, which
+checks the whole tree in under two seconds) no longer has the parts it
+reads. Babel's parser is already in the tree under Vite's React plugin
+and reads both syntaxes when told to, so `@babel/eslint-parser` is the
+one addition. Two of the recommended rules cannot follow a type through
+that parser and are handed to tsc, which does the same job exactly:
+`no-undef` to TS2304, and `no-unused-vars` to `noUnusedLocals` — which,
+turned on, found six imports the conversion had left dead that the lint
+rule reported forty false positives around.
+
+*Two things Node's stripping needs, nothing was enforcing.* A type
+imported without `import type` compiles under Vite, which elides it, and
+crashes under Node, which does not; `verbatimModuleSyntax` makes tsc
+refuse it. An `enum` would be the same story; `erasableSyntaxOnly`. Both
+on, both clean.
+
+*The Node floor was wrong.* `engines` said `>=22`, and README said "22 or
+newer". Unflagged type stripping arrived in 22.18, so a host on 22.12
+would fail at boot importing `languages.ts` from the server. Now `>=22.18`.
+
+*One cast was hiding a real hole.* `fromSpaces(name)` took any export of
+`spaces.tsx` by name, tables included, and a cast on the way out made it
+typecheck; it now takes only the component-valued keys, and the cast is
+gone. The other casts the conversion introduced were audited by count:
+`any`-shaped sites went from 91 to 95, the forty-two `@type {any}` JSDoc
+casts having become eleven `as any` and the rest `Record<string, any>`
+written inline. A wash, not a gain, and worth saying so.
+
+*And what it did not find.* Every positionally attached `@param` named
+its parameters in the order the function declares them — checked against
+the pre-conversion source, all eight files, no mismatch. No comment was
+reached by the type-literal reformatter. `sideOf` already coerced an
+absent speaker to 0, so the `|| 0` added at its callers changed nothing.
+Node prints no warning when the server imports a `.ts` file.
+
 **On doing this with a script.** Every conversion past `answers` was
 driven by one: lift `@param {T} name` into `name: T`, keep the prose that
 followed, then read the diff. It is worth saying what the script got

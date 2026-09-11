@@ -1,4 +1,3 @@
-import type { Lang } from "./types.ts";
 
 type Node = React.ReactNode;
 

@@ -1,7 +1,7 @@
 {
   "name": "taleb33",
   "private": true,
-  "version": "0.71.0",
+  "version": "0.72.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -23,6 +23,7 @@
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@babel/eslint-parser": "^7.29.7",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^22.20.1",
     "@types/react": "^18.3.31",
@@ -39,6 +40,6 @@
     "vite-plugin-pwa": "0.21.1"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   }
 }
