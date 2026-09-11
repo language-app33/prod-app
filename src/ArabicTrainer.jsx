@@ -3169,24 +3169,22 @@ const sideClass = (card, line) => {
  *   blankId?: string | null,
  *   meanings?: boolean,
  *   said?: boolean,
- *   marks?: Record<string, boolean>,
  *   numbers?: Record<string, number>,
  * }} props `meanings` and `said` are the two things a line has besides its
  *   words — what it means and how it sounds. Separate, because reading a
  *   scene through takes them one at a time and on request.
  */
-function Scene({ card, lines, lang, blankId = null, meanings = false, said = false, marks, numbers }) {
+function Scene({ card, lines, lang, blankId = null, meanings = false, said = false, numbers }) {
   return (
     /* Named here rather than through a prop: the reference in Admin is
        built by reading these names out of this file, and a name that
        arrives as a default argument is a name nobody can find. */
     <div className={`at-scene${isTwoSided(card) ? " sided" : ""}`} data-el="scene">
       {lines.map((line) => {
-        const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
         const n = numbers && numbers[line.id];
         return (
           <div
-            className={`at-sceneline${sideClass(card, line)}${line.id === blankId ? " asked" : ""}${mark}`}
+            className={`at-sceneline${sideClass(card, line)}${line.id === blankId ? " asked" : ""}`}
             key={line.id}
             data-el="scene-line"
           >

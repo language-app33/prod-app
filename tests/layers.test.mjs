@@ -507,26 +507,41 @@ test("the foot is not cut in two by a rule between its parts", () => {
     "the line above the bar is not centred between the edge and the buttons");
 });
 
-test("two people talking take a side of the page each", () => {
-  /* The far side puts its words first and its name after them, so the two
-     names hug the outside edges and the words face each other — and each
-     side gives up part of its width at the far edge, or the two runs of
-     turns would line up and read as one. */
-  assert.match(rule(".at-scene.sided .at-sceneline, .at-part.sided .at-sceneline"),
-    /--scene-inset:\s*min\(20%, 96px\)/, "there is nothing making two columns out of one");
-  assert.match(rule(".at-scene.sided .at-sceneline.side0, .at-part.sided .at-sceneline.side0"),
-    /margin-inline-end:\s*var\(--scene-inset\)/);
-  assert.match(rule(".at-scene.sided .at-sceneline.side1, .at-part.sided .at-sceneline.side1"),
-    /margin-inline-start:\s*var\(--scene-inset\)/);
+test("a turn is a bubble that hugs its words, not a block the width of the page", () => {
+  /* The bug this replaced. A block the width of the page puts its text at
+     whichever end the text itself starts from, so an Arabic line sat hard
+     against the right of its column whichever side of the page that column
+     was on — and both speakers came out down the right. An English scene
+     had the same fault mirrored. A box that hugs its words cannot do that:
+     where the words sit is where the box is. */
+  const line = rule(".at-sceneline");
+  assert.match(line, /flex-direction:\s*column/);
+  assert.match(line, /align-items:\s*flex-start/, "the bubble would fill the row again");
+  assert.match(rule(".at-scenesaid"), /max-width:\s*min\(/,
+    "a bubble with no cap is a block with rounded corners");
+  assert.doesNotMatch(rule(".at-scenesaid"), /width:\s*100%/);
+});
 
-  /* Logical, not physical. An Arabic scene reads from the right, and an
-     opener pinned to the left of it would be the one thing on the page
-     going the wrong way. */
-  const sided = [".at-scene.sided", ".at-part.sided", ".at-formblock.side0", ".at-formblock.side1"]
+test("two people talking take a side of the page each", () => {
+  /* And the far side is moved by the same lever — where the box goes —
+     rather than by a margin that leaves the words where they were. */
+  assert.match(rule(".at-scene.sided .at-sceneline.side1"), /align-items:\s*flex-end/);
+  /* Each side tinted the colour of the name above it, which is the second
+     thing saying the same thing: the one that survives a scene read at
+     arm's length. */
+  assert.match(rule(".at-scene.sided .at-sceneline.side0 > .at-scenesaid"), /background:\s*var\(--jade-bg\)/);
+  assert.match(rule(".at-scene.sided .at-sceneline.side1 > .at-scenesaid"), /background:\s*var\(--tag-bg\)/);
+
+  /* Logical, not physical. Today the page runs the same way whatever is
+     being taught, so the two agree; the day a whole screen is handed to an
+     Arabic reader, this follows it rather than having to be found. */
+  const sided = [".at-scene", ".at-sceneline", ".at-scenesaid", ".at-scene.sided .at-sceneline.side0 > .at-scenesaid",
+    ".at-scene.sided .at-sceneline.side1 > .at-scenesaid", ".at-formblock.side0", ".at-formblock.side1"]
     .flatMap((sel) => [...css.matchAll(new RegExp(`\\n${sel.replace(/[.]/g, "\\.")}[^{]*\\{([^}]*)\\}`, "g"))])
     .map((m) => m[1])
     .join(" ");
-  assert.doesNotMatch(sided, /margin-left|margin-right|border-left|border-right/,
+  assert.ok(sided.length > 200, "the selectors this reads have moved");
+  assert.doesNotMatch(sided, /margin-left|margin-right|border-left|border-right|border-top-left|border-top-right/,
     "a side is the side the script starts on, not the side of the screen");
 
   /* A turn being written is on its speaker's side too, by an indent and a

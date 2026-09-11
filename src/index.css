@@ -2123,33 +2123,52 @@ body.at-screening .at-spaces { display:none; }
 .at .at-exercise .at-ask .at-playbig { margin-top: calc(var(--ask) * .25); }
 
 /* --- a conversation on screen -------------------------------------
-   A scene is read down the page, so it is laid out as a transcript
-   rather than as a chat: who spoke on the left, what they said beside
-   it, at one size whoever is speaking. Nobody's line is a bubble — a
-   dialog card is a card, and two speech balloons in the middle of an
-   exercise would be the app pretending to be a phone.
+   Each turn is a bubble: the words in a box that is only as wide as it
+   needs to be, with whoever said them named above it.
+
+   It was a transcript — a name in a narrow column, the words in a wide
+   one beside it — and that column was the bug. A block the width of the
+   page puts its text at whichever end the text itself starts from, so an
+   Arabic line sat hard against the right of its column whichever side of
+   the page the column was on, and both speakers came out down the right.
+   An English scene had the same fault mirrored. A box that hugs its
+   words cannot do that: where the words sit is where the box is, and the
+   box is put on its speaker's side by hand.
+
+   Which is also the thing that makes a conversation easy to read, and
+   the reason every messaging app is built this way.
 
    The script here is smaller than the prompt of a word question and set
    from the same variable, so a scene takes its size from the language
    like everything else does: a line is several words long and the size
    that suits one word makes four of them a wall. */
-.at-scene { display:flex; flex-direction:column; gap:12px; text-align:start; margin:2px 0 4px; }
-.at-sceneline { display:grid; grid-template-columns: minmax(54px, auto) 1fr; gap:2px 12px;
-  align-items:baseline; }
-.at-scenesaid { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.at-scene { display:flex; flex-direction:column; gap:10px; text-align:start; margin:2px 0 4px; }
+/* A column, so the bubble shrinks to its contents rather than filling the
+   row — that shrinking is the whole fix. align-items is what puts the
+   turn on its side; without `sided` every turn stacks at the leading
+   edge, which is what a scene of three or four people wants. */
+.at-sceneline { display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+.at-scenesaid { min-width:0; display:flex; flex-direction:column; gap:3px;
+  max-width: min(86%, 34rem);
+  background: var(--well); border:1px solid var(--line);
+  border-radius:16px; padding:9px 13px; }
+/* Squared off at the corner nearest its speaker's name, which is what
+   makes a bubble read as belonging to somebody rather than floating. */
+.at-sceneline > .at-scenesaid { border-start-start-radius:5px; }
 /* Who is speaking. Small, uppercase and quiet: it is a label on the
    words, and the words are the exercise. Each speaker keeps one colour
    for the whole scene, which is how a run of turns reads as two people
    rather than as four lines. */
 .at-speaker { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-sceneline > .at-speaker { padding-inline:4px; }
 .at-speaker.s0 { color: var(--jade); }
 .at-speaker.s1 { color: var(--brass); }
 .at-speaker.s2 { color: var(--rose); }
 .at-speaker.s3 { color: var(--text-soft); }
-.at-scene .at-arabic, .at-part .at-arabic, .at-order .at-arabic, .at-replies .at-arabic {
+.at-scene .at-arabic, .at-order .at-arabic, .at-replies .at-arabic {
   font-size: calc(var(--ask) * .62); line-height: calc(1.5 * var(--sleading, 1)); margin:0; }
-.at-scene .at-en, .at-part .at-en { margin:0; }
+.at-scene .at-en { margin:0; }
 .at-scenemeaning { font-family: var(--ui); font-size:14px; font-weight:600; color: var(--muted);
   margin:0; }
 /* The turn being asked for. The rule is the length of a held breath, not
@@ -2159,8 +2178,7 @@ body.at-screening .at-spaces { display:none; }
 .at-blankrule { display:inline-block; width:96px; height:3px; border-radius:2px;
   background: var(--faint); vertical-align:middle; }
 .at-sceneline.asked .at-speaker { color: var(--text); }
-.at-sceneline.ok .at-input, .at-sceneline.ok .at-arabic { color: var(--jade); }
-.at-sceneline.no .at-input, .at-sceneline.no .at-arabic { color: var(--rose); }
+.at-sceneline.asked > .at-scenesaid { border-style:dashed; border-color: var(--muted); }
 
 /* ---- two people, one down each side ----
 
@@ -2171,39 +2189,28 @@ body.at-screening .at-spaces { display:none; }
    scan.
 
    Only a two-hander. There is no third side of a page, so a scene of
-   three or four keeps the list it has, and `sided` is what says which is
+   three or four keeps its one column, and `sided` is what says which is
    which — see sidesOf.
 
    Logical properties throughout: "the side the opener takes" is the
-   leading edge, which follows the script rather than the screen. An
-   Arabic scene reads from the right, and a first speaker pinned to the
-   physical left of it would be the one thing on the page going the wrong
-   way.
+   leading edge, which follows the script rather than the screen. Today
+   the page runs the same way whatever is being taught, so the two agree;
+   the day a whole screen is handed to an Arabic reader, this follows it
+   rather than having to be found and flipped.
 
-   The inset is what makes two columns out of one: each side gives up a
-   fifth of the width at the far edge, so the two runs of turns cannot
-   line up and be mistaken for one. Capped in pixels because a fifth of a
-   wide screen is a corridor. */
-.at-scene.sided .at-sceneline, .at-part.sided .at-sceneline {
-  --scene-inset: min(20%, 96px); }
-.at-scene.sided .at-sceneline.side0, .at-part.sided .at-sceneline.side0 {
-  margin-inline-end: var(--scene-inset); }
-/* The far side: the words come first and the name sits after them, so the
-   two names hug the outside edges and the words face each other. */
-.at-scene.sided .at-sceneline.side1, .at-part.sided .at-sceneline.side1 {
-  margin-inline-start: var(--scene-inset);
-  grid-template-columns: 1fr minmax(54px, auto); }
-.at-scene.sided .at-sceneline.side1 > .at-speaker,
-.at-part.sided .at-sceneline.side1 > .at-speaker { grid-column:2; grid-row:1; }
-.at-scene.sided .at-sceneline.side1 > .at-scenesaid,
-.at-part.sided .at-sceneline.side1 > .at-scenesaid {
-  grid-column:1; grid-row:1; align-items:flex-end; text-align:end; }
-/* The answer field on the far side is the width of its column like the
-   words it stands in for, so a scene half typed into does not jump about
-   as turns are filled in. */
-.at-part.sided .at-sceneline.side1 .at-input { text-align:end; }
-/* A scene inside the order puzzle keeps its full-width tap target; what
-   moves is the words in it. */
+   Each side is tinted the colour of the speaker whose name is over it,
+   which is a second thing saying the same thing — the one that survives
+   a scene read at arm's length. */
+.at-scene.sided .at-sceneline.side0 > .at-scenesaid {
+  background: var(--jade-bg); border-color: var(--jade-soft); }
+.at-scene.sided .at-sceneline.side1 {
+  align-items:flex-end; }
+.at-scene.sided .at-sceneline.side1 > .at-scenesaid {
+  background: var(--tag-bg); border-color: var(--tag-line);
+  border-start-start-radius:16px; border-start-end-radius:5px; }
+/* A scene inside the order puzzle keeps its full-width tap target — the
+   tap is the answer, so it stays as big as the thing being answered —
+   and what moves is the words in it. */
 .at-orderline.side1 { flex-direction:row-reverse; }
 .at-orderline.side1 > .at-orderwords { align-items:flex-end; text-align:end; }
 
@@ -2221,13 +2228,6 @@ body.at-screening .at-spaces { display:none; }
   font-variant-numeric: tabular-nums; }
 .at-orderline.on .at-ordernum { color: var(--jade); }
 .at-orderwords { display:flex; flex-direction:column; gap:2px; min-width:0; }
-
-/* Playing a part: the scene, with your turns as fields in it. The fields
-   sit where the words would, so the shape of the conversation is still
-   the shape of what is on screen. */
-.at-part { display:flex; flex-direction:column; gap:12px; text-align:start; }
-.at-part .at-input { font-size:17px; }
-.at-part .at-sceneline.yours .at-scenesaid { gap:4px; }
 
 /* Reading a scene through: what the reader may ask to see, and how they
    say whether they followed it. Both are rows of buttons that wrap rather

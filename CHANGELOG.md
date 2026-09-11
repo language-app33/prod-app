@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.68 — 11 September 2026
+
+- A conversation is now a run of chat bubbles: the words in a box only as
+  wide as it needs to be, with whoever said them named above it.
+- Which is also the fix for the bug. A turn was a block the width of the
+  page, and a block that wide puts its text at whichever end the text
+  itself starts from — so an Arabic line sat hard against the right of its
+  column whichever side of the page that column was on, and both speakers
+  came out down the right with only their names on opposite sides.
+- The same fault was there for a language written left to right, mirrored
+  and quieter: the far speaker's words started at the left of their column
+  too, so they were nudged over by the indent but never reached the other
+  side. Both are gone. A box that hugs its words cannot do it: where the
+  words sit is where the box is.
+- Each side is tinted the colour of the name above it, so a scene still
+  reads as two people at arm's length. Three or four speakers keep one
+  column of bubbles, like a group chat — there is still no third side of a
+  page.
+
 ## 0.67 — 11 September 2026
 
 - Three conversation exercises are gone. Translating one line was the word
