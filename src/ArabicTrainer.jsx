@@ -143,6 +143,9 @@ import {
   stateReady,
   unitsOf,
   dayKey,
+  dueRank,
+  inOrder,
+  shuffled,
 } from "./scheduler.js";
 import {
   DEFAULT_SPEAKERS,
@@ -818,15 +821,10 @@ function isDrillable(it, settings) {
   return enabledTypes(it, settings).length >= 2;
 }
 
+/* One shuffle in the app, and it lives in the scheduler with the rest of
+   what decides an order — see "Random among equals" there. */
 /** @type {<T>(arr: T[]) => T[]} */
-const shuffle = (arr) => {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-};
+const shuffle = (arr) => shuffled(arr);
 
 /* ------------------------------------------------------------------
    Similarity — rule 3
@@ -997,6 +995,13 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
     return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew };
   });
 
+  /* Ordered before anything is filtered, because the filter below keeps
+     the first few new cards and "the first few" is decided here. Anything
+     already due ranks together and is shuffled, so which new cards a
+     session opens with, and which of the overdue ones it reaches, differ
+     from one sitting to the next. */
+  candidates = inOrder(candidates, (c) => dueRank(c.soonest));
+
   // A hand-picked session takes everything chosen, due or not.
   if (!practice && !includeAll) {
     candidates = candidates.filter((c) => c.ready);
@@ -1021,8 +1026,6 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
   }
 
   if (!candidates.length) return { exercises: [], reason: "nothing-due" };
-
-  candidates.sort((a, b) => a.soonest - b.soonest);
 
   /* --- rule 3: reach further down the due list for related items --- */
   const avgUnits =
@@ -1052,23 +1055,24 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
     chosen.push(next);
   }
 
-  if (settings.warmup) {
-    chosen.sort((a, b) => DIFF_RANK[itemDifficulty(a.it)] - DIFF_RANK[itemDifficulty(b.it)]);
-  }
+  /* Easiest first, and cards of the same difficulty in no particular
+     order — which is most of them, since a card nobody has been wrong
+     about yet is unrated. */
+  const warmed = settings.warmup
+    ? inOrder(chosen, (c) => DIFF_RANK[itemDifficulty(c.it)])
+    : shuffle(chosen);
 
   /* --- rules 2 and 6: every unit gets several exercise types, and a
          family's sub-items come along in the same session --- */
   const plans = [];
-  for (const c of chosen) {
+  for (const c of warmed) {
     // Parent first, then whichever sub-items are most overdue.
     const parent = c.units.filter((u) => !u.isSub);
-    const subs = c.units
-      .filter((u) => u.isSub)
-      .sort((a, b) => {
-        const da = Math.min(...enabledTypes(a.unit, settings).map((t) => statesOf(a.unit)[t].due || 0));
-        const db = Math.min(...enabledTypes(b.unit, settings).map((t) => statesOf(b.unit)[t].due || 0));
-        return da - db;
-      });
+    const subs = inOrder(
+      c.units.filter((u) => u.isSub),
+      (u) =>
+        dueRank(Math.min(...enabledTypes(u.unit, settings).map((t) => statesOf(u.unit)[t].due || 0)))
+    );
     /* A scene offers a line or two and not all of itself. Six lines would
        otherwise take a session over between them, and a conversation met
        two lines at a time across three evenings is learnt better than one
@@ -1079,12 +1083,11 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
       : parent.concat(subs).slice(0, MAX_UNITS_PER_FAMILY);
 
     for (const { unit, isSub } of take) {
-      const types = enabledTypes(unit, settings);
-      const ordered = TYPES.filter((t) => types.includes(t));
-      const readyFirst = ordered
-        .filter((t) => stateReady(statesOf(unit)[t]))
-        .concat(ordered.filter((t) => !stateReady(statesOf(unit)[t])));
-      const picked = readyFirst.slice(0, Math.min(Math.max(2, perUnit), ordered.length));
+      const ordered = pickableTypes(unit, settings);
+      const picked = ordered.slice(0, Math.min(Math.max(2, perUnit), ordered.length));
+      /* Asked in the table's own order, which runs from recognition to
+         production: which exercises a unit gets is a matter of chance,
+         the order they come in is not. */
       picked.sort((x, y) => TYPES.indexOf(x) - TYPES.indexOf(y));
       plans.push({ id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked });
     }
@@ -1155,6 +1158,34 @@ function sceneUnmet(card) {
   return unitsOf(card).every(({ unit }) =>
     availableTypes(unit).every((t) => (statesOf(unit)[t] || freshState()).phase === "new")
   );
+}
+
+/*
+ * Which exercises a unit could be asked, best first.
+ *
+ * Two rankings, and chance inside each. What is due comes before what is
+ * not, because a session is for what is due; and while a unit is still
+ * new, recognition comes before production, because the first thing you
+ * do with a word is recognise it. Everything the two agree about is
+ * equal, and equal things are shuffled — so a card met twice in a week is
+ * not met the same way twice.
+ *
+ * Without this a unit was always drilled in the first two or three types
+ * of the table, and the other half of what a card supports was practised
+ * only when those had been answered into the future.
+ */
+/**
+ * @param {Form} unit
+ * @param {Settings} settings
+ */
+function pickableTypes(unit, settings) {
+  const types = enabledTypes(unit, settings);
+  const fresh = types.every((t) => statesOf(unit)[t].phase === "new");
+  return inOrder(types, (t) => {
+    const ready = stateReady(statesOf(unit)[t]) ? 0 : 2;
+    const gentle = fresh && !EX[t].gentle ? 1 : 0;
+    return ready + gentle;
+  });
 }
 
 /* Every exercise type this form supports is already mature. */

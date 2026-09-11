@@ -1652,6 +1652,61 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(200);
 }
 
+/* ---- leaving a session and starting another ----
+   The bug this was written for: a session was built out of orderings that
+   left ties — everything due ranks together, everything nobody has been
+   wrong about is equally easy — and the ties kept whatever order the
+   document happened to hold. Nothing in building one ever rolled a die,
+   so leaving half way through and starting again gave back the same
+   questions in the same order, for good.
+
+   Six sessions, each abandoned on the first question. They do not have to
+   differ from each other one by one — with a handful of cards two draws
+   can coincide — but six identical ones is the old behaviour exactly. */
+{
+  /* Whatever is on screen from the walk above. */
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+
+  /** What a session is, as a string: every question in it, in order. */
+  const queueNow = () => {
+    const el = document.querySelector('[data-el="session-count"]');
+    const asked = (document.querySelector(".at-instruction") || {}).textContent || "";
+    const prompt = (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
+    return `${(el || {}).textContent || "?"}|${asked}|${prompt}`.replace(/\s+/g, " ");
+  };
+
+  const openings = [];
+  for (let n = 0; n < 6; n++) {
+    click(buttonNamed(/^Start session$/));
+    await sleep(450);
+    if (!document.querySelector(".at-instruction")) {
+      check("a session starts from the home screen", false,
+        (document.body.textContent || "").slice(0, 90).replace(/\s+/g, " "));
+      break;
+    }
+    openings.push(queueNow());
+    /* Left in the middle, which is the whole point: nothing is answered,
+       so nothing about the cards has changed and the next session is
+       built from exactly the same state. */
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(350);
+  }
+
+  check("six sessions built from the same cards are not one session six times",
+    new Set(openings).size > 1,
+    `${new Set(openings).size} distinct opening(s): ${openings[0] || "none"}`);
+  check("and every one of them actually started", openings.length === 6, `${openings.length} started`);
+}
+
 console.error = origError;
 console.log(results.join("\n"));
 console.log("\nrequests:", calls.join("\n          "));

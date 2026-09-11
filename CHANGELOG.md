@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.56 — 11 September 2026
+
+- Sessions are no longer the same session every time. Leaving one half way
+  through and starting another gave back the same questions in the same
+  order — and would have gone on doing so, because nothing in the building
+  of a session ever rolled a die: it was built out of orderings, and what
+  those left equal stayed in the order the cards happened to be added in.
+- The orderings still stand; what they call equal is now shuffled. A lower
+  rank always comes first — what is due before what is not, the easiest
+  first while you are warming up, recognition before production on a card
+  you have just met — and chance settles the rest.
+- Everything already due now ranks together. A card due last week is not
+  more urgent than one due this morning, and ordering by the exact minute
+  each fell due was ordering by nothing: it is what made two sessions built
+  a minute apart identical down to the last question. With a backlog, a
+  session now takes a fair draw from what is due rather than the same
+  oldest few every time.
+- Which new cards a session opens with, and which exercises a card is
+  drilled in, vary the same way — so a card met twice in a week is not met
+  the same way twice.
+
 ## 0.55 — 11 September 2026
 
 - A card can hold a whole conversation. A teacher writes the scene — what
