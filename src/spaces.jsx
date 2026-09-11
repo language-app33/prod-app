@@ -4418,12 +4418,13 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
 
   if (!lang || !report.supported) {
     return (
-      <Section title="In context">
+      <div className="at-panel">
+        <p className="at-eyebrow">In context</p>
         <Help>
           {(lang || {}).name || "This language"} does not describe how to find a word inside a
           phrase, so nothing here can be measured yet.
         </Help>
-      </Section>
+      </div>
     );
   }
 
@@ -4433,7 +4434,23 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
 
   return (
     <>
-      <Section title="In context">
+      {/* Which language, before anything it decides. Finding a word inside
+          a phrase is a language's own rule, so every number and every
+          suggestion below is about one language — and being told them
+          before being asked which is being told about the wrong ones. */}
+      {ids.length > 1 && (
+        <div className="at-panel">
+          <LanguageRadio
+            languages={languages}
+            value={langId}
+            onChange={setLangId}
+            label="Which language"
+          />
+        </div>
+      )}
+
+      <div className="at-panel">
+        <p className="at-eyebrow">In context</p>
         <Lede>
           {coverage && coverage.words
             ? `${coverage.covered} of ${plural(coverage.words, "word")} you teach turn up in a phrase a student can practise them inside.`
@@ -4445,19 +4462,14 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
           material: the app finds them and you decide, because finding a
           word inside another word is a guess that is occasionally wrong.
         </Help>
-        {ids.length > 1 && (
-          <div className="at-mt3">
-            <LanguageRadio
-              languages={languages}
-              value={langId}
-              onChange={setLangId}
-              label="Which language"
-            />
-          </div>
-        )}
-      </Section>
+      </div>
 
-      <Section title={`Links to confirm${waiting.length ? ` · ${waiting.length}` : ""}`} className="at-mt5">
+      {/* Each of the three is a tile of its own: they are three different
+          jobs — a tap, a card to write, a phrase to write — and a teacher
+          reading them is choosing between them rather than reading down a
+          page. */}
+      <div className="at-panel">
+        <p className="at-eyebrow">{`Links to confirm${waiting.length ? ` · ${waiting.length}` : ""}`}</p>
         {waiting.length === 0 ? (
           <Help>
             Nothing waiting. Every phrase that contains a word you teach says
@@ -4469,24 +4481,24 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
               These phrases contain a word you teach and do not say so, so the
               word is never practised inside them. One tap each.
             </Help>
-            <div className="at-ctxlist">
+            <div className="at-findlist">
               {waiting.slice(0, 40).map((pair) => (
-                <div className="at-ctxrow" key={`${pair.container.id}:${pair.word.id}`}>
-                  <div className="at-ctxbody">
+                <div className="at-findrow" key={`${pair.container.id}:${pair.word.id}`}>
+                  <div className="at-findbody">
                     {/* The word runs in its own direction and the gloss
                         beside it runs in the page's. A line that switches
                         direction halfway reorders itself, which put the
                         English first on every right-to-left word. */}
-                    <p className="at-ctxword">
+                    <p className="at-findword">
                       <span lang={lang.id} dir={lang.direction}
                         style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                         {pair.word.ar}
                       </span>
-                      <span className="at-ctxgloss">{pair.word.en}</span>
+                      <span className="at-findgloss">{pair.word.en}</span>
                     </p>
                     <button
                       type="button"
-                      className="at-ctxphrase"
+                      className="at-findphrase"
                       lang={lang.id}
                       dir={lang.direction}
                       style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
@@ -4511,9 +4523,10 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
             </div>
           </>
         )}
-      </Section>
+      </div>
 
-      <Section title={`Words worth a card${missing.length ? ` · ${missing.length}` : ""}`} className="at-mt5">
+      <div className="at-panel">
+        <p className="at-eyebrow">{`Words worth a card${missing.length ? ` · ${missing.length}` : ""}`}</p>
         {missing.length === 0 ? (
           <Help>
             Every word your phrases use has a card of its own.
@@ -4525,18 +4538,18 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
               first. What is offered is the form it appears in — the first line
               of a card you finish.
             </Help>
-            <div className="at-ctxlist">
+            <div className="at-findlist">
               {missing.slice(0, 30).map((word) => (
-                <div className="at-ctxrow" key={word.text}>
-                  <div className="at-ctxbody">
-                    <p className="at-ctxword">
+                <div className="at-findrow" key={word.text}>
+                  <div className="at-findbody">
+                    <p className="at-findword">
                       <span lang={lang.id} dir={lang.direction}
                         style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
                         {word.text}
                       </span>
-                      <span className="at-ctxgloss">in {plural(word.count, "phrase")}</span>
+                      <span className="at-findgloss">in {plural(word.count, "phrase")}</span>
                       {word.forms.length > 1 && (
-                        <span className="at-ctxgloss" lang={lang.id} dir={lang.direction}>
+                        <span className="at-findgloss" lang={lang.id} dir={lang.direction}>
                           {/* Separated the way the app separates
                               everything, rather than with the punctuation
                               of whichever language this happens to be. */}
@@ -4546,7 +4559,7 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
                     </p>
                     <button
                       type="button"
-                      className="at-ctxphrase"
+                      className="at-findphrase"
                       lang={lang.id}
                       dir={lang.direction}
                       style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
@@ -4563,9 +4576,10 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
             </div>
           </>
         )}
-      </Section>
+      </div>
 
-      <Section title={`Words in no phrase${bare.length ? ` · ${bare.length}` : ""}`} className="at-mt5">
+      <div className="at-panel">
+        <p className="at-eyebrow">{`Words in no phrase${bare.length ? ` · ${bare.length}` : ""}`}</p>
         {bare.length === 0 ? (
           <Help>Every word you teach turns up somewhere.</Help>
         ) : (
@@ -4590,7 +4604,7 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
             </div>
           </>
         )}
-      </Section>
+      </div>
     </>
   );
 }

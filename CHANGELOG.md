@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.60 — 11 September 2026
+
+- In context reads as four tiles rather than one long page, and the
+  language it is about is asked at the top instead of underneath the
+  numbers it decides. Each of the three lists is one job — a tap, a card to
+  write, a phrase to write — so each gets a tile of its own.
+- Those lists had quietly inherited the indent and the left rule belonging
+  to a deck's context report, because the two screens were sharing a class
+  name. They have their own now.
+
 ## 0.59 — 11 September 2026
 
 - Trying an exercise now lives where the cards are written. Open one of

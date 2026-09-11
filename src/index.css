@@ -2173,25 +2173,30 @@ body.at-screening .at-spaces { display:none; }
 
 /* --- what the material says about itself -------------------------
    The rows of the In context tab: a word, the phrase it turns up in, and
-   the one decision each row is asking for. Laid out as a list rather than
+   the one decision each row is asking for.
+
+   Named "find" rather than "ctx" because a deck's context report already
+   owns that prefix, and these rows quietly inherited its left rule and
+   its indent for a release: two screens sharing a class name is two
+   screens one edit away from changing each other. Laid out as a list rather than
    as cards — there may be forty of them, and forty cards is a wall. */
-.at-ctxlist { display:flex; flex-direction:column; }
-.at-ctxrow { display:flex; align-items:center; gap:12px; justify-content:space-between;
+.at-findlist { display:flex; flex-direction:column; }
+.at-findrow { display:flex; align-items:center; gap:12px; justify-content:space-between;
   padding:12px 0; border-top:1px solid var(--line); }
-.at-ctxrow:last-child { border-bottom:1px solid var(--line); }
-.at-ctxbody { min-width:0; display:flex; flex-direction:column; gap:3px; }
-.at-ctxword { font-size:19px; font-weight:700; margin:0; color: var(--text);
+.at-findrow:last-child { border-bottom:1px solid var(--line); }
+.at-findbody { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.at-findword { font-size:19px; font-weight:700; margin:0; color: var(--text);
   display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
 /* What it means, beside it rather than under it: the word is what is being
    judged and the gloss is how you judge it. */
-.at-ctxgloss { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted); }
+.at-findgloss { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted); }
 /* The phrase is a way into the card it belongs to, so it reads as one —
    quieter than the word, and underlined on hover like every other way of
    opening something. */
-.at-ctxphrase { font-size:15px; color: var(--text-soft); background:none; border:0; padding:0;
+.at-findphrase { font-size:15px; color: var(--text-soft); background:none; border:0; padding:0;
   text-align:start; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   max-width:100%; }
-.at-ctxphrase:hover { color: var(--text); text-decoration:underline; }
+.at-findphrase:hover { color: var(--text); text-decoration:underline; }
 
 /* Which of the learner's own words a line turned out to use, under the
    line in the editor. Found rather than ticked, so it is shown rather
