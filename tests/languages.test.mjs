@@ -343,8 +343,11 @@ test("neither joins the gentle types, and the hint is a nudge not the answer", (
 
 test("the gentle types are read off the definitions, not kept beside them", () => {
   /* The app held a second list, and a new type had to be remembered twice
-     or "Get started" quietly never offered it. */
-  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en"]);
+     or "Get started" quietly never offered it. Reading a line of a
+     conversation is recognition too, and belongs with the other two: a
+     beginner meeting a scene should be asked what it says before being
+     asked to say any of it. */
+  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "dlg2en"]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);

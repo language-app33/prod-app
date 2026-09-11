@@ -265,6 +265,101 @@ test("a card remembers which words it teaches, and keeps the list clean", async 
 });
 
 /*
+ * A conversation is a card like any other, so it reaches a student down
+ * the same pipe: saved here, stored whole, handed out in the material
+ * payload. What the server has to keep is the turns in order, who says
+ * each one, and which words each line teaches — and it has to keep them
+ * without knowing what a dialog is.
+ */
+test("a card can hold a conversation, and keeps its turns in order", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Samir" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const word = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id: "", ar: "سلام", en: "peace", lang: "ar-PS" }, decks: [] },
+  });
+  const wordId = word.json.card.id;
+
+  const scene = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", ar: "", en: "At the door", lang: "ar-PS",
+        note: "Two neighbours meet in the morning",
+        speakers: ["Layla", "Karim"],
+        you: 1,
+        lines: [
+          { who: 0, ar: "سلام", en: "peace", uses: [wordId, wordId, "../etc/passwd"] },
+          { who: 1, ar: "وسلام", en: "and peace", clips: ["a".repeat(64)] },
+          { who: 0, ar: "كيف حالك", en: "how are you" },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(scene.status, 200, scene.text);
+  const held = scene.json.card;
+  assert.deepEqual(held.speakers, ["Layla", "Karim"]);
+  assert.equal(held.you, 1);
+  assert.equal(held.lines.length, 3);
+  assert.deepEqual(held.lines.map((/** @type {any} */ l) => l.who), [0, 1, 0]);
+  assert.equal(held.lines[2].en, "how are you");
+  /* A line's recordings are kept the way a form's are, and a line with
+     none still answers with a list. */
+  assert.deepEqual(held.lines[1].clips, ["a".repeat(64)]);
+  assert.deepEqual(held.lines[2].clips, []);
+  /* And the words a line teaches are cleaned exactly as a card's are:
+     these are written into a document and read back as identity. */
+  assert.deepEqual(held.lines[0].uses, [wordId, "etcpasswd"]);
+  assert.deepEqual(held.lines[1].uses, []);
+
+  /* A student gets it through the material payload, whole. */
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Scenes", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { ...held, id: held.id }, decks: [deckId] },
+  });
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Beginners", language: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key, body: { deckId, courseId: course.json.course.id },
+  });
+  /* Asked for as the student it is for, which is the only way material is
+     ever handed out. */
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yara" } });
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key, body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+  const material = await api("/api/courses?action=my-material", { key: student.json.key });
+  const handed = (material.json.cards || [])
+    .flatMap((/** @type {any} */ d) => d.cards)
+    .find((/** @type {any} */ c) => c.id === held.id);
+  assert.ok(handed, "the conversation never reached the student");
+  assert.equal(handed.lines.length, 3, "a scene reached them with turns missing");
+  assert.equal(handed.speakers[1], "Karim");
+});
+
+/*
+ * An ordinary card is not changed by passing through a server that knows
+ * about conversations: it comes back with no turns and nobody in it.
+ */
+test("and a word is not turned into a conversation by being saved", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Hana" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const plain = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [] },
+  });
+  assert.deepEqual(plain.json.card.lines, []);
+  assert.deepEqual(plain.json.card.speakers, []);
+});
+
+/*
  * The two speeds a word can be recorded at. They are two lists on the card
  * rather than one list with a mark on each entry, so the server has to keep
  * both — a card that came back with its slow recordings dropped would have

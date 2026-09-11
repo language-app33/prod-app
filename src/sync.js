@@ -101,7 +101,23 @@ function mergeItem(a, b) {
     return twin ? { ...sb, s: mergeStates(sb.s, twin.s) } : sb;
   });
 
-  return { ...base, s: mergeStates(a.s, b.s), subs };
+  /* The lines of a dialog, for the same reason: each carries its own
+     progress, and a device that drilled line three has work the other one
+     has not seen. The wording comes from whichever side was edited last,
+     as everything else on the card does. */
+  const lines = (/** @type {any} */ (base).lines || []).map((/** @type {Form} */ ln) => {
+    const twin = (/** @type {any} */ (other).lines || []).find(
+      (/** @type {Form} */ x) => x.id === ln.id
+    );
+    return twin ? { ...ln, s: mergeStates(ln.s, twin.s) } : ln;
+  });
+
+  return {
+    ...base,
+    s: mergeStates(a.s, b.s),
+    subs,
+    .../** @type {any} */ (lines.length ? { lines } : null),
+  };
 }
 
 /**
@@ -248,10 +264,17 @@ function compactStates(s) {
  * @returns {Item}
  */
 export function compactItem(it) {
+  const lines = /** @type {any} */ (it).lines;
   return {
     ...it,
     s: compactStates(it.s),
     subs: (it.subs || []).map((sb) => ({ ...sb, s: compactStates(sb.s) })),
+    /* A scene's lines carry states the same way, and a scene is several
+       forms' worth of them. Left out where there are none, so an ordinary
+       card does not start travelling with an empty list. */
+    .../** @type {any} */ (
+      lines ? { lines: lines.map((/** @type {any} */ ln) => ({ ...ln, s: compactStates(ln.s) })) } : null
+    ),
   };
 }
 
@@ -336,13 +359,18 @@ export async function pushClip(token, id, dataUrl) {
   return true;
 }
 
-/* Every recording id the document refers to, across items and their forms. */
+/* Every recording id the document refers to, across items, their forms and
+   the lines of a dialog. A line's recording is a recording like any other:
+   left out of here it would be dropped from the device it was made on. */
 /** @param {WireDoc} data  Only the items are read, so a partial document will do. */
 export function clipIdsIn(data) {
   const ids = [];
   for (const it of data.items || []) {
     for (const r of it.recs || []) ids.push(r.id);
     for (const sb of it.subs || []) for (const r of sb.recs || []) ids.push(r.id);
+    for (const ln of /** @type {any} */ (it).lines || []) {
+      for (const r of ln.recs || []) ids.push(r.id);
+    }
   }
   return ids;
 }

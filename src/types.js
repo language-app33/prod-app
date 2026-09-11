@@ -56,6 +56,13 @@
  * @property {boolean} [gentle]    Recognition rather than production.
  * @property {boolean} [retired]   Still defined so stored states can be read.
  * @property {boolean} [quizAttr]  Asks a derived property rather than the word.
+ * @property {"card" | "line"} [dialog]  Asked of a whole scene, or of one line
+ *   of one. Anything without it is asked of an ordinary word or form, and the
+ *   three never mix.
+ * @property {boolean} [intro]     Met rather than answered: never scheduled,
+ *   never marked, and not in TYPES.
+ * @property {boolean} [pickReply] The choice offered is a line of the scene
+ *   rather than a class of sound.
  */
 
 /**
@@ -208,6 +215,9 @@
  *   note?: string,
  *   subs?: CardForm[],
  *   uses?: string[],
+ *   lines?: (CardForm & { who?: number, uses?: string[] })[],
+ *   speakers?: string[],
+ *   you?: number,
  *   rev?: number,
  *   created?: Millis,
  *   updated?: Millis,
@@ -331,6 +341,17 @@
  */
 
 /**
+ * A line of a dialog: a form, said by somebody, that may name the word
+ * cards it uses.
+ *
+ * It is a Form and not a thing of its own because it is drilled like one —
+ * its own wording, its own recordings, its own progress. `who` indexes the
+ * card's `speakers`; `uses` is the same list a phrase card carries, and is
+ * what lets a scene stand in for a phrase in the gap-fill.
+ * @typedef {Form & { who?: number, uses?: string[] }} Line
+ */
+
+/**
  * A card as it lives on a device: the teacher's wording plus this
  * learner's progress.
  *
@@ -343,11 +364,17 @@
  * differ per language and are not knowable here — sit alongside the ones
  * every card has. It also means an unlisted field reads as `any`, so the
  * fields worth checking are the ones written out.
+ *
+ * A dialog is one of these too: `lines` holds the conversation, `speakers`
+ * names who is in it, and `you` says which of them the learner plays.
  * @typedef {Form & {
  *   kind?: string,
  *   tags: string[],
  *   flags?: any[],
  *   subs?: Form[],
+ *   lines?: Line[],
+ *   speakers?: string[],
+ *   you?: number,
  *   source?: { courseId: string, deckId: string, cardId: string, rev: number },
  *   locked?: boolean,
  *   created: Millis,

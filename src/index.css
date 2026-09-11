@@ -2072,6 +2072,84 @@ body.at-screening .at-spaces { display:none; }
 }
 .at .at-exercise .at-ask .at-playbig { margin-top: calc(var(--ask) * .25); }
 
+/* --- a conversation on screen -------------------------------------
+   A scene is read down the page, so it is laid out as a transcript
+   rather than as a chat: who spoke on the left, what they said beside
+   it, at one size whoever is speaking. Nobody's line is a bubble — a
+   dialog card is a card, and two speech balloons in the middle of an
+   exercise would be the app pretending to be a phone.
+
+   The script here is smaller than the prompt of a word question and set
+   from the same variable, so a scene takes its size from the language
+   like everything else does: a line is several words long and the size
+   that suits one word makes four of them a wall. */
+.at-scene { display:flex; flex-direction:column; gap:12px; text-align:start; margin:2px 0 4px; }
+.at-sceneline { display:grid; grid-template-columns: minmax(54px, auto) 1fr; gap:2px 12px;
+  align-items:baseline; }
+.at-scenesaid { min-width:0; display:flex; flex-direction:column; gap:2px; }
+/* Who is speaking. Small, uppercase and quiet: it is a label on the
+   words, and the words are the exercise. Each speaker keeps one colour
+   for the whole scene, which is how a run of turns reads as two people
+   rather than as four lines. */
+.at-speaker { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-speaker.s0 { color: var(--jade); }
+.at-speaker.s1 { color: var(--brass); }
+.at-speaker.s2 { color: var(--rose); }
+.at-speaker.s3 { color: var(--text-soft); }
+.at-scene .at-arabic, .at-part .at-arabic, .at-order .at-arabic, .at-replies .at-arabic {
+  font-size: calc(var(--ask) * .62); line-height: calc(1.5 * var(--sleading, 1)); margin:0; }
+.at-scene .at-en, .at-part .at-en { margin:0; }
+.at-scenemeaning { font-family: var(--ui); font-size:14px; font-weight:600; color: var(--muted);
+  margin:0; }
+/* The turn being asked for. The rule is the length of a held breath, not
+   of the answer: a blank as wide as the words would say how many there
+   are. */
+.at-sceneblank { margin:0; padding:2px 0; }
+.at-blankrule { display:inline-block; width:96px; height:3px; border-radius:2px;
+  background: var(--faint); vertical-align:middle; }
+.at-sceneline.asked .at-speaker { color: var(--text); }
+.at-sceneline.ok .at-input, .at-sceneline.ok .at-arabic { color: var(--jade); }
+.at-sceneline.no .at-input, .at-sceneline.no .at-arabic { color: var(--rose); }
+
+/* Putting it back in order. Each line is a target the width of the
+   column: the tap is the answer, so it is as big as the thing being
+   answered. */
+.at-order { display:flex; flex-direction:column; gap:8px; }
+.at-orderline { display:flex; align-items:baseline; gap:12px; text-align:start; width:100%;
+  background: var(--surface); border:2px solid var(--line); border-radius: var(--r);
+  padding:10px 12px; cursor:pointer; color: var(--text); font-family: var(--ui); }
+.at-orderline:hover:not(:disabled) { border-color: var(--muted); }
+.at-orderline.on { border-color: var(--jade-soft); background: var(--jade-bg); cursor:default; }
+.at-orderline:disabled:not(.on) { opacity:.5; cursor:default; }
+.at-ordernum { font-size:15px; font-weight:800; color: var(--muted); min-width:1.2em;
+  font-variant-numeric: tabular-nums; }
+.at-orderline.on .at-ordernum { color: var(--jade); }
+.at-orderwords { display:flex; flex-direction:column; gap:2px; min-width:0; }
+
+/* Playing a part: the scene, with your turns as fields in it. The fields
+   sit where the words would, so the shape of the conversation is still
+   the shape of what is on screen. */
+.at-part { display:flex; flex-direction:column; gap:12px; text-align:start; }
+.at-part .at-input { font-size:17px; }
+.at-part .at-sceneline.yours .at-scenesaid { gap:4px; }
+
+/* The replies on offer, one under the other. */
+.at-replies { display:flex; flex-direction:column; gap:8px; }
+.at-reply { text-align:start; width:100%; background: var(--surface);
+  border:2px solid var(--line); border-radius: var(--r); padding:10px 14px; cursor:pointer;
+  color: var(--text); }
+.at-reply:hover:not(:disabled) { border-color: var(--muted); }
+.at-reply.on { border-color: var(--jade-soft); background: var(--jade-bg); }
+.at-reply:disabled { cursor:default; }
+
+/* Which of the learner's own words a line turned out to use, under the
+   line in the editor. Found rather than ticked, so it is shown rather
+   than asked for. */
+.at-uses { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
+.at-useslabel { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; }
+
 /* --- the elements of a question and an answer ----------------------
    A reference list in Admin, not a screen anyone practises on: a name, a
    sentence, and where there is one, an example of what it holds. The

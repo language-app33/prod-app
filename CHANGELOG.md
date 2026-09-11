@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.55 — 11 September 2026
+
+- A card can hold a whole conversation. A teacher writes the scene — what
+  it is called, who is in it, and the turns in order — and it reaches a
+  student the way every other card does. Each line is practised in its own
+  right, keeps its own progress, and counts towards the card being learnt.
+- Five things get asked of a scene, and none of them needs a recording:
+  what a line means, which reply comes next, writing your own turn, putting
+  the lines back in the order they were said, and playing your whole part
+  from the first turn to the last. Where a line does have a recording it
+  can be heard as well as read; where it has none, nothing is missing.
+- A conversation is never opened with a blank. The first time you meet one
+  it is simply shown to you, lines and meanings together, with nothing
+  marked — and a scene you have already met is not introduced again.
+- A scene offers a line or two a session rather than all of itself, so a
+  six-line conversation is learnt across a few evenings instead of taking
+  an evening over.
+- Where a line uses words you are already learning, those words are now
+  practised inside it: the gap-fill has real exchanges to put them in,
+  which it can only otherwise do with a phrase somebody recorded.
+- Both halves of a question are now coloured the way they are read: the
+  instruction is grey and the word being asked about carries the ink.
+
 ## 0.54 — 10 September 2026
 
 - A right answer typed in full has nothing shown under the verdict — the

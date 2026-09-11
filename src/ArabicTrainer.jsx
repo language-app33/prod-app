@@ -144,6 +144,28 @@ import {
   unitsOf,
   dayKey,
 } from "./scheduler.js";
+import {
+  DEFAULT_SPEAKERS,
+  DIALOG_KIND,
+  DIALOG_NEEDS,
+  MAX_SPEAKERS,
+  ORDER_SEP,
+  buildDialogIndex,
+  dialogNeedMet,
+  dialogPhrases,
+  isDialog,
+  linesOf,
+  partAnswers,
+  partOf,
+  replyOptions,
+  roleOf,
+  sceneBefore,
+  scrambledLines,
+  speakerName,
+  speakersOf,
+  yourLines,
+  youOf,
+} from "./dialogs.js";
 
 /*
  * The two that need to know which exercise types a form supports. That
@@ -223,7 +245,7 @@ const EMPTY = {
        exercise type or a new language's leniency setting cannot arrive
        without a default and silently behave as "off". */
     types: defaultTypes(),
-    kinds: { word: true, phrase: true, sentence: true },
+    kinds: { word: true, phrase: true, sentence: true, dialog: true },
     cohesion: "balanced", // off | balanced | strong
     ...defaultLanguageOptions(),
     showHint: false,
@@ -304,6 +326,27 @@ function makeSub(src = {}) {
   };
 }
 
+/* A line of a dialog. A form in every respect that matters — three
+   fields, its own recordings, its own progress — plus who says it and
+   which word cards it uses. */
+/** @param {Record<string, any>} [src] */
+function makeLine(src = {}) {
+  const { ar = "", lat = "", en = "", who = 0, uses = [], recs = [] } = src;
+  return {
+    id: src.id || `l${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+    who: Math.max(0, Math.min(MAX_SPEAKERS - 1, Number(who) || 0)),
+    ar: ar.trim(),
+    lat: lat.trim(),
+    en: en.trim(),
+    uses: (uses || []).filter(Boolean),
+    lang: src.lang || activeLang().id,
+    recs: recs || [],
+    created: src.created || now(),
+    updated: now(),
+    s: src.s || freshStates(),
+  };
+}
+
 /** @param {Record<string, any>} [src] */
 function makeItem(src = {}) {
   const {
@@ -315,15 +358,27 @@ function makeItem(src = {}) {
     tags = [],
     subs = [],
     recs = [],
+    lines = [],
   } = src;
   const text = ar || en || lat;
   const s = freshStates();
+  const scene = (lines || []).filter((/** @type {any} */ l) => l && (l.ar || l.en || l.lat));
   return {
     id: `${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     ar: ar.trim(),
     lat: lat.trim(),
     en: en.trim(),
-    kind: kind || guessKind(text, activeLang()),
+    /* A card with a conversation on it is a dialog whatever else was
+       said: the kind follows the content rather than a picker somebody
+       has to remember to set. */
+    kind: scene.length ? DIALOG_KIND : kind || guessKind(text, activeLang()),
+    ...(scene.length
+      ? {
+          lines: scene.map((/** @type {any} */ l) => (l.id && l.s ? l : makeLine(l))),
+          speakers: speakersOf(src),
+          you: youOf(src),
+        }
+      : null),
     lang: activeLang().id,
     note: note.trim(),
     tags: cleanTags(tags),
@@ -427,6 +482,51 @@ function setContextIndex(map) {
   CONTEXT_INDEX = map || new Map();
 }
 
+/* ------------------------------------------------------------------
+   Which scene a line belongs to
+
+   The same arrangement, for dialogs: a line carries no pointer back to
+   its own card, so this is where "which conversation is this, and how far
+   into it" is answered. Held at module level and rebuilt with the cards
+   for the same reason the one above is — availableTypes is a pure
+   function of a unit, and a dialog line is a unit.
+   ------------------------------------------------------------------ */
+
+/** @type {Map<string, { card: Item, at: number }>} */
+let DIALOG_INDEX = new Map();
+
+/** @param {Map<string, { card: Item, at: number }>} map */
+function setDialogIndex(map) {
+  DIALOG_INDEX = map || new Map();
+}
+
+/* The scene a line stands in, or null for anything that is not a line. */
+/**
+ * @param {string} unitId
+ * @returns {{ card: Item, at: number } | null}
+ */
+function sceneOf(unitId) {
+  return DIALOG_INDEX.get(unitId) || null;
+}
+
+/* Every line of every dialog, for the exercise that offers three wrong
+   replies beside the right one. Kept to the language being asked: a
+   Vietnamese line among three Arabic ones is not a distractor, it is a
+   giveaway. */
+/**
+ * @param {Item[]} items
+ * @param {Settings} settings
+ * @param {LangId} langId
+ */
+function replyPool(items, settings, langId) {
+  const out = [];
+  for (const card of items) {
+    if (!isDialog(card) || langIdOf(card, settings) !== langId) continue;
+    for (const line of linesOf(card)) if (line.ar) out.push(line);
+  }
+  return out;
+}
+
 /* The phrases that show this form in use. Keyed by unit id, so a plural
    held as a form of its card gets its own contexts rather than its
    parent's. */
@@ -456,7 +556,14 @@ function buildContextIndex(items, lang) {
   if (!supportsContext(lang)) return index;
   const byId = new Map(items.map((it) => [it.id, it]));
 
-  for (const phrase of items) {
+  /* A dialog's lines stand alongside the teacher's phrases here, in the
+     same shape and on the same terms: a line that names the words it uses
+     is somewhere those words turned up, and the gap-fill neither knows
+     nor needs to know that this one came out of a conversation. It is
+     what makes a scene worth writing on the first day — every word
+     already being learnt gains a real exchange to be gapped inside of,
+     with nothing new marked. */
+  for (const phrase of items.concat(/** @type {any} */ (dialogPhrases(items)))) {
     const uses = phrase.uses || [];
     if (!uses.length || !phrase.ar) continue;
     for (const targetId of uses) {
@@ -636,11 +743,19 @@ export function withoutListening(exercises, from, items, settings) {
  * @param {Lang} [lang]
  * @returns {string[]}
  */
-function availableTypes(it, lang = activeLang()) {
+function availableTypes(it, lang = activeLang(), scene = sceneOf(it.id)) {
   const attr = quizAttrOf(lang);
   const drillsTranslit = lang.translitDrilled !== false;
+  /* What this unit is: a scene, a line inside one, or an ordinary word or
+     form. Every exercise says which of the three it is for — a word says
+     so by saying nothing — and a pairing that does not match is refused
+     before anything else is asked. That one line is what keeps a word from
+     being told to put itself in order, and a conversation from being asked
+     what it means. */
+  const role = roleOf(it, scene);
   return TYPES.filter((t) => {
     const spec = EX[t];
+    if ((spec.dialog || "word") !== role) return false;
     // Only offered where the language has named something to listen for, and
     // where this card's spelling actually yields it.
     if (spec.quizAttr && !(attr && derivedValue(attr, it.ar))) return false;
@@ -648,13 +763,15 @@ function availableTypes(it, lang = activeLang()) {
     // for the word that is already on screen.
     if (!drillsTranslit && spec.needs.includes("lat")) return false;
     return spec.needs.every((f) => {
-      /* Three of these are not fields on the card. "recs" asks whether it
+      /* Several of these are not fields on the card. "recs" asks whether it
          has a recording of its own; the two context ones ask about the
          phrases that show this form in use, which live in an index built
-         from every card rather than on this one. */
+         from every card rather than on this one; and the dialog ones ask
+         about the shape of the scene this unit is or sits in. */
       if (f === "recs") return (it.recs || []).length > 0;
       if (f === "contexts") return contextsFor(it.id).length > 0;
       if (f === "contextAudio") return contextsFor(it.id).some((c) => (c.recs || []).length > 0);
+      if (DIALOG_NEEDS.includes(f)) return dialogNeedMet(f, scene, it);
       return it[f];
     });
   });
@@ -692,7 +809,13 @@ const statesOf = (unit) => unit.s || {};
  * @param {Settings} settings
  */
 function isDrillable(it, settings) {
-  return settings.kinds[it.kind || ""] && enabledTypes(it, settings).length >= 2;
+  if (!settings.kinds[it.kind || ""]) return false;
+  /* A scene qualifies through its lines rather than through itself. The
+     card carries the two whole-scene exercises and a short dialog carries
+     only one of them, so asking the card alone would throw away a
+     conversation whose every line is ready to be asked. */
+  if (isDialog(it)) return drillableUnits(it, settings).length > 0;
+  return enabledTypes(it, settings).length >= 2;
 }
 
 /** @type {<T>(arr: T[]) => T[]} */
@@ -755,6 +878,11 @@ const COHESION_POOL = { off: 1, balanced: 3, strong: 6 };
 
 
 const MAX_UNITS_PER_FAMILY = 4;
+
+/* And of a conversation, in one sitting. Deliberate rather than
+   discovered: without it a six-line scene is the whole session, and the
+   first thing anyone would have written is a scene with six lines. */
+const MAX_DIALOG_LINES = 2;
 
 
 
@@ -941,7 +1069,14 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
         const db = Math.min(...enabledTypes(b.unit, settings).map((t) => statesOf(b.unit)[t].due || 0));
         return da - db;
       });
-    const take = parent.concat(subs).slice(0, MAX_UNITS_PER_FAMILY);
+    /* A scene offers a line or two and not all of itself. Six lines would
+       otherwise take a session over between them, and a conversation met
+       two lines at a time across three evenings is learnt better than one
+       swallowed whole in one. The whole-scene exercises come along beside
+       them, which is what the card's own unit is. */
+    const take = isDialog(c.it)
+      ? parent.concat(subs.slice(0, MAX_DIALOG_LINES))
+      : parent.concat(subs).slice(0, MAX_UNITS_PER_FAMILY);
 
     for (const { unit, isSub } of take) {
       const types = enabledTypes(unit, settings);
@@ -976,11 +1111,50 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
   if (distinct.size < 2) return { exercises: [], reason: "no-variety" };
 
   return {
-    exercises: varied.slice(0, budget),
+    exercises: withReadThroughs(varied.slice(0, budget), items),
     reason: null,
     items: new Set(plans.map((p) => p.id)).size,
     units: plans.length,
   };
+}
+
+/*
+ * A dialog never opens with a blank.
+ *
+ * The first question a scene asks in a session is preceded by the scene
+ * itself, read through with nothing marked — but only the first time the
+ * learner meets it. A read-through is not scheduled and carries no
+ * progress: it is an introduction, and introducing two people who have
+ * already met is how a session starts wasting somebody's evening.
+ *
+ * Put in after the budget has been taken, so a scene cannot lose one of
+ * its questions to its own preamble.
+ */
+/**
+ * @param {any[]} list
+ * @param {Item[]} items
+ */
+function withReadThroughs(list, items) {
+  const seen = new Set();
+  const out = [];
+  for (const ex of list) {
+    const card = items.find((i) => i.id === ex.id) || null;
+    if (card && isDialog(card) && !seen.has(card.id)) {
+      seen.add(card.id);
+      if (sceneUnmet(card)) out.push({ id: card.id, subId: null, type: "dlgread" });
+    }
+    out.push(ex);
+  }
+  return out;
+}
+
+/* Nobody has answered anything about this scene yet — not a line, not the
+   scene itself. */
+/** @param {Item} card */
+function sceneUnmet(card) {
+  return unitsOf(card).every(({ unit }) =>
+    availableTypes(unit).every((t) => (statesOf(unit)[t] || freshState()).phase === "new")
+  );
 }
 
 /* Every exercise type this form supports is already mature. */
@@ -1087,7 +1261,7 @@ function buildManualSession({ items, settings, ids, mode, count }) {
     return { exercises: [], reason: "no-variety", learnt };
 
   return {
-    exercises,
+    exercises: withReadThroughs(exercises, items),
     reason: null,
     manual: true,
     mode,
@@ -1108,7 +1282,11 @@ function resolveUnit(items, ex) {
   if (!parent) return null;
   if (!ex.subId) return { parent, unit: parent, isSub: false };
   const sb = (parent.subs || []).find((x) => x.id === ex.subId);
-  return sb ? { parent, unit: sb, isSub: true } : null;
+  if (sb) return { parent, unit: sb, isSub: true };
+  /* Or a line of the conversation, which travels in the queue the same
+     way a form does: the card's id and the line's. */
+  const line = linesOf(parent).find((x) => x.id === ex.subId);
+  return line ? { parent, unit: line, isSub: true } : null;
 }
 
 /* ------------------------------------------------------------------
@@ -1614,6 +1792,21 @@ function liftItem(it) {
       recs: sb.recs || [],
       s: liftStates(sb.s),
     })),
+    /* A dialog's lines are lifted the same way, so a scene stored before
+       an exercise existed comes back carrying a state for it. Left off
+       entirely where there is no conversation, rather than storing an
+       empty list on every word in the app. */
+    ...(it.lines
+      ? {
+          lines: (it.lines || []).map((/** @type {Record<string, any>} */ ln) => ({
+            ...ln,
+            who: Number(ln.who) || 0,
+            uses: ln.uses || [],
+            recs: ln.recs || [],
+            s: liftStates(ln.s),
+          })),
+        }
+      : null),
     s: liftStates(it.s),
   };
 }
@@ -2905,6 +3098,218 @@ function Field({ value, field, kind, lang, name }) {
   );
 }
 
+/* ------------------------------------------------------------------
+   A conversation on screen
+
+   One component draws every dialog question, because they are all the
+   same picture with one thing different: the scene so far, with the line
+   being asked about either blanked out, waiting for an answer, or shown
+   with the rest. Drawing them separately is how the read-through and the
+   answer screen would come to disagree about what a scene looks like.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   card: any,
+ *   lines: any[],
+ *   lang: Lang,
+ *   blankId?: string | null,
+ *   meanings?: boolean,
+ *   marks?: Record<string, boolean>,
+ *   numbers?: Record<string, number>,
+ * }} props
+ */
+function Scene({ card, lines, lang, blankId = null, meanings = false, marks, numbers }) {
+  return (
+    /* Named here rather than through a prop: the reference in Admin is
+       built by reading these names out of this file, and a name that
+       arrives as a default argument is a name nobody can find. */
+    <div className="at-scene" data-el="scene">
+      {lines.map((line) => {
+        const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
+        const n = numbers && numbers[line.id];
+        return (
+          <div className={`at-sceneline${line.id === blankId ? " asked" : ""}${mark}`} key={line.id} data-el="scene-line">
+            <span className={`at-speaker s${(line.who || 0) % 4}`} data-el="scene-speaker">
+              {n ? `${n}. ` : ""}
+              {speakerName(card, line.who || 0)}
+            </span>
+            <div className="at-scenesaid">
+              {line.id === blankId ? (
+                <p className="at-sceneblank" data-el="scene-turn">
+                  <span className="at-blankrule" />
+                </p>
+              ) : (
+                <Arabic text={line.ar} kind="phrase" lang={lang} name="scene-line-text" />
+              )}
+              {meanings && line.en && (
+                <p className="at-scenemeaning" data-el="scene-line-meaning">
+                  {line.en}
+                </p>
+              )}
+              {(line.recs || []).length > 0 && (
+                <AudioPrompt recs={line.recs} lead={leadSpeed(line)} />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/*
+ * Putting a scene back in order.
+ *
+ * Tapped rather than dragged: a drag is the one gesture a thumb on a
+ * phone cannot do accurately, and it is invisible to anyone using a
+ * keyboard. Each tap takes the next line, the number beside it says where
+ * it went, and "Start again" is the way back — which is also every
+ * correction anyone wants to make, since an ordering is wrong from the
+ * first line that is out of place.
+ */
+/**
+ * @param {{
+ *   card: any,
+ *   lang: Lang,
+ *   value: string,
+ *   onChange: (v: string) => void,
+ *   disabled?: boolean,
+ * }} props
+ */
+function SceneOrder({ card, lang, value, onChange, disabled }) {
+  const picked = value ? value.split(ORDER_SEP) : [];
+  const scrambled = useMemo(() => scrambledLines(card), [card]);
+  const place = (/** @type {string} */ id) => picked.indexOf(id) + 1;
+  return (
+    <div className="at-order" data-el="answer-order">
+      {scrambled.map((line) => {
+        const at = place(line.id);
+        return (
+          <button
+            type="button"
+            key={line.id}
+            className={`at-orderline${at ? " on" : ""}`}
+            disabled={disabled || !!at}
+            aria-label={`${speakerName(card, line.who || 0)}: ${line.ar}`}
+            onClick={() => onChange(picked.concat([line.id]).join(ORDER_SEP))}
+          >
+            <span className="at-ordernum">{at || "·"}</span>
+            <span className="at-orderwords">
+              <span className={`at-speaker s${(line.who || 0) % 4}`}>
+                {speakerName(card, line.who || 0)}
+              </span>
+              <Arabic text={line.ar} kind="phrase" lang={lang} />
+            </span>
+          </button>
+        );
+      })}
+      {picked.length > 0 && !disabled && (
+        <Button variant="ghost" size="sm" onClick={() => onChange("")}>
+          Start again
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/*
+ * Playing a part.
+ *
+ * The whole scene, with every turn your speaker takes left to you. All of
+ * them at once rather than one after another: a conversation is one thing
+ * to hold in your head, and answering it a line at a time with the rest
+ * hidden is four questions wearing one coat. It is marked as one thing
+ * too — holding up your end means all of it.
+ */
+/**
+ * @param {{
+ *   card: any,
+ *   lang: Lang,
+ *   value: string,
+ *   onChange: (v: string) => void,
+ *   disabled?: boolean,
+ *   marks?: Record<string, boolean>,
+ * }} props
+ */
+function ScenePart({ card, lang, value, onChange, disabled, marks }) {
+  const mine = youOf(card);
+  const said = partAnswers(value);
+  const turns = yourLines(card);
+  return (
+    <div className="at-part" data-el="answer-part">
+      {linesOf(card).map((line) => {
+        const at = turns.indexOf(line);
+        const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
+        if ((line.who || 0) !== mine) {
+          return (
+            <div className="at-sceneline" key={line.id}>
+              <span className={`at-speaker s${(line.who || 0) % 4}`}>
+                {speakerName(card, line.who || 0)}
+              </span>
+              <div className="at-scenesaid">
+                <Arabic text={line.ar} kind="phrase" lang={lang} />
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className={`at-sceneline yours${mark}`} key={line.id}>
+            <span className={`at-speaker s${mine % 4}`}>{speakerName(card, mine)}</span>
+            <div className="at-scenesaid">
+              <input
+                className={`at-input${mark}`}
+                lang={lang.id}
+                dir={lang.direction}
+                readOnly={disabled}
+                value={said[at] || ""}
+                aria-label={`Your turn, line ${at + 1}`}
+                onChange={(e) => {
+                  const next = turns.map((t, i) => (i === at ? e.target.value : said[i] || ""));
+                  onChange(partOf(next));
+                }}
+              />
+              {disabled && line.en && <p className="at-scenemeaning">{line.en}</p>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* The replies on offer, one under the other rather than side by side: a
+   line of script is not a word, and four of them across a phone is four
+   columns of one letter each. */
+/**
+ * @param {{
+ *   options: any[],
+ *   card: any,
+ *   lang: Lang,
+ *   value: string,
+ *   onChange: (v: string) => void,
+ *   disabled?: boolean,
+ * }} props
+ */
+function ReplyChoices({ options, card, lang, value, onChange, disabled }) {
+  return (
+    <div className="at-replies" data-el="answer-choices">
+      {options.map((line) => (
+        <button
+          type="button"
+          key={line.id}
+          className={`at-reply${value === line.ar ? " on" : ""}`}
+          aria-pressed={value === line.ar}
+          disabled={disabled}
+          onClick={() => onChange(line.ar)}
+        >
+          <Arabic text={line.ar} kind="phrase" lang={lang} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /*
  * Why there are no cards, in one sentence, in the one place all three
  * screens that have to say it read from.
@@ -3536,6 +3941,12 @@ export default function ArabicTrainer() {
   );
   setContextIndex(contextIndex);
 
+  /* And which scene each line of a conversation stands in. The same
+     arrangement and for the same reason: a pure function that is handed a
+     unit has no way to be handed a map as well. */
+  const dialogIndex = useMemo(() => buildDialogIndex(items), [items]);
+  setDialogIndex(dialogIndex);
+
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {
     const ids = [];
@@ -3896,6 +4307,43 @@ export default function ArabicTrainer() {
       ? contextsFor(item.id).find((c) => c.id === exercise.ctx) || null
       : null;
   const practice = !!(session && session.practice);
+
+  /* ---- the conversation, when the question is one ----
+     Three facts the screen asks for over and over: which scene this is,
+     where in it the question stands, and what a learner may see of it
+     before answering. A card-level exercise — reading it through, putting
+     it in order, playing a part — has no line of its own, which is what
+     `at` being null means. */
+  const dialog = isDialog(parentItem) ? parentItem : null;
+  const scene = dialog && item ? sceneOf(item.id) : null;
+  const at = scene ? scene.at : null;
+  /* Everything said before this line: the question, in a dialog. What
+     comes after would be the answer to a different one. */
+  const soFar = dialog && at !== null ? sceneBefore(dialog, at).concat([linesOf(dialog)[at]]) : [];
+  /* The replies on offer, worked out from the ids rather than drawn, so
+     the four do not reshuffle under a finger between renders. */
+  const replies = useMemo(
+    () =>
+      dialog && at !== null && spec && spec.pickReply
+        ? replyOptions({ card: dialog, at, pool: replyPool(items, settings, qLang.id) })
+        : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dialog && dialog.id, at, exercise && exercise.type, items.length]
+  );
+  /* Which of your turns came back right, for the answer screen. Worked
+     out once the whole part has been marked, and only then. */
+  const partMarks = useMemo(() => {
+    if (!dialog || !checked || !spec || spec.answerMode !== "part") return undefined;
+    const said = partAnswers(typed);
+    /** @type {Record<string, boolean>} */
+    const out = {};
+    yourLines(dialog).forEach((line, i) => {
+      out[line.id] = qLang.check(said[i] || "", line.ar, qSettings).ok;
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialog && dialog.id, checked, typed]);
+
   /* What the answer screen has to say, once there is one.
      `answerRepeated` is whether the right answer is shown under the
      verdict: it is not, when the answer was right and typed in full —
@@ -3904,7 +4352,13 @@ export default function ArabicTrainer() {
      whole of what the screen came back with, and it is sized as the thing
      being read rather than as the line introducing the answer below. */
   const answerRight = !!checked && (checked.ok || overridden);
-  const answerRepeated = !!checked && (!answerRight || checked.reason === "bare");
+  /* Playing a part is the exception: the scene is already on the screen
+     with every turn marked where it stands, so repeating it underneath
+     would be the same conversation twice. */
+  const answerRepeated =
+    !!checked &&
+    (!answerRight || checked.reason === "bare") &&
+    !(spec && spec.answerMode === "part");
   const verdictAlone = answerRight && !answerRepeated;
 
   useEffect(() => {
@@ -3958,6 +4412,15 @@ export default function ArabicTrainer() {
       `No listening exercises for ${Math.round(LISTEN_OFF_MS / 60000)} minutes`,
       "good"
     );
+  }
+
+  /* Past a question that was never marked. A read-through is the only one:
+     it has nothing to grade, nothing to record and no schedule of its own,
+     so it does not go anywhere near applyGrade — it is the scene, met. */
+  function metScene() {
+    sfx("tick");
+    setQi((i) => i + 1);
+    resetExercise();
   }
 
   function giveUp() {
@@ -4057,7 +4520,8 @@ export default function ArabicTrainer() {
       if (idx < 0) return cur; // withdrawn while it was on screen
       const it = { ...next.items[idx] };
       const target = exercise.subId
-        ? (it.subs || []).find((x) => x.id === exercise.subId)
+        ? (it.subs || []).find((x) => x.id === exercise.subId) ||
+          linesOf(it).find((x) => x.id === exercise.subId)
         : it;
       if (!target) return cur;
 
@@ -4079,8 +4543,12 @@ export default function ArabicTrainer() {
       s.hist = (s.hist || []).concat([correct ? 1 : 0]).slice(-6);
       s.updated = now();
 
-      if (exercise.subId) {
+      if (exercise.subId && (it.subs || []).some((x) => x.id === exercise.subId)) {
         it.subs = (it.subs || []).map((x) =>
+          x.id === exercise.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
+        );
+      } else if (exercise.subId) {
+        it.lines = linesOf(it).map((x) =>
           x.id === exercise.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
         );
       } else {
@@ -4672,7 +5140,39 @@ Cards ready to practice
                     )}
                   </p>
                   <div className="at-ask" data-el="question-prompt">
-                    {spec.promptField === "audio" ? (
+                    {spec.promptField === "scene" ? (
+                      /* The conversation is the question. How much of it is
+                         shown is the whole difference between the five:
+                         everything up to your turn when you are answering
+                         one, the line itself when you are being asked what
+                         it means, all of it when you are meeting the scene
+                         or holding up your end of it. Putting one in order
+                         and playing a part both show nothing here: in each
+                         the scene is the thing being answered, and it is
+                         down in the box with the answering in it. */
+                      spec.answerMode === "order" || spec.answerMode === "part" ? null : (
+                        <Scene
+                          card={dialog}
+                          lang={qLang}
+                          lines={
+                            spec.intro
+                              ? linesOf(dialog)
+                              : spec.answerMode === "en"
+                              ? [linesOf(dialog)[at || 0]]
+                              : soFar
+                          }
+                          blankId={
+                            spec.answerMode === "ar" || spec.answerMode === "choice"
+                              ? linesOf(dialog)[at || 0].id
+                              : null
+                          }
+                          /* A read-through is the one time the meanings are
+                             on screen beside the words. Everywhere else one
+                             of them is the answer. */
+                          meanings={!!spec.intro}
+                        />
+                      )
+                    ) : spec.promptField === "audio" ? (
                       /* A context question plays the whole phrase, not the
                          word: hearing it in running speech is the exercise.
                          Everything else plays the card's own recording. */
@@ -4728,7 +5228,33 @@ Cards ready to practice
                       second, so the at-mt4 gap was silently dropped and the
                       answer box sat hard against the hint button above it. */}
                   <div className="at-answerbox at-mt4" data-el="answer-box">
-                    {spec.answerMode === "choice" ? (
+                    {spec.answerMode === "read" ? null : spec.answerMode === "order" ? (
+                      <SceneOrder
+                        card={dialog}
+                        lang={qLang}
+                        value={typed}
+                        disabled={!!checked}
+                        onChange={setTyped}
+                      />
+                    ) : spec.answerMode === "part" ? (
+                      <ScenePart
+                        card={dialog}
+                        lang={qLang}
+                        value={typed}
+                        disabled={!!checked}
+                        marks={partMarks}
+                        onChange={setTyped}
+                      />
+                    ) : spec.pickReply ? (
+                      <ReplyChoices
+                        options={replies}
+                        card={dialog}
+                        lang={qLang}
+                        value={typed}
+                        disabled={!!checked}
+                        onChange={setTyped}
+                      />
+                    ) : spec.answerMode === "choice" ? (
                       <Segmented
                         size={null}
                         label="Your answer"
@@ -4821,12 +5347,27 @@ Cards ready to practice
                           nudge under it would otherwise point at nothing. */}
                       {answerRepeated && (
                         <div className="at-answermain" data-el="answer-value">
-                          <Field
-                            value={item[spec.answerField]}
-                            field={spec.answerField}
-                            kind={item.kind}
-                            name="answer-value-text"
-                          />
+                          {spec.answerMode === "order" ? (
+                            /* The conversation as it was written, numbered,
+                               because "wrong order" is only useful next to
+                               the right one. */
+                            <Scene
+                              card={dialog}
+                              lang={qLang}
+                              lines={linesOf(dialog)}
+                              numbers={Object.fromEntries(
+                                linesOf(dialog).map((l, i) => [l.id, i + 1])
+                              )}
+                              meanings
+                            />
+                          ) : (
+                            <Field
+                              value={item[spec.answerField]}
+                              field={spec.answerField}
+                              kind={item.kind}
+                              name="answer-value-text"
+                            />
+                          )}
                         </div>
                       )}
                       {/* Directly under the marked spelling it is talking
@@ -4962,16 +5503,18 @@ Cards ready to practice
                             onClick={() => setHintOpen((v) => !v)}
                           />
                         )}
-                        <Button variant="ghost" data-el="dont-know-button" onClick={giveUp}>
-                          I don't know
-                        </Button>
+                        {!spec.intro && (
+                          <Button variant="ghost" data-el="dont-know-button" onClick={giveUp}>
+                            I don't know
+                          </Button>
+                        )}
                         <Button
                           variant="primary"
                           data-el="check-button"
-                          disabled={!typed.trim()}
-                          onClick={submit}
+                          disabled={!spec.intro && !typed.trim()}
+                          onClick={spec.intro ? metScene : submit}
                         >
-                          Check
+                          {spec.intro ? "I've read it" : "Check"}
                         </Button>
                       </StickyFoot>
                     </>
@@ -5248,6 +5791,14 @@ function CardScreen({ card, items, onBack, action }) {
         card={{
           ...live,
           clips: (live.recs || []).map((r) => r.id),
+          /* A line's recordings, named the way the readout names them.
+             The learner's copy of a card keeps recordings under `recs`
+             and the teacher's under `clips`; this is the one place the
+             two shapes meet. */
+          lines: linesOf(live).map((l) => ({
+            ...l,
+            clips: (l.recs || []).map((/** @type {{ id: string }} */ r) => r.id),
+          })),
           decks: live.tags || [],
         }}
         lang={activeLang()}
@@ -5396,6 +5947,9 @@ function ItemsTab({
             filters={
               OWN ? (
                 <div className="at-row at-mt2">
+                  <Button variant="ghost" size="sm" onClick={() => setSheet("dialog")} icon="add">
+                    Add a conversation
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => setSheet("bulk")}
           icon="add"
         >
@@ -5431,7 +5985,11 @@ function ItemsTab({
               <CardTile
                 card={it}
                 lang={activeLang()}
-                meta={shortDate(it.created)}
+                meta={
+                  isDialog(it)
+                    ? `${plural(linesOf(it).length, "line")} · ${shortDate(it.created)}`
+                    : shortDate(it.created)
+                }
                 onClick={() => setSheet({ view: it })}
               />
             )}
@@ -5443,9 +6001,11 @@ function ItemsTab({
         </>
       )}
 
-      {OWN && sheet === "single" && (
+      {OWN && (sheet === "single" || sheet === "dialog") && (
         <OWN.ItemSheet
           mode="add"
+          scene={sheet === "dialog"}
+          items={items}
           allTags={allTags}
           settings={settings}
           onSave={(drafts) => onAdd(drafts)}
@@ -5472,6 +6032,8 @@ function ItemsTab({
         <OWN.ItemSheet
           mode="edit"
           initial={sheet.edit}
+          scene={isDialog(sheet.edit)}
+          items={items}
           allTags={allTags}
           settings={settings}
           onSave={(drafts) => onUpdate(sheet.edit.id, drafts[0])}
@@ -5830,6 +6392,10 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
 /* An empty form, with whatever values the languages declare, from the one
    place that knows them. */
 const BLANK_SUB = { ar: "", lat: "", en: "", ...dimValues({}), note: "", recs: [] };
+/* A turn nobody has written yet. No grammar on it: a line of a dialog is
+   a thing somebody says, and whether it is singular or plural is a
+   question about a word. */
+const BLANK_LINE = { ar: "", lat: "", en: "", who: 0, uses: [], recs: [] };
 
 /**
  * @param {{
@@ -5837,9 +6403,12 @@ const BLANK_SUB = { ar: "", lat: "", en: "", ...dimValues({}), note: "", recs: [
  *   settings: Settings,
  *   onSave: (item: any) => void,
  *   onClose: () => void,
- * }} props
+ *   scene?: boolean,
+ *   items?: Item[],
+ * }} props `scene` writes a conversation rather than a word; `items` is what
+ *   the learner already has, for finding which of their words a line uses.
  */
-function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
+function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = false, items = [] }) {
   const lang = langOf(settings);
   /* Held once: only some languages declare a lexical axis, and reading it
      off the pack at each use makes every one of them a separate question
@@ -5858,6 +6427,16 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
     note: "",
     tags: "",
     subs: [],
+    /* A conversation starts as two people and two empty turns: an empty
+       scene with an "add a line" button is a form that has to be
+       assembled before it can be filled in. */
+    ...(scene
+      ? {
+          speakers: DEFAULT_SPEAKERS.slice(),
+          you: 1,
+          lines: [{ ...BLANK_LINE, who: 0 }, { ...BLANK_LINE, who: 1 }],
+        }
+      : null),
   });
 
   const [draft, setDraft] = useState(() =>
@@ -5872,6 +6451,13 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
           note: initial.note || "",
           tags: (initial.tags || []).join(", "),
           subs: (initial.subs || []).map((/** @type {Record<string, any>} */ x) => ({ ...x })),
+          ...(scene
+            ? {
+                speakers: speakersOf(initial),
+                you: youOf(initial),
+                lines: linesOf(initial).map((/** @type {Record<string, any>} */ x) => ({ ...x })),
+              }
+            : null),
         }
       : blank()
   );
@@ -5885,11 +6471,53 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
 
   const set = (/** @type {string} */ k, /** @type {any} */ v) =>
     setDraft((d) => ({ ...d, [k]: v }));
-  const canSave = [draft.ar, draft.lat, draft.en].some((v) => v.trim());
+  /* A conversation needs two turns before it is one. One line with a
+     reply missing is a phrase card that has been put in the wrong
+     editor. */
+  const written = scene ? (draft.lines || []).filter((/** @type {any} */ l) => l.ar.trim()) : [];
+  const canSave = scene ? written.length >= 2 : [draft.ar, draft.lat, draft.en].some((v) => v.trim());
 
-  const previewItem = useMemo(() => makeItem(draft), [draft]);
+  /* The words this learner already has, for the links below. Dialogs are
+     left out: a scene is not a word that turns up inside another one. */
+  const wordCards = useMemo(
+    () => items.filter((/** @type {Item} */ i) => !isDialog(i) && i.ar),
+    [items]
+  );
+  /*
+   * Which of those words a line uses, found rather than ticked.
+   *
+   * The app already knows how to find a word inside a run of words — it is
+   * what puts a phrase behind the gap-fill — so asking somebody writing a
+   * scene to also tick off its vocabulary would be asking them to do by
+   * hand what the matcher does better. What it finds is shown under the
+   * conversation, so it can be seen to be right.
+   */
+  const usesIn = (/** @type {string} */ text) =>
+    wordCards.filter((/** @type {Item} */ w) => findWordSlot(text, w.ar, lang) >= 0);
+
+  const linked = (/** @type {any[]} */ lines) =>
+    lines
+      .filter((l) => l.ar.trim())
+      .map((l) => ({ ...l, uses: usesIn(l.ar).map((w) => w.id) }));
+
+  const previewItem = useMemo(
+    () => makeItem(scene ? { ...draft, lines: linked(draft.lines || []) } : draft),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft, wordCards]
+  );
   const previewUnits = unitsOf(previewItem);
-  const previewTypes = availableTypes(previewItem);
+  /* What the whole card will be drilled as: the scene's own exercises and
+     every line's, gathered, because a dialog's exercises are spread across
+     its units rather than sitting on the card. */
+  const previewTypes = useMemo(() => {
+    if (!scene) return availableTypes(previewItem);
+    const found = new Set(availableTypes(previewItem, lang, null));
+    linesOf(previewItem).forEach((ln, at) => {
+      for (const t of availableTypes(ln, lang, { card: previewItem, at })) found.add(t);
+    });
+    return TYPES.filter((t) => found.has(t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewItem]);
   // What review will show: everything queued, plus whatever is in the form.
   const pending = useMemo(
     () => (canSave ? queue.concat([draft]) : queue).map((d) => makeItem(d)),
@@ -5909,10 +6537,28 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
     });
   }
 
+  /* The same, for a turn in a conversation. */
+  /**
+   * @param {number} i
+   * @param {string} k
+   * @param {any} v
+   */
+  function setLine(i, k, v) {
+    setDraft((d) => {
+      const lines = d.lines.slice();
+      lines[i] = { ...lines[i], [k]: v };
+      return { ...d, lines };
+    });
+  }
+
   /** @param {Record<string, any>} d */
   const tidy = (d) => ({
     ...d,
     subs: (d.subs || []).filter((/** @type {Record<string, any>} */ x) => x.ar || x.en || x.lat),
+    /* Blank turns are dropped and the words each line uses are worked out
+       here, on the way to being stored, so a scene edited a week later
+       picks up whatever vocabulary has been added since. */
+    ...(scene ? { lines: linked(d.lines || []) } : null),
   });
 
   /* Stack the current form and start a fresh one, keeping the filing
@@ -6027,7 +6673,219 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
     >
       {step === "form" ? (
         <>
+          {scene && (
+            <>
+              {/* ---- 1. the scene ---- */}
+              <div className="at-group">
+                <div className="at-grouphead">
+                  <span>The scene</span>
+                  <span className="req">Two lines or more</span>
+                </div>
+
+                <FormField label="What it is called">
+                  <input
+                    className="at-input"
+                    value={draft.en}
+                    placeholder="At the door"
+                    onChange={(e) => set("en", e.target.value)}
+                  />
+                </FormField>
+
+                <FormField label={<>Where it happens <span className="at-optional">optional</span></>}>
+                  <input
+                    className="at-input"
+                    value={draft.note}
+                    placeholder="Two neighbours meet in the morning"
+                    onChange={(e) => set("note", e.target.value)}
+                  />
+                </FormField>
+
+                <div className="at-field">
+                  <label className="at-label">Who is in it</label>
+                  <div className="at-inline">
+                    {draft.speakers.map((/** @type {string} */ name, /** @type {number} */ i) => (
+                      <input
+                        key={i}
+                        className="at-input"
+                        value={name}
+                        placeholder={`Speaker ${i + 1}`}
+                        aria-label={`Speaker ${i + 1}`}
+                        onChange={(e) =>
+                          setDraft((d) => ({
+                            ...d,
+                            speakers: d.speakers.map((/** @type {string} */ s, /** @type {number} */ j) =>
+                              j === i ? e.target.value : s
+                            ),
+                          }))
+                        }
+                      />
+                    ))}
+                  </div>
+                  {draft.speakers.length < MAX_SPEAKERS && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="at-mt2"
+                      onClick={() =>
+                        setDraft((d) => ({ ...d, speakers: d.speakers.concat([""]) }))
+                      }
+                    >
+                      Add someone
+                    </Button>
+                  )}
+                </div>
+
+                <FormField label="You play">
+                  <Segmented
+                    label="You play"
+                    options={draft.speakers.map((/** @type {string} */ n, /** @type {number} */ i) => ({
+                      value: i,
+                      label: n || `Speaker ${i + 1}`,
+                    }))}
+                    value={draft.you}
+                    onChange={(/** @type {number} */ v) => set("you", v)}
+                  />
+                  <Help>
+                    Whose turns are yours to produce when the whole scene is
+                    asked. Everything else is said to you.
+                  </Help>
+                </FormField>
+              </div>
+
+              {/* ---- 2. the conversation ---- */}
+              <div className="at-group">
+                <div className="at-grouphead">
+                  <span>The conversation</span>
+                  <span className="opt">{plural(draft.lines.length, "line")}</span>
+                </div>
+
+                {draft.lines.map((/** @type {Record<string, any>} */ ln, /** @type {number} */ i) => (
+                  <div className="at-subedit" key={i}>
+                    <div className="at-subedithead">
+                      <Segmented
+                        label={`Who says line ${i + 1}`}
+                        options={draft.speakers.map((/** @type {string} */ n, /** @type {number} */ j) => ({
+                          value: j,
+                          label: n || `Speaker ${j + 1}`,
+                        }))}
+                        value={ln.who || 0}
+                        onChange={(/** @type {number} */ v) => setLine(i, "who", v)}
+                      />
+                      {draft.lines.length > 2 && (
+                        <button
+                          className="at-x"
+                          aria-label={`Remove line ${i + 1}`}
+                          onClick={() =>
+                            setDraft((d) => ({
+                              ...d,
+                              lines: d.lines.filter(
+                                (/** @type {unknown} */ _, /** @type {number} */ j) => j !== i
+                              ),
+                            }))
+                          }
+                        >
+                          <Icon name="close" />
+                        </button>
+                      )}
+                    </div>
+
+                    <ArabicField
+                      value={ln.ar}
+                      onChange={(/** @type {string} */ v) => setLine(i, "ar", v)}
+                      mode={settings.keyboard}
+                      inputRef={i === 0 ? arRef : undefined}
+                      placeholder={lang.scriptLabel}
+                    />
+
+                    <div className="at-inline">
+                      <div className="at-field">
+                        <input
+                          className="at-input"
+                          value={ln.en}
+                          placeholder="What it means"
+                          aria-label={`What line ${i + 1} means`}
+                          onChange={(e) => setLine(i, "en", e.target.value)}
+                        />
+                      </div>
+                      <div className="at-field">
+                        <input
+                          className="at-input"
+                          value={ln.lat}
+                          placeholder="How it sounds"
+                          aria-label={`How line ${i + 1} sounds`}
+                          onChange={(e) => setLine(i, "lat", e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <RecordingsField
+                      recs={ln.recs}
+                      onChange={(/** @type {any} */ v) => setLine(i, "recs", v)}
+                      label="Recording for this line"
+                    />
+
+                    {ln.ar.trim() && (
+                      <div className="at-uses">
+                        {usesIn(ln.ar).length ? (
+                          <>
+                            <span className="at-useslabel">Uses</span>
+                            {usesIn(ln.ar).map((/** @type {Item} */ w) => (
+                              <span className="at-tag" key={w.id}>
+                                {w.ar}
+                              </span>
+                            ))}
+                          </>
+                        ) : (
+                          <span className="at-useslabel">
+                            None of your words yet — it will still be drilled as a line.
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  style={{ margin: "10px 0 8px" }}
+                  onClick={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      lines: d.lines.concat([
+                        /* Whoever did not speak last, which is what a
+                           conversation does on its own. */
+                        {
+                          ...BLANK_LINE,
+                          who:
+                            d.lines.length && d.speakers.length > 1
+                              ? (Number(d.lines[d.lines.length - 1].who || 0) + 1) % d.speakers.length
+                              : 0,
+                        },
+                      ]),
+                    }))
+                  }
+                >
+                  Add a line
+                </Button>
+
+                <div className={`at-status${previewTypes.length ? "" : " warn"}`}>
+                  {!canSave
+                    ? "Two lines with something in them, and it can be practised"
+                    : `Will be drilled as ${previewTypes
+                        .map((t) => exOf(t, lang).short)
+                        .join(", ")}`}
+                </div>
+                <Help>
+                  No recordings needed. A scene with none is drilled every way
+                  above; where a line has one, it can be heard as well as read.
+                </Help>
+              </div>
+            </>
+          )}
+
           {/* ---- 1. the word itself ---- */}
+          {!scene && (
           <div className="at-group">
             <div className="at-grouphead">
               <span>The word</span>
@@ -6078,9 +6936,10 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
                 : "Not enough to practice yet — needs script plus English or transliteration"}
             </div>
           </div>
+          )}
 
           {/* ---- 2. grammar ---- */}
-          {(dimsOf(lang).length > 0 || lang.lexical) && (
+          {!scene && (dimsOf(lang).length > 0 || lang.lexical) && (
             <div className="at-group">
               <div className="at-grouphead">
                 <span>Grammar</span>
@@ -6119,6 +6978,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
           )}
 
           {/* ---- 3. other forms ---- */}
+          {!scene && (
           <div className="at-group">
             <div className="at-grouphead">
               <span>Other forms</span>
@@ -6221,6 +7081,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
               </>
             )}
           </div>
+          )}
 
           {/* ---- 4. filing ---- */}
           <div className="at-group">
@@ -6258,6 +7119,11 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
               )}
             </FormField>
 
+            {/* A scene has a length of its own and it is not one of these
+                three. The note above holds its setting, so the one below
+                would be a second note about the same thing. */}
+            {!scene && (
+              <>
             <div className="at-inline">
               <FormField label="Length">
                 <Segmented
@@ -6280,6 +7146,8 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose }) {
                 onChange={(e) => set("note", e.target.value)}
               />
             </FormField>
+              </>
+            )}
           </div>
         </>
       ) : (
@@ -7275,6 +8143,7 @@ const GUIDE = [
     body: [
       "What is on a card decides what can be asked of it. Script and meaning give you two directions; a recording lets it be practiced by ear; a second writing, where the language uses one, adds more.",
       "Some languages have properties that can be heard but not seen written — a tone, for instance. Where a language declares one, there is an exercise for it.",
+      "A card can also hold a whole conversation. You meet it by reading it through, then a line at a time: what a line means, which reply comes next, and writing your own turn. Later the scene itself — putting its lines back in order, and holding up your whole end of it. None of that needs a recording; where a line has one, you can hear it as well as read it.",
     ],
   },
   {

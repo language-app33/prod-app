@@ -15,13 +15,25 @@
  * on its own.
  */
 /** @import { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings } from "./types.js" */
+/* The one import here, and it goes the way every import in this file has
+   to: dialogs.js knows nothing about languages, so there is no cycle. It
+   holds the shape of a scene, which marking a part and an ordering both
+   have to read. */
+import { orderIsRight, partAnswers, yourLines } from "./dialogs.js";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
    which states a card carries, what a session may pick, what the settings
    list, what an export has columns for — so retiring a type is one edit here
    and its definition stays below. */
-export const TYPES = ["ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2ar", "rec2ctx", "rec2attr"];
+export const TYPES = [
+  "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2ar", "rec2ctx", "rec2attr",
+  /* The dialog exercises, in the order a learner meets them: read a line,
+     choose what comes next, say it yourself, rebuild the scene, then hold
+     up your whole end of it. Every one is asked with words on a screen —
+     a dialog with no recordings anywhere in it supports all five. */
+  "dlg2en", "dlgpick", "dlgreply", "dlgorder", "dlgplay",
+];
 
 /** @type {Record<string, ExerciseSpec>} */
 export const EX = {
@@ -165,6 +177,106 @@ export const EX = {
     answerField: "ar",
     answerMode: "choice",
     quizAttr: true,
+  },
+
+  /* ---- a conversation, and a part in it -------------------------
+     Five exercises on a dialog card, plus the read-through that is not
+     one. `dialog` says which of the three things an exercise is asked of
+     — a scene, a line inside one, or an ordinary word — and availableTypes
+     refuses every other pairing, so a word can never be asked to put
+     itself in order and a scene can never be asked what it means.
+
+     `promptField: "scene"` means the question is the conversation so far
+     rather than a field on a card. None of them is `audio`, so none is a
+     listening exercise: a recording on a line is offered beside it where
+     there is one, and changes nothing when there is not. */
+
+  /* Not in TYPES, and deliberately: nothing schedules a read-through and
+     nothing marks it. It is put in front of the first question a scene
+     asks in a session, because a dialog should never open with a blank. */
+  dlgread: {
+    instruction: "Read the scene",
+    label: "Read a scene",
+    short: "Read",
+    needs: ["dialog"],
+    dialog: "card",
+    question: "Read it through",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "",
+    answerMode: "read",
+    intro: true,
+    gentle: true,
+  },
+  dlg2en: {
+    instruction: "Write this line in English",
+    label: "A line → English",
+    short: "D→E",
+    needs: ["line", "en"],
+    dialog: "line",
+    question: "What does this line mean?",
+    placeholder: "Type the English",
+    promptField: "scene",
+    answerField: "en",
+    hintField: "lat",
+    hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
+    answerMode: "en",
+    gentle: true,
+  },
+  dlgpick: {
+    instruction: "Choose what you say next",
+    label: "Choose the reply",
+    short: "Pick",
+    needs: ["line", "reply", "choices"],
+    dialog: "line",
+    question: "Which reply fits?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "ar",
+    answerMode: "choice",
+    pickReply: true,
+  },
+  dlgreply: {
+    instruction: "Your turn — write it in {script}",
+    label: "Your turn → {script}",
+    short: "You→{S}",
+    needs: ["line", "reply", "ar"],
+    dialog: "line",
+    question: "What do you say?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "ar",
+    /* The meaning, not the {translit}: what you are meant to say is a
+       nudge, and how it is spelled is the answer. */
+    hintField: "en",
+    hintLabel: "Show meaning",
+    hintHideLabel: "Hide meaning",
+    answerMode: "ar",
+  },
+  dlgorder: {
+    instruction: "Put the scene back in order",
+    label: "Put a scene in order",
+    short: "Order",
+    needs: ["dialog", "order"],
+    dialog: "card",
+    question: "Which line comes first?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "",
+    answerMode: "order",
+  },
+  dlgplay: {
+    instruction: "Play your part in {script}",
+    label: "Play a part",
+    short: "Part",
+    needs: ["dialog", "part"],
+    dialog: "card",
+    question: "Hold up your end",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "ar",
+    answerMode: "part",
   },
 };
 
@@ -1521,6 +1633,50 @@ export function checkAr(given, expected, settings) {
 export function checkAnswer(typed, item, type, settings) {
   const spec = EX[type];
   const mode = spec.answerMode;
+  /* Nothing to mark: a read-through is met, not answered. It is here so
+     that every exercise can be handed to one function, rather than the
+     screen remembering which ones to keep away from it. */
+  if (mode === "read") return { ok: true, reason: "read" };
+  /* The scene, rebuilt. Right is the order it was written in and there is
+     no near miss: two lines swapped is a conversation that did not
+     happen. */
+  if (mode === "order") {
+    return orderIsRight(String(typed || ""), item)
+      ? { ok: true, reason: "exact" }
+      : { ok: false, reason: "wrong" };
+  }
+  /*
+   * A whole part, marked as one thing.
+   *
+   * Each turn goes through the language's own marking, so a missing mark
+   * in the third line is the near miss it would be on its own; the part
+   * is right only when every turn is. What comes back for a miss is the
+   * kindest of the misses, because the schedule reads it: three turns
+   * right and one short of its harakat is a card to nudge, not one to
+   * send back to the start.
+   */
+  if (mode === "part") {
+    const turns = yourLines(item);
+    const said = partAnswers(String(typed || ""));
+    let best = { ok: false, reason: "wrong" };
+    let allRight = turns.length > 0;
+    for (let i = 0; i < turns.length; i++) {
+      const r = langOf(settings).check(said[i] || "", turns[i].ar, settings);
+      if (r.ok) continue;
+      allRight = false;
+      if (AR_RANK[r.reason] > AR_RANK[best.reason]) best = r;
+    }
+    return allRight ? { ok: true, reason: "exact" } : best;
+  }
+  /* One of a few replies, chosen rather than typed: what came back is the
+     line itself, so it is compared as text. Whitespace only, because the
+     options are this card's own wording on both sides. */
+  if (mode === "choice" && spec.pickReply) {
+    const want = String(item[spec.answerField] || "").replace(/\s+/g, " ").trim();
+    const got = String(typed || "").replace(/\s+/g, " ").trim();
+    if (!got) return { ok: false, reason: "wrong" };
+    return got === want ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
+  }
   // A property picked from a list rather than typed. Graded in the classes the
   // language actually distinguishes by ear, which may be fewer than it writes.
   if (mode === "choice") {

@@ -15,6 +15,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
 import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
+import { isDialog, linesOf } from "./dialogs.js";
 
 
 
@@ -752,10 +753,15 @@ export function LanguageTag({ languages, id }) {
  */
 export function CardTile({ card, lang, showLat, meta, actions, onClick, className }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
+  /* A conversation has no front of its own: its first line stands in for
+     one, which is what a person recognises it by. Here rather than at each
+     list, so every place cards are shown says the same thing about them —
+     the tile with an empty face was the alternative. */
+  const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : card.ar;
   return (
     <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
-        {card.ar}
+        {face}
       </div>
       <div className="at-minien">{card.en}</div>
       {showLat && card.lat ? <div className="at-minilat">{card.lat}</div> : null}
@@ -1530,6 +1536,70 @@ export function CardReadout({ card, lang, decks }) {
         <span className="at-readvalue">{children}</span>
       </div>
     ) : null;
+
+  /* A conversation reads as one: who spoke, what they said, what it meant.
+     The card above it is built around a word and its other spellings,
+     which is the wrong shape for four people taking turns — and this is
+     the same picture the student sees in a session, drawn from the same
+     classes, so the two cannot drift apart. */
+  const speakers = (card.speakers || []).filter(Boolean);
+  /** @param {number} who */
+  const nameOf = (who) => speakers[who] || speakers[0] || `Speaker ${who + 1}`;
+
+  if (isDialog(card)) {
+    return (
+      <div className="at-readout">
+        <section className="at-panel">
+          <p className="at-eyebrow">The scene</p>
+          <p className="at-hint">
+            {card.note || "A conversation. Each line is practised in its own right."}
+          </p>
+          <div className="at-scene at-mt3">
+            {linesOf(card).map((/** @type {any} */ line, /** @type {number} */ i) => (
+              <div className="at-sceneline" key={line.id || i}>
+                <span className={`at-speaker s${(line.who || 0) % 4}`}>{nameOf(line.who || 0)}</span>
+                <div className="at-scenesaid">
+                  <p className="at-arabic phrase" lang={L.id} dir={L.direction}
+                    style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}>
+                    {line.ar}
+                  </p>
+                  {line.en ? <p className="at-scenemeaning">{line.en}</p> : null}
+                  {line.lat ? <p className="at-scenemeaning">{line.lat}</p> : null}
+                  {clipsOf(line).length ? <ClipList clips={clipsOf(line)} /> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="at-panel">
+          <p className="at-eyebrow">The student's part</p>
+          <p className="at-hint">
+            {nameOf(Number(card.you) || 0)} — their turns are the ones they produce when the
+            whole scene is asked. Everything else is said to them.
+          </p>
+        </section>
+
+        <section className="at-panel">
+          <p className="at-eyebrow">Where it lives</p>
+          <Row label="Language">{L.name}</Row>
+          <Row label="Decks">
+            {titles.length ? (
+              <span className="at-flags">
+                {titles.map((t) => (
+                  <span className="at-flag audio" key={t}>
+                    {t}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              "In no deck"
+            )}
+          </Row>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="at-readout">
@@ -2402,6 +2472,24 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     s: freshStates(),
   }));
 
+  /* A conversation's turns, which are forms with a speaker on them. Named
+     the way the other forms are, so a line keeps its progress across a
+     refresh; the words a line uses are card ids on the server and item
+     ids here, the same translation the card's own `uses` gets. */
+  const lines = (/** @type {Record<string, any>[]} */ (card.lines || [])).map((ln, /** @type {number} */ i) => ({
+    id: `${localIdFor(card.id)}-l${i}`,
+    who: Number(ln.who) || 0,
+    ar: ln.ar || "",
+    lat: ln.lat || "",
+    en: ln.en || "",
+    uses: (ln.uses || []).map(localIdFor),
+    lang: card.lang,
+    recs: recsOf(ln),
+    created: Date.now(),
+    updated: Date.now(),
+    s: freshStates(),
+  }));
+
   return {
     id: localIdFor(card.id),
     ar: card.ar || "",
@@ -2413,7 +2501,19 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
        set full sentences in the single-word type size — and it is why the
        app cannot yet see that one of these phrases contains one of these
        words. Asked of the language, which owns the rule. */
-    kind: guessKind(card.ar || card.en || card.lat, LANGUAGES[card.lang]),
+    /* A card with a conversation on it is a dialog, whatever its own
+       fields would otherwise have been guessed as: the kind follows what
+       the card holds. */
+    kind: lines.length
+      ? "dialog"
+      : guessKind(card.ar || card.en || card.lat, LANGUAGES[card.lang]),
+    ...(lines.length
+      ? {
+          lines,
+          speakers: (/** @type {string[]} */ (card.speakers || [])).filter(Boolean),
+          you: Number(card.you) || 0,
+        }
+      : null),
     /* See the forms above: the card says what language it is in, and the
        device keeps it. */
     lang: card.lang,

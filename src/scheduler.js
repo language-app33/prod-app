@@ -243,6 +243,15 @@ export function unitsOf(item) {
   /** @type {{ unit: Form, isSub: boolean }[]} */
   const units = [{ unit: /** @type {Form} */ (item), isSub: false }];
   for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
+  /* The lines of a dialog, which are drilled in their own right exactly as
+     the other forms of a word are: same three fields, same progress, same
+     place in a session. They come through here rather than through a
+     second walk of their own, so everything downstream — what is due, how
+     mature a card is, how hard it has proved — counts a line without
+     having been told what a dialog is. */
+  for (const ln of (item && /** @type {any} */ (item).lines) || []) {
+    units.push({ unit: ln, isSub: true });
+  }
   return units;
 }
 

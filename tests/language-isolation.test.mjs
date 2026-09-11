@@ -99,7 +99,7 @@ const ALLOWED_SCRIPT = {
   /* Specimens, which are the point of a gallery. */
   "gallery.jsx": ["كِتَاب", "كُتُب"],
   /* Examples of what each element holds, which are the point of the list. */
-  "screen-elements.js": ["كِتاب", "الكتاب كبير", "كُتُب"],
+  "screen-elements.js": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم"],
 };
 
 for (const file of APP_FILES) {

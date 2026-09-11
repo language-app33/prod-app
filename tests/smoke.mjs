@@ -1401,6 +1401,257 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     untouched.length === 1 && untouched[0].type === "ar2en");
 }
 
+
+/* ---- a conversation, met and practised ----
+   The dialog feature end to end, through the real screens: a scene of
+   four turns arrives the way every card arrives — from a teacher, over
+   sync — and is then met in a session. Read through first, because a
+   scene never opens with a blank, and afterwards drilled a line and a
+   whole scene at a time.
+
+   Nothing in it has a recording, which is the point: a silent scene
+   supports every exercise there is.
+
+   Filed in a deck of its own, so the session below is only this scene. A
+   session drawn from everything would be a coin toss over which questions
+   came up, and a test that passes four times in five is worse than none.
+
+   Written rather than typed into the editor because making your own cards
+   is switched off in this build — OWN_CARDS — so the learner's card sheet
+   is not in the bundle to drive. What a teacher writes is checked where a
+   teacher writes it, in tests/server.test.mjs. */
+{
+  /** The React-controlled value setter, the way a keystroke sets one. */
+  const typeInto = (/** @type {any} */ el, /** @type {string} */ value) => {
+    if (!el) return false;
+    const proto = el.tagName === "TEXTAREA" ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype;
+    const setter = must(Object.getOwnPropertyDescriptor(proto, "value"), "the value descriptor").set;
+    must(setter, "the value setter").call(el, value);
+    el.dispatchEvent(new w.Event("input", { bubbles: true }));
+    return true;
+  };
+
+  /* Whatever the walk above left running, this starts from the home
+     screen: a session on screen is a screen over the tabs, and clicking
+     underneath it does nothing at all. */
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+
+  const said = [
+    { ar: "سلام", en: "peace", who: 0 },
+    { ar: "وسلام", en: "and peace", who: 1 },
+    { ar: "كيف حالك", en: "how are you", who: 0 },
+    { ar: "بخير", en: "well", who: 1 },
+  ];
+  const remote = must(remoteDocs.get(realToken), "the synced document");
+  remote.data = {
+    ...remote.data,
+    items: remote.data.items.concat([
+      {
+        id: "scene1",
+        kind: "dialog",
+        ar: "",
+        en: "At the door",
+        lat: "",
+        note: "Two neighbours meet in the morning",
+        tags: ["Scenes"],
+        speakers: ["Layla", "Karim"],
+        you: 1,
+        lines: said.map((l, i) => ({
+          id: `sl${i + 1}`,
+          who: l.who,
+          ar: l.ar,
+          en: l.en,
+          lat: "",
+          /* The first line contains a word this learner already has, so
+             the scene also becomes somewhere that word turned up. */
+          uses: i === 0 ? ["oldclient1"] : [],
+          recs: [],
+        })),
+        created: 2,
+        updated: 9,
+      },
+    ]),
+  };
+  remote.etag = "e-scene";
+  w.dispatchEvent(new w.Event("focus"));
+  await sleep(1600);
+
+  const doc = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  const scene = (doc.items || []).find((/** @type {any} */ i) => i.id === "scene1");
+  check("a conversation arrives as one card with its lines on it",
+    !!scene && (scene.lines || []).length === 4 && (scene.speakers || []).length === 2,
+    scene ? `${(scene.lines || []).length} lines` : "no dialog stored");
+  check("with each turn carrying who said it, what it means and its own id",
+    !!scene &&
+      scene.lines.every((/** @type {any} */ l, /** @type {number} */ i) =>
+        l.id && l.en === said[i].en && l.who === said[i].who) &&
+      scene.lines.every((/** @type {any} */ l) => (l.recs || []).length === 0),
+    scene ? JSON.stringify(scene.lines[0]).slice(0, 110) : "");
+  /* Stored sparse, like every other unit: a line nobody has answered yet
+     keeps no states at all, and they are put back on load. The states it
+     earns by being answered are checked at the end of the session
+     below. */
+  check("and a turn nobody has answered yet is stored without a schedule",
+    !!scene && scene.lines.every((/** @type {any} */ l) => Object.keys(l.s || {}).length === 0),
+    scene ? JSON.stringify(scene.lines.map((/** @type {any} */ l) => Object.keys(l.s || {}).length)) : "");
+
+  /* ---- practise it ---- */
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+  click(buttonNamed(/Build a session|Choose what to practice|Pick cards/));
+  await sleep(300);
+  click([...document.querySelectorAll(".at-modecard")].find((b) => /Regular/.test(b.textContent || "")));
+  await sleep(60);
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  await sleep(150);
+  const deck = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Scenes/.test(b.textContent || ""));
+  check("the scene's own deck is there to practise from", !!deck,
+    [...document.querySelectorAll(".at-tagpickmain")].map((b) => (b.textContent || "").slice(0, 12)).join("|"));
+  click(deck);
+  await sleep(80);
+  clickNamed(/^(Next|Choose at least one card)$/);
+  await sleep(150);
+  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => (b.textContent || "").trim() === "10"));
+  await sleep(60);
+  clickNamed(/^(Start|Choose a length)$/);
+  await sleep(500);
+
+  const instruction = () => (document.querySelector(".at-instruction") || {}).textContent || "";
+  const checkBtn = () => document.querySelector('[data-el="check-button"]');
+  const verdict = () => (document.querySelector('[data-el="verdict"]') || {}).textContent || "";
+  const praised = () => /Correct|Good job|Nicely done|Great/.test(verdict());
+
+  check("a session built from one conversation starts on that conversation",
+    !!document.querySelector('[data-el="scene"]'), instruction() || "no question");
+  /* The first thing a scene ever does is show itself. Nothing is marked,
+     there is no way to be wrong, and the only way on is having read it. */
+  check("and it opens by reading the scene through, not with a blank",
+    /Read the scene/.test(instruction()) &&
+      !document.querySelector('[data-el="dont-know-button"]') &&
+      !document.querySelector('[data-el="answer-input"]'),
+    `${instruction()} / ${(checkBtn() || {}).textContent || "no button"}`);
+  check("the read-through shows every line, with who said it and what it means",
+    document.querySelectorAll('[data-el="scene-line"]').length === 4 &&
+      document.querySelectorAll('[data-el="scene-line-meaning"]').length === 4 &&
+      /Layla/.test(document.body.textContent || ""),
+    `${document.querySelectorAll('[data-el="scene-line"]').length} lines shown`);
+  check("and the way on says what it is", /read it/i.test((checkBtn() || {}).textContent || ""),
+    (checkBtn() || {}).textContent || "no button");
+
+  click(checkBtn());
+  await sleep(300);
+
+  /* Then the questions themselves, each answered the way its own control
+     is used. The walk records which ones turned up. */
+  const met = new Set();
+  for (let n = 0; n < 14 && document.querySelector(".at-instruction"); n++) {
+    const asked = instruction();
+    const order = document.querySelector('[data-el="answer-order"]');
+    const part = document.querySelector('[data-el="answer-part"]');
+    const choices = document.querySelector('[data-el="answer-choices"]');
+    if (/Read the scene/.test(asked)) {
+      met.add("read-again");
+      click(checkBtn());
+      await sleep(250);
+      continue;
+    }
+    if (order) {
+      met.add("order");
+      /* Tapped into place, in the order the scene was written: the taps
+         are the answer, so this is somebody getting it right. */
+      for (const line of said) {
+        /* Matched on the whole line, not on part of one: "سلام" sits
+           inside "وسلام", and a substring match taps the wrong turn. */
+        click(
+          [...order.querySelectorAll("button")].find(
+            (b) => ((b.querySelector(".at-arabic") || {}).textContent || "").trim() === line.ar
+          )
+        );
+        await sleep(40);
+      }
+    } else if (part) {
+      met.add("part");
+      const mine = said.filter((l) => l.who === 1);
+      [...part.querySelectorAll("input")].forEach((el, i) => typeInto(el, (mine[i] || {}).ar || ""));
+      await sleep(80);
+    } else if (choices) {
+      met.add("pick");
+      /* The reply that actually comes next: the scene on screen ends with
+         the blank, so the turn wanted is the one after the last line
+         shown with words in it. Matched whole, since one line of this
+         scene sits inside another. */
+      const shown = [...document.querySelectorAll('[data-el="scene-line-text"]')].map(
+        (e) => (e.textContent || "").trim()
+      );
+      const last = said.findIndex((l) => l.ar === shown[shown.length - 1]);
+      const want = (said[last + 1] || {}).ar;
+      click(
+        [...choices.querySelectorAll("button")].find(
+          (b) => ((b.querySelector(".at-arabic") || {}).textContent || "").trim() === want
+        ) || choices.querySelector("button")
+      );
+      await sleep(40);
+    } else {
+      met.add(/mean/i.test(asked) ? "meaning" : "reply");
+      typeInto(document.querySelector('[data-el="answer-input"]'), "something");
+      await sleep(40);
+    }
+    click(checkBtn());
+    await sleep(250);
+    if (!document.querySelector('[data-el="verdict"]')) {
+      check(`answering "${asked.slice(0, 34)}" produced a verdict`, false,
+        (document.body.textContent || "").slice(0, 100).replace(/\s+/g, " "));
+      break;
+    }
+    if (met.has("order") && !met.has("order-marked")) {
+      met.add("order-marked");
+      check("putting the lines back in the order they were said is marked right", praised(), verdict());
+    }
+    if (met.has("part") && !met.has("part-marked")) {
+      met.add("part-marked");
+      check("and so is holding up your whole end of the conversation", praised(), verdict());
+    }
+    if (met.has("pick") && !met.has("pick-marked")) {
+      met.add("pick-marked");
+      check("choosing the reply that actually comes next is marked right", praised(), verdict());
+    }
+    click(buttonNamed(/^Continue$/));
+    await sleep(250);
+  }
+
+  check("a session on one scene asks several different things about it",
+    met.size >= 3, [...met].join(", ") || "nothing asked");
+  check("including at least one that is about the whole scene",
+    met.has("order") || met.has("part"), [...met].join(", "));
+  check("and the scene is not read through twice in one session",
+    !met.has("read-again"), [...met].join(", "));
+
+  /* Answers are written to the device 600ms after the last one, so the
+     document is read once that has had time to happen. Reading straight
+     after the final Continue caught it mid-flight. */
+  await sleep(900);
+  const afterDoc = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  const afterScene = (afterDoc.items || []).find((/** @type {any} */ i) => i.id === "scene1");
+  const answered = (/** @type {any} */ u) =>
+    Object.values((u && u.s) || {}).some((/** @type {any} */ st) => (st.reps || 0) > 0);
+  check("what was answered is recorded against the line it was about",
+    !!afterScene && (afterScene.lines || []).concat([afterScene]).some(answered),
+    afterScene ? JSON.stringify((afterScene.lines || []).map((/** @type {any} */ l) => Object.keys(l.s || {}).length)) : "");
+  /* The read-through leaves nothing behind: it is an introduction, not an
+     exercise, so there is nothing to schedule and nothing to store. */
+  check("but the read-through is not scheduled, because it was never marked",
+    !!afterScene && !("dlgread" in (afterScene.s || {})),
+    afterScene ? Object.keys(afterScene.s || {}).join(",") : "");
+
+  click(buttonNamed(/^Home$/));
+  await sleep(200);
+}
+
 console.error = origError;
 console.log(results.join("\n"));
 console.log("\nrequests:", calls.join("\n          "));

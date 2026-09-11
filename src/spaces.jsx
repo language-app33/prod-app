@@ -53,6 +53,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars,
 } from "./languages.js";
+import { MAX_SPEAKERS, isDialog, linesOf } from "./dialogs.js";
 import {
   Button,
   CardReadout,
@@ -2766,6 +2767,12 @@ export function ClaimAdmin({ onDone }) {
    another. Which of them the editor actually shows is the language's call. */
 const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], slowClips: [], ...dimValues({}) });
 
+/* A turn nobody has written yet. No grammar on it: a line of a dialog is a
+   thing somebody says, and whether it is singular or plural is a question
+   about a word. `uses` is per line rather than per card, because a line is
+   where a word actually turns up. */
+const blankLine = () => ({ who: 0, ar: "", en: "", lat: "", clips: [], slowClips: [], uses: [] });
+
 /* One answer, or several: a field per accepted answer, a + after the last
    to add another and a − on every extra. What is stored is still one
    string with " / " between the answers, so the checker and every card
@@ -3734,14 +3741,22 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
  *   decks: Deck[],
  *   inDecks?: string[],
  *   allCards: Card[],
- *   onSave: (forms: any, note: string, decks: string[], uses: string[]) => void,
+ *   onSave: (written: {
+ *     forms: any,
+ *     note: string,
+ *     decks: string[],
+ *     uses: string[],
+ *     scene: { title: string, setting: string, speakers: string[], you: number, lines: any[] } | null,
+ *   }) => void,
  *   onDelete?: () => void,
  *   onClose: () => void,
  *   busy?: boolean,
  *   confirming?: Node,
- * }} props
+ *   scene?: boolean,
+ * }} props `scene` writes a conversation rather than a word: the same card,
+ *   the same decks and the same save, with turns instead of forms.
  */
-function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming }) {
+function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene = false }) {
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
   const dims = dimsOf(lang || LANGUAGES[DEFAULT_LANGUAGE]);
@@ -3772,12 +3787,40 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      so nothing about a card is saved any earlier than it was. */
   const [recording, setRecording] = useState(/** @type {number | null} */ (null));
 
+  /* ---- a conversation, where the card is one ----
+     Two people and two empty turns to begin with: an empty scene with an
+     "add a line" button is a form that has to be assembled before it can
+     be filled in. The learner takes the second part by default, because a
+     scene is written the way it is met — somebody says something and you
+     answer. */
+  const [speakers, setSpeakers] = useState(() =>
+    card && (card.speakers || []).length ? (card.speakers || []).slice() : ["A", "B"]
+  );
+  const [you, setYou] = useState(() => (card ? Number(card.you) || 0 : 1));
+  const [lines, setLines] = useState(() =>
+    card && (card.lines || []).length
+      ? (card.lines || []).map((l) => ({ ...blankLine(), ...l }))
+      : [{ ...blankLine(), who: 0 }, { ...blankLine(), who: 1 }]
+  );
+  /* The scene's name and its setting are the card's own English and note:
+     a conversation has no word of its own to put in either. */
+  const [title, setTitle] = useState((card && card.en) || "");
+  const [setting, setSetting] = useState((card && card.note) || "");
+  const [recordingLine, setRecordingLine] = useState(/** @type {number | null} */ (null));
+  /** @type {(i: number, next: any) => void} */
+  const setLine = (i, next) => setLines((x) => x.map((l, j) => (j === i ? next : l)));
+  const written = lines.filter((l) => (l.ar || "").trim());
+
   const main = forms[0];
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
      practice it. Better to say so here than to save something inert. */
-  const canSave = main.ar.trim() && main.en.trim();
+  /* A conversation needs a name and two turns. One line with the reply
+     missing is a phrase card in the wrong editor. */
+  const canSave = scene
+    ? !!title.trim() && written.length >= 2
+    : main.ar.trim() && main.en.trim();
   /** @type {(i: number, next: any) => void} */
   const setForm = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
@@ -3787,19 +3830,200 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     <>
       {confirming}
       <Screen
-        title={card ? "Edit card" : "New card"}
+        title={scene ? (card ? "Edit conversation" : "New conversation") : card ? "Edit card" : "New card"}
         onBack={onClose}
         action={
           <Button variant="primary" size="sm"
             disabled={!canSave || busy}
-            onClick={() => onSave(forms, note, chosen, uses)}
+            onClick={() =>
+              onSave({
+                forms,
+                note,
+                decks: chosen,
+                uses,
+                scene: scene
+                  ? { title: title.trim(), setting: setting.trim(), speakers, you, lines: written }
+                  : null,
+              })
+            }
           >
             <Icon name="save" />
             {busy ? "Saving…" : "Save"}
           </Button>
         }
       >
-          {forms.map((f, i) => (
+          {scene && (
+            <>
+              <div className="at-formblock main">
+                <div className="at-formhead">
+                  <span className="at-formnum">The scene</span>
+                  <span className="at-formrole">what it is and who is in it</span>
+                </div>
+                <p className={`at-formneed${canSave ? "" : " unmet"}`}>
+                  A name, and two turns or more.
+                </p>
+
+                <Field label="What it is called">
+                  <input
+                    className="at-input"
+                    value={title}
+                    placeholder="At the door"
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </Field>
+
+                <Field label="Where it happens">
+                  <input
+                    className="at-input"
+                    value={setting}
+                    placeholder="Two neighbours meet in the morning"
+                    onChange={(e) => setSetting(e.target.value)}
+                  />
+                </Field>
+
+                <Field label="Who is in it">
+                  <div className="at-row">
+                    {speakers.map((name, i) => (
+                      <input
+                        key={i}
+                        className="at-input"
+                        value={name}
+                        placeholder={`Speaker ${i + 1}`}
+                        aria-label={`Speaker ${i + 1}`}
+                        onChange={(e) =>
+                          setSpeakers((x) => x.map((n, j) => (j === i ? e.target.value : n)))
+                        }
+                      />
+                    ))}
+                  </div>
+                  {speakers.length < MAX_SPEAKERS && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="at-mt2"
+                      onClick={() => setSpeakers((x) => x.concat([""]))}
+                      icon="add"
+                    >
+                      Add someone
+                    </Button>
+                  )}
+                </Field>
+
+                <Field label="The student plays">
+                  <Segmented
+                    label="The student plays"
+                    options={speakers.map((n, i) => ({ value: i, label: n || `Speaker ${i + 1}` }))}
+                    value={you}
+                    onChange={(v) => setYou(Number(v))}
+                  />
+                  <Help>
+                    Whose turns the student produces when the whole scene is
+                    asked. Everything else is said to them.
+                  </Help>
+                </Field>
+              </div>
+
+              {lines.map((l, i) => (
+                <div className="at-formblock" key={i}>
+                  <div className="at-formhead">
+                    <span className="at-formnum">Line {i + 1}</span>
+                    <span className="at-formrole">
+                      {(l.who || 0) === you ? "the student's turn" : "said to them"}
+                    </span>
+                    <span className="at-formacts">
+                      {lines.length > 2 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setLines((x) => x.filter((_, j) => j !== i))}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+
+                  <Field label="Who says it">
+                    <Segmented
+                      label={`Who says line ${i + 1}`}
+                      options={speakers.map((n, j) => ({ value: j, label: n || `Speaker ${j + 1}` }))}
+                      value={l.who || 0}
+                      onChange={(v) => setLine(i, { ...l, who: Number(v) })}
+                    />
+                  </Field>
+
+                  <Field label={lang.scriptLabel}>
+                    <ScriptInput lang={lang} value={l.ar} onChange={(v) => setLine(i, { ...l, ar: v })} />
+                  </Field>
+
+                  <Field label="English">
+                    <input
+                      className="at-input"
+                      value={l.en}
+                      aria-label={`What line ${i + 1} means`}
+                      onChange={(e) => setLine(i, { ...l, en: e.target.value })}
+                    />
+                  </Field>
+
+                  <Field label={lang.translitLabel}>
+                    <input
+                      className="at-input"
+                      value={l.lat}
+                      aria-label={`How line ${i + 1} sounds`}
+                      onChange={(e) => setLine(i, { ...l, lat: e.target.value })}
+                    />
+                  </Field>
+
+                  <div className="at-field">
+                    <Recordings form={l} onOpen={() => setRecordingLine(i)} />
+                  </div>
+
+                  {/* Which of the teacher's own words this line contains.
+                      Confirmed here, line by line, because a line is where
+                      a word actually turns up — and it is what lets a word
+                      be practised inside a real exchange. */}
+                  <WordsUsed
+                    lang={lang}
+                    text={l.ar}
+                    cards={allCards}
+                    selfId={(card && card.id) || ""}
+                    chosen={l.uses || []}
+                    onChange={(next) => setLine(i, { ...l, uses: next })}
+                  />
+                </div>
+              ))}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setLines((x) =>
+                    x.concat([
+                      /* Whoever did not speak last, which is what a
+                         conversation does on its own. */
+                      {
+                        ...blankLine(),
+                        who: x.length && speakers.length > 1
+                          ? ((Number(x[x.length - 1].who) || 0) + 1) % speakers.length
+                          : 0,
+                      },
+                    ])
+                  )
+                }
+                icon="add"
+              >
+                Add a line
+              </Button>
+
+              <Help className="at-mt3">
+                No recordings needed. A scene with none is still drilled every
+                way there is; where a line has one, it can be heard as well as
+                read.
+              </Help>
+            </>
+          )}
+
+          {!scene && forms.map((f, i) => (
             <div className={`at-formblock${i === 0 ? " main" : ""}`} key={i}>
               <div className="at-formhead">
                 <span className="at-formnum">Form {i + 1}</span>
@@ -3929,6 +4153,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           ))}
 
+          {!scene && (
           <Button variant="ghost" size="sm"
             /* No number override: blankForm takes the language's declared
                default, so what a new form starts as is settled in one place. */
@@ -3937,6 +4162,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         >
           Add a form
         </Button>
+          )}
 
           <div className="at-formblock at-mt5">
             <div className="at-formhead">
@@ -3965,14 +4191,16 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           </div>
 
-          <WordsUsed
-            lang={lang}
-            text={main.ar}
-            cards={allCards}
-            selfId={(card && card.id) || ""}
-            chosen={uses}
-            onChange={setUses}
-          />
+          {!scene && (
+            <WordsUsed
+              lang={lang}
+              text={main.ar}
+              cards={allCards}
+              selfId={(card && card.id) || ""}
+              chosen={uses}
+              onChange={setUses}
+            />
+          )}
 
           {card && onDelete && (
             <Button variant="danger" className="at-mt5" onClick={onDelete}>
@@ -3982,6 +4210,14 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
       </Screen>
       {/* Above the editor rather than instead of it: closing it puts the
           form back exactly as it was left, scroll position included. */}
+      {recordingLine !== null && lines[recordingLine] && (
+        <RecordingScreen
+          title={`Recording · line ${recordingLine + 1}`}
+          form={lines[recordingLine]}
+          onChange={(next) => setLine(recordingLine, { ...lines[recordingLine], ...next })}
+          onClose={() => setRecordingLine(null)}
+        />
+      )}
       {recording !== null && forms[recording] && (
         <RecordingScreen
           title={forms.length > 1 ? `Recordings · form ${recording + 1}` : "Recordings"}
@@ -4205,7 +4441,7 @@ export function TeachSpace({ account, languages, onClose }) {
   const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ (null));
   const [cards, setCards] = useState(/** @type {Card[]} */ (last ? last.cards : []));
   const [editing, setEditing] = useState(
-    /** @type {{ card: Card | null, decks: string[], lang?: LangId } | null} */ (null)
+    /** @type {{ card: Card | null, decks: string[], lang?: LangId, scene?: boolean } | null} */ (null)
   ); // {card|null, decks:[], lang}
   const [naming, setNaming] = useState(/** @type {any | null} */ (null)); // "new" | deck
   const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null)); // whatever is awaiting a yes
@@ -4453,29 +4689,52 @@ export function TeachSpace({ account, languages, onClose }) {
         busy={busy}
         onClose={() => setEditing(null)}
         allCards={cards}
-        onSave={(forms, note, inDecks, uses) =>
+        scene={editing.scene || isDialog(editing.card)}
+        onSave={({ forms, note, decks: inDecks, uses, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
+              /* A conversation is saved as a card like any other: its
+                 name is the card's English, its setting is the note, and
+                 the turns travel in `lines`. Nothing about the request,
+                 the decks or the revision differs — which is why a scene
+                 reaches a student through the same material payload as
+                 every other card. */
               const r = await API.saveCard(
-                {
-                  id: editing.card ? editing.card.id : "",
-                  ar: main.ar.trim(),
-                  en: main.en.trim(),
-                  lat: main.lat.trim(),
-                  ...dimValues(main),
-                  clips: main.clips || [],
-                  slowClips: main.slowClips || [],
-                  note: note.trim(),
-                  lang: (editLang || {}).id || "",
-                  uses,
-                  subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
-                },
+                written
+                  ? {
+                      id: editing.card ? editing.card.id : "",
+                      ar: "",
+                      en: written.title,
+                      lat: "",
+                      note: written.setting,
+                      lang: (editLang || {}).id || "",
+                      uses: [],
+                      subs: [],
+                      clips: [],
+                      slowClips: [],
+                      speakers: written.speakers,
+                      you: written.you,
+                      lines: written.lines,
+                    }
+                  : {
+                      id: editing.card ? editing.card.id : "",
+                      ar: main.ar.trim(),
+                      en: main.en.trim(),
+                      lat: main.lat.trim(),
+                      ...dimValues(main),
+                      clips: main.clips || [],
+                      slowClips: main.slowClips || [],
+                      note: note.trim(),
+                      lang: (editLang || {}).id || "",
+                      uses,
+                      subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
+                    },
                 inDecks
               );
               absorbSaved(r);
               setEditing(null);
-              return main;
+              return written ? { en: written.title, ar: "" } : main;
             },
             /* Named, because the editor closes on save: without the word
                back there is nothing left on screen to confirm which card
@@ -4553,11 +4812,39 @@ export function TeachSpace({ account, languages, onClose }) {
               size="small"
               busy={busy}
               empty="No cards in this deck yet. Make one, or add existing cards from the Cards tab."
+              /* A conversation has no word of its own to search for, so
+                 its turns are searched too: a teacher looking for a scene
+                 remembers a line of it, not the name they gave it. */
               match={(c, q) =>
-                (c.ar || "").toLowerCase().includes(q) || (c.en || "").toLowerCase().includes(q)
+                (c.ar || "").toLowerCase().includes(q) ||
+                (c.en || "").toLowerCase().includes(q) ||
+                linesOf(c).some(
+                  (/** @type {any} */ l) =>
+                    (l.ar || "").toLowerCase().includes(q) ||
+                    (l.en || "").toLowerCase().includes(q)
+                )
               }
               onNew={() =>
                 setEditing({ card: null, decks: [d.id], lang: (langOfDeck(d) || {}).id })
+              }
+              filters={
+                <div className="at-row at-mt2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="add"
+                    onClick={() =>
+                      setEditing({
+                        card: null,
+                        decks: [d.id],
+                        lang: (langOfDeck(d) || {}).id,
+                        scene: true,
+                      })
+                    }
+                  >
+                    New conversation
+                  </Button>
+                </div>
               }
               selected={selCards}
               onSelectedChange={setSelCards}
@@ -5115,7 +5402,12 @@ export function TeachSpace({ account, languages, onClose }) {
                 match={(c, q) =>
                   (c.ar || "").toLowerCase().includes(q) ||
                   (c.en || "").toLowerCase().includes(q) ||
-                  (c.lat || "").toLowerCase().includes(q)
+                  (c.lat || "").toLowerCase().includes(q) ||
+                  linesOf(c).some(
+                    (/** @type {any} */ l) =>
+                      (l.ar || "").toLowerCase().includes(q) ||
+                      (l.en || "").toLowerCase().includes(q)
+                  )
                 }
                 onNew={() => {
                   if (mustAsk) setNewCardLang(knownLangs[0] || "");

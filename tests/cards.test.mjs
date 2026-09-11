@@ -221,6 +221,52 @@ test("a course card arrives saying which language it is in, on every form", () =
   assert.equal(item.subs[0].lang, "vi-Hue");
 });
 
+test("a conversation reaches the learner as a scene, with its turns drillable", () => {
+  /* The bridge between the two halves of the app: what a teacher writes as
+     a card with lines on it has to arrive as a dialog whose every line is
+     a unit of its own, or a scene is a card with an empty face and nothing
+     to ask about it. */
+  const item = cardToItem(
+    {
+      id: "k7", ar: "", en: "At the door", lang: "ar-PS",
+      note: "Two neighbours meet",
+      speakers: ["Layla", "Karim"],
+      you: 1,
+      lines: [
+        { who: 0, ar: "سلام", en: "peace", uses: ["w1"], clips: ["hello"] },
+        { who: 1, ar: "وسلام", en: "and peace" },
+      ],
+    },
+    "Lesson 1", "c1", "d1", () => ({ ar2en: { phase: "new" } }),
+  );
+
+  assert.equal(item.kind, "dialog", "a card with a conversation on it is a dialog");
+  assert.equal(item.en, "At the door", "the scene's name is the card's English");
+  assert.deepEqual(item.speakers, ["Layla", "Karim"]);
+  assert.equal(item.you, 1);
+  assert.equal(item.lines.length, 2);
+  /* Named from the card, so a line keeps its progress across a refresh —
+     the same promise the other forms of a card get. */
+  assert.equal(item.lines[0].id, `${localIdFor("k7")}-l0`);
+  assert.equal(item.lines[1].who, 1);
+  assert.ok(Object.keys(item.lines[0].s).length, "a line arrives with progress of its own");
+  assert.equal(item.lines[0].lang, "ar-PS", "and in the language the card is in");
+  /* The words a line teaches are the server's ids on one side of this and
+     the device's on the other, exactly as the card's own are. */
+  assert.deepEqual(item.lines[0].uses, [localIdFor("w1")]);
+  assert.deepEqual(item.lines[0].recs.map((/** @type {any} */ r) => r.id), ["hello"]);
+  assert.deepEqual(item.lines[1].recs, [], "a line with no recording is not a broken one");
+});
+
+test("and an ordinary card is not turned into a scene on the way", () => {
+  const item = cardToItem(
+    { id: "k8", ar: "كِتاب", en: "book", lang: "ar-PS" },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal(item.kind, "word");
+  assert.equal(item.lines, undefined, "a word carries no empty conversation about with it");
+});
+
 test("a card recorded at both speeds reaches the learner as both, named", () => {
   /* The ordinary recording first and unnamed, so a listening question plays
      the real thing; the slow one after it and named, so what it is is said
