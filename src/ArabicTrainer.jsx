@@ -5929,10 +5929,13 @@ function CardScreen({ card, items, onBack, action }) {
             ...l,
             clips: (l.recs || []).map((/** @type {{ id: string }} */ r) => r.id),
           })),
-          decks: live.tags || [],
         }}
         lang={activeLang()}
-        decks={(live.tags || []).map((t) => ({ id: t, title: t }))}
+        /* Which decks a card arrived in is a teacher's question about their
+           own material. The student is looking at the card itself, so the
+           readout stops at the card and there are no decks to name. */
+        decks={[]}
+        whereItLives={false}
       />
 
     </Screen>

@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.61 — 11 September 2026
+
+- A card opened in Cards no longer ends with "Where it lives". Which decks
+  a card sits in, and which language pack it belongs to, are a teacher's
+  questions about their own material; a student opened the card to look at
+  the card. The panel is untouched in Teaching and Admin, where it is the
+  thing people came for.
+- The card's note used to be a row inside that panel, so dropping it would
+  have dropped the note with it — and the note is the one line in there
+  written for the student to read. It stands on its own now, on both sides.
+
 ## 0.60 — 11 September 2026
 
 - In context reads as four tiles rather than one long page, and the

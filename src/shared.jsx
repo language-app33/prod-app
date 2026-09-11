@@ -1512,13 +1512,20 @@ export function ItemList({
  * the learner an item as this device holds it. Neither is the other, and
  * the fields below are the ones they agree on.
  *
+ * `whereItLives` is the one difference between the two readers. A teacher
+ * needs to know which decks carry a card, because a card in no deck reaches
+ * nobody and that is their problem to fix. A student is already holding the
+ * card; being told which shelf it came off answers a question they did not
+ * ask, so their screen leaves that panel out.
+ *
  * @param {{
  *   card: Record<string, any> & { subs?: Record<string, any>[], decks?: string[] },
  *   lang?: Lang,
  *   decks: { id: string, title?: string }[],
+ *   whereItLives?: boolean,
  * }} props Only a deck's id and title are read, to name where the card lives.
  */
-export function CardReadout({ card, lang, decks }) {
+export function CardReadout({ card, lang, decks, whereItLives = true }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   const dims = dimsOf(L);
   /** @type {Record<string, any>[]} */
@@ -1580,23 +1587,25 @@ export function CardReadout({ card, lang, decks }) {
           </p>
         </section>
 
-        <section className="at-panel">
-          <p className="at-eyebrow">Where it lives</p>
-          <Row label="Language">{L.name}</Row>
-          <Row label="Decks">
-            {titles.length ? (
-              <span className="at-flags">
-                {titles.map((t) => (
-                  <span className="at-flag audio" key={t}>
-                    {t}
-                  </span>
-                ))}
-              </span>
-            ) : (
-              "In no deck"
-            )}
-          </Row>
-        </section>
+        {whereItLives ? (
+          <section className="at-panel">
+            <p className="at-eyebrow">Where it lives</p>
+            <Row label="Language">{L.name}</Row>
+            <Row label="Decks">
+              {titles.length ? (
+                <span className="at-flags">
+                  {titles.map((t) => (
+                    <span className="at-flag audio" key={t}>
+                      {t}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                "In no deck"
+              )}
+            </Row>
+          </section>
+        ) : null}
       </div>
     );
   }
@@ -1652,27 +1661,39 @@ export function CardReadout({ card, lang, decks }) {
         </section>
       ))}
 
-      <section className="at-panel">
-        <p className="at-eyebrow">Where it lives</p>
-        <p className="at-hint">
-          A card is seen through its decks. One in no deck reaches nobody.
-        </p>
-        <Row label="Language">{L.name}</Row>
-        <Row label="Decks">
-          {titles.length ? (
-            <span className="at-flags">
-              {titles.map((t) => (
-                <span className="at-flag audio" key={t}>
-                  {t}
-                </span>
-              ))}
-            </span>
-          ) : (
-            "In no deck"
-          )}
-        </Row>
-        {card.note ? <Row label="Note">{card.note}</Row> : null}
-      </section>
+      {/* The note used to be a row of the panel below, which meant dropping
+          that panel for the student would have dropped the note with it —
+          and the note is the one thing in there written for them to read.
+          It stands on its own now, so each screen keeps what it needs. */}
+      {card.note ? (
+        <section className="at-panel">
+          <p className="at-eyebrow">Note</p>
+          <p className="at-hint">{card.note}</p>
+        </section>
+      ) : null}
+
+      {whereItLives ? (
+        <section className="at-panel">
+          <p className="at-eyebrow">Where it lives</p>
+          <p className="at-hint">
+            A card is seen through its decks. One in no deck reaches nobody.
+          </p>
+          <Row label="Language">{L.name}</Row>
+          <Row label="Decks">
+            {titles.length ? (
+              <span className="at-flags">
+                {titles.map((t) => (
+                  <span className="at-flag audio" key={t}>
+                    {t}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              "In no deck"
+            )}
+          </Row>
+        </section>
+      ) : null}
     </div>
   );
 }

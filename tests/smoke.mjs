@@ -976,6 +976,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("and it is the card the tile was showing",
     !!open && !!tileWord && (open.textContent || "").includes((tileWord.textContent || "").trim()),
     open ? (open.textContent || "").slice(0, 60).replace(/\s+/g, " ") : "(nothing open)");
+  /* Which decks a card came in, and which language pack it belongs to, are
+     a teacher's questions about their own material. The student opened the
+     card to look at the card. */
+  const readout = open ? (open.textContent || "") : "";
+  check("and it stops at the card, without the shelf it came off",
+    !!open && !/Where it lives/i.test(readout) && !/In no deck/i.test(readout),
+    readout.replace(/\s+/g, " ").slice(0, 120) || "(nothing open)");
   click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent || "") || b.getAttribute("aria-label") === "Back"));
   await sleep(250);
   click(buttonNamed(/^Home$/));
@@ -1888,6 +1895,16 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     teachTiles.map((t) => (t.textContent || "").slice(0, 18)).join(" | ") || "no cards");
   click(phraseTile);
   await sleep(450);
+
+  /* The other half of the same split: the panel the student's card screen
+     drops is the one a teacher came here for, so it is still on this one.
+     The card opens over the space rather than inside its frame, so the
+     readout is taken as the last one in the document — the student's is
+     closed by now. */
+  const teachRead = [...document.querySelectorAll(".at-readout")].pop();
+  check("a teacher's card still says which decks it lives in",
+    !!teachRead && /Where it lives/i.test(teachRead.textContent || ""),
+    teachRead ? (teachRead.textContent || "").replace(/\s+/g, " ").slice(0, 120) : "(no readout)");
 
   const tries = () => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll(".at-try")]);
   check("a card in the teaching space lists the exercises it could be asked",
