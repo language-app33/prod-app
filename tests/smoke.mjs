@@ -2260,6 +2260,33 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("each saying which answer it belongs to",
     saidFields().every((i, n) => (i.getAttribute("aria-label") || "").endsWith(String(n + 1))),
     saidFields().map((i) => i.getAttribute("aria-label")).join(" | "));
+  /* And its own grammar. Two accepted answers may be a masculine and a
+     feminine — one thing to know, two right answers — so what each one is
+     grammatically belongs to it rather than to the card over both. */
+  const grammarBtns = () =>
+    [...document.querySelectorAll("button")].filter((b) =>
+      /^Grammar of accepted answer \d+$/.test(b.getAttribute("aria-label") || "")
+    );
+  check("each accepted answer carries its own grammar",
+    grammarBtns().length === 2,
+    grammarBtns().map((b) => b.getAttribute("aria-label")).join(" | ") || "none");
+  click(grammarBtns()[1]);
+  await sleep(200);
+  const genderGroup = document.querySelector('[role="group"][aria-label="Gender of accepted answer 2"]');
+  check("and opens onto the pickers for that answer alone",
+    !!genderGroup &&
+      !document.querySelector('[role="group"][aria-label="Gender of accepted answer 1"]'),
+    genderGroup ? "the second answer's" : "(no pickers)");
+  click(
+    [...(genderGroup ? genderGroup.querySelectorAll("button") : [])]
+      .find((b) => /feminine/i.test(b.textContent || ""))
+  );
+  await sleep(200);
+  check("choosing one names that answer without touching the other",
+    /sg\. f\.|f\./.test((grammarBtns()[1] || {}).textContent || "") &&
+      !/f\./.test((grammarBtns()[0] || {}).textContent || ""),
+    grammarBtns().map((b) => (b.textContent || "").trim()).join(" | "));
+
   /* And removing an answer takes its pronunciation with it, which is the
      whole guard against the two stored lists drifting apart. */
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Remove this answer"));

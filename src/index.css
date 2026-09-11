@@ -2300,6 +2300,16 @@ body.at-screening .at-spaces { display:none; }
    reordering the gloss rule above exists to avoid. */
 .at-findwho { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
   margin:0; }
+/* What an accepted answer is, grammatically. Folded away behind its own
+   name — "sg. f." where it has one, "Grammar" where it has none — because
+   most cards accept one answer and want the language's default, and four
+   pickers under every row would bury the words the card is about. */
+.at-answergrammar { grid-column:1; margin-inline-start:10px; }
+.at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
+.at-answerdims { display:flex; flex-direction:column; gap:8px; margin-top:8px;
+  padding:10px 12px; background: var(--well); border-radius: var(--r-sm); }
+.at-answerdims .at-field { margin:0; }
+
 /* The phrase is a way into the card it belongs to, so it reads as one —
    quieter than the word, and underlined on hover like every other way of
    opening something. */

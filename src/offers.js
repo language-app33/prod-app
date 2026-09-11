@@ -27,7 +27,7 @@
 
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.js";
 import { saidAnswers } from "./answers.js";
-import { EX, TYPES, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.js";
+import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.js";
 
 /*
  * What this unit has not got, of what an exercise asks for.
@@ -60,7 +60,7 @@ export function unmetNeeds(unit, spec, scene, contexts) {
        transliteration for only the second can still be asked, about the
        second; one with a transliteration and no spelling beside it cannot
        be asked at all. */
-    if (f === "lat") return !saidAnswers(unit).length;
+    if (f === "lat") return !saidAnswers(unit, answerFields()).length;
     return !(/** @type {any} */ (unit)[f]);
   });
 }

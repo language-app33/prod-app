@@ -104,6 +104,7 @@ import {
   TYPES,
   activeLang,
   checkAnswer,
+  answerFields,
   derivedValue,
   dimValues,
   dimsOf,
@@ -168,7 +169,7 @@ import {
   speakerName,
   speakersOf,
 } from "./dialogs.js";
-import { answerForTurn, withAnswer as oneAnswer } from "./answers.js";
+import { answerForTurn, answerGiven, answersOf, packAnswers, withAnswer as oneAnswer } from "./answers.js";
 
 /*
  * The two that need to know which exercise types a form supports. That
@@ -1820,6 +1821,31 @@ function liftStates(old = {}) {
   return s;
 }
 
+/*
+ * Grammar, from the form down onto the answers.
+ *
+ * The one-time migration. Gender and number used to sit on the form, one
+ * set for the whole card, which was a label that described one accepted
+ * answer and lied about any other that differed — see answers.js. Read
+ * here, at the door, so a document written before the change is the new
+ * shape by the time anything else sees it; a document written since passes
+ * through unchanged, because reading its own answers back is what
+ * answersOf already does.
+ *
+ * The flat values stay on the form as well. Nothing is gained by stripping
+ * them — the server still sends them, an export still has a column for
+ * them, and a card that lost them on this device would sync that loss to
+ * one still running the old build.
+ */
+/** @param {Record<string, any>} form @returns {Record<string, any>} */
+function liftAnswers(form) {
+  const fields = answerFields();
+  return {
+    ...dimValues(form),
+    ...packAnswers(answersOf(form, fields), fields),
+  };
+}
+
 /** @param {Record<string, any>} it */
 function liftItem(it) {
   return {
@@ -1828,10 +1854,10 @@ function liftItem(it) {
     locked: !!it.locked,
     flags: it.flags || [],
     recs: it.recs || [],
-    ...dimValues(it),
+    ...liftAnswers(it),
     subs: (it.subs || []).map((/** @type {Record<string, any>} */ sb) => ({
       ...sb,
-      ...dimValues(sb),
+      ...liftAnswers(sb),
       recs: sb.recs || [],
       s: liftStates(sb.s),
     })),
@@ -4465,6 +4491,31 @@ export default function ArabicTrainer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length]);
 
+  /*
+   * Which of the accepted answers the learner wrote.
+   *
+   * A card may accept a masculine and a feminine, or a singular and a
+   * plural, and the two are different words with different grammar. The
+   * answer screen has something worth saying about the one they chose —
+   * that it was the feminine — and it can only say it of the answer that
+   * matched. Found through the language's own checker, so "matched" means
+   * here what it means everywhere else: bare letters count, a near miss
+   * does not.
+   *
+   * Only where they typed it. A question answered by tapping one of a few
+   * is already looking at the answer it offered, and a question the
+   * learner gave up on has no answer of theirs to describe.
+   */
+  const gaveAnswer = useMemo(() => {
+    if (!item || !checked || !spec || skipped) return null;
+    if (spec.answerField !== "ar") return null;
+    return answerGiven(typed, item, (given, want) => qLang.check(given, want, qSettings).ok, answerFields());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item && item.id, checked, typed, skipped, spec && spec.answerField]);
+  /* And what that answer is, grammatically, in this language's words. Empty
+     where the language declares no grammar, or the answer carries none. */
+  const gaveLabel = gaveAnswer ? labelFor(gaveAnswer, qLang) : "";
+
   /* What the answer screen has to say, once there is one.
      `answerRepeated` is whether the right answer is shown under the
      verdict: it is not, when the answer was right and typed in full —
@@ -5545,6 +5596,19 @@ Cards ready to practice
                             />
                           )}
                         </div>
+                      )}
+                      {/* Which of the accepted answers they wrote, where the
+                          card accepts more than one and they differ in
+                          something the language names. A card taking both
+                          the masculine and the feminine used to answer
+                          "correct" and leave which one they had written
+                          unsaid — and before this the card could not have
+                          told them, because the grammar was one label over
+                          the pair. */}
+                      {gaveLabel && (
+                        <Help data-el="answer-grammar">
+                          {`You wrote the ${gaveLabel} one.`}
+                        </Help>
                       )}
                       {/* Directly under the marked spelling it is talking
                           about. It sat below the Learn more box, which put

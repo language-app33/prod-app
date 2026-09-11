@@ -14,7 +14,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
-import { dimValues, dimsOf, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
+import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.js";
 
 
@@ -1639,12 +1639,17 @@ export function CardReadout({ card, lang, decks, whereItLives = true }) {
               pronunciation under the lot of them — which said nothing about
               which was which, and read as a single wrong answer when the two
               lists were different lengths. */}
-          {answersOf(f).map((answer, n) => (
+          {answersOf(f, answerFields()).map((answer, n) => (
             <div className="at-readanswer" key={n}>
               <p className="at-readword" dir={L.direction} style={{ fontFamily: L.fontStack, ...scriptVars(L) }}>
-                {answer.ar}
+                {answer.text}
               </p>
               {answer.lat ? <p className="at-readlat">{answer.lat}</p> : null}
+              {/* And what this one is, grammatically. Beside the answer it
+                  is about rather than under the card, because two accepted
+                  answers may be a masculine and a feminine and a single
+                  label over the pair describes one of them. */}
+              {labelFor(answer, L) ? <p className="at-readlat">{labelFor(answer, L)}</p> : null}
             </div>
           ))}
           <p className="at-readmeaning">{f.en}</p>
@@ -2487,6 +2492,12 @@ function recsOf(form) {
 }
 
 /* Turn what the server holds into what the trainer expects. */
+/* One card's accepted answers, in the shape a card stores them: no index,
+   because an index is a fact about a list rather than about an answer. */
+/** @param {Record<string, any>} form */
+const keptAnswers = (form) =>
+  answersOf(form, answerFields()).map(({ at: _at, ...answer }) => answer);
+
 /**
  * @param {Card} card
  * @param {string} deckTitle
@@ -2502,6 +2513,11 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     lat: sb.lat || "",
     en: sb.en || "",
     ...dimValues(sb),
+    /* What each accepted answer is, grammatically. Read rather than copied,
+       so a card the server has not been asked to save since the change —
+       one set of values flat on the form — arrives with each of its answers
+       carrying them, which is what they meant when there was one set. */
+    answers: keptAnswers(sb),
     note: "",
     /* Which language this is in, carried onto every form rather than onto
        the card alone: a form is what an exercise is about, and what marks
@@ -2572,6 +2588,7 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     flags: [],
     recs: recsOf(card),
     ...dimValues(card),
+    answers: keptAnswers(card),
     subs: forms,
     source: { courseId, deckId, cardId: card.id, rev: card.rev || 1 },
     /* When the card was made, not when it reached this device — so "added"

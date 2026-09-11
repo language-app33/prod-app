@@ -20,6 +20,7 @@
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
+import { answersOf } from "./answers.js";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
@@ -482,16 +483,30 @@ export function dimValues(src = {}) {
   return out;
 }
 
-/* How a form is named in the card list: "pl. f." in Arabic, "elder" in
-   Vietnamese. Only the dimensions this language uses get a mention. */
+/*
+ * How a form is named in the card list: "pl. f." in Arabic, "elder" in
+ * Vietnamese. Only the dimensions this language uses get a mention.
+ *
+ * Takes a form or one of its answers, because grammar lives on the answer
+ * now and a form is named after what it accepts. Where a form is handed in
+ * whole, its first answer speaks for it — which is exactly right for the
+ * job this does: saying which of a card's forms is being asked about. A
+ * question narrowed to one accepted answer hands that answer's values in
+ * directly (see withAnswer), so what the tag says is what is on screen.
+ */
 /**
  * @param {Record<string, any>} unit
  * @param {Lang} [lang]
  */
 export function labelFor(unit, lang = activeLang()) {
   const bits = [];
-  for (const dim of dimsOf(lang)) {
-    const value = unit[dim.field];
+  const dims = dimsOf(lang);
+  /* Its own values where it has any — an answer, or a form written before
+     the change — and otherwise the first answer's. */
+  const own = dims.some((dim) => unit && unit[dim.field]);
+  const named = own ? unit : answersOf(unit, answerFields())[0] || {};
+  for (const dim of dims) {
+    const value = named[dim.field];
     if (!value) continue;
     /* ?? rather than ||, so a value whose short form is deliberately empty —
        N/A, which should name nothing — stays empty instead of falling back to
@@ -2041,6 +2056,33 @@ export function grammarFields() {
   const out = Object.values(GRAMMAR).map((d) => d.field);
   for (const lang of Object.values(LANGUAGES)) {
     if (lang.lexical && !out.includes(lang.lexical.key)) out.push(lang.lexical.key);
+  }
+  return out;
+}
+
+/*
+ * The same list, with what each field will accept.
+ *
+ * What an answer may carry, in the shape answers.js narrows against — the
+ * grammar table is the authority on both, and this is how it says so
+ * without answers.js having to import it (which would be a cycle, since
+ * marking an answer reads that file).
+ *
+ * A lexical key takes any text — a Vietnamese classifier is a word, not a
+ * choice from a list — so its allowed list is empty, which readAnswer
+ * reads as "anything non-empty".
+ */
+/** @returns {{ field: string, allowed: string[] }[]} */
+export function answerFields() {
+  const out = Object.values(GRAMMAR).map((d) => ({
+    field: d.field,
+    allowed: d.options.map(([value]) => value),
+  }));
+  for (const lang of Object.values(LANGUAGES)) {
+    const lexical = lang.lexical;
+    if (lexical && !out.some((f) => f.field === lexical.key)) {
+      out.push({ field: lexical.key, allowed: [] });
+    }
   }
   return out;
 }

@@ -47,9 +47,11 @@ import {
   dimValues,
   exOf,
   findWordSlot,
+  answerFields,
   guessKind,
   kindLabel,
   kindOf,
+  labelFor,
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
@@ -2823,38 +2825,50 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
 }
 
 /*
- * The same list, where the language also has a transliteration.
+ * The same list, where the language also has a transliteration — and each
+ * answer's own grammar.
  *
- * An accepted answer and how it is said are one row, because they are one
- * thing: two spellings are two words with two pronunciations, and a single
- * transliteration under the pair belongs to one of them and lies about the
- * other. Adding an answer adds both cells; removing one removes both. That
- * is the whole guard against the two stored strings drifting out of step,
- * and it is here because here is the only place either is written.
+ * An accepted answer, how it is said and what it is grammatically are one
+ * row, because they are one thing. Two spellings are two words: "I'm happy"
+ * said by a man and by a woman differ by a syllable and by a gender, and a
+ * single "masculine" written over the pair described one of them and lied
+ * about the other. Adding an answer
+ * adds every cell; removing one removes them all. That is the guard against
+ * the stored lists drifting out of step, and it is here because here is the
+ * only place any of them is written.
+ *
+ * The grammar sits behind a toggle per row rather than on the face of it:
+ * most cards accept one answer and want the language's default, and four
+ * pickers under every row would bury the words the card is actually about.
  */
 /**
  * @param {{
  *   lang: Lang,
- *   ar?: string,
- *   lat?: string,
- *   onChange: (next: { ar: string, lat: string }) => void,
+ *   form: Record<string, any>,
+ *   onChange: (next: { ar: string, lat: string, answers: Record<string, any>[] }) => void,
  * }} props
  */
-function ScriptAnswers({ lang, ar, lat, onChange }) {
-  const [rows, setRows] = useState(() => answerRows({ ar, lat }));
-  /** @param {{ ar: string, lat: string }[]} next */
+function ScriptAnswers({ lang, form, onChange }) {
+  const fields = answerFields();
+  const dims = dimsOf(lang);
+  const [rows, setRows] = useState(() => answerRows(form, fields));
+  const [open, setOpen] = useState(/** @type {number | null} */ (null));
+  /** @param {Record<string, any>[]} next */
   const commit = (next) => {
     setRows(next);
-    onChange(packAnswers(next));
+    onChange(packAnswers(next, fields));
   };
-  /** @param {number} i @param {Partial<{ ar: string, lat: string }>} patch */
+  /** @param {number} i @param {Record<string, any>} patch */
   const edit = (i, patch) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  /** @param {Record<string, any>} row */
+  const grammarOf = (row) =>
+    dims.map((d) => labelFor({ [d.field]: row[d.field] }, lang)).filter(Boolean).join(" ");
   return (
     <div className="at-alts">
       {rows.map((row, i) => (
         <div className="at-answerpair" key={i}>
           <div className="at-altfield">
-            <ScriptInput lang={lang} value={row.ar} onChange={(v) => edit(i, { ar: v })} />
+            <ScriptInput lang={lang} value={row.text} onChange={(v) => edit(i, { text: v })} />
           </div>
           {/* The buttons take a column of their own so that the answer and
               its pronunciation, stacked in the column beside them, line up
@@ -2871,7 +2885,7 @@ function ScriptAnswers({ lang, ar, lat, onChange }) {
               <IconButton
                 icon="add"
                 label="Add another accepted answer"
-                onClick={() => commit(rows.concat([{ ar: "", lat: "" }]))}
+                onClick={() => commit(rows.concat([{ text: "", lat: "" }]))}
               />
             )}
           </div>
@@ -2886,6 +2900,35 @@ function ScriptAnswers({ lang, ar, lat, onChange }) {
             placeholder={lang.translitLabel.toLowerCase()}
             onChange={(e) => edit(i, { lat: e.target.value })}
           />
+          {dims.length > 0 && (
+            <div className="at-answergrammar">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={
+                  rows.length > 1 ? `Grammar of accepted answer ${i + 1}` : "Grammar of this answer"
+                }
+                onClick={() => setOpen((v) => (v === i ? null : i))}
+              >
+                {grammarOf(row) || "Grammar"}
+                <Icon name={open === i ? "chevronUp" : "chevronDown"} />
+              </Button>
+              {open === i && (
+                <div className="at-answerdims">
+                  {dims.map((dim) => (
+                    <Field label={dim.label} key={dim.field}>
+                      <Segmented
+                        label={`${dim.label} of accepted answer ${i + 1}`}
+                        options={dim.options.map(([value, label]) => ({ value, label }))}
+                        value={row[dim.field] || ""}
+                        onChange={(v) => edit(i, { [dim.field]: v })}
+                      />
+                    </Field>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -3853,7 +3896,6 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   const [scene, setScene] = useState(opensAsScene);
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
-  const dims = dimsOf(lang || LANGUAGES[DEFAULT_LANGUAGE]);
   const drillsTranslit = (lang || {}).translitDrilled !== false;
   const [forms, setForms] = useState(() =>
     card
@@ -4247,8 +4289,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
                 <ScriptAnswers
                   lang={lang}
-                  ar={f.ar}
-                  lat={f.lat}
+                  form={f}
                   onChange={(next) => setForm(i, { ...f, ...next })}
                 />
                 {!drillsTranslit && (
@@ -4274,44 +4315,25 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 <Recordings form={f} onOpen={() => setRecording(i)} />
               </div>
 
-              {/* The transliteration used to stand down here for a language
-                  that does not drill it, which is where it belonged when it
-                  was one field about the whole card. It belongs to an
-                  answer, so it is written beside that answer whether or not
-                  anybody is asked for it; what is left here is what is
-                  about the form rather than about one of its answers. */}
-              {(dims.length || (i === 0 && lang.lexical)) && (
+              {/* Number and gender used to stand down here, one set for
+                  the whole form. They belong to an answer — two spellings
+                  are two words, and one of them may be the feminine — so
+                  they are written beside the answer they are about, up
+                  with it. The transliteration went the same way.
+
+                  What is left is what is genuinely about the form rather
+                  than about one of its answers. */}
+              {i === 0 && lang && lang.lexical && (
                 <>
                   <p className="at-groupline">Reference — not drilled</p>
-
-                  {/* Number and gender name which form this is; nothing asks
-                      the student for them. */}
-                  {dims.map((dim) => (
-                    <Field label={dim.label} key={dim.field}>
-                      <Segmented
-                        label={dim.label}
-                        options={dim.options.map(([value, label]) => ({ value, label }))}
-                        value={/** @type {any} */ (f)[dim.field]}
-                        onChange={(v) =>
-                          setForm(i, {
-                            ...f,
-                            [dim.field]: !dim.required && /** @type {any} */ (f)[dim.field] === v ? "" : v,
-                          })
-                        }
-                      />
-                    </Field>
-                  ))}
-
-                  {i === 0 && lang && lang.lexical && (
-                    <Field label={lang.lexical.label}>
-                      <input
-                        className="at-input"
-                        value={/** @type {any} */ (f)[lang.lexical.key] || ""}
-                        placeholder={lang.lexical.help || ""}
-                        onChange={(e) => setForm(i, { ...f, [lang.lexical ? lang.lexical.key : ""]: e.target.value })}
-                      />
-                    </Field>
-                  )}
+                  <Field label={lang.lexical.label}>
+                    <input
+                      className="at-input"
+                      value={/** @type {any} */ (f)[lang.lexical.key] || ""}
+                      placeholder={lang.lexical.help || ""}
+                      onChange={(e) => setForm(i, { ...f, [lang.lexical ? lang.lexical.key : ""]: e.target.value })}
+                    />
+                  </Field>
                 </>
               )}
             </div>

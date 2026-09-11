@@ -1,32 +1,46 @@
 /** @import { Form } from "./types.js" */
 /*
- * What a field accepts, and which transliteration goes with which answer.
+ * An accepted answer, and everything true about that answer.
  *
- * A card may accept more than one answer: كتاب or سفر, "office" or "desk".
- * They are stored as one string with " / " between them — the convention
- * every card already uses and the one the checker splits on — and edited as
- * one row per answer.
+ * A card may accept more than one: كتاب or سفر, "office" or "desk". Each is
+ * its own word — said its own way, and carrying its own grammar.
  *
- * The transliteration is stored the same way, and the two lists are read
- * together: the first transliteration belongs to the first answer, the
- * second to the second. Nothing else would do. A card accepting كتاب and
- * سفر is a card with two pronunciations, and a single "kitaab" hanging off
- * the pair is either wrong about one of them or an invitation to mark the
- * wrong thing right — ask "write safar in Arabic", accept كتاب, and the
- * question taught nothing.
+ *     answers: [
+ *       { text: "مَبْسوط",  lat: "mabsuut",  gender: "masculine", number: "singular" },
+ *       { text: "مَبْسوطة", lat: "mabsuuta", gender: "feminine",  number: "singular" },
+ *     ]
  *
- *     ar:  "كتاب / سفر"
- *     lat: "kitaab / safar"
+ * Gender and number used to sit on the form, one set for the whole card.
+ * That was wrong wherever the card accepted two answers that differ in
+ * exactly those things — "I'm happy" said by a man and by a woman is one
+ * thing to know with two right answers, and a single "masculine" over the
+ * pair was a label that described one of them and lied about the other.
+ * A learner who typed the feminine was told they had written a masculine
+ * word. Whatever a language declares — number and gender in Arabic and
+ * Hebrew, a classifier in Vietnamese — now belongs to the answer it is
+ * about, and a form has no grammar of its own to disagree with.
  *
- * Position is the whole of the link, which is what keeps this simple: no
- * new field, no migration, and a card with one answer and one
- * transliteration — every card written so far — already reads correctly.
- * What position costs is that the two lists must not drift, so the pairing
- * is made here, once, and the editor writes them back through `packAnswers`
- * rather than by hand.
+ * Omitted fields fall back to the form's, which is what makes the change
+ * invisible to every card written so far: one answer, one set of values,
+ * read from wherever they happen to be stored.
+ *
+ * `text` and `lat` were two delimited strings read together by position —
+ * "كتاب / سفر" against "kitaab / safar" — and still are on the way to the
+ * server and in an export, because that is the shape the wire and the
+ * spreadsheet know. Here they are one list of objects, which is the only
+ * shape in which "this answer is feminine" can be said at all.
  *
  * A plain module for the reason scheduler.js is one: it decides what is
  * accepted, and `node --test` cannot import a .jsx file.
+ */
+
+/*
+ * Which fields an answer may carry, and what each will accept, is the
+ * language table's business rather than this module's — so it is passed
+ * in, as answerFields() builds it: [{ field, allowed }]. It travels as an
+ * argument rather than being imported because languages.js reads this file
+ * to mark an answer, and two modules reaching for each other is a cycle
+ * that resolves to undefined at the wrong moment.
  */
 
 /* Split on / or ; because both were accepted when the convention was typed
@@ -56,30 +70,138 @@ export function joinAlternatives(list) {
 }
 
 /*
- * The accepted answers of a form, each with its own transliteration.
+ * What a stored answer is allowed to be.
  *
- * An answer with no script is not an answer — a row somebody started and
- * left — so it is dropped, and with it whatever transliteration was sitting
- * beside it. Every screen that shows or marks a specific answer reads this
- * rather than splitting the two fields for itself, because two splitters
- * are two chances to pair them differently.
+ * The narrowing every answer passes through on its way in from storage, the
+ * server or a paste. It is deliberately total rather than throwing: a
+ * document is somebody's cards, and half a card read is worth more to them
+ * than an exception — an unknown grammar value becomes no value, a field
+ * that should be a string and is not becomes "", and anything with no text
+ * left is not an answer and is dropped by the caller.
+ *
+ * Hand-written rather than a schema library: it is twenty lines, it runs on
+ * every card of every document this app opens, and the app carries two
+ * runtime dependencies. What a library would buy here is a nicer error for
+ * a case where there is deliberately no error.
+ */
+/**
+ * @param {any} raw
+ * @param {{ field: string, allowed: string[] }[]} fields  See answerFields().
+ * @returns {{ text: string, lat: string } & Record<string, string>}
+ */
+export function readAnswer(raw, fields = []) {
+  const said = raw && typeof raw === "object" ? raw : {};
+  /** @type {any} */
+  const out = { text: str(said.text), lat: str(said.lat) };
+  for (const { field, allowed } of fields) {
+    const value = str(said[field]);
+    if (!value) continue;
+    /* Only what the language declares, and only a value it offers. A
+       field nobody asked for is not carried forward — it would ride along
+       through every save from here on, and the one thing a stored shape
+       must not do is accumulate — and a value nobody offers is dropped
+       rather than kept as a grammar nothing can read. An answer with no
+       gender is the ordinary case, so dropping is a real answer, not a
+       hole. */
+    if (!allowed.length || allowed.includes(value)) out[field] = value;
+  }
+  return out;
+}
+
+/** @param {any} x */
+const str = (x) => (typeof x === "string" ? x.trim() : x == null ? "" : String(x).trim());
+
+/*
+ * A form's answers, whichever way they are stored.
+ *
+ * Three shapes reach this. A card saved since the change has `answers`. A
+ * card saved before it — every card on every device today — has the two
+ * delimited strings and one set of grammar values flat on the form. A card
+ * from the server has both, because that is what is sent. All three read
+ * the same here, which is what makes the migration something a document
+ * can do at its own pace rather than all at once.
+ *
+ * An answer with no text is not an answer — a row somebody started and
+ * left — so it is dropped, and whatever was sitting beside it goes too.
  */
 /**
  * @param {Record<string, any> | null | undefined} form
- * @returns {{ ar: string, lat: string, at: number }[]}
+ * @param {{ field: string, allowed: string[] }[]} [fields]
+ * @returns {({ text: string, lat: string, at: number } & Record<string, any>)[]}
  */
-export function answersOf(form) {
-  const script = splitAlternatives(form && form.ar);
-  const said = splitAlternatives(form && form.lat);
-  return script
-    .map((ar, at) => ({ ar, lat: said[at] || "", at }))
-    .filter((a) => a.ar);
+export function answersOf(form, fields = []) {
+  const held = form && /** @type {any} */ (form).answers;
+  if (Array.isArray(held)) {
+    const rich = held.map((raw, at) => ({ ...readAnswer(raw, fields), at })).filter((a) => a.text);
+    if (form && agrees(rich, form)) return rich;
+  }
+  return legacyAnswers(form, fields);
 }
 
-/* The pairs that can carry a question about pronunciation: both halves
+/*
+ * Whether the array still describes the strings beside it.
+ *
+ * `ar` and `lat` are written from the array by packAnswers and are the shape
+ * the server, an export and every card list read — so they are kept, and
+ * that means two places hold the words. Which one wins has to be said once,
+ * out loud, or it is decided by whichever reader got there first.
+ *
+ * The strings win. They are what the rest of the app edits — a CSV import
+ * writes them, a card arrives from the server carrying them — and an array
+ * that no longer matches is a stale cache of a card that has moved on,
+ * carrying grammar for answers that may not be there any more. Falling back
+ * loses the per-answer grammar for that one edit, which is the smaller
+ * wrong: the alternative is a card whose text says one thing and whose
+ * grammar describes another.
+ */
+/**
+ * @param {{ text: string, lat: string }[]} rich
+ * @param {Record<string, any>} form
+ */
+function agrees(rich, form) {
+  const text = splitAlternatives(form.ar).filter(Boolean);
+  if (rich.length !== text.length) return false;
+  if (rich.some((a, i) => a.text !== text[i])) return false;
+  /* The transliterations too, where the form carries any: a form whose
+     `lat` was cleared has had its pronunciations cleared, whatever the
+     array still remembers. */
+  const said = splitAlternatives(form.lat);
+  return rich.every((a, i) => a.lat === (said[i] || ""));
+}
+
+/*
+ * The old shape, read as the new one.
+ *
+ * Two delimited strings paired by position, and the form's own grammar
+ * values on every answer — which is exactly what they meant when there was
+ * only one set of them. A card with one answer comes through unchanged in
+ * every particular, which is the whole test of a migration.
+ */
+/**
+ * @param {Record<string, any> | null | undefined} form
+ * @param {{ field: string, allowed: string[] }[]} [fields]
+ */
+export function legacyAnswers(form, fields = []) {
+  const script = splitAlternatives(form && form.ar);
+  const said = splitAlternatives(form && form.lat);
+  const { text: _text, lat: _lat, ...shared } = readAnswer(form, fields);
+  return script
+    .map((text, at) => ({ ...shared, text, lat: said[at] || "", at }))
+    .filter((a) => a.text);
+}
+
+/* Kept under its old name for the one thing that still speaks in pairs: the
+   answer's script, which the rest of the app calls `ar`. */
+/** @param {{ text: string }} answer */
+export const textOf = (answer) => (answer && answer.text) || "";
+
+/* The answers that can carry a question about pronunciation: both halves
    written. A card with two spellings and one transliteration has one. */
-/** @param {Record<string, any> | null | undefined} form */
-export const saidAnswers = (form) => answersOf(form).filter((a) => a.lat);
+/**
+ * @param {Record<string, any> | null | undefined} form
+ * @param {{ field: string, allowed: string[] }[]} [fields]
+ */
+export const saidAnswers = (form, fields = []) => answersOf(form, fields).filter((a) => a.lat);
 
 /*
  * One accepted answer, as a form.
@@ -88,17 +210,19 @@ export const saidAnswers = (form) => answersOf(form).filter((a) => a.lat);
  * marking and the answer screen are all looking at the same one — none of
  * them has to be told which, and none of them can disagree. Everything
  * else about the form travels with it: it is the same card, narrowed to
- * the answer being asked about.
+ * the answer being asked about, grammar included. Which is what puts the
+ * right "· f." beside a question that asked for the feminine.
  */
 /**
  * @template {Record<string, any>} T
  * @param {T} form
- * @param {{ ar: string, lat: string } | null | undefined} answer
+ * @param {(Record<string, any> & { text?: string, lat?: string }) | null | undefined} answer
  * @returns {T}
  */
 export function withAnswer(form, answer) {
   if (!answer) return form;
-  return { ...form, ar: answer.ar, lat: answer.lat };
+  const { text, lat, at: _at, ...rest } = answer;
+  return { ...form, ...rest, ar: text || "", lat: lat || "", answers: [answer] };
 }
 
 /*
@@ -117,32 +241,57 @@ export function withAnswer(form, answer) {
 /**
  * @param {Record<string, any> | null | undefined} form
  * @param {number} [turn]
- * @returns {{ ar: string, lat: string, at: number } | null}
+ * @param {{ field: string, allowed: string[] }[]} [fields]
  */
-export function answerForTurn(form, turn = 0) {
-  const said = saidAnswers(form);
+export function answerForTurn(form, turn = 0, fields = []) {
+  const said = saidAnswers(form, fields);
   if (!said.length) return null;
   const at = Math.abs(Math.round(Number(turn) || 0)) % said.length;
   return said[at];
 }
 
 /*
- * Pairs back into the two strings a card stores.
+ * Which answer the learner actually gave.
  *
- * The editor's way out. Rows with no script are dropped whole, so the two
- * strings that come back are the same length and in step — which is the one
- * thing that can go wrong with pairing by position, prevented at the only
- * place either string is written.
+ * The answer screen has something to say about the one they wrote — that it
+ * was the feminine, that it was the plural — and it can only say it of the
+ * answer that matched. Compared through the language's own checker, because
+ * "right" here means what it means everywhere else: bare letters count, and
+ * a near miss is not a match.
  */
 /**
- * @param {{ ar?: string, lat?: string }[]} pairs
- * @returns {{ ar: string, lat: string }}
+ * @param {string} typed
+ * @param {Record<string, any> | null | undefined} form
+ * @param {(given: string, expected: string) => boolean} matches
+ * @param {{ field: string, allowed: string[] }[]} [fields]
  */
-export function packAnswers(pairs) {
-  const kept = (pairs || []).filter((p) => String((p && p.ar) || "").trim());
+export function answerGiven(typed, form, matches, fields = []) {
+  if (!String(typed || "").trim()) return null;
+  return answersOf(form, fields).find((a) => matches(typed, a.text)) || null;
+}
+
+/*
+ * Answers back into what a card stores.
+ *
+ * The editor's way out, and the storage boundary's. Rows with no text are
+ * dropped whole. The two delimited strings come back alongside the array
+ * because the server, an export and every card list still read them — they
+ * are derived here, at the one place answers are written, so they cannot
+ * drift from what they are derived from.
+ */
+/**
+ * @param {Record<string, any>[]} rows
+ * @param {{ field: string, allowed: string[] }[]} [fields]
+ * @returns {{ ar: string, lat: string, answers: Record<string, any>[] }}
+ */
+export function packAnswers(rows, fields = []) {
+  const kept = (rows || [])
+    .map((row) => readAnswer(row, fields))
+    .filter((a) => a.text);
   return {
-    ar: joinAlternatives(kept.map((p) => p.ar)),
-    lat: joinAlternatives(kept.map((p) => p.lat)),
+    ar: joinAlternatives(kept.map((a) => a.text)),
+    lat: joinAlternatives(kept.map((a) => a.lat)),
+    answers: kept,
   };
 }
 
@@ -151,10 +300,12 @@ export function packAnswers(pairs) {
  * somewhere to type. A blank card opens on one empty row rather than on a
  * button that makes one.
  */
-/** @param {Record<string, any> | null | undefined} form */
-export function answerRows(form) {
-  const script = splitAlternatives(form && form.ar);
-  const said = splitAlternatives(form && form.lat);
-  const rows = script.map((ar, at) => ({ ar, lat: said[at] || "" }));
-  return rows.length ? rows : [{ ar: "", lat: "" }];
+/**
+ * @param {Record<string, any> | null | undefined} form
+ * @param {{ field: string, allowed: string[] }[]} [fields]
+ * @returns {Record<string, any>[]}
+ */
+export function answerRows(form, fields = []) {
+  const rows = answersOf(form, fields).map(({ at: _at, ...rest }) => rest);
+  return rows.length ? rows : [{ text: "", lat: "" }];
 }

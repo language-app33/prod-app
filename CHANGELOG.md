@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.69 — 11 September 2026
+
+- Gender, number and whatever else a language names now belong to an
+  accepted answer rather than to the card over all of them. A card may
+  accept two answers that differ in exactly those things — "I'm happy" said
+  by a man and by a woman is one thing to know with two right answers — and
+  a single "masculine" over the pair described one of them and was wrong
+  about the other.
+- They are written where they apply: one row per accepted answer holding
+  the answer, how it is said, and what it is. The grammar is folded away
+  behind its own name, so a card with one answer and the usual values looks
+  no busier than before.
+- Answering such a card now says which one you wrote. "Correct" was true
+  and unhelpful when the card took both the masculine and the feminine.
+- Cards you have already written convert themselves the first time they are
+  opened. Each answer keeps the values the card carried, which is what they
+  meant when there was only one set of them, and a card with one answer —
+  almost all of them — comes through unchanged.
+- Why it is built this way, and what it cost, is written down in
+  DECISIONS.md.
+
 ## 0.68 — 11 September 2026
 
 - A conversation is now a run of chat bubbles: the words in a box only as

@@ -78,6 +78,7 @@ export const SCREEN_ELEMENTS = [
     ["related-words", "Words related to this one — sharing a root, or told apart only by tone.", ""],
     ["related-words-label", "What the language calls that relation.", "Built on the same root"],
     ["related-word", "One of those words, with what it means.", "كُتُب — books"],
+    ["answer-grammar", "Which of the accepted answers they wrote, where the card takes more than one and they differ in something the language names.", "You wrote the feminine one."],
     ["bare-note", "A nudge when a right answer was typed without its marks.", "The harakat are above — worth a look."],
     ["card-note", "The teacher's own note on the card, if there is one.", ""],
     ["flag-button", "Opens the list of what can be wrong with the question, and closes it again.", "⚑ Flag a problem"],
