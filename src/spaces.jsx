@@ -58,7 +58,8 @@ import {
   scriptVars,
 } from "./languages.js";
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.js";
-import { answerRows, packAnswers } from "./answers.js";
+/** @import { Answer } from "./answers.ts" */
+import { answerRows, packAnswers } from "./answers.ts";
 import { linkReport, pairsIn } from "./context-links.js";
 import { buildContextIndex } from "./context-index.js";
 import { offersFor } from "./offers.js";
@@ -2853,14 +2854,14 @@ function ScriptAnswers({ lang, form, onChange }) {
   const dims = dimsOf(lang);
   const [rows, setRows] = useState(() => answerRows(form, fields));
   const [open, setOpen] = useState(/** @type {number | null} */ (null));
-  /** @param {Record<string, any>[]} next */
+  /** @param {Answer[]} next */
   const commit = (next) => {
     setRows(next);
     onChange(packAnswers(next, fields));
   };
-  /** @param {number} i @param {Record<string, any>} patch */
+  /** @param {number} i @param {Partial<Answer>} patch */
   const edit = (i, patch) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  /** @param {Record<string, any>} row */
+  /** @param {Answer} row */
   const grammarOf = (row) =>
     dims.map((d) => labelFor({ [d.field]: row[d.field] }, lang)).filter(Boolean).join(" ");
   return (
@@ -2920,7 +2921,7 @@ function ScriptAnswers({ lang, form, onChange }) {
                       <Segmented
                         label={`${dim.label} of accepted answer ${i + 1}`}
                         options={dim.options.map(([value, label]) => ({ value, label }))}
-                        value={row[dim.field] || ""}
+                        value={String(row[dim.field] || "")}
                         onChange={(v) => edit(i, { [dim.field]: v })}
                       />
                     </Field>

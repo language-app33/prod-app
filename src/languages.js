@@ -20,7 +20,7 @@
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
-import { answersOf } from "./answers.js";
+import { answersOf } from "./answers.ts";
 
 
 /* The exercise types on offer. This is the registry everything derives from —

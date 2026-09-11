@@ -17,8 +17,7 @@
  * two sessions built a minute apart are not the same session.
  */
 
-/** @param {string} str */
-export function hash(str) {
+export function hash(str: string): number {
   let h = 2166136261;
   const s = String(str);
   for (let i = 0; i < s.length; i++) {
@@ -35,14 +34,7 @@ export function hash(str) {
  * which is what makes it safe to hand this a list that came out of a
  * document in whatever order the document held.
  */
-/**
- * @template T
- * @param {T[]} list
- * @param {string} seed
- * @param {(x: T) => string} keyOf
- * @returns {T[]}
- */
-export function shuffledBy(list, seed, keyOf) {
+export function shuffledBy<T>(list: T[], seed: string, keyOf: (x: T) => string): T[] {
   return list
     .map((x) => ({ x, k: keyOf(x), h: hash(`${seed} ${keyOf(x)}`) }))
     .sort((a, b) => a.h - b.h || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
@@ -64,15 +56,21 @@ export const PICK_OPTIONS = 4;
  * unforgivable question — and the answer itself is put back in at a place
  * the seed decides, so it is not always third.
  */
-/**
- * @template {{ id: string }} T
- * @param {{ answer: T, pool: T[], wanted: number, seed: string, textOf: (x: T) => string }} args
- * @returns {T[]}
- */
-export function optionsFor({ answer, pool, wanted, seed, textOf }) {
+export function optionsFor<T extends { id: string }>({
+  answer,
+  pool,
+  wanted,
+  seed,
+  textOf,
+}: {
+  answer: T;
+  pool: T[];
+  wanted: number;
+  seed: string;
+  textOf: (x: T) => string;
+}): T[] {
   const taken = new Set([plain(textOf(answer))]);
-  /** @type {T[]} */
-  const others = [];
+  const others: T[] = [];
   for (const cand of pool) {
     if (!cand || cand.id === answer.id) continue;
     const text = plain(textOf(cand));
@@ -84,5 +82,4 @@ export function optionsFor({ answer, pool, wanted, seed, textOf }) {
   return shuffledBy(wrong.concat([answer]), `${seed} place`, (x) => x.id);
 }
 
-/** @param {string} s */
-const plain = (s) => String(s || "").replace(/\s+/g, " ").trim();
+const plain = (s: string) => String(s || "").replace(/\s+/g, " ").trim();

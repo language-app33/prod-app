@@ -26,7 +26,7 @@
  */
 
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.js";
-import { saidAnswers } from "./answers.js";
+import { saidAnswers } from "./answers.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.js";
 
 /*

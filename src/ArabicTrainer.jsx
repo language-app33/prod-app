@@ -147,7 +147,7 @@ import {
   inOrder,
   shuffled,
 } from "./scheduler.js";
-import { PICK_OPTIONS, optionsFor } from "./chance.js";
+import { PICK_OPTIONS, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.js";
 import { canAsk } from "./offers.js";
 import {
@@ -169,7 +169,7 @@ import {
   speakerName,
   speakersOf,
 } from "./dialogs.js";
-import { answerForTurn, answerGiven, answersOf, packAnswers, withAnswer as oneAnswer } from "./answers.js";
+import { answerForTurn, answerGiven, answersOf, packAnswers, withAnswer as oneAnswer } from "./answers.ts";
 
 /*
  * The two that need to know which exercise types a form supports. That

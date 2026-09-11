@@ -520,8 +520,8 @@ export function StickyFoot({ above, children, className }) {
    Lives in answers.js, which is where the pairing between an answer and
    its transliteration is decided — and which a test can import. Re-exported
    here because this is where the screens look for it. */
-export { splitAlternatives, joinAlternatives } from "./answers.js";
-import { answersOf } from "./answers.js";
+export { splitAlternatives, joinAlternatives } from "./answers.ts";
+import { answersOf } from "./answers.ts";
 
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each

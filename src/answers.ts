@@ -1,4 +1,3 @@
-/** @import { Form } from "./types.js" */
 /*
  * An accepted answer, and everything true about that answer.
  *
@@ -30,18 +29,52 @@
  * spreadsheet know. Here they are one list of objects, which is the only
  * shape in which "this answer is feminine" can be said at all.
  *
- * A plain module for the reason scheduler.js is one: it decides what is
- * accepted, and `node --test` cannot import a .jsx file.
+ * A module of its own, with no imports, for the reason scheduler.ts is one:
+ * it decides what is accepted, so it is somewhere a test can reach and
+ * somewhere nothing can reach back into.
  */
 
 /*
  * Which fields an answer may carry, and what each will accept, is the
  * language table's business rather than this module's — so it is passed
- * in, as answerFields() builds it: [{ field, allowed }]. It travels as an
- * argument rather than being imported because languages.js reads this file
- * to mark an answer, and two modules reaching for each other is a cycle
- * that resolves to undefined at the wrong moment.
+ * in, as answerFields() builds it. It travels as an argument rather than
+ * being imported because languages.js reads this file to mark an answer,
+ * and two modules reaching for each other is a cycle that resolves to
+ * undefined at the wrong moment.
  */
+export interface AnswerField {
+  field: string;
+  allowed: string[];
+}
+
+/*
+ * An answer as it is stored: its words, plus whatever the language declares
+ * about it.
+ *
+ * The grammar keys are open rather than listed, because which of them exist
+ * is the grammar table's answer and not this file's — a pack that adds an
+ * axis gets it here without an edit. That is looser than the rest of this
+ * module would like, and it is the honest shape: the alternative is naming
+ * Arabic's and Vietnamese's fields in a file that is supposed not to know
+ * either language.
+ */
+export interface Answer {
+  text: string;
+  lat: string;
+  [dim: string]: unknown;
+}
+
+/* Where an answer sits in its form's list. Carried out of a read rather
+   than stored, because an index is a fact about a list. */
+export interface PlacedAnswer extends Answer {
+  at: number;
+}
+
+/* A form, or a card, or the half-written draft in an editor — anything
+   with answers to read off it. Deliberately open: the same questions are
+   asked of a stored card, of one of its lines and of a draft, and only the
+   first of those is an Item. */
+export type WithAnswers = Record<string, unknown>;
 
 /* Split on / or ; because both were accepted when the convention was typed
    by hand; joined with / only. */
@@ -55,15 +88,13 @@ const ALT_SPLIT = /[/;]/;
  * has no transliteration yet stores " / safar" for the first one's sake,
  * and dropping the hole would hand "safar" to the wrong word.
  */
-/** @param {string | null | undefined} value @returns {string[]} */
-export function splitAlternatives(value) {
+export function splitAlternatives(value: string | null | undefined): string[] {
   return String(value || "").split(ALT_SPLIT).map((x) => x.trim());
 }
 
 /* Back to one string. Trailing blanks go — they are rows nobody filled in —
    and any blank before a filled one stays, because it is holding a place. */
-/** @param {(string | null | undefined)[]} list @returns {string} */
-export function joinAlternatives(list) {
+export function joinAlternatives(list: (string | null | undefined)[]): string {
   const out = (list || []).map((x) => String(x || "").trim());
   while (out.length && !out[out.length - 1]) out.pop();
   return out.join(ALT_SEP);
@@ -83,16 +114,14 @@ export function joinAlternatives(list) {
  * every card of every document this app opens, and the app carries two
  * runtime dependencies. What a library would buy here is a nicer error for
  * a case where there is deliberately no error.
+ *
+ * `unknown` in and a known shape out is the whole job, and is why this is
+ * the one place in the module that says `any` — reading a field off a value
+ * nothing has vouched for is exactly what it is for.
  */
-/**
- * @param {any} raw
- * @param {{ field: string, allowed: string[] }[]} fields  See answerFields().
- * @returns {{ text: string, lat: string } & Record<string, string>}
- */
-export function readAnswer(raw, fields = []) {
-  const said = raw && typeof raw === "object" ? raw : {};
-  /** @type {any} */
-  const out = { text: str(said.text), lat: str(said.lat) };
+export function readAnswer(raw: unknown, fields: AnswerField[] = []): Answer {
+  const said = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const out: Answer = { text: str(said.text), lat: str(said.lat) };
   for (const { field, allowed } of fields) {
     const value = str(said[field]);
     if (!value) continue;
@@ -108,8 +137,12 @@ export function readAnswer(raw, fields = []) {
   return out;
 }
 
-/** @param {any} x */
-const str = (x) => (typeof x === "string" ? x.trim() : x == null ? "" : String(x).trim());
+const str = (x: unknown): string =>
+  typeof x === "string" ? x.trim() : x == null ? "" : String(x).trim();
+
+/* Reading one field off something nothing has vouched for. */
+const field = (form: WithAnswers | null | undefined, name: string): string =>
+  str(form ? form[name] : "");
 
 /*
  * A form's answers, whichever way they are stored.
@@ -124,15 +157,15 @@ const str = (x) => (typeof x === "string" ? x.trim() : x == null ? "" : String(x
  * An answer with no text is not an answer — a row somebody started and
  * left — so it is dropped, and whatever was sitting beside it goes too.
  */
-/**
- * @param {Record<string, any> | null | undefined} form
- * @param {{ field: string, allowed: string[] }[]} [fields]
- * @returns {({ text: string, lat: string, at: number } & Record<string, any>)[]}
- */
-export function answersOf(form, fields = []) {
-  const held = form && /** @type {any} */ (form).answers;
+export function answersOf(
+  form: WithAnswers | null | undefined,
+  fields: AnswerField[] = [],
+): PlacedAnswer[] {
+  const held = form ? form.answers : null;
   if (Array.isArray(held)) {
-    const rich = held.map((raw, at) => ({ ...readAnswer(raw, fields), at })).filter((a) => a.text);
+    const rich = held
+      .map((raw, at): PlacedAnswer => ({ ...readAnswer(raw, fields), at }))
+      .filter((a) => a.text);
     if (form && agrees(rich, form)) return rich;
   }
   return legacyAnswers(form, fields);
@@ -154,18 +187,14 @@ export function answersOf(form, fields = []) {
  * wrong: the alternative is a card whose text says one thing and whose
  * grammar describes another.
  */
-/**
- * @param {{ text: string, lat: string }[]} rich
- * @param {Record<string, any>} form
- */
-function agrees(rich, form) {
-  const text = splitAlternatives(form.ar).filter(Boolean);
+function agrees(rich: Answer[], form: WithAnswers): boolean {
+  const text = splitAlternatives(field(form, "ar")).filter(Boolean);
   if (rich.length !== text.length) return false;
   if (rich.some((a, i) => a.text !== text[i])) return false;
   /* The transliterations too, where the form carries any: a form whose
      `lat` was cleared has had its pronunciations cleared, whatever the
      array still remembers. */
-  const said = splitAlternatives(form.lat);
+  const said = splitAlternatives(field(form, "lat"));
   return rich.every((a, i) => a.lat === (said[i] || ""));
 }
 
@@ -177,31 +206,28 @@ function agrees(rich, form) {
  * only one set of them. A card with one answer comes through unchanged in
  * every particular, which is the whole test of a migration.
  */
-/**
- * @param {Record<string, any> | null | undefined} form
- * @param {{ field: string, allowed: string[] }[]} [fields]
- */
-export function legacyAnswers(form, fields = []) {
-  const script = splitAlternatives(form && form.ar);
-  const said = splitAlternatives(form && form.lat);
+export function legacyAnswers(
+  form: WithAnswers | null | undefined,
+  fields: AnswerField[] = [],
+): PlacedAnswer[] {
+  const script = splitAlternatives(field(form, "ar"));
+  const said = splitAlternatives(field(form, "lat"));
   const { text: _text, lat: _lat, ...shared } = readAnswer(form, fields);
   return script
-    .map((text, at) => ({ ...shared, text, lat: said[at] || "", at }))
+    .map((text, at): PlacedAnswer => ({ ...shared, text, lat: said[at] || "", at }))
     .filter((a) => a.text);
 }
 
-/* Kept under its old name for the one thing that still speaks in pairs: the
-   answer's script, which the rest of the app calls `ar`. */
-/** @param {{ text: string }} answer */
-export const textOf = (answer) => (answer && answer.text) || "";
+/* The answer's own words, for a caller holding one and wanting its script.
+   The rest of the app calls this field `ar` on a form. */
+export const textOf = (answer: Answer | null | undefined): string => (answer && answer.text) || "";
 
 /* The answers that can carry a question about pronunciation: both halves
    written. A card with two spellings and one transliteration has one. */
-/**
- * @param {Record<string, any> | null | undefined} form
- * @param {{ field: string, allowed: string[] }[]} [fields]
- */
-export const saidAnswers = (form, fields = []) => answersOf(form, fields).filter((a) => a.lat);
+export const saidAnswers = (
+  form: WithAnswers | null | undefined,
+  fields: AnswerField[] = [],
+): PlacedAnswer[] => answersOf(form, fields).filter((a) => a.lat);
 
 /*
  * One accepted answer, as a form.
@@ -212,16 +238,17 @@ export const saidAnswers = (form, fields = []) => answersOf(form, fields).filter
  * else about the form travels with it: it is the same card, narrowed to
  * the answer being asked about, grammar included. Which is what puts the
  * right "· f." beside a question that asked for the feminine.
+ *
+ * Generic in the form, so what comes back is the same kind of thing that
+ * went in: narrowing an Item gives an Item, and a caller does not have to
+ * say so twice.
  */
-/**
- * @template {Record<string, any>} T
- * @param {T} form
- * @param {(Record<string, any> & { text?: string, lat?: string }) | null | undefined} answer
- * @returns {T}
- */
-export function withAnswer(form, answer) {
+export function withAnswer<T extends WithAnswers>(
+  form: T,
+  answer: Partial<Answer> | null | undefined,
+): T {
   if (!answer) return form;
-  const { text, lat, at: _at, ...rest } = answer;
+  const { text, lat, at: _at, ...rest } = answer as Partial<PlacedAnswer>;
   return { ...form, ...rest, ar: text || "", lat: lat || "", answers: [answer] };
 }
 
@@ -238,12 +265,11 @@ export function withAnswer(form, answer) {
  * Nothing comes back when no answer has a transliteration: there is no
  * such question to ask, and the exercise is not offered (see unmetNeeds).
  */
-/**
- * @param {Record<string, any> | null | undefined} form
- * @param {number} [turn]
- * @param {{ field: string, allowed: string[] }[]} [fields]
- */
-export function answerForTurn(form, turn = 0, fields = []) {
+export function answerForTurn(
+  form: WithAnswers | null | undefined,
+  turn = 0,
+  fields: AnswerField[] = [],
+): PlacedAnswer | null {
   const said = saidAnswers(form, fields);
   if (!said.length) return null;
   const at = Math.abs(Math.round(Number(turn) || 0)) % said.length;
@@ -259,13 +285,12 @@ export function answerForTurn(form, turn = 0, fields = []) {
  * "right" here means what it means everywhere else: bare letters count, and
  * a near miss is not a match.
  */
-/**
- * @param {string} typed
- * @param {Record<string, any> | null | undefined} form
- * @param {(given: string, expected: string) => boolean} matches
- * @param {{ field: string, allowed: string[] }[]} [fields]
- */
-export function answerGiven(typed, form, matches, fields = []) {
+export function answerGiven(
+  typed: string,
+  form: WithAnswers | null | undefined,
+  matches: (given: string, expected: string) => boolean,
+  fields: AnswerField[] = [],
+): PlacedAnswer | null {
   if (!String(typed || "").trim()) return null;
   return answersOf(form, fields).find((a) => matches(typed, a.text)) || null;
 }
@@ -279,15 +304,11 @@ export function answerGiven(typed, form, matches, fields = []) {
  * are derived here, at the one place answers are written, so they cannot
  * drift from what they are derived from.
  */
-/**
- * @param {Record<string, any>[]} rows
- * @param {{ field: string, allowed: string[] }[]} [fields]
- * @returns {{ ar: string, lat: string, answers: Record<string, any>[] }}
- */
-export function packAnswers(rows, fields = []) {
-  const kept = (rows || [])
-    .map((row) => readAnswer(row, fields))
-    .filter((a) => a.text);
+export function packAnswers(
+  rows: unknown[],
+  fields: AnswerField[] = [],
+): { ar: string; lat: string; answers: Answer[] } {
+  const kept = (rows || []).map((row) => readAnswer(row, fields)).filter((a) => a.text);
   return {
     ar: joinAlternatives(kept.map((a) => a.text)),
     lat: joinAlternatives(kept.map((a) => a.lat)),
@@ -300,12 +321,10 @@ export function packAnswers(rows, fields = []) {
  * somewhere to type. A blank card opens on one empty row rather than on a
  * button that makes one.
  */
-/**
- * @param {Record<string, any> | null | undefined} form
- * @param {{ field: string, allowed: string[] }[]} [fields]
- * @returns {Record<string, any>[]}
- */
-export function answerRows(form, fields = []) {
+export function answerRows(
+  form: WithAnswers | null | undefined,
+  fields: AnswerField[] = [],
+): Answer[] {
   const rows = answersOf(form, fields).map(({ at: _at, ...rest }) => rest);
   return rows.length ? rows : [{ text: "", lat: "" }];
 }

@@ -21,7 +21,7 @@ import {
   saidAnswers,
   splitAlternatives,
   withAnswer,
-} from "../src/answers.js";
+} from "../src/answers.ts";
 import { canAsk, unmetNeeds } from "../src/offers.js";
 import { EX, LANGUAGES, answerFields, checkAnswer, labelFor } from "../src/languages.js";
 

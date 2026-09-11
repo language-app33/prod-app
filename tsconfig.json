@@ -40,6 +40,16 @@
     "noEmit": true,
     "strict": true,
 
+    /* Modules are being moved from JavaScript-with-JSDoc to TypeScript, a
+       file at a time from the leaves inward — see DECISIONS.md. Node 22
+       strips types on the way in, so a .ts module is imported by the tests
+       and by the server exactly as a .js one was, with no build step and no
+       loader; what it will not do is guess an extension, so an import of a
+       converted module names it. Writing ".ts" in a specifier is what this
+       allows, and it is only sound because nothing here is emitted by tsc —
+       Vite and esbuild resolve the same specifiers. */
+    "allowImportingTsExtensions": true,
+
     /* Nothing here is compiled by tsc, so these only affect what it will
        accept while reading. */
     "resolveJsonModule": true,

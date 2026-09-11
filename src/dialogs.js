@@ -35,7 +35,7 @@
  * both worked out from the ids, so a re-render is the same question.
  */
 
-import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.js";
+import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.ts";
 
 export const DIALOG_KIND = "dialog";
 
@@ -57,7 +57,7 @@ export const MIN_PICK_LINES = 3;
 
 /* How many replies "Pick the reply" puts up: the same few as every other
    question that offers a choice, named once in chance.js. */
-export { PICK_OPTIONS } from "./chance.js";
+export { PICK_OPTIONS } from "./chance.ts";
 
 /*
  * The two answers to "could you follow all of it".
