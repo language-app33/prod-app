@@ -527,6 +527,19 @@ test("a key too short to mean anything is no key", () => {
   assert.equal(arRootKey(""), "");
 });
 
+test("a word spelt in presentation forms is the word, not a stranger", () => {
+  /* Unicode carries each joined shape of an Arabic letter as a character
+     of its own, and some keyboards and most clipboards hand those over.
+     They rendered identically and compared as different in every letter —
+     a flat "wrong", where a single hamza is a near miss. The learner saw
+     their own correct word marked as if it were another word entirely. */
+  const check = LANGUAGES["ar-PS"].check;
+  const forms = "ﻋﻨﺪﻱ ﺳﻮﺍﻝ"; // ﻋﻨﺪﻱ ﺳﻮﺍﻝ as presentation forms, not letters
+  assert.equal(check(forms, "عندي سؤال", { ignoreHamza: true }).ok, true, "lenient: only the hamza differs, and it is forgiven");
+  assert.equal(check(forms, "عندي سؤال", { ignoreHamza: false }).reason, "near", "strict: one letter off, and said so");
+  assert.equal(check("ﻻ", "لا", {}).ok, true, "and the lam-alef ligature is its two letters");
+});
+
 test("what arSkeleton did, and why it could never have grouped anything", () => {
   /* It stripped harakat and folded hamza and stopped there, so every word
      kept its own spelling as its key. Kept because similarity still reads

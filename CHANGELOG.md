@@ -18,6 +18,12 @@ and moves once per batch of work you would notice, not once per commit.
 - Six imports the conversion left dead are gone, and a cast that let one
   screen name a lookup table where a component was wanted is replaced by
   a type that refuses it.
+- An Arabic answer typed in "presentation forms" — the same letters, in
+  the encoding some keyboards and most clipboards use, which looks
+  identical on screen — was marked wrong in every letter: a flat
+  "Incorrect" with no "Very close", for a word that was right or one
+  hamza off. The checker now folds those shapes back to letters before
+  comparing, in every language.
 - The "Hamza and final letters" setting now says everything it does:
   lenient also takes و for ؤ and ي for ئ, which it always did and never
   said — so an answer marked wrong on exactly that letter could not be

@@ -1609,11 +1609,22 @@ export const AR_PUNCT = /[.,!?;:"'()[\]،؛؟«»]/g;
  * rejected: right-to-left marks, zero-width joiners and non-breaking
  * spaces ride along with Arabic text from keyboards and clipboards, and
  * nothing on screen shows they are there. Strip them before comparing.
+ *
+ * The second quietest is a letter that is the right letter in the wrong
+ * encoding. Unicode carries every joined shape of an Arabic letter as a
+ * character of its own — the "presentation forms", ﻋ ﻨ ﺪ for the ع ن د
+ * that begin, continue and end a word — and Hebrew has its pointed
+ * letters the same way. A word spelt in those looks identical, comes
+ * from some keyboards and most clipboards, and was marked as wrong in
+ * every letter: not a near miss but a different word. NFKC folds each
+ * shape back to the letter it is a shape of, and is applied before
+ * anything else reads the text, so every language's comparison sees
+ * base letters and nothing downstream has to know the forms exist.
  */
 export const INVISIBLE = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
 
 export function stripInvisible(s: string) {
-  return String(s || "").replace(INVISIBLE, "").replace(/\u00a0/g, " ");
+  return String(s || "").normalize("NFKC").replace(INVISIBLE, "").replace(/\u00a0/g, " ");
 }
 
 export function sortMarks(s: string) {
