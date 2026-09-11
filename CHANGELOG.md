@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.58 — 11 September 2026
+
+- Opening a card now lists every exercise it could be asked, one button
+  each, at the foot of the screen. Press one and that single question runs
+  on that card — marked, so you see how it is judged, but not scheduled,
+  because trying a question out should not move where the card sits in your
+  review.
+- The exercises the card cannot do yet are listed too, out of reach and
+  saying what they are waiting for: a recording, the meaning, a phrase that
+  uses the word. A card one field short of two more exercises had nothing
+  anywhere that said so.
+- Exercises that are not about this shape of card, or that the language
+  never drills, are left out rather than shown as impossible — a word card
+  is not waiting for a conversation.
+
 ## 0.57 — 11 September 2026
 
 - A word is now met inside a phrase before it has to be written into one.

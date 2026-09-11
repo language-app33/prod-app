@@ -1,4 +1,4 @@
-/** @import { Card, Course, Deck, Doc, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Question, Settings, User } from "./types.js" */
+/** @import { Card, Course, Deck, Doc, ExerciseSpec, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Question, Settings, User } from "./types.js" */
 /** @typedef {React.ReactNode} Node */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
@@ -118,6 +118,7 @@ import {
   groupAttrOf,
   labelFor,
   langOf,
+  needLabel,
   quizAttrOf,
   scriptVars,
   setActiveLang,
@@ -802,19 +803,92 @@ function availableTypes(it, lang = activeLang(), scene = sceneOf(it.id)) {
     // And not where going to and from the second writing would mean asking
     // for the word that is already on screen.
     if (!drillsTranslit && spec.needs.includes("lat")) return false;
-    return spec.needs.every((f) => {
-      /* Several of these are not fields on the card. "recs" asks whether it
-         has a recording of its own; the two context ones ask about the
-         phrases that show this form in use, which live in an index built
-         from every card rather than on this one; and the dialog ones ask
-         about the shape of the scene this unit is or sits in. */
-      if (f === "recs") return (it.recs || []).length > 0;
-      if (f === "contexts") return contextsFor(it.id).length > 0;
-      if (f === "contextAudio") return contextsFor(it.id).some((c) => (c.recs || []).length > 0);
-      if (DIALOG_NEEDS.includes(f)) return dialogNeedMet(f, scene, it);
-      return it[f];
-    });
+    return unmetNeeds(it, spec, scene).length === 0;
   });
+}
+
+/*
+ * What this unit has not got, of what an exercise asks for.
+ *
+ * Several of these are not fields on the card. "recs" asks whether it has
+ * a recording of its own; the two context ones ask about the phrases that
+ * show this form in use, which live in an index built from every card
+ * rather than on this one; and the dialog ones ask about the shape of the
+ * scene this unit is or sits in.
+ *
+ * A list rather than a yes or no, because the card screen offers every
+ * exercise a card could have and has to say what the missing ones are
+ * waiting for. availableTypes reads the same answer as "nothing missing",
+ * so the two can never disagree about why something is not on offer.
+ */
+/**
+ * @param {Form} it
+ * @param {ExerciseSpec} spec
+ * @param {{ card: Item, at: number } | null} scene
+ * @returns {string[]}
+ */
+function unmetNeeds(it, spec, scene) {
+  return spec.needs.filter((/** @type {string} */ f) => {
+    if (f === "recs") return !(it.recs || []).length;
+    if (f === "contexts") return !contextsFor(it.id).length;
+    if (f === "contextAudio") return !contextsFor(it.id).some((c) => (c.recs || []).length > 0);
+    if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, it);
+    return !it[f];
+  });
+}
+
+/*
+ * Every exercise this card could ever be asked, and whether it can be
+ * asked today.
+ *
+ * The card screen lists all of them — the ones it cannot do greyed out
+ * with what they are waiting for — because "what is on a card decides what
+ * can be asked of it" is a rule people learn by seeing it, not by reading
+ * it. A card missing one field is one field away from two more exercises,
+ * and there was nowhere that said so.
+ *
+ * Left out entirely: exercises that are not about this shape of card at
+ * all, and ones this language never drills. A word card is not waiting for
+ * a conversation, and telling a Vietnamese teacher their card cannot be
+ * asked for its romanisation would be answering a question nobody asked.
+ */
+/**
+ * @param {Item} item
+ * @param {Settings} settings
+ */
+function exerciseOffers(item, settings) {
+  const lang = langOf(settingsFor(settings, item));
+  const attr = quizAttrOf(lang);
+  const drillsTranslit = lang.translitDrilled !== false;
+  const units = unitsOf(item).map(({ unit, isSub }) => ({ unit, isSub, scene: sceneOf(unit.id) }));
+  const offers = [];
+
+  for (const type of TYPES) {
+    const spec = EX[type];
+    const role = spec.dialog || "word";
+    const fits = units.filter((u) => roleOf(u.unit, u.scene) === role);
+    if (!fits.length) continue;
+    if (spec.quizAttr && !attr) continue;
+    if (!drillsTranslit && spec.needs.includes("lat")) continue;
+
+    /* The unit that can actually be asked, where there is one — a card
+       with three lines is ready for a reply as soon as any one line is —
+       and otherwise the first of them, which is what the missing fields
+       are then reported against. */
+    const ready = fits.find((u) => availableTypes(u.unit, lang, u.scene).includes(type));
+    const on = ready || fits[0];
+    offers.push({
+      type,
+      label: exOf(type, lang).label,
+      subId: on.isSub ? on.unit.id : null,
+      ready: !!ready,
+      /* Said in the card's own language, so "the script" is the name this
+         language gives its script. */
+      missing: ready ? [] : unmetNeeds(on.unit, spec, on.scene).map((f) => needLabel(f, lang)),
+      off: !settings.types[type],
+    });
+  }
+  return offers;
 }
 
 /**
@@ -4107,11 +4181,41 @@ export default function ArabicTrainer() {
 
   /* ---------------- session ---------------- */
 
+  /*
+   * One exercise, on one card, from the card's own screen.
+   *
+   * Practice rather than a session: trying a question out to see what it
+   * looks like should not move the card's schedule, and a single question
+   * is not a sitting's worth of evidence about anything. A miss still
+   * comes back — practice re-asks what went wrong, which is the one part
+   * of a session a trial run should keep.
+   */
+  /**
+   * @param {Item} item
+   * @param {string | null} subId
+   * @param {string} type
+   */
+  function tryExercise(item, subId, type) {
+    const resolved = resolveUnit(items, { id: item.id, subId, type });
+    if (!resolved) return;
+    const ctx = pickContext(resolved.unit, type);
+    const built = {
+      exercises: [{ id: item.id, subId, type, ...(ctx ? { ctx: ctx.id } : null) }],
+      reason: null,
+      manual: true,
+      items: 1,
+      units: 1,
+    };
+    warmSession(built);
+    setSession({ ...built, practice: true, startedAt: now(), endsAt: 0 });
+    setQi(0);
+    setTally({ ok: 0, no: 0 });
+    resetExercise();
+    setTab("home"); // a session started from anywhere is run on the home screen
+  }
+
   /* A session assembled by hand on the Build screen. */
   /** @param {{ ids: Set<string> | string[], mode: string, count?: number, minutes?: number }} plan */
-  /**
-   * @param {{ ids: string[] | Set<string>, mode: string, count?: number, minutes?: number }} plan
-   */
   function beginManual({ ids, mode, count, minutes }) {
     const built = buildManualSession({ items, settings, ids, mode, count });
     setBuilding(false);
@@ -5703,6 +5807,7 @@ Cards ready to practice
             onSetLocked={setLockedMany}
             onTagMany={tagMany}
             onImport={importFile}
+            onTry={tryExercise}
           />
         )}
 
@@ -5716,6 +5821,7 @@ Cards ready to practice
             onPractice={(ids, mode) =>
               beginManual({ ids, mode, count: settings.sessionSize })
             }
+            onTry={tryExercise}
           />
         )}
 
@@ -5914,9 +6020,24 @@ Cards ready to practice
    one per tab. The card is looked up again by id, so a screen left open
    shows what was last synced rather than the copy its tile was drawn
    from. */
-/** @param {{ card: Item, items: Item[], onBack: () => void, action?: Node }} props */
-function CardScreen({ card, items, onBack, action }) {
+/**
+ * @param {{
+ *   card: Item,
+ *   items: Item[],
+ *   settings?: Settings,
+ *   onBack: () => void,
+ *   onTry?: (item: Item, subId: string | null, type: string) => void,
+ *   action?: Node,
+ * }} props `onTry` runs one exercise on this card; without it the buttons
+ *   at the foot still say what the card can and cannot be asked, which is
+ *   most of what they are for.
+ */
+function CardScreen({ card, items, settings, onBack, onTry, action }) {
   const live = items.find((i) => i.id === card.id) || card;
+  const offers = useMemo(
+    () => (settings ? exerciseOffers(live, settings) : []),
+    [live, settings]
+  );
   return (
     <Screen title={live.en || live.ar} onBack={onBack} action={action}>
       <CardReadout
@@ -5936,6 +6057,48 @@ function CardScreen({ card, items, onBack, action }) {
         lang={activeLang()}
         decks={(live.tags || []).map((t) => ({ id: t, title: t }))}
       />
+
+      {/* Every exercise this card could be asked, one button each. The
+          ones it cannot do yet are here too, greyed out and saying what
+          they are waiting for: a card one field short of two more
+          exercises had nothing anywhere that said so.
+
+          A press runs that one question and nothing else, as practice —
+          trying an exercise out should not move the card's schedule. */}
+      {offers.length > 0 && (
+        <section className="at-panel at-mt5">
+          <p className="at-eyebrow">Try an exercise</p>
+          <p className="at-hint">
+            One question, on this card, marked but not scheduled. What is on
+            a card decides what can be asked of it.
+          </p>
+          <div className="at-trylist">
+            {offers.map((offer) => (
+              <button
+                type="button"
+                key={offer.type}
+                className={`at-try${offer.ready ? "" : " out"}`}
+                disabled={!offer.ready || !onTry}
+                aria-label={
+                  offer.ready
+                    ? `Try ${offer.label}`
+                    : `${offer.label} — needs ${offer.missing.join(" and ")}`
+                }
+                onClick={() => onTry && onTry(live, offer.subId, offer.type)}
+              >
+                <span className="at-tryname">{offer.label}</span>
+                <span className="at-trywhy">
+                  {offer.ready
+                    ? offer.off
+                      ? "Turned off in settings"
+                      : "Try it"
+                    : `Needs ${offer.missing.join(" and ")}`}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </Screen>
   );
 }
@@ -5964,6 +6127,7 @@ function CardScreen({ card, items, onBack, action }) {
  *   onSetLocked: (ids: string[], locked: boolean) => void,
  *   onTagMany: (ids: string[], tag: string) => void,
  *   onImport: (file: any) => void,
+ *   onTry?: (item: Item, subId: string | null, type: string) => void,
  * }} props The handlers are all required: this tab does nothing on its own, and the one caller passes every one of them.
  */
 function ItemsTab({
@@ -5984,6 +6148,7 @@ function ItemsTab({
   onSetLocked,
   onTagMany,
   onImport,
+  onTry,
 }) {
   const [sheet, setSheet] = useState(/** @type {any | null} */ (null)); // null | "single" | "bulk" | {edit:item}
   const [q, setQ] = useState("");
@@ -6148,6 +6313,8 @@ function ItemsTab({
         <CardScreen
           card={sheet.view}
           items={items}
+          settings={settings}
+          onTry={onTry}
           onBack={() => setSheet(null)}
           action={
             OWN && !sheet.view.locked ? (
@@ -8167,9 +8334,10 @@ const TagSection = React.memo(
  * @param {{
  *   data: any, items: Item[], myCourses?: Course[],
  *   settings: Settings, onPractice: (ids: string[], mode: string) => void,
+ *   onTry?: (item: Item, subId: string | null, type: string) => void,
  * }} props
  */
-function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
+function ProgressTab({ data, items, myCourses = [], settings, onPractice, onTry }) {
   // Collapsed by default: the point of this screen is the overview.
   const [open, setOpen] = useState(() => new Set());
   const [viewing, setViewing] = useState(/** @type {any | null} */ (null));
@@ -8252,7 +8420,13 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
       )}
 
       {viewing && (
-        <CardScreen card={viewing} items={items} onBack={() => setViewing(null)} />
+        <CardScreen
+          card={viewing}
+          items={items}
+          settings={settings}
+          onTry={onTry}
+          onBack={() => setViewing(null)}
+        />
       )}
     </>
   );

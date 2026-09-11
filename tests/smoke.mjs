@@ -1811,6 +1811,95 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       : "it only paid out on the questions built from it");
 }
 
+/* ---- every exercise a card could be asked, on the card ----
+   The foot of a card's own screen lists them all, one button each, with
+   the ones the card cannot do yet greyed out and saying what they are
+   waiting for. A card one field short of two more exercises had nothing
+   anywhere that said so.
+
+   The seeded phrase is the card to look at: it has the script and the
+   meaning but no recording, so it can be read and written and not heard —
+   which is exactly the split this is here to show. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  click(buttonNamed(/^Cards$/));
+  await sleep(400);
+
+  const tiles = [...document.querySelectorAll(".at-cardgrid .at-minicard")];
+  const tile = tiles.find((t) => (t.textContent || "").includes("the book is big")) || tiles[0];
+  click(tile);
+  await sleep(350);
+
+  const tries = () => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll(".at-try")]);
+  check("a card's own screen lists the exercises it could be asked",
+    tries().length > 1, `${tries().length} offered`);
+
+  const enabled = tries().filter((b) => !b.disabled);
+  const disabled = tries().filter((b) => b.disabled);
+  check("the ones it has the data for can be pressed",
+    enabled.length > 0, `${enabled.length} of ${tries().length}`);
+  /* The phrase has no recording, so every listening exercise is here and
+     out of reach — which is the half of this that had to be built
+     deliberately rather than by leaving them out. */
+  check("and the ones it cannot do are still shown, out of reach",
+    disabled.length > 0, `${disabled.length} greyed out`);
+  check("each of those says what it is waiting for",
+    disabled.every((b) => /Needs /.test(b.textContent || "")),
+    disabled.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).slice(0, 2).join(" | "));
+  check("and a recording is what the listening ones are waiting for",
+    disabled.some((b) => /recording/.test(b.textContent || "")),
+    disabled.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).join(" | ").slice(0, 120));
+  /* A button nobody can press still has to say what it is to a screen
+     reader, along with why it cannot be pressed. */
+  check("a greyed-out button still names itself",
+    disabled.every((b) => /—/.test(b.getAttribute("aria-label") || "")),
+    (disabled[0] && disabled[0].getAttribute("aria-label")) || "");
+
+  /* And pressing one runs that exercise, on that card, and nothing else. */
+  const wanted = (enabled[0].textContent || "").replace(/\s+/g, " ").trim();
+  click(enabled[0]);
+  await sleep(500);
+  const asked = (document.querySelector(".at-instruction") || {}).textContent || "";
+  check("pressing one starts that exercise on that card",
+    !!asked, (document.body.textContent || "").slice(0, 90).replace(/\s+/g, " "));
+  check("and it is one question rather than a session",
+    /1 \/ 1/.test((document.querySelector('[data-el="session-count"]') || {}).textContent || ""),
+    (document.querySelector('[data-el="session-count"]') || {}).textContent || "no count");
+
+  /* Answered rather than skipped, because a miss comes back: practice
+     re-asks what went wrong, which is the one part of a session a trial
+     run keeps. Getting it right is what ends it. */
+  const input = document.querySelector('[data-el="answer-input"]');
+  const setter = must(
+    Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+    "the value descriptor"
+  ).set;
+  must(setter, "the value setter").call(must(input, "the answer box"), "the book is big");
+  must(input, "the answer box").dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(60);
+  click(document.querySelector('[data-el="check-button"]'));
+  await sleep(250);
+  check("the exercise that ran is the one that was pressed", /English/.test(wanted), wanted);
+  click(buttonNamed(/^Continue$/));
+  await sleep(400);
+  /* Trying a question out should not move the card's schedule, so it runs
+     as practice, and the screen at the end of it says so. */
+  check("a trial run is practice, so the schedule is left alone",
+    /Practice done/.test(document.body.textContent || "") &&
+      /schedule is untouched/.test(document.body.textContent || ""),
+    (document.body.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+
+  click(buttonNamed(/^Done$/));
+  await sleep(200);
+  click(buttonNamed(/^Home$/));
+  await sleep(200);
+}
+
 console.error = origError;
 console.log(results.join("\n"));
 console.log("\nrequests:", calls.join("\n          "));

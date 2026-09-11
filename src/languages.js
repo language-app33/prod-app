@@ -569,6 +569,43 @@ export function findWordSlot(phrase, word, lang) {
 }
 
 /*
+ * What a card would need before an exercise could be asked of it.
+ *
+ * Said in the words a person uses about their own card — "a recording",
+ * "the meaning" — rather than the field names the table is written in.
+ * It exists for the screen that lists every exercise a card could have and
+ * greys out the ones it cannot: a greyed-out button that does not say why
+ * is a puzzle, and the answer is always something small and fixable.
+ *
+ * Language-aware, because two of these have a different name in every
+ * language: the script and the second writing.
+ */
+/**
+ * @param {string} need  One of an exercise's `needs`.
+ * @param {Partial<Lang>} lang
+ */
+export function needLabel(need, lang) {
+  const script = (lang && lang.scriptLabel) || "the script";
+  const translit = (lang && lang.translitLabel) || "a romanisation";
+  /** @type {Record<string, string>} */
+  const names = {
+    ar: `the word in ${script}`,
+    en: "the meaning",
+    lat: `the ${translit}`,
+    recs: "a recording",
+    contexts: "a phrase that uses it",
+    contextAudio: "a recorded phrase that uses it",
+    dialog: "a conversation",
+    line: "a line of a conversation",
+    reply: "something said before it",
+    choices: "a third line to choose between",
+    order: "three lines or more",
+    part: "a part to play",
+  };
+  return names[need] || need;
+}
+
+/*
  * Words not worth a card of their own.
  *
  * Every language has a few dozen: the prepositions, the particles, the

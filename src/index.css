@@ -2148,6 +2148,29 @@ body.at-screening .at-spaces { display:none; }
    phrase size, which is what the two classes are for. */
 .at-replies .at-reply.word .at-arabic { font-size: calc(var(--ask) * .8); }
 
+/* --- every exercise a card could be asked --------------------------
+   One button each, at the foot of the card's own screen, and the ones the
+   card cannot do yet are here too rather than left out: a card a single
+   field short of two more exercises is worth saying so about, and a list
+   that silently omitted them would teach nobody anything.
+
+   Two lines to a button — what it is, and either an invitation or what it
+   is waiting for — because the second line is the whole reason the
+   disabled ones are shown at all. */
+.at-trylist { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px;
+  margin-top:12px; }
+.at-try { display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:start;
+  background: var(--surface); border:2px solid var(--line); border-radius: var(--r);
+  padding:10px 14px; cursor:pointer; color: var(--text); font-family: var(--ui); width:100%; }
+.at-try:hover:not(:disabled) { border-color: var(--jade-soft); background: var(--jade-bg); }
+.at-tryname { font-size:15px; font-weight:800; }
+.at-trywhy { font-size:12px; font-weight:600; color: var(--muted); }
+/* Not a dimmed button but a stated one: it reads as "not yet" rather than
+   as something broken, which is what a missing field actually is. */
+.at-try.out { cursor:default; background:none; border-style:dashed; }
+.at-try.out .at-tryname { color: var(--muted); }
+.at-try.out .at-trywhy { color: var(--faint); }
+
 /* --- what the material says about itself -------------------------
    The rows of the In context tab: a word, the phrase it turns up in, and
    the one decision each row is asking for. Laid out as a list rather than
