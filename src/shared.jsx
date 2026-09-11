@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
 import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
-import { isDialog, linesOf } from "./dialogs.js";
+import { isDialog, linesOf, namedPart } from "./dialogs.js";
 
 
 
@@ -545,7 +545,12 @@ export function joinAlternatives(list) {
  * the settings screen picks an on or an off. The value goes out and comes
  * back untouched, and turning it into a string on the way would put the
  * parsing back on every caller.
- * @template {string | number | boolean} T
+ *
+ * null is one of those values rather than the absence of one: a scene's
+ * "either part" is a choice a teacher makes, sits in the row beside the
+ * named parts, and reads back as null. A group with nothing chosen passes
+ * no value at all.
+ * @template {string | number | boolean | null} T
  * @param {{
  *   options: ({ value: T, label?: Node } | T)[],
  *   value?: T | null,
@@ -565,8 +570,11 @@ export function Segmented({ options, value, onChange, size = "sm", label, disabl
       {...rest}
     >
       {options.map((o) => {
-        const v = typeof o === "object" ? o.value : o;
-        const text = typeof o === "object" ? o.label : o;
+        /* `typeof null` is "object", so a bare null option has to be told
+           apart from a {value, label} one by looking for the wrapper. */
+        const wrapped = !!o && typeof o === "object";
+        const v = wrapped ? /** @type {any} */ (o).value : /** @type {any} */ (o);
+        const text = wrapped ? /** @type {any} */ (o).label : /** @type {any} */ (o);
         const on = v === value;
         return (
           <button
@@ -1582,8 +1590,9 @@ export function CardReadout({ card, lang, decks, whereItLives = true }) {
         <section className="at-panel">
           <p className="at-eyebrow">The student's part</p>
           <p className="at-hint">
-            {nameOf(Number(card.you) || 0)} — their turns are the ones they produce when the
-            whole scene is asked. Everything else is said to them.
+            {namedPart(card) === null
+              ? "Not set. The question picks a part and takes them in turn, so a scene met twice has been held up from both ends."
+              : `${nameOf(/** @type {number} */ (namedPart(card)))} — their turns are the ones they produce when the whole scene is asked. Everything else is said to them.`}
           </p>
         </section>
 
@@ -2532,7 +2541,10 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
       ? {
           lines,
           speakers: (/** @type {string[]} */ (card.speakers || [])).filter(Boolean),
-          you: Number(card.you) || 0,
+          /* Which part the student takes, or null where the teacher left it
+             open — in which case the question picks one, and picks the
+             other next time. */
+          you: namedPart(card),
         }
       : null),
     /* See the forms above: the card says what language it is in, and the

@@ -23,10 +23,12 @@ import {
   dialogPhrases,
   isDialog,
   linesOf,
+  namedPart,
   orderIsRight,
   orderOf,
   partAnswers,
   partOf,
+  partsToPlay,
   replyOptions,
   roleOf,
   sceneBefore,
@@ -86,6 +88,20 @@ test("a card with a conversation on it is a dialog, and nothing else is", () => 
   assert.equal(isDialog(null), false);
 });
 
+test("and the lines are what says so, not a label beside them", () => {
+  /* A stored card carries its turns and no label — the server has never
+     had a field for one — so a teacher's every screen asked the label and
+     got "no". Opening a conversation to edit it put the word editor up,
+     with the whole scene out of reach behind it. Two places holding the
+     same fact is how that happened; there is one now. */
+  const { kind: _none, ...unlabelled } = scene();
+  assert.equal("kind" in unlabelled, false);
+  assert.equal(isDialog(unlabelled), true, "the turns are the conversation");
+  /* And a label on its own still buys nothing, so an ordinary word cannot
+     acquire a scene by being mislabelled. */
+  assert.equal(isDialog({ ...word(), kind: DIALOG_KIND }), false);
+});
+
 test("its lines are units, so each carries its own progress", () => {
   /* This is the whole reason a line is shaped like a form: everything
      that walks the units of a card — what is due, how mature it is, how
@@ -109,6 +125,41 @@ test("who is in it, and which part is the learner's", () => {
   assert.deepEqual(speakersOf({}), ["A", "B"]);
   assert.equal(youOf({ speakers: ["Solo"], you: 3 }), 0);
   assert.equal(speakerName({ speakers: ["Solo"] }, 7), "Solo");
+});
+
+test("a scene need not name a part, and one that doesn't takes them in turn", () => {
+  /* Naming a part is a real decision — a scene where only one side is
+     worth producing — and most are not that. Left open, the card says
+     nothing and the question picks. */
+  const open = { ...scene(), you: null };
+  assert.equal(namedPart(open), null, "what the card says is: nothing");
+  assert.equal(namedPart(scene()), 1, "and what it says, when it says something");
+  assert.equal(namedPart({ ...scene(), you: 0 }), 0, "including the first speaker, which is not nothing");
+
+  /* Asked once you are Karim, who answers; asked again you are Layla, who
+     opens. Which is the whole point of leaving it open: a two-hander met
+     twice has been held up from both ends. */
+  assert.equal(youOf(open, 0), 1);
+  assert.equal(youOf(open, 1), 0);
+  assert.equal(youOf(open, 2), 1, "and round again");
+  assert.deepEqual(yourLines(open, 0).map((l) => l.id), ["l2", "l4"]);
+  assert.deepEqual(yourLines(open, 1).map((l) => l.id), ["l1", "l3"]);
+
+  /* A card that names one is not rotated, however often it is asked. */
+  assert.equal(youOf(scene(), 7), 1);
+});
+
+test("the parts are the people who actually say something", () => {
+  const open = { ...scene(), you: null, speakers: ["Layla", "Karim", "Nobody"] };
+  assert.deepEqual(partsToPlay(open), [1, 0], "the answerer first, the opener last");
+  assert.equal(partsToPlay(open).includes(2), false, "a name with no line under it is not a part");
+  assert.deepEqual(partsToPlay({ lines: [] }), []);
+
+  /* Which is what the exercise table reads, so a scene naming no part is
+     still offered as a part to play rather than greyed out waiting for a
+     decision nobody has to make. */
+  assert.equal(dialogNeedMet("part", null, open), true);
+  assert.equal(dialogNeedMet("part", null, { ...scene(), you: null, lines: [] }), false);
 });
 
 test("a question shows what was said before it and no more", () => {

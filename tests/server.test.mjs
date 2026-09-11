@@ -314,6 +314,37 @@ test("a card can hold a conversation, and keeps its turns in order", async () =>
   assert.deepEqual(held.lines[0].uses, [wordId, "etcpasswd"]);
   assert.deepEqual(held.lines[1].uses, []);
 
+  /* A scene need not say whose part the student takes, and one that does
+     not must come back not saying it. Rounding an absent part down to 0
+     would hand every such scene to the speaker who opens it — a real
+     answer, silently invented, and the wrong one. */
+  const open = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", ar: "", en: "Either way", lang: "ar-PS",
+        speakers: ["Layla", "Karim"], you: null,
+        lines: [{ who: 0, ar: "سلام", en: "peace" }, { who: 1, ar: "وسلام", en: "and peace" }],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(open.status, 200, open.text);
+  assert.equal(open.json.card.you, null, "nobody's part, kept as nobody's");
+  /* Zero is not nothing: it is the speaker who opens the scene. */
+  const first = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", ar: "", en: "Layla's", lang: "ar-PS",
+        speakers: ["Layla", "Karim"], you: 0,
+        lines: [{ who: 0, ar: "سلام", en: "peace" }, { who: 1, ar: "وسلام", en: "and peace" }],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(first.json.card.you, 0);
+
   /* A student gets it through the material payload, whole. */
   const deck = await api("/api/courses?action=create-deck", {
     method: "POST", key, body: { title: "Scenes", lang: "ar-PS" },

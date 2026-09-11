@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.62 — 11 September 2026
+
+- Opening a conversation to edit it put the word editor up: one script box,
+  one meaning, and the whole scene out of reach behind it. A stored card
+  carries its turns but nothing labelling it a conversation, and every
+  teacher's screen was asking for the label rather than looking at the
+  turns. The turns are the conversation now, which is how the student's
+  copy has always read it. The same fix puts a scene's readout right —
+  who spoke and what they said, instead of an empty word card.
+- A conversation no longer makes you name whose part the student takes.
+  Most scenes are worth holding up from either end, and being asked to pick
+  a side before the second line is written is a question with no reason to
+  have an answer. "Either" is how a new one starts; name a part where only
+  that side is worth producing.
+- Left open, the exercise picks — and takes the parts in turn, so a scene
+  met twice has been played from both ends. Conversations you have already
+  written keep the part they were saved with.
+
 ## 0.61 — 11 September 2026
 
 - A card opened in Cards no longer ends with "Where it lives". Which decks

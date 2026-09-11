@@ -97,6 +97,26 @@ const phrase = {
   uses: ["k111111111111"],
   clips: [], subs: [], rev: 1, updated: 1,
 };
+/* A conversation, exactly as the server stores one: turns, speakers, and
+   no label saying "this is a conversation" — because the server has never
+   had a field for one. Nothing names a part, either, which is the ordinary
+   case now.
+
+   Written out here rather than saved through the editor because that is
+   how the teacher's own screens actually receive it, and the bug this
+   fixture exists for was a screen reading a stored card wrongly. */
+const talk = {
+  id: "k333333333333", owner: "t-1", ar: "", en: "At the door", lat: "",
+  note: "Two neighbours meet", lang: "ar-PS",
+  speakers: ["Layla", "Karim"],
+  you: null,
+  lines: [
+    { who: 0, ar: "سلام", en: "peace", lat: "", clips: [], slowClips: [], uses: [] },
+    { who: 1, ar: "وعليكم السلام", en: "and upon you peace", lat: "", clips: [], slowClips: [], uses: [] },
+    { who: 0, ar: "كيف حالك", en: "how are you", lat: "", clips: [], slowClips: [], uses: [] },
+  ],
+  clips: [], subs: [], rev: 1, updated: 1,
+};
 let materialHits = 0;
 let versionHits = 0;
 /* The build the bundle was compiled with — see the define above — so the
@@ -172,7 +192,10 @@ const fakeFetch = async (input, opts = {}) => {
       });
     }
     if (action === "my-cards") {
-      return json({ ok: true, cards: [{ ...card, decks: ["d1"] }, { ...phrase, decks: ["d1"] }] });
+      return json({
+        ok: true,
+        cards: [{ ...card, decks: ["d1"] }, { ...phrase, decks: ["d1"] }, { ...talk, decks: [] }],
+      });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
     if (action === "report-flag") {
@@ -1472,6 +1495,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(300);
   }
 
+  const sceneSpeakers = ["Layla", "Karim"];
   const said = [
     { ar: "سلام", en: "peace", who: 0 },
     { ar: "وسلام", en: "and peace", who: 1 },
@@ -1490,8 +1514,11 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         lat: "",
         note: "Two neighbours meet in the morning",
         tags: ["Scenes"],
-        speakers: ["Layla", "Karim"],
-        you: 1,
+        speakers: sceneSpeakers,
+        /* Nobody's part: the teacher wrote a scene worth holding up from
+           either end and was not made to pick a side. The question picks
+           one, and picks the other next time. */
+        you: null,
         lines: said.map((l, i) => ({
           id: `sl${i + 1}`,
           who: l.who,
@@ -1607,7 +1634,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       }
     } else if (part) {
       met.add("part");
-      const mine = said.filter((l) => l.who === 1);
+      /* Whose turns these are is read off the screen rather than assumed:
+         this scene names no part, so the question picked one. Karim on a
+         first meeting — the answering side, which is how a conversation is
+         met — and Layla the next time the scene comes round. */
+      const playing = ((part.querySelector(".at-sceneline.yours .at-speaker") || {}).textContent || "").trim();
+      check("a scene that names no part is still a part to play, and says whose",
+        playing === "Karim", playing || "(nobody named)");
+      const mine = said.filter((l) => sceneSpeakers[l.who] === playing);
       [...part.querySelectorAll("input")].forEach((el, i) => typeInto(el, (mine[i] || {}).ar || ""));
       await sleep(80);
     } else if (choices) {
@@ -1969,6 +2003,64 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and adds nothing to the day's count",
     JSON.stringify(after.log) === JSON.stringify(before.log),
     `${JSON.stringify(after.log)} vs ${JSON.stringify(before.log)}`);
+}
+
+/* ---- a conversation, opened by the teacher who wrote it ----
+   Opening one from Teaching > Cards put the word editor up: one script
+   box, one meaning, and the whole scene out of reach behind it. A stored
+   card carries its turns but no label saying it is a conversation, and
+   every teacher's screen was asking the label.
+
+   Which side the student takes is asked here too, and is allowed to go
+   unanswered — a scene worth holding up from either end should not make a
+   teacher commit to one before the second line is written. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+
+  const talkTile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("At the door"));
+  check("a conversation is listed with the teacher's other cards", !!talkTile,
+    [...frame.querySelectorAll(".at-minicard")].map((t) => (t.textContent || "").slice(0, 16)).join(" | "));
+  click(talkTile);
+  await sleep(450);
+
+  /* The readout first: a scene reads as a scene, which is the same
+     question about the same stored card. */
+  const read = [...document.querySelectorAll(".at-readout")].pop();
+  check("opening it shows the whole conversation, not one word of it",
+    !!read && document.querySelectorAll(".at-readout .at-sceneline").length === 3,
+    `${document.querySelectorAll(".at-readout .at-sceneline").length} turns shown`);
+  check("and it says the part is nobody's until the question picks one",
+    !!read && /Not set/.test(read.textContent || ""),
+    read ? (read.textContent || "").replace(/\s+/g, " ").slice(-140) : "(no readout)");
+
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  /* The bug, in one assertion: which editor came up. */
+  const heading = (document.querySelector(".at-screen:not(.bare) .at-title, .at-screen .at-title") || {}).textContent || "";
+  check("editing it opens the conversation editor, not the word editor",
+    /conversation/i.test(document.body.textContent || "") &&
+      document.querySelectorAll(".at-formblock").length > 3,
+    `${heading || "(no title)"} · ${document.querySelectorAll(".at-formblock").length} blocks`);
+  check("with every turn there to edit",
+    [...document.querySelectorAll("input")].filter((i) => /^What line \d+ means$/.test(i.getAttribute("aria-label") || "")).length === 3,
+    `${[...document.querySelectorAll("input")].filter((i) => /^What line/.test(i.getAttribute("aria-label") || "")).length} turns`);
+
+  /* And the part is offered as a question the teacher may decline. */
+  const parts = [...document.querySelectorAll('[role="group"][aria-label="The student plays"] .at-seg')];
+  check("the student's part offers 'either' alongside the named parts",
+    parts.length === 3 && /Either/.test(parts[0].textContent || ""),
+    parts.map((b) => b.textContent).join(" | ") || "(no part picker)");
+  check("and 'either' is what an unset card comes back on",
+    !!parts[0] && parts[0].getAttribute("aria-pressed") === "true",
+    parts.map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
 }
 
 console.error = origError;

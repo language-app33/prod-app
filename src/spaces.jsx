@@ -53,7 +53,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars,
 } from "./languages.js";
-import { MAX_SPEAKERS, isDialog, linesOf } from "./dialogs.js";
+import { MAX_SPEAKERS, isDialog, linesOf, namedPart } from "./dialogs.js";
 import { linkReport, pairsIn } from "./context-links.js";
 import { buildContextIndex } from "./context-index.js";
 import { offersFor } from "./offers.js";
@@ -3751,7 +3751,7 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
  *     note: string,
  *     decks: string[],
  *     uses: string[],
- *     scene: { title: string, setting: string, speakers: string[], you: number, lines: any[] } | null,
+ *     scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null,
  *   }) => void,
  *   onDelete?: () => void,
  *   onClose: () => void,
@@ -3800,13 +3800,17 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   /* ---- a conversation, where the card is one ----
      Two people and two empty turns to begin with: an empty scene with an
      "add a line" button is a form that has to be assembled before it can
-     be filled in. The learner takes the second part by default, because a
-     scene is written the way it is met — somebody says something and you
-     answer. */
+     be filled in.
+
+     Nobody's part to begin with, either. Naming one is a real decision — a
+     scene where only one side is worth producing — and most are not that;
+     asking for it before the second line is written is asking a question
+     the teacher has no reason to have an answer to yet. Left open, the
+     question takes the parts in turn. */
   const [speakers, setSpeakers] = useState(() =>
     card && (card.speakers || []).length ? (card.speakers || []).slice() : ["A", "B"]
   );
-  const [you, setYou] = useState(() => (card ? Number(card.you) || 0 : 1));
+  const [you, setYou] = useState(/** @type {number | null} */ (card ? namedPart(card) : null));
   const [lines, setLines] = useState(() =>
     card && (card.lines || []).length
       ? (card.lines || []).map((l) => ({ ...blankLine(), ...l }))
@@ -3922,13 +3926,17 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 <Field label="The student plays">
                   <Segmented
                     label="The student plays"
-                    options={speakers.map((n, i) => ({ value: i, label: n || `Speaker ${i + 1}` }))}
+                    options={[
+                      { value: null, label: speakers.length > 2 ? "Any of them" : "Either" },
+                      ...speakers.map((n, i) => ({ value: i, label: n || `Speaker ${i + 1}` })),
+                    ]}
                     value={you}
-                    onChange={(v) => setYou(Number(v))}
+                    onChange={(v) => setYou(v === null ? null : Number(v))}
                   />
                   <Help>
-                    Whose turns the student produces when the whole scene is
-                    asked. Everything else is said to them.
+                    {you === null
+                      ? "Whose turns the student produces when the whole scene is asked. Left open, the question takes the parts in turn — so a scene met twice has been held up from both ends. Name one where only that side is worth producing."
+                      : "Whose turns the student produces when the whole scene is asked. Everything else is said to them."}
                   </Help>
                 </Field>
               </div>
@@ -3937,8 +3945,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 <div className="at-formblock" key={i}>
                   <div className="at-formhead">
                     <span className="at-formnum">Line {i + 1}</span>
+                    {/* Silent where no part is named: with either side up
+                        for grabs, no turn is "theirs" until the question
+                        picks, and labelling one would be a guess. */}
                     <span className="at-formrole">
-                      {(l.who || 0) === you ? "the student's turn" : "said to them"}
+                      {you === null ? "" : (l.who || 0) === you ? "the student's turn" : "said to them"}
                     </span>
                     <span className="at-formacts">
                       {lines.length > 2 && (

@@ -228,7 +228,7 @@
  *   uses?: string[],
  *   lines?: (CardForm & { who?: number, uses?: string[] })[],
  *   speakers?: string[],
- *   you?: number,
+ *   you?: number | null,
  *   rev?: number,
  *   created?: Millis,
  *   updated?: Millis,
@@ -377,7 +377,8 @@
  * fields worth checking are the ones written out.
  *
  * A dialog is one of these too: `lines` holds the conversation, `speakers`
- * names who is in it, and `you` says which of them the learner plays.
+ * names who is in it, and `you` says which of them the learner plays — or
+ * is null, where the card leaves that to the question.
  * @typedef {Form & {
  *   kind?: string,
  *   tags: string[],
@@ -385,7 +386,7 @@
  *   subs?: Form[],
  *   lines?: Line[],
  *   speakers?: string[],
- *   you?: number,
+ *   you?: number | null,
  *   source?: { courseId: string, deckId: string, cardId: string, rev: number },
  *   locked?: boolean,
  *   created: Millis,

@@ -17,7 +17,7 @@
  *       en: "At the door",            the scene, in the learner's language
  *       note: "Two neighbours meet",  the setting, if it needs one
  *       speakers: ["Layla", "Karim"],
- *       you: 1,                       the part the learner takes
+ *       you: 1,                       the part the learner takes, or null
  *       lines: [{ id, who: 0, ar, lat, en, recs, uses, s }, ...],
  *     }
  *
@@ -73,9 +73,22 @@ export const PART_SEP = "\n";
    questions are asked of a stored card, of one of its lines, and of the
    half-written draft in the editor, and only the first of those is an
    Item. What each one reads is named in the comment above it. */
+/*
+ * A card with turns on it is a conversation.
+ *
+ * Asked of the lines rather than of a `kind` label, because the label is a
+ * second place the same fact is written and the two can disagree — and did.
+ * A stored card carries its turns but no label (the server has never had a
+ * field for one), so every teacher's screen that asked the label got "no":
+ * a conversation opened for editing arrived in the word editor, with the
+ * whole scene out of reach behind it.
+ *
+ * Only a conversation ever has lines, so the lines are the fact and the
+ * label is a summary of it — which is how the learner's copy has always
+ * derived its own (see cardToItem).
+ */
 /** @param {Record<string, any> | null | undefined} it */
-export const isDialog = (it) =>
-  !!it && /** @type {any} */ (it).kind === DIALOG_KIND && linesOf(it).length > 0;
+export const isDialog = (it) => linesOf(it).length > 0;
 
 /** @param {Record<string, any> | null | undefined} it @returns {any[]} */
 export const linesOf = (it) => (it && /** @type {any} */ (it).lines) || [];
@@ -100,23 +113,73 @@ export function speakerName(it, who) {
 }
 
 /*
- * The part the learner takes.
+ * The part the learner takes — and the ordinary case of not saying.
  *
- * The second speaker by default, because a scene is written the way it is
- * met: somebody says something and you answer. A card may name another,
- * and one that names a speaker who no longer exists gets the last one
- * rather than a blank part.
+ * A scene does not have to name one. Most conversations are worth holding
+ * up from either end, and asking a teacher to commit to a side before they
+ * have finished writing the second line is asking them a question they
+ * have no reason to have an answer to. So `you` may be left unset, and
+ * when it is the question picks the part rather than the card.
+ *
+ * `namedPart` is what the card says: an index, or null for "whoever". It
+ * is what every screen that copies a card round-trips, so that opening a
+ * scene and saving it again does not quietly decide for the teacher.
  */
-/** @param {Record<string, any> | null | undefined} it */
-export function youOf(it) {
-  const names = speakersOf(it);
-  const said = Number((it && /** @type {any} */ (it).you) ?? 1);
-  if (!Number.isFinite(said)) return Math.min(1, names.length - 1);
-  return Math.max(0, Math.min(names.length - 1, Math.round(said)));
+export const NO_PART = null;
+
+/** @param {Record<string, any> | null | undefined} it @returns {number | null} */
+export function namedPart(it) {
+  const said = it && /** @type {any} */ (it).you;
+  if (said === null || said === undefined || said === "") return NO_PART;
+  const n = Number(said);
+  if (!Number.isFinite(n)) return NO_PART;
+  return Math.max(0, Math.min(speakersOf(it).length - 1, Math.round(n)));
 }
 
-/** @param {Record<string, any> | null | undefined} it */
-export const yourLines = (it) => linesOf(it).filter((l) => (l.who || 0) === youOf(it));
+/*
+ * The parts there are to play, in the order a learner should be given them.
+ *
+ * Only speakers who actually say something: a scene with a third name typed
+ * into the editor and no line under it has two parts, not three. The one
+ * who opens the scene comes last, because a conversation is met the way it
+ * is written — somebody says something and you answer — so the first part
+ * offered is the answering one, which is what a scene that named no part
+ * has always been drilled as.
+ */
+/** @param {Record<string, any> | null | undefined} it @returns {number[]} */
+export function partsToPlay(it) {
+  /** @type {number[]} */
+  const seen = [];
+  for (const line of linesOf(it)) {
+    const who = Number(line && line.who) || 0;
+    if (!seen.includes(who)) seen.push(who);
+  }
+  return seen.length > 1 ? seen.slice(1).concat(seen.slice(0, 1)) : seen;
+}
+
+/*
+ * Whose turns the learner produces this time round.
+ *
+ * A card that names a part always gives that one. A card that does not
+ * rotates through the parts by how often it has been asked, so a two-hander
+ * met twice has been held up from both ends — which is the whole reason a
+ * teacher is allowed to leave it unset. `turn` is the count of askings, not
+ * a random draw: nothing in this module picks at random, so a re-render is
+ * the same question.
+ */
+/** @param {Record<string, any> | null | undefined} it @param {number} [turn] */
+export function youOf(it, turn = 0) {
+  const said = namedPart(it);
+  if (said !== NO_PART) return said;
+  const parts = partsToPlay(it);
+  if (!parts.length) return 0;
+  const at = Math.abs(Math.round(Number(turn) || 0)) % parts.length;
+  return parts[at];
+}
+
+/** @param {Record<string, any> | null | undefined} it @param {number} [turn] */
+export const yourLines = (it, turn = 0) =>
+  linesOf(it).filter((l) => (l.who || 0) === youOf(it, turn));
 
 /* Where a line stands in its scene, and which scene that is. Built from
    the whole card list rather than kept on the line, so a line never holds
@@ -275,8 +338,10 @@ export function dialogNeedMet(need, scene, unit) {
   if (need === "reply") return !!scene && scene.at > 0;
   if (need === "choices") return !!scene && linesOf(scene.card).length >= MIN_PICK_LINES;
   if (need === "order") return linesOf(unit).length >= MIN_ORDER_LINES;
-  /* A part to play, and somebody to play it against. */
-  if (need === "part") return yourLines(unit).length > 0 && linesOf(unit).length >= 2;
+  /* A part to play, and somebody to play it against. Asked of the parts
+     rather than of `you`, because a scene that names no part still has
+     them — the question picks one. */
+  if (need === "part") return partsToPlay(unit).length > 0 && linesOf(unit).length >= 2;
   return false;
 }
 

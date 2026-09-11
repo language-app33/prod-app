@@ -157,6 +157,7 @@ import {
   buildDialogIndex,
   isDialog,
   linesOf,
+  namedPart,
   partAnswers,
   partOf,
   replyOptions,
@@ -377,7 +378,9 @@ function makeItem(src = {}) {
       ? {
           lines: scene.map((/** @type {any} */ l) => (l.id && l.s ? l : makeLine(l))),
           speakers: speakersOf(src),
-          you: youOf(src),
+          /* What the card says, including saying nothing: a scene that
+             names no part must not acquire one by being copied. */
+          you: namedPart(src),
         }
       : null),
     lang: activeLang().id,
@@ -585,6 +588,38 @@ function pickContext(unit, type) {
   if (!list.length) return null;
   const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
   return list[seen % list.length];
+}
+
+/*
+ * Which part the learner plays, for a scene that does not name one.
+ *
+ * The card is allowed to leave it open — most conversations are worth
+ * holding up from either end — and when it does, the question decides.
+ * Rotated by how often this exercise has been asked of this scene, the
+ * same way pickContext rotates the phrase a word is shown in: a
+ * two-hander met twice has been played from both sides, and a scene left
+ * on screen through a re-render is the same question it was a moment ago.
+ *
+ * What comes back is the scene with its part filled in, so everything
+ * downstream — the turns to type, the marking, the answer screen — reads
+ * one card and cannot disagree about whose turns are whose.
+ */
+/**
+ * @param {{ unit: Form, parent: Item, isSub: boolean } | null} resolved
+ * @param {string} type
+ */
+function castPart(resolved, type) {
+  if (!resolved) return resolved;
+  const card = resolved.parent;
+  if (!EX[type] || EX[type].answerMode !== "part") return resolved;
+  if (!isDialog(card) || namedPart(card) !== null) return resolved;
+  const seen = (card.s && card.s[type] && card.s[type].reps) || 0;
+  const played = /** @type {any} */ ({ ...card, you: youOf(card, seen) });
+  return {
+    ...resolved,
+    unit: resolved.unit === card ? played : resolved.unit,
+    parent: played,
+  };
 }
 
 /* The phrase with the target word taken out, as the question shows it. */
@@ -4338,7 +4373,7 @@ export default function ArabicTrainer() {
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
-  const resolved = exercise ? resolveUnit(asking, exercise) : null;
+  const resolved = exercise ? castPart(resolveUnit(asking, exercise), exercise.type) : null;
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);
@@ -6567,7 +6602,8 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
     ...(scene
       ? {
           speakers: DEFAULT_SPEAKERS.slice(),
-          you: 1,
+          /* Nobody's part, until somebody says so. */
+          you: null,
           lines: [{ ...BLANK_LINE, who: 0 }, { ...BLANK_LINE, who: 1 }],
         }
       : null),
@@ -6588,7 +6624,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
           ...(scene
             ? {
                 speakers: speakersOf(initial),
-                you: youOf(initial),
+                you: namedPart(initial),
                 lines: linesOf(initial).map((/** @type {Record<string, any>} */ x) => ({ ...x })),
               }
             : null),
@@ -6872,16 +6908,23 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                 <FormField label="You play">
                   <Segmented
                     label="You play"
-                    options={draft.speakers.map((/** @type {string} */ n, /** @type {number} */ i) => ({
-                      value: i,
-                      label: n || `Speaker ${i + 1}`,
-                    }))}
+                    options={[
+                      {
+                        value: /** @type {number | null} */ (null),
+                        label: draft.speakers.length > 2 ? "Any of them" : "Either",
+                      },
+                      ...draft.speakers.map((/** @type {string} */ n, /** @type {number} */ i) => ({
+                        value: /** @type {number | null} */ (i),
+                        label: n || `Speaker ${i + 1}`,
+                      })),
+                    ]}
                     value={draft.you}
-                    onChange={(/** @type {number} */ v) => set("you", v)}
+                    onChange={(/** @type {number | null} */ v) => set("you", v)}
                   />
                   <Help>
                     Whose turns are yours to produce when the whole scene is
-                    asked. Everything else is said to you.
+                    asked. Left open, the question takes the parts in turn, so
+                    a scene met twice has been held up from both ends.
                   </Help>
                 </FormField>
               </div>
