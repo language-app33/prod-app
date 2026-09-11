@@ -18,6 +18,10 @@ and moves once per batch of work you would notice, not once per commit.
 - Six imports the conversion left dead are gone, and a cast that let one
   screen name a lookup table where a component was wanted is replaced by
   a type that refuses it.
+- The "Hamza and final letters" setting now says everything it does:
+  lenient also takes و for ؤ and ي for ئ, which it always did and never
+  said — so an answer marked wrong on exactly that letter could not be
+  checked against the setting's own description.
 - **Hosting: Node 22.18 or newer is now the stated floor** (it was "22").
   The server imports a TypeScript file, and stripping types unflagged
   began at 22.18. Earlier 22s fail at startup. If you deploy this, check
