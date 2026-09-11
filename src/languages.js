@@ -19,7 +19,7 @@
    to: dialogs.js knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
-import { DIALOG_KIND, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
+import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
@@ -32,7 +32,7 @@ export const TYPES = [
      choose what comes next, say it yourself, rebuild the scene, then hold
      up your whole end of it. Every one is asked with words on a screen —
      a dialog with no recordings anywhere in it supports all five. */
-  "dlg2en", "dlgpick", "dlgreply", "dlgorder", "dlgplay",
+  "dlgwhole", "dlgpick", "dlgorder",
 ];
 
 /** @type {Record<string, ExerciseSpec>} */
@@ -227,7 +227,12 @@ export const EX = {
     intro: true,
     gentle: true,
   },
+  /* Retired. Translating one line of a conversation is the word question
+     with a speaker's name over it: what makes a line worth having is the
+     turn before it and the turn after, and asked on its own it had
+     neither. Reading the whole scene took its place. */
   dlg2en: {
+    retired: true,
     instruction: "Write this line in English",
     label: "A line → English",
     short: "D→E",
@@ -243,6 +248,37 @@ export const EX = {
     answerMode: "en",
     gentle: true,
   },
+  /*
+   * The whole conversation, read.
+   *
+   * The one exercise that asks what a scene is actually for: not what one
+   * line means or which reply comes next, but whether a page of two people
+   * talking can be read and followed. The script is all that is on screen;
+   * the transliteration and the meaning are each a tap away, taken when
+   * they are needed rather than given.
+   *
+   * Marked by the learner, because nobody else is in the room. "Did you
+   * get all of it" is a question only they can answer, and an app that
+   * pretended to check it would be marking something it never saw — so it
+   * asks, plainly, and takes the answer. Which makes it worth answering
+   * honestly: the schedule is theirs, and a scene they said they followed
+   * comes back later than one they did not.
+   */
+  dlgwhole: {
+    instruction: "Read the whole conversation",
+    label: "Read a scene through",
+    short: "Whole",
+    needs: ["dialog"],
+    dialog: "card",
+    question: "Could you follow all of it?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "",
+    answerMode: "self",
+    /* Recognition, and the gentlest kind: reading with the meaning a tap
+       away is where a scene starts. */
+    gentle: true,
+  },
   dlgpick: {
     instruction: "Choose what you say next",
     label: "Choose the reply",
@@ -256,7 +292,12 @@ export const EX = {
     answerMode: "choice",
     picks: "reply",
   },
+  /* Retired. Writing your own next turn from scratch asked a learner to
+     invent one particular sentence out of the several that would do, and
+     marked every other one wrong. Choosing the reply asks the same
+     question and can be answered. */
   dlgreply: {
+    retired: true,
     instruction: "Your turn — write it in {script}",
     label: "Your turn → {script}",
     short: "You→{S}",
@@ -285,7 +326,11 @@ export const EX = {
     answerField: "",
     answerMode: "order",
   },
+  /* Retired. Every turn of a scene typed out at once was the longest
+     answer in the app and the least forgiving: one missed mark in the
+     third line made the whole conversation wrong. */
   dlgplay: {
+    retired: true,
     instruction: "Play your part in {script}",
     label: "Play a part",
     short: "Part",
@@ -1848,6 +1893,19 @@ export function checkAnswer(typed, item, type, settings) {
      that every exercise can be handed to one function, rather than the
      screen remembering which ones to keep away from it. */
   if (mode === "read") return { ok: true, reason: "read" };
+  /*
+   * Marked by the learner.
+   *
+   * Nobody else was in the room while they read it, so the only honest
+   * marking is theirs. What comes back is their own answer, and the
+   * reason says so rather than saying "wrong" — a scene they could not
+   * quite follow is a scene to come back to, not a mistake they made.
+   */
+  if (mode === "self") {
+    return String(typed || "") === SELF_ALL
+      ? { ok: true, reason: "exact" }
+      : { ok: false, reason: "self" };
+  }
   /* The scene, rebuilt. Right is the order it was written in and there is
      no near miss: two lines swapped is a conversation that did not
      happen. */

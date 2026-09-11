@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.67 — 11 September 2026
+
+- Three conversation exercises are gone. Translating one line was the word
+  question with a speaker's name over it — what makes a line worth having
+  is the turn before it and the turn after. Writing your own next turn
+  asked for one particular sentence out of the several that would do and
+  marked the rest wrong. Playing a whole part was the longest answer in the
+  app and the least forgiving: one missed mark in the third line made the
+  whole conversation wrong.
+- In their place, the one that asks what a conversation is actually for.
+  The whole scene in the language, laid out the way a teacher sees it on
+  the card, with how it sounds and what it means each a tap away — taken
+  when you need them rather than given. Then it asks whether you could
+  follow all of it, and takes your word for it. Nobody else was in the
+  room; an app that pretended to check would be marking something it never
+  saw.
+- What a conversation is asked now: read it through, choose what comes
+  next, put it back in order.
+- Conversations you have written are untouched. The part a scene names is
+  the one thing left with nothing reading it — the picker and the line on
+  the card still say whose it is, but no exercise asks for it any more.
+
 ## 0.66 — 11 September 2026
 
 - A conversation between two people now reads with one of them down each

@@ -154,21 +154,19 @@ import {
   DIALOG_KIND,
   MAX_SPEAKERS,
   ORDER_SEP,
+  SELF_ALL,
+  SELF_SOME,
   buildDialogIndex,
   isDialog,
   isTwoSided,
   linesOf,
   namedPart,
-  partAnswers,
-  partOf,
   replyOptions,
   sceneBefore,
   scrambledLines,
   sideOf,
   speakerName,
   speakersOf,
-  yourLines,
-  youOf,
 } from "./dialogs.js";
 import { answerForTurn, withAnswer as oneAnswer } from "./answers.js";
 
@@ -593,37 +591,10 @@ function pickContext(unit, type) {
   return list[seen % list.length];
 }
 
-/*
- * Which part the learner plays, for a scene that does not name one.
- *
- * The card is allowed to leave it open — most conversations are worth
- * holding up from either end — and when it does, the question decides.
- * Rotated by how often this exercise has been asked of this scene, the
- * same way pickContext rotates the phrase a word is shown in: a
- * two-hander met twice has been played from both sides, and a scene left
- * on screen through a re-render is the same question it was a moment ago.
- *
- * What comes back is the scene with its part filled in, so everything
- * downstream — the turns to type, the marking, the answer screen — reads
- * one card and cannot disagree about whose turns are whose.
- */
-/**
- * @param {{ unit: Form, parent: Item, isSub: boolean } | null} resolved
- * @param {string} type
- */
-function castPart(resolved, type) {
-  if (!resolved) return resolved;
-  const card = resolved.parent;
-  if (!EX[type] || EX[type].answerMode !== "part") return resolved;
-  if (!isDialog(card) || namedPart(card) !== null) return resolved;
-  const seen = (card.s && card.s[type] && card.s[type].reps) || 0;
-  const played = /** @type {any} */ ({ ...card, you: youOf(card, seen) });
-  return {
-    ...resolved,
-    unit: resolved.unit === card ? played : resolved.unit,
-    parent: played,
-  };
-}
+/* Which part a learner plays was only ever read by playing a part, which
+   is retired — so a scene that names no part now names nothing that any
+   question asks about. The picker in the editor and the line on the card
+   still say which part is the student's; nothing yet acts on it. */
 
 /*
  * Which accepted answer a pronunciation question is about.
@@ -3197,11 +3168,14 @@ const sideClass = (card, line) => {
  *   lang: Lang,
  *   blankId?: string | null,
  *   meanings?: boolean,
+ *   said?: boolean,
  *   marks?: Record<string, boolean>,
  *   numbers?: Record<string, number>,
- * }} props
+ * }} props `meanings` and `said` are the two things a line has besides its
+ *   words — what it means and how it sounds. Separate, because reading a
+ *   scene through takes them one at a time and on request.
  */
-function Scene({ card, lines, lang, blankId = null, meanings = false, marks, numbers }) {
+function Scene({ card, lines, lang, blankId = null, meanings = false, said = false, marks, numbers }) {
   return (
     /* Named here rather than through a prop: the reference in Admin is
        built by reading these names out of this file, and a name that
@@ -3227,6 +3201,11 @@ function Scene({ card, lines, lang, blankId = null, meanings = false, marks, num
                 </p>
               ) : (
                 <Arabic text={line.ar} kind="phrase" lang={lang} name="scene-line-text" />
+              )}
+              {said && line.lat && (
+                <p className="at-scenemeaning" data-el="scene-line-said">
+                  {line.lat}
+                </p>
               )}
               {meanings && line.en && (
                 <p className="at-scenemeaning" data-el="scene-line-meaning">
@@ -3304,70 +3283,11 @@ function SceneOrder({ card, lang, value, onChange, disabled }) {
   );
 }
 
-/*
- * Playing a part.
- *
- * The whole scene, with every turn your speaker takes left to you. All of
- * them at once rather than one after another: a conversation is one thing
- * to hold in your head, and answering it a line at a time with the rest
- * hidden is four questions wearing one coat. It is marked as one thing
- * too — holding up your end means all of it.
- */
-/**
- * @param {{
- *   card: any,
- *   lang: Lang,
- *   value: string,
- *   onChange: (v: string) => void,
- *   disabled?: boolean,
- *   marks?: Record<string, boolean>,
- * }} props
- */
-function ScenePart({ card, lang, value, onChange, disabled, marks }) {
-  const mine = youOf(card);
-  const said = partAnswers(value);
-  const turns = yourLines(card);
-  return (
-    <div className={`at-part${isTwoSided(card) ? " sided" : ""}`} data-el="answer-part">
-      {linesOf(card).map((line) => {
-        const at = turns.indexOf(line);
-        const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
-        if ((line.who || 0) !== mine) {
-          return (
-            <div className={`at-sceneline${sideClass(card, line)}`} key={line.id}>
-              <span className={`at-speaker s${(line.who || 0) % 4}`}>
-                {speakerName(card, line.who || 0)}
-              </span>
-              <div className="at-scenesaid">
-                <Arabic text={line.ar} kind="phrase" lang={lang} />
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div className={`at-sceneline${sideClass(card, line)} yours${mark}`} key={line.id}>
-            <span className={`at-speaker s${mine % 4}`}>{speakerName(card, mine)}</span>
-            <div className="at-scenesaid">
-              <input
-                className={`at-input${mark}`}
-                lang={lang.id}
-                dir={lang.direction}
-                readOnly={disabled}
-                value={said[at] || ""}
-                aria-label={`Your turn, line ${at + 1}`}
-                onChange={(e) => {
-                  const next = turns.map((t, i) => (i === at ? e.target.value : said[i] || ""));
-                  onChange(partOf(next));
-                }}
-              />
-              {disabled && line.en && <p className="at-scenemeaning">{line.en}</p>}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+/* Playing a whole part is retired — every turn of a scene typed out at
+   once was the longest answer in the app and the least forgiving, and one
+   missed mark in the third line made the whole conversation wrong. The
+   screen that drew it is gone with it; the spec stays in the table, as a
+   retired spec does, so a stored reference still resolves to a label. */
 
 /*
  * A few answers to choose between, one under the other rather than side by
@@ -3741,6 +3661,12 @@ export default function ArabicTrainer() {
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
+  /* What the reader has asked to see of a scene they are reading through.
+     Two, because they are two different admissions — needing to hear it
+     and needing to be told what it means — and a reader often wants one
+     without the other. Cleared with everything else between questions. */
+  const [showSaid, setShowSaid] = useState(false);
+  const [showMeaning, setShowMeaning] = useState(false);
   /* Closed for every new question. Opening it for one card is not a
      standing request to see it for the next twenty. */
   const [alsoOpen, setAlsoOpen] = useState(false);
@@ -4441,11 +4367,13 @@ export default function ArabicTrainer() {
     setOverridden(false);
     setFlaggedNow(false);
     setAlsoOpen(false);
+    setShowSaid(false);
+    setShowMeaning(false);
     setHintOpen(settings.showHint);
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
-  const resolved = exercise ? castAnswer(castPart(resolveUnit(asking, exercise), exercise.type), exercise.type) : null;
+  const resolved = exercise ? castAnswer(resolveUnit(asking, exercise), exercise.type) : null;
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);
@@ -4508,6 +4436,10 @@ export default function ArabicTrainer() {
   /* Everything said before this line: the question, in a dialog. What
      comes after would be the answer to a different one. */
   const soFar = dialog && at !== null ? sceneBefore(dialog, at).concat([linesOf(dialog)[at]]) : [];
+  /* Whether the whole scene is on screen. True of the two that are about
+     the conversation rather than about a turn in it: meeting it, and
+     reading it through for yourself. */
+  const whole = !!dialog && !!spec && (!!spec.intro || spec.answerMode === "self");
   /*
    * The few answers on offer, for whichever question offers a few.
    *
@@ -4534,19 +4466,6 @@ export default function ArabicTrainer() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length]);
-  /* Which of your turns came back right, for the answer screen. Worked
-     out once the whole part has been marked, and only then. */
-  const partMarks = useMemo(() => {
-    if (!dialog || !checked || !spec || spec.answerMode !== "part") return undefined;
-    const said = partAnswers(typed);
-    /** @type {Record<string, boolean>} */
-    const out = {};
-    yourLines(dialog).forEach((line, i) => {
-      out[line.id] = qLang.check(said[i] || "", line.ar, qSettings).ok;
-    });
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialog && dialog.id, checked, typed]);
 
   /* What the answer screen has to say, once there is one.
      `answerRepeated` is whether the right answer is shown under the
@@ -5379,35 +5298,50 @@ Cards ready to practice
                   <div className="at-ask" data-el="question-prompt">
                     {spec.promptField === "scene" ? (
                       /* The conversation is the question. How much of it is
-                         shown is the whole difference between the five:
-                         everything up to your turn when you are answering
-                         one, the line itself when you are being asked what
-                         it means, all of it when you are meeting the scene
-                         or holding up your end of it. Putting one in order
-                         and playing a part both show nothing here: in each
+                         shown is the difference between them: everything up
+                         to your turn when you are choosing one, all of it
+                         when you are meeting the scene or reading it
+                         through. Putting one in order shows nothing here:
                          the scene is the thing being answered, and it is
                          down in the box with the answering in it. */
-                      spec.answerMode === "order" || spec.answerMode === "part" ? null : (
-                        <Scene
-                          card={dialog}
-                          lang={qLang}
-                          lines={
-                            spec.intro
-                              ? linesOf(dialog)
-                              : spec.answerMode === "en"
-                              ? [linesOf(dialog)[at || 0]]
-                              : soFar
-                          }
-                          blankId={
-                            spec.answerMode === "ar" || spec.answerMode === "choice"
-                              ? linesOf(dialog)[at || 0].id
-                              : null
-                          }
-                          /* A read-through is the one time the meanings are
-                             on screen beside the words. Everywhere else one
-                             of them is the answer. */
-                          meanings={!!spec.intro}
-                        />
+                      spec.answerMode === "order" ? null : (
+                        <>
+                          <Scene
+                            card={dialog}
+                            lang={qLang}
+                            lines={whole ? linesOf(dialog) : soFar}
+                            blankId={spec.answerMode === "choice" ? linesOf(dialog)[at || 0].id : null}
+                            /* A read-through has the meanings beside the
+                               words; reading one through for yourself has
+                               whichever of them you asked for. Everywhere
+                               else one of them is the answer. */
+                            meanings={!!spec.intro || (whole && showMeaning)}
+                            said={whole && showSaid}
+                          />
+                          {/* Taken when they are needed rather than given.
+                              The script alone is the exercise; each of
+                              these is the reader deciding they have got as
+                              far as they can without it, which is a thing
+                              worth doing rather than a failure. */}
+                          {whole && !spec.intro && (
+                            <div className="at-row at-reveals">
+                              <Button
+                                size="sm"
+                                data-el="reveal-said"
+                                onClick={() => setShowSaid((v) => !v)}
+                              >
+                                {showSaid ? "Hide" : "Show"} the {qLang.translitLabel.toLowerCase()}
+                              </Button>
+                              <Button
+                                size="sm"
+                                data-el="reveal-meaning"
+                                onClick={() => setShowMeaning((v) => !v)}
+                              >
+                                {showMeaning ? "Hide" : "Show"} the meaning
+                              </Button>
+                            </div>
+                          )}
+                        </>
                       )
                     ) : spec.promptField === "audio" ? (
                       /* A context question plays the whole phrase, not the
@@ -5473,15 +5407,22 @@ Cards ready to practice
                         disabled={!!checked}
                         onChange={setTyped}
                       />
-                    ) : spec.answerMode === "part" ? (
-                      <ScenePart
-                        card={dialog}
-                        lang={qLang}
-                        value={typed}
-                        disabled={!!checked}
-                        marks={partMarks}
-                        onChange={setTyped}
-                      />
+                    ) : spec.answerMode === "self" ? (
+                      /* Nobody else was in the room while they read it, so
+                         the only honest marking is theirs. Two answers,
+                         both of them true things a person might say. */
+                      <div className="at-selfmark" data-el="answer-self">
+                        {[SELF_ALL, SELF_SOME].map((answer) => (
+                          <Button
+                            key={answer}
+                            variant={typed === answer ? "primary" : undefined}
+                            disabled={!!checked}
+                            onClick={() => setTyped(answer)}
+                          >
+                            {answer === SELF_ALL ? "Yes, all of it" : "Not all of it"}
+                          </Button>
+                        ))}
+                      </div>
                     ) : spec.picks ? (
                       <TextChoices
                         options={choices}

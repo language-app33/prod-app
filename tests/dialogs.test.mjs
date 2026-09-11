@@ -17,6 +17,8 @@ import {
   MIN_ORDER_LINES,
   ORDER_SEP,
   PART_SEP,
+  SELF_ALL,
+  SELF_SOME,
   buildDialogIndex,
   cueFor,
   dialogNeedMet,
@@ -360,7 +362,44 @@ test("the read-through is never scheduled", () => {
      something to switch off. */
   assert.equal(TYPES.includes("dlgread"), false);
   assert.equal(EX.dlgread.intro, true);
-  assert.ok(TYPES.includes("dlgreply"), "the ones that are answered are scheduled");
+  assert.ok(TYPES.includes("dlgpick"), "the ones that are answered are scheduled");
+});
+
+test("what a scene is asked, and what it is no longer asked", () => {
+  /* Three went. Translating one line was the word question with a
+     speaker's name over it — what makes a line worth having is the turn
+     before it and the turn after. Writing your own next turn asked for
+     one particular sentence out of the several that would do and marked
+     the rest wrong. Typing out every turn at once was the longest answer
+     in the app and the least forgiving.
+
+     What is left is what a conversation is actually for: reading a page
+     of two people talking, choosing what comes next, and knowing the
+     order it happened in. */
+  assert.deepEqual(TYPES.filter((t) => EX[t].dialog), ["dlgwhole", "dlgpick", "dlgorder"]);
+  for (const gone of ["dlg2en", "dlgreply", "dlgplay"]) {
+    assert.equal(TYPES.includes(gone), false, `${gone} is still offered`);
+    /* The definition stays, as a retired one does: a stored session or an
+       export naming it must still resolve to a label rather than crash. */
+    assert.equal(EX[gone].retired, true, `${gone} has no definition left to read`);
+    assert.ok(EX[gone].label, `${gone} has no label left to read`);
+  }
+});
+
+test("reading a scene through is marked by the reader", () => {
+  /* Nobody else was in the room. An app that pretended to check whether
+     somebody followed a conversation would be marking something it never
+     saw, so it asks and takes the answer. */
+  const card = scene();
+  assert.equal(EX.dlgwhole.answerMode, "self");
+  assert.equal(EX.dlgwhole.dialog, "card", "it is about the whole scene, not a turn in it");
+  assert.deepEqual(EX.dlgwhole.needs, ["dialog"], "and it needs nothing a scene has not got");
+  assert.equal(checkAnswer(SELF_ALL, card, "dlgwhole", {}).ok, true);
+  const missed = checkAnswer(SELF_SOME, card, "dlgwhole", {});
+  assert.equal(missed.ok, false);
+  assert.equal(missed.reason, "self",
+    "not 'wrong' — a scene they could not quite follow is one to come back to");
+  assert.equal(checkAnswer("", card, "dlgwhole", {}).ok, false, "and saying nothing is not saying yes");
 });
 
 test("no dialog exercise needs a recording", () => {

@@ -2229,6 +2229,15 @@ body.at-screening .at-spaces { display:none; }
 .at-part .at-input { font-size:17px; }
 .at-part .at-sceneline.yours .at-scenesaid { gap:4px; }
 
+/* Reading a scene through: what the reader may ask to see, and how they
+   say whether they followed it. Both are rows of buttons that wrap rather
+   than shrink — these are sentences, not labels, and a squashed "Hide the
+   transliteration" says nothing. */
+.at-reveals { gap:8px; margin-top:14px; }
+.at-reveals > .at-btn { flex:0 1 auto; }
+.at-selfmark { display:flex; gap:8px; flex-wrap:wrap; }
+.at-selfmark > .at-btn { flex:1 1 auto; min-width:0; }
+
 /* The replies on offer, one under the other. */
 .at-replies { display:flex; flex-direction:column; gap:8px; }
 .at-reply { text-align:start; width:100%; background: var(--surface);

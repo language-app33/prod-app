@@ -259,6 +259,15 @@ remoteDocs.set(realToken, {
       { id: "v2card", ar: "باب", en: "door", lat: "baab", kind: "word", tags: [],
         created: 1, updated: 5,
         s: { mean: { box: 2, due: 0, right: 3, wrong: 1 }, read: { box: 2, due: 0, right: 2, wrong: 0 } } },
+      /* Two more cards in the same state as each other and due at the same
+         moment, so that "six sessions are not one session six times" has
+         something to be random about that no other walk can spend. It used
+         to lean on the conversation being unmet, which made the test a
+         hostage to whatever the walk before it had answered. */
+      { id: "tied1", ar: "شمس", en: "sun", lat: "shams", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } },
+      { id: "tied2", ar: "قمر", en: "moon", lat: "qamar", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } },
     ],
   },
 });
@@ -308,7 +317,7 @@ check("stored document no longer carries an account", !("account" in stored));
    and the one on the wire — as the JSON they are. */
 /** @type {Record<string, any>} */
 const byId = Object.fromEntries(stored.items.map((/** @type {any} */ i) => [i.id, i]));
-check("both course cards and both old cards landed in storage", stored.items.length === 4 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+check("both course cards and every old card landed in storage", stored.items.length === 6 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
 
 /* What a course card is, rather than what it used to be told it was. Every
    one of them arrived labelled "word" — which is why the practice filter did
@@ -327,7 +336,7 @@ check("a v2 card gains no state for the retired exercise",
   byId.v2card && !("ar2tr" in byId.v2card.s),
   byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
 check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
-check("every card counts as ready to practice", /Cards ready to practice\s*4/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+check("every card counts as ready to practice", /Cards ready to practice\s*6/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
 const wire = remoteDocs.get(realToken)?.data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
@@ -1016,6 +1025,17 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 }
 
 /* ---- a session: start, answer one card, continue ---- */
+/* What this card already carries. Two walks above answer a question each,
+   and which card they draw is a matter of chance — so "one answer writes
+   one state" has to be counted from here rather than from nothing, which
+   is what made this fail about one run in seven. */
+/** @param {any} it */
+const stateKeys = (it) =>
+  [...Object.keys((it || {}).s || {}), ...((it || {}).subs || []).flatMap((/** @type {any} */ sb) => Object.keys(sb.s || {}))];
+const beforeStates = stateKeys(
+  JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "{}").items
+    ?.find((/** @type {any} */ i) => i.id === "srv" + card.id)
+).length;
 click(buttonNamed(/^Start session$/));
 await sleep(400);
 const instruction = document.querySelector(".at-instruction");
@@ -1052,8 +1072,10 @@ await sleep(900); // the 600 ms save debounce
 const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
 const answered = after.items.find((/** @type {any} */ i) => i.id === "srv" + card.id) || { s: {}, subs: [] };
 check("the course card is still in storage after the session", after.items.some((/** @type {any} */ i) => i.id === "srv" + card.id), `items=${after.items.map((/** @type {any} */ i) => i.id).join(",")}`);
-const storedStates = [...Object.keys(answered.s), ...(answered.subs || []).flatMap((/** @type {any} */ sb) => Object.keys(sb.s))];
-check("exactly the answered state is stored on the answered card, and nothing untouched", storedStates.length <= 1, `stored states: ${storedStates.join(",")}`);
+const storedStates = stateKeys(answered);
+check("answering one question writes one state, and nothing untouched",
+  storedStates.length - beforeStates <= 1,
+  `stored states: ${storedStates.join(",")} · ${beforeStates} before the session`);
 check("no console errors during the session", errors.length === 0, errors.slice(0, 3).join(" | "));
 
 /* ---- the component gallery ----
@@ -1499,11 +1521,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   }
 
   const sceneSpeakers = ["Layla", "Karim"];
+  /* With how each line sounds on it, so that reading the scene through has
+     both things to reveal and they can be told apart. */
   const said = [
-    { ar: "سلام", en: "peace", who: 0 },
-    { ar: "وسلام", en: "and peace", who: 1 },
-    { ar: "كيف حالك", en: "how are you", who: 0 },
-    { ar: "بخير", en: "well", who: 1 },
+    { ar: "سلام", en: "peace", lat: "salaam", who: 0 },
+    { ar: "وسلام", en: "and peace", lat: "wa salaam", who: 1 },
+    { ar: "كيف حالك", en: "how are you", lat: "kayf haalak", who: 0 },
+    { ar: "بخير", en: "well", lat: "bikhayr", who: 1 },
   ];
   const remote = must(remoteDocs.get(realToken), "the synced document");
   remote.data = {
@@ -1527,7 +1551,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
           who: l.who,
           ar: l.ar,
           en: l.en,
-          lat: "",
+          lat: l.lat,
           /* The first line contains a word this learner already has, so
              the scene also becomes somewhere that word turned up. */
           uses: i === 0 ? ["oldclient1"] : [],
@@ -1621,7 +1645,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   for (let n = 0; n < 14 && document.querySelector(".at-instruction"); n++) {
     const asked = instruction();
     const order = document.querySelector('[data-el="answer-order"]');
-    const part = document.querySelector('[data-el="answer-part"]');
+    const self = document.querySelector('[data-el="answer-self"]');
     const choices = document.querySelector('[data-el="answer-choices"]');
     if (/Read the scene/.test(asked)) {
       met.add("read-again");
@@ -1643,18 +1667,34 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         );
         await sleep(40);
       }
-    } else if (part) {
-      met.add("part");
-      /* Whose turns these are is read off the screen rather than assumed:
-         this scene names no part, so the question picked one. Karim on a
-         first meeting — the answering side, which is how a conversation is
-         met — and Layla the next time the scene comes round. */
-      const playing = ((part.querySelector(".at-sceneline.yours .at-speaker") || {}).textContent || "").trim();
-      check("a scene that names no part is still a part to play, and says whose",
-        playing === "Karim", playing || "(nobody named)");
-      const mine = said.filter((l) => sceneSpeakers[l.who] === playing);
-      [...part.querySelectorAll("input")].forEach((el, i) => typeInto(el, (mine[i] || {}).ar || ""));
-      await sleep(80);
+    } else if (self) {
+      met.add("whole");
+      /* The script is what is on screen; how it sounds and what it means
+         are each a tap away. Both taken here, to prove they arrive — a
+         reader would take one or neither. */
+      check("reading a scene through shows the script and nothing else",
+        document.querySelectorAll('[data-el="scene-line-text"]').length === 4 &&
+          document.querySelectorAll('[data-el="scene-line-said"]').length === 0 &&
+          document.querySelectorAll('[data-el="scene-line-meaning"]').length === 0,
+        `${document.querySelectorAll('[data-el="scene-line-meaning"]').length} meanings up front`);
+      click(document.querySelector('[data-el="reveal-meaning"]'));
+      await sleep(120);
+      check("and the meaning is a tap away",
+        document.querySelectorAll('[data-el="scene-line-meaning"]').length === 4,
+        `${document.querySelectorAll('[data-el="scene-line-meaning"]').length} shown`);
+      click(document.querySelector('[data-el="reveal-said"]'));
+      await sleep(120);
+      check("as is how it sounds, separately",
+        document.querySelectorAll('[data-el="scene-line-said"]').length === 4,
+        `${document.querySelectorAll('[data-el="scene-line-said"]').length} shown`);
+      /* And the reader says whether they followed it, because nobody else
+         was in the room. */
+      const answers = [...self.querySelectorAll("button")].map((b) => (b.textContent || "").trim());
+      check("then the reader marks it themselves",
+        answers.length === 2 && /all of it/i.test(answers[0]),
+        answers.join(" | ") || "(nothing to answer with)");
+      click(self.querySelector("button"));
+      await sleep(60);
     } else if (choices) {
       met.add("pick");
       /* The reply that actually comes next: the scene on screen ends with
@@ -1688,9 +1728,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       met.add("order-marked");
       check("putting the lines back in the order they were said is marked right", praised(), verdict());
     }
-    if (met.has("part") && !met.has("part-marked")) {
-      met.add("part-marked");
-      check("and so is holding up your whole end of the conversation", praised(), verdict());
+    if (met.has("whole") && !met.has("whole-marked")) {
+      met.add("whole-marked");
+      check("saying you followed the whole scene is taken at your word", praised(), verdict());
     }
     if (met.has("pick") && !met.has("pick-marked")) {
       met.add("pick-marked");
@@ -1703,7 +1743,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("a session on one scene asks several different things about it",
     met.size >= 3, [...met].join(", ") || "nothing asked");
   check("including at least one that is about the whole scene",
-    met.has("order") || met.has("part"), [...met].join(", "));
+    met.has("order") || met.has("whole"), [...met].join(", "));
   check("and the scene is not read through twice in one session",
     !met.has("read-again"), [...met].join(", "));
 
@@ -1724,6 +1764,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!afterScene && !("dlgread" in (afterScene.s || {})),
     afterScene ? Object.keys(afterScene.s || {}).join(",") : "");
 
+  /* A scene of three exercises runs out inside the loop above, so what is
+     on screen is the end of the session rather than the middle of one —
+     and a finished session is a screen over the tabs, not a tab. */
+  if (buttonNamed(/^Done$/)) {
+    click(buttonNamed(/^Done$/));
+    await sleep(250);
+  }
   click(buttonNamed(/^Home$/));
   await sleep(200);
 }

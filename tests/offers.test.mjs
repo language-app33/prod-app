@@ -68,9 +68,9 @@ test("what is not about this shape of card is left out, not greyed out", () => {
      impossible on every word card in the app would be answering a
      question nobody asked, forty times. */
   const list = offers(word());
-  assert.equal(find(list, "dlgplay"), undefined);
-  assert.equal(find(list, "dlgreply"), undefined);
-  assert.equal(find(list, "dlg2en"), undefined);
+  assert.equal(find(list, "dlgwhole"), undefined);
+  assert.equal(find(list, "dlgorder"), undefined);
+  assert.equal(find(list, "dlgpick"), undefined);
 });
 
 test("nor is what the language never drills", () => {
@@ -109,11 +109,16 @@ test("a conversation is offered what a conversation can be asked", () => {
     lang: ar,
   });
   assert.equal(find(list, "dlgorder").ready, true, "three lines is a puzzle");
-  assert.equal(find(list, "dlgplay").ready, true);
-  assert.equal(find(list, "dlg2en").ready, true);
+  assert.equal(find(list, "dlgwhole").ready, true, "and a scene is always a scene to read");
   /* Asked of the line that can answer it: the first line has nothing said
      before it, so the reply comes from one that has. */
-  assert.equal(find(list, "dlgreply").subId, "l2");
+  assert.equal(find(list, "dlgpick").subId, "l2");
+  /* The three that went are not offered at all — not greyed out, which
+     would be answering a question nobody asked about an exercise that no
+     longer exists. */
+  for (const gone of ["dlg2en", "dlgreply", "dlgplay"]) {
+    assert.equal(find(list, gone), undefined, `${gone} is still on the list`);
+  }
   /* And a word exercise is never offered of a scene. */
   assert.equal(find(list, "ar2en"), undefined);
   assert.equal(find(list, "en2ar"), undefined);
@@ -142,7 +147,7 @@ test("a two-line scene says what the whole-scene puzzles are waiting for", () =>
   });
   assert.equal(find(list, "dlgorder").ready, false);
   assert.deepEqual(find(list, "dlgorder").missing, ["three lines or more"]);
-  assert.equal(find(list, "dlgplay").ready, true, "two lines is still a part to play");
+  assert.equal(find(list, "dlgwhole").ready, true, "two lines is still a scene to read");
 });
 
 test("an exercise switched off is still worth trying, and says so", () => {

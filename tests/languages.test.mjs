@@ -370,13 +370,13 @@ test("neither joins the gentle types, and the hint is a nudge not the answer", (
 test("the gentle types are read off the definitions, not kept beside them", () => {
   /* The app held a second list, and a new type had to be remembered twice
      or "Get started" quietly never offered it. Reading a line of a
-     conversation is recognition too, and belongs with the other two: a
-     beginner meeting a scene should be asked what it says before being
-     asked to say any of it. Choosing a word out of a phrase is the same
+     conversation through is recognition too, and belongs with the other
+     two: a beginner meeting a scene should be asked whether they can
+     follow it before being asked to say any of it. Choosing a word out of a phrase is the same
      argument again: the gap-fill used to start at the hard half, so a
      learner's first meeting with a word in context was also their first
      chance to get it wrong. */
-  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "ctx2pick", "dlg2en"]);
+  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "ctx2pick", "dlgwhole"]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);

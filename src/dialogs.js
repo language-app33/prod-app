@@ -59,6 +59,17 @@ export const MIN_PICK_LINES = 3;
    question that offers a choice, named once in chance.js. */
 export { PICK_OPTIONS } from "./chance.js";
 
+/*
+ * The two answers to "could you follow all of it".
+ *
+ * Words rather than a true and a false, because they travel in the same
+ * place every other answer travels — the box that holds what the learner
+ * typed — and a bare "true" sitting in a stored session says nothing about
+ * what was asked.
+ */
+export const SELF_ALL = "all of it";
+export const SELF_SOME = "not all";
+
 /* The learner's ordering, and their turns, both travel as one string —
    the answer box holds a string, and every other exercise's answer is one
    too. These are the separators, kept here so the reader and the writer
