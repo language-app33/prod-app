@@ -1975,27 +1975,52 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       /الكتاب كبير/.test((document.querySelector('[data-el="question-prompt"]') || {}).textContent || ""),
     ((document.querySelector(".at-instruction") || {}).textContent || "no question") +
       " · " + ((document.querySelector('[data-el="question-prompt"]') || {}).textContent || ""));
-  check("and it is one question", 
-    /1 \/ 1/.test((document.querySelector('[data-el="session-count"]') || {}).textContent || ""),
-    (document.querySelector('[data-el="session-count"]') || {}).textContent || "no count");
+  /* One question has no "how far through are you". "1 / 1" and a bar that
+     can only be empty or full answer a question nobody asked. */
+  check("and it says nothing about how far through you are",
+    !document.querySelector('[data-el="session-count"]') &&
+      !document.querySelector('[data-el="session-progress"]'),
+    `${document.querySelector('[data-el="session-count"]') ? "count " : ""}${
+      document.querySelector('[data-el="session-progress"]') ? "bar" : ""}` || "neither");
+  check("but the way out is still there",
+    !!document.querySelector('[data-el="leave-session"]'),
+    document.querySelector('[data-el="leave-session"]') ? "the close button" : "nothing to close it with");
 
-  /* Leaving asks nothing. There is nothing to lose: no progress is being
-     kept, and the question was the whole of it. */
+  /* Answering it puts the teacher back on the card it was about. There is
+     no score to show and nothing left to do, so the screen that used to
+     say so was a tap between the answer and the card. */
+  click(buttonNamed(/^I don't know$/) || document.querySelector('[data-el="check-button"]'));
+  await sleep(300);
+  check("a trial question can be answered", !!document.querySelector('[data-el="verdict"]'),
+    (document.body.textContent || "").slice(0, 70).replace(/\s+/g, " "));
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  check("and Continue goes straight back, with no screen in between",
+    !/That's the exercise/.test(document.body.textContent || ""),
+    (document.body.textContent || "").slice(0, 70).replace(/\s+/g, " "));
+  const landed = [...document.querySelectorAll(".at-readout")].pop();
+  check("landing on the card that was being tested",
+    !!landed && (landed.textContent || "").includes("الكتاب كبير") &&
+      !document.querySelector(".at-instruction"),
+    landed ? (landed.textContent || "").replace(/\s+/g, " ").slice(0, 70) : "no card open");
+  check("with its exercises there to try again",
+    document.querySelectorAll(".at-try").length > 1,
+    `${document.querySelectorAll(".at-try").length} offered`);
+
+  /* And the other way out — closing it unanswered — asks nothing and
+     lands in the same place. */
+  click(tries().filter((b) => !b.disabled)[0]);
+  await sleep(600);
   click(document.querySelector('[data-el="leave-session"]'));
-  await sleep(400);
+  await sleep(500);
   check("leaving a trial asks no questions",
     !buttonNamed(/^Leave$/) && !/Leave this session/.test(document.body.textContent || ""),
     (document.body.textContent || "").slice(0, 80).replace(/\s+/g, " "));
-  /* Asked of the frame rather than of the page's words: both spaces are
-     mounted at once, so "the teaching space is showing" is a question
-     about which one is on top, not about what text exists somewhere. */
-  const backInTeaching = document.querySelector(".at-screen.bare");
-  check("and it goes back to the teaching space it was asked for in",
-    !!backInTeaching && !document.querySelector(".at-instruction") &&
-      /In context/.test(backInTeaching.textContent || ""),
-    backInTeaching
-      ? (backInTeaching.textContent || "").slice(0, 70).replace(/\s+/g, " ")
-      : "the teaching space is not on screen");
+  const backOnCard = [...document.querySelectorAll(".at-readout")].pop();
+  check("and it goes back to the card it was asked about",
+    !!backOnCard && (backOnCard.textContent || "").includes("الكتاب كبير") &&
+      !document.querySelector(".at-instruction"),
+    backOnCard ? (backOnCard.textContent || "").replace(/\s+/g, " ").slice(0, 70) : "no card open");
 
   /* And nothing about it was recorded. The card is the teacher's own
      material, not something this device is learning. */
@@ -2044,11 +2069,19 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(450);
 
   /* The bug, in one assertion: which editor came up. */
-  const heading = (document.querySelector(".at-screen:not(.bare) .at-title, .at-screen .at-title") || {}).textContent || "";
+  const heading = (
+    [...document.querySelectorAll(".at-screenhead h2")].pop() || {}
+  ).textContent || "";
   check("editing it opens the conversation editor, not the word editor",
     /conversation/i.test(document.body.textContent || "") &&
       document.querySelectorAll(".at-formblock").length > 3,
     `${heading || "(no title)"} · ${document.querySelectorAll(".at-formblock").length} blocks`);
+  /* And it is an editor for a card, which this one happens to be a
+     conversation. A screen called "Edit conversation" said the opposite. */
+  check("it is still the card editor, saying which kind of card this is",
+    /^Edit card$/.test(heading.trim()) &&
+      /The kind of card/.test(document.body.textContent || ""),
+    heading.trim() || "(no title)");
   check("with every turn there to edit",
     [...document.querySelectorAll("input")].filter((i) => /^What line \d+ means$/.test(i.getAttribute("aria-label") || "")).length === 3,
     `${[...document.querySelectorAll("input")].filter((i) => /^What line/.test(i.getAttribute("aria-label") || "")).length} turns`);
@@ -2094,6 +2127,43 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("a word said in a conversation is not a word in no phrase",
     !!barePanel && !bareWords.includes("كتاب"),
     bareWords.join(" | ") || "(nothing bare)");
+
+  /* ---- one way to make a card, whatever kind of card it is ----
+     A conversation had a button of its own in a deck's card list, which
+     made it read as a separate sort of thing to make — and meant this tab,
+     with only the one New button, could not make one at all. The kind is
+     the first field in the editor now. */
+  const toCards = [...inFrame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(toCards[toCards.length - 1]);
+  await sleep(450);
+  check("there is no second button for making a conversation",
+    !buttonNamed(/^New conversation$/),
+    buttonNamed(/^New conversation$/) ? "one is still offered" : "just New card");
+  click([...inFrame.querySelectorAll("button")].find((b) => /^New card$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  const kinds = [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')];
+  check("a new card asks what kind of card it is",
+    kinds.length === 2 && /Conversation/.test(kinds[1].textContent || ""),
+    kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
+  check("and starts on the ordinary kind",
+    !!kinds[0] && kinds[0].getAttribute("aria-pressed") === "true",
+    kinds.map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
+
+  click(kinds[1]);
+  await sleep(250);
+  const editor = [...document.querySelectorAll(".at-screen.over")].pop();
+  const editorText = editor ? (editor.textContent || "").replace(/\s+/g, " ") : "";
+  check("choosing Conversation turns the same editor into one",
+    /The scene/.test(editorText) && /Who is in it/.test(editorText) &&
+      [...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length === 1,
+    editorText.slice(0, 100) || "(no editor open)");
+  check("without ever having left the card editor",
+    /^New card$/.test((([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim()),
+    (([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim() || "(no title)");
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
 }
 
 console.error = origError;

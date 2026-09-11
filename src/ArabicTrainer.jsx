@@ -3946,6 +3946,9 @@ export default function ArabicTrainer() {
    * has to be able to find the phrases that word turns up in.
    */
   const [preview, setPreview] = useState(/** @type {Item[]} */ ([]));
+  /* And where to put the teacher back down afterwards: the card they
+     pressed the button on, and the screen they were looking at it from. */
+  const [trialBack, setTrialBack] = useState(/** @type {any} */ (null));
   const items = data.items;
   /* What the question machinery reads: the device's cards, plus anything
      borrowed. Everything else in the app reads `items`, because nothing
@@ -4089,10 +4092,15 @@ export default function ArabicTrainer() {
    * because there is nothing to lose.
    */
   /**
-   * @param {{ items: Item[], exercise: Question }} plan
+   * @param {{ items: Item[], exercise: Question, back?: any }} plan
    */
-  function tryExercise({ items: material, exercise }) {
+  function tryExercise({ items: material, exercise, back }) {
     setPreview(material || []);
+    /* Where the teacher was standing when they pressed it. The teaching
+       space is unmounted while the question is up — it is a different
+       screen, not a layer over this one — so getting back to the card
+       means telling the space, on its way back in, which card it was. */
+    setTrialBack(back || null);
     const built = { exercises: [exercise], reason: null, manual: true, trial: true, items: 1, units: 1 };
     warmSession(built);
     setSession({ ...built, practice: true, startedAt: now(), endsAt: 0 });
@@ -4108,7 +4116,10 @@ export default function ArabicTrainer() {
   }
 
   /* Done with the trial: forget the borrowed material and go back to the
-     space it came from. */
+     card it was asked about. Not merely to the teaching space — a teacher
+     pressing "Try it" is in the middle of reading one card, and being
+     returned to a list of courses is being made to find their place
+     again. `trialBack` is what says where that was. */
   function endTrial() {
     setSession(null);
     setPreview([]);
@@ -4638,10 +4649,15 @@ export default function ArabicTrainer() {
      * nothing is scheduled, nothing is counted, nothing is told to the
      * server, and a miss is not re-asked: the question was the point, and
      * it has been seen.
+     *
+     * And seeing it is the end of it: Continue goes back to the card,
+     * rather than to a screen congratulating a teacher on having looked
+     * at their own material. There is no score to show and nothing left
+     * to do, so the screen that said so was one tap between the answer
+     * and the card it was about.
      */
     if (session && session.trial) {
-      setQi((i) => i + 1);
-      resetExercise();
+      endTrial();
       sfx("complete");
       return;
     }
@@ -5230,27 +5246,36 @@ Cards ready to practice
                   >
                     <Icon name="close" />
                   </button>
-                  <span className="at-count" data-el="session-count">
-                    {timeLeft !== null
-                      ? `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}`
-                      : `${qi + 1} / ${session.exercises.length}`}
-                  </span>
-                  <div className="at-progress" data-el="session-progress">
-                    <i
-                      style={{
-                        width: `${
-                          session.endsAt && session.startedAt
-                            ? Math.min(
-                                100,
-                                ((now() - session.startedAt) /
-                                  (session.endsAt - session.startedAt)) *
-                                  100
-                              )
-                            : (qi / session.exercises.length) * 100
-                        }%`,
-                      }}
-                    />
-                  </div>
+                  {/* A trial is one question. "1 / 1" and a bar that can
+                      only be empty or full are answering how far through
+                      you are, which is a question nobody asked of a
+                      single question — so the trial gets the way out and
+                      nothing else. */}
+                  {!session.trial && (
+                    <>
+                      <span className="at-count" data-el="session-count">
+                        {timeLeft !== null
+                          ? `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, "0")}`
+                          : `${qi + 1} / ${session.exercises.length}`}
+                      </span>
+                      <div className="at-progress" data-el="session-progress">
+                        <i
+                          style={{
+                            width: `${
+                              session.endsAt && session.startedAt
+                                ? Math.min(
+                                    100,
+                                    ((now() - session.startedAt) /
+                                      (session.endsAt - session.startedAt)) *
+                                      100
+                                  )
+                                : (qi / session.exercises.length) * 100
+                            }%`,
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Once the answer is up, the question and the box you typed
@@ -5681,29 +5706,27 @@ Cards ready to practice
               </>
             )}
 
+            {/* A trial never reaches here: answering its one question
+                puts the teacher back on the card it was about, which is
+                where they were going anyway. There is no score to show
+                them and no schedule to report on, so the screen that used
+                to say as much was a tap between the answer and the card. */}
             {session && !exercise && (
               <div className="at-card">
-                {/* A trial has no score worth showing and no schedule to
-                    report on: the question was the point, and the way out
-                    goes back to where it was asked for. */}
-                <p className="at-eyebrow">
-                  {session.trial ? "That's the exercise" : practice ? "Practice done" : "Session complete"}
-                </p>
-                {!session.trial && <Stat value={`${tally.ok} / ${tally.ok + tally.no}`} big />}
+                <p className="at-eyebrow">{practice ? "Practice done" : "Session complete"}</p>
+                <Stat value={`${tally.ok} / ${tally.ok + tally.no}`} big />
                 <Help>
-                  {session.trial
-                    ? "Nothing was recorded. This is your own material, not a card you are learning."
-                    : practice
+                  {practice
                     ? "Your schedule is untouched, apart from anything marked Again."
                     : tally.no === 0
                     ? "Clean run. Every gap just got longer."
                     : `${tally.no} lapsed and will come back shortly.`}
                 </Help>
                 <div className="at-row">
-                  <Button variant="ghost" onClick={() => (session.trial ? endTrial() : setSession(null))}>
-                    {session.trial ? "Back to teaching" : "Done"}
+                  <Button variant="ghost" onClick={() => setSession(null)}>
+                    Done
                   </Button>
-                  {readyCount > 0 && !session.manual && !session.trial && (
+                  {readyCount > 0 && !session.manual && (
                     <Button variant="primary" onClick={() => begin(false)}>
                       Keep going
                     </Button>
@@ -5806,7 +5829,14 @@ Cards ready to practice
               languages={LANGUAGES}
               settings={settings}
               onTry={tryExercise}
-              onClose={() => setSpace("learn")}
+              /* Read once, as this mounts. Cleared on the way out so that
+                 opening Teaching again tomorrow is opening Teaching, not
+                 reopening whatever was last tried. */
+              resume={trialBack}
+              onClose={() => {
+                setTrialBack(null);
+                setSpace("learn");
+              }}
             />
           </React.Suspense>
         )}
@@ -5914,7 +5944,13 @@ Cards ready to practice
             spaces={["learn"]
               .concat(teaches || (account && account.admin) ? ["teach"] : [])
               .concat(account && account.admin ? ["admin"] : [])}
-            onSpace={setSpace}
+            /* Choosing a space is arriving at it, not resuming it: the
+               card a trial was asked about is reopened on the way back
+               from that one question and nowhere else. */
+            onSpace={(/** @type {string} */ to) => {
+              setTrialBack(null);
+              setSpace(to);
+            }}
           />
           <CornerMenu
             account={account}

@@ -503,8 +503,28 @@ test("the foot is not cut in two by a rule between its parts", () => {
   /* And the text is centred between the drawn edge and the buttons: the
      button brings 6px of its own on each side, and the top loses one to
      the hairline, so 3px over 4px is what comes out even. */
-  assert.match(rule(".at-footextra"), /padding:\s*3px 10px 4px\s*;/,
+  assert.match(rule(".at-footextra"), /padding:\s*3px [^;]+ 4px\s*;/,
     "the line above the bar is not centred between the edge and the buttons");
+});
+
+test("the bar reaches both edges of the window and its buttons do not", () => {
+  /* The foot used to be a 700px column, so on a desktop the painted strip
+     stopped mid-screen with the page showing past each end — a card that
+     failed to stretch rather than the foot of the screen. The surface is
+     the window's now and the column is made inside it by padding. */
+  const foot = rule(".at-foot");
+  assert.doesNotMatch(foot, /max-width/, "the foot is still a column, so its background stops short");
+  assert.match(foot, /left:\s*0/);
+  assert.match(foot, /right:\s*0/);
+  /* Padding rather than a wrapper, because .at-row is a query container
+     and cqi is its content box: the type that steps down to fit three
+     buttons has to measure the column they are in, not the window it is
+     centred in. */
+  assert.match(foot, /--foot-pad:\s*max\(10px,\s*calc\(\(100% - 700px\) \/ 2\)\)/,
+    "there is no rule making the column inside the full-width bar");
+  assert.match(rule(".at-answerbar.at-row"), /padding:\s*8px var\(--foot-pad\)/,
+    "the buttons are not held to the column");
+  assert.match(rule(".at-footextra"), /var\(--foot-pad\)/, "nor is the line above them");
 });
 
 test("the page reserves room for the bar, and only while there is one", () => {

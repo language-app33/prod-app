@@ -19,7 +19,7 @@
    to: dialogs.js knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
-import { isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
+import { DIALOG_KIND, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
@@ -342,10 +342,10 @@ export function editDistance(a, b) {
 /* ------------------------------------------------------------------
    What kind of thing a card is
 
-   A word, a phrase, or a sentence. It decides what a learner can filter
-   practice down to, how the script is typeset, and — the reason it is being
-   taken seriously now — whether a card can serve as a context for the words
-   inside it.
+   A word, a phrase, a sentence, or a conversation. It decides what a
+   learner can filter practice down to, how the script is typeset, and —
+   the reason it is being taken seriously now — whether a card can serve as
+   a context for the words inside it.
 
    It lives here rather than in the app because the answer is the language's
    business: "a space means more than one word" holds for Arabic and
@@ -356,6 +356,42 @@ export function editDistance(a, b) {
 
 /* Sentence-ending punctuation, Latin and Arabic. */
 const SENTENCE_MARK = /[.!?،؛؟]/;
+
+/*
+ * The kinds there are, named once.
+ *
+ * A conversation is one of them. It was built later than the other three
+ * and for a while it read as a separate sort of thing — its own button to
+ * make one, its own word for the editor that made it — which is not what
+ * it is: it is a card, with turns on it instead of a word. Every screen
+ * that names a kind reads this list, so there is one answer to "what can a
+ * card be" rather than one per screen.
+ *
+ * The first three are read off the text by guessKind below; the fourth is
+ * the teacher's own decision, because nothing about a line of script says
+ * whether somebody else was going to answer it.
+ */
+export const CARD_KINDS = [
+  { key: "word", label: "Word", one: "a word" },
+  { key: "phrase", label: "Phrase", one: "a phrase" },
+  { key: "sentence", label: "Sentence", one: "a sentence" },
+  { key: DIALOG_KIND, label: "Conversation", one: "a conversation" },
+];
+
+/** @param {string} [kind] @returns {string} */
+export const kindLabel = (kind) =>
+  (CARD_KINDS.find((k) => k.key === kind) || CARD_KINDS[0]).label;
+
+/* What a stored card is, asked of the card rather than of a label on it:
+   a card with turns is a conversation, and everything else is read off
+   its text. See isDialog — the turns are the fact. */
+/**
+ * @param {Record<string, any>} card
+ * @param {{ guessKind?: (text: string) => string } | null} [lang]
+ * @returns {string}
+ */
+export const kindOf = (card, lang = null) =>
+  isDialog(card) ? DIALOG_KIND : (card && card.kind) || guessKind(card && (card.ar || card.en || card.lat), lang);
 
 /**
  * @param {string | null} [text]  Whatever the card holds, which for an empty field is nothing at all.

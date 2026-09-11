@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.64 — 11 September 2026
+
+- The bar at the foot of a question reaches both edges of the window. It
+  was a 700px column, so on a desktop the painted strip stopped mid-screen
+  with the page showing past each end — a card that failed to stretch
+  rather than the foot of the screen. The buttons stay in their column,
+  centred, and are sized by it rather than by the window.
+- Trying an exercise in Teaching no longer counts you through it. One
+  question has no "1 / 1" and no bar that can only be empty or full; the
+  way out is still there.
+- And answering it puts you back on the card you were reading, rather than
+  on a screen congratulating you for having looked at your own material.
+  Closing it unanswered lands in the same place.
+- A conversation is a kind of card, and now says so. It had a button of
+  its own for making one — which made it read as a separate sort of thing,
+  and meant the Cards tab, with only the one New button, could not make one
+  at all. There is one New card, and the first field asks what kind. An
+  existing card shows its kind instead of offering it: a word does not
+  become a conversation by being edited.
+- The editor is called "New card" and "Edit card" whichever kind it holds,
+  a conversation is marked as one in the card lists, and the two save paths
+  that used to build two different objects are one.
+
 ## 0.63 — 11 September 2026
 
 - In context could not see conversations. A scene keeps its words in its

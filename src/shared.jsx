@@ -14,8 +14,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
-import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
-import { isDialog, linesOf, namedPart } from "./dialogs.js";
+import { dimValues, dimsOf, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
+import { DIALOG_KIND, isDialog, linesOf, namedPart } from "./dialogs.js";
 
 
 
@@ -768,6 +768,13 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
   const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : card.ar;
   return (
     <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
+      {/* And it says so. A conversation's face is somebody else's opening
+          line, which on its own reads as a phrase card written oddly —
+          this is the word that makes it one of the kinds of card rather
+          than a puzzle. Only this kind is marked: word, phrase and
+          sentence look like what they are, and a label on every tile is
+          the small print this list was cleared of. */}
+      {isDialog(card) ? <div className="at-minikind">{kindLabel(DIALOG_KIND)}</div> : null}
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         {face}
       </div>
@@ -2531,12 +2538,11 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
        set full sentences in the single-word type size — and it is why the
        app cannot yet see that one of these phrases contains one of these
        words. Asked of the language, which owns the rule. */
-    /* A card with a conversation on it is a dialog, whatever its own
-       fields would otherwise have been guessed as: the kind follows what
-       the card holds. */
-    kind: lines.length
-      ? "dialog"
-      : guessKind(card.ar || card.en || card.lat, LANGUAGES[card.lang]),
+    /* A card with turns on it is a conversation, whatever its own fields
+       would otherwise have been guessed as: the kind follows what the card
+       holds. Asked through kindOf, which is the one answer to "what is
+       this card" that every screen reads. */
+    kind: kindOf({ ...card, lines }, LANGUAGES[card.lang]),
     ...(lines.length
       ? {
           lines,

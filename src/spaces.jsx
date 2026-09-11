@@ -48,6 +48,8 @@ import {
   exOf,
   findWordSlot,
   guessKind,
+  kindLabel,
+  kindOf,
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
@@ -3759,11 +3761,25 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
  *   confirming?: Node,
  *   scene?: boolean,
  *   draft?: Record<string, any> | null,
- * }} props `scene` writes a conversation rather than a word: the same card,
- *   the same decks and the same save, with turns instead of forms. `draft`
- *   is a first line already written, for a card begun from a suggestion.
+ * }} props `scene` is which kind of card this opens as — turns instead of
+ *   forms — and for a new card it is only the starting answer: the kind is
+ *   a choice made here, in the one editor, rather than by having arrived
+ *   through a different button. `draft` is a first line already written,
+ *   for a card begun from a suggestion.
  */
-function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene = false, draft = null }) {
+function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }) {
+  /*
+   * A conversation is a kind of card, not a separate thing to make.
+   *
+   * It used to have a button of its own, which meant a teacher chose
+   * between "a card" and "a conversation" before reaching the editor — and
+   * the Cards tab, having only the one button, could not make one at all.
+   * The choice is here now, among the fields, which is where every other
+   * decision about a card is made. An existing card's kind is shown and not
+   * offered: a word does not become a conversation by being edited, and a
+   * scene with four turns on it would have nowhere to put them.
+   */
+  const [scene, setScene] = useState(opensAsScene);
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
   const dims = dimsOf(lang || LANGUAGES[DEFAULT_LANGUAGE]);
@@ -3844,7 +3860,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     <>
       {confirming}
       <Screen
-        title={scene ? (card ? "Edit conversation" : "New conversation") : card ? "Edit card" : "New card"}
+        /* One card, whichever kind it is. The editor used to be named
+           after the thing it happened to be editing, which made a
+           conversation read as a different sort of object rather than a
+           card with turns on it. What kind it is, is said inside. */
+        title={card ? "Edit card" : "New card"}
         onBack={onClose}
         action={
           <Button variant="primary" size="sm"
@@ -3866,6 +3886,42 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           </Button>
         }
       >
+          {/* What kind of card this is — the first thing about it, and for
+              a new one the first decision. Word, phrase and sentence are
+              not offered because they are not chosen: the language reads
+              them off the text. Whether somebody answers it is the one
+              thing no amount of reading the script will tell you. */}
+          <div className="at-formblock">
+            <div className="at-formhead">
+              <span className="at-formnum">The kind of card</span>
+              {card && <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>}
+            </div>
+            {card ? (
+              <Help>
+                {isDialog(card)
+                  ? "A conversation: turns, in order, each practised in its own right."
+                  : "Read off what the card says. A card does not change kind once it is written."}
+              </Help>
+            ) : (
+              <>
+                <Segmented
+                  label="The kind of card"
+                  options={[
+                    { value: false, label: "Word or phrase" },
+                    { value: true, label: "Conversation" },
+                  ]}
+                  value={scene}
+                  onChange={(v) => setScene(!!v)}
+                />
+                <Help>
+                  {scene
+                    ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
+                    : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
+                </Help>
+              </>
+            )}
+          </div>
+
           {scene && (
             <>
               <div className="at-formblock main">
@@ -4289,10 +4345,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
  *   cards: Card[],
  *   lang?: Lang,
  *   settings?: any,
- *   onTry?: (plan: { items: any[], exercise: any }) => void,
- * }} props
+ *   onTry?: (plan: { items: any[], exercise: any, back: any }) => void,
+ *   back?: any,
+ * }} props `back` travels with the plan and comes home again: where the
+ *   teacher was standing when they pressed it, so answering the question
+ *   puts them back there rather than at the front of the space.
  */
-function TryExercises({ card, cards, lang, settings, onTry }) {
+function TryExercises({ card, cards, lang, settings, onTry, back }) {
   /*
    * The teacher's material in the shape a question is asked of.
    *
@@ -4363,6 +4422,7 @@ function TryExercises({ card, cards, lang, settings, onTry }) {
                   type: offer.type,
                   ...(ctx ? { ctx: ctx.id } : null),
                 },
+                back: back || { cardId: card.id },
               });
             }}
           >
@@ -4815,14 +4875,20 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
  *   account: User,
  *   languages: Record<LangId, Lang>,
  *   settings?: any,
- *   onTry?: (plan: { items: any[], exercise: any }) => void,
+ *   onTry?: (plan: { items: any[], exercise: any, back: any }) => void,
+ *   resume?: { cardId?: string, tab?: string, deckId?: string | null } | null,
  *   onClose: () => void,
  * }} props `onTry` runs one question on one of these cards, through the
  *   screen a student is asked on. The teaching space has no such screen of
  *   its own and should not grow one: a preview that is not the real thing
  *   is worse than none.
+ *
+ *   `resume` is that trip in reverse. The question is asked on a screen
+ *   this space is not on — it unmounts while the teacher answers — so the
+ *   card they pressed the button on comes back as a prop and is read once,
+ *   here, at the first render.
  */
-export function TeachSpace({ account, languages, settings, onTry, onClose }) {
+export function TeachSpace({ account, languages, settings, onTry, resume, onClose }) {
   /* What this space was showing when it was last left — see lastShown.
      Asked once, at the first render: recall forgets another person's
      contents when it is asked for them, which is not something to do
@@ -4832,21 +4898,34 @@ export function TeachSpace({ account, languages, settings, onTry, onClose }) {
   if (held.current === null) held.current = recallSpace("teach", account.handle) || false;
   /** @type {{ courses: Course[], decks: Deck[], cards: Card[] } | null} */
   const last = held.current || null;
-  const [tab, setTab] = useState("courses");
+  /* Coming back from a trial: the tab, the deck and the card that was
+     being read, in that order — the card sits on top of the screen it was
+     opened from, and closing it has to land somewhere that makes sense.
+     Read from the prop at the first render only, so this is where the
+     teacher was rather than where they have since gone. */
+  const back = useRef(resume || null).current;
+  const [tab, setTab] = useState((back && back.tab) || "courses");
   const [courses, setCourses] = useState(/** @type {Course[]} */ (last ? last.courses : []));
   const [decks, setDecks] = useState(/** @type {Deck[]} */ (last ? last.decks : []));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [courseView, setCourseView] = useState(/** @type {any | null} */ (null));
-  const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ (null));
+  const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ ((back && back.deckId) || null));
   const [cards, setCards] = useState(/** @type {Card[]} */ (last ? last.cards : []));
   const [editing, setEditing] = useState(
     /** @type {{ card: Card | null, decks: string[], lang?: LangId, scene?: boolean, draft?: Record<string, any> } | null} */ (null)
   ); // {card|null, decks:[], lang}
   const [naming, setNaming] = useState(/** @type {any | null} */ (null)); // "new" | deck
   const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null)); // whatever is awaiting a yes
-  const [viewing, setViewing] = useState(/** @type {any} */ (null)); // a card being read, not edited
+  const [viewing, setViewing] = useState(/** @type {any} */ (
+    /* The card a trial was asked about, found in the copy this space had
+       in hand when it left. Nothing to fetch: it is the same list the
+       button was pressed from, kept across the round trip. */
+    back && back.cardId && last
+      ? (last.cards || []).find((/** @type {Card} */ c) => c.id === back.cardId) || null
+      : null
+  )); // a card being read, not edited
   const [selCards, setSelCards] = useState(() => new Set());
   const [cardAction, setCardAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
   const [newCardLang, setNewCardLang] = useState(/** @type {LangId | null} */ (null));
@@ -5096,42 +5175,50 @@ export function TeachSpace({ account, languages, settings, onTry, onClose }) {
           run(
             async () => {
               const [main, ...subs] = forms;
-              /* A conversation is saved as a card like any other: its
-                 name is the card's English, its setting is the note, and
-                 the turns travel in `lines`. Nothing about the request,
-                 the decks or the revision differs — which is why a scene
-                 reaches a student through the same material payload as
-                 every other card. */
+              /*
+               * One card, one save.
+               *
+               * A conversation is a kind of card, so it goes up the way
+               * every card does — the same request, the same decks, the
+               * same revision — and this used to be two objects built in
+               * two branches, which is what a separate sort of thing looks
+               * like in code. What differs is only what a scene has
+               * instead of a word: its name is the card's English, its
+               * setting is the note, and the turns travel in `lines`.
+               *
+               * Which is why a scene reaches a student through the same
+               * material payload as everything else.
+               */
               const r = await API.saveCard(
-                written
-                  ? {
-                      id: editing.card ? editing.card.id : "",
-                      ar: "",
-                      en: written.title,
-                      lat: "",
-                      note: written.setting,
-                      lang: (editLang || {}).id || "",
-                      uses: [],
-                      subs: [],
-                      clips: [],
-                      slowClips: [],
-                      speakers: written.speakers,
-                      you: written.you,
-                      lines: written.lines,
-                    }
-                  : {
-                      id: editing.card ? editing.card.id : "",
-                      ar: main.ar.trim(),
-                      en: main.en.trim(),
-                      lat: main.lat.trim(),
-                      ...dimValues(main),
-                      clips: main.clips || [],
-                      slowClips: main.slowClips || [],
-                      note: note.trim(),
-                      lang: (editLang || {}).id || "",
-                      uses,
-                      subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
-                    },
+                {
+                  id: editing.card ? editing.card.id : "",
+                  lang: (editLang || {}).id || "",
+                  ...(written
+                    ? {
+                        ar: "",
+                        en: written.title,
+                        lat: "",
+                        note: written.setting,
+                        uses: [],
+                        subs: [],
+                        clips: [],
+                        slowClips: [],
+                        speakers: written.speakers,
+                        you: written.you,
+                        lines: written.lines,
+                      }
+                    : {
+                        ar: main.ar.trim(),
+                        en: main.en.trim(),
+                        lat: main.lat.trim(),
+                        ...dimValues(main),
+                        clips: main.clips || [],
+                        slowClips: main.slowClips || [],
+                        note: note.trim(),
+                        uses,
+                        subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
+                      }),
+                },
                 inDecks
               );
               absorbSaved(r);
@@ -5245,27 +5332,13 @@ export function TeachSpace({ account, languages, settings, onTry, onClose }) {
                     (l.en || "").toLowerCase().includes(q)
                 )
               }
+              /* One way to make a card, whatever kind of card it is. A
+                 conversation had a second button here, which made it read
+                 as a separate sort of thing to make — and meant the Cards
+                 tab, with only the one button, could not make one at all.
+                 The kind is the first field in the editor now. */
               onNew={() =>
                 setEditing({ card: null, decks: [d.id], lang: (langOfDeck(d) || {}).id })
-              }
-              filters={
-                <div className="at-row at-mt2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon="add"
-                    onClick={() =>
-                      setEditing({
-                        card: null,
-                        decks: [d.id],
-                        lang: (langOfDeck(d) || {}).id,
-                        scene: true,
-                      })
-                    }
-                  >
-                    New conversation
-                  </Button>
-                </div>
               }
               selected={selCards}
               onSelectedChange={setSelCards}
@@ -5342,6 +5415,10 @@ export function TeachSpace({ account, languages, settings, onTry, onClose }) {
           >
             <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
             <TryExercises
+              /* The card, and the screen it was read from — a deck's card
+                 list here, so answering comes back to the card inside the
+                 deck rather than to the space's front door. */
+              back={{ cardId: viewing.id, tab, deckId: openDeck }}
               card={viewing}
               cards={cards}
               lang={langOfCard(viewing)}
@@ -5751,6 +5828,7 @@ export function TeachSpace({ account, languages, settings, onTry, onClose }) {
                 >
                   <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
                   <TryExercises
+                    back={{ cardId: viewing.id, tab, deckId: null }}
                     card={viewing}
                     cards={cards}
                     lang={langOfCard(viewing)}
