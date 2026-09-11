@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.71 — 11 September 2026
+
+- Nothing you can see. The migration 0.70 started is finished: every file
+  the app is built from is TypeScript now, screens included, rather than
+  JavaScript with its types written beside it in comments. It is checked
+  the same way it was, by the same command, and still builds and runs with
+  no step added.
+- What it found, all of it in code nobody was editing. `Verdicts` was being
+  read as though it had any number of keys when it has four. `verdictWord`
+  took an arbitrary string and had a word for none of them. Several
+  components declared props as required that every caller was already
+  leaving out, and several more said `Set` where the list they were handed
+  to wanted `Set<string>`. Two generics — the item list and the segmented
+  picker — had been declared generic in a comment the checker was ignoring,
+  so what went in and what came out were unrelated.
+- Two shapes the card editor relied on and nothing stated: what a
+  confirmation is, and that a draft carries a conversation's speakers and
+  lines only when the card is a conversation.
+- The reasoning, and what the conversion script got wrong, is in
+  DECISIONS.md.
+
 ## 0.70 — 11 September 2026
 
 - Nothing you can see. The modules that decide what a learner is asked —
