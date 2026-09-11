@@ -14,7 +14,7 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.ts", "src/gallery.tsx", "src/shared.jsx"],
+  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.ts", "src/gallery.tsx", "src/shared.tsx"],
   bundle: true,
   format: "esm",
   splitting: true,
@@ -1395,7 +1395,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        scrollers, because the app has three: the page for the learner's
        tabs, the frame's own body for a space's tabs, and a screen's body
        for a screen that replaces another. */
-    const shared = readFileSync(path.resolve("src/shared.jsx"), "utf8");
+    const shared = readFileSync(path.resolve("src/shared.tsx"), "utf8");
     check("the learner's tabs put the page back to the top",
       /useScrollTop\(`\$\{space\}:\$\{tab\}`\)/.test(src));
     check("a space's tabs put its own panel back",

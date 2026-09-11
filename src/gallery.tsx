@@ -56,7 +56,7 @@ import {
   TileNote,
   plural,
   useSnackbarState,
-} from "./shared.jsx";
+} from "./shared.tsx";
 
 /* Every icon the set has, so a name can be picked by eye. Kept in step with
    Icon itself: a name missing from here renders as a blank square, which is

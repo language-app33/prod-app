@@ -432,6 +432,10 @@ export type Form = Record<string, any> & {
   note?: string;
   lang?: LangId;
   recs?: any[];
+  /* The recordings, at the two speeds, exactly as CardForm holds them —
+     a form on a device and a form on the server carry the same ones. */
+  clips?: string[];
+  slowClips?: string[];
   s?: Record<string, ExerciseState>;
   created?: Millis;
   updated?: Millis;

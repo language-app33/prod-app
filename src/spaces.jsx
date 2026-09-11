@@ -109,9 +109,9 @@ import {
   useFreshSpace,
   useLiveRefresh,
   useSnackbar,
-} from "./shared.jsx";
+} from "./shared.tsx";
 export { Icon, CheckList, Screen, LanguageRadio, ClipList, ItemList, CardReadout };
-export { LanguageTag, languageName } from "./shared.jsx";
+export { LanguageTag, languageName } from "./shared.tsx";
 export { ConfirmModal, useLiveRefresh, cardToItem, localIdFor };
 
 /*

@@ -32,7 +32,9 @@ test("every component the library exports has an entry", () => {
 test("call sites carry a file, a line and the component they sit inside", () => {
   for (const [name, uses] of Object.entries(COMPONENT_USES)) {
     for (const use of uses) {
-      assert.match(use.file, /\.jsx$/, `${name}: odd file ${use.file}`);
+      /* Either extension: these three files are being converted from
+          .jsx to .tsx one at a time. */
+      assert.match(use.file, /\.[jt]sx$/, `${name}: odd file ${use.file}`);
       assert.ok(Number.isInteger(use.line) && use.line > 0, `${name}: odd line ${use.line}`);
       assert.ok(use.where && use.where.length, `${name}: no enclosing name`);
     }
@@ -41,17 +43,17 @@ test("call sites carry a file, a line and the component they sit inside", () => 
 
 test("a component is never recorded as using itself", () => {
   for (const [name, uses] of Object.entries(COMPONENT_USES)) {
-    const self = uses.filter((u) => u.file === "shared.jsx" && u.where === name);
+    const self = uses.filter((u) => /^shared\.[jt]sx$/.test(u.file) && u.where === name);
     assert.deepEqual(self, [], `${name} is listed as using itself`);
   }
 });
 
 test("the alias the trainer imports Field under is recorded", () => {
   /* The one rename in the app, and the reason a plain search for "<Field"
-     in ArabicTrainer.jsx finds nothing. */
+     in the trainer finds nothing. */
   const aliased = COMPONENT_USES.Field.filter((u) => u.as === "FormField");
   assert.ok(aliased.length > 0, "Field's FormField uses in the trainer were not found");
-  assert.ok(aliased.every((u) => u.file === "ArabicTrainer.jsx"));
+  assert.ok(aliased.every((u) => /^ArabicTrainer\.[jt]sx$/.test(u.file)));
 });
 
 test("the well-used components are found in numbers, not in ones", () => {

@@ -37,7 +37,7 @@ import {
   useSlowWait,
   useSnackbar,
   useSnackbarState,
-} from "./shared.jsx";
+} from "./shared.tsx";
 
 /* The onboarding, teaching, admin and course screens are their own chunk,
    fetched on the first tap that opens one of them. A student drilling cards

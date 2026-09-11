@@ -168,11 +168,23 @@ out loud — a context's value, an error boundary's props and state, and a
 `Node` that a JSDoc alias had been quietly resolving to `React.ReactNode`
 where TypeScript reads the DOM's.
 
-**What is left.** `shared.jsx` and `spaces.jsx`, then `ArabicTrainer.jsx`
-last and alone — 9k lines and 399 annotations is not a slice of anything.
-All three are named by `scripts/component-uses.mjs` and asserted about by
-`tests/component-uses.test.mjs`, which is the filename-keyed guard to fix
-before, not after.
+Then `shared`, the component library, where what was bought is props. A
+JSDoc `@param {{...}} props` on a component is a comment beside a
+destructuring pattern; in a `.tsx` file the pattern is the signature, so
+every optional prop had to say it was optional and every caller was
+checked against it. Three shapes came out of that with names — `Node`
+(what React will render, and emphatically not the DOM's `Node`),
+`Confirmation` (what `askConfirm` returns, which four screens hold in
+state) and `CoursesPulled` — and two generics, `ItemList<T>` and
+`Segmented<T>`, that had been `@template` tags doing nothing.
+
+**What is left.** `spaces.jsx`, then `ArabicTrainer.jsx` last and alone —
+9k lines and 399 annotations is not a slice of anything. Both are named by
+`scripts/component-uses.mjs` and asserted about by
+`tests/component-uses.test.mjs`; both now resolve a file by its stem and
+match either extension, which was the fix to make before the rename rather
+than after — a scan pinned to `.jsx` that stops matching does not fail, it
+reports that nothing uses anything.
 
 **A file that moves takes its name with it.** An import names the file it
 means, so every specifier pointing at a converted module changes with it,
