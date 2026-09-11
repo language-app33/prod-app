@@ -19,7 +19,7 @@
    to: dialogs.js knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
-import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
+import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
 import { answersOf } from "./answers.ts";
 
 

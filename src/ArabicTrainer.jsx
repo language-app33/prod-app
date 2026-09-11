@@ -168,7 +168,7 @@ import {
   sideOf,
   speakerName,
   speakersOf,
-} from "./dialogs.js";
+} from "./dialogs.ts";
 import { answerForTurn, answerGiven, answersOf, packAnswers, withAnswer as oneAnswer } from "./answers.ts";
 
 /*

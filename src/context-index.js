@@ -20,7 +20,7 @@
 
 import { findWordSpan, supportsContext } from "./languages.js";
 import { unitsOf } from "./scheduler.js";
-import { dialogPhrases } from "./dialogs.js";
+import { dialogPhrases } from "./dialogs.ts";
 
 /*
  * Build it from the items in hand.

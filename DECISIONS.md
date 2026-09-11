@@ -81,3 +81,52 @@ What the language will accept comes from the grammar table via
 Revisit if validation ever needs to report *why* something was rejected —
 an import screen that tells a teacher which row is wrong would be a fair
 reason to want a real schema.
+
+---
+
+## TypeScript, a module at a time, from the leaves in
+
+**11 September 2026** · `tsconfig.json`, `src/*.ts`
+
+The app was JavaScript with JSDoc types, checked by `tsc --noEmit` in
+strict mode. The reason, recorded at the top of `tsconfig.json`, was that
+the app is JavaScript and stays JavaScript — tsc as a second reader rather
+than a compiler.
+
+The reason underneath that reason has expired. Four modules opened with
+some version of *"a plain module, because `node --test` cannot import a
+.jsx file"*: pure logic lived in `.js` so tests and the server could import
+it with no build step. **Node 22 strips types on the way in** — no flag, no
+loader, no `--experimental` — so a `.ts` module is imported by `node
+--test` and by `node server/index.js` exactly as a `.js` one was. The
+constraint is gone, and with it the argument.
+
+**Order: leaves first.** `chance` imports nothing, so it went first and
+proved the whole pipeline — unit tests, the esbuild smoke bundle, the Vite
+build, and the server's own test, which starts the real server over a real
+socket. Then `answers`, then `dialogs`. Each conversion keeps the project
+green; nothing is half-migrated at a commit.
+
+**`allowImportingTsExtensions`.** Node will not guess an extension, so an
+import of a converted module names it: `"./chance.ts"`. That is only sound
+because nothing here is emitted by tsc — Vite and esbuild resolve the same
+specifiers. A mixed tree is the normal state during this and imports say
+which kind of file they mean, which is a feature while it lasts.
+
+**Erasable syntax only** — no `enum`, no `namespace`, no parameter
+properties. That is what Node strips; anything else would need a build step
+and put the constraint back.
+
+**What it is buying.** Not tidiness. Converting `answers` turned eleven
+repeated JSDoc shapes into three named types and immediately found two real
+defects in a file nobody was editing — `spaces.jsx` passing a
+`Record<string, any>` where an `Answer` was wanted, and a grammar value
+typed `unknown` handed to a picker that takes a string. Converting
+`dialogs` forced `Line` to be stated as what it is (a `Form` with a speaker
+on it) and caught a test dereferencing a `cueFor` result that is null at
+the first line — which the same test asserts two lines further down.
+
+**What is left.** `scheduler`, `offers`, `context-index`, `context-links`,
+then `languages` and `types` themselves; `shared.jsx` and `spaces.jsx`
+after those; `ArabicTrainer.jsx` last and on its own — 9k lines and 404
+annotations is not a slice of anything.

@@ -42,7 +42,7 @@ import {
   speakersOf,
   yourLines,
   youOf,
-} from "../src/dialogs.js";
+} from "../src/dialogs.ts";
 import { EX, TYPES, checkAnswer } from "../src/languages.js";
 import { unitsOf } from "../src/scheduler.js";
 
@@ -216,7 +216,7 @@ test("the parts are the people who actually say something", () => {
 test("a question shows what was said before it and no more", () => {
   const card = scene();
   assert.deepEqual(sceneBefore(card, 2).map((l) => l.id), ["l1", "l2"]);
-  assert.equal(cueFor(card, 2).id, "l2", "the line actually being answered");
+  assert.equal((cueFor(card, 2) || {}).id, "l2", "the line actually being answered");
   /* Nothing comes before the first line, which is why it is never asked
      as a reply. */
   assert.deepEqual(sceneBefore(card, 0), []);

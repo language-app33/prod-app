@@ -25,7 +25,7 @@
  * places, so it is passed in. Everything else is read off the card.
  */
 
-import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.js";
+import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.js";
 

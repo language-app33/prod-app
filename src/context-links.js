@@ -32,7 +32,7 @@
  */
 
 import { contextTokens, findWordSpan, isFunctionWord, supportsContext } from "./languages.js";
-import { isDialog, linesOf, speakerName } from "./dialogs.js";
+import { isDialog, linesOf, speakerName } from "./dialogs.ts";
 
 /*
  * Where a word stops and a phrase begins, in tokens.

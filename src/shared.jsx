@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
 import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
-import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.js";
+import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 
 
 
