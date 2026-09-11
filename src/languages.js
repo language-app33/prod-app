@@ -585,8 +585,11 @@ export function findWordSlot(phrase, word, lang) {
  * @param {Partial<Lang>} lang
  */
 export function needLabel(need, lang) {
-  const script = (lang && lang.scriptLabel) || "the script";
-  const translit = (lang && lang.translitLabel) || "a romanisation";
+  /* Lowered, because these are sentence fragments and the pack's labels
+     are titles: a card is waiting for "the transliteration", not for "the
+     Transliteration". */
+  const script = ((lang && lang.scriptLabel) || "the script").toLowerCase();
+  const translit = ((lang && lang.translitLabel) || "a romanisation").toLowerCase();
   /** @type {Record<string, string>} */
   const names = {
     ar: `the word in ${script}`,

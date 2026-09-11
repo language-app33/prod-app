@@ -145,13 +145,34 @@ const fakeFetch = async (input, opts = {}) => {
     if (action === "my-material") {
       materialHits += 1;
       const version = "v-abc";
-      if (url.searchParams.get("version") === version) return json({ ok: true, unchanged: true, version, teaches: false });
+      if (url.searchParams.get("version") === version) return json({ ok: true, unchanged: true, version, teaches: true });
       return json({
-        ok: true, version, teaches: false,
+        ok: true, version, teaches: true,
         courses: [{ id: "c1", title: "Arabic 101", language: "ar-PS", decks: ["d1"], role: "student", studying: true, teaching: false }],
         decks: [{ id: "d1", title: "Lesson 1", owner: "t-1", cardIds: [card.id, phrase.id], cardCount: 2, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 3 }],
         cards: [{ deckId: "d1", cards: [card, phrase] }],
       });
+    }
+    /* What a teacher's own space is built from. The same two cards the
+       course hands out, which is what makes them worth trying an exercise
+       on: one has a recording and one does not, and one is a phrase that
+       teaches the other. */
+    if (action === "my-courses") {
+      return json({
+        ok: true,
+        courses: [
+          { id: "c1", title: "Arabic 101", language: "ar-PS", decks: ["d1"], students: [], teachers: [account.handle], role: "teacher" },
+        ],
+      });
+    }
+    if (action === "my-decks") {
+      return json({
+        ok: true,
+        decks: [{ id: "d1", title: "Lesson 1", owner: account.handle, lang: "ar-PS", cardIds: [card.id, phrase.id], cardCount: 2, courses: [{ courseId: "c1", addedAt: 1 }] }],
+      });
+    }
+    if (action === "my-cards") {
+      return json({ ok: true, cards: [{ ...card, decks: ["d1"] }, { ...phrase, decks: ["d1"] }] });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
     if (action === "report-flag") {
@@ -1811,15 +1832,16 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       : "it only paid out on the questions built from it");
 }
 
-/* ---- every exercise a card could be asked, on the card ----
-   The foot of a card's own screen lists them all, one button each, with
-   the ones the card cannot do yet greyed out and saying what they are
-   waiting for. A card one field short of two more exercises had nothing
-   anywhere that said so.
+/* ---- every exercise a card could be asked, on the teacher's card ----
+   A teacher writing cards could not see what a student is actually asked.
+   The foot of a card in the teaching space now lists every exercise that
+   card could be asked, one button each, with the ones it cannot do out of
+   reach and saying what they are waiting for. Pressing one runs that
+   question for real, through the screen a student is asked on.
 
-   The seeded phrase is the card to look at: it has the script and the
-   meaning but no recording, so it can be read and written and not heard —
-   which is exactly the split this is here to show. */
+   The seeded phrase is the card to look at: script and meaning, no
+   recording, and it teaches the word — so it can be read and written and
+   not heard, which is the split this is here to show. */
 {
   if (document.querySelector('[data-el="leave-session"]')) {
     click(document.querySelector('[data-el="leave-session"]'));
@@ -1827,77 +1849,109 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     click(buttonNamed(/^Leave$/));
     await sleep(300);
   }
+
+  /* First: it is gone from the student's side, where it was built by
+     mistake. A learner opening their own card gets the card. */
   click(buttonNamed(/^Cards$/));
   await sleep(400);
+  click(document.querySelector(".at-cardgrid .at-minicard"));
+  await sleep(300);
+  check("a student's card screen does not offer exercises to try",
+    document.querySelectorAll(".at-try").length === 0,
+    `${document.querySelectorAll(".at-try").length} on the learner's card`);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(250);
 
-  const tiles = [...document.querySelectorAll(".at-cardgrid .at-minicard")];
-  const tile = tiles.find((t) => (t.textContent || "").includes("the book is big")) || tiles[0];
-  click(tile);
-  await sleep(350);
+  /* Into the teaching space, which this person now teaches in. */
+  const toTeaching = [...document.querySelectorAll(".at-spacebtn")]
+    .find((b) => /Teaching/i.test(b.getAttribute("aria-label") || ""));
+  check("a teacher can reach the teaching space", !!toTeaching,
+    [...document.querySelectorAll(".at-spacebtn")].map((b) => b.getAttribute("aria-label")).join(","));
+  click(toTeaching);
+  await sleep(700);
+
+  /* The teaching space's own Cards tab. Both spaces have one, and the
+     learner's nav is still in the document behind this, so the tab is
+     taken from inside the frame rather than by name alone. */
+  /* The space is a screen over the app, which is what "bare" marks. The
+     learner's own nav and card list are still in the document behind it,
+     so everything below is looked for inside the frame. */
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  check("the teaching space has a Cards tab of its own", teachTabs.length > 0,
+    [...frame.querySelectorAll('[role="tab"], .at-tab')].map((b) => b.textContent).join("|"));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  const teachTiles = [...frame.querySelectorAll(".at-minicard")];
+  const phraseTile = teachTiles.find((t) => (t.textContent || "").includes("the book is big"));
+  check("their own cards are listed there", !!phraseTile,
+    teachTiles.map((t) => (t.textContent || "").slice(0, 18)).join(" | ") || "no cards");
+  click(phraseTile);
+  await sleep(450);
 
   const tries = () => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll(".at-try")]);
-  check("a card's own screen lists the exercises it could be asked",
+  check("a card in the teaching space lists the exercises it could be asked",
     tries().length > 1, `${tries().length} offered`);
-
   const enabled = tries().filter((b) => !b.disabled);
   const disabled = tries().filter((b) => b.disabled);
-  check("the ones it has the data for can be pressed",
-    enabled.length > 0, `${enabled.length} of ${tries().length}`);
+  check("the ones it has the data for can be pressed", enabled.length > 0,
+    `${enabled.length} of ${tries().length}`);
   /* The phrase has no recording, so every listening exercise is here and
-     out of reach — which is the half of this that had to be built
-     deliberately rather than by leaving them out. */
-  check("and the ones it cannot do are still shown, out of reach",
+     out of reach — the half that had to be built deliberately rather than
+     by leaving them out. */
+  check("and the ones it cannot do are shown too, out of reach",
     disabled.length > 0, `${disabled.length} greyed out`);
   check("each of those says what it is waiting for",
     disabled.every((b) => /Needs /.test(b.textContent || "")),
     disabled.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).slice(0, 2).join(" | "));
-  check("and a recording is what the listening ones are waiting for",
+  check("a recording is what the listening ones are waiting for",
     disabled.some((b) => /recording/.test(b.textContent || "")),
-    disabled.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).join(" | ").slice(0, 120));
-  /* A button nobody can press still has to say what it is to a screen
-     reader, along with why it cannot be pressed. */
-  check("a greyed-out button still names itself",
+    disabled.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).join(" | ").slice(0, 110));
+  check("and a button nobody can press still names itself",
     disabled.every((b) => /—/.test(b.getAttribute("aria-label") || "")),
     (disabled[0] && disabled[0].getAttribute("aria-label")) || "");
 
-  /* And pressing one runs that exercise, on that card, and nothing else. */
-  const wanted = (enabled[0].textContent || "").replace(/\s+/g, " ").trim();
+  /* Pressing one runs that question, on the teacher's own card, through
+     the screen a student is asked on. */
+  const before = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
   click(enabled[0]);
-  await sleep(500);
-  const asked = (document.querySelector(".at-instruction") || {}).textContent || "";
-  check("pressing one starts that exercise on that card",
-    !!asked, (document.body.textContent || "").slice(0, 90).replace(/\s+/g, " "));
-  check("and it is one question rather than a session",
+  await sleep(600);
+  check("pressing one runs that question on the teacher's own card",
+    !!document.querySelector(".at-instruction") &&
+      /الكتاب كبير/.test((document.querySelector('[data-el="question-prompt"]') || {}).textContent || ""),
+    ((document.querySelector(".at-instruction") || {}).textContent || "no question") +
+      " · " + ((document.querySelector('[data-el="question-prompt"]') || {}).textContent || ""));
+  check("and it is one question", 
     /1 \/ 1/.test((document.querySelector('[data-el="session-count"]') || {}).textContent || ""),
     (document.querySelector('[data-el="session-count"]') || {}).textContent || "no count");
 
-  /* Answered rather than skipped, because a miss comes back: practice
-     re-asks what went wrong, which is the one part of a session a trial
-     run keeps. Getting it right is what ends it. */
-  const input = document.querySelector('[data-el="answer-input"]');
-  const setter = must(
-    Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
-    "the value descriptor"
-  ).set;
-  must(setter, "the value setter").call(must(input, "the answer box"), "the book is big");
-  must(input, "the answer box").dispatchEvent(new w.Event("input", { bubbles: true }));
-  await sleep(60);
-  click(document.querySelector('[data-el="check-button"]'));
-  await sleep(250);
-  check("the exercise that ran is the one that was pressed", /English/.test(wanted), wanted);
-  click(buttonNamed(/^Continue$/));
+  /* Leaving asks nothing. There is nothing to lose: no progress is being
+     kept, and the question was the whole of it. */
+  click(document.querySelector('[data-el="leave-session"]'));
   await sleep(400);
-  /* Trying a question out should not move the card's schedule, so it runs
-     as practice, and the screen at the end of it says so. */
-  check("a trial run is practice, so the schedule is left alone",
-    /Practice done/.test(document.body.textContent || "") &&
-      /schedule is untouched/.test(document.body.textContent || ""),
-    (document.body.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  check("leaving a trial asks no questions",
+    !buttonNamed(/^Leave$/) && !/Leave this session/.test(document.body.textContent || ""),
+    (document.body.textContent || "").slice(0, 80).replace(/\s+/g, " "));
+  /* Asked of the frame rather than of the page's words: both spaces are
+     mounted at once, so "the teaching space is showing" is a question
+     about which one is on top, not about what text exists somewhere. */
+  const backInTeaching = document.querySelector(".at-screen.bare");
+  check("and it goes back to the teaching space it was asked for in",
+    !!backInTeaching && !document.querySelector(".at-instruction") &&
+      /In context/.test(backInTeaching.textContent || ""),
+    backInTeaching
+      ? (backInTeaching.textContent || "").slice(0, 70).replace(/\s+/g, " ")
+      : "the teaching space is not on screen");
 
-  click(buttonNamed(/^Done$/));
-  await sleep(200);
-  click(buttonNamed(/^Home$/));
-  await sleep(200);
+  /* And nothing about it was recorded. The card is the teacher's own
+     material, not something this device is learning. */
+  const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  check("a trial leaves the document exactly as it found it",
+    JSON.stringify(after.items) === JSON.stringify(before.items),
+    `${(after.items || []).length} cards before and after`);
+  check("and adds nothing to the day's count",
+    JSON.stringify(after.log) === JSON.stringify(before.log),
+    `${JSON.stringify(after.log)} vs ${JSON.stringify(before.log)}`);
 }
 
 console.error = origError;

@@ -55,6 +55,10 @@ import {
 } from "./languages.js";
 import { MAX_SPEAKERS, isDialog, linesOf } from "./dialogs.js";
 import { linkReport, pairsIn } from "./context-links.js";
+import { buildContextIndex } from "./context-index.js";
+import { offersFor } from "./offers.js";
+import { buildDialogIndex } from "./dialogs.js";
+import { freshStates, unitsOf } from "./scheduler.js";
 import {
   Button,
   CardReadout,
@@ -4249,6 +4253,124 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
  * number at the top.
  */
 /* ------------------------------------------------------------------
+   Trying an exercise
+
+   A teacher writing cards cannot see what a student is actually asked.
+   Everything about that is one screen away in another space, and the one
+   thing they most want to know — does this card work, and what does it
+   look like when it does — was unanswerable without signing in as
+   somebody's student.
+
+   So: every exercise this card could be asked, one button each, at the
+   foot of the card. Pressing one runs that question, for real, through
+   the same screen a student sees; the ones the card cannot do are here
+   too, out of reach and saying what they are waiting for.
+
+   Nothing is recorded. The card being tried is the teacher's own
+   material, turned into the shape a question is asked of and handed over
+   for one question — not a card this device is learning, and not a card
+   with progress to move.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   card: Card,
+ *   cards: Card[],
+ *   lang?: Lang,
+ *   settings?: any,
+ *   onTry?: (plan: { items: any[], exercise: any }) => void,
+ * }} props
+ */
+function TryExercises({ card, cards, lang, settings, onTry }) {
+  /*
+   * The teacher's material in the shape a question is asked of.
+   *
+   * All of it, not just this card: a question about a word may need the
+   * phrases that word turns up in, and a conversation needs its own
+   * lines. One language at a time, because finding a word inside a phrase
+   * is a language's own rule.
+   */
+  const material = useMemo(() => {
+    if (!lang) return [];
+    return (cards || [])
+      .filter((c) => (c.lang || "") === lang.id)
+      .map((c) => cardToItem(c, "", "", "", freshStates));
+  }, [cards, lang]);
+
+  const contexts = useMemo(
+    () => (lang ? buildContextIndex(material, lang) : new Map()),
+    [material, lang]
+  );
+  const scenes = useMemo(() => buildDialogIndex(material), [material]);
+
+  const mine = material.find((i) => i.id === localIdFor(card.id));
+  const offers = useMemo(() => {
+    if (!mine || !lang) return [];
+    return offersFor({
+      units: unitsOf(mine).map((u) => ({ ...u, scene: scenes.get(u.unit.id) || null })),
+      lang,
+      contextsFor: (unit) => contexts.get(unit.id) || [],
+      /* A student would not be asked an exercise switched off in the app's
+         settings, and a teacher may as well know which those are — but it
+         is still worth being able to try one. */
+      enabled: (type) => !settings || !settings.types || !!settings.types[type],
+    });
+  }, [mine, lang, contexts, scenes, settings]);
+
+  if (!offers.length) return null;
+
+  return (
+    <section className="at-panel at-mt5">
+      <p className="at-eyebrow">Try an exercise</p>
+      <p className="at-hint">
+        What a student is asked, on this card. One question, answered and
+        marked — nothing is recorded, because this is your material rather
+        than a card anybody here is learning.
+      </p>
+      <div className="at-trylist">
+        {offers.map((offer) => (
+          <button
+            type="button"
+            key={offer.type}
+            className={`at-try${offer.ready ? "" : " out"}`}
+            disabled={!offer.ready || !onTry || !mine}
+            aria-label={
+              offer.ready ? `Try ${offer.label}` : `${offer.label} — needs ${offer.missing.join(" and ")}`
+            }
+            onClick={() => {
+              if (!onTry || !mine) return;
+              /* Which phrase the gap-fill stands the word in. The first
+                 one here rather than the rotation a learner gets: a
+                 teacher is looking at one question, not meeting a word
+                 for the fourth time. */
+              const ctx = (contexts.get(offer.unit.id) || [])[0];
+              onTry({
+                items: material,
+                exercise: {
+                  id: mine.id,
+                  subId: offer.subId,
+                  type: offer.type,
+                  ...(ctx ? { ctx: ctx.id } : null),
+                },
+              });
+            }}
+          >
+            <span className="at-tryname">{offer.label}</span>
+            <span className="at-trywhy">
+              {offer.ready
+                ? offer.off
+                  ? "Try it · off in the app's settings"
+                  : "Try it"
+                : `Needs ${offer.missing.join(" and ")}`}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------
    In context
 
    What a teacher's own material already says about itself, as three lists
@@ -4651,8 +4773,19 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
   });
 }
 
-/** @param {{ account: User, languages: Record<LangId, Lang>, onClose: () => void }} props */
-export function TeachSpace({ account, languages, onClose }) {
+/**
+ * @param {{
+ *   account: User,
+ *   languages: Record<LangId, Lang>,
+ *   settings?: any,
+ *   onTry?: (plan: { items: any[], exercise: any }) => void,
+ *   onClose: () => void,
+ * }} props `onTry` runs one question on one of these cards, through the
+ *   screen a student is asked on. The teaching space has no such screen of
+ *   its own and should not grow one: a preview that is not the real thing
+ *   is worse than none.
+ */
+export function TeachSpace({ account, languages, settings, onTry, onClose }) {
   /* What this space was showing when it was last left — see lastShown.
      Asked once, at the first render: recall forgets another person's
      contents when it is asked for them, which is not something to do
@@ -5171,6 +5304,13 @@ export function TeachSpace({ account, languages, onClose }) {
             }
           >
             <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+            <TryExercises
+              card={viewing}
+              cards={cards}
+              lang={langOfCard(viewing)}
+              settings={settings}
+              onTry={onTry}
+            />
           </Screen>
         )}
 
@@ -5573,6 +5713,13 @@ export function TeachSpace({ account, languages, onClose }) {
                   }
                 >
                   <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+                  <TryExercises
+                    card={viewing}
+                    cards={cards}
+                    lang={langOfCard(viewing)}
+                    settings={settings}
+                    onTry={onTry}
+                  />
                 </Screen>
               )}
 

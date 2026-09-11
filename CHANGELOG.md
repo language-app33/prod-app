@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.59 — 11 September 2026
+
+- Trying an exercise now lives where the cards are written. Open one of
+  your own cards in Teaching and every exercise it could be asked is listed
+  at the foot, one button each; press one and that question runs for real,
+  through the screen a student is asked on, using the card you are looking
+  at. It was on the student's card screen, which was the wrong side of the
+  app: a student is practising, not checking their material.
+- Nothing is recorded. The card is your teaching material rather than
+  something this device is learning, so no progress is kept, nothing is
+  scheduled, and the day's count does not move.
+- And leaving asks nothing. A session asks before you abandon it because
+  there is work to lose; a trial has none, so the way out is the way out.
+- The exercises a card cannot do yet are listed too, out of reach and
+  saying what they are waiting for — a recording, the meaning, a phrase
+  that uses the word.
+
 ## 0.58 — 11 September 2026
 
 - Opening a card now lists every exercise it could be asked, one button

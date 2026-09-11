@@ -114,11 +114,9 @@ import {
   guessKind,
   inScript,
   isListening,
-  supportsContext,
   groupAttrOf,
   labelFor,
   langOf,
-  needLabel,
   quizAttrOf,
   scriptVars,
   setActiveLang,
@@ -149,21 +147,19 @@ import {
   shuffled,
 } from "./scheduler.js";
 import { PICK_OPTIONS, optionsFor } from "./chance.js";
+import { buildContextIndex } from "./context-index.js";
+import { canAsk } from "./offers.js";
 import {
   DEFAULT_SPEAKERS,
   DIALOG_KIND,
-  DIALOG_NEEDS,
   MAX_SPEAKERS,
   ORDER_SEP,
   buildDialogIndex,
-  dialogNeedMet,
-  dialogPhrases,
   isDialog,
   linesOf,
   partAnswers,
   partOf,
   replyOptions,
-  roleOf,
   sceneBefore,
   scrambledLines,
   speakerName,
@@ -571,65 +567,6 @@ function contextsFor(unitId) {
 }
 
 /*
- * Build it from the items in hand.
- *
- * A phrase names the *card* it teaches, because that is what a teacher
- * ticks. Which form of that card actually appears is a question for the
- * matcher: a phrase may hold the plural rather than the singular the card
- * leads with, and asking for the wrong form would be a question with no
- * right answer.
- */
-/**
- * @param {Item[]} items
- * @param {Lang} lang
- */
-function buildContextIndex(items, lang) {
-  const index = new Map();
-  if (!supportsContext(lang)) return index;
-  const byId = new Map(items.map((it) => [it.id, it]));
-
-  /* A dialog's lines stand alongside the teacher's phrases here, in the
-     same shape and on the same terms: a line that names the words it uses
-     is somewhere those words turned up, and the gap-fill neither knows
-     nor needs to know that this one came out of a conversation. It is
-     what makes a scene worth writing on the first day — every word
-     already being learnt gains a real exchange to be gapped inside of,
-     with nothing new marked. */
-  for (const phrase of items.concat(/** @type {any} */ (dialogPhrases(items)))) {
-    const uses = phrase.uses || [];
-    if (!uses.length || !phrase.ar) continue;
-    for (const targetId of uses) {
-      const target = byId.get(targetId);
-      if (!target) continue;
-      for (const { unit } of unitsOf(target)) {
-        if (!unit.ar) continue;
-        const span = findWordSpan(phrase.ar, unit.ar, lang);
-        if (!span) continue;
-        const list = index.get(unit.id) || [];
-        list.push({
-          id: phrase.id,
-          ar: phrase.ar,
-          en: phrase.en,
-          recs: phrase.recs || [],
-          slot: span.at,
-          /* How many tokens the word takes up. One in Arabic, two for a
-             Vietnamese compound — and the gap has to cover all of them,
-             because blanking one syllable of a two-syllable word leaves
-             the answer half written on the screen. */
-          span: span.len,
-        });
-        index.set(unit.id, list);
-        /* One form per phrase: if a phrase contained both the singular and
-           the plural it would be a context for each, but the first match
-           is the one the teacher meant. */
-        break;
-      }
-    }
-  }
-  return index;
-}
-
-/*
  * Which phrase to show this time.
  *
  * Rotated rather than picked at random, and keyed on how many times the
@@ -785,110 +722,12 @@ export function withoutListening(exercises, from, items, settings) {
  * @returns {string[]}
  */
 function availableTypes(it, lang = activeLang(), scene = sceneOf(it.id)) {
-  const attr = quizAttrOf(lang);
-  const drillsTranslit = lang.translitDrilled !== false;
-  /* What this unit is: a scene, a line inside one, or an ordinary word or
-     form. Every exercise says which of the three it is for — a word says
-     so by saying nothing — and a pairing that does not match is refused
-     before anything else is asked. That one line is what keeps a word from
-     being told to put itself in order, and a conversation from being asked
-     what it means. */
-  const role = roleOf(it, scene);
-  return TYPES.filter((t) => {
-    const spec = EX[t];
-    if ((spec.dialog || "word") !== role) return false;
-    // Only offered where the language has named something to listen for, and
-    // where this card's spelling actually yields it.
-    if (spec.quizAttr && !(attr && derivedValue(attr, it.ar))) return false;
-    // And not where going to and from the second writing would mean asking
-    // for the word that is already on screen.
-    if (!drillsTranslit && spec.needs.includes("lat")) return false;
-    return unmetNeeds(it, spec, scene).length === 0;
-  });
-}
-
-/*
- * What this unit has not got, of what an exercise asks for.
- *
- * Several of these are not fields on the card. "recs" asks whether it has
- * a recording of its own; the two context ones ask about the phrases that
- * show this form in use, which live in an index built from every card
- * rather than on this one; and the dialog ones ask about the shape of the
- * scene this unit is or sits in.
- *
- * A list rather than a yes or no, because the card screen offers every
- * exercise a card could have and has to say what the missing ones are
- * waiting for. availableTypes reads the same answer as "nothing missing",
- * so the two can never disagree about why something is not on offer.
- */
-/**
- * @param {Form} it
- * @param {ExerciseSpec} spec
- * @param {{ card: Item, at: number } | null} scene
- * @returns {string[]}
- */
-function unmetNeeds(it, spec, scene) {
-  return spec.needs.filter((/** @type {string} */ f) => {
-    if (f === "recs") return !(it.recs || []).length;
-    if (f === "contexts") return !contextsFor(it.id).length;
-    if (f === "contextAudio") return !contextsFor(it.id).some((c) => (c.recs || []).length > 0);
-    if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, it);
-    return !it[f];
-  });
-}
-
-/*
- * Every exercise this card could ever be asked, and whether it can be
- * asked today.
- *
- * The card screen lists all of them — the ones it cannot do greyed out
- * with what they are waiting for — because "what is on a card decides what
- * can be asked of it" is a rule people learn by seeing it, not by reading
- * it. A card missing one field is one field away from two more exercises,
- * and there was nowhere that said so.
- *
- * Left out entirely: exercises that are not about this shape of card at
- * all, and ones this language never drills. A word card is not waiting for
- * a conversation, and telling a Vietnamese teacher their card cannot be
- * asked for its romanisation would be answering a question nobody asked.
- */
-/**
- * @param {Item} item
- * @param {Settings} settings
- */
-function exerciseOffers(item, settings) {
-  const lang = langOf(settingsFor(settings, item));
-  const attr = quizAttrOf(lang);
-  const drillsTranslit = lang.translitDrilled !== false;
-  const units = unitsOf(item).map(({ unit, isSub }) => ({ unit, isSub, scene: sceneOf(unit.id) }));
-  const offers = [];
-
-  for (const type of TYPES) {
-    const spec = EX[type];
-    const role = spec.dialog || "word";
-    const fits = units.filter((u) => roleOf(u.unit, u.scene) === role);
-    if (!fits.length) continue;
-    if (spec.quizAttr && !attr) continue;
-    if (!drillsTranslit && spec.needs.includes("lat")) continue;
-
-    /* The unit that can actually be asked, where there is one — a card
-       with three lines is ready for a reply as soon as any one line is —
-       and otherwise the first of them, which is what the missing fields
-       are then reported against. */
-    const ready = fits.find((u) => availableTypes(u.unit, lang, u.scene).includes(type));
-    const on = ready || fits[0];
-    offers.push({
-      type,
-      label: exOf(type, lang).label,
-      subId: on.isSub ? on.unit.id : null,
-      ready: !!ready,
-      /* Said in the card's own language, so "the script" is the name this
-         language gives its script. */
-      missing: ready ? [] : unmetNeeds(on.unit, spec, on.scene).map((f) => needLabel(f, lang)),
-      off: !settings.types[type],
-    });
-  }
-  return offers;
+  /* One question, asked in one place: which exercises this unit can be
+     asked. The teaching space asks the same one of the same cards — to
+     say what a card could be drilled as before anybody presses anything —
+     and two answers to it would be two apps disagreeing about what a card
+     supports. */
+  return TYPES.filter((t) => canAsk({ unit: it, scene, contexts: contextsFor(it.id) }, t, lang));
 }
 
 /**
@@ -4061,7 +3900,25 @@ export default function ArabicTrainer() {
     [commit]
   );
 
+  /*
+   * Cards borrowed for a trial run, which are not this device's.
+   *
+   * A teacher trying an exercise out is asking a question about their own
+   * material, which lives on the server and has nothing to do with what
+   * this device is learning. It is held here for as long as the trial
+   * lasts and never reaches the document — but everything that answers
+   * "what can be asked of this" reads it, because a question about a word
+   * has to be able to find the phrases that word turns up in.
+   */
+  const [preview, setPreview] = useState(/** @type {Item[]} */ ([]));
   const items = data.items;
+  /* What the question machinery reads: the device's cards, plus anything
+     borrowed. Everything else in the app reads `items`, because nothing
+     else should see a card that is not really here. */
+  const asking = useMemo(
+    () => (preview.length ? items.concat(preview) : items),
+    [items, preview]
+  );
   const settings = data.settings;
   /* The on-screen keys, opened from the button inside the answer field.
      Below `settings`, which it reads, and above every early return, which
@@ -4083,7 +3940,7 @@ export default function ArabicTrainer() {
     () => {
       /** @type {Map<LangId, Item[]>} */
       const byLang = new Map();
-      for (const it of items) {
+      for (const it of asking) {
         const id = langIdOf(it, settings);
         byLang.set(id, (byLang.get(id) || []).concat([it]));
       }
@@ -4100,14 +3957,14 @@ export default function ArabicTrainer() {
      every phrase against every word it claims to teach, which is not
      work to repeat because a checkbox moved. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, settings.language]
+    [asking, settings.language]
   );
   setContextIndex(contextIndex);
 
   /* And which scene each line of a conversation stands in. The same
      arrangement and for the same reason: a pure function that is handed a
      unit has no way to be handed a map as well. */
-  const dialogIndex = useMemo(() => buildDialogIndex(items), [items]);
+  const dialogIndex = useMemo(() => buildDialogIndex(asking), [asking]);
   setDialogIndex(dialogIndex);
 
   /* Every recording the cards refer to, for taking a course offline. */
@@ -4182,36 +4039,45 @@ export default function ArabicTrainer() {
   /* ---------------- session ---------------- */
 
   /*
-   * One exercise, on one card, from the card's own screen.
+   * One exercise, on one card, run for a teacher who wants to see it.
    *
-   * Practice rather than a session: trying a question out to see what it
-   * looks like should not move the card's schedule, and a single question
-   * is not a sitting's worth of evidence about anything. A miss still
-   * comes back — practice re-asks what went wrong, which is the one part
-   * of a session a trial run should keep.
+   * The card comes from the teaching space, where cards are the teacher's
+   * own material rather than anything this device is learning — so it
+   * arrives already turned into the shape a question is asked of, along
+   * with whatever other cards the question needs to make sense of it (the
+   * phrases a word turns up in, most of all). Those are held apart from
+   * the document: nothing here is stored, synced, or counted, and closing
+   * the trial forgets them.
+   *
+   * `trial` is what the rest of the screen reads to know that: no
+   * progress is written when it is answered, and leaving asks nothing,
+   * because there is nothing to lose.
    */
   /**
-   * @param {Item} item
-   * @param {string | null} subId
-   * @param {string} type
+   * @param {{ items: Item[], exercise: Question }} plan
    */
-  function tryExercise(item, subId, type) {
-    const resolved = resolveUnit(items, { id: item.id, subId, type });
-    if (!resolved) return;
-    const ctx = pickContext(resolved.unit, type);
-    const built = {
-      exercises: [{ id: item.id, subId, type, ...(ctx ? { ctx: ctx.id } : null) }],
-      reason: null,
-      manual: true,
-      items: 1,
-      units: 1,
-    };
+  function tryExercise({ items: material, exercise }) {
+    setPreview(material || []);
+    const built = { exercises: [exercise], reason: null, manual: true, trial: true, items: 1, units: 1 };
     warmSession(built);
     setSession({ ...built, practice: true, startedAt: now(), endsAt: 0 });
     setQi(0);
     setTally({ ok: 0, no: 0 });
     resetExercise();
-    setTab("home"); // a session started from anywhere is run on the home screen
+    /* Out of the teaching space and onto the screen questions are asked
+       on, which is the only one there is. Where it came from is
+       remembered, so closing the trial goes back rather than dropping a
+       teacher into somebody else's app. */
+    setSpace("learn");
+    setTab("home");
+  }
+
+  /* Done with the trial: forget the borrowed material and go back to the
+     space it came from. */
+  function endTrial() {
+    setSession(null);
+    setPreview([]);
+    setSpace("teach");
   }
 
   /* A session assembled by hand on the Build screen. */
@@ -4472,7 +4338,7 @@ export default function ArabicTrainer() {
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
-  const resolved = exercise ? resolveUnit(items, exercise) : null;
+  const resolved = exercise ? resolveUnit(asking, exercise) : null;
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);
@@ -4548,19 +4414,19 @@ export default function ArabicTrainer() {
     if (!spec || !spec.picks) return [];
     if (spec.picks === "reply") {
       return dialog && at !== null
-        ? replyOptions({ card: dialog, at, pool: replyPool(items, settings, qLang.id) })
+        ? replyOptions({ card: dialog, at, pool: replyPool(asking, settings, qLang.id) })
         : [];
     }
     if (!item) return [];
     return optionsFor({
       answer: item,
-      pool: wordPool(items, settings, qLang.id, item),
+      pool: wordPool(asking, settings, qLang.id, item),
       wanted: PICK_OPTIONS,
       seed: `${item.id} ${(exercise && exercise.ctx) || ""}`,
       textOf: (w) => w.ar,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, items.length]);
+  }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length]);
   /* Which of your turns came back right, for the answer screen. Worked
      out once the whole part has been marked, and only then. */
   const partMarks = useMemo(() => {
@@ -4604,7 +4470,7 @@ export default function ArabicTrainer() {
     if (!item || checked) return;
     const result = checkAnswer(typed, item, exercise.type, qSettings);
     sfx(result.ok ? "correct" : "wrong");
-    setPairs(relatedWords(items, qLang, item.ar));
+    setPairs(relatedWords(asking, qLang, item.ar));
     setChecked(result);
     // Drop the phone keyboard so the answer and grades are visible.
     if (inputRef.current) inputRef.current.blur();
@@ -4656,7 +4522,7 @@ export default function ArabicTrainer() {
 
   function giveUp() {
     sfx("warn");
-    setPairs(relatedWords(items, qLang, item ? item.ar : ""));
+    setPairs(relatedWords(asking, qLang, item ? item.ar : ""));
     setSkipped(true);
     setChecked({ ok: false, reason: "skipped" });
     if (inputRef.current) inputRef.current.blur();
@@ -4728,6 +4594,22 @@ export default function ArabicTrainer() {
 
   function applyGrade() {
     if (!item || !parentItem || !exercise) return;
+    /*
+     * A trial run leaves nothing behind.
+     *
+     * A teacher trying an exercise out to see what it looks like is not
+     * learning anything, and the card is not theirs to have progress on —
+     * it is their own teaching material, borrowed for one question. So
+     * nothing is scheduled, nothing is counted, nothing is told to the
+     * server, and a miss is not re-asked: the question was the point, and
+     * it has been seen.
+     */
+    if (session && session.trial) {
+      setQi((i) => i + 1);
+      resetExercise();
+      sfx("complete");
+      return;
+    }
     /* Before the grading, not after: a question answered is learning done,
        whether it was right or wrong. */
     reportLearning(account);
@@ -5306,7 +5188,10 @@ Cards ready to practice
                     className="at-exit"
                     aria-label="Leave session"
                     data-el="leave-session"
-                    onClick={() => setLeaving(true)}
+                    /* A trial has nothing to lose, so it does not ask.
+                       The question was the whole of it, and a teacher who
+                       has seen it is done. */
+                    onClick={() => (session.trial ? endTrial() : setLeaving(true))}
                   >
                     <Icon name="close" />
                   </button>
@@ -5763,20 +5648,27 @@ Cards ready to practice
 
             {session && !exercise && (
               <div className="at-card">
-                <p className="at-eyebrow">{practice ? "Practice done" : "Session complete"}</p>
-                <Stat value={`${tally.ok} / ${tally.ok + tally.no}`} big />
+                {/* A trial has no score worth showing and no schedule to
+                    report on: the question was the point, and the way out
+                    goes back to where it was asked for. */}
+                <p className="at-eyebrow">
+                  {session.trial ? "That's the exercise" : practice ? "Practice done" : "Session complete"}
+                </p>
+                {!session.trial && <Stat value={`${tally.ok} / ${tally.ok + tally.no}`} big />}
                 <Help>
-                  {practice
+                  {session.trial
+                    ? "Nothing was recorded. This is your own material, not a card you are learning."
+                    : practice
                     ? "Your schedule is untouched, apart from anything marked Again."
                     : tally.no === 0
                     ? "Clean run. Every gap just got longer."
                     : `${tally.no} lapsed and will come back shortly.`}
                 </Help>
                 <div className="at-row">
-                  <Button variant="ghost" onClick={() => setSession(null)}>
-                    Done
+                  <Button variant="ghost" onClick={() => (session.trial ? endTrial() : setSession(null))}>
+                    {session.trial ? "Back to teaching" : "Done"}
                   </Button>
-                  {readyCount > 0 && !session.manual && (
+                  {readyCount > 0 && !session.manual && !session.trial && (
                     <Button variant="primary" onClick={() => begin(false)}>
                       Keep going
                     </Button>
@@ -5807,7 +5699,6 @@ Cards ready to practice
             onSetLocked={setLockedMany}
             onTagMany={tagMany}
             onImport={importFile}
-            onTry={tryExercise}
           />
         )}
 
@@ -5821,7 +5712,6 @@ Cards ready to practice
             onPractice={(ids, mode) =>
               beginManual({ ids, mode, count: settings.sessionSize })
             }
-            onTry={tryExercise}
           />
         )}
 
@@ -5879,6 +5769,8 @@ Cards ready to practice
             <TeachSpace
               account={account}
               languages={LANGUAGES}
+              settings={settings}
+              onTry={tryExercise}
               onClose={() => setSpace("learn")}
             />
           </React.Suspense>
@@ -6020,24 +5912,9 @@ Cards ready to practice
    one per tab. The card is looked up again by id, so a screen left open
    shows what was last synced rather than the copy its tile was drawn
    from. */
-/**
- * @param {{
- *   card: Item,
- *   items: Item[],
- *   settings?: Settings,
- *   onBack: () => void,
- *   onTry?: (item: Item, subId: string | null, type: string) => void,
- *   action?: Node,
- * }} props `onTry` runs one exercise on this card; without it the buttons
- *   at the foot still say what the card can and cannot be asked, which is
- *   most of what they are for.
- */
-function CardScreen({ card, items, settings, onBack, onTry, action }) {
+/** @param {{ card: Item, items: Item[], onBack: () => void, action?: Node }} props */
+function CardScreen({ card, items, onBack, action }) {
   const live = items.find((i) => i.id === card.id) || card;
-  const offers = useMemo(
-    () => (settings ? exerciseOffers(live, settings) : []),
-    [live, settings]
-  );
   return (
     <Screen title={live.en || live.ar} onBack={onBack} action={action}>
       <CardReadout
@@ -6058,47 +5935,6 @@ function CardScreen({ card, items, settings, onBack, onTry, action }) {
         decks={(live.tags || []).map((t) => ({ id: t, title: t }))}
       />
 
-      {/* Every exercise this card could be asked, one button each. The
-          ones it cannot do yet are here too, greyed out and saying what
-          they are waiting for: a card one field short of two more
-          exercises had nothing anywhere that said so.
-
-          A press runs that one question and nothing else, as practice —
-          trying an exercise out should not move the card's schedule. */}
-      {offers.length > 0 && (
-        <section className="at-panel at-mt5">
-          <p className="at-eyebrow">Try an exercise</p>
-          <p className="at-hint">
-            One question, on this card, marked but not scheduled. What is on
-            a card decides what can be asked of it.
-          </p>
-          <div className="at-trylist">
-            {offers.map((offer) => (
-              <button
-                type="button"
-                key={offer.type}
-                className={`at-try${offer.ready ? "" : " out"}`}
-                disabled={!offer.ready || !onTry}
-                aria-label={
-                  offer.ready
-                    ? `Try ${offer.label}`
-                    : `${offer.label} — needs ${offer.missing.join(" and ")}`
-                }
-                onClick={() => onTry && onTry(live, offer.subId, offer.type)}
-              >
-                <span className="at-tryname">{offer.label}</span>
-                <span className="at-trywhy">
-                  {offer.ready
-                    ? offer.off
-                      ? "Turned off in settings"
-                      : "Try it"
-                    : `Needs ${offer.missing.join(" and ")}`}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
     </Screen>
   );
 }
@@ -6127,7 +5963,6 @@ function CardScreen({ card, items, settings, onBack, onTry, action }) {
  *   onSetLocked: (ids: string[], locked: boolean) => void,
  *   onTagMany: (ids: string[], tag: string) => void,
  *   onImport: (file: any) => void,
- *   onTry?: (item: Item, subId: string | null, type: string) => void,
  * }} props The handlers are all required: this tab does nothing on its own, and the one caller passes every one of them.
  */
 function ItemsTab({
@@ -6148,7 +5983,6 @@ function ItemsTab({
   onSetLocked,
   onTagMany,
   onImport,
-  onTry,
 }) {
   const [sheet, setSheet] = useState(/** @type {any | null} */ (null)); // null | "single" | "bulk" | {edit:item}
   const [q, setQ] = useState("");
@@ -6313,8 +6147,6 @@ function ItemsTab({
         <CardScreen
           card={sheet.view}
           items={items}
-          settings={settings}
-          onTry={onTry}
           onBack={() => setSheet(null)}
           action={
             OWN && !sheet.view.locked ? (
@@ -8334,10 +8166,9 @@ const TagSection = React.memo(
  * @param {{
  *   data: any, items: Item[], myCourses?: Course[],
  *   settings: Settings, onPractice: (ids: string[], mode: string) => void,
- *   onTry?: (item: Item, subId: string | null, type: string) => void,
  * }} props
  */
-function ProgressTab({ data, items, myCourses = [], settings, onPractice, onTry }) {
+function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
   // Collapsed by default: the point of this screen is the overview.
   const [open, setOpen] = useState(() => new Set());
   const [viewing, setViewing] = useState(/** @type {any | null} */ (null));
@@ -8420,13 +8251,7 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice, onTry 
       )}
 
       {viewing && (
-        <CardScreen
-          card={viewing}
-          items={items}
-          settings={settings}
-          onTry={onTry}
-          onBack={() => setViewing(null)}
-        />
+        <CardScreen card={viewing} items={items} onBack={() => setViewing(null)} />
       )}
     </>
   );

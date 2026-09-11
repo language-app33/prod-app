@@ -140,6 +140,7 @@ const PLACES = {
   RecordingScreen: [TEACH, "Editing a card · making a recording"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
   InContext: [TEACH, "The In context tab"],
+  TryExercises: [TEACH, "A card · trying an exercise on it"],
   SelectionBar: [TEACH, "When several cards are selected"],
   CodeBox: [TEACH, "A code to hand out"],
 
