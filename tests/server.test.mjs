@@ -378,6 +378,23 @@ test("a card can hold a conversation, and keeps its turns in order", async () =>
  * An ordinary card is not changed by passing through a server that knows
  * about conversations: it comes back with no turns and nobody in it.
  */
+test("a card keeps the gap that pairs an answer with how it is said", async () => {
+  /* Two accepted spellings, a transliteration for the second only. The
+     blank before it is holding the first answer's place — trimmed away,
+     "safar" would come back as the pronunciation of the wrong word. */
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rami" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "كتاب / سفر", en: "book", lat: " / safar", lang: "ar-PS" }, decks: [] },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.lat, " / safar", "the gap was trimmed away");
+  assert.equal(saved.json.card.ar, "كتاب / سفر");
+});
+
 test("and a word is not turned into a conversation by being saved", async () => {
   const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Hana" } });
   const key = made.json.key;

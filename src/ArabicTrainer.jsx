@@ -168,6 +168,7 @@ import {
   yourLines,
   youOf,
 } from "./dialogs.js";
+import { answerForTurn, withAnswer as oneAnswer } from "./answers.js";
 
 /*
  * The two that need to know which exercise types a form supports. That
@@ -619,6 +620,45 @@ function castPart(resolved, type) {
     ...resolved,
     unit: resolved.unit === card ? played : resolved.unit,
     parent: played,
+  };
+}
+
+/*
+ * Which accepted answer a pronunciation question is about.
+ *
+ * A card may accept two spellings, and each has its own transliteration.
+ * Asking "how is this pronounced" of both spellings at once has no answer;
+ * asking for one of them by its pronunciation and accepting the other
+ * marks the wrong thing right. So these two questions are asked about one
+ * answer, and the card is narrowed to it — the prompt, the marking and the
+ * answer screen then read one form and cannot disagree about which word is
+ * on the table.
+ *
+ * Rotated by how often this exercise has been asked of this unit, like the
+ * phrase a word is shown in and the part a scene is played from: a card
+ * with two spellings is drilled on both, one at a time, and the question
+ * on screen does not change under a re-render.
+ *
+ * Only these two exercises narrow. Asked what a card means, or to write it
+ * from its meaning, every accepted answer is still accepted — the answer
+ * there is the word, not one spelling of it.
+ */
+/**
+ * @param {{ unit: Form, parent: Item, isSub: boolean } | null} resolved
+ * @param {string} type
+ */
+function castAnswer(resolved, type) {
+  if (!resolved) return resolved;
+  const spec = EX[type];
+  if (!spec || !spec.needs.includes("lat")) return resolved;
+  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const answer = answerForTurn(resolved.unit, seen);
+  if (!answer) return resolved;
+  const unit = /** @type {any} */ (oneAnswer(resolved.unit, answer));
+  return {
+    ...resolved,
+    unit,
+    parent: resolved.parent === resolved.unit ? unit : resolved.parent,
   };
 }
 
@@ -4384,7 +4424,7 @@ export default function ArabicTrainer() {
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
-  const resolved = exercise ? castPart(resolveUnit(asking, exercise), exercise.type) : null;
+  const resolved = exercise ? castAnswer(castPart(resolveUnit(asking, exercise), exercise.type), exercise.type) : null;
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);

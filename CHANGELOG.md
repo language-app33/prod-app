@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.65 — 11 September 2026
+
+- Each accepted answer now carries its own transliteration. A card that
+  accepts two spellings is a card with two words on it, each said its own
+  way — one transliteration under the pair belonged to one of them and lied
+  about the other, and a question built from it could show one
+  pronunciation and mark the other spelling right.
+- They are written together: one row per accepted answer, holding the
+  answer and how that one is said. Adding an answer adds both cells,
+  removing one removes both, so the two can never drift apart.
+- A question about pronunciation is now a question about one answer. Asked
+  how a card sounds, or asked to write it from its sound, you get one
+  spelling and one pronunciation — and a card with two is drilled on both,
+  one at a time. Asked what a card means, every accepted answer is still
+  accepted.
+- Nothing to migrate. The pairing is by position in the two lists a card
+  already stores, so every card written so far — one answer, one
+  transliteration — already reads correctly.
+
 ## 0.64 — 11 September 2026
 
 - The bar at the foot of a question reaches both edges of the window. It

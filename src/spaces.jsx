@@ -56,6 +56,7 @@ import {
   scriptVars,
 } from "./languages.js";
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart } from "./dialogs.js";
+import { answerRows, packAnswers } from "./answers.js";
 import { linkReport, pairsIn } from "./context-links.js";
 import { buildContextIndex } from "./context-index.js";
 import { offersFor } from "./offers.js";
@@ -2821,6 +2822,76 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
   );
 }
 
+/*
+ * The same list, where the language also has a transliteration.
+ *
+ * An accepted answer and how it is said are one row, because they are one
+ * thing: two spellings are two words with two pronunciations, and a single
+ * transliteration under the pair belongs to one of them and lies about the
+ * other. Adding an answer adds both cells; removing one removes both. That
+ * is the whole guard against the two stored strings drifting out of step,
+ * and it is here because here is the only place either is written.
+ */
+/**
+ * @param {{
+ *   lang: Lang,
+ *   ar?: string,
+ *   lat?: string,
+ *   onChange: (next: { ar: string, lat: string }) => void,
+ * }} props
+ */
+function ScriptAnswers({ lang, ar, lat, onChange }) {
+  const [rows, setRows] = useState(() => answerRows({ ar, lat }));
+  /** @param {{ ar: string, lat: string }[]} next */
+  const commit = (next) => {
+    setRows(next);
+    onChange(packAnswers(next));
+  };
+  /** @param {number} i @param {Partial<{ ar: string, lat: string }>} patch */
+  const edit = (i, patch) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <div className="at-alts">
+      {rows.map((row, i) => (
+        <div className="at-answerpair" key={i}>
+          <div className="at-altfield">
+            <ScriptInput lang={lang} value={row.ar} onChange={(v) => edit(i, { ar: v })} />
+          </div>
+          {/* The buttons take a column of their own so that the answer and
+              its pronunciation, stacked in the column beside them, line up
+              with each other rather than one running past the other. */}
+          <div className="at-answeracts">
+            {rows.length > 1 && (
+              <IconButton
+                icon="remove"
+                label="Remove this answer"
+                onClick={() => commit(rows.filter((_, j) => j !== i))}
+              />
+            )}
+            {i === rows.length - 1 && (
+              <IconButton
+                icon="add"
+                label="Add another accepted answer"
+                onClick={() => commit(rows.concat([{ ar: "", lat: "" }]))}
+              />
+            )}
+          </div>
+          <input
+            className="at-input at-answersaid"
+            value={row.lat}
+            aria-label={
+              rows.length > 1
+                ? `${lang.translitLabel} of accepted answer ${i + 1}`
+                : lang.translitLabel
+            }
+            placeholder={lang.translitLabel.toLowerCase()}
+            onChange={(e) => edit(i, { lat: e.target.value })}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * @param {{ lang: Lang, value?: string, onChange: (value: string) => void }} props
  */
@@ -4148,12 +4219,25 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 </p>
               )}
 
-              <Field label={lang.scriptLabel}>
-                <Alternatives
-                  value={f.ar}
-                  onChange={(v) => setForm(i, { ...f, ar: v })}
-                  render={(v, set) => <ScriptInput lang={lang} value={v} onChange={set} />}
+              {/* An accepted answer and how it is said are written together,
+                  because one transliteration under two spellings belongs to
+                  one of them and lies about the other. Where the language
+                  has no transliteration to write, this is the plain list it
+                  always was. */}
+              <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
+                <ScriptAnswers
+                  lang={lang}
+                  ar={f.ar}
+                  lat={f.lat}
+                  onChange={(next) => setForm(i, { ...f, ...next })}
                 />
+                {!drillsTranslit && (
+                  <Help>
+                    {lang.name} is written in the Latin alphabet, so the{" "}
+                    {lang.translitLabel.toLowerCase()} is never asked for — it is kept
+                    beside the answer it belongs to, and read.
+                  </Help>
+                )}
               </Field>
 
               <Field label="English">
@@ -4166,36 +4250,19 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 />
               </Field>
 
-              {/* Only where the language drills it. Vietnamese is already in
-                  the Latin alphabet, so its note is reference, not an
-                  exercise — it sits below with the rest. */}
-              {drillsTranslit && (
-                <Field label={lang.translitLabel}>
-                  <input
-                    className="at-input"
-                    value={f.lat}
-                    onChange={(e) => setForm(i, { ...f, lat: e.target.value })}
-                  />
-                </Field>
-              )}
-
               <div className="at-field">
                 <Recordings form={f} onOpen={() => setRecording(i)} />
               </div>
 
-              {(!drillsTranslit || dims.length || (i === 0 && lang.lexical)) && (
+              {/* The transliteration used to stand down here for a language
+                  that does not drill it, which is where it belonged when it
+                  was one field about the whole card. It belongs to an
+                  answer, so it is written beside that answer whether or not
+                  anybody is asked for it; what is left here is what is
+                  about the form rather than about one of its answers. */}
+              {(dims.length || (i === 0 && lang.lexical)) && (
                 <>
                   <p className="at-groupline">Reference — not drilled</p>
-
-                  {!drillsTranslit && (
-                    <Field label={lang.translitLabel}>
-                      <input
-                        className="at-input"
-                        value={f.lat}
-                        onChange={(e) => setForm(i, { ...f, lat: e.target.value })}
-                      />
-                    </Field>
-                  )}
 
                   {/* Number and gender name which form this is; nothing asks
                       the student for them. */}

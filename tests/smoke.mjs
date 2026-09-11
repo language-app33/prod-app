@@ -2162,6 +2162,38 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     /^New card$/.test((([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim()),
     (([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim() || "(no title)");
 
+  /* ---- each accepted answer, and how that one is said ----
+     A card may accept two spellings, and each is its own word with its own
+     pronunciation. One transliteration under the pair belonged to one of
+     them and lied about the other — and a question built from it could
+     show one pronunciation and mark the other spelling right. */
+  click(kinds[0]);
+  await sleep(250);
+  const saidFields = () =>
+    [...document.querySelectorAll("input")].filter((i) =>
+      /^Transliteration$|^Transliteration of accepted answer \d+$/.test(i.getAttribute("aria-label") || "")
+    );
+  check("a card written in a script asks how its answer is said, beside it",
+    saidFields().length === 1, `${saidFields().length} fields`);
+  const addAnswer = [...document.querySelectorAll("button")]
+    .find((b) => b.getAttribute("aria-label") === "Add another accepted answer");
+  check("and another answer can be added", !!addAnswer,
+    addAnswer ? "the + beside the last one" : "no add button");
+  click(addAnswer);
+  await sleep(250);
+  check("a second accepted answer brings its own transliteration",
+    saidFields().length === 2,
+    saidFields().map((i) => i.getAttribute("aria-label")).join(" | ") || "none");
+  check("each saying which answer it belongs to",
+    saidFields().every((i, n) => (i.getAttribute("aria-label") || "").endsWith(String(n + 1))),
+    saidFields().map((i) => i.getAttribute("aria-label")).join(" | "));
+  /* And removing an answer takes its pronunciation with it, which is the
+     whole guard against the two stored lists drifting apart. */
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Remove this answer"));
+  await sleep(250);
+  check("removing an answer takes its transliteration with it",
+    saidFields().length === 1, `${saidFields().length} left`);
+
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
 }

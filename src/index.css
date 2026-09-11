@@ -713,6 +713,10 @@ button {
 .at-readmeaning { font-family: var(--ui); font-size:19px; font-weight:700;
   margin:0 0 2px; overflow-wrap:anywhere; }
 .at-readlat { font-family: var(--ui); font-size:14px; color: var(--muted); margin:0; }
+/* One accepted answer with its own transliteration under it. Several of
+   them stack, with air between, because the thing being read is which
+   pronunciation goes with which spelling. */
+.at-readanswer + .at-readanswer { margin-top:10px; }
 @media (max-width: 420px) {
   .at-readlabel { flex-basis:100%; }}
 /* Someone's own name in a roster. */
@@ -1446,6 +1450,21 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-altrow { display:flex; align-items:flex-start; gap:6px; }
 .at-altrow > .at-altfield { flex:1 1 auto; min-width:0; }
 .at-altrow > .at-icon { flex:0 0 auto; margin-top:8px; }
+/* An accepted answer and how it is said, as one thing. The pronunciation
+   is indented under its answer and set quieter, so the column reads as a
+   list of answers rather than as twice as many fields — which is what two
+   equal boxes in a row would have made of it. The gap between pairs is
+   wider than the gap inside one, because that is the only thing saying
+   which transliteration belongs to which spelling. */
+.at-answerpair { display:grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap:4px 6px; align-items:start; }
+.at-answerpair > .at-answeracts { display:flex; gap:6px; margin-top:8px; }
+.at-alts > .at-answerpair + .at-answerpair { margin-top:10px; }
+/* Under its own answer and in the same column, so the two read as one
+   thing; indented and quieter, so the column reads as a list of answers
+   rather than as twice as many fields. */
+.at-answersaid { grid-column:1; font-family: var(--ui); font-size:14px;
+  padding-block:7px; margin-inline-start:10px; width:auto; }
 /* Which side the button takes is the script's business, not the page's: it
    belongs at the end of the line, which is the left in Arabic. Marked with
    a class rather than left to logical properties, because the button

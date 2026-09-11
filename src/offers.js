@@ -26,6 +26,7 @@
  */
 
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.js";
+import { saidAnswers } from "./answers.js";
 import { EX, TYPES, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.js";
 
 /*
@@ -53,6 +54,13 @@ export function unmetNeeds(unit, spec, scene, contexts) {
     if (f === "contexts") return !contexts.length;
     if (f === "contextAudio") return !contexts.some((c) => (c.recs || []).length > 0);
     if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, unit);
+    /* A pronunciation question is about one accepted answer, so what it
+       needs is an answer that has one — not merely a transliteration
+       somewhere on the card. A form accepting two spellings with a
+       transliteration for only the second can still be asked, about the
+       second; one with a transliteration and no spelling beside it cannot
+       be asked at all. */
+    if (f === "lat") return !saidAnswers(unit).length;
     return !(/** @type {any} */ (unit)[f]);
   });
 }
