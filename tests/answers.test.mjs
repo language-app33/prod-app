@@ -23,7 +23,7 @@ import {
   withAnswer,
 } from "../src/answers.ts";
 import { canAsk, unmetNeeds } from "../src/offers.ts";
-import { EX, LANGUAGES, answerFields, checkAnswer, labelFor } from "../src/languages.js";
+import { EX, LANGUAGES, answerFields, checkAnswer, labelFor } from "../src/languages.ts";
 
 const ar = LANGUAGES["ar-PS"];
 /* What a stored answer may carry, as the grammar table declares it. */

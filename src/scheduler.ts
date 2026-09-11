@@ -22,7 +22,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { TYPES } from "./languages.js";
+import { TYPES } from "./languages.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;

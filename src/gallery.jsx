@@ -17,7 +17,7 @@
 import React, { useState } from "react";
 import { COMPONENT_USES } from "./component-uses.js";
 import { SCREEN_ELEMENTS, NAMING } from "./screen-elements.js";
-import { LANGUAGES } from "./languages.js";
+import { LANGUAGES } from "./languages.ts";
 import {
   Button,
   CardReadout,

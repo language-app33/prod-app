@@ -56,7 +56,7 @@ import {
   LANGUAGES,
   DEFAULT_LANGUAGE,
   scriptVars,
-} from "./languages.js";
+} from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.ts";
 /** @import { Answer } from "./answers.ts" */
 import { answerRows, packAnswers } from "./answers.ts";

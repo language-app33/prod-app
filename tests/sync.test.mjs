@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mergeData, compactItem, isFreshState, syncClips, clipIdsIn } from "../src/sync.js";
-import { TYPES } from "../src/languages.js";
+import { TYPES } from "../src/languages.ts";
 /** @import { Doc, Item, WireDoc } from "../src/types.ts" */
 
 const fresh = () => ({

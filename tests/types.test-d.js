@@ -11,7 +11,7 @@
  * it, the way the ecosystem's type-test files are named.
  */
 import * as API from "../src/courses-api.js";
-import { langOf } from "../src/languages.js";
+import { langOf } from "../src/languages.ts";
 
 /** @type {import("../src/types.ts").Settings} */
 const settings = { language: "ar-PS" };

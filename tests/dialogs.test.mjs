@@ -43,7 +43,7 @@ import {
   yourLines,
   youOf,
 } from "../src/dialogs.ts";
-import { EX, TYPES, checkAnswer } from "../src/languages.js";
+import { EX, TYPES, checkAnswer } from "../src/languages.ts";
 import { unitsOf } from "../src/scheduler.ts";
 
 /* A scene of four turns, two people, written the way the editor writes

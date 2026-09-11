@@ -128,7 +128,7 @@ import {
   defaultLanguageOptions,
   grammarFields,
   normDimValue,
-} from "./languages.js";
+} from "./languages.ts";
 import {
   MIN,
   MATURE_DAYS,
@@ -1826,7 +1826,7 @@ function liftStates(old = {}) {
  *
  * The one-time migration. Gender and number used to sit on the form, one
  * set for the whole card, which was a label that described one accepted
- * answer and lied about any other that differed — see answers.js. Read
+ * answer and lied about any other that differed — see answers.ts. Read
  * here, at the door, so a document written before the change is the new
  * shape by the time anything else sees it; a document written since passes
  * through unchanged, because reading its own answers back is what

@@ -31,7 +31,7 @@
  */
 
 import type { Lang } from "./types.ts";
-import { contextTokens, findWordSpan, isFunctionWord, supportsContext } from "./languages.js";
+import { contextTokens, findWordSpan, isFunctionWord, supportsContext } from "./languages.ts";
 import { isDialog, linesOf, speakerName } from "./dialogs.ts";
 
 /*
@@ -79,7 +79,7 @@ const named = (card: Card) => ({ id: card.id, ar: textOf(card), en: card.en || "
  * the lines using them never came up to confirm, and coverage counted a
  * deck taught entirely through conversation at nothing. Meanwhile the
  * session builder had been treating those same lines as contexts all
- * along (see context-index.js), so the two halves of the app disagreed
+ * along (see context-index.ts), so the two halves of the app disagreed
  * about what the material contains.
  *
  * A container is therefore a card or one turn of one. `cardId` is what to

@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import * as LANG from "../src/languages.js";
+import * as LANG from "../src/languages.ts";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 /* Named without an extension, and resolved to whichever one exists: the

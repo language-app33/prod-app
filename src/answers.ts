@@ -38,7 +38,7 @@
  * Which fields an answer may carry, and what each will accept, is the
  * language table's business rather than this module's — so it is passed
  * in, as answerFields() builds it. It travels as an argument rather than
- * being imported because languages.js reads this file to mark an answer,
+ * being imported because languages.ts reads this file to mark an answer,
  * and two modules reaching for each other is a cycle that resolves to
  * undefined at the wrong moment.
  */

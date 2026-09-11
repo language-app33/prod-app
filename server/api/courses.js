@@ -8,7 +8,7 @@ import { getStore } from "../store.js";
 import { createHash, randomBytes } from "node:crypto";
 /* The one list of grammatical fields a card may carry, shared with the app so
    that adding an axis to a language does not silently drop it here. */
-import { answerFields, grammarFields } from "../../src/languages.js";
+import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
 
 /*

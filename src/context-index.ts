@@ -18,7 +18,7 @@
  */
 
 import type { Item, Lang } from "./types.ts";
-import { findWordSpan, supportsContext } from "./languages.js";
+import { findWordSpan, supportsContext } from "./languages.ts";
 import { unitsOf } from "./scheduler.ts";
 import { dialogPhrases } from "./dialogs.ts";
 

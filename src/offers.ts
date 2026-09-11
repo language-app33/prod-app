@@ -28,7 +28,7 @@ import type { ExerciseSpec, Form, Item, Lang } from "./types.ts";
 import type { Placed } from "./dialogs.ts";
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
-import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.js";
+import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
 
 /*
  * What this unit has not got, of what an exercise asks for.

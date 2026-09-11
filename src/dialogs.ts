@@ -74,7 +74,7 @@ export const MIN_ORDER_LINES = 3;
 export const MIN_PICK_LINES = 3;
 
 /* How many replies "Pick the reply" puts up: the same few as every other
-   question that offers a choice, named once in chance.js. */
+   question that offers a choice, named once in chance.ts. */
 export { PICK_OPTIONS } from "./chance.ts";
 
 /*
@@ -303,7 +303,7 @@ export function dialogPhrases(items: Item[]) {
    Deciding without rolling a die
 
    Which replies are offered, and which order a scrambled scene arrives in,
-   are worked out from the ids involved rather than drawn — see chance.js,
+   are worked out from the ids involved rather than drawn — see chance.ts,
    which the gap-fill's choices come out of too.
    ------------------------------------------------------------------ */
 

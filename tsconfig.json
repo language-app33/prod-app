@@ -1,12 +1,18 @@
 {
   /* What the type checker is here for, and why it is set up this way.
    *
-   * The app is JavaScript and stays JavaScript. This adds a second reader
-   * of it — one that knows what shape everything is — beside the linter and
-   * the tests. It is aimed at one class of defect the other two miss: a
-   * value of the wrong shape passed across a boundary. Sending a whole
-   * language pack where the server wanted a language id was that bug, and
-   * it reached production because every reader it passed was happy.
+   * A second reader of the code — one that knows what shape everything is
+   * — beside the linter and the tests. It is aimed at one class of defect
+   * the other two miss: a value of the wrong shape passed across a
+   * boundary. Sending a whole language pack where the server wanted a
+   * language id was that bug, and it reached production because every
+   * reader it passed was happy.
+   *
+   * It was a reader of JavaScript first and is now partly a compiler's
+   * front end: the modules that decide what a learner is asked are
+   * TypeScript, and the screens are still JavaScript with JSDoc. Both are
+   * checked the same way and by the same command, which is what allows the
+   * tree to be mixed for as long as it takes — see DECISIONS.md.
    *
    * checkJs was false while this was being adopted, and each file opted in
    * by starting with `// @ts-check`: turning it on at the outset would

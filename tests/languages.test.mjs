@@ -29,7 +29,7 @@ import {
   TYPES,
   EX,
   isListening,
-} from "../src/languages.js";
+} from "../src/languages.ts";
 
 test("Arabic: bare letters accepted, wrong harakat rejected, missing harakat depends on setting", () => {
   assert.equal(checkAr("كتاب", "كِتَاب", { tashkeel: "either" }).ok, true);

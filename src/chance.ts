@@ -12,7 +12,7 @@
  * ids and the same seed give the same answer for ever; a different seed
  * gives another one. Nothing here reads a clock or a global.
  *
- * Not to be confused with the shuffling in scheduler.js, which is the
+ * Not to be confused with the shuffling in scheduler.ts, which is the
  * opposite thing on purpose: that one is real chance, thrown once, so that
  * two sessions built a minute apart are not the same session.
  */

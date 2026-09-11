@@ -13,7 +13,7 @@ anything that was never really a choice.
 
 ## Grammar belongs to an accepted answer, not to the form
 
-**11 September 2026** · `src/answers.ts`, `src/languages.js` (`answerFields`)
+**11 September 2026** · `src/answers.ts`, `src/languages.ts` (`answerFields`)
 
 A card may accept more than one answer. Gender, number and the rest sat on
 the form, one set for the whole card — which is right until two accepted
@@ -75,8 +75,8 @@ a field nobody declared is dropped rather than carried forward for ever,
 and an answer with no text left is not an answer.
 
 What the language will accept comes from the grammar table via
-`answerFields()`, passed in rather than imported, so `languages.js` can read
-`answers.js` to mark an answer without the two reaching for each other.
+`answerFields()`, passed in rather than imported, so `languages.ts` can read
+`answers.ts` to mark an answer without the two reaching for each other.
 
 Revisit if validation ever needs to report *why* something was rejected —
 an import screen that tells a teacher which row is wrong would be a fair
@@ -126,18 +126,36 @@ typed `unknown` handed to a picker that takes a string. Converting
 on it) and caught a test dereferencing a `cueFor` result that is null at
 the first line — which the same test asserts two lines further down.
 
-**Done so far.** Every pure module: `chance`, `answers`, `dialogs`,
-`context-index`, `offers`, `context-links`, `scheduler`. That is the whole
-layer that decides what a learner is asked, and it is the layer the tests
-drive directly.
+**Done so far.** Every pure module — `chance`, `answers`, `dialogs`,
+`context-index`, `offers`, `context-links`, `scheduler` — which is the
+whole layer that decides what a learner is asked, and the layer the tests
+drive directly. Then `types`, and then `languages`.
 
-**What is left.** `types` and `languages` — `types` is 461 lines of
-typedefs that become real declarations and would be a clean win;
-`languages` is 2,102 lines and the one file allowed to know about a
-language, so it wants its own sitting. Then `sync`, `storage`,
-`courses-api`, `updates`, `screen-elements`. Then `shared.jsx` and
-`spaces.jsx`. `ArabicTrainer.jsx` last and alone — 9k lines and 404
-annotations is not a slice of anything.
+`types` was the cheap one and paid for itself anyway. A JSDoc
+`@typedef {object}` is an anonymous object type and gets an implicit index
+signature; an `interface` does not. So `Verdicts` stopped being assignable
+to `Record<string, string>` the moment it was written out, which was a cast
+in `verdictWord()` admitting it did not know its own keys. It takes one of
+four named tiers and never an arbitrary string, and now says so.
+
+`languages` is 2,102 lines with 133 JSDoc annotations on it, and moving
+those by hand would have been a long afternoon of transcription errors. It
+was done by a script that lifted each `@param {T} name` into `name: T` and
+kept the prose that followed it as a bare `@param name  …`, with the diff
+read through afterwards — which is the right division of labour: a
+machine for the mechanical half, a person for the seventeen places the
+machine produced something correct and ugly.
+
+**What is left.** `sync`, `storage`, `courses-api`, `updates`,
+`screen-elements`. Then `shared.jsx` and `spaces.jsx`.
+`ArabicTrainer.jsx` last and alone — 9k lines and 404 annotations is not a
+slice of anything.
+
+**A file that moves takes its name with it.** An import names the file it
+means, so every specifier pointing at a converted module changes with it,
+and so does every comment that named one. `dialogs.js` in a sentence about
+cycles is a wrong reference the moment the file is `dialogs.ts`, and prose
+is where a rename rots quietest: nothing fails.
 
 **One thing to watch.** Guards keyed by filename rot as files move.
 `tests/language-isolation.test.mjs` listed `scheduler.js` and keyed its

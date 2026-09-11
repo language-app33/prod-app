@@ -90,7 +90,7 @@ release number alone is never taken as proof of a deploy.
 
 ```
 src/
-  languages.js     every language-specific rule: grammar axes, grading,
+  languages.ts     every language-specific rule: grammar axes, grading,
                    keyboards, exercise definitions. Imports nothing from the
                    app, so it can be read and tested on its own.
   ArabicTrainer.jsx  the learner's app: scheduler, session builder, screens
@@ -114,7 +114,7 @@ widely it is used — worth reading before adding UI.
 
 A few rules the code follows, learned the hard way:
 
-- **Anything language-specific lives in `languages.js`.** Divergent copies of
+- **Anything language-specific lives in `languages.ts`.** Divergent copies of
   a grader or an editor are where the subtle bugs come from.
 - **One implementation of a thing.** If two versions of a component coexist,
   the goal is to converge on one, not to keep both.
@@ -125,19 +125,18 @@ A few rules the code follows, learned the hard way:
 
 ### Types
 
-The code is JavaScript and stays JavaScript. TypeScript reads it without
-compiling it: `npm run typecheck`, which `npm run check` and CI both run.
+Every file is checked, in `strict` mode, by `npm run typecheck` — which
+`npm run check` and CI both run. Nothing is compiled by tsc: it is a second
+reader, and the server still runs from source.
 
-**A file is checked only if it starts with `// @ts-check`.** That is the
-whole convention. Turning it on everywhere would have meant a few hundred
-errors on day one and `strict` off to get a green build; this way `strict`
-is on, every commit is green, and a file is adopted when somebody has
-reason to.
-
-To adopt one: add the comment, run `npm run typecheck`, and describe the
-shapes with JSDoc until it is quiet. Nothing is renamed and nothing is
-compiled, so the server still runs from source and the tests still import
-plain modules.
+**The tree is mixed, on purpose.** The modules that decide what a learner is
+asked are TypeScript; the screens are JavaScript with JSDoc types. They are
+being converted a file at a time from the leaves inward, and DECISIONS.md
+records why and in what order. Node 22 strips types on the way in, so a
+`.ts` module is imported by the tests and by the server exactly as a `.js`
+one was — no build step, no loader. What Node will not do is guess an
+extension, so **an import names the file it means**: `"./chance.ts"`,
+`"./shared.jsx"`.
 
 The records both sides pass are in `src/types.ts` — a card, a deck, a
 course, an account, a report, a language pack. It has no runtime value; it

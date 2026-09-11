@@ -40,7 +40,7 @@ import {
   inOrder,
   dueRank,
 } from "../src/scheduler.ts";
-import { TYPES } from "../src/languages.js";
+import { TYPES } from "../src/languages.ts";
 /** @import { ExerciseState, Item } from "../src/types.ts" */
 
 /* A Tuesday, so nothing depends on it being midnight or a month boundary. */

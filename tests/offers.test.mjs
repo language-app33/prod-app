@@ -11,7 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { offersFor, canAsk, unmetNeeds } from "../src/offers.ts";
-import { EX, LANGUAGES } from "../src/languages.js";
+import { EX, LANGUAGES } from "../src/languages.ts";
 
 const ar = LANGUAGES["ar-PS"];
 const vi = LANGUAGES["vi-Hue"];
