@@ -110,7 +110,7 @@ import {
   contextTokens,
   EASY_TYPES,
   exOf,
-  findWordSlot,
+  findWordSpan,
   guessKind,
   inScript,
   isListening,
@@ -147,6 +147,7 @@ import {
   inOrder,
   shuffled,
 } from "./scheduler.js";
+import { PICK_OPTIONS, optionsFor } from "./chance.js";
 import {
   DEFAULT_SPEAKERS,
   DIALOG_KIND,
@@ -512,6 +513,33 @@ function sceneOf(unitId) {
   return DIALOG_INDEX.get(unitId) || null;
 }
 
+/*
+ * The words a wrong answer could be drawn from.
+ *
+ * The learner's own words in the language being asked, which is what makes
+ * a wrong answer worth offering: a word they have never met is not a
+ * distractor, it is a word they can rule out by not recognising it. Forms
+ * come too — a plural beside its singular is exactly the choice worth
+ * making — and the word being asked for is left out, since the drawing
+ * puts it back itself.
+ */
+/**
+ * @param {Item[]} items
+ * @param {Settings} settings
+ * @param {LangId} langId
+ * @param {Form} answer
+ */
+function wordPool(items, settings, langId, answer) {
+  const out = [];
+  for (const card of items) {
+    if (isDialog(card) || langIdOf(card, settings) !== langId) continue;
+    for (const { unit } of unitsOf(card)) {
+      if (unit.ar && unit.id !== answer.id) out.push(unit);
+    }
+  }
+  return out;
+}
+
 /* Every line of every dialog, for the exercise that offers three wrong
    replies beside the right one. Kept to the language being asked: a
    Vietnamese line among three Arabic ones is not a distractor, it is a
@@ -574,15 +602,20 @@ function buildContextIndex(items, lang) {
       if (!target) continue;
       for (const { unit } of unitsOf(target)) {
         if (!unit.ar) continue;
-        const slot = findWordSlot(phrase.ar, unit.ar, lang);
-        if (slot < 0) continue;
+        const span = findWordSpan(phrase.ar, unit.ar, lang);
+        if (!span) continue;
         const list = index.get(unit.id) || [];
         list.push({
           id: phrase.id,
           ar: phrase.ar,
           en: phrase.en,
           recs: phrase.recs || [],
-          slot,
+          slot: span.at,
+          /* How many tokens the word takes up. One in Arabic, two for a
+             Vietnamese compound — and the gap has to cover all of them,
+             because blanking one syllable of a two-syllable word leaves
+             the answer half written on the screen. */
+          span: span.len,
         });
         index.set(unit.id, list);
         /* One form per phrase: if a phrase contained both the singular and
@@ -624,8 +657,12 @@ function pickContext(unit, type) {
  */
 function blankedPhrase(context, lang, blank = "____") {
   const tokens = contextTokens(context.ar, lang);
+  const span = Math.max(1, context.span || 1);
   if (context.slot < 0 || context.slot >= tokens.length) return context.ar;
-  return tokens.map((t, i) => (i === context.slot ? blank : t)).join(" ");
+  return tokens
+    .map((t, i) => (i === context.slot ? blank : i > context.slot && i < context.slot + span ? null : t))
+    .filter((t) => t !== null)
+    .join(" ");
 }
 
 /* Whether a type may be asked at this moment. Only the clock makes this
@@ -836,6 +873,20 @@ const shuffle = (arr) => shuffled(arr);
  */
 function similarity(a, b) {
   let score = 0;
+
+  /*
+   * One card teaching a word the other contains is the strongest kinship
+   * two cards in this app can have — stronger than sharing a deck, and
+   * stronger than sharing three consonants, both of which are guesses at
+   * the relation this one states outright. A teacher ticked it.
+   *
+   * It is what brings a word and its phrase into the same session, so that
+   * meeting the word alone and meeting it in use happen in one sitting
+   * rather than in two unrelated ones. Which comes first is settled
+   * elsewhere: the context exercises sit below the plain ones in the
+   * table, so a unit is asked the word before it is asked the phrase.
+   */
+  if ((a.uses || []).includes(b.id) || (b.uses || []).includes(a.id)) score += 8;
 
   const tagsA = new Set(a.tags || []);
   const sharedTags = (b.tags || []).filter((t) => tagsA.has(t)).length;
@@ -3309,32 +3360,39 @@ function ScenePart({ card, lang, value, onChange, disabled, marks }) {
   );
 }
 
-/* The replies on offer, one under the other rather than side by side: a
-   line of script is not a word, and four of them across a phone is four
-   columns of one letter each. */
+/*
+ * A few answers to choose between, one under the other rather than side by
+ * side: a line of script is not a word, and four of them across a phone is
+ * four columns of one letter each.
+ *
+ * The same control for both questions that offer a choice of words — which
+ * reply comes next in a conversation, and which word is missing from a
+ * phrase — because they are the same question about different material,
+ * and two of these would have drifted.
+ */
 /**
  * @param {{
  *   options: any[],
- *   card: any,
  *   lang: Lang,
  *   value: string,
  *   onChange: (v: string) => void,
  *   disabled?: boolean,
+ *   kind?: string,
  * }} props
  */
-function ReplyChoices({ options, card, lang, value, onChange, disabled }) {
+function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase" }) {
   return (
     <div className="at-replies" data-el="answer-choices">
-      {options.map((line) => (
+      {options.map((option) => (
         <button
           type="button"
-          key={line.id}
-          className={`at-reply${value === line.ar ? " on" : ""}`}
-          aria-pressed={value === line.ar}
+          key={option.id}
+          className={`at-reply${value === option.ar ? " on" : ""}${kind === "word" ? " word" : ""}`}
+          aria-pressed={value === option.ar}
           disabled={disabled}
-          onClick={() => onChange(line.ar)}
+          onClick={() => onChange(option.ar)}
         >
-          <Arabic text={line.ar} kind="phrase" lang={lang} />
+          <Arabic text={option.ar} kind={kind} lang={lang} />
         </button>
       ))}
     </div>
@@ -4337,6 +4395,28 @@ export default function ArabicTrainer() {
     wantsContext && exercise && exercise.ctx && item
       ? contextsFor(item.id).find((c) => c.id === exercise.ctx) || null
       : null;
+  /*
+   * Somewhere this word turned up, for the answer screen — whatever the
+   * question was.
+   *
+   * A phrase a teacher wrote is the most useful thing the app holds about
+   * a word, and it used to be shown only on the two questions built out of
+   * it: answer the word on its own and you never saw it, even with one on
+   * file. Every link a teacher makes now pays out on every question about
+   * that word.
+   *
+   * Rotated the way the gap-fill rotates, so a word with three phrases
+   * shows each of them in turn rather than the first one for ever, and
+   * skipped where the question already has one on the screen.
+   */
+  const alsoContext = useMemo(() => {
+    if (!item || context) return null;
+    const list = contextsFor(item.id);
+    if (!list.length) return null;
+    const seen = Object.values(statesOf(item)).reduce((n, st) => n + ((st && st.reps) || 0), 0);
+    return list[seen % list.length];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item && item.id, context, checked]);
   const practice = !!(session && session.practice);
 
   /* ---- the conversation, when the question is one ----
@@ -4351,16 +4431,32 @@ export default function ArabicTrainer() {
   /* Everything said before this line: the question, in a dialog. What
      comes after would be the answer to a different one. */
   const soFar = dialog && at !== null ? sceneBefore(dialog, at).concat([linesOf(dialog)[at]]) : [];
-  /* The replies on offer, worked out from the ids rather than drawn, so
-     the four do not reshuffle under a finger between renders. */
-  const replies = useMemo(
-    () =>
-      dialog && at !== null && spec && spec.pickReply
+  /*
+   * The few answers on offer, for whichever question offers a few.
+   *
+   * Worked out from the ids rather than drawn, so they do not reshuffle
+   * under a finger between renders. A reply comes from the scene and the
+   * scenes around it; a missing word comes from the learner's other words
+   * in the same language — a wrong answer has to be a word they could
+   * believe, which means one they have actually met.
+   */
+  const choices = useMemo(() => {
+    if (!spec || !spec.picks) return [];
+    if (spec.picks === "reply") {
+      return dialog && at !== null
         ? replyOptions({ card: dialog, at, pool: replyPool(items, settings, qLang.id) })
-        : [],
+        : [];
+    }
+    if (!item) return [];
+    return optionsFor({
+      answer: item,
+      pool: wordPool(items, settings, qLang.id, item),
+      wanted: PICK_OPTIONS,
+      seed: `${item.id} ${(exercise && exercise.ctx) || ""}`,
+      textOf: (w) => w.ar,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [dialog && dialog.id, at, exercise && exercise.type, items.length]
-  );
+  }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, items.length]);
   /* Which of your turns came back right, for the answer screen. Worked
      out once the whole part has been marked, and only then. */
   const partMarks = useMemo(() => {
@@ -5276,10 +5372,10 @@ Cards ready to practice
                         marks={partMarks}
                         onChange={setTyped}
                       />
-                    ) : spec.pickReply ? (
-                      <ReplyChoices
-                        options={replies}
-                        card={dialog}
+                    ) : spec.picks ? (
+                      <TextChoices
+                        options={choices}
+                        kind={spec.picks === "word" ? "word" : "phrase"}
                         lang={qLang}
                         value={typed}
                         disabled={!!checked}
@@ -5418,14 +5514,19 @@ Cards ready to practice
                             until now: before the answer it would have given
                             the game away, and after it is the reason the
                             question was worth asking. */}
-                        {context && (
+                        {(context || alsoContext) && (
                           <div className="at-answeralso" data-el="also-context">
                             <p className="at-alsolabel" data-el="also-context-label">
                               Where it turned up
                             </p>
-                            <Field value={context.ar} field="ar" kind="phrase" name="also-context-text" />
+                            <Field
+                              value={(context || alsoContext).ar}
+                              field="ar"
+                              kind="phrase"
+                              name="also-context-text"
+                            />
                             <p className="at-ctxmeaning" data-el="also-context-meaning">
-                              {context.en}
+                              {(context || alsoContext).en}
                             </p>
                           </div>
                         )}
@@ -6524,7 +6625,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    * conversation, so it can be seen to be right.
    */
   const usesIn = (/** @type {string} */ text) =>
-    wordCards.filter((/** @type {Item} */ w) => findWordSlot(text, w.ar, lang) >= 0);
+    wordCards.filter((/** @type {Item} */ w) => !!findWordSpan(text, w.ar, lang));
 
   const linked = (/** @type {any[]} */ lines) =>
     lines

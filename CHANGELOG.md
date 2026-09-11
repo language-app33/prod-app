@@ -8,6 +8,34 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.57 — 11 September 2026
+
+- A word is now met inside a phrase before it has to be written into one.
+  The gap-fill used to start at the hard half — type the missing word — so
+  a learner's first meeting with a word in context was also their first
+  chance to get it wrong. There is a gentler question in front of it now:
+  the phrase with the word missing and four words offered, one of them
+  right, drawn from words the learner has actually met.
+- The phrase a word turns up in is shown after any question about that
+  word, not only the two questions built out of it. Answer the word on its
+  own and the sentence it lives in is there under Learn more, a different
+  one each time where there is more than one. Every link a teacher has
+  made now pays out on every question about that word.
+- Arabic finds a word under what is stuck to the end of it as well as the
+  front: كتابك is كتاب. A phrase using a word in the most ordinary way
+  there is — with somebody owning it — used to teach that word to nobody.
+- A word of more than one syllable can be the word inside a sentence, which
+  is most of the Vietnamese vocabulary. The gap covers the whole of it
+  rather than half.
+- Teaching has a new tab, In context: the phrases that contain a word you
+  teach and do not say so, one tap each; the words your phrases keep using
+  that no card covers, most used first, each opening a half-written card;
+  and the words you teach that turn up in nothing at all. Saving a word
+  card now says when phrases you have already written contain it.
+- A word and the phrase it appears in are now the most closely related two
+  cards the app knows of, so a session that reaches for one brings the
+  other with it — the word on its own first, then the word in use.
+
 ## 0.56 — 11 September 2026
 
 - Sessions are no longer the same session every time. Leaving one half way

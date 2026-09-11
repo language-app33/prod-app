@@ -346,8 +346,11 @@ test("the gentle types are read off the definitions, not kept beside them", () =
      or "Get started" quietly never offered it. Reading a line of a
      conversation is recognition too, and belongs with the other two: a
      beginner meeting a scene should be asked what it says before being
-     asked to say any of it. */
-  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "dlg2en"]);
+     asked to say any of it. Choosing a word out of a phrase is the same
+     argument again: the gap-fill used to start at the hard half, so a
+     learner's first meeting with a word in context was also their first
+     chance to get it wrong. */
+  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "ctx2pick", "dlg2en"]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);

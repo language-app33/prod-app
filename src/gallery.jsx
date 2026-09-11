@@ -110,7 +110,7 @@ const PLACES = {
   Scene: [LEARN, "A practice session · a conversation"],
   SceneOrder: [LEARN, "A practice session · putting a scene in order"],
   ScenePart: [LEARN, "A practice session · playing a part"],
-  ReplyChoices: [LEARN, "A practice session · choosing a reply"],
+  TextChoices: [LEARN, "A practice session · choosing an answer from a few"],
   ManualSessionSheet: [LEARN, "Building a session by hand"],
   SessionLanguages: [LEARN, "Starting a session · which language"],
   ItemsTab: [LEARN, "The Cards tab"],
@@ -139,6 +139,7 @@ const PLACES = {
   Recordings: [TEACH, "Editing a card · its recordings"],
   RecordingScreen: [TEACH, "Editing a card · making a recording"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
+  InContext: [TEACH, "The In context tab"],
   SelectionBar: [TEACH, "When several cards are selected"],
   CodeBox: [TEACH, "A code to hand out"],
 

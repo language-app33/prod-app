@@ -61,8 +61,9 @@
  *   three never mix.
  * @property {boolean} [intro]     Met rather than answered: never scheduled,
  *   never marked, and not in TYPES.
- * @property {boolean} [pickReply] The choice offered is a line of the scene
- *   rather than a class of sound.
+ * @property {"reply" | "word"} [picks] What the few answers offered are: a
+ *   line of the conversation, or a word that could fill the gap. Absent
+ *   means a choice between classes of sound, which is graded differently.
  */
 
 /**
@@ -148,7 +149,17 @@
  * @property {Derived[]} derived
  * @property {(word: string) => string} similarityKey
  * @property {string} similarityMode
- * @property {{ matches: (token: string, word: string) => boolean, tokens?: (text: string) => string[] }} context A pack may split a phrase its own way; none does yet, and contextTokens() reads it.
+ * @property {{
+ *   matches: (token: string, word: string) => boolean,
+ *   tokens?: (text: string) => string[],
+ *   skip?: string[],
+ * }} context How this language finds one of its words inside a run of them.
+ *   `matches` is asked of one token, or of several joined, so a word that is
+ *   itself several tokens is found the same way a single one is. `tokens`
+ *   splits a phrase where whitespace is the wrong seam; none does yet.
+ *   `skip` names the words never worth a card of their own — the particles
+ *   and prepositions — which is the one part of that question the app
+ *   cannot work out and the language always knows.
  * @property {boolean} translitDrilled
  * @property {string} formsLabel
  * @property {string} fontStack

@@ -92,6 +92,9 @@ const card = {
 const phrase = {
   id: "k222222222222", owner: "t-1", ar: "الكتاب كبير", en: "the book is big", lat: "il-kitaab kbiir",
   note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  /* And it says so, the way a teacher confirms it in their own editor.
+     That one field is what turns two cards into a word met in use. */
+  uses: ["k111111111111"],
   clips: [], subs: [], rev: 1, updated: 1,
 };
 let materialHits = 0;
@@ -1705,6 +1708,107 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     new Set(openings).size > 1,
     `${new Set(openings).size} distinct opening(s): ${openings[0] || "none"}`);
   check("and every one of them actually started", openings.length === 6, `${openings.length} started`);
+}
+
+/* ---- a word, and the phrase it turns up in ----
+   The seeded course holds كتاب and "الكتاب كبير", and the phrase says it
+   teaches the word. What that link is worth is the whole of this block:
+   the word can be chosen out of the phrase before it has to be written
+   into it, and the phrase is shown after any question about the word
+   rather than only the two built out of it.
+
+   Driven through Ultimate, which asks every type a card supports, so
+   which questions come up is not a draw — everything else about a session
+   now is. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+  click(buttonNamed(/Build a session|Choose what to practice|Pick cards/));
+  await sleep(300);
+  click([...document.querySelectorAll(".at-modecard")].find((b) => /Ultimate/.test(b.textContent || "")));
+  await sleep(80);
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  await sleep(150);
+  const lesson = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Lesson 1/.test(b.textContent || ""));
+  click(lesson);
+  await sleep(80);
+  clickNamed(/^(Next|Choose at least one card|Start|Choose a length)$/);
+  await sleep(200);
+  clickNamed(/^(Start|Choose a length)$/);
+  await sleep(500);
+
+  const instruction = () => (document.querySelector(".at-instruction") || {}).textContent || "";
+  const prompt = () => (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
+  let sawPicker = false;
+  let pickerOptions = 0;
+  let pickerHadTheWord = false;
+  let sawWhereItTurnedUp = 0;
+  let sawOnAPlainQuestion = false;
+
+  for (let n = 0; n < 26 && document.querySelector(".at-instruction"); n++) {
+    const asked = instruction();
+    const gapped = /____/.test(prompt());
+    const choices = document.querySelector('[data-el="answer-choices"]');
+    const contextQuestion = gapped || /phrase/i.test(asked);
+
+    if (choices && gapped) {
+      /* Move one: the gentle half of the gap-fill. The word is chosen out
+         of a few before it ever has to be spelled into the gap. */
+      sawPicker = true;
+      const options = [...choices.querySelectorAll("button")];
+      pickerOptions = options.length;
+      pickerHadTheWord = options.some((b) => (b.textContent || "").includes("كتاب"));
+      click(options[0]);
+      await sleep(40);
+    } else if (choices) {
+      click(choices.querySelector("button"));
+      await sleep(40);
+    } else if (document.querySelector('[data-el="answer-input"]')) {
+      click(buttonNamed(/^I don't know$/));
+      await sleep(200);
+    } else if (document.querySelector('[data-el="check-button"]')) {
+      click(document.querySelector('[data-el="check-button"]'));
+      await sleep(200);
+    }
+    if (!document.querySelector('[data-el="verdict"]')) {
+      click(document.querySelector('[data-el="check-button"]'));
+      await sleep(250);
+    }
+
+    /* Move two: what the answer screen says about where the word lives.
+       Behind "Learn more", which is where everything that is not the
+       answer lives. */
+    const more = document.querySelector('[data-el="also-toggle"]');
+    if (more) {
+      click(more);
+      await sleep(120);
+      const where = document.querySelector('[data-el="also-context"]');
+      if (where && /الكتاب كبير/.test(where.textContent || "")) {
+        sawWhereItTurnedUp += 1;
+        if (!contextQuestion) sawOnAPlainQuestion = true;
+      }
+    }
+    click(buttonNamed(/^Continue$/));
+    await sleep(200);
+  }
+
+  check("a word can be chosen out of the phrase before it has to be written into it",
+    sawPicker, sawPicker ? "the gap was offered as a choice" : "no question offered it");
+  check("and the choice is between a few real words, one of them right",
+    pickerOptions > 1 && pickerHadTheWord, `${pickerOptions} offered, the right one among them: ${pickerHadTheWord}`);
+  check("the phrase a word turns up in is shown after the question",
+    sawWhereItTurnedUp > 0, `shown after ${sawWhereItTurnedUp} answers`);
+  check("including after questions that are not about the phrase at all",
+    sawOnAPlainQuestion,
+    sawOnAPlainQuestion
+      ? "which is the thing that changed: the link pays out everywhere now"
+      : "it only paid out on the questions built from it");
 }
 
 console.error = origError;

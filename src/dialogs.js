@@ -35,6 +35,8 @@
  * both worked out from the ids, so a re-render is the same question.
  */
 
+import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.js";
+
 export const DIALOG_KIND = "dialog";
 
 /* Two people, unless a scene says otherwise. Named A and B rather than
@@ -53,8 +55,9 @@ export const MAX_SPEAKERS = 4;
 export const MIN_ORDER_LINES = 3;
 export const MIN_PICK_LINES = 3;
 
-/* How many replies "Pick the reply" puts up, the right one included. */
-export const PICK_OPTIONS = 4;
+/* How many replies "Pick the reply" puts up: the same few as every other
+   question that offers a choice, named once in chance.js. */
+export { PICK_OPTIONS } from "./chance.js";
 
 /* The learner's ordering, and their turns, both travel as one string —
    the answer box holds a string, and every other exercise's answer is one
@@ -182,39 +185,10 @@ export function dialogPhrases(items) {
 /* ------------------------------------------------------------------
    Deciding without rolling a die
 
-   Which replies are offered, and which order a scrambled scene arrives
-   in, are worked out from the ids involved. A re-render is then the same
-   question — React renders twice in development and a shuffled list that
-   reshuffled under the learner's finger would be the app's fault.
+   Which replies are offered, and which order a scrambled scene arrives in,
+   are worked out from the ids involved rather than drawn — see chance.js,
+   which the gap-fill's choices come out of too.
    ------------------------------------------------------------------ */
-
-/** @param {string} str */
-export function hash(str) {
-  let h = 2166136261;
-  for (let i = 0; i < String(str).length; i++) {
-    h ^= String(str).charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-/* Sorted by what each item hashes to against the seed: the same list and
-   the same seed give the same order, and a different seed gives another
-   one. Ties break on the key itself, so the result never depends on how
-   the input list happened to be ordered. */
-/**
- * @template T
- * @param {T[]} list
- * @param {string} seed
- * @param {(x: T) => string} keyOf
- * @returns {T[]}
- */
-export function shuffledBy(list, seed, keyOf) {
-  return list
-    .map((x) => ({ x, k: keyOf(x), h: hash(`${seed} ${keyOf(x)}`) }))
-    .sort((a, b) => a.h - b.h || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
-    .map((e) => e.x);
-}
 
 /*
  * The replies on offer.
@@ -233,23 +207,16 @@ export function replyOptions({ card, at, pool = [], wanted = PICK_OPTIONS }) {
   const lines = linesOf(card);
   const answer = lines[at];
   if (!answer) return [];
-  const taken = new Set([norm(answer.ar)]);
-  /** @type {any[]} */
-  const others = [];
-  for (const cand of lines.concat(pool)) {
-    if (!cand || cand.id === answer.id || !cand.ar) continue;
-    const key = norm(cand.ar);
-    if (taken.has(key)) continue;
-    taken.add(key);
-    others.push(cand);
-  }
-  const seed = `${card.id} ${answer.id}`;
-  const wrong = shuffledBy(others, seed, (l) => l.id).slice(0, Math.max(0, wanted - 1));
-  return shuffledBy(wrong.concat([answer]), `${seed} place`, (l) => l.id);
+  return optionsFor({
+    answer,
+    /* Lines from this scene first — a wrong answer that was said two turns
+       ago is a real mistake to make — then lines from other scenes. */
+    pool: lines.concat(pool).filter((l) => l && l.ar),
+    wanted,
+    seed: `${card.id} ${answer.id}`,
+    textOf: (l) => l.ar,
+  });
 }
-
-/** @param {string} s */
-const norm = (s) => String(s || "").replace(/\s+/g, " ").trim();
 
 /* The scene, out of order. Held to a shuffle that is actually one: a
    scrambled list that comes back in the order it went in is not a

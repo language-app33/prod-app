@@ -54,6 +54,7 @@ import {
   scriptVars,
 } from "./languages.js";
 import { MAX_SPEAKERS, isDialog, linesOf } from "./dialogs.js";
+import { linkReport, pairsIn } from "./context-links.js";
 import {
   Button,
   CardReadout,
@@ -3753,10 +3754,12 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
  *   busy?: boolean,
  *   confirming?: Node,
  *   scene?: boolean,
+ *   draft?: Record<string, any> | null,
  * }} props `scene` writes a conversation rather than a word: the same card,
- *   the same decks and the same save, with turns instead of forms.
+ *   the same decks and the same save, with turns instead of forms. `draft`
+ *   is a first line already written, for a card begun from a suggestion.
  */
-function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene = false }) {
+function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene = false, draft = null }) {
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
   const dims = dimsOf(lang || LANGUAGES[DEFAULT_LANGUAGE]);
@@ -3774,7 +3777,10 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           },
           ...(card.subs || []).map((s) => ({ ...blankForm(), ...s })),
         ]
-      : [blankForm()]
+      /* A card started from a suggestion arrives with its first line
+         already written — the word the phrases keep using — and everything
+         else blank, which is the shape of the job left to do. */
+      : [{ ...blankForm(), ...(draft || {}) }]
   );
   const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
@@ -4242,6 +4248,231 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
  * Read-only. It writes nothing and suggests nothing; the whole job is the
  * number at the top.
  */
+/* ------------------------------------------------------------------
+   In context
+
+   What a teacher's own material already says about itself, as three lists
+   and one number. Everything here is a proposal: the matcher behind it is
+   a good guesser and an occasional liar, so every row ends in a decision
+   somebody makes rather than a change the app made.
+
+   It exists because the link between a phrase and the words inside it is
+   written once, by hand, at the moment the phrase is written — so a phrase
+   written in week one knows nothing about a word added in week three, and
+   the share of a deck that can be taught in context falls quietly as the
+   deck grows. This is the screen that stops that happening, by being the
+   one place that reads all of the material at once.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   cards: Card[],
+ *   languages: Record<string, Lang>,
+ *   langOfCard: (card: Card) => Lang | undefined,
+ *   busy?: boolean,
+ *   onLink: (container: Card, word: { id: string, ar: string, en: string }) => void,
+ *   onAddWord: (text: string, lang: Lang) => void,
+ *   onOpenCard: (id: string) => void,
+ * }} props
+ */
+function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOpenCard }) {
+  const ids = Object.keys(languages);
+  const [langId, setLangId] = useState(ids[0] || "");
+  const lang = languages[langId] || languages[ids[0]];
+  /* Rows a teacher has dealt with this sitting. The report is rebuilt from
+     the cards as they arrive back, but a save is a round trip and a row
+     that sits there looking undone in the meantime invites a second tap. */
+  const [done, setDone] = useState(/** @type {string[]} */ ([]));
+
+  /* One language at a time, because finding a word inside a phrase is a
+     language's own rule and running Arabic's over Vietnamese cards would
+     pair words that have nothing to do with each other. */
+  const mine = useMemo(
+    () => cards.filter((c) => (langOfCard(c) || {}).id === (lang || {}).id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cards, lang && lang.id]
+  );
+  const report = useMemo(() => linkReport(mine, lang), [mine, lang]);
+
+  if (!lang || !report.supported) {
+    return (
+      <Section title="In context">
+        <Help>
+          {(lang || {}).name || "This language"} does not describe how to find a word inside a
+          phrase, so nothing here can be measured yet.
+        </Help>
+      </Section>
+    );
+  }
+
+  const { toConfirm, bare, missing, coverage } = report;
+  const waiting = toConfirm.filter((p) => !done.includes(`${p.container.id}:${p.word.id}`));
+  const byId = new Map(cards.map((c) => [c.id, c]));
+
+  return (
+    <>
+      <Section title="In context">
+        <Lede>
+          {coverage && coverage.words
+            ? `${coverage.covered} of ${plural(coverage.words, "word")} you teach turn up in a phrase a student can practise them inside.`
+            : "Nothing here yet — write a word and a phrase that uses it, and this is where the two find each other."}
+        </Lede>
+        <Help>
+          A word met inside a sentence somebody wrote is worth several met
+          alone. Everything below is a suggestion read out of your own
+          material: the app finds them and you decide, because finding a
+          word inside another word is a guess that is occasionally wrong.
+        </Help>
+        {ids.length > 1 && (
+          <div className="at-mt3">
+            <LanguageRadio
+              languages={languages}
+              value={langId}
+              onChange={setLangId}
+              label="Which language"
+            />
+          </div>
+        )}
+      </Section>
+
+      <Section title={`Links to confirm${waiting.length ? ` · ${waiting.length}` : ""}`} className="at-mt5">
+        {waiting.length === 0 ? (
+          <Help>
+            Nothing waiting. Every phrase that contains a word you teach says
+            so.
+          </Help>
+        ) : (
+          <>
+            <Help>
+              These phrases contain a word you teach and do not say so, so the
+              word is never practised inside them. One tap each.
+            </Help>
+            <div className="at-ctxlist">
+              {waiting.slice(0, 40).map((pair) => (
+                <div className="at-ctxrow" key={`${pair.container.id}:${pair.word.id}`}>
+                  <div className="at-ctxbody">
+                    {/* The word runs in its own direction and the gloss
+                        beside it runs in the page's. A line that switches
+                        direction halfway reorders itself, which put the
+                        English first on every right-to-left word. */}
+                    <p className="at-ctxword">
+                      <span lang={lang.id} dir={lang.direction}
+                        style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
+                        {pair.word.ar}
+                      </span>
+                      <span className="at-ctxgloss">{pair.word.en}</span>
+                    </p>
+                    <button
+                      type="button"
+                      className="at-ctxphrase"
+                      lang={lang.id}
+                      dir={lang.direction}
+                      style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                      onClick={() => onOpenCard(pair.container.id)}
+                    >
+                      {pair.container.ar}
+                    </button>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    icon="check"
+                    onClick={() => {
+                      setDone((x) => x.concat([`${pair.container.id}:${pair.word.id}`]));
+                      onLink(byId.get(pair.container.id) || /** @type {any} */ (pair.container), pair.word);
+                    }}
+                  >
+                    It does
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Section>
+
+      <Section title={`Words worth a card${missing.length ? ` · ${missing.length}` : ""}`} className="at-mt5">
+        {missing.length === 0 ? (
+          <Help>
+            Every word your phrases use has a card of its own.
+          </Help>
+        ) : (
+          <>
+            <Help>
+              Words your own phrases keep using that nothing teaches, most used
+              first. What is offered is the form it appears in — the first line
+              of a card you finish.
+            </Help>
+            <div className="at-ctxlist">
+              {missing.slice(0, 30).map((word) => (
+                <div className="at-ctxrow" key={word.text}>
+                  <div className="at-ctxbody">
+                    <p className="at-ctxword">
+                      <span lang={lang.id} dir={lang.direction}
+                        style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
+                        {word.text}
+                      </span>
+                      <span className="at-ctxgloss">in {plural(word.count, "phrase")}</span>
+                      {word.forms.length > 1 && (
+                        <span className="at-ctxgloss" lang={lang.id} dir={lang.direction}>
+                          {/* Separated the way the app separates
+                              everything, rather than with the punctuation
+                              of whichever language this happens to be. */}
+                          · also {word.forms.filter((f) => f !== word.text).join(" · ")}
+                        </span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      className="at-ctxphrase"
+                      lang={lang.id}
+                      dir={lang.direction}
+                      style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                      onClick={() => onOpenCard(word.examples[0].id)}
+                    >
+                      {word.examples[0].ar}
+                    </button>
+                  </div>
+                  <Button size="sm" icon="add" disabled={busy} onClick={() => onAddWord(word.text, lang)}>
+                    Add it
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Section>
+
+      <Section title={`Words in no phrase${bare.length ? ` · ${bare.length}` : ""}`} className="at-mt5">
+        {bare.length === 0 ? (
+          <Help>Every word you teach turns up somewhere.</Help>
+        ) : (
+          <>
+            <Help>
+              These have a card and nothing to practise them inside. A phrase
+              using one of them is the most useful card you could write next.
+            </Help>
+            <div className="at-tags">
+              {bare.slice(0, 60).map((word) => (
+                <button
+                  type="button"
+                  className="at-tag pick"
+                  key={word.id}
+                  lang={lang.id}
+                  dir={lang.direction}
+                  onClick={() => onOpenCard(word.id)}
+                >
+                  {word.ar}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </Section>
+    </>
+  );
+}
+
 /*
  * `lang` is as much of a pack as there is, not a whole one: the first
  * thing this does is say so when the language describes no way to find a
@@ -4441,7 +4672,7 @@ export function TeachSpace({ account, languages, onClose }) {
   const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ (null));
   const [cards, setCards] = useState(/** @type {Card[]} */ (last ? last.cards : []));
   const [editing, setEditing] = useState(
-    /** @type {{ card: Card | null, decks: string[], lang?: LangId, scene?: boolean } | null} */ (null)
+    /** @type {{ card: Card | null, decks: string[], lang?: LangId, scene?: boolean, draft?: Record<string, any> } | null} */ (null)
   ); // {card|null, decks:[], lang}
   const [naming, setNaming] = useState(/** @type {any | null} */ (null)); // "new" | deck
   const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null)); // whatever is awaiting a yes
@@ -4690,6 +4921,7 @@ export function TeachSpace({ account, languages, onClose }) {
         onClose={() => setEditing(null)}
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
+        draft={editing.draft || null}
         onSave={({ forms, note, decks: inDecks, uses, scene: written }) =>
           run(
             async () => {
@@ -4734,13 +4966,32 @@ export function TeachSpace({ account, languages, onClose }) {
               );
               absorbSaved(r);
               setEditing(null);
-              return written ? { en: written.title, ar: "" } : main;
+              /* Whether the card just saved turns up in phrases already
+                 written. Counted against the list with the new card in
+                 it — it is the thing being looked for, and the list in
+                 hand was taken before it existed. */
+              const saved = r && r.card;
+              const waiting =
+                written || !saved
+                  ? 0
+                  : pairsIn(
+                      cards.filter((c) => c.id !== saved.id).concat([saved]),
+                      editLang || LANGUAGES[DEFAULT_LANGUAGE]
+                    ).filter((pair) => !pair.confirmed && pair.word.id === saved.id).length;
+              return { name: (written ? written.title : main.en.trim() || main.ar.trim()) || "Card", waiting };
             },
             /* Named, because the editor closes on save: without the word
                back there is nothing left on screen to confirm which card
                it was. English first — it is the one field a teacher can
-               always read at a glance. */
-            (main) => `${main.en.trim() || main.ar.trim() || "Card"} saved`
+               always read at a glance.
+               And where the card that was just saved turns up in phrases
+               already written, say so — that is the moment the link is
+               worth making, and the alternative is a deck whose coverage
+               quietly falls as it grows. */
+            (/** @type {{ name: string, waiting: number }} */ done) =>
+              done.waiting
+                ? `${done.name} saved · it turns up in ${plural(done.waiting, "phrase")} you have written — confirm them under In context`
+                : `${done.name} saved`
           )
         }
         onDelete={
@@ -5127,6 +5378,7 @@ export function TeachSpace({ account, languages, onClose }) {
         ["courses", "Courses", "school"],
         ["decks", "Decks", "folder"],
         ["cards", "Cards", "cards"],
+        ["context", "In context", "search"],
       ]}
       tab={tab}
       onTab={setTab}
@@ -5456,6 +5708,33 @@ export function TeachSpace({ account, languages, onClose }) {
               />
 
             </>
+          )}
+
+          {tab === "context" && (
+            <InContext
+              cards={cards}
+              languages={taught}
+              langOfCard={langOfCard}
+              busy={busy}
+              onLink={(container, word) =>
+                run(
+                  async () => {
+                    absorbSaved(
+                      await API.saveCard(
+                        { ...container, uses: [...new Set((container.uses || []).concat([word.id]))] },
+                        container.decks || []
+                      )
+                    );
+                    return word;
+                  },
+                  (/** @type {any} */ w) => `"${w.en || w.ar}" is now taught inside that phrase`
+                )
+              }
+              onAddWord={(text, lang) =>
+                setEditing({ card: null, decks: [], lang: lang.id, draft: { ar: text } })
+              }
+              onOpenCard={(id) => setViewing(cards.find((c) => c.id === id) || null)}
+            />
           )}
 
           {tab === "decks" && (
