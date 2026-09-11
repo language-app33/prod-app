@@ -65,13 +65,13 @@ function recoverChunk(err) {
   throw err;
 }
 
-/* The name is checked against what spaces.jsx actually exports: a lazy
+/* The name is checked against what spaces.tsx actually exports: a lazy
    import spells its component as a string, so a typo is a blank screen at
    the moment someone opens the space, and nothing before. */
-/** @type {(name: keyof typeof import("./spaces.jsx")) => React.ComponentType<any>} */
+/** @type {(name: keyof typeof import("./spaces.tsx")) => React.ComponentType<any>} */
 const fromSpaces = (name) =>
   React.lazy(() =>
-    import("./spaces.jsx")
+    import("./spaces.tsx")
       .then((m) => {
         try {
           sessionStorage.removeItem(RELOADED_FLAG);

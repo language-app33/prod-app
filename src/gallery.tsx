@@ -181,7 +181,7 @@ const PLACES: Record<string, [string, string]> = {
    it under whichever part of the app its file belongs to. */
 const FILE_PART: Record<string, string> = {
   "ArabicTrainer.jsx": LEARN,
-  "spaces.jsx": TEACH,
+  "spaces.tsx": TEACH,
   "shared.jsx": PARTS,
   "gallery.tsx": ADMIN,
 };
@@ -588,7 +588,7 @@ export function ComponentGallery() {
       <Row
         name="Field"
         what="A labelled control."
-        note="spaces.jsx imports it as Field; the trainer imports it as FormField, because the trainer has an unrelated Field of its own."
+        note="spaces.tsx imports it as Field; the trainer imports it as FormField, because the trainer has an unrelated Field of its own."
       >
         <V label="label + children" wide>
           <Field label="Their name">
@@ -708,7 +708,7 @@ export function ComponentGallery() {
       <Row
         name="Tile"
         what="The generic deck and course tile."
-        note="Moved into shared.jsx — it used to live in spaces.jsx, so the one library the docs point at did not actually hold it."
+        note="Moved into shared.tsx — it used to live in spaces.tsx, so the one library the docs point at did not actually hold it."
       >
         <V label="title + meta + actions + footer" wide>
           <Tile

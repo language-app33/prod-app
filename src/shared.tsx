@@ -1,6 +1,6 @@
 /*
  * The handful of pieces the trainer needs at startup, kept apart from the
- * rest of spaces.jsx so that the onboarding, teaching and admin screens can
+ * rest of spaces.tsx so that the onboarding, teaching and admin screens can
  * load as their own chunk, on the first tap that needs them, instead of
  * being parsed by every student on every launch.
  */
@@ -721,7 +721,7 @@ export function SpaceFrame({ tabs, tab, onTab, error, busy, label = "Section", d
 }
 
 /* --- language naming ----------------------------------------------
-   Lived in spaces.jsx, so the trainer built its own "not set" fallback
+   Lived in spaces.tsx, so the trainer built its own "not set" fallback
    with a ternary and the two could disagree. */
 /**
  * @param languages  Only the name is read.
@@ -941,7 +941,7 @@ export function dateTime(ms?: Millis) {
    three copies of this, and every fix — the leaked URL, the missing
    error handler — had to be made in each of them separately. */
 /* --- Tile ---------------------------------------------------------
-   The deck and course tile. Lived in spaces.jsx, which meant the one
+   The deck and course tile. Lived in spaces.tsx, which meant the one
    library the docs point at did not actually hold it. */
 export function Tile({ title, meta, onOpen, actions, footer }: {
   title?: Node;

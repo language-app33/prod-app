@@ -94,7 +94,7 @@ src/
                    keyboards, exercise definitions. Imports nothing from the
                    app, so it can be read and tested on its own.
   ArabicTrainer.jsx  the learner's app: scheduler, session builder, screens
-  spaces.jsx       the teaching and admin spaces, loaded lazily so a student
+  spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
   shared.jsx       the component library both sides use
   sync.ts          merging two devices' documents, and clip sync

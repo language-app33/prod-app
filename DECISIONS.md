@@ -178,13 +178,32 @@ checked against it. Three shapes came out of that with names — `Node`
 state) and `CoursesPulled` — and two generics, `ItemList<T>` and
 `Segmented<T>`, that had been `@template` tags doing nothing.
 
-**What is left.** `spaces.jsx`, then `ArabicTrainer.jsx` last and alone —
-9k lines and 399 annotations is not a slice of anything. Both are named by
+Then `spaces`, the teaching and admin screens. Its 519 errors were three
+things repeated: `useState(/** @type {X | null} */ (null))`, of which
+there were thirty-four; components whose props were a `@param {{...}}`
+above a multi-line destructuring; and `new Set()` in a `useState`
+initialiser, which infers `Set<unknown>` and was being handed to
+`ItemList`'s `Set<string>` — a mismatch that only exists because
+`shared` now says what it takes.
+
+**What is left.** `ArabicTrainer.jsx`, last and alone — 9k lines and 399
+annotations is not a slice of anything. It is named by
 `scripts/component-uses.mjs` and asserted about by
 `tests/component-uses.test.mjs`; both now resolve a file by its stem and
-match either extension, which was the fix to make before the rename rather
-than after — a scan pinned to `.jsx` that stops matching does not fail, it
-reports that nothing uses anything.
+match either extension, which was the fix to make before the first rename
+rather than after — a scan pinned to `.jsx` that stops matching does not
+fail, it reports that nothing uses anything.
+
+**On doing this with a script.** Every conversion past `answers` was
+driven by one: lift `@param {T} name` into `name: T`, keep the prose that
+followed, then read the diff. It is worth saying what the script got
+wrong, because the same two will come up again. It treated `>` as closing
+a generic, so it split `(id: string) => void` down the middle of its own
+arrow — which parsed, as a type literal accepts commas, and read as
+nonsense. And it reached inside value literals as well as type literals,
+because `{ body: { hash, data } }` and `{ hash?: string }` look alike a
+character at a time. Both were caught by reading the output rather than by
+the checker. A machine for the transcription, a person for the diff.
 
 **A file that moves takes its name with it.** An import names the file it
 means, so every specifier pointing at a converted module changes with it,

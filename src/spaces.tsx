@@ -1,37 +1,37 @@
-/** @import { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.ts" */
-/** @typedef {React.ReactNode} Node */
-/**
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import * as API from "./courses-api.ts";
+import type { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.ts";
+import type { Node } from "./shared.tsx";
+
+/*
  * Whatever is waiting on a yes: the confirmation to show, and what to do
  * if the answer is yes. Assembled at the call site rather than declared as
  * a component's props, because only one of these can be on screen at a
  * time and every screen builds its own.
- * @typedef {{
- *   title?: Node,
- *   body?: Node,
- *   confirmLabel?: string,
- *   confirmWord?: string,
- *   closeAfter?: boolean,
- *   kind?: string,
- *   ids?: string[],
- *   card?: Card,
- *   action: () => any,
- * }} Pending
  */
-/** How a backup or a restore is going. */
-/**
- * @typedef {{
- *   state: string,
- *   done?: number,
- *   total?: number,
- *   note?: string,
- *   counts?: Record<string, number>,
- *   file?: any,
- *   manifest?: any,
- *   takenAt?: number,
- * }} Progress
- */
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import * as API from "./courses-api.ts";
+interface Pending {
+  title?: Node;
+  body?: Node;
+  confirmLabel?: string;
+  confirmWord?: string;
+  closeAfter?: boolean;
+  kind?: string;
+  ids?: string[];
+  card?: Card;
+  action: () => any;
+}
+
+/* How a backup or a restore is going. */
+interface Progress {
+  state: string;
+  done?: number;
+  total?: number;
+  note?: string;
+  counts?: Record<string, number>;
+  file?: any;
+  manifest?: any;
+  takenAt?: number;
+}
 
 /* Loaded only when the gallery is opened: it is a reference an
    administrator reads occasionally, not part of running the site. */
@@ -58,8 +58,8 @@ import {
   scriptVars,
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.ts";
-/** @import { Answer } from "./answers.ts" */
 import { answerRows, packAnswers } from "./answers.ts";
+import type { Answer } from "./answers.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -126,14 +126,13 @@ export { ConfirmModal, useLiveRefresh, cardToItem, localIdFor };
    First run
    ------------------------------------------------------------------ */
 
-/** @param {{ onDone: (account?: User & { key: string }) => void }} props */
-export function Onboarding({ onDone }) {
+export function Onboarding({ onDone }: { onDone: (account?: User & { key: string }) => void }) {
   const [step, setStep] = useState("choose"); // choose | new | existing | key
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [made, setMade] = useState(/** @type {User & { key: string } | null} */ (null));
+  const [made, setMade] = useState<User & { key: string } | null>(null);
   const [showKey, setShowKey] = useState(false);
   /* Asked for only once the server has said it wants one, so a site that
      lets anyone sign up never shows the field. */
@@ -150,7 +149,7 @@ export function Onboarding({ onDone }) {
       setMade(account);
       setStep("key");
     } catch (e) {
-      if (String(e && /** @type {any} */ (e).message) === "signup-code-required") {
+      if (String(e && (e as any).message) === "signup-code-required") {
         setCodeNeeded(true);
         setError(signupCode.trim() ? "That invitation code isn't right." : "");
       } else {
@@ -385,8 +384,8 @@ export function Onboarding({ onDone }) {
 
 
 /* A name in a roster, marked when it is the person reading it. */
-/** @param {{ name?: string, handle?: string, me?: string }} props `me` is the handle to compare against, so the row can say "(me)". */
-export function PersonName({ name, handle, me }) {
+ /** @param props  `me` is the handle to compare against, so the row can say "(me)". */
+export function PersonName({ name, handle, me }: { name?: string; handle?: string; me?: string }) {
   return (
     <>
       {name || handle}
@@ -400,8 +399,7 @@ export function PersonName({ name, handle, me }) {
    the app since being asked to wants the hour, not the day. Never having
    happened is said in words rather than left as a dash, because a dash and
    a value that failed to load look the same. */
-/** @param {{ label?: Node, at?: number, never?: Node }} props */
-function WhenRow({ label, at, never }) {
+function WhenRow({ label, at, never }: { label?: Node; at?: number; never?: Node }) {
   return (
     <div className="at-whenrow">
       <span className="at-whenlabel">{label}</span>
@@ -426,15 +424,12 @@ function WhenRow({ label, at, never }) {
    administrator looking for somebody to cover a class actually wants. A
    course with none set says nothing here rather than "Language not set" —
    the course's own tile is where that gets fixed. */
-/**
- * @param {{
- *   label?: Node,
- *   tone?: string,
- *   courses?: { title: string, language?: LangId }[],
- *   languages: Record<LangId, Lang>,
- * }} props
- */
-function BelongRow({ label, tone, courses, languages }) {
+function BelongRow({ label, tone, courses, languages }: {
+  label?: Node;
+  tone?: string;
+  courses?: { title: string; language?: LangId }[];
+  languages: Record<LangId, Lang>;
+}) {
   const list = (courses || []).map((c) => (typeof c === "string" ? { title: c } : c));
   if (!list.length) return null;
   return (
@@ -454,8 +449,7 @@ function BelongRow({ label, tone, courses, languages }) {
 
 /* A "modal" is now a screen. Kept under this name so nothing that opens one
    has to change; what it opens is the standard full-screen shell. */
-/** @param {{ title?: Node, children?: Node, onClose: () => void }} props */
-export function Modal({ title, children, onClose }) {
+export function Modal({ title, children, onClose }: { title?: Node; children?: Node; onClose: () => void }) {
   return (
     <Screen title={title} onBack={onClose}>
       {children}
@@ -481,13 +475,13 @@ export function Modal({ title, children, onClose }) {
 
 
 
-/**
- * @param {{
- *   label?: Node, code?: string, hint?: Node,
- *   onNew?: () => void, busy?: boolean,
- * }} props
- */
-export function CodeBox({ label, code, hint, onNew, busy }) {
+export function CodeBox({ label, code, hint, onNew, busy }: {
+  label?: Node;
+  code?: string;
+  hint?: Node;
+  onNew?: () => void;
+  busy?: boolean;
+}) {
   return (
     <div className="at-codeblock">
       <div className="at-codehead">{label}</div>
@@ -511,10 +505,12 @@ export function CodeBox({ label, code, hint, onNew, busy }) {
 
 
 /* The bar that appears once something is ticked. */
-/**
- * @param {{ count: number, noun: string, onClear?: () => void, children?: Node }} props
- */
-export function SelectionBar({ count, noun, onClear, children }) {
+export function SelectionBar({ count, noun, onClear, children }: {
+  count: number;
+  noun: string;
+  onClear?: () => void;
+  children?: Node;
+}) {
   if (!count) return null;
   return (
     <div className="at-bulkbar at-mb3">
@@ -561,8 +557,16 @@ const RESTORE_BYTES = 3 * 1024 * 1024; // per request, under the function's own 
  * and stores by the other: cards travel as "card" and "owncards" chunks and
  * live under card: and mycards:.
  */
-/** @type {{ key: string, title: string, what: string, kinds: string[], prefixes: string[], index?: string, count: string, unit: string }[]} */
-const BACKUP_PARTS = [
+const BACKUP_PARTS: {
+  key: string;
+  title: string;
+  what: string;
+  kinds: string[];
+  prefixes: string[];
+  index?: string;
+  count: string;
+  unit: string;
+}[] = [
   {
     key: "people",
     title: "People",
@@ -616,14 +620,12 @@ const BACKUP_PARTS = [
 /** Every part, which is what a backup means unless somebody says otherwise. */
 const ALL_PARTS = BACKUP_PARTS.map((p) => p.key);
 
-/** @param {string[]} parts */
-const partsChosen = (parts) => BACKUP_PARTS.filter((p) => parts.includes(p.key));
+const partsChosen = (parts: string[]) => BACKUP_PARTS.filter((p) => parts.includes(p.key));
 
 /* Which parts a file holds. Files made before a backup could be partial say
    nothing, and a file that says nothing holds everything — which was true
    of every file made until now. */
-/** @param {any} file */
-function includedIn(file) {
+function includedIn(file: any) {
   const said = file && file.manifest && file.manifest.includes;
   return Array.isArray(said) && said.length ? said.filter((k) => ALL_PARTS.includes(k)) : ALL_PARTS;
 }
@@ -640,15 +642,14 @@ function includedIn(file) {
  * and recording that is referred to is actually in the file.
  */
 /**
- * @param {(done: number, total: number) => void} onProgress
- * @param {string[]} [parts] Which of BACKUP_PARTS to put in. Everything by
+ * @param parts  Which of BACKUP_PARTS to put in. Everything by
  *   default, which is what a backup meant before it could be less.
  */
-async function buildBackup(onProgress, parts = ALL_PARTS) {
+async function buildBackup(onProgress: (done: number, total: number) => void, parts: string[] = ALL_PARTS) {
   const { manifest } = await API.backupManifest();
   const chosen = partsChosen(parts);
   const kinds = new Set(chosen.flatMap((p) => p.kinds));
-  const plan = (manifest.plan || []).filter((/** @type {any} */ c) => kinds.has(c.kind));
+  const plan = (manifest.plan || []).filter((c: any) => kinds.has(c.kind));
   const { plan: _drop, ...whole } = manifest;
   /* The file says what it holds, and its counts are the counts of what it
      holds — not of the site. A file that claimed the site's numbers would
@@ -669,16 +670,13 @@ async function buildBackup(onProgress, parts = ALL_PARTS) {
         chosen.some((p) => p.index === what)
       )
     ),
-    chunks: (whole.chunks || []).filter((/** @type {any} */ c) => kinds.has(c.kind)),
+    chunks: (whole.chunks || []).filter((c: any) => kinds.has(c.kind)),
   };
 
-  /** @type {Record<string, any>} */
-  /** @type {Record<string, string>} */
-  const digests = {};
-  const seen = new Set();
-  const refs = { decks: new Set(), clips: new Set() };
-  /** @type {Record<string, number>} */
-  const counts = { "user:": 0, "course:": 0, "deck:": 0, "card:": 0, "clip:": 0 };
+  const digests: Record<string, string> = {};
+  const seen = new Set<string>();
+  const refs = { decks: new Set<string>(), clips: new Set<string>() };
+  const counts: Record<string, number> = { "user:": 0, "course:": 0, "deck:": 0, "card:": 0, "clip:": 0 };
 
   let blob = new Blob(
     [`{"format":"language-app-backup","manifest":${JSON.stringify(kept)},"records":{`],
@@ -712,7 +710,7 @@ async function buildBackup(onProgress, parts = ALL_PARTS) {
       const r = await API.backupChunk(chunk.keys);
       const records = r.records || {};
       digests[chunk.id] = r.digest;
-      for (const [key, value] of Object.entries(records)) {
+      for (const [key, value] of Object.entries<any>(records)) {
         seen.add(key);
         for (const prefix of Object.keys(counts)) if (key.startsWith(prefix)) counts[prefix] += 1;
         if (key.startsWith("course:")) for (const id of value.decks || []) refs.decks.add(id);
@@ -769,22 +767,18 @@ async function buildBackup(onProgress, parts = ALL_PARTS) {
  * and nothing else is touched.
  */
 /**
- * @param {any} file
- * @param {(done: number, total: number) => void} onProgress
- * @param {string[]} [parts] Which of BACKUP_PARTS to put back. A file may
+ * @param parts  Which of BACKUP_PARTS to put back. A file may
  *   hold more than is wanted — the recordings when only the wording is
  *   being recovered, everybody's accounts when one course is.
  */
-async function restoreBackup(file, onProgress, parts = ALL_PARTS) {
+async function restoreBackup(file: any, onProgress: (done: number, total: number) => void, parts: string[] = ALL_PARTS) {
   const records = file.records || {};
   const chosen = partsChosen(parts);
-  const wanted = (/** @type {string} */ k) =>
+  const wanted = (k: string) =>
     chosen.some((p) => p.prefixes.some((prefix) => k.startsWith(prefix)));
   const keys = Object.keys(records).filter((k) => !k.startsWith("index:") && wanted(k));
-  /** @type {Record<string, any>[]} */
-  const batches = [];
-  /** @type {Record<string, any>} */
-  let batch = {};
+  const batches: Record<string, any>[] = [];
+  let batch: Record<string, any> = {};
   let size = 0;
   let n = 0;
   for (const k of keys) {
@@ -803,8 +797,7 @@ async function restoreBackup(file, onProgress, parts = ALL_PARTS) {
   if (n) batches.push(batch);
 
   const indexes = (file.manifest && file.manifest.indexes) || {};
-  /** @type {Record<string, any>} */
-  const last = {};
+  const last: Record<string, any> = {};
   for (const [what, list] of Object.entries(indexes)) {
     if (!Array.isArray(list)) continue;
     /* An index goes back only with the records it names. Restoring
@@ -825,8 +818,7 @@ async function restoreBackup(file, onProgress, parts = ALL_PARTS) {
 }
 
 /* What a finished file says about itself, checked against what it holds. */
-/** @param {any} file */
-export function verifyBackup(file) {
+export function verifyBackup(file: any) {
   const problems = [];
   if (!file || file.format !== "language-app-backup") return ["Not a backup file."];
   const m = file.manifest || {};
@@ -834,8 +826,7 @@ export function verifyBackup(file) {
   const has = includedIn(file);
   if (m.version !== 1) problems.push(`Made by a different version (${m.version}).`);
 
-  /** @type {(prefix: string) => number} */
-  const count = (prefix) => Object.keys(rec).filter((k) => k.startsWith(prefix)).length;
+  const count: (prefix: string) => number = (prefix) => Object.keys(rec).filter((k) => k.startsWith(prefix)).length;
   const expect = [
     ["users", "user:", m.counts && m.counts.users],
     ["courses", "course:", m.counts && m.counts.courses],
@@ -854,7 +845,7 @@ export function verifyBackup(file) {
      tells you whether the backup is whole, which is the question. */
   let danglingDecks = 0;
   let danglingClips = 0;
-  for (const [key, value] of Object.entries(rec)) {
+  for (const [key, value] of Object.entries<any>(rec)) {
     if (key.startsWith("course:")) {
       for (const id of value.decks || []) if (!rec[`deck:${id}`]) danglingDecks += 1;
     }
@@ -882,23 +873,6 @@ export function verifyBackup(file) {
    is passed in rather than the page being written twice.
    ------------------------------------------------------------------ */
 
-/**
- * @param {{
- *   courses: Course[],
- *   languages: Record<LangId, Lang>,
- *   busy?: boolean,
- *   error?: Node,
- *   lead?: Node,
- *   emptyLead?: Node,
- *   joinTitle?: Node,
- *   joinHint?: Node,
- *   joinPlaceholder?: string,
- *   joinNote?: Node,
- *   onJoin: (code: string) => any,
- *   renderCourse: (course: Course) => Node,
- *   footer?: Node,
- * }} props
- */
 export function CoursesPage({
   courses,
   languages,
@@ -913,6 +887,20 @@ export function CoursesPage({
   onJoin,
   renderCourse,
   footer,
+}: {
+  courses: Course[];
+  languages: Record<LangId, Lang>;
+  busy?: boolean;
+  error?: Node;
+  lead?: Node;
+  emptyLead?: Node;
+  joinTitle?: Node;
+  joinHint?: Node;
+  joinPlaceholder?: string;
+  joinNote?: Node;
+  onJoin: (code: string) => any;
+  renderCourse: (course: Course) => Node;
+  footer?: Node;
 }) {
   const [code, setCode] = useState("");
 
@@ -1002,15 +990,18 @@ export function CoursesPage({
  * duplicates in the first place.
  */
 /**
- * @param {{
- *   handle: string, name?: string,
- *   me?: string, teaching: boolean, studying: boolean, busy?: boolean,
- *   onSetRole: (role: "teacher" | "student", on: boolean) => void,
- * }} props The caller knows whose row this is, so only the answer comes back.
+ * @param props  The caller knows whose row this is, so only the answer comes back.
  */
-function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }) {
-  /** @type {(key: "teacher" | "student", cls: string, label: string, on: boolean) => Node} */
-  const role = (key, cls, label, on) => (
+function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }: {
+  handle: string;
+  name?: string;
+  me?: string;
+  teaching: boolean;
+  studying: boolean;
+  busy?: boolean;
+  onSetRole: (role: "teacher" | "student", on: boolean) => void;
+}) {
+  const role: (key: "teacher" | "student", cls: string, label: string, on: boolean) => Node = (key, cls, label, on) => (
     <button
       type="button"
       className={`at-role ${cls}${on ? " on" : ""}`}
@@ -1037,21 +1028,6 @@ function RosterRow({ handle, name, me, teaching, studying, busy, onSetRole }) {
   );
 }
 
-/**
- * @param {{
- *   course: Course,
- *   users: User[],
- *   languages: Record<LangId, Lang>,
- *   account: User,
- *   busy?: boolean,
- *   onRename: (title: string) => void,
- *   onSetLanguage: (id: LangId) => void,
- *   onNewCode: (which: "teacher" | "student") => void,
- *   onSetRole: (handle: string, name: string, role: "teacher" | "student", on: boolean) => void,
- *   onDelete: () => void,
- *   onClose: () => void,
- * }} props
- */
 function CourseSettings({
   course,
   users,
@@ -1064,6 +1040,18 @@ function CourseSettings({
   onSetRole,
   onDelete,
   onClose,
+}: {
+  course: Course;
+  users: User[];
+  languages: Record<LangId, Lang>;
+  account: User;
+  busy?: boolean;
+  onRename: (title: string) => void;
+  onSetLanguage: (id: LangId) => void;
+  onNewCode: (which: "teacher" | "student") => void;
+  onSetRole: (handle: string, name: string, role: "teacher" | "student", on: boolean) => void;
+  onDelete: () => void;
+  onClose: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [unlockLang, setUnlockLang] = useState(false);
@@ -1071,7 +1059,7 @@ function CourseSettings({
   /* The title being edited, or null when it is not. Started from the course
      rather than kept in step with it, so a rename in flight is not
      overwritten by the refresh that follows the last one. */
-  const [renaming, setRenaming] = useState(/** @type {string | null} */ (null));
+  const [renaming, setRenaming] = useState<string | null>(null);
 
   /*
    * One row per person, not one per membership. Teaching and studying are
@@ -1080,8 +1068,7 @@ function CourseSettings({
    * each took away both.
    */
   const people = [...new Set([...c.teachers, ...c.students])];
-  /** @type {(h: string) => string} */
-  const nameOf = (h) => {
+  const nameOf: (h: string) => string = (h) => {
     const u = users.find((x) => x.handle === h);
     return u ? u.displayName : h;
   };
@@ -1287,12 +1274,7 @@ function CourseSettings({
  * sent from a language this build no longer carries falls back to the bare
  * type, which is less to read but still says which of eight it was.
  */
-/**
- * @param {Record<LangId, Lang>} languages
- * @param {LangId} [langId]
- * @param {string} [type]
- */
-function exerciseLabel(languages, langId, type) {
+function exerciseLabel(languages: Record<LangId, Lang>, langId?: LangId, type?: string) {
   if (!type) return "";
   const lang = languages[langId || ""];
   const spec = lang ? exOf(type, lang) : null;
@@ -1312,8 +1294,7 @@ function exerciseLabel(languages, langId, type) {
  * chip nobody reads. It is also what a report says when the comparison
  * cannot be made — nothing, rather than a guess.
  */
-/** @type {Record<string, { label: string, tone: string, what: string, openable: boolean }>} */
-const CARD_STATES = {
+const CARD_STATES: Record<string, { label: string, tone: string, what: string, openable: boolean }> = {
   edited: {
     label: "Card edited since",
     tone: "stale",
@@ -1346,8 +1327,7 @@ const CARD_STATES = {
  * them apart, so the first of them go in the title — a line's worth, cut
  * at a word, with the whole of it still set out below.
  */
-/** @param {string} [text] */
-function gistOf(text) {
+function gistOf(text?: string) {
   /* Sixty is about two lines of a tile's title on a phone. Longer and the
      head of the report starts to be the report, which is the job of the
      block underneath. */
@@ -1362,53 +1342,49 @@ function gistOf(text) {
    language in everywhere else. Both are undefined for a language this
    build does not carry, which leaves the browser's own defaults — the
    right answer when there is nothing better to say. */
-/** @type {(languages: Record<LangId, Lang>, langId?: LangId) => string | undefined} */
-const dirOf = (languages, langId) =>
+const dirOf: (languages: Record<LangId, Lang>, langId?: LangId) => string | undefined = (languages, langId) =>
   (languages[langId || ""] && languages[langId || ""].direction) || undefined;
-/**
- * @param {Record<LangId, Lang>} languages
- * @param {LangId} [langId]
- */
-function scriptStyle(languages, langId) {
+function scriptStyle(languages: Record<LangId, Lang>, langId?: LangId) {
   const lang = languages[langId || ""];
   if (!lang) return undefined;
   return { ...(lang.fontStack ? { fontFamily: lang.fontStack } : null), ...scriptVars(lang) };
 }
 
-/** @param {{ account: User, languages: Record<LangId, Lang>, onClose: () => void }} props */
-export function AdminSpace({ account, languages, onClose }) {
+export function AdminSpace({ account, languages, onClose }: {
+  account: User;
+  languages: Record<LangId, Lang>;
+  onClose: () => void;
+}) {
   const [tab, setTab] = useState("courses");
-  const [data, setData] = useState(
-    /** @type {import("./types.ts").AdminOverview | null} */ (recallSpace("admin", account.handle))
-  );
+  const [data, setData] = useState<import("./types.ts").AdminOverview | null>(recallSpace("admin", account.handle));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState("");
   const [lang, setLang] = useState(Object.keys(languages)[0]);
-  const [newKey, setNewKey] = useState(/** @type {Record<string, any> | null} */ (null));
+  const [newKey, setNewKey] = useState<Record<string, any> | null>(null);
   const [makingCourse, setMakingCourse] = useState(false);
-  const [makingUser, setMakingUser] = useState(/** @type {{ name: string, courseId: string, roles: string[] } | null} */ (null)); // the form, while open
-  const [openCourse2, setOpenCourse2] = useState(/** @type {string | null} */ (null)); // a course being settled
-  const [selPeople, setSelPeople] = useState(() => new Set());
-  const [backup, setBackup] = useState(/** @type {Progress | null} */ (null)); // { state, done, total, note }
+  const [makingUser, setMakingUser] = useState<{ name: string, courseId: string, roles: string[] } | null>(null); // the form, while open
+  const [openCourse2, setOpenCourse2] = useState<string | null>(null); // a course being settled
+  const [selPeople, setSelPeople] = useState(() => new Set<string>());
+  const [backup, setBackup] = useState<Progress | null>(null); // { state, done, total, note }
   /* Which of the two backup screens is open, and the file the restore one
      is working from — held here rather than in the screen so choosing a
      file survives a re-render of the tab underneath. */
-  const [backupMode, setBackupMode] = useState(/** @type {"download" | "restore" | null} */ (null));
-  const [restoreFile, setRestoreFile] = useState(/** @type {{ parsed: any, name: string } | null} */ (null));
+  const [backupMode, setBackupMode] = useState<"download" | "restore" | null>(null);
+  const [restoreFile, setRestoreFile] = useState<{ parsed: any, name: string } | null>(null);
   const [clearing, setClearing] = useState(false);
   /* Off until asked for: the gallery renders a specimen of every component,
      which is a lot of markup to carry on a tab that is mostly about backups. */
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [elementsOpen, setElementsOpen] = useState(false);
-  const [selDecks, setSelDecks] = useState(() => new Set());
-  const [selFlags, setSelFlags] = useState(() => new Set());
+  const [selDecks, setSelDecks] = useState(() => new Set<string>());
+  const [selFlags, setSelFlags] = useState(() => new Set<string>());
   /* The flagged card being looked at: { flag, card, error }. The card
      arrives after the flag does, so the screen is up while it is fetched
      rather than after — a blank second on a tap is what a spinner is
      for. */
-  const [openCard, setOpenCard] = useState(/** @type {{ flag: Flag, card: Card | null, error: string } | null} */ (null));
-  const [deckAction, setDeckAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
+  const [openCard, setOpenCard] = useState<{ flag: Flag, card: Card | null, error: string } | null>(null);
+  const [deckAction, setDeckAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
   /* Whose decks to show: a handle, or "" for everyone's. Search already
      matches the maker's name, but only if you know whose name to type —
      which is the thing an administrator looking at decks made by six
@@ -1416,9 +1392,9 @@ export function AdminSpace({ account, languages, onClose }) {
   const [deckOwner, setDeckOwner] = useState("");
   /* One slot for whatever is waiting to be confirmed, so only one of these
      can ever be on screen at a time. */
-  const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null));
+  const [confirm, setConfirm] = useState<Pending | null>(null);
 
-  const refresh = useCallback(async (/** @type {boolean} */ background = false) => {
+  const refresh = useCallback(async (background: boolean = false) => {
     /* A background poll must not flash "Working" or grey the buttons out
        from under someone mid-click; only a deliberate refresh does that. */
     if (!background) setBusy(true);
@@ -1466,11 +1442,7 @@ export function AdminSpace({ account, languages, onClose }) {
      whatever the call returned when the message wants to name the thing —
      "Beginner Arabic created" rather than "Saved". Said after the refresh,
      so the lists are already showing what it is confirming. */
-  /**
-   * @param {() => Promise<any>} fn
-   * @param {string | ((out: any) => string)} [done]
-   */
-  async function run(fn, done) {
+  async function run(fn: () => Promise<any>, done?: string | ((out: any) => string)) {
     setBusy(true);
     try {
       const out = await fn();
@@ -1487,8 +1459,7 @@ export function AdminSpace({ account, languages, onClose }) {
      than carried by the overview: Admin holds decks, not cards, and a site
      with five hundred reports would otherwise be sending five hundred
      cards to a screen showing one. */
-  /** @param {Flag} flag */
-  async function openFlaggedCard(flag) {
+  async function openFlaggedCard(flag: Flag) {
     setOpenCard({ flag, card: null, error: "" });
     try {
       const got = await API.adminCard(flag.cardId);
@@ -1510,8 +1481,7 @@ export function AdminSpace({ account, languages, onClose }) {
   /* Everyone who has actually made a deck, with how many — read off the
      decks rather than off the people, so the menu never offers a name that
      would narrow the list to nothing. */
-  /** @type {{ value: string, label: string, count: number }[]} */
-  const deckMakers = [];
+  const deckMakers: { value: string, label: string, count: number }[] = [];
   for (const d of decks) {
     const found = deckMakers.find((m) => m.value === d.owner);
     if (found) found.count += 1;
@@ -1729,7 +1699,7 @@ export function AdminSpace({ account, languages, onClose }) {
                     } teaching · ${c.students.length} studying · ${plural(c.decks.length, "deck")}`}
                     onOpen={() => setOpenCourse2(c.id)}
                     actions={
-                      <IconButton icon="edit" label="Course settings" onClick={(/** @type {React.MouseEvent} */ e) => {
+                      <IconButton icon="edit" label="Course settings" onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           setOpenCourse2(c.id);
                         }} />
@@ -1795,7 +1765,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             const r = await API.createUser(
                               makingUser.name.trim(),
                               makingUser.courseId || "",
-                              /** @type {("teacher" | "student")[]} */ (makingUser.roles)
+                              (makingUser.roles as ("teacher" | "student")[])
                             );
                             setNewKey({
                               name: r.user.displayName,
@@ -1822,7 +1792,7 @@ export function AdminSpace({ account, languages, onClose }) {
                       value={makingUser.name}
                       autoFocus
                       onChange={(e) =>
-                        setMakingUser((/** @type {any} */ u) => ({ ...u, name: e.target.value }))
+                        setMakingUser((u: any) => ({ ...u, name: e.target.value }))
                       }
                     />
 </Field>
@@ -1834,7 +1804,7 @@ export function AdminSpace({ account, languages, onClose }) {
                           key={c.id}
                           className={`at-ck${makingUser.courseId === c.id ? " on" : ""}`}
                           onClick={() =>
-                            setMakingUser((/** @type {any} */ u) => ({
+                            setMakingUser((u: any) => ({
                               ...u,
                               courseId: u.courseId === c.id ? "" : c.id,
                             }))
@@ -1876,10 +1846,10 @@ export function AdminSpace({ account, languages, onClose }) {
                               className={`at-role ${cls}${on ? " on" : ""}`}
                               aria-pressed={on}
                               onClick={() =>
-                                setMakingUser((/** @type {any} */ u) => ({
+                                setMakingUser((u: any) => ({
                                   ...u,
                                   roles: on
-                                    ? u.roles.filter((/** @type {string} */ r) => r !== value)
+                                    ? u.roles.filter((r: string) => r !== value)
                                     : u.roles.concat([value]),
                                 }))
                               }
@@ -2171,7 +2141,7 @@ export function AdminSpace({ account, languages, onClose }) {
                     title={d.title}
                     meta={`${d.ownerName} · ${plural(d.cardCount || 0, "card")}`}
                     actions={
-                        <IconButton icon="delete" label="Delete deck" danger onClick={(/** @type {React.MouseEvent} */ e) => {
+                        <IconButton icon="delete" label="Delete deck" danger onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
                             setConfirm({
                               title: `Delete ${d.title}?`,
@@ -2320,7 +2290,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             <Button
                               size="sm"
                               icon="view"
-                              onClick={(/** @type {React.MouseEvent} */ e) => {
+                              onClick={(e: React.MouseEvent) => {
                                 e.stopPropagation();
                                 openFlaggedCard(f);
                               }}
@@ -2332,7 +2302,7 @@ export function AdminSpace({ account, languages, onClose }) {
                             icon="delete"
                             label="Clear this report"
                             danger
-                            onClick={(/** @type {React.MouseEvent} */ e) => {
+                            onClick={(e: React.MouseEvent) => {
                               e.stopPropagation();
                               setConfirm({
                                 title: "Clear this report?",
@@ -2703,8 +2673,7 @@ export function AdminSpace({ account, languages, onClose }) {
    Becoming the administrator — once, from Account settings
    ------------------------------------------------------------------ */
 
-/** @param {{ onDone: (claimed?: boolean) => void }} props */
-export function ClaimAdmin({ onDone }) {
+export function ClaimAdmin({ onDone }: { onDone: (claimed?: boolean) => void }) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
@@ -2791,18 +2760,14 @@ const blankLine = () => ({ who: 0, ar: "", en: "", lat: "", clips: [], slowClips
    now a button. The list is local state seeded from the stored string —
    deriving it on every render would drop an added field the moment it was
    added, because an empty answer joins to nothing. */
-/**
- * @param {{
- *   value?: string,
- *   onChange: (value: string) => void,
- *   render: (value: string, onChange: (v: string) => void) => Node,
- *   addLabel?: string,
- * }} props
- */
-function Alternatives({ value, onChange, render, addLabel = "Add another accepted answer" }) {
+function Alternatives({ value, onChange, render, addLabel = "Add another accepted answer" }: {
+  value?: string;
+  onChange: (value: string) => void;
+  render: (value: string, onChange: (v: string) => void) => Node;
+  addLabel?: string;
+}) {
   const [list, setList] = useState(() => splitAlternatives(value || ""));
-  /** @param {string[]} next */
-  const commit = (next) => {
+  const commit = (next: string[]) => {
     setList(next);
     onChange(joinAlternatives(next));
   };
@@ -2842,27 +2807,21 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
  * most cards accept one answer and want the language's default, and four
  * pickers under every row would bury the words the card is actually about.
  */
-/**
- * @param {{
- *   lang: Lang,
- *   form: Record<string, any>,
- *   onChange: (next: { ar: string, lat: string, answers: Record<string, any>[] }) => void,
- * }} props
- */
-function ScriptAnswers({ lang, form, onChange }) {
+function ScriptAnswers({ lang, form, onChange }: {
+  lang: Lang;
+  form: Record<string, any>;
+  onChange: (next: { ar: string; lat: string; answers: Record<string, any>[] }) => void;
+}) {
   const fields = answerFields();
   const dims = dimsOf(lang);
   const [rows, setRows] = useState(() => answerRows(form, fields));
-  const [open, setOpen] = useState(/** @type {number | null} */ (null));
-  /** @param {Answer[]} next */
-  const commit = (next) => {
+  const [open, setOpen] = useState<number | null>(null);
+  const commit = (next: Answer[]) => {
     setRows(next);
     onChange(packAnswers(next, fields));
   };
-  /** @param {number} i @param {Partial<Answer>} patch */
-  const edit = (i, patch) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  /** @param {Answer} row */
-  const grammarOf = (row) =>
+  const edit = (i: number, patch: Partial<Answer>) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const grammarOf = (row: Answer) =>
     dims.map((d) => labelFor({ [d.field]: row[d.field] }, lang)).filter(Boolean).join(" ");
   return (
     <div className="at-alts">
@@ -2936,13 +2895,13 @@ function ScriptAnswers({ lang, form, onChange }) {
   );
 }
 
-/**
- * @param {{ lang: Lang, value?: string, onChange: (value: string) => void }} props
- */
-function ScriptInput({ lang, value, onChange }) {
+function ScriptInput({ lang, value, onChange }: {
+  lang: Lang;
+  value?: string;
+  onChange: (value: string) => void;
+}) {
   const [keys, setKeys] = useState(false);
-  /** @type {React.MutableRefObject<HTMLInputElement | null>} */
-  const ref = useRef(null);
+  const ref: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
 
   return (
     <>
@@ -3007,16 +2966,14 @@ function ScriptInput({ lang, value, onChange }) {
   );
 }
 
-/** @param {Blob} blob */
-async function hashOf(blob) {
+async function hashOf(blob: Blob) {
   const buf = await blob.arrayBuffer();
   const digest = await crypto.subtle.digest("SHA-256", buf);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** @param {Blob} blob */
-function blobToDataUrl(blob) {
-  return new Promise((res, rej) => {
+function blobToDataUrl(blob: Blob) {
+  return new Promise<string>((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(String(r.result));
     r.onerror = () => rej(new Error("read-failed"));
@@ -3049,19 +3006,6 @@ function blobToDataUrl(blob) {
    three screens name the same things in the same words.
    ------------------------------------------------------------------ */
 
-/**
- * @param {{
- *   mode: "download" | "restore",
- *   file?: any,
- *   fileName?: string,
- *   onDownload: (parts: string[]) => void,
- *   onRestore: (parts: string[]) => void,
- *   onPickFile: (file: any, name: string) => void,
- *   progress?: { done: number, total: number } | null,
- *   busy?: boolean,
- *   onClose: () => void,
- * }} props
- */
 function BackupScreen({
   mode,
   file,
@@ -3072,6 +3016,16 @@ function BackupScreen({
   progress,
   busy,
   onClose,
+}: {
+  mode: "download" | "restore";
+  file?: any;
+  fileName?: string;
+  onDownload: (parts: string[]) => void;
+  onRestore: (parts: string[]) => void;
+  onPickFile: (file: any, name: string) => void;
+  progress?: { done: number, total: number } | null;
+  busy?: boolean;
+  onClose: () => void;
 }) {
   const restoring = mode === "restore";
   /* Everything, until somebody says otherwise: the whole site is what a
@@ -3212,21 +3166,18 @@ function BackupScreen({
    away from a menu.
    ------------------------------------------------------------------ */
 
-/**
- * @param {{
- *   onClear: (adminKey: string, parts: string[]) => Promise<any>,
- *   onClose: () => void,
- * }} props
- */
-function ClearScreen({ onClear, onClose }) {
+function ClearScreen({ onClear, onClose }: {
+  onClear: (adminKey: string, parts: string[]) => Promise<any>;
+  onClose: () => void;
+}) {
   /* Nothing ticked to begin with. A screen that opens with every box
      already ticked is a screen where the dangerous thing is one tap away,
      and the tap is the wrong one to make easy. */
-  const [parts, setParts] = useState(/** @type {string[]} */ ([]));
+  const [parts, setParts] = useState<string[]>([]);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState(/** @type {any | null} */ (null));
+  const [done, setDone] = useState<any | null>(null);
   const [asking, setAsking] = useState(false);
 
   const naming = partsChosen(parts).map((p) => p.title.toLowerCase()).join(", ");
@@ -3348,19 +3299,15 @@ function ClearScreen({ onClear, onClose }) {
    round, and only writes what actually changed.
    ------------------------------------------------------------------ */
 
-/**
- * @param {{
- *   course: Course,
- *   decks: Deck[],
- *   langOfDeck: (deck: Deck) => string,
- *   busy?: boolean,
- *   onSave: (added: string[], removed: string[]) => void,
- *   onClose: () => void,
- * }} props
- */
-function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
-  /** @type {(d: Deck) => boolean} */
-  const inCourse = (d) => (d.courses || []).some((l) => l.courseId === course.id);
+function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }: {
+  course: Course;
+  decks: Deck[];
+  langOfDeck: (deck: Deck) => string;
+  busy?: boolean;
+  onSave: (added: string[], removed: string[]) => void;
+  onClose: () => void;
+}) {
+  const inCourse: (d: Deck) => boolean = (d) => (d.courses || []).some((l) => l.courseId === course.id);
   const [chosen, setChosen] = useState(() => new Set(decks.filter(inCourse).map((d) => d.id)));
   const [query, setQuery] = useState("");
 
@@ -3436,19 +3383,6 @@ function DeckPicker({ course, decks, langOfDeck, busy, onSave, onClose }) {
    at the top right — so the two feel like one app rather than two.
    ------------------------------------------------------------------ */
 
-/**
- * @param {{
- *   deck: Deck | null,
- *   choices: Record<LangId, Lang>,
- *   mustAsk?: boolean,
- *   initialLang?: LangId,
- *   busy?: boolean,
- *   courses?: Course[],
- *   languages: Record<LangId, Lang>,
- *   onSave: (title: string, lang: LangId, picked: string[]) => void,
- *   onClose: () => void,
- * }} props
- */
 function DeckEditor({
   deck,
   choices,
@@ -3459,6 +3393,16 @@ function DeckEditor({
   languages,
   onSave,
   onClose,
+}: {
+  deck: Deck | null;
+  choices: Record<LangId, Lang>;
+  mustAsk?: boolean;
+  initialLang?: LangId;
+  busy?: boolean;
+  courses?: Course[];
+  languages: Record<LangId, Lang>;
+  onSave: (title: string, lang: LangId, picked: string[]) => void;
+  onClose: () => void;
 }) {
   const [title, setTitle] = useState((deck && deck.title) || "");
   const [lang, setLang] = useState((deck && deck.lang) || initialLang || "");
@@ -3588,13 +3532,10 @@ function DeckEditor({
  * going wrong, and they used to sit in the middle of a form as four
  * buttons, which is how a card editor becomes a console.
  */
-/**
- * @param {{
- *   form: { clips?: string[], slowClips?: string[] },
- *   onOpen: () => void,
- * }} props
- */
-function Recordings({ form, onOpen }) {
+function Recordings({ form, onOpen }: {
+  form: { clips?: string[], slowClips?: string[] };
+  onOpen: () => void;
+}) {
   const made = clipsOf(form);
   return (
     <Field label="Recordings">
@@ -3621,45 +3562,31 @@ function Recordings({ form, onOpen }) {
  * two would mean two live microphones the moment somebody pressed the
  * second button while the first was still running.
  */
-/**
- * @param {{
- *   title: string,
- *   form: { clips?: string[], slowClips?: string[] },
- *   onChange: (next: { clips: string[], slowClips: string[] }) => void,
- *   onClose: () => void,
- * }} props
- */
-function RecordingScreen({ title, form, onChange, onClose }) {
-  const [recording, setRecording] = useState(/** @type {"clips" | "slowClips" | ""} */ (""));
+function RecordingScreen({ title, form, onChange, onClose }: {
+  title: string;
+  form: { clips?: string[], slowClips?: string[] };
+  onChange: (next: { clips: string[], slowClips: string[] }) => void;
+  onClose: () => void;
+}) {
+  const [recording, setRecording] = useState<"clips" | "slowClips" | "">("");
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  /** @type {React.MutableRefObject<MediaRecorder | null>} */
-  const rec = useRef(null);
-  /** @type {React.MutableRefObject<ReturnType<typeof setInterval> | null>} */
-  const tick = useRef(null);
+  const rec: React.MutableRefObject<MediaRecorder | null> = useRef(null);
+  const tick: React.MutableRefObject<ReturnType<typeof setInterval> | null> = useRef(null);
 
   useEffect(() => () => {
     if (tick.current) clearInterval(tick.current);
   }, []);
 
-  /** @param {"clips" | "slowClips"} key */
-  const listOf = (key) => form[key] || [];
-  /**
-   * @param {"clips" | "slowClips"} key
-   * @param {string[]} next
-   */
-  const put = (key, next) =>
+  const listOf = (key: "clips" | "slowClips"): string[] => form[key] || [];
+  const put = (key: "clips" | "slowClips", next: string[]) =>
     onChange({
       clips: key === "clips" ? next : form.clips || [],
       slowClips: key === "slowClips" ? next : form.slowClips || [],
     });
 
-  /**
-   * @param {Blob} blob
-   * @param {"clips" | "slowClips"} key
-   */
-  async function store(blob, key) {
+  async function store(blob: Blob, key: "clips" | "slowClips") {
     setBusy("Saving…");
     try {
       const hash = await hashOf(blob);
@@ -3672,8 +3599,7 @@ function RecordingScreen({ title, form, onChange, onClose }) {
     }
   }
 
-  /** @param {"clips" | "slowClips"} key */
-  async function begin(key) {
+  async function begin(key: "clips" | "slowClips") {
     setError("");
     if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices) {
       setError("This browser won't let the app use the microphone");
@@ -3682,8 +3608,7 @@ function RecordingScreen({ title, form, onChange, onClose }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream, { audioBitsPerSecond: 24000 });
-      /** @type {Blob[]} */
-      const chunks = [];
+      const chunks: Blob[] = [];
       mr.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
@@ -3700,7 +3625,7 @@ function RecordingScreen({ title, form, onChange, onClose }) {
       setTimeout(() => mr.state !== "inactive" && end(), 25000);
     } catch (e) {
       setError(
-        String(e && /** @type {any} */ (e).name) === "NotAllowedError"
+        String(e && (e as any).name) === "NotAllowedError"
           ? "Microphone permission was refused"
           : "Couldn't reach the microphone"
       );
@@ -3793,17 +3718,14 @@ function RecordingScreen({ title, form, onChange, onClose }) {
  * A pairing already accepted stays whichever way the matcher later votes,
  * so improving the matcher can never silently drop a teacher's decision.
  */
-/**
- * @param {{
- *   lang: Lang,
- *   text: string,
- *   cards: Card[],
- *   selfId?: string,
- *   chosen: string[],
- *   onChange: (ids: string[]) => void,
- * }} props
- */
-function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
+function WordsUsed({ lang, text, cards, selfId, chosen, onChange }: {
+  lang: Lang;
+  text: string;
+  cards: Card[];
+  selfId?: string;
+  chosen: string[];
+  onChange: (ids: string[]) => void;
+}) {
   const kind = guessKind(text, lang);
   const suggestions = useMemo(() => {
     if (!supportsContext(lang) || kind === "word" || !text.trim()) return [];
@@ -3857,32 +3779,26 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
 }
 
 /**
- * @param {{
- *   card: Card | null,
- *   lang: Lang,
- *   decks: Deck[],
- *   inDecks?: string[],
- *   allCards: Card[],
- *   onSave: (written: {
- *     forms: any,
- *     note: string,
- *     decks: string[],
- *     uses: string[],
- *     scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null,
- *   }) => void,
- *   onDelete?: () => void,
- *   onClose: () => void,
- *   busy?: boolean,
- *   confirming?: Node,
- *   scene?: boolean,
- *   draft?: Record<string, any> | null,
- * }} props `scene` is which kind of card this opens as — turns instead of
+ * @param props  `scene` is which kind of card this opens as — turns instead of
  *   forms — and for a new card it is only the starting answer: the kind is
  *   a choice made here, in the one editor, rather than by having arrived
  *   through a different button. `draft` is a first line already written,
  *   for a card begun from a suggestion.
  */
-function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }) {
+function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }: {
+  card: Card | null;
+  lang: Lang;
+  decks: Deck[];
+  inDecks?: string[];
+  allCards: Card[];
+  onSave: (written: { forms: any, note: string, decks: string[], uses: string[], scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onDelete?: () => void;
+  onClose: () => void;
+  busy?: boolean;
+  confirming?: Node;
+  scene?: boolean;
+  draft?: Record<string, any> | null;
+}) {
   /*
    * A conversation is a kind of card, not a separate thing to make.
    *
@@ -3925,7 +3841,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   /* Which form's recordings are being made, or null. The screen for them
      opens over this one and hands its results straight back into the form,
      so nothing about a card is saved any earlier than it was. */
-  const [recording, setRecording] = useState(/** @type {number | null} */ (null));
+  const [recording, setRecording] = useState<number | null>(null);
 
   /* ---- a conversation, where the card is one ----
      Two people and two empty turns to begin with: an empty scene with an
@@ -3940,7 +3856,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   const [speakers, setSpeakers] = useState(() =>
     card && (card.speakers || []).length ? (card.speakers || []).slice() : ["A", "B"]
   );
-  const [you, setYou] = useState(/** @type {number | null} */ (card ? namedPart(card) : null));
+  const [you, setYou] = useState<number | null>(card ? namedPart(card) : null);
   const [lines, setLines] = useState(() =>
     card && (card.lines || []).length
       ? (card.lines || []).map((l) => ({ ...blankLine(), ...l }))
@@ -3950,16 +3866,14 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      a conversation has no word of its own to put in either. */
   const [title, setTitle] = useState((card && card.en) || "");
   const [setting, setSetting] = useState((card && card.note) || "");
-  const [recordingLine, setRecordingLine] = useState(/** @type {number | null} */ (null));
-  /** @type {(i: number, next: any) => void} */
-  const setLine = (i, next) => setLines((x) => x.map((l, j) => (j === i ? next : l)));
+  const [recordingLine, setRecordingLine] = useState<number | null>(null);
+  const setLine: (i: number, next: any) => void = (i, next) => setLines((x) => x.map((l, j) => (j === i ? next : l)));
   const written = lines.filter((l) => (l.ar || "").trim());
   /* Which side of the page a turn is written on, as the class that puts it
      there — empty for a scene of three or four, which stays a list. Asked
      of the draft rather than of the stored card, so the sides are the ones
      the teacher is looking at. */
-  /** @param {number} [who] */
-  const turnSide = (who) => {
+  const turnSide = (who?: number) => {
     const side = sideOf({ lines, speakers }, who || 0);
     return side === null ? "" : ` side${side}`;
   };
@@ -3974,8 +3888,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   const canSave = scene
     ? !!title.trim() && written.length >= 2
     : main.ar.trim() && main.en.trim();
-  /** @type {(i: number, next: any) => void} */
-  const setForm = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
+  const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
   return (
     /* "over" puts this above the mode selector and the corner menu, so
@@ -4330,7 +4243,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                   <Field label={lang.lexical.label}>
                     <input
                       className="at-input"
-                      value={/** @type {any} */ (f)[lang.lexical.key] || ""}
+                      value={(f as any)[lang.lexical.key] || ""}
                       placeholder={lang.lexical.help || ""}
                       onChange={(e) => setForm(i, { ...f, [lang.lexical ? lang.lexical.key : ""]: e.target.value })}
                     />
@@ -4450,18 +4363,18 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
    ------------------------------------------------------------------ */
 
 /**
- * @param {{
- *   card: Card,
- *   cards: Card[],
- *   lang?: Lang,
- *   settings?: any,
- *   onTry?: (plan: { items: any[], exercise: any, back: any }) => void,
- *   back?: any,
- * }} props `back` travels with the plan and comes home again: where the
+ * @param props  `back` travels with the plan and comes home again: where the
  *   teacher was standing when they pressed it, so answering the question
  *   puts them back there rather than at the front of the space.
  */
-function TryExercises({ card, cards, lang, settings, onTry, back }) {
+function TryExercises({ card, cards, lang, settings, onTry, back }: {
+  card: Card;
+  cards: Card[];
+  lang?: Lang;
+  settings?: any;
+  onTry?: (plan: { items: any[], exercise: any, back: any }) => void;
+  back?: any;
+}) {
   /*
    * The teacher's material in the shape a question is asked of.
    *
@@ -4567,25 +4480,22 @@ function TryExercises({ card, cards, lang, settings, onTry, back }) {
    one place that reads all of the material at once.
    ------------------------------------------------------------------ */
 
-/**
- * @param {{
- *   cards: Card[],
- *   languages: Record<string, Lang>,
- *   langOfCard: (card: Card) => Lang | undefined,
- *   busy?: boolean,
- *   onLink: (card: Card, word: { id: string, ar: string, en: string }, line: number | null) => void,
- *   onAddWord: (text: string, lang: Lang) => void,
- *   onOpenCard: (id: string) => void,
- * }} props
- */
-function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOpenCard }) {
+function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOpenCard }: {
+  cards: Card[];
+  languages: Record<string, Lang>;
+  langOfCard: (card: Card) => Lang | undefined;
+  busy?: boolean;
+  onLink: (card: Card, word: { id: string, ar: string, en: string }, line: number | null) => void;
+  onAddWord: (text: string, lang: Lang) => void;
+  onOpenCard: (id: string) => void;
+}) {
   const ids = Object.keys(languages);
   const [langId, setLangId] = useState(ids[0] || "");
   const lang = languages[langId] || languages[ids[0]];
   /* Rows a teacher has dealt with this sitting. The report is rebuilt from
      the cards as they arrive back, but a save is a round trip and a row
      that sits there looking undone in the meantime invites a second tap. */
-  const [done, setDone] = useState(/** @type {string[]} */ ([]));
+  const [done, setDone] = useState<string[]>([]);
 
   /* One language at a time, because finding a word inside a phrase is a
      language's own rule and running Arabic's over Vietnamese cards would
@@ -4804,8 +4714,7 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
  * word inside a phrase, and a prop typed `Lang` would make that branch
  * unreachable — which is the opposite of the point.
  */
-/** @param {{ cards: Card[], lang: Partial<Lang> }} props */
-function ContextReport({ cards, lang }) {
+function ContextReport({ cards, lang }: { cards: Card[]; lang: Partial<Lang> }) {
   const [open, setOpen] = useState(false);
   const report = useMemo(() => contextCoverage(cards, lang), [cards, lang]);
 
@@ -4915,13 +4824,11 @@ function ContextReport({ cards, lang }) {
 
 /* Recordings live on each form, not on the card, so a card counts as having
    one if any of its forms does. */
-/** @type {(c: Card) => boolean} */
-export const cardHasAudio = (c) =>
+export const cardHasAudio: (c: Card) => boolean = (c) =>
   formHasAudio(c) || (c.subs || []).some(formHasAudio);
 
 /* The main form is a form. A card with two subs has three. */
-/** @type {(c: Card) => number} */
-export const cardFormCount = (c) => 1 + (c.subs || []).length;
+export const cardFormCount: (c: Card) => number = (c) => 1 + (c.subs || []).length;
 
 /*
  * When a card was added.
@@ -4932,29 +4839,24 @@ export const cardFormCount = (c) => 1 + (c.subs || []).length;
  * upper bound. Backfilling would have been worse — it would have written
  * today's date over the answer.
  */
-/** @type {(c: Card) => number} */
-export const cardAdded = (c) => c.created || c.updated || 0;
-/** @type {(c: Card) => number} */
-export const cardChanged = (c) => c.updated || c.created || 0;
+export const cardAdded: (c: Card) => number = (c) => c.created || c.updated || 0;
+export const cardChanged: (c: Card) => number = (c) => c.updated || c.created || 0;
 
-/** @type {Record<string, { label: string, of: (c: Card) => any, numeric?: boolean, then?: (c: Card) => any }>} */
-export const CARD_SORTS = {
+export const CARD_SORTS: Record<
+  string,
+  { label: string; of: (c: Card) => any; numeric?: boolean; then?: (c: Card) => any }
+> = {
   added: { label: "Added", of: cardAdded, numeric: true },
   changed: { label: "Changed", of: cardChanged, numeric: true },
   /* Ordering by a yes/no puts one group first and leaves the other
      untouched behind it, so a second key decides within each group —
      otherwise the order inside a group would be whatever the server
      happened to return. */
-  audio: { label: "Recordings", of: (/** @type {Card} */ c) => (cardHasAudio(c) ? 1 : 0), then: cardChanged },
+  audio: { label: "Recordings", of: (c: Card) => (cardHasAudio(c) ? 1 : 0), then: cardChanged },
   forms: { label: "Forms", of: cardFormCount, then: cardChanged },
 };
 
-/**
- * @param {Card[]} cards
- * @param {string} key
- * @param {boolean} [newestFirst]
- */
-export function sortCards(cards, key, newestFirst = true) {
+export function sortCards(cards: Card[], key: string, newestFirst: boolean = true) {
   const sort = CARD_SORTS[key || ""];
   if (!sort) return cards;
   const dir = newestFirst ? -1 : 1;
@@ -4966,11 +4868,10 @@ export function sortCards(cards, key, newestFirst = true) {
   });
 }
 
-/**
- * @param {Card[]} cards
- * @param {{ audio?: string, forms?: string }} [filters]
- */
-export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
+export function filterCards(cards: Card[], { audio = "any", forms = "any" }: {
+  audio?: string;
+  forms?: string;
+} = {}) {
   return cards.filter((c) => {
     if (audio === "with" && !cardHasAudio(c)) return false;
     if (audio === "without" && cardHasAudio(c)) return false;
@@ -4981,14 +4882,7 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
 }
 
 /**
- * @param {{
- *   account: User,
- *   languages: Record<LangId, Lang>,
- *   settings?: any,
- *   onTry?: (plan: { items: any[], exercise: any, back: any }) => void,
- *   resume?: { cardId?: string, tab?: string, deckId?: string | null } | null,
- *   onClose: () => void,
- * }} props `onTry` runs one question on one of these cards, through the
+ * @param props  `onTry` runs one question on one of these cards, through the
  *   screen a student is asked on. The teaching space has no such screen of
  *   its own and should not grow one: a preview that is not the real thing
  *   is worse than none.
@@ -4998,16 +4892,21 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
  *   card they pressed the button on comes back as a prop and is read once,
  *   here, at the first render.
  */
-export function TeachSpace({ account, languages, settings, onTry, resume, onClose }) {
+export function TeachSpace({ account, languages, settings, onTry, resume, onClose }: {
+  account: User;
+  languages: Record<LangId, Lang>;
+  settings?: any;
+  onTry?: (plan: { items: any[], exercise: any, back: any }) => void;
+  resume?: { cardId?: string; tab?: string; deckId?: string | null } | null;
+  onClose: () => void;
+}) {
   /* What this space was showing when it was last left — see lastShown.
      Asked once, at the first render: recall forgets another person's
      contents when it is asked for them, which is not something to do
      again on every keystroke. */
-  /** @type {React.MutableRefObject<{ courses: Course[], decks: Deck[], cards: Card[] } | null>} */
-  const held = useRef(null);
+  const held: React.MutableRefObject<{ courses: Course[], decks: Deck[], cards: Card[] } | null> = useRef(null);
   if (held.current === null) held.current = recallSpace("teach", account.handle) || false;
-  /** @type {{ courses: Course[], decks: Deck[], cards: Card[] } | null} */
-  const last = held.current || null;
+  const last: { courses: Course[], decks: Deck[], cards: Card[] } | null = held.current || null;
   /* Coming back from a trial: the tab, the deck and the card that was
      being read, in that order — the card sits on top of the screen it was
      opened from, and closing it has to land somewhere that makes sense.
@@ -5015,39 +4914,46 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
      teacher was rather than where they have since gone. */
   const back = useRef(resume || null).current;
   const [tab, setTab] = useState((back && back.tab) || "courses");
-  const [courses, setCourses] = useState(/** @type {Course[]} */ (last ? last.courses : []));
-  const [decks, setDecks] = useState(/** @type {Deck[]} */ (last ? last.decks : []));
+  const [courses, setCourses] = useState<Course[]>(last ? last.courses : []);
+  const [decks, setDecks] = useState<Deck[]>(last ? last.decks : []);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [courseView, setCourseView] = useState(/** @type {any | null} */ (null));
-  const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ ((back && back.deckId) || null));
-  const [cards, setCards] = useState(/** @type {Card[]} */ (last ? last.cards : []));
-  const [editing, setEditing] = useState(
-    /** @type {{ card: Card | null, decks: string[], lang?: LangId, scene?: boolean, draft?: Record<string, any> } | null} */ (null)
-  ); // {card|null, decks:[], lang}
-  const [naming, setNaming] = useState(/** @type {any | null} */ (null)); // "new" | deck
-  const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null)); // whatever is awaiting a yes
-  const [viewing, setViewing] = useState(/** @type {any} */ (
-    /* The card a trial was asked about, found in the copy this space had
-       in hand when it left. Nothing to fetch: it is the same list the
-       button was pressed from, kept across the round trip. */
+  const [courseView, setCourseView] = useState<any | null>(null);
+  const [openDeck, setOpenDeck] = useState<any | null>((back && back.deckId) || null);
+  const [cards, setCards] = useState<Card[]>(last ? last.cards : []);
+  /* The card being edited, with the decks it is to land in. null when the
+     editor is shut. */
+  const [editing, setEditing] = useState<{
+    card: Card | null;
+    decks: string[];
+    lang?: LangId;
+    scene?: boolean;
+    draft?: Record<string, any>;
+  } | null>(null);
+  const [naming, setNaming] = useState<any | null>(null); // "new" | deck
+  const [confirm, setConfirm] = useState<Pending | null>(null); // whatever is awaiting a yes
+  /* A card being read rather than edited. On the way back from a trial it
+     is the card the trial was asked about, found in the copy this space had
+     in hand when it left — nothing to fetch, it is the same list the button
+     was pressed from, kept across the round trip. */
+  const [viewing, setViewing] = useState<Card | null>(
     back && back.cardId && last
-      ? (last.cards || []).find((/** @type {Card} */ c) => c.id === back.cardId) || null
-      : null
-  )); // a card being read, not edited
-  const [selCards, setSelCards] = useState(() => new Set());
-  const [cardAction, setCardAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
-  const [newCardLang, setNewCardLang] = useState(/** @type {LangId | null} */ (null));
-  const [managingDecks, setManagingDecks] = useState(/** @type {string | null} */ (null)); // a course id
+      ? (last.cards || []).find((c: Card) => c.id === back.cardId) || null
+      : null,
+  );
+  const [selCards, setSelCards] = useState(() => new Set<string>());
+  const [cardAction, setCardAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
+  const [newCardLang, setNewCardLang] = useState<LangId | null>(null);
+  const [managingDecks, setManagingDecks] = useState<string | null>(null); // a course id
   /* Already teaching something? Then this is a rare errand, folded away. */
   const [joinNote, setJoinNote] = useState("");
-  const [selDecks, setSelDecks] = useState(() => new Set());
-  const [deckAction, setDeckAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
-  const [pickedDecks, setPickedDecks] = useState(/** @type {string[]} */ ([]));
-  const [pickedCourses, setPickedCourses] = useState(/** @type {string[]} */ ([]));
+  const [selDecks, setSelDecks] = useState(() => new Set<string>());
+  const [deckAction, setDeckAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
+  const [pickedDecks, setPickedDecks] = useState<string[]>([]);
+  const [pickedCourses, setPickedCourses] = useState<string[]>([]);
 
-  const refresh = useCallback(async (/** @type {boolean} */ background = false) => {
+  const refresh = useCallback(async (background: boolean = false) => {
     if (!background) setBusy(true);
     try {
       /* pullTeaching takes what arrives and says what didn't, so a failing
@@ -5096,8 +5002,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   /* The languages this person actually teaches. One means nothing to ask
      about; several mean every new deck and card has to say which it is. */
   const teachingLangs = useMemo(() => {
-    /** @type {string[]} */
-  const ids = [];
+  const ids: string[] = [];
     for (const c of courses) {
       if (c.language && languages[c.language] && !ids.includes(c.language)) ids.push(c.language);
     }
@@ -5108,8 +5013,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
      while that course's language is still being sorted out. */
   const knownLangs = useMemo(() => {
     if (teachingLangs.length) return teachingLangs;
-    /** @type {string[]} */
-  const ids = [];
+  const ids: string[] = [];
     for (const d of decks) {
       if (d.lang && languages[d.lang] && !ids.includes(d.lang)) ids.push(d.lang);
     }
@@ -5145,11 +5049,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
 
   /* See the note on AdminSpace's run: `done` is the confirmation, and may
      be a function of what the call returned. */
-  /**
-   * @param {() => Promise<any>} fn
-   * @param {string | ((out: any) => string)} [done]
-   */
-  async function run(fn, done) {
+  async function run(fn: () => Promise<any>, done?: string | ((out: any) => string)) {
     setBusy(true);
     try {
       const out = await fn();
@@ -5167,8 +5067,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
      be followed by three more requests, each reading every deck and course
      on the site; the background check still runs, so the lists cannot drift
      for long even if something here is missed. */
-  /** @param {any} r */
-  function absorbSaved(r) {
+  function absorbSaved(r: any) {
     const card = r && r.card;
     if (!card) return;
     setCards((prev) => {
@@ -5182,8 +5081,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     absorbDecks(r.decks);
   }
 
-  /** @param {Deck[]} records */
-  function absorbDecks(records) {
+  function absorbDecks(records: Deck[]) {
     if (!Array.isArray(records) || !records.length) return;
     setDecks((prev) =>
       prev.map((d) => {
@@ -5193,8 +5091,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     );
   }
 
-  /** @param {string[]} ids */
-  function absorbDeleted(ids) {
+  function absorbDeleted(ids: string[]) {
     const gone = new Set(ids);
     if (!gone.size) return;
     setCards((prev) => prev.filter((c) => !gone.has(c.id)));
@@ -5208,8 +5105,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     );
   }
 
-  /** @type {(deck: Deck) => Lang | undefined} */
-  const langOfDeck = (deck) => {
+  const langOfDeck: (deck: Deck) => Lang | undefined = (deck) => {
     if (deck && deck.lang && languages[deck.lang]) return languages[deck.lang];
     for (const link of (deck && deck.courses) || []) {
       const c = courses.find((x) => x.id === link.courseId);
@@ -5218,10 +5114,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     return languages[soleLang] || languages[Object.keys(languages)[0]];
   };
 
-  /** @type {(card: Card) => Lang | undefined} */
-  const langOfCard = (card) =>
+  const langOfCard: (card: Card) => Lang | undefined = (card) =>
     (card && card.lang && languages[card.lang]) ||
-    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || /** @type {any} */ ({}));
+    langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || ({} as any));
 
   /* ---- naming a deck takes over the screen, like a card ---- */
   if (naming) {
@@ -5246,7 +5141,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 await API.createDeck(title, "", lang || soleLang);
               } else {
                 if (title !== existing.title) await API.renameDeck(existing.id, title);
-                const was = (existing.courses || []).map((/** @type {any} */ l) => l.courseId);
+                const was = (existing.courses || []).map((l: any) => l.courseId);
                 for (const id of picked) if (!was.includes(id)) await API.attachDeck(existing.id, id);
                 for (const id of was) if (!picked.includes(id)) await API.detachDeck(existing.id, id);
               }
@@ -5269,7 +5164,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
        is going into. With one language taught there is never a choice. */
     const editLang =
       (editing.lang && languages[editing.lang]) ||
-      (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || /** @type {any} */ ({ courses: [] })));
+      (editing.card ? langOfCard(editing.card) : langOfDeck(forDeck || ({ courses: [] } as any)));
     return (
       <CardEditor
         card={editing.card}
@@ -5326,7 +5221,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                         slowClips: main.slowClips || [],
                         note: note.trim(),
                         uses,
-                        subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
+                        subs: subs.filter((f: any) => f.ar.trim() || f.en.trim()),
                       }),
                 },
                 inDecks
@@ -5355,7 +5250,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                already written, say so — that is the moment the link is
                worth making, and the alternative is a deck whose coverage
                quietly falls as it grows. */
-            (/** @type {{ name: string, waiting: number }} */ done) =>
+            (done: { name: string, waiting: number }) =>
               done.waiting
                 ? `${done.name} saved · it turns up in ${plural(done.waiting, "phrase")} you have written — confirm them under In context`
                 : `${done.name} saved`
@@ -5437,7 +5332,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 (c.ar || "").toLowerCase().includes(q) ||
                 (c.en || "").toLowerCase().includes(q) ||
                 linesOf(c).some(
-                  (/** @type {any} */ l) =>
+                  (l: any) =>
                     (l.ar || "").toLowerCase().includes(q) ||
                     (l.en || "").toLowerCase().includes(q)
                 )
@@ -5487,7 +5382,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                       <IconButton
                         icon="edit"
                         label="Edit"
-                        onClick={(/** @type {React.MouseEvent} */ e) => {
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           setEditing({ card: c, decks: c.decks || [] });
                         }}
@@ -5496,7 +5391,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                         icon="delete"
                         label="Delete"
                         danger
-                        onClick={(/** @type {React.MouseEvent} */ e) => {
+                        onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
                         }}
@@ -5610,9 +5505,8 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       return null;
     }
     const mine = decks.filter((d) => (d.courses || []).some((l) => l.courseId === c.id));
-    /** @type {(d: Deck) => any} */
-  const addedOn = (d) => {
-      const link = (d.courses || []).find((/** @type {any} */ l) => l.courseId === c.id);
+  const addedOn: (d: Deck) => any = (d) => {
+      const link = (d.courses || []).find((l: any) => l.courseId === c.id);
       return link && link.addedAt ? new Date(link.addedAt).toLocaleDateString() : null;
     };
     return (
@@ -5650,7 +5544,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     meta={`${(langOfDeck(d) || { name: "" }).name} · ${plural(d.cardCount || 0, "card")}`}
                     onOpen={() => setOpenDeck(d.id)}
                     actions={
-                      <IconButton icon="edit" label="Deck settings" onClick={(/** @type {React.MouseEvent} */ e) => {
+                      <IconButton icon="edit" label="Deck settings" onClick={(e: React.MouseEvent) => {
                           e.stopPropagation();
                           setNaming(d);
                         }} />
@@ -6028,7 +5922,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   (c.en || "").toLowerCase().includes(q) ||
                   (c.lat || "").toLowerCase().includes(q) ||
                   linesOf(c).some(
-                    (/** @type {any} */ l) =>
+                    (l: any) =>
                       (l.ar || "").toLowerCase().includes(q) ||
                       (l.en || "").toLowerCase().includes(q)
                   )
@@ -6059,7 +5953,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                         <IconButton
                           icon="edit"
                           label="Edit"
-                          onClick={(/** @type {React.MouseEvent} */ e) => {
+                          onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
                             setEditing({ card: c, decks: c.decks || [] });
                           }}
@@ -6068,7 +5962,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                           icon="delete"
                           label="Delete"
                           danger
-                          onClick={(/** @type {React.MouseEvent} */ e) => {
+                          onClick={(e: React.MouseEvent) => {
                             e.stopPropagation();
                             setConfirm({ kind: "cards", ids: [c.id], action: () => {} });
                           }}
@@ -6096,7 +5990,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                        that says them, because a scene has no text of its
                        own and the session builder reads a line's own
                        `uses` to know what it teaches. */
-                    const add = (/** @type {string[] | undefined} */ had) => [
+                    const add = (had: string[] | undefined) => [
                       ...new Set((had || []).concat([word.id])),
                     ];
                     absorbSaved(
@@ -6105,7 +5999,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                           ? { ...card, uses: add(card.uses) }
                           : {
                               ...card,
-                              lines: linesOf(card).map((/** @type {any} */ l, /** @type {number} */ at) =>
+                              lines: linesOf(card).map((l: any, at: number) =>
                                 at === line ? { ...l, uses: add(l.uses) } : l
                               ),
                             },
@@ -6114,7 +6008,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     );
                     return { word, line };
                   },
-                  (/** @type {any} */ r) =>
+                  (r: any) =>
                     `"${r.word.en || r.word.ar}" is now taught inside that ${r.line === null ? "phrase" : "turn"}`
                 )
               }
@@ -6261,11 +6155,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                       onOpen={() => setOpenDeck(d.id)}
                       actions={
                         <>
-                          <IconButton icon="edit" label="Deck settings" onClick={(/** @type {React.MouseEvent} */ e) => {
+                          <IconButton icon="edit" label="Deck settings" onClick={(e: React.MouseEvent) => {
                               e.stopPropagation();
                               setNaming(d);
                             }} />
-                          <IconButton icon="delete" label="Delete deck" danger onClick={(/** @type {React.MouseEvent} */ e) => {
+                          <IconButton icon="delete" label="Delete deck" danger onClick={(e: React.MouseEvent) => {
                               e.stopPropagation();
                               setConfirm({
                                 kind: "deck",
@@ -6318,18 +6212,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
    ------------------------------------------------------------------ */
 
 
-/**
- * @param {{
- *   courses: Course[],
- *   decks: (Deck & { courseId: string, courseTitle?: string })[],
- *   languages: Record<LangId, Lang>,
- *   busy?: boolean,
- *   error?: Node,
- *   onJoin: (code: string) => Promise<any>,
- *   onRefresh?: () => void,
- *   onPractise: (deckTitle: string) => void,
- * }} props
- */
 export function StudentCourses({
   courses,
   decks,
@@ -6339,6 +6221,15 @@ export function StudentCourses({
   onJoin,
   onRefresh,
   onPractise,
+}: {
+  courses: Course[];
+  decks: (Deck & { courseId: string, courseTitle?: string })[];
+  languages: Record<LangId, Lang>;
+  busy?: boolean;
+  error?: Node;
+  onJoin: (code: string) => Promise<any>;
+  onRefresh?: () => void;
+  onPractise: (deckTitle: string) => void;
 }) {
   const [note, setNote] = useState("");
   return (
@@ -6377,7 +6268,7 @@ export function StudentCourses({
             actions={
               mine.length ? (
                 <Button size="sm"
-                  onClick={(/** @type {React.MouseEvent} */ e) => {
+                  onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
                     onPractise(mine[0].title);
                   }}
