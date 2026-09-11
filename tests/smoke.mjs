@@ -75,6 +75,10 @@ const calls = [];
    than merely counted. */
 /** @type {any[]} */
 const reported = [];
+/* The decks made through the UI, so a walk can check what was actually
+   asked for rather than only what the screen then showed. */
+/** @type {any[]} */
+const madeDecks = [];
 /* `data` is the wire document: JSON as the sync endpoint stores it, which
    the checks below navigate field by field. */
 /** @type {Map<string, { etag: string, data: any }>} */
@@ -198,6 +202,22 @@ const fakeFetch = async (input, opts = {}) => {
       return json({
         ok: true,
         cards: [{ ...card, decks: ["d1"] }, { ...phrase, decks: ["d1"] }, { ...talk, decks: [] }],
+      });
+    }
+    if (action === "create-deck") {
+      const body = JSON.parse(opts.body || "{}");
+      madeDecks.push(body);
+      return json({
+        ok: true,
+        deck: {
+          id: `d${madeDecks.length + 1}`,
+          title: body.title,
+          owner: account.handle,
+          lang: body.lang || "ar-PS",
+          cardIds: [],
+          cardCount: 0,
+          courses: [],
+        },
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
@@ -426,6 +446,31 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(80);
   check("choosing a length is all that was left", start().there && !start().disabled && /^Start$/.test(start().label),
     start().label);
+
+  /* Keeping it, which is the other half of what the last step is for.
+     Several minutes of picking used to be spent again the next morning. */
+  const keepBox = [...document.querySelectorAll(".at-formblock")]
+    .find((d) => /Keep this session/.test(d.textContent || ""));
+  check("the last step offers to keep the session", !!keepBox,
+    (document.querySelector(".at-screenbody") || { textContent: "" }).textContent.slice(-90));
+  const nameBox = keepBox && keepBox.querySelector("input");
+  if (nameBox) {
+    /* Named, because a list of "Regular · 6 cards" tells nobody which was
+       which. */
+    const setInput = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setInput, "the input's value setter").call(nameBox, "Thursday's verbs");
+    nameBox.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(60);
+    clickNamed(/^Save$/);
+    await sleep(150);
+    check("saving it says so, rather than looking like nothing happened",
+      !!buttonNamed(/^Saved$/), buttonState(/^Saved?$/).label || "no button");
+    check("and Start is still the way on — keeping one is not practising it",
+      start().there && !start().disabled, start().label);
+  }
 
   /* The whole point of the walk: it still builds. Two new blocking
      conditions are two new ways to wedge the builder shut. */
@@ -762,6 +807,30 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   const back = must(document.querySelector(".at"), "the app's root element");
   check("and gives it back, so the chrome has somewhere to sit",
     !back.classList.contains("in-exercise"), back.className);
+
+  /* And the session kept a few steps ago, which is only worth keeping if
+     there is a way back to it. */
+  check("a kept session puts a way back to it on the home screen",
+    !!buttonNamed(/^Saved sessions$/),
+    [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(0, 120));
+  if (buttonNamed(/^Saved sessions$/)) {
+    clickNamed(/^Saved sessions$/);
+    await sleep(250);
+    check("and it is there under the name it was given",
+      /Thursday's verbs/.test(document.body.textContent || ""),
+      (document.body.textContent || "").slice(0, 120));
+    /* Built from the cards it named rather than replayed: the point of
+       keeping a description instead of a snapshot. */
+    clickNamed(/^Start$/);
+    await sleep(500);
+    check("and starting it builds the session again",
+      !!document.querySelector(".at-instruction"),
+      (document.body.textContent || "").slice(0, 100));
+    click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Leave session"));
+    await sleep(120);
+    clickNamed(/^Leave$/);
+    await sleep(250);
+  }
 
   /* Kept for the browser check, which needs cards to have a session at
      all and cannot make them through the UI in reasonable time. */
@@ -2172,6 +2241,58 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+
+  /* ---- somewhere to put them that does not exist yet ----
+
+     Selecting thirty cards and then finding no deck for them used to mean
+     leaving to make one, which threw the selection away: the way out of
+     the screen was to lose the work that got you there. */
+  const cardsFrame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  click(cardsFrame.querySelector(".at-selectbtn"));
+  await sleep(200);
+  const firstPick = cardsFrame.querySelector(".at-ckbox.pick");
+  check("cards can be selected in the teaching space", !!firstPick,
+    cardsFrame.querySelectorAll(".at-tilewrap").length + " tiles");
+  click(firstPick);
+  await sleep(200);
+  check("and ticking one raises the bulk actions", !!document.querySelector(".at-bulkfloat"),
+    (document.body.textContent || "").slice(-80));
+  clickNamed(/^Add to a deck$/);
+  await sleep(300);
+  check("the deck screen offers to make one on the spot", !!buttonNamed(/^New deck$/),
+    [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(-120));
+  clickNamed(/^New deck$/);
+  await sleep(200);
+  const deckName = [...document.querySelectorAll(".at-formblock")]
+    .find((d) => /New deck/.test(d.textContent || ""));
+  const deckInput = deckName && deckName.querySelector("input");
+  if (deckInput) {
+    const setInput = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setInput, "the input's value setter").call(deckInput, "Week 3 · Verbs");
+    deckInput.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(80);
+    clickNamed(/^Create$/);
+    await sleep(400);
+    check("making one takes the language from the cards going into it",
+      madeDecks.length === 1 && madeDecks[0].lang === "ar-PS",
+      JSON.stringify(madeDecks[0] || null));
+    const rows = [...document.querySelectorAll(".at-tickrow")];
+    const made = rows.find((r) => /Week 3/.test(r.textContent || ""));
+    check("the new deck joins the list", !!made,
+      rows.map((r) => (r.textContent || "").slice(0, 14)).join(" | ") || "no decks listed");
+    /* Ticked, because it is the one they were about to choose: choosing it
+       again by hand is a step that says nothing. */
+    check("and is already ticked, which is why it was made",
+      !!made && !!made.querySelector("input:checked"),
+      made ? (made.textContent || "").slice(0, 40) : "");
+  }
+  clickNamed(/^Cancel$/);
+  await sleep(250);
+  click(cardsFrame.querySelector(".at-selectbtn"));
+  await sleep(200);
 
   /* ---- and the report sees it ----
      A conversation keeps its words in its turns, so a report reading the

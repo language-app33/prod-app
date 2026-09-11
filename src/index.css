@@ -1604,6 +1604,14 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    The row wraps: a name, a handle and two pills is more than 320px holds,
    and the toggles dropping to a second line is better than a name cut
    short. */
+/* One kept session: a name, what it is, and the two things you can do with
+   it. Wraps like the roster row rather than squeezing the name into a
+   column — what these are called is the whole reason for keeping them —
+   and the icon button is told not to grow, because .at-icon is built to
+   fill a toolbar and would otherwise take a third of the row. */
+.at-sessionrow { flex-wrap:wrap; row-gap:8px; }
+.at-sessionrow > .grow { min-width:11rem; }
+.at-sessionrow > .at-icon { flex:0 0 auto; width:44px; }
 .at-rosterrow { flex-wrap:wrap; row-gap:6px; }
 /* A floor under the name, so the toggles wrap to their own line rather
    than squeezing a handle into three. Without it the name column can

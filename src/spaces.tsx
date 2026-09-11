@@ -4951,6 +4951,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   const [selDecks, setSelDecks] = useState(() => new Set<string>());
   const [deckAction, setDeckAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
   const [pickedDecks, setPickedDecks] = useState<string[]>([]);
+  /* The name of a deck being made from the add-to-a-deck screen, or null
+     when nothing is being made. "" is a form that is open and empty, which
+     is not the same as no form at all. */
+  const [newDeckName, setNewDeckName] = useState<string | null>(null);
   const [pickedCourses, setPickedCourses] = useState<string[]>([]);
 
   const refresh = useCallback(async (background: boolean = false) => {
@@ -5117,6 +5121,49 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   const langOfCard: (card: Card) => Lang | undefined = (card) =>
     (card && card.lang && languages[card.lang]) ||
     langOfDeck(decks.find((d) => ((card && card.decks) || []).includes(d.id)) || ({} as any));
+
+  /*
+   * The language a deck made from the add-to-a-deck screen takes.
+   *
+   * Read off the cards going into it rather than asked for: they already
+   * have one, and a teacher who teaches two languages should not have to
+   * answer a question the selection has already answered. Where the
+   * selection spans two, there is no right answer to read off it, so it
+   * falls back to the one this teacher mostly teaches and says on screen
+   * which it chose.
+   */
+  const newDeckLang = useMemo(() => {
+    const langs = new Set(
+      [...selCards]
+        .map((id) => cards.find((c) => c.id === id))
+        .map((c) => c && langOfCard(c as Card))
+        .filter(Boolean)
+        .map((l) => (l as Lang).id)
+    );
+    return langs.size === 1 ? [...langs][0] : soleLang;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selCards, cards, decks, languages, soleLang]);
+
+  /* Made, then ticked: the deck a teacher just named is the one they were
+     about to choose, so choosing it again by hand is a step that says
+     nothing. */
+  const createDeckHere = () => {
+    const title = String(newDeckName || "").trim();
+    if (!title) return;
+    run(
+      async () => {
+        const r = await API.createDeck(title, "", newDeckLang);
+        const made = r && r.deck;
+        if (made) {
+          setDecks((prev) => prev.concat([made]));
+          setPickedDecks((prev) => prev.concat([made.id]));
+        }
+        setNewDeckName(null);
+        return made;
+      },
+      (made) => `${(made && made.title) || title} created`
+    );
+  };
 
   /* ---- naming a deck takes over the screen, like a card ---- */
   if (naming) {
@@ -5750,8 +5797,65 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                       ? "Add the selected cards to…"
                       : "Take the selected cards out of…"
                   }
-                  onBack={() => setCardAction(null)}
+                  onBack={() => {
+                    setCardAction(null);
+                    setNewDeckName(null);
+                  }}
                 >
+                  {/* Somewhere to put them that does not exist yet.
+                      Before this, a teacher who had selected thirty cards
+                      and then found no deck for them had to leave, make
+                      the deck, and select the thirty again — so the way
+                      out of the screen was to lose the work that got you
+                      there. Only when adding: there is nothing to take a
+                      card out of that was made a moment ago. */}
+                  {cardAction === "add" &&
+                    (newDeckName === null ? (
+                      <div className="at-row at-mb3">
+                        <Button variant="ghost" size="sm" icon="add" onClick={() => setNewDeckName("")}>
+                          New deck
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="at-formblock at-mb3">
+                        <Field
+                          label="New deck"
+                          hint={
+                            /* The cards decide, so say which language it
+                               will be — silently making a deck in the
+                               wrong one is a thing nothing here shows
+                               until a student opens it. */
+                            newDeckLang
+                              ? `It will be a ${languageName(languages, newDeckLang)} deck.`
+                              : ""
+                          }
+                        >
+                          <input
+                            className="at-input"
+                            placeholder="e.g. Week 3 · Verbs"
+                            value={newDeckName}
+                            autoFocus
+                            onChange={(e) => setNewDeckName(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && createDeckHere()}
+                          />
+                        </Field>
+                        <div className="at-row at-mt3">
+                          <Button variant="ghost" size="sm" icon="close" onClick={() => setNewDeckName(null)}>
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            icon="check"
+                            disabled={!newDeckName.trim() || busy}
+                            onClick={createDeckHere}
+                          >
+                            Create
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+
                   <CheckList
                     options={decks.map((d) => ({
                       id: d.id,
@@ -5769,6 +5873,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                       onClick={() => {
                         setCardAction(null);
                         setPickedDecks([]);
+                        setNewDeckName(null);
                       }}
           icon="close"
         >
@@ -5797,6 +5902,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                             }
                             setCardAction(null);
                             setPickedDecks([]);
+                            setNewDeckName(null);
                             setSelCards(new Set());
                             return changed;
                           },

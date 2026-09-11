@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.74 — 11 September 2026
+
+- **Teaching · adding cards to a deck.** The deck list now has a New deck
+  button, so somewhere to put them can be made on the spot. Before this, a
+  teacher who had selected thirty cards and found no deck for them had to
+  leave and make one — which threw the selection away, so the way out of
+  the screen was to lose the work that got you there. The new deck is
+  ticked as soon as it is made, and takes its language from the cards going
+  into it.
+- **Learning · keeping a session you built.** The last step of Build a
+  session is now called Finish, and besides the length it offers to keep
+  what you just built. Kept sessions are under a new Saved sessions button,
+  beside Build a session.
+- What is kept is the description — which cards, which mode, how long — not
+  a snapshot, so a card edited since is practised as it now reads. A card
+  deleted since simply drops out, and the list says so before you start
+  rather than after.
+
 ## 0.73 — 11 September 2026
 
 - Selecting cards in Teaching no longer hides the last ones. The bulk

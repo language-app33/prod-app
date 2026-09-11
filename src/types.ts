@@ -231,6 +231,31 @@ export interface Lang {
  */
 export type Settings = { language?: LangId } & Record<string, any>;
 
+/**
+ * A session built by hand on the Build screen and kept.
+ *
+ * The cards are named by id rather than copied: a saved session is a way
+ * back to the same material, not a snapshot of it, so a card edited since
+ * is practised as it now reads and one withdrawn since simply drops out.
+ * It rides in `settings`, which is what the whole document already syncs
+ * as one last-writer-wins blob — right for something a person changes a
+ * handful of times, and the reason it is not a top-level list with a merge
+ * rule of its own.
+ */
+export interface SavedSession {
+  id: string;
+  name: string;
+  /** The cards it was built from. Some may no longer exist. */
+  ids: string[];
+  /** Which of MODES it was built in. */
+  mode: string;
+  /** Questions to ask; 999 where the length is a stretch of time instead. */
+  count: number;
+  /** Minutes to run for, or 0 where the length is a number of questions. */
+  minutes: number;
+  created: Millis;
+}
+
 /* ---- people ---- */
 
 /**

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type {
   Course, Deck, Doc, ExerciseState, FlagKind, Form, Item,
-  Lang, LangId, Millis, Question, Settings, User,
+  Lang, LangId, Millis, Question, SavedSession, Settings, User,
 } from "./types.ts";
 import type { Node } from "./shared.tsx";
 import {
@@ -3401,6 +3401,7 @@ export default function ArabicTrainer() {
   /* Teaching is a role on a course, so it has to be asked about — and the
      material request answers it, so it is no longer asked twice. */
   const [building, setBuilding] = useState(false);
+  const [showingSaved, setShowingSaved] = useState(false);
   /* Which language the session on screen is drawn from: a language id, ""
      for all of them at once, or null for never asked — which is what keeps
      the picker from opening with an answer already marked. It stays on the
@@ -3886,6 +3887,45 @@ export default function ArabicTrainer() {
     setSession(null);
     setPreview([]);
     setSpace("teach");
+  }
+
+  /*
+   * The sessions kept from the Build screen.
+   *
+   * Narrowed on the way out of storage rather than trusted: this rides in
+   * settings, which is an open bag that an older build, a hand-edited
+   * import or a half-finished write can all put something else in — and a
+   * list screen that throws is a learner with no way back to their own
+   * material.
+   */
+  const savedSessions: SavedSession[] = useMemo(() => {
+    const raw = settings.savedSessions;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((x) => x && typeof x.id === "string" && Array.isArray(x.ids) && typeof x.mode === "string")
+      .map((x) => ({
+        id: x.id,
+        name: String(x.name || "Saved session"),
+        ids: x.ids.filter((i: unknown) => typeof i === "string"),
+        mode: x.mode,
+        count: Number(x.count) || 0,
+        minutes: Number(x.minutes) || 0,
+        created: Number(x.created) || 0,
+      }));
+  }, [settings.savedSessions]);
+
+  function keepSession(session: Omit<SavedSession, "id" | "created">) {
+    const kept: SavedSession = {
+      ...session,
+      id: `v${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+      created: now(),
+    };
+    setSetting("savedSessions", savedSessions.concat([kept]));
+    flash(`Saved — it is under Saved sessions`);
+  }
+
+  function dropSession(id: string) {
+    setSetting("savedSessions", savedSessions.filter((x) => x.id !== id));
   }
 
   /* A session assembled by hand on the Build screen. */
@@ -4936,6 +4976,17 @@ Cards ready to practice
                     </Button>
 
                   </div>
+                  {/* Only once there is one to open. A button that leads to
+                      an empty screen is a promise the app has not kept, and
+                      the way to find this is to save one, which the Build
+                      screen offers where the session is finished. */}
+                  {savedSessions.length > 0 && (
+                    <div className="at-row at-mt3">
+                      <Button variant="ghost" onClick={() => setShowingSaved(true)}>
+                        Saved sessions
+                      </Button>
+                    </div>
+                  )}
 
                   {!readyCount && drillable.length > 0 && (
                     <Help>{nextDueLine(drillable, settings)}</Help>
@@ -5557,7 +5608,21 @@ Cards ready to practice
             allTags={allTags}
             settings={settings}
             onStart={beginManual}
+            onSave={keepSession}
             onClose={() => setBuilding(false)}
+          />
+        )}
+
+        {showingSaved && (
+          <SavedSessionsSheet
+            sessions={savedSessions}
+            items={items}
+            onStart={(s) => {
+              setShowingSaved(false);
+              beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
+            }}
+            onDelete={dropSession}
+            onClose={() => setShowingSaved(false)}
           />
         )}
 
@@ -7219,11 +7284,101 @@ function SessionLanguages({ choices, ready, chosen, onPick, onClose }: {
 const COUNT_CHOICES = [10, 20, 30, 50];
 const TIME_CHOICES = [2, 3, 5, 10];
 
-function ManualSessionSheet({ items, allTags, settings, onStart, onClose }: {
+/* ------------------------------------------------------------------
+   Full-screen: the sessions somebody kept
+
+   A saved session is a description, not a snapshot — which cards, which
+   mode, how long — so what it opens is built from the cards as they are
+   now. That is what makes "Thursday's verbs" worth keeping: the same
+   ground, practised again, with everything edited since included.
+   ------------------------------------------------------------------ */
+
+function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
+  sessions: SavedSession[];
+  items: Item[];
+  onStart: (session: SavedSession) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const here = useMemo(() => new Set(items.map((i) => i.id)), [items]);
+
+  /* Newest first: the one somebody just made is the one they are looking
+     for. */
+  const list = [...sessions].sort((a, b) => (b.created || 0) - (a.created || 0));
+
+  return (
+    <Screen title="Saved sessions" onBack={onClose}>
+      {!list.length && (
+        <Empty title="Nothing saved yet">
+          Build a session, and the last step offers to keep it.
+        </Empty>
+      )}
+
+      <div className="at-list">
+        {list.map((s) => {
+          /* How much of it is still here. A card withdrawn since is simply
+             gone from the session, and saying so before it is started is
+             the difference between a short session and a broken one. */
+          const alive = s.ids.filter((id) => here.has(id)).length;
+          const mode = (MODES as Record<string, { label: string } | undefined>)[s.mode];
+          const length = s.minutes
+            ? `${s.minutes} min`
+            : s.count && s.count < 999
+            ? `${s.count} questions`
+            : "everything";
+          return (
+            <div className="at-item at-sessionrow" key={s.id}>
+              <div className="grow">
+                <div className="en">{s.name}</div>
+                <div className="lat">
+                  {[mode ? mode.label : s.mode, length,
+                    alive === s.ids.length
+                      ? plural(alive, "card")
+                      : `${alive} of ${s.ids.length} cards still here`,
+                  ].join(" · ")}
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!alive}
+                onClick={() => onStart(s)}
+              >
+                Start
+              </Button>
+              <IconButton
+                icon="delete"
+                label={`Forget ${s.name}`}
+                danger
+                onClick={() => onDelete(s.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {list.some((s) => s.ids.some((id) => !here.has(id))) && (
+        <Help className="at-mt3">
+          A session keeps the cards it was built from by name, so one you
+          have since deleted is no longer in it.
+        </Help>
+      )}
+    </Screen>
+  );
+}
+
+function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose }: {
   items: Item[];
   allTags: string[];
   settings: Settings;
   onStart: (plan: any) => void;
+  onSave: (session: { name: string; ids: string[]; mode: string; count: number; minutes: number }) => void;
   onClose: () => void;
 }) {
   const [step, setStep] = useState(0);
@@ -7240,6 +7395,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }: {
   const [limitKind, setLimitKind] = useState(""); // "" | count | time
   const [count, setCount] = useState(20);
   const [minutes, setMinutes] = useState(5);
+  /* What it would be called, and what was last kept under that name. Held
+     as the description rather than as a flag, so changing the length or
+     the cards after saving offers the button again — what is on screen is
+     no longer what was kept. */
+  const [name, setName] = useState("");
+  const [savedSpec, setSavedSpec] = useState("");
   const [q, setQ] = useState("");
 
   useEffect(() => {
@@ -7299,11 +7460,13 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }: {
       return next;
     });
 
-  /* Unknown until a mode is picked, and three steps is the safer guess:
-     showing two and then growing a step reads as the app changing its mind
-     about what it asked for. */
+  /* Ultimate is the one mode with no length to choose — it asks everything
+     about everything — but the last step is still there for it, because
+     keeping the session is offered from the same place. Three steps
+     whatever the mode also means the count stops changing under somebody
+     halfway through it. */
   const needsLength = mode !== "ultimate";
-  const steps = needsLength ? ["Mode", "Cards", "Length"] : ["Mode", "Cards"];
+  const steps = ["Mode", "Cards", "Finish"];
   const last = step === steps.length - 1;
 
   const typeCount = typesForMode(mode, settings).length;
@@ -7352,6 +7515,21 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }: {
   const spelledOut = [stepProblem, last ? problem : ""].find(
     (r) => r && r.length > LABEL_LIMIT
   );
+
+  /* Named after what it is, so a list of them reads without opening any:
+     the mode is the shape of the session and the count is its size. */
+  const suggestion = mode
+    ? `${(MODES as Record<string, { label: string }>)[mode].label} · ${plural(picked.size, "card")}`
+    : "";
+  const spec = JSON.stringify({
+    name: name.trim() || suggestion,
+    ids: [...picked].sort(),
+    mode,
+    limitKind,
+    count,
+    minutes,
+  });
+  const saved = !!savedSpec && savedSpec === spec;
 
   function start() {
     onStart({
@@ -7560,6 +7738,55 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }: {
               : "One or the other: a number of questions, or a stretch of time."}
           </Help>
         </>
+      )}
+
+      {/*
+        * Keeping it, which is the other half of what this step is for.
+        *
+        * Building one of these is several minutes of picking, and until now
+        * all of it was spent again the next morning. What is kept is the
+        * description — the cards, the mode, the length — so a card edited
+        * since is practised as it now reads.
+        *
+        * An extra rather than the way on: Start is still the button, and a
+        * session nobody saves behaves exactly as it did.
+        */}
+      {step === 2 && (
+        <div className="at-formblock at-mt5">
+          <FormField
+            label="Keep this session"
+            hint="It will be under Saved sessions, beside Build a session."
+          >
+            <input
+              className="at-input"
+              placeholder={suggestion}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormField>
+          <div className="at-row at-mt3">
+            <Button
+              variant="ghost"
+              icon={saved ? "check" : "save"}
+              disabled={!!problem || saved}
+              onClick={() => {
+                onSave({
+                  name: name.trim() || suggestion,
+                  ids: [...picked] as string[],
+                  mode,
+                  count: limitKind === "count" ? count : 999,
+                  minutes: limitKind === "time" && needsLength ? minutes : 0,
+                });
+                setSavedSpec(spec);
+              }}
+            >
+              {saved ? "Saved" : "Save"}
+            </Button>
+          </div>
+          {/* Which is not the same as having started it: somebody who saves
+              and then leaves has kept the session and practised nothing. */}
+          {saved && <Help>Kept. Start it now, or find it later under Saved sessions.</Help>}
+        </div>
       )}
     </Screen>
   );
