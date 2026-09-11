@@ -15,16 +15,29 @@ import js from "@eslint/js";
 import globals from "globals";
 import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
+import babelParser from "@babel/eslint-parser";
 
 export default [
   { ignores: ["dist/**", "dev-dist/**", "node_modules/**", "tests/.smoke-build/**", "tests/.cards-build/**"] },
 
-  /* The app: a browser, React, ES modules. */
+  /* The app: a browser, React, ES modules — and TypeScript, which ESLint's
+     own parser cannot read. Babel's can, and is already in the tree under
+     Vite's React plugin; its parser is told the two syntaxes and nothing
+     else, so this is a reader of the code and not a second compiler. Not
+     typescript-eslint: that reads the TypeScript compiler's JS API, which
+     the version this project checks with (7, the native one) no longer
+     has. The glob has to name every extension src holds, because a file
+     no glob matches is not linted and nothing says so. */
   {
-    files: ["src/**/*.{js,jsx}"],
+    files: ["src/**/*.{js,jsx,ts,tsx}"],
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",
+      parser: babelParser,
+      parserOptions: {
+        requireConfigFile: false,
+        babelOptions: { parserOpts: { plugins: ["typescript", "jsx"] } },
+      },
       globals: {
         ...globals.browser,
         /* Stamped into the bundle at build time by vite.config.js, so the
@@ -33,12 +46,17 @@ export default [
         __APP_VERSION__: "readonly",
         __BUILT_AT__: "readonly",
       },
-      parserOptions: { ecmaFeatures: { jsx: true } },
     },
     plugins: { react, "react-hooks": reactHooks },
     settings: { react: { version: "18.3" } },
     rules: {
       ...js.configs.recommended.rules,
+
+      /* An undefined name is tsc's to find, and it finds them in types as
+         well as in code — TS2304, strict, on every file. Babel's parser
+         reads a type annotation without binding the names in it, so this
+         rule would call every interface member undefined. */
+      "no-undef": "off",
 
       /* The two that matter most. A hook called conditionally is always a
          bug; a dependency array that does not mention what the hook reads
@@ -50,10 +68,11 @@ export default [
       "react/jsx-uses-react": "error",
       "react/jsx-uses-vars": "error",
 
-      /* Dead imports and dead locals. Arguments are exempt: a handler that
-         ignores its event is normal, and so is a placeholder before a
-         parameter that is used. */
-      "no-unused-vars": ["error", { args: "none", caughtErrors: "none", ignoreRestSiblings: true }],
+      /* Dead imports and dead locals are tsc's too (noUnusedLocals): this
+         rule cannot see a name that is used only in a type, so on a
+         TypeScript file it reports every `import type` as unused and
+         misses nothing else. The server and the tests keep it, below. */
+      "no-unused-vars": "off",
 
       /* Mistakes that cannot be deliberate. */
       "no-const-assign": "error",

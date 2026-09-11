@@ -1,12 +1,17 @@
 {
   /* What the type checker is here for, and why it is set up this way.
    *
-   * The app is JavaScript and stays JavaScript. This adds a second reader
-   * of it — one that knows what shape everything is — beside the linter and
-   * the tests. It is aimed at one class of defect the other two miss: a
-   * value of the wrong shape passed across a boundary. Sending a whole
-   * language pack where the server wanted a language id was that bug, and
-   * it reached production because every reader it passed was happy.
+   * A second reader of the code — one that knows what shape everything is
+   * — beside the linter and the tests. It is aimed at one class of defect
+   * the other two miss: a value of the wrong shape passed across a
+   * boundary. Sending a whole language pack where the server wanted a
+   * language id was that bug, and it reached production because every
+   * reader it passed was happy.
+   *
+   * It was a reader of JavaScript first. Every file under src is
+   * TypeScript now and the server is still JavaScript with JSDoc; both are
+   * checked the same way, by the same command, which is what let the tree
+   * be mixed for as long as the conversion took — see DECISIONS.md.
    *
    * checkJs was false while this was being adopted, and each file opted in
    * by starting with `// @ts-check`: turning it on at the outset would
@@ -39,6 +44,30 @@
     "checkJs": true,
     "noEmit": true,
     "strict": true,
+
+    /* What Node's type stripping can and cannot do, stated so that tsc
+       refuses what Node would refuse. It strips types and nothing else, so
+       no enum, namespace or parameter property (erasableSyntaxOnly); and
+       it cannot tell a type-only import from a real one, so an import of a
+       type has to say `import type` or Node looks for a runtime export
+       that is not there (verbatimModuleSyntax). Vite and esbuild elide
+       such imports, which is why a mistake here would pass the build and
+       fail the server. */
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+
+    /* Dead locals and dead imports, type-only imports included. ESLint's
+       no-unused-vars cannot see a name used only in a type, so for src
+       this is the rule and that one is off — see eslint.config.js. */
+    "noUnusedLocals": true,
+
+    /* Node 22 strips types on the way in, so a .ts module is imported by
+       the tests and by the server exactly as a .js one was, with no build
+       step and no loader; what it will not do is guess an extension, so an
+       import names the file it means. Writing ".ts" in a specifier is what
+       this allows, and it is only sound because nothing here is emitted by
+       tsc — Vite and esbuild resolve the same specifiers. */
+    "allowImportingTsExtensions": true,
 
     /* Nothing here is compiled by tsc, so these only affect what it will
        accept while reading. */

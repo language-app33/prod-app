@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeData, compactItem, isFreshState, syncClips, clipIdsIn } from "../src/sync.js";
-import { TYPES } from "../src/languages.js";
-/** @import { Doc, Item, WireDoc } from "../src/types.js" */
+import { mergeData, compactItem, isFreshState, syncClips, clipIdsIn } from "../src/sync.ts";
+import { TYPES } from "../src/languages.ts";
+/** @import { Doc, Item, WireDoc } from "../src/types.ts" */
 
 const fresh = () => ({
   phase: "new", step: 0, ease: 2.5, interval: 0, due: 0, reps: 0, lapses: 0,
@@ -12,7 +12,7 @@ const fresh = () => ({
    saying it must track the real one, and then it didn't: the two context
    exercises were added to the app and never here, so every merge assertion
    below had been running against a stale set of six for as long as they
-   had existed. sync.js itself still imports nothing — but a test has no
+   had existed. sync.ts itself still imports nothing — but a test has no
    reason not to. */
 const states = () => Object.fromEntries(TYPES.map((t) => [t, fresh()]));
 /* A card that has never been answered has no schedule at all, and the app

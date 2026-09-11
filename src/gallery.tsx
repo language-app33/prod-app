@@ -1,10 +1,16 @@
-/** @import { Lang } from "./types.js" */
-/** @typedef {React.ReactNode} Node */
-/** @typedef {{ file: string, line: number, where: string }} Use */
+
+type Node = React.ReactNode;
+
+/* One place a component is used, as `npm run components` records it. */
+interface Use {
+  file: string;
+  line: number;
+  where: string;
+}
 /*
  * The component gallery.
  *
- * Every reusable piece in shared.jsx, rendered for real and labelled with
+ * Every reusable piece in shared.tsx, rendered for real and labelled with
  * the name you would type to ask for it. Written against the live
  * components rather than described in prose, so it cannot quietly go out of
  * date the way a written list does: rename a prop and this stops looking
@@ -16,8 +22,8 @@
 
 import React, { useState } from "react";
 import { COMPONENT_USES } from "./component-uses.js";
-import { SCREEN_ELEMENTS, NAMING } from "./screen-elements.js";
-import { LANGUAGES } from "./languages.js";
+import { SCREEN_ELEMENTS, NAMING } from "./screen-elements.ts";
+import { LANGUAGES } from "./languages.ts";
 import {
   Button,
   CardReadout,
@@ -49,7 +55,7 @@ import {
   TileNote,
   plural,
   useSnackbarState,
-} from "./shared.jsx";
+} from "./shared.tsx";
 
 /* Every icon the set has, so a name can be picked by eye. Kept in step with
    Icon itself: a name missing from here renders as a blank square, which is
@@ -91,8 +97,7 @@ const ADMIN = "Admin";
 const START = "Signing in";
 const PARTS = "Inside another component";
 
-/** @type {Record<string, [string, string]>} */
-const PLACES = {
+const PLACES: Record<string, [string, string]> = {
   /* The learner's app */
   ArabicTrainer: [LEARN, "The app around everything else"],
   AccountPanel: [LEARN, "Account settings"],
@@ -112,6 +117,7 @@ const PLACES = {
   ScenePart: [LEARN, "A practice session · playing a part"],
   TextChoices: [LEARN, "A practice session · choosing an answer from a few"],
   ManualSessionSheet: [LEARN, "Building a session by hand"],
+  SavedSessionsSheet: [LEARN, "The sessions you kept"],
   SessionLanguages: [LEARN, "Starting a session · which language"],
   ItemsTab: [LEARN, "The Cards tab"],
   ItemSheet: [LEARN, "The Cards tab · one card's details"],
@@ -173,16 +179,14 @@ const PLACES = {
 
 /* Not in the table: say something readable rather than nothing, and put
    it under whichever part of the app its file belongs to. */
-/** @type {Record<string, string>} */
-const FILE_PART = {
-  "ArabicTrainer.jsx": LEARN,
-  "spaces.jsx": TEACH,
-  "shared.jsx": PARTS,
-  "gallery.jsx": ADMIN,
+const FILE_PART: Record<string, string> = {
+  "ArabicTrainer.tsx": LEARN,
+  "spaces.tsx": TEACH,
+  "shared.tsx": PARTS,
+  "gallery.tsx": ADMIN,
 };
 
-/** @param {Use} use */
-export function placeOf(use) {
+export function placeOf(use: Use) {
   const known = PLACES[use.where];
   if (known) return { part: known[0], name: known[1], known: true };
   const spaced = String(use.where || "")
@@ -194,10 +198,8 @@ export function placeOf(use) {
 /* Every place it is used, gathered by part of the app. Several uses in
    one place become one line with a count, because "six times on the
    preferences screen" is the useful shape, not six identical rows. */
-/** @param {Use[]} uses */
-function groupUses(uses) {
-  /** @type {Map<string, Map<string, number>>} */
-  const byPart = new Map();
+function groupUses(uses: Use[]) {
+  const byPart: Map<string, Map<string, number>> = new Map();
   for (const use of uses) {
     const { part, name } = placeOf(use);
     if (!byPart.has(part)) byPart.set(part, new Map());
@@ -217,8 +219,7 @@ function groupUses(uses) {
     }));
 }
 
-/** @param {{ name: string }} props */
-function Uses({ name }) {
+function Uses({ name }: { name: string }) {
   const uses = COMPONENT_USES[name];
   /* Hooks and helpers have a row but no call sites gathered for them. */
   if (!uses) return null;
@@ -263,14 +264,16 @@ function Uses({ name }) {
  * are the document order every time.
  */
 /* The running numbers for a row and the specimens inside it. */
-const GalleryCount = React.createContext(
-  /** @type {{ n: number, row: number } | null} */ (null)
-);
+interface Tally {
+  /** Which row, counting from the top of the gallery. */
+  row: number;
+  /** Which specimen inside that row. */
+  n: number;
+}
 
-/**
- * @param {{ name: string, what?: Node, note?: Node, children?: Node }} props
- */
-function Row({ name, what, note, children }) {
+const GalleryCount = React.createContext<Tally | null>(null);
+
+function Row({ name, what, note, children }: { name: string; what?: Node; note?: Node; children?: Node }) {
   const uses = COMPONENT_USES[name];
   const tally = React.useContext(GalleryCount);
   const id = tally ? (tally.row += 1) : 0;
@@ -298,10 +301,7 @@ function Row({ name, what, note, children }) {
 
 /* A labelled specimen inside a row, so a variant can be pointed at by
    name rather than by position. */
-/**
- * @param {{ label?: Node, children?: Node, wide?: boolean }} props
- */
-function V({ label, children, wide }) {
+function V({ label, children, wide }: { label?: Node; children?: Node; wide?: boolean }) {
   const spec = React.useContext(GalleryCount);
   const id = spec && spec.row ? `${spec.row}.${(spec.n += 1)}` : "";
   return (
@@ -588,7 +588,7 @@ export function ComponentGallery() {
       <Row
         name="Field"
         what="A labelled control."
-        note="spaces.jsx imports it as Field; the trainer imports it as FormField, because the trainer has an unrelated Field of its own."
+        note="spaces.tsx imports it as Field; the trainer imports it as FormField, because the trainer has an unrelated Field of its own."
       >
         <V label="label + children" wide>
           <Field label="Their name">
@@ -633,7 +633,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="ModeSelector" what="A drop-down of the spaces." note="Nothing calls it — the app uses the icon strip in the corner instead. Its labels are a fixed map inside shared.jsx, so it only knows learn, teach and admin.">
+      <Row name="ModeSelector" what="A drop-down of the spaces." note="Nothing calls it — the app uses the icon strip in the corner instead. Its labels are a fixed map inside shared.tsx, so it only knows learn, teach and admin.">
         <V label="modes" wide>
           <ModeSelector mode={mode} modes={["learn", "teach", "admin"]} onChange={setMode} />
         </V>
@@ -708,7 +708,7 @@ export function ComponentGallery() {
       <Row
         name="Tile"
         what="The generic deck and course tile."
-        note="Moved into shared.jsx — it used to live in spaces.jsx, so the one library the docs point at did not actually hold it."
+        note="Moved into shared.tsx — it used to live in spaces.tsx, so the one library the docs point at did not actually hold it."
       >
         <V label="title + meta + actions + footer" wide>
           <Tile

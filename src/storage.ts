@@ -12,8 +12,7 @@
 const PREFIX = "arabic-trainer:";
 
 export const storage = {
-  /** @param {string} key */
-  async get(key) {
+  async get(key: string) {
     const value = localStorage.getItem(PREFIX + key);
     // The artifact API throws for a missing key rather than returning null,
     // and the component relies on that to detect a first run.
@@ -21,11 +20,7 @@ export const storage = {
     return { key, value, shared: false };
   },
 
-  /**
-   * @param {string} key
-   * @param {string} value
-   */
-  async set(key, value) {
+  async set(key: string, value: string) {
     try {
       localStorage.setItem(PREFIX + key, value);
       return { key, value, shared: false };
@@ -36,16 +31,13 @@ export const storage = {
     }
   },
 
-  /** @param {string} key */
-  async delete(key) {
+  async delete(key: string) {
     localStorage.removeItem(PREFIX + key);
     return { key, deleted: true, shared: false };
   },
 
-  /** @param {string} [prefix] */
   async list(prefix = "") {
-    /** @type {string[]} */
-    const keys = [];
+    const keys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (k && k.startsWith(PREFIX + prefix)) keys.push(k.slice(PREFIX.length));

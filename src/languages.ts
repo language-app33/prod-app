@@ -14,12 +14,14 @@
  * Nothing in this file imports from the app, so it can be read and tested
  * on its own.
  */
-/** @import { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings } from "./types.js" */
+import type { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings, Verdicts } from "./types.ts";
 /* The one import here, and it goes the way every import in this file has
-   to: dialogs.js knows nothing about languages, so there is no cycle. It
+   to: dialogs.ts knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
-import { DIALOG_KIND, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
+import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
+import { answersOf } from "./answers.ts";
+import type { AnswerField } from "./answers.ts";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
@@ -32,11 +34,10 @@ export const TYPES = [
      choose what comes next, say it yourself, rebuild the scene, then hold
      up your whole end of it. Every one is asked with words on a screen —
      a dialog with no recordings anywhere in it supports all five. */
-  "dlg2en", "dlgpick", "dlgreply", "dlgorder", "dlgplay",
+  "dlgwhole", "dlgpick", "dlgorder",
 ];
 
-/** @type {Record<string, ExerciseSpec>} */
-export const EX = {
+export const EX: Record<string, ExerciseSpec> = {
   ar2en: {
     instruction: "Write this card in English",
     label: "{Script} → English",
@@ -227,7 +228,12 @@ export const EX = {
     intro: true,
     gentle: true,
   },
+  /* Retired. Translating one line of a conversation is the word question
+     with a speaker's name over it: what makes a line worth having is the
+     turn before it and the turn after, and asked on its own it had
+     neither. Reading the whole scene took its place. */
   dlg2en: {
+    retired: true,
     instruction: "Write this line in English",
     label: "A line → English",
     short: "D→E",
@@ -243,6 +249,37 @@ export const EX = {
     answerMode: "en",
     gentle: true,
   },
+  /*
+   * The whole conversation, read.
+   *
+   * The one exercise that asks what a scene is actually for: not what one
+   * line means or which reply comes next, but whether a page of two people
+   * talking can be read and followed. The script is all that is on screen;
+   * the transliteration and the meaning are each a tap away, taken when
+   * they are needed rather than given.
+   *
+   * Marked by the learner, because nobody else is in the room. "Did you
+   * get all of it" is a question only they can answer, and an app that
+   * pretended to check it would be marking something it never saw — so it
+   * asks, plainly, and takes the answer. Which makes it worth answering
+   * honestly: the schedule is theirs, and a scene they said they followed
+   * comes back later than one they did not.
+   */
+  dlgwhole: {
+    instruction: "Read the whole conversation",
+    label: "Read a scene through",
+    short: "Whole",
+    needs: ["dialog"],
+    dialog: "card",
+    question: "Could you follow all of it?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "",
+    answerMode: "self",
+    /* Recognition, and the gentlest kind: reading with the meaning a tap
+       away is where a scene starts. */
+    gentle: true,
+  },
   dlgpick: {
     instruction: "Choose what you say next",
     label: "Choose the reply",
@@ -256,7 +293,12 @@ export const EX = {
     answerMode: "choice",
     picks: "reply",
   },
+  /* Retired. Writing your own next turn from scratch asked a learner to
+     invent one particular sentence out of the several that would do, and
+     marked every other one wrong. Choosing the reply asks the same
+     question and can be answered. */
   dlgreply: {
+    retired: true,
     instruction: "Your turn — write it in {script}",
     label: "Your turn → {script}",
     short: "You→{S}",
@@ -285,7 +327,11 @@ export const EX = {
     answerField: "",
     answerMode: "order",
   },
+  /* Retired. Every turn of a scene typed out at once was the longest
+     answer in the app and the least forgiving: one missed mark in the
+     third line made the whole conversation wrong. */
   dlgplay: {
+    retired: true,
     instruction: "Play your part in {script}",
     label: "Play a part",
     short: "Part",
@@ -305,24 +351,18 @@ export const EX = {
 /* Takes nothing as well as a name: it is asked about whatever a stored
    session holds, which may name an exercise that has since been retired,
    or nothing at all. */
-/** @type {(type?: string | null) => boolean} */
-export const isListening = (type) => !!type && !!EX[type] && EX[type].promptField === "audio";
+export const isListening = (type?: string | null): boolean =>
+  !!type && !!EX[type] && EX[type].promptField === "audio";
 
 /* "na" maps to nothing on purpose: a form whose number does not apply should
    carry no number label at all, not the letters "na". labelFor falls back to
    the raw value for anything missing here, so the empty string is load
    bearing. */
-/** @type {Record<string, string>} */
-export const NUMBER_SHORT = { singular: "sg.", plural: "pl.", na: "" };
+export const NUMBER_SHORT: Record<string, string> = { singular: "sg.", plural: "pl.", na: "" };
 
-/** @type {Record<string, string>} */
-export const GENDER_SHORT = { masculine: "m.", feminine: "f.", neutral: "n." };
+export const GENDER_SHORT: Record<string, string> = { masculine: "m.", feminine: "f.", neutral: "n." };
 
-/**
- * @param {string} a
- * @param {string} b
- */
-export function editDistance(a, b) {
+export function editDistance(a: string, b: string) {
   if (a === b) return 0;
   if (!a.length || !b.length) return Math.max(a.length, b.length);
   let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -378,27 +418,23 @@ export const CARD_KINDS = [
   { key: DIALOG_KIND, label: "Conversation", one: "a conversation" },
 ];
 
-/** @param {string} [kind] @returns {string} */
-export const kindLabel = (kind) =>
+export const kindLabel = (kind?: string): string =>
   (CARD_KINDS.find((k) => k.key === kind) || CARD_KINDS[0]).label;
 
 /* What a stored card is, asked of the card rather than of a label on it:
    a card with turns is a conversation, and everything else is read off
    its text. See isDialog — the turns are the fact. */
-/**
- * @param {Record<string, any>} card
- * @param {{ guessKind?: (text: string) => string } | null} [lang]
- * @returns {string}
- */
-export const kindOf = (card, lang = null) =>
+export const kindOf = (
+  card: Record<string, any>,
+  lang: { guessKind?: (text: string) => string } | null = null,
+): string =>
   isDialog(card) ? DIALOG_KIND : (card && card.kind) || guessKind(card && (card.ar || card.en || card.lat), lang);
 
 /**
- * @param {string | null} [text]  Whatever the card holds, which for an empty field is nothing at all.
- * @param {{ guessKind?: (text: string) => string } | null} [lang]  A pack, or as much of one as the caller has: only its own rule is read.
- * @returns {string}
+ * @param text  Whatever the card holds, which for an empty field is nothing at all.
+ * @param lang  A pack, or as much of one as the caller has: only its own rule is read.
  */
-export function guessKind(text, lang = null) {
+export function guessKind(text?: string | null, lang: { guessKind?: (text: string) => string } | null = null): string {
   const t = String(text || "").trim();
   const own = lang && lang.guessKind;
   if (own) return own(t);
@@ -409,13 +445,8 @@ export function guessKind(text, lang = null) {
   return /\s/.test(t) ? "phrase" : "word";
 }
 
-/**
- * @param {Record<string, any>} [src]
- * @returns {Record<string, string>}
- */
-export function dimValues(src = {}) {
-  /** @type {Record<string, string>} */
-  const out = {};
+export function dimValues(src: Record<string, any> = {}): Record<string, string> {
+  const out: Record<string, string> = {};
   for (const dim of Object.values(GRAMMAR)) {
     const allowed = dim.options.map(([v]) => v);
     const given = src[dim.field];
@@ -437,16 +468,26 @@ export function dimValues(src = {}) {
   return out;
 }
 
-/* How a form is named in the card list: "pl. f." in Arabic, "elder" in
-   Vietnamese. Only the dimensions this language uses get a mention. */
-/**
- * @param {Record<string, any>} unit
- * @param {Lang} [lang]
+/*
+ * How a form is named in the card list: "pl. f." in Arabic, "elder" in
+ * Vietnamese. Only the dimensions this language uses get a mention.
+ *
+ * Takes a form or one of its answers, because grammar lives on the answer
+ * now and a form is named after what it accepts. Where a form is handed in
+ * whole, its first answer speaks for it — which is exactly right for the
+ * job this does: saying which of a card's forms is being asked about. A
+ * question narrowed to one accepted answer hands that answer's values in
+ * directly (see withAnswer), so what the tag says is what is on screen.
  */
-export function labelFor(unit, lang = activeLang()) {
+export function labelFor(unit: Record<string, any>, lang: Lang = activeLang()) {
   const bits = [];
-  for (const dim of dimsOf(lang)) {
-    const value = unit[dim.field];
+  const dims = dimsOf(lang);
+  /* Its own values where it has any — an answer, or a form written before
+     the change — and otherwise the first answer's. */
+  const own = dims.some((dim) => unit && unit[dim.field]);
+  const named = own ? unit : answersOf(unit, answerFields())[0] || {};
+  for (const dim of dims) {
+    const value = named[dim.field];
     if (!value) continue;
     /* ?? rather than ||, so a value whose short form is deliberately empty —
        N/A, which should name nothing — stays empty instead of falling back to
@@ -487,11 +528,7 @@ export const VI_MARKS = ["\u0300", "\u0301", "\u0309", "\u0303", "\u0323"];
    the spelling, but not always typed. */
 export const VI_TONES = /[\u0300\u0301\u0303\u0309\u0323]/;
 
-/**
- * @param {string} s
- * @param {{ stripTones?: boolean }} opts
- */
-export function normViet(s, { stripTones }) {
+export function normViet(s: string, { stripTones }: { stripTones?: boolean }) {
   let x = stripInvisible(s).trim().toLowerCase().normalize("NFD");
   if (stripTones) x = x.replace(/[\u0300\u0301\u0303\u0309\u0323]/g, "");
   /* Đ is a letter in its own right, not a d with a mark: it survives NFD
@@ -533,19 +570,11 @@ export function normViet(s, { stripTones }) {
 /* A predicate rather than a boolean, so that passing it says something:
    everything below it may read `lang.context.matches` without asking
    again whether this language has one. */
-/**
- * @param {Partial<Lang> | null} [lang]
- * @returns {lang is Lang}
- */
-export function supportsContext(lang) {
+export function supportsContext(lang?: Partial<Lang> | null): lang is Lang {
   return !!(lang && lang.context && lang.context.matches);
 }
 
-/**
- * @param {string} text
- * @param {Lang} lang
- */
-export function contextTokens(text, lang) {
+export function contextTokens(text: string, lang: Lang) {
   const own = lang && lang.context && lang.context.tokens;
   const t = String(text || "").trim();
   if (!t) return [];
@@ -568,12 +597,9 @@ export function contextTokens(text, lang) {
  * clue in it.
  */
 /**
- * @param {string} phrase
- * @param {string} word
- * @param {Partial<Lang>} lang  A language that declares no context finds nothing, which is the point.
- * @returns {{ at: number, len: number } | null}
+ * @param lang  A language that declares no context finds nothing, which is the point.
  */
-export function findWordSpan(phrase, word, lang) {
+export function findWordSpan(phrase: string, word: string, lang: Partial<Lang>): { at: number; len: number } | null {
   if (!supportsContext(lang) || !phrase || !word) return null;
   const tokens = contextTokens(phrase, lang);
   const len = Math.min(contextTokens(word, lang).length, MAX_WORD_TOKENS);
@@ -594,12 +620,7 @@ const MAX_WORD_TOKENS = 6;
  * The same question, answered as an index. Kept because most of the app
  * only ever asks "is it in there, and where does it start".
  */
-/**
- * @param {string} phrase
- * @param {string} word
- * @param {Partial<Lang>} lang
- */
-export function findWordSlot(phrase, word, lang) {
+export function findWordSlot(phrase: string, word: string, lang: Partial<Lang>) {
   const span = findWordSpan(phrase, word, lang);
   return span ? span.at : -1;
 }
@@ -617,17 +638,15 @@ export function findWordSlot(phrase, word, lang) {
  * language: the script and the second writing.
  */
 /**
- * @param {string} need  One of an exercise's `needs`.
- * @param {Partial<Lang>} lang
+ * @param need  One of an exercise's `needs`.
  */
-export function needLabel(need, lang) {
+export function needLabel(need: string, lang: Partial<Lang>) {
   /* Lowered, because these are sentence fragments and the pack's labels
      are titles: a card is waiting for "the transliteration", not for "the
      Transliteration". */
   const script = ((lang && lang.scriptLabel) || "the script").toLowerCase();
   const translit = ((lang && lang.translitLabel) || "a romanisation").toLowerCase();
-  /** @type {Record<string, string>} */
-  const names = {
+  const names: Record<string, string> = {
     ar: `the word in ${script}`,
     en: "the meaning",
     lat: `the ${translit}`,
@@ -657,11 +676,7 @@ export function needLabel(need, lang) {
  * the question the app cannot work out, and the one part a language always
  * knows. A pack that names none loses nothing but a little noise.
  */
-/**
- * @param {string} word
- * @param {Partial<Lang>} lang
- */
-export function isFunctionWord(word, lang) {
+export function isFunctionWord(word: string, lang: Partial<Lang>) {
   const own = (lang && lang.context && lang.context.skip) || [];
   if (!own.length) return false;
   const matches = lang && lang.context && lang.context.matches;
@@ -681,21 +696,17 @@ export function isFunctionWord(word, lang) {
  * from the teaching space without loading a learner's progress.
  */
 /**
- * @param {Record<string, any>[]} cards
- * @param {Partial<Lang>} lang  A language that declares no context is reported as unsupported, not as empty.
+ * @param lang  A language that declares no context is reported as unsupported, not as empty.
  */
-export function contextCoverage(cards, lang) {
+export function contextCoverage(cards: Record<string, any>[], lang: Partial<Lang>) {
   const empty = {
     supported: false, words: [], counts: { word: 0, phrase: 0, sentence: 0, dialog: 0 }, covered: 0, links: 0,
   };
   if (!supportsContext(lang)) return empty;
 
-  /** @type {Record<string, number>} */
-  const counts = { word: 0, phrase: 0, sentence: 0, dialog: 0 };
-  /** @type {Record<string, any>[]} */
-  const words = [];
-  /** @type {Record<string, any>[]} */
-  const contexts = [];
+  const counts: Record<string, number> = { word: 0, phrase: 0, sentence: 0, dialog: 0 };
+  const words: Record<string, any>[] = [];
+  const contexts: Record<string, any>[] = [];
   for (const c of cards || []) {
     /* A conversation has no text of its own — its words are in its turns —
        so it stands here as its turns. Counted as the one card it is, and
@@ -762,14 +773,9 @@ const AR_ENCLITICS = ["هما", "كما", "هنّ", "كنّ", "هن", "كن", "�
 
 const AR_STEM_FLOOR = 3;
 
-/**
- * @param {string} token
- * @param {number} [depth]
- */
-export function arWordStems(token, depth = 2) {
+export function arWordStems(token: string, depth = 2) {
   const out = [token];
-  /** @type {(list: string[], take: (s: string) => string | null, left: number) => void} */
-  const peel = (list, take, left) => {
+  const peel = (list: string[], take: (s: string) => string | null, left: number): void => {
     if (left <= 0) return;
     for (const found of list) {
       /* Each affix is tried against everything peeled so far, so a word
@@ -795,11 +801,7 @@ export function arWordStems(token, depth = 2) {
   return out;
 }
 
-/**
- * @param {string} token
- * @param {string} word
- */
-export function arTokenIsWord(token, word) {
+export function arTokenIsWord(token: string, word: string) {
   const opts = { stripTashkeel: true, ignoreHamza: true };
   const w = normAr(word, opts);
   if (!w) return false;
@@ -812,22 +814,13 @@ export function arTokenIsWord(token, word) {
    Nothing is glued to anything, so a token is the word or it is not. Tones
    are kept: ma and má are different words, and treating them as the same
    one would be the same mistake the checker refuses to make. */
-/**
- * @param {string} token
- * @param {string} word
- */
-export function viTokenIsWord(token, word) {
+export function viTokenIsWord(token: string, word: string) {
   const opts = { stripTones: false };
   const w = normViet(word, opts);
   return !!w && normViet(token, opts) === w;
 }
 
-/**
- * @param {string} given
- * @param {string} expected
- * @param {Settings} settings
- */
-export function checkViet(given, expected, settings) {
+export function checkViet(given: string, expected: string, settings: Settings) {
   const mode = settings.tones || "either";
   const forms = splitForms(expected, /[/;]/);
   let worst = { ok: false, reason: "wrong" };
@@ -861,8 +854,7 @@ export function checkViet(given, expected, settings) {
   return worst;
 }
 
-/** @type {Record<string, GrammarDim>} */
-export const GRAMMAR = {
+export const GRAMMAR: Record<string, GrammarDim> = {
   number: {
     label: "Number",
     field: "number",
@@ -910,13 +902,12 @@ export const GRAMMAR = {
   },
 };
 
-/** @type {(lang: Lang) => GrammarDim[]} */
-export const dimsOf = (lang) => (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
+export const dimsOf = (lang: Lang): GrammarDim[] =>
+  (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
 
 /* Every value any dimension can hold, for validating stored cards without
    knowing which language wrote them. */
-/** @type {Record<string, string[]>} */
-export const DIM_VALUES = {};
+export const DIM_VALUES: Record<string, string[]> = {};
 for (const dim of Object.values(GRAMMAR)) {
   DIM_VALUES[dim.field] = (DIM_VALUES[dim.field] || []).concat(dim.options.map(([v]) => v));
 }
@@ -924,8 +915,7 @@ for (const dim of Object.values(GRAMMAR)) {
 /* The marks that carry tone. Deliberately not the ones that build letters —
    the circumflex of â, the breve of ă, the horn of ơ — which are spelling,
    not tone. */
-/** @type {Record<string, string>} */
-export const VI_TONE_OF = {
+export const VI_TONE_OF: Record<string, string> = {
   "\u0300": "huyen",
   "\u0301": "sac",
   "\u0309": "hoi",
@@ -935,8 +925,7 @@ export const VI_TONE_OF = {
 
 /* One tone per syllable, joined, so a two-syllable word has a signature of
    its own and minimal pairs still line up. */
-/** @param {string} text */
-export function viTone(text) {
+export function viTone(text: string) {
   const words = String(text || "").trim().split(/\s+/).filter(Boolean);
   if (!words.length) return "";
   return words
@@ -949,8 +938,7 @@ export function viTone(text) {
 
 /* The word with its tone lifted off. Two cards that share this and differ in
    tone are a minimal pair — the thing worth drilling. */
-/** @param {string} text */
-export function viBare(text) {
+export function viBare(text: string) {
   return String(text || "")
     .normalize("NFD")
     .replace(/[\u0300\u0301\u0309\u0303\u0323]/g, "")
@@ -968,8 +956,7 @@ export const WEAK_LETTERS = /[\u0627\u0648\u064A\u0649\u0621\u0623\u0625\u0622\s
 
 /* Rough consonant skeleton. Two words sharing three of these usually share a
    root, which is the similarity that matters most in Arabic. */
-/** @param {string} ar */
-export function arSimilarityKey(ar) {
+export function arSimilarityKey(ar: string) {
   return normAr(ar, { stripTashkeel: true, ignoreHamza: true }).replace(WEAK_LETTERS, "");
 }
 
@@ -997,16 +984,14 @@ export function arSimilarityKey(ar) {
  * key and the family it was meant to gather was always empty. It stays
  * because similarity still reads it.
  */
-/** @param {string} text */
-export function arRootKey(text) {
+export function arRootKey(text: string) {
   let x = normAr(text, { stripTashkeel: true, ignoreHamza: true }).replace(WEAK_LETTERS, "");
   if (x.startsWith("\u0645") && x.length >= 4) x = x.slice(1);
   if (x.endsWith("\u0647") && x.length >= 4) x = x.slice(0, -1);
   return x.length >= 3 ? x : "";
 }
 
-/** @param {string} text */
-export function arSkeleton(text) {
+export function arSkeleton(text: string) {
   const bare = stripInvisible(String(text || ""))
     .normalize("NFC")
     .replace(/[\u064B-\u0652\u0670\u0640]/g, "")
@@ -1019,11 +1004,7 @@ export function arSkeleton(text) {
    while grouping, so keep the last few thousand answers. */
 export const DERIVED_CACHE = new Map();
 
-/**
- * @param {Derived} attr
- * @param {string} text
- */
-export function derivedValue(attr, text) {
+export function derivedValue(attr: Derived, text: string) {
   if (!attr || !text) return "";
   const key = `${attr.id}\u0000${text}`;
   const hit = DERIVED_CACHE.get(key);
@@ -1039,23 +1020,16 @@ export function derivedValue(attr, text) {
   return val;
 }
 
-/** @type {(lang: Lang) => Derived[]} */
-export const attrsOf = (lang) => lang.derived || [];
+export const attrsOf = (lang: Lang): Derived[] => lang.derived || [];
 
-/** @type {(lang: Lang) => Derived | null} */
-export const quizAttrOf = (lang) => attrsOf(lang).find((a) => a.quizzable) || null;
+export const quizAttrOf = (lang: Lang): Derived | null => attrsOf(lang).find((a) => a.quizzable) || null;
 
-/** @type {(lang: Lang) => Derived | null} */
-export const groupAttrOf = (lang) => attrsOf(lang).find((a) => a.groups) || null;
+export const groupAttrOf = (lang: Lang): Derived | null => attrsOf(lang).find((a) => a.groups) || null;
 
 /* Collapse a value to the class it is graded in. Huế does not distinguish
    hỏi from ngã in speech, so a listening exercise must not either — but the
    spelling does distinguish them, so this is never applied to typing. */
-/**
- * @param {Derived} attr
- * @param {string} value
- */
-export function gradeClass(attr, value) {
+export function gradeClass(attr: Derived, value: string) {
   if (!attr || !attr.classes) return value;
   /* Held by name: the guard above does not reach inside the closure. */
   const classes = attr.classes;
@@ -1104,14 +1078,9 @@ export const HE_PUNCT = /[.,!?;:"'()[\]־׀׃׳״«»]/g;
    types the ordinary shape there has spelt the word, not misspelt it, so
    folding the finals is a leniency the pack offers. */
 const HE_FINALS = /[ךםןףץ]/g;
-/** @type {Record<string, string>} */
-const HE_FINAL_OF = { "ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ" };
+const HE_FINAL_OF: Record<string, string> = { "ך": "כ", "ם": "מ", "ן": "נ", "ף": "פ", "ץ": "צ" };
 
-/**
- * @param {string} s
- * @param {{ stripNiqqud?: boolean, foldFinals?: boolean }} opts
- */
-export function normHe(s, { stripNiqqud, foldFinals }) {
+export function normHe(s: string, { stripNiqqud, foldFinals }: { stripNiqqud?: boolean; foldFinals?: boolean }) {
   let x = stripInvisible(s).trim();
   /* Either the marks go, or they are put in one order so that a dagesh
      typed before a vowel and one typed after it compare equal. */
@@ -1125,12 +1094,7 @@ export function normHe(s, { stripNiqqud, foldFinals }) {
 /* The same two-stage judgement as Arabic: the letters first, and only if
    those agree, the marks — so a student may type the bare word or the
    fully pointed one, and the marks they do type have to be right. */
-/**
- * @param {string} given
- * @param {string} expected
- * @param {Settings} settings
- */
-export function compareHe(given, expected, settings) {
+export function compareHe(given: string, expected: string, settings: Settings) {
   const mode = settings.niqqud || "either";
   const fold = settings.foldFinals;
   const skelG = normHe(given, { stripNiqqud: true, foldFinals: fold });
@@ -1157,12 +1121,7 @@ export function compareHe(given, expected, settings) {
 
 /* The four tiers rank the same way in every marked script, so Arabic's
    order is reused rather than restated. */
-/**
- * @param {string} given
- * @param {string} expected
- * @param {Settings} settings
- */
-export function checkHe(given, expected, settings) {
+export function checkHe(given: string, expected: string, settings: Settings) {
   let worst = { ok: false, reason: "wrong" };
   for (const form of splitForms(expected, /[/;]/)) {
     const r = compareHe(given, form, settings);
@@ -1202,8 +1161,7 @@ const HE_PREFIXES = ["וה", "וב", "ול", "ומ", "וכ", "וש", "שה", "כ
  * will sometimes come out as two keys for one family. Fewer families,
  * never wrong ones, is the side to err on.
  */
-/** @param {string} text */
-export function heRootKey(text) {
+export function heRootKey(text: string) {
   let x = normHe(text, { stripNiqqud: true, foldFinals: true }).replace(/\s+/g, "");
   if (!x) return "";
   for (const suf of ["ימ", "ות", "ה"]) {
@@ -1219,22 +1177,16 @@ export function heRootKey(text) {
 
 /* Rough consonant skeleton, for the scheduler's sense of which words feel
    related: the vowel letters out, the rest in any order. */
-/** @param {string} text */
-export function heSimilarityKey(text) {
+export function heSimilarityKey(text: string) {
   return normHe(text, { stripNiqqud: true, foldFinals: true }).replace(/[וי\s]/g, "");
 }
 
 /* Which words a recorded phrase teaches. Peeled like Arabic's, two deep,
    and the remainder must keep two letters — Hebrew has real two-letter
    words, אב and יד among them, where Arabic has none. */
-/**
- * @param {string} token
- * @param {number} [depth]
- */
-export function heWordStems(token, depth = 2) {
+export function heWordStems(token: string, depth = 2) {
   const out = [token];
-  /** @type {(s: string, left: number) => void} */
-  const peel = (s, left) => {
+  const peel = (s: string, left: number): void => {
     if (left <= 0) return;
     for (const p of HE_PREFIXES) {
       if (!s.startsWith(p)) continue;
@@ -1248,11 +1200,7 @@ export function heWordStems(token, depth = 2) {
   return out;
 }
 
-/**
- * @param {string} token
- * @param {string} word
- */
-export function heTokenIsWord(token, word) {
+export function heTokenIsWord(token: string, word: string) {
   const opts = { stripNiqqud: true, foldFinals: true };
   const w = normHe(word, opts);
   if (!w) return false;
@@ -1265,16 +1213,11 @@ export function heTokenIsWord(token, word) {
    asks this to work out which column holds the word when a row arrives
    without a header. A language written in the Latin alphabet declares no
    script, and the importer falls back to column order. */
-/**
- * @param {string} text
- * @param {Lang} [lang]
- */
-export function inScript(text, lang = activeLang()) {
+export function inScript(text: string, lang: Lang = activeLang()) {
   return !!(lang && lang.script && lang.script.test(String(text || "")));
 }
 
-/** @type {Record<LangId, Lang>} */
-export const LANGUAGES = {
+export const LANGUAGES: Record<LangId, Lang> = {
   "ar-PS": {
     id: "ar-PS",
     name: "Palestinian Arabic",
@@ -1363,13 +1306,13 @@ export const LANGUAGES = {
         key: "ignoreHamza",
         label: "Hamza and final letters",
         toggle: true,
-        help: "Lenient accepts ا for أ إ آ, ي for ى, and ه for ة.",
+        help: "Lenient accepts ا for أ إ آ, و for ؤ, ي for ى and ئ, ه for ة, and a dropped ء. Strict wants every hamza where it is written.",
       },
     ],
     rules: [
       "Cards hold the Arabic script, an English meaning, and a transliteration. Any two of the three are enough to practice it.",
       "A student may type the bare consonants or the fully vocalised spelling and both are accepted — but harakat that are typed must be correct. A wrong vowel is marked wrong; a missing one is not.",
-      "By default ا is accepted for أ إ آ, ي for ى, and ه for ة, because those distinctions are learnt later than the words themselves. A teacher can tighten this per course.",
+      "By default ا is accepted for أ إ آ, و for ؤ, ي for ى and ئ, and ه for ة, because those distinctions are learnt later than the words themselves. Each learner can turn that off under Settings — Hamza and final letters.",
       "Transliteration is marked most leniently of all: macrons, dots under letters, ʿayn marks, apostrophes and where the hyphens fall are all ignored, since schemes vary between textbooks.",
       "Invisible characters that Arabic keyboards insert — right-to-left marks and zero-width joiners — are stripped before comparing, so an answer that looks correct is treated as correct.",
       "Words with several forms — plurals, feminines — are held on one card as separate forms. Each is learnt in its own right, and the card is not counted as learnt until all of them are.",
@@ -1570,17 +1513,14 @@ export const LANGUAGES = {
    font-size by --sscale and its line-height by --sleading, and both fall
    back to 1 wherever they are unset.
    ------------------------------------------------------------------ */
-/** @type {(n: unknown) => number} */
-const positive = (n) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 1);
+const positive = (n: unknown): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 1);
 
 /* Asked for one field, so that is what they ask for: a caller wanting to
    know how large a script wants to be need not have a whole pack in hand,
    and `unknown` rather than `number` because `positive` exists precisely
    to survive a pack that wrote something a calc() could not use. */
-/** @type {(lang?: { scale?: unknown } | null) => number} */
-export const scaleOf = (lang) => positive(lang && lang.scale);
-/** @type {(lang?: { leading?: unknown } | null) => number} */
-export const leadingOf = (lang) => positive(lang && lang.leading);
+export const scaleOf = (lang?: { scale?: unknown } | null): number => positive(lang && lang.scale);
+export const leadingOf = (lang?: { leading?: unknown } | null): number => positive(lang && lang.leading);
 
 /*
  * Every size in the app was tuned by eye against Arabic, and a meaning or
@@ -1602,8 +1542,7 @@ const LATIN_SCALE = 0.78;
 
    --sscale and --sleading are the taught script's; --lscale belongs to the
    Latin beside it and is the same whichever language that is. */
-/** @param {{ scale?: unknown, leading?: unknown }} lang */
-export function scriptVars(lang) {
+export function scriptVars(lang: { scale?: unknown; leading?: unknown }) {
   return {
     "--sscale": String(scaleOf(lang)),
     "--sleading": String(leadingOf(lang)),
@@ -1613,8 +1552,7 @@ export function scriptVars(lang) {
 
 export const DEFAULT_LANGUAGE = "ar-PS";
 
-/** @type {(settings: Settings) => Lang} */
-export const langOf = (settings) =>
+export const langOf = (settings: Settings): Lang =>
   LANGUAGES[settings.language || DEFAULT_LANGUAGE] || LANGUAGES[DEFAULT_LANGUAGE];
 
 /* One language is being learnt at a time, and a handful of pure helpers deep
@@ -1624,8 +1562,7 @@ export let ACTIVE_LANG_ID = DEFAULT_LANGUAGE;
 
 export const activeLang = () => LANGUAGES[ACTIVE_LANG_ID] || LANGUAGES[DEFAULT_LANGUAGE];
 
-/** @param {LangId} id */
-export function setActiveLang(id) {
+export function setActiveLang(id: LangId) {
   if (LANGUAGES[id]) ACTIVE_LANG_ID = id;
 }
 
@@ -1633,11 +1570,7 @@ export function setActiveLang(id) {
    so a Vietnamese student is never told to write something in Arabic. */
 export const EX_CACHE = new Map();
 
-/**
- * @param {string} type
- * @param {Lang} [lang]
- */
-export function exOf(type, lang = activeLang()) {
+export function exOf(type: string, lang: Lang = activeLang()) {
   const spec = EX[type];
   if (!spec) return null;
   const key = `${type}\u0000${lang.id}`;
@@ -1645,8 +1578,7 @@ export function exOf(type, lang = activeLang()) {
   if (hit) return hit;
 
   const attr = quizAttrOf(lang);
-  /** @type {(s: string) => string} */
-  const fill = (s) =>
+  const fill = (s: string): string =>
     String(s)
       .replace(/\{Script\}/g, cap(lang.scriptLabel))
       .replace(/\{script\}/g, lang.scriptLabel.toLowerCase())
@@ -1656,8 +1588,7 @@ export function exOf(type, lang = activeLang()) {
       .replace(/\{attr\}/g, attr ? attr.label : "sound")
       .replace(/\{A\}/g, attr ? attr.short || "?" : "?");
 
-  /** @type {Record<string, any>} */
-  const out = { ...spec };
+  const out: Record<string, any> = { ...spec };
   for (const f of ["instruction", "label", "short", "question", "placeholder", "hintLabel", "hintHideLabel"]) {
     if (out[f]) out[f] = fill(out[f]);
   }
@@ -1665,8 +1596,7 @@ export function exOf(type, lang = activeLang()) {
   return out;
 }
 
-/** @type {(s: string) => string} */
-export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+export const cap = (s: string): string => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 export const TASHKEEL = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g;
 
@@ -1679,27 +1609,32 @@ export const AR_PUNCT = /[.,!?;:"'()[\]،؛؟«»]/g;
  * rejected: right-to-left marks, zero-width joiners and non-breaking
  * spaces ride along with Arabic text from keyboards and clipboards, and
  * nothing on screen shows they are there. Strip them before comparing.
+ *
+ * The second quietest is a letter that is the right letter in the wrong
+ * encoding. Unicode carries every joined shape of an Arabic letter as a
+ * character of its own — the "presentation forms", ﻋ ﻨ ﺪ for the ع ن د
+ * that begin, continue and end a word — and Hebrew has its pointed
+ * letters the same way. A word spelt in those looks identical, comes
+ * from some keyboards and most clipboards, and was marked as wrong in
+ * every letter: not a near miss but a different word. NFKC folds each
+ * shape back to the letter it is a shape of, and is applied before
+ * anything else reads the text, so every language's comparison sees
+ * base letters and nothing downstream has to know the forms exist.
  */
 export const INVISIBLE = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
 
-/** @param {string} s */
-export function stripInvisible(s) {
-  return String(s || "").replace(INVISIBLE, "").replace(/\u00a0/g, " ");
+export function stripInvisible(s: string) {
+  return String(s || "").normalize("NFKC").replace(INVISIBLE, "").replace(/\u00a0/g, " ");
 }
 
-/** @param {string} s */
-export function sortMarks(s) {
+export function sortMarks(s: string) {
   return s.replace(
     /([\u0621-\u064A])([\u064B-\u0652\u0670]+)/g,
     (_, base, marks) => base + marks.split("").sort().join("")
   );
 }
 
-/**
- * @param {string} s
- * @param {{ stripTashkeel?: boolean, ignoreHamza?: boolean }} opts
- */
-export function normAr(s, { stripTashkeel, ignoreHamza }) {
+export function normAr(s: string, { stripTashkeel, ignoreHamza }: { stripTashkeel?: boolean; ignoreHamza?: boolean }) {
   let x = stripInvisible(s).trim().replace(TATWEEL, "");
   x = stripTashkeel ? x.replace(TASHKEEL, "") : sortMarks(x);
   if (ignoreHamza) {
@@ -1718,8 +1653,7 @@ export function normAr(s, { stripTashkeel, ignoreHamza }) {
    "book" and "the book" are the same answer. */
 const LEADING = /^(to|the|a|an)\s+/;
 
-/** @param {string} s */
-export function normEn(s) {
+export function normEn(s: string) {
   let x = stripInvisible(s).trim().toLowerCase();
   x = x.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   x = x.replace(/[-\u2010\u2013\u2014_/]/g, " "); // hyphenation is not a spelling test
@@ -1729,8 +1663,7 @@ export function normEn(s) {
 
 /* Transliteration is marked leniently: schemes vary, and the point is
    the sounds, not somebody's choice of macrons. */
-/** @param {string} s */
-export function normTr(s) {
+export function normTr(s: string) {
   let x = stripInvisible(s).trim().toLowerCase();
   x = x.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); // ā -> a, ṣ -> s
   x = x.replace(/[ʿʾʼʻ'`‘’]/g, ""); // ayn, hamza, apostrophes
@@ -1739,29 +1672,20 @@ export function normTr(s) {
   return x.replace(/\s+/g, " ").trim();
 }
 
-/** @type {(x: string) => string} */
-export const tight = (x) => x.replace(/\s+/g, "");
+export const tight = (x: string): string => x.replace(/\s+/g, "");
 
 /*
  * The alternatives a field may hold, plus the whole field as written —
  * so a card storing "office / desk" accepts "desk" and also accepts
  * "office / desk" typed out in full.
  */
-/**
- * @param {string} expected
- * @param {RegExp} sep
- */
-export function splitForms(expected, sep) {
+export function splitForms(expected: string, sep: RegExp) {
   const whole = String(expected).trim();
   const parts = whole.split(sep).map((s) => s.trim()).filter(Boolean);
   return parts.length > 1 ? parts.concat([whole]) : parts;
 }
 
-/**
- * @param {string} given
- * @param {string} expected
- */
-export function checkEn(given, expected) {
+export function checkEn(given: string, expected: string) {
   const g = normEn(given);
   if (!g) return { ok: false, reason: "wrong" };
   const forms = splitForms(expected, /[/;,]/).map(normEn);
@@ -1770,11 +1694,7 @@ export function checkEn(given, expected) {
   return { ok: false, reason: near ? "near" : "wrong" };
 }
 
-/**
- * @param {string} given
- * @param {string} expected
- */
-export function checkTr(given, expected) {
+export function checkTr(given: string, expected: string) {
   const g = normTr(given);
   if (!g) return { ok: false, reason: "wrong" };
   const forms = splitForms(expected, /[/;,]/).map(normTr);
@@ -1787,12 +1707,7 @@ export function checkTr(given, expected) {
 
 export const HAS_TASHKEEL = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/;
 
-/**
- * @param {string} given
- * @param {string} expected
- * @param {Settings} settings
- */
-export function compareAr(given, expected, settings) {
+export function compareAr(given: string, expected: string, settings: Settings) {
   const mode = settings.tashkeel || "either";
   const hamza = settings.ignoreHamza;
   const skelG = normAr(given, { stripTashkeel: true, ignoreHamza: hamza });
@@ -1817,15 +1732,9 @@ export function compareAr(given, expected, settings) {
   return fullG === fullE ? { ok: true, reason: "exact" } : { ok: false, reason: "harakat" };
 }
 
-/** @type {Record<string, number>} */
-export const AR_RANK = { wrong: 0, near: 1, missing: 2, harakat: 3 };
+export const AR_RANK: Record<string, number> = { wrong: 0, near: 1, missing: 2, harakat: 3 };
 
-/**
- * @param {string} given
- * @param {string} expected
- * @param {Settings} settings
- */
-export function checkAr(given, expected, settings) {
+export function checkAr(given: string, expected: string, settings: Settings) {
   let worst = { ok: false, reason: "wrong" };
   for (const form of splitForms(expected, /[/;]/)) {
     const r = compareAr(given, form, settings);
@@ -1835,19 +1744,26 @@ export function checkAr(given, expected, settings) {
   return worst;
 }
 
-/**
- * @param {string} typed
- * @param {Record<string, any>} item
- * @param {string} type
- * @param {Settings} settings
- */
-export function checkAnswer(typed, item, type, settings) {
+export function checkAnswer(typed: string, item: Record<string, any>, type: string, settings: Settings) {
   const spec = EX[type];
   const mode = spec.answerMode;
   /* Nothing to mark: a read-through is met, not answered. It is here so
      that every exercise can be handed to one function, rather than the
      screen remembering which ones to keep away from it. */
   if (mode === "read") return { ok: true, reason: "read" };
+  /*
+   * Marked by the learner.
+   *
+   * Nobody else was in the room while they read it, so the only honest
+   * marking is theirs. What comes back is their own answer, and the
+   * reason says so rather than saying "wrong" — a scene they could not
+   * quite follow is a scene to come back to, not a mistake they made.
+   */
+  if (mode === "self") {
+    return String(typed || "") === SELF_ALL
+      ? { ok: true, reason: "exact" }
+      : { ok: false, reason: "self" };
+  }
   /* The scene, rebuilt. Right is the order it was written in and there is
      no near miss: two lines swapped is a conversation that did not
      happen. */
@@ -1909,8 +1825,7 @@ export function checkAnswer(typed, item, type, settings) {
 /* The tiers are the same everywhere; each language supplies its own words for
    them. "harakat" is the historical name of the partial-credit tier and stays
    as the internal code so stored progress keeps its meaning. */
-/** @type {Record<string, string>} */
-export const VERDICT_FALLBACK = {
+export const VERDICT_FALLBACK: Verdicts = {
   partial: "Right letters, wrong marks",
   missing: "Letters right — add the marks",
   near: "Very close",
@@ -1918,19 +1833,17 @@ export const VERDICT_FALLBACK = {
 };
 
 /**
- * @param {Lang | null | undefined} lang
- * @param {string} key
+ * @param key  One of the four tiers, named rather than left
+ *   an open string: the fallback below has a word for each of them and for
+ *   nothing else, so a key it has never heard of would read as no verdict
+ *   at all rather than as a mistake.
  */
-export function verdictWord(lang, key) {
-  const own = /** @type {Record<string, string>} */ (lang && lang.verdicts) || {};
+export function verdictWord(lang: Lang | null | undefined, key: keyof Verdicts) {
+  const own = (lang && lang.verdicts) || VERDICT_FALLBACK;
   return own[key] || VERDICT_FALLBACK[key];
 }
 
-/**
- * @param {Record<string, any>} result
- * @param {Lang} [lang]
- */
-export function verdictText(result, lang) {
+export function verdictText(result: Record<string, any>, lang?: Lang) {
   if (!result) return "";
   if (result.ok) return "Correct";
   if (result.reason === "harakat") return verdictWord(lang, "partial");
@@ -1955,19 +1868,15 @@ export function verdictText(result, lang) {
    it. */
 export const EASY_TYPES = TYPES.filter((t) => EX[t].gentle);
 
-/** @returns {Record<string, boolean>} */
-export function defaultTypes() {
-  /** @type {Record<string, boolean>} */
-  const out = {};
+export function defaultTypes(): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
   for (const t of TYPES) out[t] = true;
   return out;
 }
 
 /* Every leniency setting any language offers, at its first choice. */
-/** @returns {Record<string, string | boolean>} */
-export function defaultLanguageOptions() {
-  /** @type {Record<string, string | boolean>} */
-  const out = {};
+export function defaultLanguageOptions(): Record<string, string | boolean> {
+  const out: Record<string, string | boolean> = {};
   for (const lang of Object.values(LANGUAGES)) {
     for (const opt of lang.options || []) {
       if (opt.toggle) out[opt.key] = true;
@@ -1987,12 +1896,34 @@ export function grammarFields() {
   return out;
 }
 
-/* "pl", "plural", "PL." all mean the same thing, whichever axis it is. */
-/**
- * @param {GrammarDim} dim
- * @param {unknown} value
+/*
+ * The same list, with what each field will accept.
+ *
+ * What an answer may carry, in the shape answers.ts narrows against — the
+ * grammar table is the authority on both, and this is how it says so
+ * without answers.ts having to import it (which would be a cycle, since
+ * marking an answer reads that file).
+ *
+ * A lexical key takes any text — a Vietnamese classifier is a word, not a
+ * choice from a list — so its allowed list is empty, which readAnswer
+ * reads as "anything non-empty".
  */
-export function normDimValue(dim, value) {
+export function answerFields(): AnswerField[] {
+  const out = Object.values(GRAMMAR).map((d) => ({
+    field: d.field,
+    allowed: d.options.map(([value]) => value),
+  }));
+  for (const lang of Object.values(LANGUAGES)) {
+    const lexical = lang.lexical;
+    if (lexical && !out.some((f) => f.field === lexical.key)) {
+      out.push({ field: lexical.key, allowed: [] });
+    }
+  }
+  return out;
+}
+
+/* "pl", "plural", "PL." all mean the same thing, whichever axis it is. */
+export function normDimValue(dim: GrammarDim, value: unknown) {
   const x = String(value || "").trim().toLowerCase().replace(/[^a-z]/g, "");
   if (!x) return dim.required ? dim.options[0][0] : "";
   for (const [v] of dim.options) if (v === x) return v;

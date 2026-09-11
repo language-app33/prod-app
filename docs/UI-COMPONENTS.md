@@ -1,7 +1,7 @@
 # UI components
 
-Everything reusable lives in `src/shared.jsx`. Usage counts are from the app
-files (`ArabicTrainer.jsx` + `spaces.jsx`) at the time of writing — they show
+Everything reusable lives in `src/shared.tsx`. Usage counts are from the app
+files (`ArabicTrainer.tsx` + `spaces.tsx`) at the time of writing — they show
 how established each piece is, not how important it is.
 
 **There is a live version of this list.** Admin → App → Components renders
@@ -113,7 +113,7 @@ buttons. For **multi-select**, this is the wrong component — use `CheckList`,
 or `Button`s with `aria-pressed` in a `.at-segmented` wrapper.
 
 ### `Field` / `FormField` — 20 + 28 uses
-A labelled control. Same component: `spaces.jsx` imports it as `Field`, the
+A labelled control. Same component: `spaces.tsx` imports it as `Field`, the
 trainer as `FormField` (it has its own unrelated `Field`).
 
 `label, hint, optional, htmlFor, children, className`
@@ -158,8 +158,8 @@ on advertising for a while afterwards.
 ### `Tile` — 7 uses
 The generic deck/course tile. `title, meta, onOpen, actions, footer`
 
-Lived in `spaces.jsx` until recently, which made this file wrong about where
-reusable things are; it is in `shared.jsx` with the rest now.
+Lived in `spaces.tsx` until recently, which made this file wrong about where
+reusable things are; it is in `shared.tsx` with the rest now.
 
 ### `TileNote` — 4 uses
 The line under a tile: whether anyone can see it. `live, children`

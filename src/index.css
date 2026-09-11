@@ -492,6 +492,19 @@ button {
 .at-formblock { border:2px solid var(--line); border-radius: var(--r-lg); padding:16px;
   margin-bottom:14px; background: var(--surface); }
 .at-formblock.main { border-color: var(--brass); }
+/* A turn of a conversation, on its speaker's side. The block keeps most of
+   its width, because a form is fields and half a phone is not enough for
+   one — what says which side it is on is the indent away from the far
+   edge and the thicker rule on its own. Logical, so an Arabic scene puts
+   its opener where an Arabic reader starts. */
+.at-formblock.side0, .at-formblock.side1 { --turn-inset: min(12%, 56px); }
+.at-formblock.side0 { margin-inline-end: var(--turn-inset);
+  border-inline-start-width:5px; border-inline-start-color: var(--jade); }
+.at-formblock.side1 { margin-inline-start: var(--turn-inset);
+  border-inline-end-width:5px; border-inline-end-color: var(--brass); }
+/* The name of whoever says it, beside the number. It was only inside the
+   picker, so reading down a scene meant reading four pickers. */
+.at-formhead > .at-speaker { flex:0 0 auto; }
 .at-formhead { display:flex; align-items:baseline; gap:10px; margin-bottom:14px;
   padding-bottom:10px; border-bottom:2px solid var(--line); }
 .at-formnum { font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
@@ -567,7 +580,11 @@ button {
 
 /* The shared frame every list of things uses. The New button and the search
    box share one height so the row reads as a single control, not two. */
-.at-listwrap { position:relative; }
+/* --bulk-h is the floating bulk tray's measured height, set by ItemList
+   while it is up and unset the moment it goes. The tray is fixed to the
+   foot of the window, so without this the list runs on underneath it and
+   the last card is behind the buttons acting on it. */
+.at-listwrap { position:relative; padding-bottom: var(--bulk-h, 0px); }
 .at-toolbar { display:flex; gap:8px; align-items:stretch; margin-bottom:10px; flex-wrap:nowrap; }
 /* Both controls are sized the same way — border-box, one height, no inherited
    padding — so the button and the field line up exactly. */
@@ -1587,6 +1604,14 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    The row wraps: a name, a handle and two pills is more than 320px holds,
    and the toggles dropping to a second line is better than a name cut
    short. */
+/* One kept session: a name, what it is, and the two things you can do with
+   it. Wraps like the roster row rather than squeezing the name into a
+   column — what these are called is the whole reason for keeping them —
+   and the icon button is told not to grow, because .at-icon is built to
+   fill a toolbar and would otherwise take a third of the row. */
+.at-sessionrow { flex-wrap:wrap; row-gap:8px; }
+.at-sessionrow > .grow { min-width:11rem; }
+.at-sessionrow > .at-icon { flex:0 0 auto; width:44px; }
 .at-rosterrow { flex-wrap:wrap; row-gap:6px; }
 /* A floor under the name, so the toggles wrap to their own line rather
    than squeezing a handle into three. Without it the name column can
@@ -2110,33 +2135,52 @@ body.at-screening .at-spaces { display:none; }
 .at .at-exercise .at-ask .at-playbig { margin-top: calc(var(--ask) * .25); }
 
 /* --- a conversation on screen -------------------------------------
-   A scene is read down the page, so it is laid out as a transcript
-   rather than as a chat: who spoke on the left, what they said beside
-   it, at one size whoever is speaking. Nobody's line is a bubble — a
-   dialog card is a card, and two speech balloons in the middle of an
-   exercise would be the app pretending to be a phone.
+   Each turn is a bubble: the words in a box that is only as wide as it
+   needs to be, with whoever said them named above it.
+
+   It was a transcript — a name in a narrow column, the words in a wide
+   one beside it — and that column was the bug. A block the width of the
+   page puts its text at whichever end the text itself starts from, so an
+   Arabic line sat hard against the right of its column whichever side of
+   the page the column was on, and both speakers came out down the right.
+   An English scene had the same fault mirrored. A box that hugs its
+   words cannot do that: where the words sit is where the box is, and the
+   box is put on its speaker's side by hand.
+
+   Which is also the thing that makes a conversation easy to read, and
+   the reason every messaging app is built this way.
 
    The script here is smaller than the prompt of a word question and set
    from the same variable, so a scene takes its size from the language
    like everything else does: a line is several words long and the size
    that suits one word makes four of them a wall. */
-.at-scene { display:flex; flex-direction:column; gap:12px; text-align:start; margin:2px 0 4px; }
-.at-sceneline { display:grid; grid-template-columns: minmax(54px, auto) 1fr; gap:2px 12px;
-  align-items:baseline; }
-.at-scenesaid { min-width:0; display:flex; flex-direction:column; gap:2px; }
+.at-scene { display:flex; flex-direction:column; gap:10px; text-align:start; margin:2px 0 4px; }
+/* A column, so the bubble shrinks to its contents rather than filling the
+   row — that shrinking is the whole fix. align-items is what puts the
+   turn on its side; without `sided` every turn stacks at the leading
+   edge, which is what a scene of three or four people wants. */
+.at-sceneline { display:flex; flex-direction:column; align-items:flex-start; gap:3px; }
+.at-scenesaid { min-width:0; display:flex; flex-direction:column; gap:3px;
+  max-width: min(86%, 34rem);
+  background: var(--well); border:1px solid var(--line);
+  border-radius:16px; padding:9px 13px; }
+/* Squared off at the corner nearest its speaker's name, which is what
+   makes a bubble read as belonging to somebody rather than floating. */
+.at-sceneline > .at-scenesaid { border-start-start-radius:5px; }
 /* Who is speaking. Small, uppercase and quiet: it is a label on the
    words, and the words are the exercise. Each speaker keeps one colour
    for the whole scene, which is how a run of turns reads as two people
    rather than as four lines. */
 .at-speaker { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-sceneline > .at-speaker { padding-inline:4px; }
 .at-speaker.s0 { color: var(--jade); }
 .at-speaker.s1 { color: var(--brass); }
 .at-speaker.s2 { color: var(--rose); }
 .at-speaker.s3 { color: var(--text-soft); }
-.at-scene .at-arabic, .at-part .at-arabic, .at-order .at-arabic, .at-replies .at-arabic {
+.at-scene .at-arabic, .at-order .at-arabic, .at-replies .at-arabic {
   font-size: calc(var(--ask) * .62); line-height: calc(1.5 * var(--sleading, 1)); margin:0; }
-.at-scene .at-en, .at-part .at-en { margin:0; }
+.at-scene .at-en { margin:0; }
 .at-scenemeaning { font-family: var(--ui); font-size:14px; font-weight:600; color: var(--muted);
   margin:0; }
 /* The turn being asked for. The rule is the length of a held breath, not
@@ -2146,8 +2190,41 @@ body.at-screening .at-spaces { display:none; }
 .at-blankrule { display:inline-block; width:96px; height:3px; border-radius:2px;
   background: var(--faint); vertical-align:middle; }
 .at-sceneline.asked .at-speaker { color: var(--text); }
-.at-sceneline.ok .at-input, .at-sceneline.ok .at-arabic { color: var(--jade); }
-.at-sceneline.no .at-input, .at-sceneline.no .at-arabic { color: var(--rose); }
+.at-sceneline.asked > .at-scenesaid { border-style:dashed; border-color: var(--muted); }
+
+/* ---- two people, one down each side ----
+
+   Whose turn it is stops being something to read and becomes something to
+   see. The names stay — they are who these people are, not merely which
+   column — but they no longer have to carry the alternation on their own,
+   which is what made a scene of six turns a thing to parse rather than
+   scan.
+
+   Only a two-hander. There is no third side of a page, so a scene of
+   three or four keeps its one column, and `sided` is what says which is
+   which — see sidesOf.
+
+   Logical properties throughout: "the side the opener takes" is the
+   leading edge, which follows the script rather than the screen. Today
+   the page runs the same way whatever is being taught, so the two agree;
+   the day a whole screen is handed to an Arabic reader, this follows it
+   rather than having to be found and flipped.
+
+   Each side is tinted the colour of the speaker whose name is over it,
+   which is a second thing saying the same thing — the one that survives
+   a scene read at arm's length. */
+.at-scene.sided .at-sceneline.side0 > .at-scenesaid {
+  background: var(--jade-bg); border-color: var(--jade-soft); }
+.at-scene.sided .at-sceneline.side1 {
+  align-items:flex-end; }
+.at-scene.sided .at-sceneline.side1 > .at-scenesaid {
+  background: var(--tag-bg); border-color: var(--tag-line);
+  border-start-start-radius:16px; border-start-end-radius:5px; }
+/* A scene inside the order puzzle keeps its full-width tap target — the
+   tap is the answer, so it stays as big as the thing being answered —
+   and what moves is the words in it. */
+.at-orderline.side1 { flex-direction:row-reverse; }
+.at-orderline.side1 > .at-orderwords { align-items:flex-end; text-align:end; }
 
 /* Putting it back in order. Each line is a target the width of the
    column: the tap is the answer, so it is as big as the thing being
@@ -2164,12 +2241,14 @@ body.at-screening .at-spaces { display:none; }
 .at-orderline.on .at-ordernum { color: var(--jade); }
 .at-orderwords { display:flex; flex-direction:column; gap:2px; min-width:0; }
 
-/* Playing a part: the scene, with your turns as fields in it. The fields
-   sit where the words would, so the shape of the conversation is still
-   the shape of what is on screen. */
-.at-part { display:flex; flex-direction:column; gap:12px; text-align:start; }
-.at-part .at-input { font-size:17px; }
-.at-part .at-sceneline.yours .at-scenesaid { gap:4px; }
+/* Reading a scene through: what the reader may ask to see, and how they
+   say whether they followed it. Both are rows of buttons that wrap rather
+   than shrink — these are sentences, not labels, and a squashed "Hide the
+   transliteration" says nothing. */
+.at-reveals { gap:8px; margin-top:14px; }
+.at-reveals > .at-btn { flex:0 1 auto; }
+.at-selfmark { display:flex; gap:8px; flex-wrap:wrap; }
+.at-selfmark > .at-btn { flex:1 1 auto; min-width:0; }
 
 /* The replies on offer, one under the other. */
 .at-replies { display:flex; flex-direction:column; gap:8px; }
@@ -2233,6 +2312,16 @@ body.at-screening .at-spaces { display:none; }
    reordering the gloss rule above exists to avoid. */
 .at-findwho { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
   margin:0; }
+/* What an accepted answer is, grammatically. Folded away behind its own
+   name — "sg. f." where it has one, "Grammar" where it has none — because
+   most cards accept one answer and want the language's default, and four
+   pickers under every row would bury the words the card is about. */
+.at-answergrammar { grid-column:1; margin-inline-start:10px; }
+.at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
+.at-answerdims { display:flex; flex-direction:column; gap:8px; margin-top:8px;
+  padding:10px 12px; background: var(--well); border-radius: var(--r-sm); }
+.at-answerdims .at-field { margin:0; }
+
 /* The phrase is a way into the card it belongs to, so it reads as one —
    quieter than the word, and underlined on hover like every other way of
    opening something. */

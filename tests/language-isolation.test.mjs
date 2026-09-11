@@ -16,16 +16,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
-import * as LANG from "../src/languages.js";
+import * as LANG from "../src/languages.ts";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
-/** @param {string} name */
-const src = (name) => path.join(here, "..", "src", name);
+/* Named without an extension, and resolved to whichever one exists: the
+   app is moving from JavaScript to TypeScript a module at a time, and a
+   list pinned to ".js" would drop a file out of this guard on the day it
+   was converted — silently, which is the one way a guard fails badly. */
+const src = (/** @type {string} */ stem) => {
+  for (const ext of [".jsx", ".tsx", ".ts", ".js"]) {
+    const at = path.join(here, "..", "src", stem + ext);
+    if (existsSync(at)) return at;
+  }
+  throw new Error(`no source file for ${stem}`);
+};
 
-/* Everything that renders or drives the app. languages.js is the one file
+/* Everything that renders or drives the app. languages is the one file
    allowed to know about languages, so it is not in this list. */
-const APP_FILES = ["ArabicTrainer.jsx", "spaces.jsx", "shared.jsx", "gallery.jsx", "screen-elements.js", "sync.js", "storage.js", "courses-api.js", "scheduler.js"];
+const APP_FILES = ["ArabicTrainer", "spaces", "shared", "gallery", "screen-elements", "sync", "storage", "courses-api", "scheduler"];
 
 /* A name belongs to one language if it is prefixed with that language, in
    either of the two spellings the file uses: ar/Ar for Arabic, vi/Viet for
@@ -37,7 +47,7 @@ const LANGUAGE_SPECIFIC = /^(ar|vi|he)[A-Z]|^(norm|check|split)(Ar|Viet|He)$/;
  * @returns {string[]}
  */
 function importedNames(source) {
-  const m = source.match(/import\s*\{([^}]*)\}\s*from\s*["']\.\/languages\.js["']/);
+  const m = source.match(/import\s*\{([^}]*)\}\s*from\s*["']\.\/languages\.(?:js|ts)["']/);
   if (!m) return [];
   return m[1]
     .split(",")
@@ -89,17 +99,19 @@ for (const file of APP_FILES) {
  */
 /* Keyed by file, and only the files that hold any. */
 /** @type {Record<string, string[]>} */
+/* Keyed by the same extension-free name APP_FILES uses, so converting a
+   file does not silently empty its allowlist. */
 const ALLOWED_SCRIPT = {
   /* The card sheet's placeholder — "the form". Behind OWN_CARDS, so unreachable.
      The importer's worked example used to be here too; it now comes from the
      pack of whichever language is being learnt. */
-  "ArabicTrainer.jsx": ["الشكل"],
+  ArabicTrainer: ["الشكل"],
   /* The wordmark on the first screen: "vocabulary". */
-  "spaces.jsx": ["مُفْرَدات"],
+  spaces: ["مُفْرَدات"],
   /* Specimens, which are the point of a gallery. */
-  "gallery.jsx": ["كِتَاب", "كُتُب"],
+  gallery: ["كِتَاب", "كُتُب"],
   /* Examples of what each element holds, which are the point of the list. */
-  "screen-elements.js": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم"],
+  "screen-elements": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم"],
 };
 
 for (const file of APP_FILES) {

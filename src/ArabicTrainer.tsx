@@ -1,6 +1,9 @@
-/** @import { Card, Course, Deck, Doc, ExerciseSpec, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Question, Settings, User } from "./types.js" */
-/** @typedef {React.ReactNode} Node */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import type {
+  Course, Deck, Doc, ExerciseState, FlagKind, Form, Item,
+  Lang, LangId, Millis, Question, SavedSession, Settings, User,
+} from "./types.ts";
+import type { Node } from "./shared.tsx";
 import {
   Button,
   CardReadout,
@@ -37,7 +40,7 @@ import {
   useSlowWait,
   useSnackbar,
   useSnackbarState,
-} from "./shared.jsx";
+} from "./shared.tsx";
 
 /* The onboarding, teaching, admin and course screens are their own chunk,
    fetched on the first tap that opens one of them. A student drilling cards
@@ -49,8 +52,7 @@ import {
    a genuinely broken deploy from reloading for ever. */
 const RELOADED_FLAG = "at-chunk-reloaded";
 
-/** @param {unknown} err */
-function recoverChunk(err) {
+function recoverChunk(err: unknown) {
   let already = false;
   try {
     already = sessionStorage.getItem(RELOADED_FLAG) === "1";
@@ -60,18 +62,26 @@ function recoverChunk(err) {
   }
   if (!already) {
     window.location.reload();
-    return new Promise(() => {}); // the page is going away
+    // The page is going away, so this promise is never settled.
+    return new Promise<never>(() => {});
   }
   throw err;
 }
 
-/* The name is checked against what spaces.jsx actually exports: a lazy
+/* The name is checked against what spaces.tsx actually exports: a lazy
    import spells its component as a string, so a typo is a blank screen at
    the moment someone opens the space, and nothing before. */
-/** @type {(name: keyof typeof import("./spaces.jsx")) => React.ComponentType<any>} */
-const fromSpaces = (name) =>
+type SpacesModule = typeof import("./spaces.tsx");
+/* Only the exports that are components. The module also exports plain
+   functions and tables, and naming one of those here would typecheck and
+   render nothing. */
+type SpaceName = {
+  [K in keyof SpacesModule]: SpacesModule[K] extends React.ComponentType<any> ? K : never;
+}[keyof SpacesModule];
+
+const fromSpaces = (name: SpaceName): React.ComponentType<any> =>
   React.lazy(() =>
-    import("./spaces.jsx")
+    import("./spaces.tsx")
       .then((m) => {
         try {
           sessionStorage.removeItem(RELOADED_FLAG);
@@ -96,7 +106,7 @@ function ChunkFallback() {
   const slow = useSlowWait(true);
   return slow ? <Help>Loading…</Help> : null;
 }
-import * as API from "./courses-api.js";
+import * as API from "./courses-api.ts";
 import {
   DEFAULT_LANGUAGE,
   EX,
@@ -104,6 +114,7 @@ import {
   TYPES,
   activeLang,
   checkAnswer,
+  answerFields,
   derivedValue,
   dimValues,
   dimsOf,
@@ -127,7 +138,7 @@ import {
   defaultLanguageOptions,
   grammarFields,
   normDimValue,
-} from "./languages.js";
+} from "./languages.ts";
 import {
   MIN,
   MATURE_DAYS,
@@ -145,30 +156,30 @@ import {
   dueRank,
   inOrder,
   shuffled,
-} from "./scheduler.js";
-import { PICK_OPTIONS, optionsFor } from "./chance.js";
-import { buildContextIndex } from "./context-index.js";
-import { canAsk } from "./offers.js";
+} from "./scheduler.ts";
+import { PICK_OPTIONS, optionsFor } from "./chance.ts";
+import { buildContextIndex } from "./context-index.ts";
+import { canAsk } from "./offers.ts";
 import {
   DEFAULT_SPEAKERS,
   DIALOG_KIND,
   MAX_SPEAKERS,
   ORDER_SEP,
+  SELF_ALL,
+  SELF_SOME,
   buildDialogIndex,
   isDialog,
+  isTwoSided,
   linesOf,
   namedPart,
-  partAnswers,
-  partOf,
   replyOptions,
   sceneBefore,
   scrambledLines,
+  sideOf,
   speakerName,
   speakersOf,
-  yourLines,
-  youOf,
-} from "./dialogs.js";
-import { answerForTurn, withAnswer as oneAnswer } from "./answers.js";
+} from "./dialogs.ts";
+import { answerForTurn, answerGiven, answersOf, packAnswers, withAnswer as oneAnswer } from "./answers.ts";
 
 /*
  * The two that need to know which exercise types a form supports. That
@@ -176,12 +187,10 @@ import { answerForTurn, withAnswer as oneAnswer } from "./answers.js";
  * a word in use, neither of which belongs in the scheduler — so it is
  * handed in here, at the one place that has both.
  */
-/** @type {(it: Item) => string} */
-const familyMaturity = (it) => familyMaturityOf(it, (u) => availableTypes(u));
-/** @type {(it: Item) => string} */
-const itemDifficulty = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
+const familyMaturity: (it: Item) => string = (it) => familyMaturityOf(it, (u) => availableTypes(u));
+const itemDifficulty: (it: Item) => string = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
-import { applyUpdate, holdUpdates } from "./updates.js";
+import { applyUpdate, holdUpdates } from "./updates.ts";
 import {
   syncClips,
   loadSyncConfig,
@@ -191,7 +200,7 @@ import {
   forgetRemote,
   compactItem,
   mergeData,
-} from "./sync.js";
+} from "./sync.ts";
 
 /* ==================================================================
    Arabic trainer
@@ -230,11 +239,9 @@ const AUDIO_BITRATE = 24000;
 
 /* Nobody, for the account screen when nobody is signed in. It renders
    either way, and this is what it renders as. */
-/** @type {User & { key: string }} */
-const EMPTY_ACCOUNT = { handle: "", displayName: "", admin: false, created: 0, key: "" };
+const EMPTY_ACCOUNT: User & { key: string } = { handle: "", displayName: "", admin: false, created: 0, key: "" };
 
-/** @type {Doc} */
-const EMPTY = {
+const EMPTY: Doc = {
   version: 3,
   items: [],
   tombstones: {},
@@ -267,10 +274,8 @@ const now = () => Date.now();
 
 
 
-/** @type {Record<string, string>} */
-const MATURITY_LABEL = { new: "New", learning: "Learning", young: "Young", mature: "Mature" };
-/** @type {Record<string, string>} */
-const MATURITY_COLOR = {
+const MATURITY_LABEL: Record<string, string> = { new: "New", learning: "Learning", young: "Young", mature: "Mature" };
+const MATURITY_COLOR: Record<string, string> = {
   new: "var(--raised)",
   learning: "var(--rose)",
   young: "var(--brass)",
@@ -282,8 +287,7 @@ const MATURITY_COLOR = {
    ------------------------------------------------------------------ */
 
 const HARD_BACKLOG_LIMIT = 10;
-/** @type {Record<string, number>} */
-const DIFF_RANK = { easy: 0, steady: 1, unrated: 2, hard: 3 };
+const DIFF_RANK: Record<string, number> = { easy: 0, steady: 1, unrated: 2, hard: 3 };
 
 
 
@@ -292,12 +296,9 @@ const DIFF_RANK = { easy: 0, steady: 1, unrated: 2, hard: 3 };
    Items
    ------------------------------------------------------------------ */
 
-/** @param {unknown} input */
-function cleanTags(input) {
+function cleanTags(input: unknown) {
   const raw = Array.isArray(input) ? input : String(input || "").split(",");
-  /** @type {string[]} */
-  /** @type {any[]} */
-  const out = [];
+  const out: string[] = [];
   for (const t of raw) {
     const tag = String(t).trim().replace(/\s+/g, " ");
     if (tag && !out.includes(tag)) out.push(tag);
@@ -309,8 +310,7 @@ function cleanTags(input) {
 
 /* A sub-item is a form of its parent — a plural, a feminine — carrying the
    same three fields and its own progress, but no decks of its own. */
-/** @param {Record<string, any>} [src] */
-function makeSub(src = {}) {
+function makeSub(src: Record<string, any> = {}) {
   const { ar = "", lat = "", en = "", note = "", recs = [] } = src;
   return {
     id: `s${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
@@ -332,8 +332,7 @@ function makeSub(src = {}) {
 /* A line of a dialog. A form in every respect that matters — three
    fields, its own recordings, its own progress — plus who says it and
    which word cards it uses. */
-/** @param {Record<string, any>} [src] */
-function makeLine(src = {}) {
+function makeLine(src: Record<string, any> = {}) {
   const { ar = "", lat = "", en = "", who = 0, uses = [], recs = [] } = src;
   return {
     id: src.id || `l${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
@@ -350,8 +349,7 @@ function makeLine(src = {}) {
   };
 }
 
-/** @param {Record<string, any>} [src] */
-function makeItem(src = {}) {
+function makeItem(src: Record<string, any> = {}) {
   const {
     ar = "",
     lat = "",
@@ -365,7 +363,7 @@ function makeItem(src = {}) {
   } = src;
   const text = ar || en || lat;
   const s = freshStates();
-  const scene = (lines || []).filter((/** @type {any} */ l) => l && (l.ar || l.en || l.lat));
+  const scene = (lines || []).filter((l: any) => l && (l.ar || l.en || l.lat));
   return {
     id: `${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     ar: ar.trim(),
@@ -377,7 +375,7 @@ function makeItem(src = {}) {
     kind: scene.length ? DIALOG_KIND : kind || guessKind(text, activeLang()),
     ...(scene.length
       ? {
-          lines: scene.map((/** @type {any} */ l) => (l.id && l.s ? l : makeLine(l))),
+          lines: scene.map((l: any) => (l.id && l.s ? l : makeLine(l))),
           speakers: speakersOf(src),
           /* What the card says, including saying nothing: a scene that
              names no part must not acquire one by being copied. */
@@ -391,7 +389,7 @@ function makeItem(src = {}) {
     flags: [],
     recs: recs || [],
     ...dimValues(src),
-    subs: (subs || []).map((/** @type {Record<string, any>} */ x) => (x.id ? x : makeSub(x))),
+    subs: (subs || []).map((x: Record<string, any>) => (x.id ? x : makeSub(x))),
     created: now(),
     updated: now(),
     s,
@@ -414,20 +412,10 @@ function makeItem(src = {}) {
    which is why this is two small functions rather than a new argument on
    forty.
    ------------------------------------------------------------------ */
-/**
- * @param {Form | null | undefined} unit
- * @param {Settings} settings
- * @returns {LangId}
- */
-const langIdOf = (unit, settings) =>
+const langIdOf = (unit: Form | null | undefined, settings: Settings): LangId =>
   ((unit && unit.lang) || settings.language || DEFAULT_LANGUAGE);
 
-/**
- * @param {Settings} settings
- * @param {Form | null | undefined} unit
- * @returns {Settings}
- */
-function settingsFor(settings, unit) {
+function settingsFor(settings: Settings, unit: Form | null | undefined): Settings {
   const id = langIdOf(unit, settings);
   /* The same object when the card is in the app's own language, which is
      the ordinary case: a new object on every call would defeat every memo
@@ -436,17 +424,12 @@ function settingsFor(settings, unit) {
   return { ...settings, language: id };
 }
 
-/**
- * @param {Item} item
- * @param {Settings} settings
- */
-function drillableUnits(item, settings) {
+function drillableUnits(item: Item, settings: Settings) {
   return unitsOf(item).filter(({ unit }) => enabledTypes(unit, settings).length >= 2);
 }
 
 /* Totals for the list indicators: how many forms, how many clips. */
-/** @param {Item} it */
-function familyCounts(it) {
+function familyCounts(it: Item) {
   const units = unitsOf(it);
   let clips = 0;
   for (const { unit } of units) clips += (unit.recs || []).length;
@@ -460,8 +443,7 @@ function familyCounts(it) {
    plain functions called from anywhere, not hooks. It is set during render
    from the state that owns it. */
 let listenOffUntil = 0;
-/** @param {number} until */
-function setListenOffUntil(until) {
+function setListenOffUntil(until: number) {
   listenOffUntil = until || 0;
 }
 
@@ -482,8 +464,7 @@ function setListenOffUntil(until) {
 
 let CONTEXT_INDEX = new Map();
 
-/** @param {Map<string, any[]>} map */
-function setContextIndex(map) {
+function setContextIndex(map: Map<string, any[]>) {
   CONTEXT_INDEX = map || new Map();
 }
 
@@ -497,20 +478,14 @@ function setContextIndex(map) {
    function of a unit, and a dialog line is a unit.
    ------------------------------------------------------------------ */
 
-/** @type {Map<string, { card: Item, at: number }>} */
-let DIALOG_INDEX = new Map();
+let DIALOG_INDEX: Map<string, { card: Item, at: number }> = new Map();
 
-/** @param {Map<string, { card: Item, at: number }>} map */
-function setDialogIndex(map) {
+function setDialogIndex(map: Map<string, { card: Item, at: number }>) {
   DIALOG_INDEX = map || new Map();
 }
 
 /* The scene a line stands in, or null for anything that is not a line. */
-/**
- * @param {string} unitId
- * @returns {{ card: Item, at: number } | null}
- */
-function sceneOf(unitId) {
+function sceneOf(unitId: string): { card: Item, at: number } | null {
   return DIALOG_INDEX.get(unitId) || null;
 }
 
@@ -524,13 +499,7 @@ function sceneOf(unitId) {
  * making — and the word being asked for is left out, since the drawing
  * puts it back itself.
  */
-/**
- * @param {Item[]} items
- * @param {Settings} settings
- * @param {LangId} langId
- * @param {Form} answer
- */
-function wordPool(items, settings, langId, answer) {
+function wordPool(items: Item[], settings: Settings, langId: LangId, answer: Form) {
   const out = [];
   for (const card of items) {
     if (isDialog(card) || langIdOf(card, settings) !== langId) continue;
@@ -545,12 +514,7 @@ function wordPool(items, settings, langId, answer) {
    replies beside the right one. Kept to the language being asked: a
    Vietnamese line among three Arabic ones is not a distractor, it is a
    giveaway. */
-/**
- * @param {Item[]} items
- * @param {Settings} settings
- * @param {LangId} langId
- */
-function replyPool(items, settings, langId) {
+function replyPool(items: Item[], settings: Settings, langId: LangId) {
   const out = [];
   for (const card of items) {
     if (!isDialog(card) || langIdOf(card, settings) !== langId) continue;
@@ -562,11 +526,7 @@ function replyPool(items, settings, langId) {
 /* The phrases that show this form in use. Keyed by unit id, so a plural
    held as a form of its card gets its own contexts rather than its
    parent's. */
-/**
- * @param {string} unitId
- * @returns {any[]}
- */
-function contextsFor(unitId) {
+function contextsFor(unitId: string): any[] {
   return CONTEXT_INDEX.get(unitId) || [];
 }
 
@@ -578,11 +538,7 @@ function contextsFor(unitId) {
  * before it meets any of them twice. Random choice would leave one context
  * unseen for a surprisingly long time.
  */
-/**
- * @param {Form} unit
- * @param {string} type
- */
-function pickContext(unit, type) {
+function pickContext(unit: Form, type: string) {
   const list = contextsFor(unit.id).filter((c) =>
     EX[type] && EX[type].needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
   );
@@ -591,37 +547,10 @@ function pickContext(unit, type) {
   return list[seen % list.length];
 }
 
-/*
- * Which part the learner plays, for a scene that does not name one.
- *
- * The card is allowed to leave it open — most conversations are worth
- * holding up from either end — and when it does, the question decides.
- * Rotated by how often this exercise has been asked of this scene, the
- * same way pickContext rotates the phrase a word is shown in: a
- * two-hander met twice has been played from both sides, and a scene left
- * on screen through a re-render is the same question it was a moment ago.
- *
- * What comes back is the scene with its part filled in, so everything
- * downstream — the turns to type, the marking, the answer screen — reads
- * one card and cannot disagree about whose turns are whose.
- */
-/**
- * @param {{ unit: Form, parent: Item, isSub: boolean } | null} resolved
- * @param {string} type
- */
-function castPart(resolved, type) {
-  if (!resolved) return resolved;
-  const card = resolved.parent;
-  if (!EX[type] || EX[type].answerMode !== "part") return resolved;
-  if (!isDialog(card) || namedPart(card) !== null) return resolved;
-  const seen = (card.s && card.s[type] && card.s[type].reps) || 0;
-  const played = /** @type {any} */ ({ ...card, you: youOf(card, seen) });
-  return {
-    ...resolved,
-    unit: resolved.unit === card ? played : resolved.unit,
-    parent: played,
-  };
-}
+/* Which part a learner plays was only ever read by playing a part, which
+   is retired — so a scene that names no part now names nothing that any
+   question asks about. The picker in the editor and the line on the card
+   still say which part is the student's; nothing yet acts on it. */
 
 /*
  * Which accepted answer a pronunciation question is about.
@@ -643,18 +572,14 @@ function castPart(resolved, type) {
  * from its meaning, every accepted answer is still accepted — the answer
  * there is the word, not one spelling of it.
  */
-/**
- * @param {{ unit: Form, parent: Item, isSub: boolean } | null} resolved
- * @param {string} type
- */
-function castAnswer(resolved, type) {
+function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
   const spec = EX[type];
   if (!spec || !spec.needs.includes("lat")) return resolved;
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
   const answer = answerForTurn(resolved.unit, seen);
   if (!answer) return resolved;
-  const unit = /** @type {any} */ (oneAnswer(resolved.unit, answer));
+  const unit = (oneAnswer(resolved.unit, answer) as any);
   return {
     ...resolved,
     unit,
@@ -663,12 +588,7 @@ function castAnswer(resolved, type) {
 }
 
 /* The phrase with the target word taken out, as the question shows it. */
-/**
- * @param {any} context
- * @param {Lang} lang
- * @param {string} [blank]
- */
-function blankedPhrase(context, lang, blank = "____") {
+function blankedPhrase(context: any, lang: Lang, blank: string = "____") {
   const tokens = contextTokens(context.ar, lang);
   const span = Math.max(1, context.span || 1);
   if (context.slot < 0 || context.slot >= tokens.length) return context.ar;
@@ -680,8 +600,7 @@ function blankedPhrase(context, lang, blank = "____") {
 
 /* Whether a type may be asked at this moment. Only the clock makes this
    false, so it is deliberately not part of what a card "supports". */
-/** @param {string} type */
-function typeAllowedNow(type) {
+function typeAllowedNow(type: string) {
   return !(listenOffUntil > Date.now() && isListening(type));
 }
 
@@ -711,8 +630,7 @@ const LEARNED_PING_MS = 15 * 60 * 1000;
    answer between tunnels making its own failed request. */
 const LEARNED_RETRY_MS = 60 * 1000;
 let learnedQuietUntil = 0;
-/** @param {User | null} account */
-function reportLearning(account) {
+function reportLearning(account: User | null) {
   if (!account || now() < learnedQuietUntil) return;
   learnedQuietUntil = now() + LEARNED_PING_MS;
   API.practiced().catch(() => {
@@ -733,23 +651,10 @@ function reportLearning(account) {
  * else to offer — a recording and a spelling, no English — drops out of the
  * rest of the session; there is genuinely nothing to ask.
  */
-/**
- * @param {Question[]} exercises
- * @param {number} from
- * @param {Item[]} items
- * @param {Settings} settings
- * @returns {Question[]}
- */
-export function withoutListening(exercises, from, items, settings) {
-  /** @param {Question} ex */
-  const keyOf = (ex) => `${ex.id} ${ex.subId || ""}`;
-  /** @type {Map<string, Set<string>>} */
-  const used = new Map();
-  /**
-   * @param {Question} ex
-   * @param {string} type
-   */
-  const note = (ex, type) => {
+export function withoutListening(exercises: Question[], from: number, items: Item[], settings: Settings): Question[] {
+  const keyOf = (ex: Question) => `${ex.id} ${ex.subId || ""}`;
+  const used: Map<string, Set<string>> = new Map();
+  const note = (ex: Question, type: string) => {
     const k = keyOf(ex);
     let seen = used.get(k);
     if (!seen) used.set(k, (seen = new Set()));
@@ -759,8 +664,7 @@ export function withoutListening(exercises, from, items, settings) {
      be a different question, not the one queued two turns later. */
   for (const ex of exercises) if (!isListening(ex.type)) note(ex, ex.type);
 
-  /** @type {Question[]} */
-  const tail = [];
+  const tail: Question[] = [];
   for (const ex of exercises.slice(from)) {
     if (!isListening(ex.type)) {
       tail.push(ex);
@@ -791,12 +695,7 @@ export function withoutListening(exercises, from, items, settings) {
    holds, and the preview rows, the weak-card count and unitFullyLearnt all
    ask it that. Silencing here would make a card look broken, or call it
    fully learnt while a third of its exercises were merely paused. */
-/**
- * @param {Form} it
- * @param {Lang} [lang]
- * @returns {string[]}
- */
-function availableTypes(it, lang = activeLang(), scene = sceneOf(it.id)) {
+function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.id)): string[] {
   /* One question, asked in one place: which exercises this unit can be
      asked. The teaching space asks the same one of the same cards — to
      say what a card could be drilled as before anybody presses anything —
@@ -805,12 +704,7 @@ function availableTypes(it, lang = activeLang(), scene = sceneOf(it.id)) {
   return TYPES.filter((t) => canAsk({ unit: it, scene, contexts: contextsFor(it.id) }, t, lang));
 }
 
-/**
- * @param {Form} it
- * @param {Settings} settings
- * @returns {string[]}
- */
-function enabledTypes(it, settings) {
+function enabledTypes(it: Form, settings: Settings): string[] {
   /* The language comes from the settings in hand, not from the module-level
      pointer — that is only set during render, and this runs from anywhere.
      Read in the card's own language, so a Vietnamese card is not asked
@@ -826,17 +720,9 @@ function enabledTypes(it, settings) {
    reader of one wants the empty record rather than a crash. Said once here
    because the alternative is the same guard at three dozen call sites, and
    the sites that forgot it were only ever found by someone hitting them. */
-/**
- * @param {Form} unit
- * @returns {Record<string, ExerciseState>}
- */
-const statesOf = (unit) => unit.s || {};
+const statesOf = (unit: Form): Record<string, ExerciseState> => unit.s || {};
 
-/**
- * @param {Item} it
- * @param {Settings} settings
- */
-function isDrillable(it, settings) {
+function isDrillable(it: Item, settings: Settings) {
   if (!settings.kinds[it.kind || ""]) return false;
   /* A scene qualifies through its lines rather than through itself. The
      card carries the two whole-scene exercises and a short dialog carries
@@ -848,18 +734,13 @@ function isDrillable(it, settings) {
 
 /* One shuffle in the app, and it lives in the scheduler with the rest of
    what decides an order — see "Random among equals" there. */
-/** @type {<T>(arr: T[]) => T[]} */
-const shuffle = (arr) => shuffled(arr);
+const shuffle: <T>(arr: T[]) => T[] = (arr) => shuffled(arr);
 
 /* ------------------------------------------------------------------
    Similarity — rule 3
    ------------------------------------------------------------------ */
 
-/**
- * @param {Item} a
- * @param {Item} b
- */
-function similarity(a, b) {
+function similarity(a: Item, b: Item) {
   let score = 0;
 
   /*
@@ -906,8 +787,7 @@ function similarity(a, b) {
   return score;
 }
 
-/** @type {Record<string, number>} */
-const COHESION_POOL = { off: 1, balanced: 3, strong: 6 };
+const COHESION_POOL: Record<string, number> = { off: 1, balanced: 3, strong: 6 };
 
 /* ------------------------------------------------------------------
    Session building
@@ -943,8 +823,7 @@ const MODES = {
 };
 
 /* Did this form go wrong in either of its last two outings? */
-/** @param {Form} unit */
-function hasRecentMistake(unit) {
+function hasRecentMistake(unit: Form) {
   const states = statesOf(unit);
   let sawHistory = false;
   for (const t of availableTypes(unit)) {
@@ -966,18 +845,11 @@ function hasRecentMistake(unit) {
  * material allows it. A greedy pass: take the next exercise whose type
  * differs from the one before, preferring a different item too.
  */
-/**
- * @param {Question[]} list
- * @returns {Question[]}
- */
-function varyTypes(list) {
-  /** @type {Question[]} */
-  const out = [];
+function varyTypes(list: Question[]): Question[] {
+  const out: Question[] = [];
   const rest = list.slice();
-  /** @type {string | null} */
-  let prevType = null;
-  /** @type {string | null} */
-  let prevId = null;
+  let prevType: string | null = null;
+  let prevId: string | null = null;
   while (rest.length) {
     let pick = rest.findIndex((e) => e.type !== prevType && (e.id !== prevId || rest.length === 1));
     if (pick === -1) pick = rest.findIndex((e) => e.type !== prevType);
@@ -990,27 +862,33 @@ function varyTypes(list) {
   return out;
 }
 
-/**
+/*
  * `reason` names why a session came back empty, so the button that asked
  * for it can say something rather than appear broken. `items` and `units`
  * are the sizes of what was built, and are there only when there is one.
- * @typedef {object} Session
- * @property {Question[]} exercises
- * @property {string | null} reason
- * @property {number} [items]
- * @property {number} [units]
  */
-/**
- * @param {object} args
- * @param {Item[]} args.items
- * @param {Settings} args.settings
- * @param {(it: Item) => boolean} args.inDeck
- * @param {boolean} [args.practice]
- * @param {boolean} [args.includeAll]
- * @param {number} [args.budget]
- * @returns {Session}
- */
-function buildSession({ items, settings, inDeck, practice, includeAll, budget: budgetIn }) {
+interface Session {
+  exercises: Question[];
+  reason: string | null;
+  items?: number;
+  units?: number;
+}
+
+function buildSession({
+  items,
+  settings,
+  inDeck,
+  practice,
+  includeAll,
+  budget: budgetIn,
+}: {
+  items: Item[];
+  settings: Settings;
+  inDeck: (it: Item) => boolean;
+  practice?: boolean;
+  includeAll?: boolean;
+  budget?: number;
+}): Session {
   const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
 
@@ -1020,8 +898,7 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
   /* --- candidate families --- */
   let candidates = pool.map((it) => {
     const units = drillableUnits(it, settings);
-    /** @type {number[]} */
-  const dues = [];
+  const dues: number[] = [];
     for (const { unit } of units) {
       for (const t of enabledTypes(unit, settings)) dues.push(statesOf(unit)[t].due || 0);
     }
@@ -1172,11 +1049,7 @@ function buildSession({ items, settings, inDeck, practice, includeAll, budget: b
  * Put in after the budget has been taken, so a scene cannot lose one of
  * its questions to its own preamble.
  */
-/**
- * @param {any[]} list
- * @param {Item[]} items
- */
-function withReadThroughs(list, items) {
+function withReadThroughs(list: any[], items: Item[]) {
   const seen = new Set();
   const out = [];
   for (const ex of list) {
@@ -1192,8 +1065,7 @@ function withReadThroughs(list, items) {
 
 /* Nobody has answered anything about this scene yet — not a line, not the
    scene itself. */
-/** @param {Item} card */
-function sceneUnmet(card) {
+function sceneUnmet(card: Item) {
   return unitsOf(card).every(({ unit }) =>
     availableTypes(unit).every((t) => (statesOf(unit)[t] || freshState()).phase === "new")
   );
@@ -1213,11 +1085,7 @@ function sceneUnmet(card) {
  * of the table, and the other half of what a card supports was practised
  * only when those had been answered into the future.
  */
-/**
- * @param {Form} unit
- * @param {Settings} settings
- */
-function pickableTypes(unit, settings) {
+function pickableTypes(unit: Form, settings: Settings) {
   const types = enabledTypes(unit, settings);
   const fresh = types.every((t) => statesOf(unit)[t].phase === "new");
   return inOrder(types, (t) => {
@@ -1228,18 +1096,13 @@ function pickableTypes(unit, settings) {
 }
 
 /* Every exercise type this form supports is already mature. */
-/** @param {Form} unit */
-function unitFullyLearnt(unit) {
+function unitFullyLearnt(unit: Form) {
   const types = availableTypes(unit);
   return types.length > 0 && types.every((t) => maturity(statesOf(unit)[t]) === "mature");
 }
 
 /* Exercise types follow from the mode, so there is nothing to choose. */
-/**
- * @param {string} mode
- * @param {Settings} settings
- */
-function typesForMode(mode, settings) {
+function typesForMode(mode: string, settings: Settings) {
   /* The second place the quiet window has to be honoured: the manual builder
      comes through here rather than through enabledTypes. Get started draws on
      two gentle types, one of which is listening, so during the window it
@@ -1249,8 +1112,7 @@ function typesForMode(mode, settings) {
 }
 
 /* Ultimate drills every type on every card; the rest take a sample. */
-/** @param {string} mode */
-function everyTypeMode(mode) {
+function everyTypeMode(mode: string) {
   return mode === "ultimate";
 }
 
@@ -1259,16 +1121,13 @@ function everyTypeMode(mode) {
  * nothing to gain from drilling them — and the caller is told which cards
  * were skipped for that reason so it can say so.
  */
-/**
- * @param {{
- *   items: Item[],
- *   settings: Settings,
- *   ids: Set<string> | string[],
- *   mode: string,
- *   count?: number,
- * }} plan
- */
-function buildManualSession({ items, settings, ids, mode, count }) {
+function buildManualSession({ items, settings, ids, mode, count }: {
+  items: Item[];
+  settings: Settings;
+  ids: Set<string> | string[];
+  mode: string;
+  count?: number;
+}) {
   const chosen = new Set(ids);
   const allowed = new Set(typesForMode(mode, settings));
   /* Two types is the rule everywhere else, and it is what keeps a session
@@ -1342,11 +1201,7 @@ function buildManualSession({ items, settings, ids, mode, count }) {
 }
 
 /* Resolve an exercise back to the item and the specific form it drills. */
-/**
- * @param {Item[]} items
- * @param {Question | null | undefined} ex
- */
-function resolveUnit(items, ex) {
+function resolveUnit(items: Item[], ex: Question | null | undefined) {
   if (!ex) return null;
   const parent = items.find((i) => i.id === ex.id);
   if (!parent) return null;
@@ -1415,20 +1270,14 @@ function resolveUnit(items, ex) {
  * change: this returned nothing at all for Arabic before, because it asked
  * for a quizzable property that Arabic has no reason to declare.
  */
-/**
- * @param {Item[]} items
- * @param {Lang} lang
- * @param {string} text
- */
-function relatedWords(items, lang, text) {
+function relatedWords(items: Item[], lang: Lang, text: string) {
   const group = groupAttrOf(lang);
   const apart = quizAttrOf(lang);
   if (!group || !text) return [];
   const key = derivedValue(group, text);
   if (!key) return [];
   const mine = apart ? derivedValue(apart, text) : null;
-  /** @type {{ text: string, en: string, id: string }[]} */
-  const out = [];
+  const out: { text: string, en: string, id: string }[] = [];
   const seen = new Set();
   for (const it of items) {
     for (const { unit } of unitsOf(it)) {
@@ -1470,7 +1319,7 @@ const OWN = OWN_CARDS
    in stored data is used once, to delete the document it named.
    ------------------------------------------------------------------ */
 
-const LEGACY_SYNC_KEYS = new Set();
+const LEGACY_SYNC_KEYS = new Set<string>();
 
 
 /* ------------------------------------------------------------------
@@ -1512,8 +1361,7 @@ export const WRONG_VERDICT = "Incorrect. The correct answer is:";
 /* Giving up is not getting it wrong: nothing was offered to be incorrect.
    The answer is simply handed over. */
 export const SKIPPED_VERDICT = "The answer is:";
-/** @param {number} n */
-export function praiseFor(n) {
+export function praiseFor(n: number) {
   return PRAISE[((n % PRAISE.length) + PRAISE.length) % PRAISE.length];
 }
 
@@ -1526,8 +1374,7 @@ export function praiseFor(n) {
 
    Renders nothing — not even the invitation — when there is nothing to
    put in it, so "Learn more" is never a promise the box cannot keep. */
-/** @param {{ children?: Node, open?: boolean, onToggle?: () => void }} props */
-function AlsoBox({ children, open, onToggle }) {
+function AlsoBox({ children, open, onToggle }: { children?: Node; open?: boolean; onToggle?: () => void }) {
   const shown = React.Children.toArray(children).filter(Boolean);
   if (!shown.length) return null;
   return (
@@ -1551,8 +1398,7 @@ function AlsoBox({ children, open, onToggle }) {
   );
 }
 
-/** @param {{ pairs: any[], settings: Settings }} props */
-function RelatedWords({ pairs, settings }) {
+function RelatedWords({ pairs, settings }: { pairs: any[]; settings: Settings }) {
   if (!pairs || !pairs.length) return null;
   const lang = langOf(settings);
   const group = groupAttrOf(lang);
@@ -1581,8 +1427,7 @@ function RelatedWords({ pairs, settings }) {
 
 /* Open, because the loops below add a name per grammatical field and per
    language, and a column heading is whatever the file happened to say. */
-/** @type {Record<string, string>} */
-const FIELD_ALIASES = {
+const FIELD_ALIASES: Record<string, string> = {
   ar: "ar", arabic: "ar", script: "ar",
   lat: "lat", latin: "lat", tr: "lat", translit: "lat", transliteration: "lat", roman: "lat",
   en: "en", eng: "en", english: "en", meaning: "en", translation: "en",
@@ -1599,8 +1444,7 @@ for (const f of grammarFields()) FIELD_ALIASES[f] = f;
 /* And every language answers to what it calls its own columns — "Hebrew",
    "Pronunciation note" — so a table headed in the language's own terms is
    read as a table. Only "Arabic" was written in above, by hand. */
-/** @type {(label: unknown) => string} */
-const aliasKey = (label) => String(label || "").toLowerCase().replace(/[^a-z]/g, "");
+const aliasKey: (label: unknown) => string = (label) => String(label || "").toLowerCase().replace(/[^a-z]/g, "");
 for (const L of Object.values(LANGUAGES)) {
   if (L.scriptLabel) FIELD_ALIASES[aliasKey(L.scriptLabel)] = "ar";
   if (L.translitLabel) FIELD_ALIASES[aliasKey(L.translitLabel)] = "lat";
@@ -1611,21 +1455,18 @@ const FIELD_ORDER = ["en", "ar", "lat", "tags", "note"].concat(grammarFields());
    learnt: a markdown table with the language's own column names and two
    rows from its pack, and the same rows as a bare placeholder. It used to
    be an Arabic table for everyone. */
-/** @param {Lang} L */
-function sampleTable(L) {
+function sampleTable(L: Lang) {
   const rows = L.sample || [];
   const head = ["English", L.scriptLabel, L.translitLabel, "Decks"];
   const decks = ["class 12 june", "numbers"];
-  /** @type {(cells: string[]) => string} */
-  const line = (cells) => `| ${cells.join(" | ")} |`;
+  const line: (cells: string[]) => string = (cells) => `| ${cells.join(" | ")} |`;
   return [
     line(head),
     line(head.map((h) => "-".repeat(h.length))),
     ...rows.map((r, i) => line([r.en, r.ar, r.lat || "", decks[i] || ""])),
   ].join("\n");
 }
-/** @param {Lang} L */
-function samplePlaceholder(L) {
+function samplePlaceholder(L: Lang) {
   return (L.sample || [])
     .map((r, i) => [r.en, r.ar, r.lat, i === 0 ? "class 12 june" : ""].filter(Boolean).join(" | "))
     .join("\n");
@@ -1633,13 +1474,11 @@ function samplePlaceholder(L) {
 const MD_SEPARATOR = /^:?-+:?$/;
 const ESC = "\u0000";
 
-/** @param {string} line */
-function splitRow(line) {
+function splitRow(line: string) {
   return (line.includes("\t") ? line.split("\t") : line.split("|")).map((p) => p.trim());
 }
 
-/** @param {string} cell */
-function stripMd(cell) {
+function stripMd(cell: string) {
   return cell
     .split(ESC)
     .join("|")
@@ -1650,8 +1489,7 @@ function stripMd(cell) {
     .trim();
 }
 
-/** @param {string} line */
-function mdCells(line) {
+function mdCells(line: string) {
   return line
     .replace(/\\\|/g, ESC)
     .replace(/^\|/, "")
@@ -1660,8 +1498,7 @@ function mdCells(line) {
     .map(stripMd);
 }
 
-/** @param {string} [line] */
-function isSeparatorLine(line) {
+function isSeparatorLine(line?: string) {
   if (!line) return false;
   const t = line.trim();
   if (!t.startsWith("|")) return false;
@@ -1669,11 +1506,7 @@ function isSeparatorLine(line) {
   return cells.length > 0 && cells.every((c) => MD_SEPARATOR.test(c));
 }
 
-/**
- * @param {string[]} cells
- * @returns {string[] | null}
- */
-function readHeader(cells) {
+function readHeader(cells: string[]): string[] | null {
   if (cells.length < 2) return null;
   const map = cells.map((c) => FIELD_ALIASES[c.toLowerCase().replace(/[^a-z]/g, "")]);
   return map.every(Boolean) ? map : null;
@@ -1683,32 +1516,33 @@ function readHeader(cells) {
  * A row read out of a pasted table: the fields every card has, plus
  * whichever grammatical fields the language declares, which is why the
  * type is open.
- * @typedef {Record<string, any> & { ar: string, lat: string, en: string, note: string, tags: string[] }} ParsedRow
  */
+type ParsedRow = Record<string, any> & {
+  ar: string;
+  lat: string;
+  en: string;
+  note: string;
+  tags: string[];
+};
+/**
 /**
  * `skipped` rides on the array because the importer wants both the rows
  * and the count of lines that held nothing, and the callers all read the
  * rows first.
- * @param {string} text
- * @param {string[]} [knownTags]
- * @returns {ParsedRow[] & { skipped?: number }}
  */
-function parseLines(text, knownTags = []) {
-  /** @type {ParsedRow[] & { skipped?: number }} */
-  const out = [];
+function parseLines(text: string, knownTags: string[] = []): ParsedRow[] & { skipped?: number } {
+  const out: ParsedRow[] & { skipped?: number } = [];
   const known = new Set(knownTags.map((t) => t.toLowerCase()));
   const lines = String(text).split(/\r?\n/);
   const mdMode = lines.some((l) => l.trim().startsWith("|"));
-  /** @type {string[] | null} */
-  let order = null;
+  let order: string[] | null = null;
   let skipped = 0;
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li].trim();
     if (!line || line.startsWith("#")) continue;
 
-    /** @type {string[]} */
-    let cells;
+    let cells: string[];
     if (mdMode) {
       if (!line.startsWith("|")) continue;
       if (isSeparatorLine(line)) continue;
@@ -1730,13 +1564,11 @@ function parseLines(text, knownTags = []) {
       }
     }
 
-    /** @type {Record<string, string>} */
-    const row = { ar: "", lat: "", en: "", tags: "", note: "" };
+    const row: Record<string, string> = { ar: "", lat: "", en: "", tags: "", note: "" };
     for (const f of grammarFields()) row[f] = "";
-    /** @type {{ value: string, i: number }[]} */
-    const loose = [];
+    const loose: { value: string, i: number }[] = [];
 
-    cells.forEach((/** @type {string} */ cell, /** @type {number} */ i) => {
+    cells.forEach((cell: string, i: number) => {
       const m = cell.match(/^([A-Za-z]+)\s*[:=]\s*([\s\S]*)$/);
       const key = m && FIELD_ALIASES[m[1].toLowerCase()];
       if (key) row[key] = m[2].trim();
@@ -1812,11 +1644,7 @@ function parseLines(text, knownTags = []) {
 const V2_MAP = { mean: "ar2en", write: "en2ar" };
 const OLD_INTERVALS = [0, 1, 2, 4, 9, 21];
 
-/**
- * @param {Record<string, any> | null | undefined} s
- * @returns {ExerciseState}
- */
-function liftState(s) {
+function liftState(s: Record<string, any> | null | undefined): ExerciseState {
   if (!s) return freshState();
   if (s.phase) return { ...freshState(), ...s };
   const box = s.box || 0;
@@ -1831,11 +1659,7 @@ function liftState(s) {
   };
 }
 
-/**
- * @param {Record<string, any>} [old]
- * @returns {Record<string, ExerciseState>}
- */
-function liftStates(old = {}) {
+function liftStates(old: Record<string, any> = {}): Record<string, ExerciseState> {
   const s = freshStates();
   for (const [oldKey, newKey] of Object.entries(V2_MAP)) {
     /* `newKey in s` because s starts from the types that exist: without it a
@@ -1847,18 +1671,41 @@ function liftStates(old = {}) {
   return s;
 }
 
-/** @param {Record<string, any>} it */
-function liftItem(it) {
+/*
+ * Grammar, from the form down onto the answers.
+ *
+ * The one-time migration. Gender and number used to sit on the form, one
+ * set for the whole card, which was a label that described one accepted
+ * answer and lied about any other that differed — see answers.ts. Read
+ * here, at the door, so a document written before the change is the new
+ * shape by the time anything else sees it; a document written since passes
+ * through unchanged, because reading its own answers back is what
+ * answersOf already does.
+ *
+ * The flat values stay on the form as well. Nothing is gained by stripping
+ * them — the server still sends them, an export still has a column for
+ * them, and a card that lost them on this device would sync that loss to
+ * one still running the old build.
+ */
+function liftAnswers(form: Record<string, any>): Record<string, any> {
+  const fields = answerFields();
+  return {
+    ...dimValues(form),
+    ...packAnswers(answersOf(form, fields), fields),
+  };
+}
+
+function liftItem(it: Record<string, any>) {
   return {
     ...it,
     tags: Array.isArray(it.tags) ? it.tags : [],
     locked: !!it.locked,
     flags: it.flags || [],
     recs: it.recs || [],
-    ...dimValues(it),
-    subs: (it.subs || []).map((/** @type {Record<string, any>} */ sb) => ({
+    ...liftAnswers(it),
+    subs: (it.subs || []).map((sb: Record<string, any>) => ({
       ...sb,
-      ...dimValues(sb),
+      ...liftAnswers(sb),
       recs: sb.recs || [],
       s: liftStates(sb.s),
     })),
@@ -1868,7 +1715,7 @@ function liftItem(it) {
        empty list on every word in the app. */
     ...(it.lines
       ? {
-          lines: (it.lines || []).map((/** @type {Record<string, any>} */ ln) => ({
+          lines: (it.lines || []).map((ln: Record<string, any>) => ({
             ...ln,
             who: Number(ln.who) || 0,
             uses: ln.uses || [],
@@ -1881,8 +1728,7 @@ function liftItem(it) {
   };
 }
 
-/** @param {Record<string, any> | null | undefined} parsedIn */
-function merge(parsedIn) {
+function merge(parsedIn: Record<string, any> | null | undefined) {
   /* A stored or imported document never carries an account: the sync
      secret belongs to this device's sign-in, not to the data. */
   const { account: _dropped, ...parsed } = parsedIn || {};
@@ -1929,9 +1775,8 @@ async function loadData() {
 }
 
 /* Stored sparse: states that have never been answered are left out and
-   put back on load. See compactItem in sync.js for why. */
-/** @param {Doc} data */
-async function saveData(data) {
+   put back on load. See compactItem in sync.ts for why. */
+async function saveData(data: Doc) {
   if (!window.storage) return false;
   try {
     const slim = { ...data, items: (data.items || []).map(compactItem) };
@@ -1956,8 +1801,7 @@ async function saveData(data) {
    rather than judging it.
    ------------------------------------------------------------------ */
 
-/** @type {AudioContext | null} */
-let audioCtx = null;
+let audioCtx: AudioContext | null = null;
 let lastSound = 0;
 
 /*
@@ -1982,21 +1826,19 @@ let soundGain = SOUND_LEVELS.loud;
  * working — and it maps to loud rather than soft because the whole reason
  * this became a choice is that on was too quiet.
  */
-/** @param {unknown} value */
-export function soundLevelOf(value) {
+export function soundLevelOf(value: unknown) {
   if (value === false || value === "off") return "off";
   if (value === "soft") return "soft";
   return "loud";
 }
 
-/** @param {string | boolean} level */
-export function setSounds(level) {
+export function setSounds(level: string | boolean) {
   soundGain = SOUND_LEVELS[soundLevelOf(level)];
 }
 
 function ctx() {
   if (typeof window === "undefined") return null;
-  const Ctx = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
+  const Ctx = window.AudioContext || (window as any).webkitAudioContext;
   if (!Ctx) return null;
   if (!audioCtx) audioCtx = new Ctx();
   // Browsers start it suspended until you've interacted with the page.
@@ -2006,17 +1848,16 @@ function ctx() {
 
 /* One note: a shaped blip with an optional pitch slide. */
 /**
- * @param {AudioContext} c
- * @param {{
- *   freq: number,
- *   at?: number,
- *   dur?: number,
- *   type?: OscillatorType,
- *   peak?: number,
- *   to?: number,
- * }} shape `to` glides the pitch there across the note's length.
+ * @param shape  `to` glides the pitch there across the note's length.
  */
-function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
+function note(c: AudioContext, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }: {
+  freq: number;
+  at?: number;
+  dur?: number;
+  type?: OscillatorType;
+  peak?: number;
+  to?: number;
+}) {
   const level = peak * (soundGain || 0);
   /* exponentialRampToValueAtTime cannot reach zero, and the ramps below
      start and end at 0.0001 — so a peak at or under that is not quiet, it
@@ -2044,8 +1885,7 @@ function note(c, { freq, at = 0, dur = 0.12, type = "sine", peak = 0.07, to }) {
 /* Exported so the smoke run can add up what each one schedules and fail if
    the total would clip. There is no OfflineAudioContext outside a browser,
    so what it renders them against is a stub that records the notes. */
-/** @type {Record<string, (c: AudioContext) => void>} */
-export const SOUNDS = {
+export const SOUNDS: Record<string, (c: AudioContext) => void> = {
   /* Four notes up a major triad with the top one held, so it arrives, goes
      somewhere and lands rather than being over before it registers. Still
      pleased rather than triumphant: it plays after every right answer and
@@ -2098,8 +1938,7 @@ export const SOUNDS = {
   },
 };
 
-/** @param {string} kind */
-function sfx(kind) {
+function sfx(kind: string) {
   if (!soundGain || !SOUNDS[kind]) return;
   // Rate limit, so a fast run of answers doesn't turn into a chirp storm.
   const t = Date.now();
@@ -2129,8 +1968,7 @@ function sfx(kind) {
 
 const DB_NAME = "arabic-trainer";
 const DB_STORE = "clips";
-/** @type {Promise<IDBDatabase | null> | null} */
-let dbPromise = null;
+let dbPromise: Promise<IDBDatabase | null> | null = null;
 
 /* How long a cold open may take. Safari's first open of a database on a
    fresh profile can run past a few seconds; giving up sooner used to send
@@ -2144,8 +1982,7 @@ function openClipDb() {
       if (typeof indexedDB === "undefined") return resolve(null);
       const req = indexedDB.open(DB_NAME, 1);
       let settled = false;
-      /** @param {IDBDatabase | null} db */
-      const settle = (db) => {
+      const settle = (db: IDBDatabase | null) => {
         if (settled) return;
         settled = true;
         resolve(db);
@@ -2179,12 +2016,7 @@ function openClipDb() {
  * rather than throwing: a browser with the database walled off (private
  * browsing, a blocked origin) has to leave the app working, not stop it.
  */
-/**
- * @param {IDBTransactionMode} mode
- * @param {(store: IDBObjectStore) => IDBRequest | void} fn
- * @returns {Promise<any>}
- */
-function idbRun(mode, fn) {
+function idbRun(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest | void): Promise<any> {
   return openClipDb().then(
     (db) =>
       new Promise((resolve) => {
@@ -2208,11 +2040,7 @@ function idbRun(mode, fn) {
 
 /* --- conversions --- */
 
-/**
- * @param {Blob} blob
- * @returns {Promise<string>}
- */
-function blobToBase64(blob) {
+function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((res, rej) => {
     const r = new FileReader();
     r.onload = () => res(String(r.result));
@@ -2221,8 +2049,7 @@ function blobToBase64(blob) {
   });
 }
 
-/** @param {unknown} dataUrl */
-function base64ToBlob(dataUrl) {
+function base64ToBlob(dataUrl: unknown) {
   const [head, body] = String(dataUrl).split(",");
   const mime = (head.match(/data:([^;]+)/) || [])[1] || "audio/webm";
   const bin = atob(body || "");
@@ -2233,11 +2060,7 @@ function base64ToBlob(dataUrl) {
 
 /* --- the API the rest of the app uses --- */
 
-/**
- * @param {string} id
- * @param {Blob} blob
- */
-async function saveClipBlob(id, blob) {
+async function saveClipBlob(id: string, blob: Blob) {
   const ok = await idbRun("readwrite", (st) => st.put(blob, id));
   if (ok !== undefined) return true;
   // No IndexedDB: fall back to the text store.
@@ -2251,12 +2074,10 @@ async function saveClipBlob(id, blob) {
 /* Clips the server has already said it doesn't hold, and when it said so.
    Remembered for a few minutes rather than the whole session: a recording
    published a moment ago can take up to a minute to reach every edge. */
-/** @type {Map<string, Millis>} */
-const MISSING_CLIPS = new Map();
+const MISSING_CLIPS: Map<string, Millis> = new Map();
 const MISSING_FOR_MS = 5 * 60000;
 
-/** @param {string} id */
-function knownMissing(id) {
+function knownMissing(id: string) {
   const at = MISSING_CLIPS.get(id);
   if (at === undefined) return false;
   if (now() - at > MISSING_FOR_MS) {
@@ -2267,11 +2088,7 @@ function knownMissing(id) {
 }
 
 /* What this device holds, and nothing else: no network, no side effects. */
-/**
- * @param {string} id
- * @returns {Promise<Blob | null>}
- */
-async function localClipBlob(id) {
+async function localClipBlob(id: string): Promise<Blob | null> {
   const found = await idbRun("readonly", (st) => st.get(id));
   if (found) return found;
   try {
@@ -2284,8 +2101,7 @@ async function localClipBlob(id) {
 }
 
 /* Is it here? Answered from the key alone, without reading the bytes. */
-/** @param {string} id */
-async function hasClipLocal(id) {
+async function hasClipLocal(id: string) {
   const key = await idbRun("readonly", (st) => st.getKey(id));
   if (key !== undefined && key !== null) return true;
   try {
@@ -2297,14 +2113,12 @@ async function hasClipLocal(id) {
 }
 
 /* The recording as a data URL, for sending to the sync store. */
-/** @param {string} id */
-async function clipDataUrl(id) {
+async function clipDataUrl(id: string) {
   const blob = await localClipBlob(id);
   return blob ? blobToBase64(blob) : null;
 }
 
-/** @param {string} id */
-async function clipBlob(id) {
+async function clipBlob(id: string) {
   const here = await localClipBlob(id);
   if (here) return here;
 
@@ -2339,14 +2153,12 @@ async function clipBlob(id) {
 /* A playable URL. Made for one player and handed back to it; the player
    revokes it when it is done. Keeping one alive per clip for the life of
    the app kept every recording in memory once it had been touched. */
-/** @param {string} id */
-async function clipUrl(id) {
+async function clipUrl(id: string) {
   const blob = await clipBlob(id);
   return blob ? URL.createObjectURL(blob) : null;
 }
 
-/** @param {string} id */
-async function dropClip(id) {
+async function dropClip(id: string) {
   await idbRun("readwrite", (st) => st.delete(id));
   try {
     await window.storage.delete(AUDIO_KEY(id));
@@ -2365,11 +2177,13 @@ async function clipStats() {
 /* Fetch whatever recordings the given ids name that aren't here yet, a few
    at a time. Used to warm a session before it starts and, from Account
    settings, to take a whole course offline. */
-/**
- * @param {Iterable<string>} ids
- * @param {{ concurrency?: number, onProgress?: (done: number, fetched: number) => void }} [opts]
- */
-async function warmClips(ids, { concurrency = 3, onProgress } = {}) {
+async function warmClips(
+  ids: Iterable<string>,
+  { concurrency = 3, onProgress }: {
+    concurrency?: number;
+    onProgress?: (done: number, fetched: number) => void;
+  } = {},
+) {
   const queue = [...new Set(ids)];
   let done = 0;
   let fetched = 0;
@@ -2393,25 +2207,16 @@ async function warmClips(ids, { concurrency = 3, onProgress } = {}) {
 }
 
 /* Still useful wherever a data URL is what's in hand. */
-/**
- * @param {string} id
- * @param {string} dataUrl
- */
-function saveClip(id, dataUrl) {
+function saveClip(id: string, dataUrl: string) {
   return saveClipBase64(id, dataUrl);
 }
 
-/**
- * @param {string} id
- * @param {string} dataUrl
- */
-async function saveClipBase64(id, dataUrl) {
+async function saveClipBase64(id: string, dataUrl: string) {
   return saveClipBlob(id, base64ToBlob(dataUrl));
 }
 
 /* One-off move of anything left in the old text store. */
-/** @param {string[]} ids */
-async function migrateClips(ids) {
+async function migrateClips(ids: string[]) {
   const db = await openClipDb();
   if (!db) return 0;
   let moved = 0;
@@ -2451,36 +2256,31 @@ const CRC_TABLE = (() => {
   return t;
 })();
 
-/** @param {Uint8Array} bytes */
-function crc32(bytes) {
+function crc32(bytes: Uint8Array) {
   let c = 0xffffffff;
   for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** @param {number} n */
-function u32(n) {
+function u32(n: number) {
   return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
 }
-/** @param {number} n */
-function u16(n) {
+function u16(n: number) {
   return [n & 255, (n >>> 8) & 255];
 }
 
-/** @typedef {{ name: string, blob: Blob }} ZipEntry */
-/**
- * @param {ZipEntry[]} entries
- * @returns {Promise<Blob>}
- */
-async function makeZip(entries) {
+interface ZipEntry {
+  name: string;
+  blob: Blob;
+}
+
+async function makeZip(entries: ZipEntry[]): Promise<Blob> {
   const enc = new TextEncoder();
   /* Blob parts rather than plain byte arrays: they are only ever handed
      to the Blob at the end, and a view onto a shared buffer is a part but
      not a Uint8Array<ArrayBuffer>. */
-  /** @type {BlobPart[]} */
-  const chunks = [];
-  /** @type {BlobPart[]} */
-  const central = [];
+  const chunks: BlobPart[] = [];
+  const central: BlobPart[] = [];
   let offset = 0;
 
   for (const e of entries) {
@@ -2507,7 +2307,7 @@ async function makeZip(entries) {
     offset += local.length + nameBytes.length + data.length;
   }
 
-  const centralSize = central.reduce((n, c) => n + /** @type {Uint8Array} */ (c).length, 0);
+  const centralSize = central.reduce((n, c) => n + (c as Uint8Array).length, 0);
   const end = new Uint8Array([
     0x50, 0x4b, 0x05, 0x06, ...u16(0), ...u16(0),
     ...u16(entries.length), ...u16(entries.length),
@@ -2517,11 +2317,7 @@ async function makeZip(entries) {
   return new Blob([...chunks, ...central, end], { type: "application/zip" });
 }
 
-/**
- * @param {Blob} blob
- * @returns {Promise<ZipEntry[]>}
- */
-async function readZip(blob) {
+async function readZip(blob: Blob): Promise<ZipEntry[]> {
   const buf = new Uint8Array(await blob.arrayBuffer());
   const view = new DataView(buf.buffer);
   const dec = new TextDecoder();
@@ -2538,8 +2334,7 @@ async function readZip(blob) {
 
   const count = view.getUint16(eocd + 10, true);
   let p = view.getUint32(eocd + 16, true);
-  /** @type {ZipEntry[]} */
-  const out = [];
+  const out: ZipEntry[] = [];
 
   for (let i = 0; i < count; i++) {
     if (view.getUint32(p, true) !== 0x02014b50) break;
@@ -2578,8 +2373,7 @@ async function readZip(blob) {
    you have ever made.
    ------------------------------------------------------------------ */
 
-/** @param {string} id */
-const AUDIO_KEY = (id) => `audio-${id}`;
+const AUDIO_KEY = (id: string) => `audio-${id}`;
 
 const RECORD_MIMES = [
   "audio/webm;codecs=opus",
@@ -2610,19 +2404,12 @@ function canRecord() {
 
 
 /* Live capture. Mono, and opus where the browser offers it. */
-/**
- * @param {(blob: Blob) => void} onStop
- * @param {(err: unknown) => void} onError
- */
-function startRecorder(onStop, onError) {
+function startRecorder(onStop: (blob: Blob) => void, onError: (err: unknown) => void) {
   const mime = pickMime();
   let stopped = false;
-  /** @type {MediaRecorder | null} */
-  let rec = null;
-  /** @type {MediaStream | null} */
-  let stream = null;
-  /** @type {Blob[]} */
-  const chunks = [];
+  let rec: MediaRecorder | null = null;
+  let stream: MediaStream | null = null;
+  const chunks: Blob[] = [];
 
   navigator.mediaDevices
     .getUserMedia({
@@ -2663,13 +2450,12 @@ function startRecorder(onStop, onError) {
  * only worth doing for files big enough to matter. Falls back to the
  * original bytes wherever the browser can't oblige.
  */
-/** @param {File} file */
-async function compressAudio(file) {
+async function compressAudio(file: File) {
   const raw = await file.arrayBuffer();
   if (raw.byteLength <= 60000 || !canRecord()) return { blob: file, mime: file.type };
 
   try {
-    const Ctx = window.AudioContext || /** @type {any} */ (window).webkitAudioContext;
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
     const ctx = new Ctx();
     const buf = await ctx.decodeAudioData(raw.slice(0));
     if (buf.duration > MAX_RECORD_MS / 1000) {
@@ -2687,12 +2473,10 @@ async function compressAudio(file) {
       ...(mime ? { mimeType: mime } : {}),
       audioBitsPerSecond: AUDIO_BITRATE,
     });
-    /** @type {Blob[]} */
-    const chunks = [];
+    const chunks: Blob[] = [];
     rec.ondataavailable = (e) => e.data && e.data.size && chunks.push(e.data);
 
-    /** @type {Promise<void>} */
-    const done = new Promise((res) => {
+    const done: Promise<void> = new Promise((res) => {
       rec.onstop = () => res();
     });
     rec.start();
@@ -2711,8 +2495,7 @@ async function compressAudio(file) {
   }
 }
 
-/** @param {number} n */
-function formatBytes(n) {
+function formatBytes(n: number) {
   if (!n) return "—";
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
@@ -2736,7 +2519,7 @@ function useFinePointer() {
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia(query);
-    const onChange = (/** @type {MediaQueryListEvent} */ e) => setFine(e.matches);
+    const onChange = (e: MediaQueryListEvent) => setFine(e.matches);
     if (mq.addEventListener) mq.addEventListener("change", onChange);
     else mq.addListener(onChange);
     return () => {
@@ -2748,14 +2531,18 @@ function useFinePointer() {
 }
 
 /* Detects the phone's own keyboard via the visual viewport shrinking. */
-/** @typedef {{ open: boolean, height: number | null, overlap: number }} SoftKeyboard */
+interface SoftKeyboard {
+  open: boolean;
+  height: number | null;
+  overlap: number;
+}
+
 function useSoftKeyboard() {
-  const [kb, setKb] = useState(/** @type {SoftKeyboard} */ ({ open: false, height: null, overlap: 0 }));
+  const [kb, setKb] = useState<SoftKeyboard>({ open: false, height: null, overlap: 0 });
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    /** @type {SoftKeyboard} */
-    let last = { open: false, height: null, overlap: 0 };
+    let last: SoftKeyboard = { open: false, height: null, overlap: 0 };
     const onChange = () => {
       const open = vv.height / window.innerHeight < 0.78;
       const height = Math.round(vv.height);
@@ -2802,8 +2589,7 @@ function useSoftKeyboard() {
  * KeysButton. A keyboard that owned the state could only put its own toggle
  * below itself, which is where it used to be.
  */
-/** @param {string} [mode] */
-function useKeysOpen(mode = "auto") {
+function useKeysOpen(mode: string = "auto") {
   const fine = useFinePointer();
   /* A fine pointer means a mouse, and a mouse has no keyboard of the
      language being learnt anywhere near it. A phone already has one. */
@@ -2814,19 +2600,16 @@ function useKeysOpen(mode = "auto") {
   }, [wanted]);
   /* Tupled, so the pair destructures the way useState's does rather than
      as the union of its two halves. */
-  return /** @type {const} */ ([open, setOpen]);
+  return ([open, setOpen] as const);
 }
 
-/**
- * @param {{
- *   onKey: (key: string) => void,
- *   onBack: () => void,
- *   onClear: () => void,
- *   onHide: () => void,
- *   lang: Lang,
- * }} props
- */
-function Keyboard({ onKey, onBack, onClear, onHide, lang }) {
+function Keyboard({ onKey, onBack, onClear, onHide, lang }: {
+  onKey: (key: string) => void;
+  onBack: () => void;
+  onClear: () => void;
+  onHide: () => void;
+  lang: Lang;
+}) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   const rows = L.keys.rows;
   const extras = L.keys.extras;
@@ -2879,13 +2662,7 @@ function Keyboard({ onKey, onBack, onClear, onHide, lang }) {
   );
 }
 
-/**
- * @param {React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>} ref
- * @param {string} value
- * @param {(next: string) => void} setValue
- * @param {string} ch
- */
-function caretInsert(ref, value, setValue, ch) {
+function caretInsert(ref: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>, value: string, setValue: (next: string) => void, ch: string) {
   const el = ref.current;
   if (!el) return setValue(value + ch);
   const s = el.selectionStart == null ? value.length : el.selectionStart;
@@ -2904,12 +2681,7 @@ function caretInsert(ref, value, setValue, ch) {
   });
 }
 
-/**
- * @param {React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>} ref
- * @param {string} value
- * @param {(next: string) => void} setValue
- */
-function caretBackspace(ref, value, setValue) {
+function caretBackspace(ref: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>, value: string, setValue: (next: string) => void) {
   const el = ref.current;
   if (!el) return setValue(value.slice(0, -1));
   const s = el.selectionStart == null ? value.length : el.selectionStart;
@@ -2935,8 +2707,7 @@ function caretBackspace(ref, value, setValue) {
    ------------------------------------------------------------------ */
 
 /* The target language's own script, however it is written. */
-/** @param {{ text?: string, kind?: string, lang?: Lang, name?: string }} props */
-function Arabic({ text, kind, lang, name }) {
+function Arabic({ text, kind, lang, name }: { text?: string; kind?: string; lang?: Lang; name?: string }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   return (
     <p
@@ -2953,10 +2724,8 @@ function Arabic({ text, kind, lang, name }) {
 
 /* One shared empty array, so a card with no recordings hands the player
    the same value every render and does not restart it. */
-/** @type {any[]} */
-const NO_RECS = [];
+const NO_RECS: any[] = [];
 
-/** @param {{ recs?: any[], autoPlay?: boolean }} props */
 /*
  * Which speed a question leads with.
  *
@@ -2975,11 +2744,9 @@ const NO_RECS = [];
  * and either can be pressed.
  */
 /**
- * @param {Form} unit
- * @param {string} [type] The exercise being asked, when it is a listening one.
- * @returns {"regular" | "slow"}
+ * @param type  The exercise being asked, when it is a listening one.
  */
-export function leadSpeed(unit, type) {
+export function leadSpeed(unit: Form, type?: string): "regular" | "slow" {
   const states = statesOf(unit);
   const asked = type && isListening(type) ? [type] : Object.keys(states).filter(isListening);
   if (!asked.length) return "slow";
@@ -2990,14 +2757,14 @@ export function leadSpeed(unit, type) {
   return grown ? "regular" : "slow";
 }
 
-/**
- * @param {{ recs?: any[], autoPlay?: boolean, lead?: "regular" | "slow" }} props
- */
-function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
+function AudioPrompt({ recs, autoPlay, lead = "regular" }: {
+  recs?: any[];
+  autoPlay?: boolean;
+  lead?: "regular" | "slow";
+}) {
   const [idx, setIdx] = useState(0);
   const [state, setState] = useState("idle");
-  /** @type {React.MutableRefObject<HTMLAudioElement | null>} */
-  const audioRef = useRef(null);
+  const audioRef: React.MutableRefObject<HTMLAudioElement | null> = useRef(null);
   const urlRef = useRef("");
   const list = recs || NO_RECS;
   /* Which recordings this is showing, as one string, so the reset below
@@ -3015,8 +2782,7 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
    */
   const iReg = list.findIndex((r) => r.speed !== "slow");
   const iSlow = list.findIndex((r) => r.speed === "slow");
-  /** @type {{ i: number, slow: boolean }[]} */
-  const takes = [];
+  const takes: { i: number, slow: boolean }[] = [];
   if (iReg >= 0) takes.push({ i: iReg, slow: false });
   if (iSlow >= 0) takes.push({ i: iSlow, slow: true });
   /* A card with nothing but slow recordings would otherwise show none. */
@@ -3045,7 +2811,7 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
   };
 
   const play = useCallback(
-    async (/** @type {number} */ i) => {
+    async (i: number) => {
       const rec = list[i];
       if (!rec) return;
       setState("loading");
@@ -3150,8 +2916,13 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }) {
   );
 }
 
-/** @param {{ value?: string, field?: string, kind?: string, lang?: Lang, name?: string }} props */
-function Field({ value, field, kind, lang, name }) {
+function Field({ value, field, kind, lang, name }: {
+  value?: string;
+  field?: string;
+  kind?: string;
+  lang?: Lang;
+  name?: string;
+}) {
   if (!value) return null;
   if (field === "ar")
     return <Arabic text={value} kind={kind} lang={lang || activeLang()} name={name} />;
@@ -3178,28 +2949,42 @@ function Field({ value, field, kind, lang, name }) {
    answer screen would come to disagree about what a scene looks like.
    ------------------------------------------------------------------ */
 
+/* Which side of the page a turn belongs on, as the class that puts it
+   there. Empty for a scene of three or four, which stays a list — see
+   sidesOf. Written once here because every picture of a scene in this file
+   needs the same answer, and two of them would be two layouts. */
+const sideClass = (card: any, line: any) => {
+  const side = sideOf(card, line && line.who);
+  return side === null ? "" : ` side${side}`;
+};
+
 /**
- * @param {{
- *   card: any,
- *   lines: any[],
- *   lang: Lang,
- *   blankId?: string | null,
- *   meanings?: boolean,
- *   marks?: Record<string, boolean>,
- *   numbers?: Record<string, number>,
- * }} props
+ * @param props  `meanings` and `said` are the two things a line has besides its
+ *   words — what it means and how it sounds. Separate, because reading a
+ *   scene through takes them one at a time and on request.
  */
-function Scene({ card, lines, lang, blankId = null, meanings = false, marks, numbers }) {
+function Scene({ card, lines, lang, blankId = null, meanings = false, said = false, numbers }: {
+  card: any;
+  lines: any[];
+  lang: Lang;
+  blankId?: string | null;
+  meanings?: boolean;
+  said?: boolean;
+  numbers?: Record<string, number>;
+}) {
   return (
     /* Named here rather than through a prop: the reference in Admin is
        built by reading these names out of this file, and a name that
        arrives as a default argument is a name nobody can find. */
-    <div className="at-scene" data-el="scene">
+    <div className={`at-scene${isTwoSided(card) ? " sided" : ""}`} data-el="scene">
       {lines.map((line) => {
-        const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
         const n = numbers && numbers[line.id];
         return (
-          <div className={`at-sceneline${line.id === blankId ? " asked" : ""}${mark}`} key={line.id} data-el="scene-line">
+          <div
+            className={`at-sceneline${sideClass(card, line)}${line.id === blankId ? " asked" : ""}`}
+            key={line.id}
+            data-el="scene-line"
+          >
             <span className={`at-speaker s${(line.who || 0) % 4}`} data-el="scene-speaker">
               {n ? `${n}. ` : ""}
               {speakerName(card, line.who || 0)}
@@ -3211,6 +2996,11 @@ function Scene({ card, lines, lang, blankId = null, meanings = false, marks, num
                 </p>
               ) : (
                 <Arabic text={line.ar} kind="phrase" lang={lang} name="scene-line-text" />
+              )}
+              {said && line.lat && (
+                <p className="at-scenemeaning" data-el="scene-line-said">
+                  {line.lat}
+                </p>
               )}
               {meanings && line.en && (
                 <p className="at-scenemeaning" data-el="scene-line-meaning">
@@ -3238,28 +3028,30 @@ function Scene({ card, lines, lang, blankId = null, meanings = false, marks, num
  * correction anyone wants to make, since an ordering is wrong from the
  * first line that is out of place.
  */
-/**
- * @param {{
- *   card: any,
- *   lang: Lang,
- *   value: string,
- *   onChange: (v: string) => void,
- *   disabled?: boolean,
- * }} props
- */
-function SceneOrder({ card, lang, value, onChange, disabled }) {
+function SceneOrder({ card, lang, value, onChange, disabled }: {
+  card: any;
+  lang: Lang;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
   const picked = value ? value.split(ORDER_SEP) : [];
   const scrambled = useMemo(() => scrambledLines(card), [card]);
-  const place = (/** @type {string} */ id) => picked.indexOf(id) + 1;
+  const place = (id: string) => picked.indexOf(id) + 1;
   return (
     <div className="at-order" data-el="answer-order">
       {scrambled.map((line) => {
         const at = place(line.id);
         return (
+          /* The button keeps the whole width — the tap is the answer, so
+             it stays as big as the thing being answered — and the words
+             inside it take their speaker's side. Whose turn it is is half
+             of what puts a scrambled scene back together, and here it is
+             read at a glance rather than off a name. */
           <button
             type="button"
             key={line.id}
-            className={`at-orderline${at ? " on" : ""}`}
+            className={`at-orderline${sideClass(card, line)}${at ? " on" : ""}`}
             disabled={disabled || !!at}
             aria-label={`${speakerName(card, line.who || 0)}: ${line.ar}`}
             onClick={() => onChange(picked.concat([line.id]).join(ORDER_SEP))}
@@ -3283,70 +3075,11 @@ function SceneOrder({ card, lang, value, onChange, disabled }) {
   );
 }
 
-/*
- * Playing a part.
- *
- * The whole scene, with every turn your speaker takes left to you. All of
- * them at once rather than one after another: a conversation is one thing
- * to hold in your head, and answering it a line at a time with the rest
- * hidden is four questions wearing one coat. It is marked as one thing
- * too — holding up your end means all of it.
- */
-/**
- * @param {{
- *   card: any,
- *   lang: Lang,
- *   value: string,
- *   onChange: (v: string) => void,
- *   disabled?: boolean,
- *   marks?: Record<string, boolean>,
- * }} props
- */
-function ScenePart({ card, lang, value, onChange, disabled, marks }) {
-  const mine = youOf(card);
-  const said = partAnswers(value);
-  const turns = yourLines(card);
-  return (
-    <div className="at-part" data-el="answer-part">
-      {linesOf(card).map((line) => {
-        const at = turns.indexOf(line);
-        const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
-        if ((line.who || 0) !== mine) {
-          return (
-            <div className="at-sceneline" key={line.id}>
-              <span className={`at-speaker s${(line.who || 0) % 4}`}>
-                {speakerName(card, line.who || 0)}
-              </span>
-              <div className="at-scenesaid">
-                <Arabic text={line.ar} kind="phrase" lang={lang} />
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div className={`at-sceneline yours${mark}`} key={line.id}>
-            <span className={`at-speaker s${mine % 4}`}>{speakerName(card, mine)}</span>
-            <div className="at-scenesaid">
-              <input
-                className={`at-input${mark}`}
-                lang={lang.id}
-                dir={lang.direction}
-                readOnly={disabled}
-                value={said[at] || ""}
-                aria-label={`Your turn, line ${at + 1}`}
-                onChange={(e) => {
-                  const next = turns.map((t, i) => (i === at ? e.target.value : said[i] || ""));
-                  onChange(partOf(next));
-                }}
-              />
-              {disabled && line.en && <p className="at-scenemeaning">{line.en}</p>}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+/* Playing a whole part is retired — every turn of a scene typed out at
+   once was the longest answer in the app and the least forgiving, and one
+   missed mark in the third line made the whole conversation wrong. The
+   screen that drew it is gone with it; the spec stays in the table, as a
+   retired spec does, so a stored reference still resolves to a label. */
 
 /*
  * A few answers to choose between, one under the other rather than side by
@@ -3358,17 +3091,14 @@ function ScenePart({ card, lang, value, onChange, disabled, marks }) {
  * phrase — because they are the same question about different material,
  * and two of these would have drifted.
  */
-/**
- * @param {{
- *   options: any[],
- *   lang: Lang,
- *   value: string,
- *   onChange: (v: string) => void,
- *   disabled?: boolean,
- *   kind?: string,
- * }} props
- */
-function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase" }) {
+function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase" }: {
+  options: any[];
+  lang: Lang;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  kind?: string;
+}) {
   return (
     <div className="at-replies" data-el="answer-choices">
       {options.map((option) => (
@@ -3404,8 +3134,7 @@ function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase"
  * else, so any reason given here would be a guess wrong two times in
  * three.
  */
-/** @param {number} courseCount */
-export function noCardsYet(courseCount) {
+export function noCardsYet(courseCount: number) {
   if (!courseCount) return "Join a course and the decks your teacher shares will appear here.";
   const them = courseCount === 1 ? "it" : "them";
   return `You're in ${plural(courseCount, "course")}, but there are no cards in ${them} yet.`;
@@ -3416,23 +3145,20 @@ export function noCardsYet(courseCount) {
  * and the interval follows from that. All that's left is a quiet way to
  * say the check got it wrong, or that something about the item is off.
  */
-/**
- * @param {{
- *   ok?: boolean,
- *   overridden?: boolean,
- *   onOverride: () => void,
- *   onFlag: (kind: FlagKind, note?: string) => void,
- *   flagged?: boolean,
- *   onContinue: () => void,
- * }} props
- */
-function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }) {
+function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }: {
+  ok?: boolean;
+  overridden?: boolean;
+  onOverride: () => void;
+  onFlag: (kind: FlagKind, note?: string) => void;
+  flagged?: boolean;
+  onContinue: () => void;
+}) {
   const [open, setOpen] = useState(false);
   /* Which of the three is being reported, and the words for the one that
      asks for them. Picking no longer sends: the two buttons that act on
      this are on screen from the moment the menu opens, so what a press on
      an option does is choose, and Send is what sends. */
-  const [picked, setPicked] = useState(/** @type {FlagKind | null} */ (null));
+  const [picked, setPicked] = useState<FlagKind | null>(null);
   const [note, setNote] = useState("");
 
   function close() {
@@ -3571,8 +3297,7 @@ function loadTeaches() {
     return false;
   }
 }
-/** @param {boolean} yes */
-function saveTeaches(yes) {
+function saveTeaches(yes: boolean) {
   try {
     localStorage.setItem(TEACHES_KEY, yes ? "1" : "0");
   } catch (e) {
@@ -3595,8 +3320,7 @@ function loadListenOff() {
     return 0;
   }
 }
-/** @param {Millis} until */
-function saveListenOff(until) {
+function saveListenOff(until: Millis) {
   try {
     localStorage.setItem(LISTEN_OFF_KEY, String(until || 0));
   } catch (e) {
@@ -3614,9 +3338,9 @@ export default function ArabicTrainer() {
      to toggle it was removed, and this was left reading as though it
      still worked — so it is always empty and every read below takes
      the unfiltered path. */
-  const [deck] = useState(/** @type {any[]} */ ([]));
-  const [session, setSession] = useState(/** @type {any | null} */ (null)); // { exercises, practice, items }
-  /* A newly deployed build takes the page over by itself — see updates.js.
+  const [deck] = useState<any[]>([]);
+  const [session, setSession] = useState<any | null>(null); // { exercises, practice, items }
+  /* A newly deployed build takes the page over by itself — see updates.ts.
      Mid-question is the one moment where that would land on top of
      something, so a session in flight holds it until the session ends or
      the app is put away. */
@@ -3644,7 +3368,7 @@ export default function ArabicTrainer() {
   const accountAdmin = !!(account && account.admin);
   /* A teacher opens into teaching; everyone else into learning. */
   const [space, setSpace] = useState(() => (loadTeaches() ? "teach" : "learn"));
-  const [screen, setScreen] = useState(/** @type {string | null} */ (null)); // null | "account" | "prefs"
+  const [screen, setScreen] = useState<string | null>(null); // null | "account" | "prefs"
   /* Remembered, because it decides whether the Teaching option exists at all.
      Deriving it only from a fresh network call meant a slow or failed request
      took the space selector away, with no way back but signing out. */
@@ -3662,26 +3386,27 @@ export default function ArabicTrainer() {
      the memos that decide what is drillable run below this line and go
      through enabledTypes, so the flag has to be true before they do. */
   setListenOffUntil(listenOff);
-  const [myCourses, setMyCourses] = useState(/** @type {Course[]} */ ([]));
+  const [myCourses, setMyCourses] = useState<Course[]>([]);
   /* An empty list means two different things until the first pull comes
      back: "not in any course" and "not asked yet". They look the same and
      read very differently to someone who has joined one. */
   const [coursesKnown, setCoursesKnown] = useState(false);
   /* A deck the person asked to practice from the Courses tab, handed to the
      cards tab once it is on screen. */
-  const [deckWanted, setDeckWanted] = useState(/** @type {string | null} */ (null));
-  const [courseDecks, setCourseDecks] = useState(/** @type {Deck[]} */ ([]));
+  const [deckWanted, setDeckWanted] = useState<string | null>(null);
+  const [courseDecks, setCourseDecks] = useState<Deck[]>([]);
   const [courseBusy, setCourseBusy] = useState(false);
   const [courseError, setCourseError] = useState("");
 
   /* Teaching is a role on a course, so it has to be asked about — and the
      material request answers it, so it is no longer asked twice. */
   const [building, setBuilding] = useState(false);
+  const [showingSaved, setShowingSaved] = useState(false);
   /* Which language the session on screen is drawn from: a language id, ""
      for all of them at once, or null for never asked — which is what keeps
      the picker from opening with an answer already marked. It stays on the
      last answer so "Keep going" means more of the same. */
-  const [sessionLang, setSessionLang] = useState(/** @type {LangId | "" | null} */ (null));
+  const [sessionLang, setSessionLang] = useState<LangId | "" | null>(null);
   /* And whether the question is being put. */
   const [picking, setPicking] = useState(false);
   /* The version of course material this device last received. Per device
@@ -3714,25 +3439,28 @@ export default function ArabicTrainer() {
   const [, setNow_] = useState(0);
   const [qi, setQi] = useState(0);
   const [typed, setTyped] = useState("");
-  const [checked, setChecked] = useState(/** @type {any | null} */ (null));
-  const [pairs, setPairs] = useState(/** @type {any[]} */ ([])); // minimal pairs for the answered card
+  const [checked, setChecked] = useState<any | null>(null);
+  const [pairs, setPairs] = useState<any[]>([]); // minimal pairs for the answered card
   const [skipped, setSkipped] = useState(false);
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
+  /* What the reader has asked to see of a scene they are reading through.
+     Two, because they are two different admissions — needing to hear it
+     and needing to be told what it means — and a reader often wants one
+     without the other. Cleared with everything else between questions. */
+  const [showSaid, setShowSaid] = useState(false);
+  const [showMeaning, setShowMeaning] = useState(false);
   /* Closed for every new question. Opening it for one card is not a
      standing request to see it for the next twenty. */
   const [alsoOpen, setAlsoOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [tally, setTally] = useState({ ok: 0, no: 0 });
 
-  /** @type {React.MutableRefObject<ReturnType<typeof setTimeout> | null>} */
-  const timer = useRef(null);
-  /** @type {React.MutableRefObject<HTMLInputElement | null>} */
-  const inputRef = useRef(null);
-  /** @type {React.MutableRefObject<ReturnType<typeof setTimeout> | null>} */
-  const undoTimer = useRef(null);
-  const [lastDeleted, setLastDeleted] = useState(/** @type {Item[] | null} */ (null));
+  const timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
+  const inputRef: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
+  const undoTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
+  const [lastDeleted, setLastDeleted] = useState<Item[] | null>(null);
   /* Every short-lived message the app says, here and in the teaching and
      admin screens below, which reach it through SnackbarProvider. */
   const snack = useSnackbarState();
@@ -3749,8 +3477,7 @@ export default function ArabicTrainer() {
      sync failed, and this holds why. A hole rather than a name, so it
      is clear the value is unread on purpose. */
   const [, setSyncError] = useState("");
-  /** @type {React.MutableRefObject<ReturnType<typeof setTimeout> | null>} */
-  const syncTimer = useRef(null);
+  const syncTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   const syncing = useRef(false);
   const fromSync = useRef(false);
   /* The document as the writers see it. Every change goes through commit()
@@ -3759,7 +3486,7 @@ export default function ArabicTrainer() {
      first course refresh, say — used to each build on the state before the
      other's change and the second silently undid the first. */
   const dataRef = useRef(data);
-  const commit = useCallback((/** @type {Doc} */ next) => {
+  const commit = useCallback((next: Doc) => {
     dataRef.current = next;
     setData(next);
   }, []);
@@ -3771,7 +3498,7 @@ export default function ArabicTrainer() {
   const runSync = useCallback(
     /* Defaulted rather than required: most callers have no token in hand
        and want whatever this device is already signed in with. */
-    async (/** @type {string} */ token = "") => {
+    async (token: string = "") => {
       const key = token || loadSyncConfig().token;
       if (!key || syncing.current) return;
       syncing.current = true;
@@ -3812,7 +3539,7 @@ export default function ArabicTrainer() {
             readLocal: clipDataUrl,
             /* The result is dropped on purpose: a clip that will not save
                locally is a slower next launch, not a failed sync. */
-            writeLocal: async (/** @type {string} */ id, /** @type {string} */ url) => {
+            writeLocal: async (id: string, url: string) => {
               await saveClip(id, url);
             },
             uploaded,
@@ -3963,7 +3690,7 @@ export default function ArabicTrainer() {
      refresh is in flight — grading, flagging — so it builds on what is
      current rather than on the render it was created in. */
   const persist = useCallback(
-    (/** @type {Doc | ((cur: Doc) => Doc | null)} */ nextOrFn) => {
+    (nextOrFn: Doc | ((cur: Doc) => Doc | null)) => {
       const next = typeof nextOrFn === "function" ? nextOrFn(dataRef.current) : nextOrFn;
       if (!next || next === dataRef.current) return;
       commit(next);
@@ -3985,10 +3712,10 @@ export default function ArabicTrainer() {
    * "what can be asked of this" reads it, because a question about a word
    * has to be able to find the phrases that word turns up in.
    */
-  const [preview, setPreview] = useState(/** @type {Item[]} */ ([]));
+  const [preview, setPreview] = useState<Item[]>([]);
   /* And where to put the teacher back down afterwards: the card they
      pressed the button on, and the screen they were looking at it from. */
-  const [trialBack, setTrialBack] = useState(/** @type {any} */ (null));
+  const [trialBack, setTrialBack] = useState<any>(null);
   const items = data.items;
   /* What the question machinery reads: the device's cards, plus anything
      borrowed. Everything else in the app reads `items`, because nothing
@@ -4016,14 +3743,12 @@ export default function ArabicTrainer() {
        nothing to do with each other. Nothing collides in the merge: the
        keys are form ids, and a form is in one language. */
     () => {
-      /** @type {Map<LangId, Item[]>} */
-      const byLang = new Map();
+      const byLang: Map<LangId, Item[]> = new Map();
       for (const it of asking) {
         const id = langIdOf(it, settings);
         byLang.set(id, (byLang.get(id) || []).concat([it]));
       }
-      /** @type {Map<string, any[]>} */
-      const merged = new Map();
+      const merged: Map<string, any[]> = new Map();
       for (const [id, list] of byLang) {
         for (const [unitId, found] of buildContextIndex(list, LANGUAGES[id] || langOf(settings))) {
           merged.set(unitId, found);
@@ -4055,14 +3780,13 @@ export default function ArabicTrainer() {
   }, [items]);
 
   const allTags = useMemo(() => {
-    /** @type {Record<string, number>} */
-  const counts = {};
+  const counts: Record<string, number> = {};
     for (const it of items) for (const t of it.tags || []) counts[t] = (counts[t] || 0) + 1;
     return Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b));
   }, [items]);
 
   const inDeck = useCallback(
-    (/** @type {Item} */ it) => deck.length === 0 || (it.tags || []).some((t) => deck.includes(t)),
+    (it: Item) => deck.length === 0 || (it.tags || []).some((t) => deck.includes(t)),
     [deck]
   );
 
@@ -4071,8 +3795,7 @@ export default function ArabicTrainer() {
     [items, settings, inDeck]
   );
 
-  /** @type {(pool: Item[]) => number} */
-  const countReady = useCallback(
+  const countReady: (pool: Item[]) => number = useCallback(
     (pool) =>
       pool.filter((it) =>
         drillableUnits(it, settings).some(({ unit }) =>
@@ -4095,8 +3818,7 @@ export default function ArabicTrainer() {
    * course ended is still a card in that language.
    */
   const langChoices = useMemo(() => {
-    /** @type {Map<LangId, Item[]>} */
-    const byLang = new Map();
+    const byLang: Map<LangId, Item[]> = new Map();
     for (const it of drillable) {
       const id = langIdOf(it, settings);
       byLang.set(id, (byLang.get(id) || []).concat([it]));
@@ -4131,10 +3853,11 @@ export default function ArabicTrainer() {
    * progress is written when it is answered, and leaving asks nothing,
    * because there is nothing to lose.
    */
-  /**
-   * @param {{ items: Item[], exercise: Question, back?: any }} plan
-   */
-  function tryExercise({ items: material, exercise, back }) {
+  function tryExercise({ items: material, exercise, back }: {
+    items: Item[];
+    exercise: Question;
+    back?: any;
+  }) {
     setPreview(material || []);
     /* Where the teacher was standing when they pressed it. The teaching
        space is unmounted while the question is up — it is a different
@@ -4166,9 +3889,52 @@ export default function ArabicTrainer() {
     setSpace("teach");
   }
 
+  /*
+   * The sessions kept from the Build screen.
+   *
+   * Narrowed on the way out of storage rather than trusted: this rides in
+   * settings, which is an open bag that an older build, a hand-edited
+   * import or a half-finished write can all put something else in — and a
+   * list screen that throws is a learner with no way back to their own
+   * material.
+   */
+  const savedSessions: SavedSession[] = useMemo(() => {
+    const raw = settings.savedSessions;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((x) => x && typeof x.id === "string" && Array.isArray(x.ids) && typeof x.mode === "string")
+      .map((x) => ({
+        id: x.id,
+        name: String(x.name || "Saved session"),
+        ids: x.ids.filter((i: unknown) => typeof i === "string"),
+        mode: x.mode,
+        count: Number(x.count) || 0,
+        minutes: Number(x.minutes) || 0,
+        created: Number(x.created) || 0,
+      }));
+  }, [settings.savedSessions]);
+
+  function keepSession(session: Omit<SavedSession, "id" | "created">) {
+    const kept: SavedSession = {
+      ...session,
+      id: `v${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+      created: now(),
+    };
+    setSetting("savedSessions", savedSessions.concat([kept]));
+    flash(`Saved — it is under Saved sessions`);
+  }
+
+  function dropSession(id: string) {
+    setSetting("savedSessions", savedSessions.filter((x) => x.id !== id));
+  }
+
   /* A session assembled by hand on the Build screen. */
-  /** @param {{ ids: Set<string> | string[], mode: string, count?: number, minutes?: number }} plan */
-  function beginManual({ ids, mode, count, minutes }) {
+  function beginManual({ ids, mode, count, minutes }: {
+    ids: Set<string> | string[];
+    mode: string;
+    count?: number;
+    minutes?: number;
+  }) {
     const built = buildManualSession({ items, settings, ids, mode, count });
     setBuilding(false);
     if (!built.exercises.length) {
@@ -4198,7 +3964,7 @@ export default function ArabicTrainer() {
   const refreshCourses = useCallback(
     /* Three answers, not two: silent, speak only if something moved, or
        speak either way. */
-    async (/** @type {boolean | "changes"} */ announce) => {
+    async (announce: boolean | "changes") => {
       if (!account) return;
       /* A focus and a visibility change arrive together when a tab comes
          back; one refresh at a time is enough. */
@@ -4227,8 +3993,7 @@ export default function ArabicTrainer() {
            and leaving the app on its default meant a Vietnamese course was
            shown in Arabic script, typed on an Arabic keyboard and marked by
            the Arabic rules — which looks exactly like the course not working. */
-        /** @type {string[]} */
-    const courseLangs = [];
+    const courseLangs: string[] = [];
         for (const c of r.courses) {
           if (c.language && LANGUAGES[c.language] && !courseLangs.includes(c.language)) {
             courseLangs.push(c.language);
@@ -4323,8 +4088,7 @@ export default function ArabicTrainer() {
     setSpacesBusy(true);
     try {
       /* Only whether each one settled matters here, not what it returned. */
-      /** @type {Promise<unknown>[]} */
-      const jobs = [runSync()];
+      const jobs: Promise<unknown>[] = [runSync()];
       if (account) jobs.push(refreshCourses("changes"));
       if (account && (teaches || account.admin))
         jobs.push(
@@ -4358,8 +4122,7 @@ export default function ArabicTrainer() {
      Done here on purpose rather than as a side effect of sync, so the first
      sync on a new device no longer downloads every recording in every
      course before it does anything else. */
-  /** @param {{ exercises?: Question[] }} built */
-  function warmSession(built) {
+  function warmSession(built: { exercises?: Question[] }) {
     const ids = [];
     for (const ex of built.exercises || []) {
       const r = resolveUnit(items, ex);
@@ -4369,12 +4132,11 @@ export default function ArabicTrainer() {
   }
 
   /**
-   * @param {boolean} [practice]
-   * @param {LangId | "" | null} [langId] One language, or "" for all of them
+   * @param langId  One language, or "" for all of them
    *   together. Kept for the next session started from here — "Keep going"
    *   means more of what you were just doing.
    */
-  function begin(practice, langId = sessionLang) {
+  function begin(practice?: boolean, langId: LangId | "" | null = sessionLang) {
     setSessionLang(langId || "");
     const pool = langId ? items.filter((it) => langIdOf(it, settings) === langId) : items;
     const built = buildSession({ items: pool, settings, inDeck, practice });
@@ -4400,8 +4162,7 @@ export default function ArabicTrainer() {
   /* Send every card back to the beginning: the cards, forms, decks and
      recordings stay, only what the app has learnt about you goes. */
   function resetScheduling() {
-    /** @type {Item[]} */
-    const cleared = items.map((it) => ({
+    const cleared: Item[] = items.map((it) => ({
       ...it,
       s: freshStates(),
       subs: (it.subs || []).map((sb) => ({ ...sb, s: freshStates() })),
@@ -4420,11 +4181,13 @@ export default function ArabicTrainer() {
     setOverridden(false);
     setFlaggedNow(false);
     setAlsoOpen(false);
+    setShowSaid(false);
+    setShowMeaning(false);
     setHintOpen(settings.showHint);
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
-  const resolved = exercise ? castAnswer(castPart(resolveUnit(asking, exercise), exercise.type), exercise.type) : null;
+  const resolved = exercise ? castAnswer(resolveUnit(asking, exercise), exercise.type) : null;
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);
@@ -4487,6 +4250,10 @@ export default function ArabicTrainer() {
   /* Everything said before this line: the question, in a dialog. What
      comes after would be the answer to a different one. */
   const soFar = dialog && at !== null ? sceneBefore(dialog, at).concat([linesOf(dialog)[at]]) : [];
+  /* Whether the whole scene is on screen. True of the two that are about
+     the conversation rather than about a turn in it: meeting it, and
+     reading it through for yourself. */
+  const whole = !!dialog && !!spec && (!!spec.intro || spec.answerMode === "self");
   /*
    * The few answers on offer, for whichever question offers a few.
    *
@@ -4513,19 +4280,31 @@ export default function ArabicTrainer() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length]);
-  /* Which of your turns came back right, for the answer screen. Worked
-     out once the whole part has been marked, and only then. */
-  const partMarks = useMemo(() => {
-    if (!dialog || !checked || !spec || spec.answerMode !== "part") return undefined;
-    const said = partAnswers(typed);
-    /** @type {Record<string, boolean>} */
-    const out = {};
-    yourLines(dialog).forEach((line, i) => {
-      out[line.id] = qLang.check(said[i] || "", line.ar, qSettings).ok;
-    });
-    return out;
+
+  /*
+   * Which of the accepted answers the learner wrote.
+   *
+   * A card may accept a masculine and a feminine, or a singular and a
+   * plural, and the two are different words with different grammar. The
+   * answer screen has something worth saying about the one they chose —
+   * that it was the feminine — and it can only say it of the answer that
+   * matched. Found through the language's own checker, so "matched" means
+   * here what it means everywhere else: bare letters count, a near miss
+   * does not.
+   *
+   * Only where they typed it. A question answered by tapping one of a few
+   * is already looking at the answer it offered, and a question the
+   * learner gave up on has no answer of theirs to describe.
+   */
+  const gaveAnswer = useMemo(() => {
+    if (!item || !checked || !spec || skipped) return null;
+    if (spec.answerField !== "ar") return null;
+    return answerGiven(typed, item, (given, want) => qLang.check(given, want, qSettings).ok, answerFields());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialog && dialog.id, checked, typed]);
+  }, [item && item.id, checked, typed, skipped, spec && spec.answerField]);
+  /* And what that answer is, grammatically, in this language's words. Empty
+     where the language declares no grammar, or the answer carries none. */
+  const gaveLabel = gaveAnswer ? labelFor(gaveAnswer, qLang) : "";
 
   /* What the answer screen has to say, once there is one.
      `answerRepeated` is whether the right answer is shown under the
@@ -4583,7 +4362,7 @@ export default function ArabicTrainer() {
       flash("Nothing left in this session that works without sound");
       return;
     }
-    setSession((/** @type {Session | null} */ s) => (s ? { ...s, exercises: next } : s));
+    setSession((s: Session | null) => (s ? { ...s, exercises: next } : s));
     /* The question at this index is a different one now, so nothing typed
        against the old one should survive. */
     resetExercise();
@@ -4630,11 +4409,7 @@ export default function ArabicTrainer() {
    * stopping a session over, so the menu closes either way and the pill
    * says which of the two happened.
    */
-  /**
-   * @param {FlagKind} kind
-   * @param {string} [note]
-   */
-  function flagCurrent(kind, note) {
+  function flagCurrent(kind: FlagKind, note?: string) {
     if (!parentItem || !exercise) return;
     const said = String(note || "").slice(0, FLAG_NOTE_MAX);
     setFlaggedNow(true);
@@ -4771,7 +4546,7 @@ export default function ArabicTrainer() {
     }));
 
     if (!correct) {
-      setSession((/** @type {any} */ s2) => ({ ...s2, exercises: s2.exercises.concat([{ ...exercise }]) }));
+      setSession((s2: any) => ({ ...s2, exercises: s2.exercises.concat([{ ...exercise }]) }));
     }
     setQi((i) => i + 1);
     resetExercise();
@@ -4782,8 +4557,7 @@ export default function ArabicTrainer() {
 
   /* ---------------- items ---------------- */
 
-  /** @param {any[]} list */
-  function addItems(list) {
+  function addItems(list: any[]) {
     const fresh = list.filter((p) => p.ar || p.lat || p.en).map(makeItem);
     if (!fresh.length) return 0;
     persist({ ...data, items: items.concat(fresh) });
@@ -4793,11 +4567,7 @@ export default function ArabicTrainer() {
   /* Editing keeps every existing progress record. Sub-items are matched by
      id where they already exist, so correcting a plural's spelling doesn't
      reset what you've learnt about it. */
-  /**
-   * @param {string} id
-   * @param {Record<string, any>} patch
-   */
-  function updateItem(id, patch) {
+  function updateItem(id: string, patch: Record<string, any>) {
     const target = items.find((i) => i.id === id);
     if (target && target.locked && !("locked" in patch)) {
       flash("That card is locked — unlock it first");
@@ -4807,8 +4577,7 @@ export default function ArabicTrainer() {
       ...data,
       items: items.map((i) => {
         if (i.id !== id) return i;
-        /** @type {Item} */
-        const next = { ...i, updated: now() };
+        const next: Item = { ...i, updated: now() };
         for (const [k, v] of Object.entries(patch)) {
           if (k === "subs" || k === "s") continue;
           if (k === "tags") next.tags = cleanTags(v);
@@ -4816,7 +4585,7 @@ export default function ArabicTrainer() {
         }
         if (patch.subs) {
           const old = new Map((i.subs || []).map((x) => [x.id, x]));
-          next.subs = patch.subs.map((/** @type {Record<string, any>} */ draft) => {
+          next.subs = patch.subs.map((draft: Record<string, any>) => {
             const prev = draft.id && old.get(draft.id);
             return prev
               ? {
@@ -4842,17 +4611,12 @@ export default function ArabicTrainer() {
   }
 
   /* Set the same field on many items — used by the bulk bar. */
-  /**
-   * @param {string[]} ids
-   * @param {Record<string, any>} patch
-   */
-  function bulkEdit(ids, patch) {
+  function bulkEdit(ids: string[], patch: Record<string, any>) {
     updateMany(unlockedOf(ids), (i) => ({ ...i, ...patch }));
   }
 
   /* Locked items are left alone by anything that changes them. */
-  /** @param {string[]} ids */
-  function unlockedOf(ids) {
+  function unlockedOf(ids: string[]) {
     const set = new Set(ids);
     const targets = items.filter((i) => set.has(i.id));
     const locked = targets.filter((i) => i.locked).length;
@@ -4860,11 +4624,7 @@ export default function ArabicTrainer() {
     return targets.filter((i) => !i.locked).map((i) => i.id);
   }
 
-  /**
-   * @param {string[]} ids
-   * @param {string} tag
-   */
-  function tagMany(ids, tag) {
+  function tagMany(ids: string[], tag: string) {
     const clean = cleanTags(tag)[0];
     if (!clean) return;
     updateMany(unlockedOf(ids), (i) =>
@@ -4872,18 +4632,13 @@ export default function ArabicTrainer() {
     );
   }
 
-  /**
-   * @param {string[]} ids
-   * @param {boolean} locked
-   */
-  function setLockedMany(ids, locked) {
+  function setLockedMany(ids: string[], locked: boolean) {
     sfx("tick");
     updateMany(ids, (i) => ({ ...i, locked }));
     flash(`${plural(ids.length, "item")} ${locked ? "locked" : "unlocked"}`);
   }
 
-  /** @param {string[]} ids */
-  function removeItems(ids) {
+  function removeItems(ids: string[]) {
     const set = new Set(Array.isArray(ids) ? ids : [ids]);
     const targets = items.filter((i) => set.has(i.id));
     const blocked = targets.filter((i) => i.locked).length;
@@ -4911,11 +4666,7 @@ export default function ArabicTrainer() {
   /* A short message for things quietly refused, so a locked card doesn't
      just silently fail to delete — and for the ones that worked, so a save
      is not answered with silence. The two are told apart by kind. */
-  /**
-   * @param {string} msg
-   * @param {string} [kind]
-   */
-  function flash(msg, kind) {
+  function flash(msg: string, kind?: string) {
     snack.show(msg, kind);
   }
 
@@ -4933,11 +4684,7 @@ export default function ArabicTrainer() {
   }
 
   /* Apply the same change to many items at once. */
-  /**
-   * @param {string[]} ids
-   * @param {(it: Item) => Item} fn
-   */
-  function updateMany(ids, fn) {
+  function updateMany(ids: string[], fn: (it: Item) => Item) {
     const set = new Set(ids);
     persist({
       ...data,
@@ -4945,8 +4692,7 @@ export default function ArabicTrainer() {
     });
   }
 
-  /** @type {(k: string, v: any) => void} */
-  const setSetting = (k, v) =>
+  const setSetting: (k: string, v: any) => void = (k, v) =>
     persist({
       ...data,
       settings: {
@@ -4958,8 +4704,7 @@ export default function ArabicTrainer() {
       settingsUpdated: now(),
     });
 
-  /** @type {(group: string, k: string) => void} */
-  const toggleIn = (group, k) =>
+  const toggleIn: (group: string, k: string) => void = (group, k) =>
     persist({
       ...data,
       settings: { ...settings, [group]: { ...settings[group], [k]: !settings[group][k] } },
@@ -5020,13 +4765,11 @@ export default function ArabicTrainer() {
      document — settings, history and the sync secret included — so an old
      backup wiped everything added since, and someone else's backup signed
      you into their sync. */
-  /** @param {any} parsed */
-  function absorb(parsed) {
+  function absorb(parsed: any) {
     return merge(mergeData(dataRef.current, merge(parsed)));
   }
 
-  /** @param {any} parsed */
-  function confirmImport(parsed) {
+  function confirmImport(parsed: any) {
     const n = (parsed.items || []).length;
     return window.confirm(
       `Merge ${plural(n, "card")} from this file into your collection? ` +
@@ -5034,8 +4777,7 @@ export default function ArabicTrainer() {
     );
   }
 
-  /** @param {File} file */
-  async function importZip(file) {
+  async function importZip(file: File) {
     if (!OWN) return;
     flash("Reading the backup…");
     try {
@@ -5064,8 +4806,7 @@ export default function ArabicTrainer() {
     }
   }
 
-  /** @param {File} file */
-  function importFile(file) {
+  function importFile(file: File) {
     if (!OWN) return;
     if (/\.zip$/i.test(file.name)) return importZip(file);
     const r = new FileReader();
@@ -5104,7 +4845,7 @@ export default function ArabicTrainer() {
     return (
       <div className={`at ${settings.theme || "auto"}`}>
         <React.Suspense fallback={<ChunkFallback />}>
-          <Onboarding onDone={(/** @type {any} */ a) => setAccount(a)} />
+          <Onboarding onDone={(a: any) => setAccount(a)} />
         </React.Suspense>
       </div>
     );
@@ -5140,7 +4881,7 @@ export default function ArabicTrainer() {
          out right-to-left, like Arabic. */
       /* Cast because these are custom properties: React's style type
          knows the CSS properties by name and nothing that starts --. */
-      style={/** @type {React.CSSProperties} */ ({
+      style={({
         "--sdir": qLang.direction || "ltr",
         "--sfont": qLang.fontStack,
         /* And how large that script wants to be against the sizes in the
@@ -5150,7 +4891,7 @@ export default function ArabicTrainer() {
            so the page can reserve the same room underneath its content. */
         "--kb-overlap": `${kb.overlap || 0}px`,
         ...(kbOpen && kb.height ? { minHeight: kb.height } : null),
-      })}
+      } as React.CSSProperties)}
     >
       {/* Everything below here can say something without being handed a
           callback to say it with — the teaching and admin screens above all,
@@ -5235,6 +4976,17 @@ Cards ready to practice
                     </Button>
 
                   </div>
+                  {/* Only once there is one to open. A button that leads to
+                      an empty screen is a promise the app has not kept, and
+                      the way to find this is to save one, which the Build
+                      screen offers where the session is finished. */}
+                  {savedSessions.length > 0 && (
+                    <div className="at-row at-mt3">
+                      <Button variant="ghost" onClick={() => setShowingSaved(true)}>
+                        Saved sessions
+                      </Button>
+                    </div>
+                  )}
 
                   {!readyCount && drillable.length > 0 && (
                     <Help>{nextDueLine(drillable, settings)}</Help>
@@ -5268,7 +5020,7 @@ Cards ready to practice
             {session && session.learnt && session.learnt.length > 0 && qi === 0 && (
               <Help className="at-learntnote">
                 Already learnt, so not in this session:{" "}
-                {session.learnt.map((/** @type {Item} */ x) => x.en || x.ar || x.lat).join(", ")}
+                {session.learnt.map((x: Item) => x.en || x.ar || x.lat).join(", ")}
               </Help>
             )}
 
@@ -5358,35 +5110,50 @@ Cards ready to practice
                   <div className="at-ask" data-el="question-prompt">
                     {spec.promptField === "scene" ? (
                       /* The conversation is the question. How much of it is
-                         shown is the whole difference between the five:
-                         everything up to your turn when you are answering
-                         one, the line itself when you are being asked what
-                         it means, all of it when you are meeting the scene
-                         or holding up your end of it. Putting one in order
-                         and playing a part both show nothing here: in each
+                         shown is the difference between them: everything up
+                         to your turn when you are choosing one, all of it
+                         when you are meeting the scene or reading it
+                         through. Putting one in order shows nothing here:
                          the scene is the thing being answered, and it is
                          down in the box with the answering in it. */
-                      spec.answerMode === "order" || spec.answerMode === "part" ? null : (
-                        <Scene
-                          card={dialog}
-                          lang={qLang}
-                          lines={
-                            spec.intro
-                              ? linesOf(dialog)
-                              : spec.answerMode === "en"
-                              ? [linesOf(dialog)[at || 0]]
-                              : soFar
-                          }
-                          blankId={
-                            spec.answerMode === "ar" || spec.answerMode === "choice"
-                              ? linesOf(dialog)[at || 0].id
-                              : null
-                          }
-                          /* A read-through is the one time the meanings are
-                             on screen beside the words. Everywhere else one
-                             of them is the answer. */
-                          meanings={!!spec.intro}
-                        />
+                      spec.answerMode === "order" ? null : (
+                        <>
+                          <Scene
+                            card={dialog}
+                            lang={qLang}
+                            lines={whole ? linesOf(dialog) : soFar}
+                            blankId={spec.answerMode === "choice" ? linesOf(dialog)[at || 0].id : null}
+                            /* A read-through has the meanings beside the
+                               words; reading one through for yourself has
+                               whichever of them you asked for. Everywhere
+                               else one of them is the answer. */
+                            meanings={!!spec.intro || (whole && showMeaning)}
+                            said={whole && showSaid}
+                          />
+                          {/* Taken when they are needed rather than given.
+                              The script alone is the exercise; each of
+                              these is the reader deciding they have got as
+                              far as they can without it, which is a thing
+                              worth doing rather than a failure. */}
+                          {whole && !spec.intro && (
+                            <div className="at-row at-reveals">
+                              <Button
+                                size="sm"
+                                data-el="reveal-said"
+                                onClick={() => setShowSaid((v) => !v)}
+                              >
+                                {showSaid ? "Hide" : "Show"} the {qLang.translitLabel.toLowerCase()}
+                              </Button>
+                              <Button
+                                size="sm"
+                                data-el="reveal-meaning"
+                                onClick={() => setShowMeaning((v) => !v)}
+                              >
+                                {showMeaning ? "Hide" : "Show"} the meaning
+                              </Button>
+                            </div>
+                          )}
+                        </>
                       )
                     ) : spec.promptField === "audio" ? (
                       /* A context question plays the whole phrase, not the
@@ -5452,15 +5219,22 @@ Cards ready to practice
                         disabled={!!checked}
                         onChange={setTyped}
                       />
-                    ) : spec.answerMode === "part" ? (
-                      <ScenePart
-                        card={dialog}
-                        lang={qLang}
-                        value={typed}
-                        disabled={!!checked}
-                        marks={partMarks}
-                        onChange={setTyped}
-                      />
+                    ) : spec.answerMode === "self" ? (
+                      /* Nobody else was in the room while they read it, so
+                         the only honest marking is theirs. Two answers,
+                         both of them true things a person might say. */
+                      <div className="at-selfmark" data-el="answer-self">
+                        {[SELF_ALL, SELF_SOME].map((answer) => (
+                          <Button
+                            key={answer}
+                            variant={typed === answer ? "primary" : undefined}
+                            disabled={!!checked}
+                            onClick={() => setTyped(answer)}
+                          >
+                            {answer === SELF_ALL ? "Yes, all of it" : "Not all of it"}
+                          </Button>
+                        ))}
+                      </div>
                     ) : spec.picks ? (
                       <TextChoices
                         options={choices}
@@ -5585,6 +5359,19 @@ Cards ready to practice
                             />
                           )}
                         </div>
+                      )}
+                      {/* Which of the accepted answers they wrote, where the
+                          card accepts more than one and they differ in
+                          something the language names. A card taking both
+                          the masculine and the feminine used to answer
+                          "correct" and leave which one they had written
+                          unsaid — and before this the card could not have
+                          told them, because the grammar was one label over
+                          the pair. */}
+                      {gaveLabel && (
+                        <Help data-el="answer-grammar">
+                          {`You wrote the ${gaveLabel} one.`}
+                        </Help>
                       )}
                       {/* Directly under the marked spelling it is talking
                           about. It sat below the Learn more box, which put
@@ -5821,7 +5608,21 @@ Cards ready to practice
             allTags={allTags}
             settings={settings}
             onStart={beginManual}
+            onSave={keepSession}
             onClose={() => setBuilding(false)}
+          />
+        )}
+
+        {showingSaved && (
+          <SavedSessionsSheet
+            sessions={savedSessions}
+            items={items}
+            onStart={(s) => {
+              setShowingSaved(false);
+              beginManual({ ids: s.ids, mode: s.mode, count: s.count, minutes: s.minutes });
+            }}
+            onDelete={dropSession}
+            onClose={() => setShowingSaved(false)}
           />
         )}
 
@@ -5846,12 +5647,12 @@ Cards ready to practice
             languages={LANGUAGES}
             busy={courseBusy}
             error={courseError}
-            onJoin={async (/** @type {string} */ code) => {
+            onJoin={async (code: string) => {
               await API.joinCourse(code);
               await refreshCourses(true);
             }}
             onRefresh={() => refreshCourses(true)}
-            onPractise={(/** @type {string} */ deckTitle) => {
+            onPractise={(deckTitle: string) => {
               /* The cards tab owns its own filter, so ask for it by name and
                  let that tab apply it when it mounts. */
               setDeckWanted(deckTitle);
@@ -5947,7 +5748,7 @@ Cards ready to practice
                 flash("You are now the administrator");
               })
             }
-            onRename={(/** @type {string} */ name) => {
+            onRename={(name: string) => {
               if (!account) return;
               API.rename(name).catch(() => {});
               const merged = { ...account, displayName: name };
@@ -5987,7 +5788,7 @@ Cards ready to practice
             /* Choosing a space is arriving at it, not resuming it: the
                card a trial was asked about is reopened on the way back
                from that one question and nowhere else. */
-            onSpace={(/** @type {string} */ to) => {
+            onSpace={(to: string) => {
               setTrialBack(null);
               setSpace(to);
             }}
@@ -6023,8 +5824,12 @@ Cards ready to practice
    one per tab. The card is looked up again by id, so a screen left open
    shows what was last synced rather than the copy its tile was drawn
    from. */
-/** @param {{ card: Item, items: Item[], onBack: () => void, action?: Node }} props */
-function CardScreen({ card, items, onBack, action }) {
+function CardScreen({ card, items, onBack, action }: {
+  card: Item;
+  items: Item[];
+  onBack: () => void;
+  action?: Node;
+}) {
   const live = items.find((i) => i.id === card.id) || card;
   return (
     <Screen title={live.en || live.ar} onBack={onBack} action={action}>
@@ -6038,7 +5843,7 @@ function CardScreen({ card, items, onBack, action }) {
              two shapes meet. */
           lines: linesOf(live).map((l) => ({
             ...l,
-            clips: (l.recs || []).map((/** @type {{ id: string }} */ r) => r.id),
+            clips: (l.recs || []).map((r: { id: string }) => r.id),
           })),
         }}
         lang={activeLang()}
@@ -6058,27 +5863,6 @@ function CardScreen({ card, items, onBack, action }) {
    ================================================================== */
 
 
-/**
- * @param {{
- *   items: Item[],
- *   allTags: string[],
- *   data: any,
- *   settings: Settings,
- *   courseDecks?: Deck[],
- *   myCourses?: Course[],
- *   deckWanted?: string | null,
- *   onDeckWantedUsed: () => void,
- *   onExportAll: () => void,
- *   onAdd: (items: any[]) => void,
- *   onUpdate: (id: string, patch: any) => void,
- *   onRemove: (id: string) => void,
- *   onRemoveMany: (ids: string[]) => void,
- *   onBulkEdit: (ids: string[], patch: any) => void,
- *   onSetLocked: (ids: string[], locked: boolean) => void,
- *   onTagMany: (ids: string[], tag: string) => void,
- *   onImport: (file: any) => void,
- * }} props The handlers are all required: this tab does nothing on its own, and the one caller passes every one of them.
- */
 function ItemsTab({
   items,
   allTags,
@@ -6097,10 +5881,28 @@ function ItemsTab({
   onSetLocked,
   onTagMany,
   onImport,
+}: {
+  items: Item[];
+  allTags: string[];
+  data: any;
+  settings: Settings;
+  courseDecks?: Deck[];
+  myCourses?: Course[];
+  deckWanted?: string | null;
+  onDeckWantedUsed: () => void;
+  onExportAll: () => void;
+  onAdd: (items: any[]) => void;
+  onUpdate: (id: string, patch: any) => void;
+  onRemove: (id: string) => void;
+  onRemoveMany: (ids: string[]) => void;
+  onBulkEdit: (ids: string[], patch: any) => void;
+  onSetLocked: (ids: string[], locked: boolean) => void;
+  onTagMany: (ids: string[], tag: string) => void;
+  onImport: (file: any) => void;
 }) {
-  const [sheet, setSheet] = useState(/** @type {any | null} */ (null)); // null | "single" | "bulk" | {edit:item}
+  const [sheet, setSheet] = useState<any | null>(null); // null | "single" | "bulk" | {edit:item}
   const [q, setQ] = useState("");
-  const [filterTags, setFilterTags] = useState(/** @type {string[]} */ ([]));
+  const [filterTags, setFilterTags] = useState<string[]>([]);
 
   /* Someone tapped "practice" on a deck elsewhere; show just that deck. */
   useEffect(() => {
@@ -6109,8 +5911,8 @@ function ItemsTab({
     setQ("");
     if (onDeckWantedUsed) onDeckWantedUsed();
   }, [deckWanted, onDeckWantedUsed]);
-  const [selected, setSelected] = useState(/** @type {Set<string>} */ (new Set()));
-  const [confirmId, setConfirmId] = useState(/** @type {any | null} */ (null));
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmId, setConfirmId] = useState<any | null>(null);
 
   useEffect(() => {
     if (!confirmId) return;
@@ -6159,10 +5961,10 @@ function ItemsTab({
     () =>
       OWN
         ? [
-            { label: "Lock", onClick: (/** @type {string[]} */ ids) => onSetLocked(ids, true) },
-            { label: "Unlock", onClick: (/** @type {string[]} */ ids) => onSetLocked(ids, false) },
-            { label: "Add a tag", onClick: (/** @type {string[]} */ ids) => setBulk({ kind: "tag", ids, tag: "" }) },
-            { label: "Delete", danger: true, onClick: (/** @type {string[]} */ ids) => setBulk({ kind: "delete", ids }) },
+            { label: "Lock", onClick: (ids: string[]) => onSetLocked(ids, true) },
+            { label: "Unlock", onClick: (ids: string[]) => onSetLocked(ids, false) },
+            { label: "Add a tag", onClick: (ids: string[]) => setBulk({ kind: "tag", ids, tag: "" }) },
+            { label: "Delete", danger: true, onClick: (ids: string[]) => setBulk({ kind: "delete", ids }) },
           ]
         : [],
     [onSetLocked]
@@ -6170,7 +5972,7 @@ function ItemsTab({
 
   /* Both used to be a browser prompt and a browser confirm — the only two
      places in the app that left it to the browser to ask. */
-  const [bulk, setBulk] = useState(/** @type {any | null} */ (null));
+  const [bulk, setBulk] = useState<any | null>(null);
 
   return (
     <>
@@ -6353,23 +6155,22 @@ function ItemsTab({
 /* Label, RTL input, and an on-screen keyboard that only appears while the
    field is focused — otherwise it dominates every form it sits in.
    preventDefault on mousedown keeps focus when a key is tapped. */
-/**
- * @param {{
- *   label?: Node, hint?: Node, value: string,
- *   onChange: (value: string) => void,
- *   mode?: string, placeholder?: string,
- *   inputRef?: React.MutableRefObject<HTMLInputElement | null>,
- *   lang?: Lang,
- * }} props
- */
-function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef, lang }) {
+function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef, lang }: {
+  label?: Node;
+  hint?: Node;
+  value: string;
+  onChange: (value: string) => void;
+  mode?: string;
+  placeholder?: string;
+  inputRef?: React.MutableRefObject<HTMLInputElement | null>;
+  lang?: Lang;
+}) {
   /* The field already reads the active language for the input's own script
      and direction. The keyboard needs a pack too, and two of the three call
      sites pass none — which used to hand `undefined` to a component that
      reads its rows off it, the moment someone opened the keys. */
   const L = lang || activeLang();
-  /** @type {React.MutableRefObject<any | null>} */
-  const own = useRef(null);
+  const own: React.MutableRefObject<any | null> = useRef(null);
   const ref = inputRef || own;
   const [focused, setFocused] = useState(false);
   const [keysOpen, setKeysOpen] = useKeysOpen(mode);
@@ -6413,8 +6214,7 @@ function ArabicField({ label, hint, value, onChange, mode, placeholder, inputRef
    Recordings editor — one per unit, several clips each
    ------------------------------------------------------------------ */
 
-/** @param {{ rec: any, onPlay: (rec: any) => void | Promise<void> }} props */
-function ClipPlayer({ rec, onPlay }) {
+function ClipPlayer({ rec, onPlay }: { rec: any; onPlay: (rec: any) => void | Promise<void> }) {
   const [busy, setBusy] = useState(false);
   return (
     <button
@@ -6432,20 +6232,19 @@ function ClipPlayer({ rec, onPlay }) {
   );
 }
 
-/** @param {{ recs?: any[], onChange: (recs: any[]) => void, label?: string }} props */
-function RecordingsField({ recs, onChange, label = "Recordings" }) {
+function RecordingsField({ recs, onChange, label = "Recordings" }: {
+  recs?: any[];
+  onChange: (recs: any[]) => void;
+  label?: string;
+}) {
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState("");
   const [working, setWorking] = useState("");
-  /** @type {React.MutableRefObject<any | null>} */
-  /** @type {React.MutableRefObject<ReturnType<typeof startRecorder> | null>} */
-  const handle = useRef(null);
+  const handle: React.MutableRefObject<ReturnType<typeof startRecorder> | null> = useRef(null);
   const started = useRef(0);
-  /** @type {React.MutableRefObject<ReturnType<typeof setInterval> | null>} */
-  const tick = useRef(null);
-  /** @type {React.MutableRefObject<HTMLAudioElement | null>} */
-  const audioRef = useRef(null);
+  const tick: React.MutableRefObject<ReturnType<typeof setInterval> | null> = useRef(null);
+  const audioRef: React.MutableRefObject<HTMLAudioElement | null> = useRef(null);
 
   useEffect(() => () => {
     if (handle.current) handle.current.stop();
@@ -6456,8 +6255,7 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
   }, []);
 
-  /** @param {{ id: string }} rec */
-  async function play(rec) {
+  async function play(rec: { id: string }) {
     const url = await clipUrl(rec.id);
     if (!url) {
       setError("That clip isn't on this device yet");
@@ -6528,8 +6326,7 @@ function RecordingsField({ recs, onChange, label = "Recordings" }) {
     if (handle.current) handle.current.stop();
   }
 
-  /** @param {File} file */
-  async function upload(file) {
+  async function upload(file: File) {
     setError("");
     setWorking("Compressing…");
     try {
@@ -6643,17 +6440,19 @@ const BLANK_SUB = { ar: "", lat: "", en: "", ...dimValues({}), note: "", recs: [
 const BLANK_LINE = { ar: "", lat: "", en: "", who: 0, uses: [], recs: [] };
 
 /**
- * @param {{
- *   mode?: string, initial?: any, allTags: string[],
- *   settings: Settings,
- *   onSave: (item: any) => void,
- *   onClose: () => void,
- *   scene?: boolean,
- *   items?: Item[],
- * }} props `scene` writes a conversation rather than a word; `items` is what
+ * @param props  `scene` writes a conversation rather than a word; `items` is what
  *   the learner already has, for finding which of their words a line uses.
  */
-function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = false, items = [] }) {
+function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = false, items = [] }: {
+  mode?: string;
+  initial?: any;
+  allTags: string[];
+  settings: Settings;
+  onSave: (item: any) => void;
+  onClose: () => void;
+  scene?: boolean;
+  items?: Item[];
+}) {
   const lang = langOf(settings);
   /* Held once: only some languages declare a lexical axis, and reading it
      off the pack at each use makes every one of them a separate question
@@ -6661,8 +6460,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
   const lexical = lang.lexical;
   /* Open, because the grammatical fields dimValues() spreads in differ per
      language and the tags are one editable string here, not a list. */
-  /** @returns {Record<string, any>} */
-  const blank = () => ({
+  const blank = (): Record<string, any> => ({
     ar: "",
     lat: "",
     en: "",
@@ -6696,12 +6494,12 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
           kind: initial.kind || "",
           note: initial.note || "",
           tags: (initial.tags || []).join(", "),
-          subs: (initial.subs || []).map((/** @type {Record<string, any>} */ x) => ({ ...x })),
+          subs: (initial.subs || []).map((x: Record<string, any>) => ({ ...x })),
           ...(scene
             ? {
                 speakers: speakersOf(initial),
                 you: namedPart(initial),
-                lines: linesOf(initial).map((/** @type {Record<string, any>} */ x) => ({ ...x })),
+                lines: linesOf(initial).map((x: Record<string, any>) => ({ ...x })),
               }
             : null),
         }
@@ -6709,24 +6507,23 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
   );
   const [step, setStep] = useState("form");
   // In add mode you can stack up several items and check them together.
-  const [queue, setQueue] = useState(/** @type {any[]} */ ([]));
+  const [queue, setQueue] = useState<any[]>([]);
   // When set, the form is editing that queued item rather than adding a new one.
-  const [editingIndex, setEditingIndex] = useState(/** @type {number | null} */ (null));
-  /** @type {React.MutableRefObject<HTMLInputElement | null>} */
-  const arRef = useRef(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const arRef: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
 
-  const set = (/** @type {string} */ k, /** @type {any} */ v) =>
+  const set = (k: string, v: any) =>
     setDraft((d) => ({ ...d, [k]: v }));
   /* A conversation needs two turns before it is one. One line with a
      reply missing is a phrase card that has been put in the wrong
      editor. */
-  const written = scene ? (draft.lines || []).filter((/** @type {any} */ l) => l.ar.trim()) : [];
+  const written = scene ? (draft.lines || []).filter((l: any) => l.ar.trim()) : [];
   const canSave = scene ? written.length >= 2 : [draft.ar, draft.lat, draft.en].some((v) => v.trim());
 
   /* The words this learner already has, for the links below. Dialogs are
      left out: a scene is not a word that turns up inside another one. */
   const wordCards = useMemo(
-    () => items.filter((/** @type {Item} */ i) => !isDialog(i) && i.ar),
+    () => items.filter((i: Item) => !isDialog(i) && i.ar),
     [items]
   );
   /*
@@ -6738,10 +6535,10 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    * hand what the matcher does better. What it finds is shown under the
    * conversation, so it can be seen to be right.
    */
-  const usesIn = (/** @type {string} */ text) =>
-    wordCards.filter((/** @type {Item} */ w) => !!findWordSpan(text, w.ar, lang));
+  const usesIn = (text: string) =>
+    wordCards.filter((w: Item) => !!findWordSpan(text, w.ar, lang));
 
-  const linked = (/** @type {any[]} */ lines) =>
+  const linked = (lines: any[]) =>
     lines
       .filter((l) => l.ar.trim())
       .map((l) => ({ ...l, uses: usesIn(l.ar).map((w) => w.id) }));
@@ -6770,12 +6567,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
     [queue, draft, canSave]
   );
 
-  /**
-   * @param {number} i
-   * @param {string} k
-   * @param {any} v
-   */
-  function setSub(i, k, v) {
+  function setSub(i: number, k: string, v: any) {
     setDraft((d) => {
       const subs = d.subs.slice();
       subs[i] = { ...subs[i], [k]: v };
@@ -6784,23 +6576,17 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
   }
 
   /* The same, for a turn in a conversation. */
-  /**
-   * @param {number} i
-   * @param {string} k
-   * @param {any} v
-   */
-  function setLine(i, k, v) {
+  function setLine(i: number, k: string, v: any) {
     setDraft((d) => {
-      const lines = d.lines.slice();
+      const lines = (d.lines || []).slice();
       lines[i] = { ...lines[i], [k]: v };
       return { ...d, lines };
     });
   }
 
-  /** @param {Record<string, any>} d */
-  const tidy = (d) => ({
+  const tidy = (d: Record<string, any>) => ({
     ...d,
-    subs: (d.subs || []).filter((/** @type {Record<string, any>} */ x) => x.ar || x.en || x.lat),
+    subs: (d.subs || []).filter((x: Record<string, any>) => x.ar || x.en || x.lat),
     /* Blank turns are dropped and the words each line uses are worked out
        here, on the way to being stored, so a scene edited a week later
        picks up whatever vocabulary has been added since. */
@@ -6832,8 +6618,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
   }
 
   /* Open one of the queued items back up in the form. */
-  /** @param {number} i */
-  function editQueued(i) {
+  function editQueued(i: number) {
     setDraft(queue[i]);
     setEditingIndex(i);
     setStep("form");
@@ -6949,7 +6734,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                 <div className="at-field">
                   <label className="at-label">Who is in it</label>
                   <div className="at-inline">
-                    {draft.speakers.map((/** @type {string} */ name, /** @type {number} */ i) => (
+                    {(draft.speakers || []).map((name: string, i: number) => (
                       <input
                         key={i}
                         className="at-input"
@@ -6959,7 +6744,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                         onChange={(e) =>
                           setDraft((d) => ({
                             ...d,
-                            speakers: d.speakers.map((/** @type {string} */ s, /** @type {number} */ j) =>
+                            speakers: (d.speakers || []).map((s: string, j: number) =>
                               j === i ? e.target.value : s
                             ),
                           }))
@@ -6967,13 +6752,13 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                       />
                     ))}
                   </div>
-                  {draft.speakers.length < MAX_SPEAKERS && (
+                  {(draft.speakers || []).length < MAX_SPEAKERS && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="at-mt2"
                       onClick={() =>
-                        setDraft((d) => ({ ...d, speakers: d.speakers.concat([""]) }))
+                        setDraft((d) => ({ ...d, speakers: (d.speakers || []).concat([""]) }))
                       }
                     >
                       Add someone
@@ -6986,16 +6771,16 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                     label="You play"
                     options={[
                       {
-                        value: /** @type {number | null} */ (null),
-                        label: draft.speakers.length > 2 ? "Any of them" : "Either",
+                        value: (null as number | null),
+                        label: (draft.speakers || []).length > 2 ? "Any of them" : "Either",
                       },
-                      ...draft.speakers.map((/** @type {string} */ n, /** @type {number} */ i) => ({
-                        value: /** @type {number | null} */ (i),
+                      ...(draft.speakers || []).map((n: string, i: number) => ({
+                        value: (i as number | null),
                         label: n || `Speaker ${i + 1}`,
                       })),
                     ]}
                     value={draft.you}
-                    onChange={(/** @type {number | null} */ v) => set("you", v)}
+                    onChange={(v: number | null) => set("you", v)}
                   />
                   <Help>
                     Whose turns are yours to produce when the whole scene is
@@ -7009,30 +6794,30 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
               <div className="at-group">
                 <div className="at-grouphead">
                   <span>The conversation</span>
-                  <span className="opt">{plural(draft.lines.length, "line")}</span>
+                  <span className="opt">{plural((draft.lines || []).length, "line")}</span>
                 </div>
 
-                {draft.lines.map((/** @type {Record<string, any>} */ ln, /** @type {number} */ i) => (
+                {(draft.lines || []).map((ln: Record<string, any>, i: number) => (
                   <div className="at-subedit" key={i}>
                     <div className="at-subedithead">
                       <Segmented
                         label={`Who says line ${i + 1}`}
-                        options={draft.speakers.map((/** @type {string} */ n, /** @type {number} */ j) => ({
+                        options={(draft.speakers || []).map((n: string, j: number) => ({
                           value: j,
                           label: n || `Speaker ${j + 1}`,
                         }))}
                         value={ln.who || 0}
-                        onChange={(/** @type {number} */ v) => setLine(i, "who", v)}
+                        onChange={(v: number) => setLine(i, "who", v)}
                       />
-                      {draft.lines.length > 2 && (
+                      {(draft.lines || []).length > 2 && (
                         <button
                           className="at-x"
                           aria-label={`Remove line ${i + 1}`}
                           onClick={() =>
                             setDraft((d) => ({
                               ...d,
-                              lines: d.lines.filter(
-                                (/** @type {unknown} */ _, /** @type {number} */ j) => j !== i
+                              lines: (d.lines || []).filter(
+                                (_: unknown, j: number) => j !== i
                               ),
                             }))
                           }
@@ -7044,7 +6829,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
 
                     <ArabicField
                       value={ln.ar}
-                      onChange={(/** @type {string} */ v) => setLine(i, "ar", v)}
+                      onChange={(v: string) => setLine(i, "ar", v)}
                       mode={settings.keyboard}
                       inputRef={i === 0 ? arRef : undefined}
                       placeholder={lang.scriptLabel}
@@ -7073,7 +6858,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
 
                     <RecordingsField
                       recs={ln.recs}
-                      onChange={(/** @type {any} */ v) => setLine(i, "recs", v)}
+                      onChange={(v: any) => setLine(i, "recs", v)}
                       label="Recording for this line"
                     />
 
@@ -7082,7 +6867,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                         {usesIn(ln.ar).length ? (
                           <>
                             <span className="at-useslabel">Uses</span>
-                            {usesIn(ln.ar).map((/** @type {Item} */ w) => (
+                            {usesIn(ln.ar).map((w: Item) => (
                               <span className="at-tag" key={w.id}>
                                 {w.ar}
                               </span>
@@ -7105,14 +6890,14 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                   onClick={() =>
                     setDraft((d) => ({
                       ...d,
-                      lines: d.lines.concat([
+                      lines: (d.lines || []).concat([
                         /* Whoever did not speak last, which is what a
                            conversation does on its own. */
                         {
                           ...BLANK_LINE,
                           who:
-                            d.lines.length && d.speakers.length > 1
-                              ? (Number(d.lines[d.lines.length - 1].who || 0) + 1) % d.speakers.length
+                            (d.lines || []).length && (d.speakers || []).length > 1
+                              ? (Number((d.lines || []).at(-1)?.who || 0) + 1) % (d.speakers || []).length
                               : 0,
                         },
                       ]),
@@ -7259,7 +7044,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
               </div>
             ) : (
               <>
-                {draft.subs.map((/** @type {Record<string, any>} */ sb, /** @type {number} */ i) => (
+                {draft.subs.map((sb: Record<string, any>, i: number) => (
                   <div className="at-subedit" key={i}>
                     <div className="at-subedithead">
                       <span className="at-formtag">{labelFor(sb) || "form"}</span>
@@ -7269,7 +7054,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                         onClick={() =>
                           setDraft((d) => ({
                             ...d,
-                            subs: d.subs.filter((/** @type {unknown} */ _, /** @type {number} */ j) => j !== i),
+                            subs: d.subs.filter((_: unknown, j: number) => j !== i),
                           }))
                         }
                       >
@@ -7449,18 +7234,14 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    languages together is a row like the others rather than a switch beside
    them: it is another way to practice, not a modifier on the choice above.
    ------------------------------------------------------------------ */
-/**
- * @param {{
- *   choices: { id: LangId, name: string, ready: number, total: number }[],
- *   ready: number,
- *   chosen: LangId | "" | null,
- *   onPick: (id: LangId | "") => void,
- *   onClose: () => void,
- * }} props
- */
-function SessionLanguages({ choices, ready, chosen, onPick, onClose }) {
-  /** @param {number} n */
-  const waiting = (n) => (n ? `${plural(n, "card")} ready` : "nothing ready just now");
+function SessionLanguages({ choices, ready, chosen, onPick, onClose }: {
+  choices: { id: LangId, name: string, ready: number, total: number }[];
+  ready: number;
+  chosen: LangId | "" | null;
+  onPick: (id: LangId | "") => void;
+  onClose: () => void;
+}) {
+  const waiting = (n: number) => (n ? `${plural(n, "card")} ready` : "nothing ready just now");
   return (
     <Screen title="Which language?" onBack={onClose} rise backLabel="Not now">
       <Help>
@@ -7503,13 +7284,103 @@ function SessionLanguages({ choices, ready, chosen, onPick, onClose }) {
 const COUNT_CHOICES = [10, 20, 30, 50];
 const TIME_CHOICES = [2, 3, 5, 10];
 
-/**
- * @param {{
- *   items: Item[], allTags: string[], settings: Settings,
- *   onStart: (plan: any) => void, onClose: () => void,
- * }} props
- */
-function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
+/* ------------------------------------------------------------------
+   Full-screen: the sessions somebody kept
+
+   A saved session is a description, not a snapshot — which cards, which
+   mode, how long — so what it opens is built from the cards as they are
+   now. That is what makes "Thursday's verbs" worth keeping: the same
+   ground, practised again, with everything edited since included.
+   ------------------------------------------------------------------ */
+
+function SavedSessionsSheet({ sessions, items, onStart, onDelete, onClose }: {
+  sessions: SavedSession[];
+  items: Item[];
+  onStart: (session: SavedSession) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const here = useMemo(() => new Set(items.map((i) => i.id)), [items]);
+
+  /* Newest first: the one somebody just made is the one they are looking
+     for. */
+  const list = [...sessions].sort((a, b) => (b.created || 0) - (a.created || 0));
+
+  return (
+    <Screen title="Saved sessions" onBack={onClose}>
+      {!list.length && (
+        <Empty title="Nothing saved yet">
+          Build a session, and the last step offers to keep it.
+        </Empty>
+      )}
+
+      <div className="at-list">
+        {list.map((s) => {
+          /* How much of it is still here. A card withdrawn since is simply
+             gone from the session, and saying so before it is started is
+             the difference between a short session and a broken one. */
+          const alive = s.ids.filter((id) => here.has(id)).length;
+          const mode = (MODES as Record<string, { label: string } | undefined>)[s.mode];
+          const length = s.minutes
+            ? `${s.minutes} min`
+            : s.count && s.count < 999
+            ? `${s.count} questions`
+            : "everything";
+          return (
+            <div className="at-item at-sessionrow" key={s.id}>
+              <div className="grow">
+                <div className="en">{s.name}</div>
+                <div className="lat">
+                  {[mode ? mode.label : s.mode, length,
+                    alive === s.ids.length
+                      ? plural(alive, "card")
+                      : `${alive} of ${s.ids.length} cards still here`,
+                  ].join(" · ")}
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!alive}
+                onClick={() => onStart(s)}
+              >
+                Start
+              </Button>
+              <IconButton
+                icon="delete"
+                label={`Forget ${s.name}`}
+                danger
+                onClick={() => onDelete(s.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {list.some((s) => s.ids.some((id) => !here.has(id))) && (
+        <Help className="at-mt3">
+          A session keeps the cards it was built from by name, so one you
+          have since deleted is no longer in it.
+        </Help>
+      )}
+    </Screen>
+  );
+}
+
+function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose }: {
+  items: Item[];
+  allTags: string[];
+  settings: Settings;
+  onStart: (plan: any) => void;
+  onSave: (session: { name: string; ids: string[]; mode: string; count: number; minutes: number }) => void;
+  onClose: () => void;
+}) {
   const [step, setStep] = useState(0);
   /* No mode until one is chosen. A pre-selected card looks like an answer
      already given, so the first screen gets read as "confirm this" rather
@@ -7517,17 +7388,23 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
      is the last one to hand somebody by default. */
   const [mode, setMode] = useState("");
   const [picked, setPicked] = useState(() => new Set());
-  const [openTag, setOpenTag] = useState(/** @type {string | null} */ (null));
+  const [openTag, setOpenTag] = useState<string | null>(null);
   /* "" until one of the two is chosen — the same reason the mode starts
      unset. It used to open on 20 questions already lit, which is a length
      nobody asked for sitting where the answer goes. */
   const [limitKind, setLimitKind] = useState(""); // "" | count | time
   const [count, setCount] = useState(20);
   const [minutes, setMinutes] = useState(5);
+  /* What it would be called, and what was last kept under that name. Held
+     as the description rather than as a flag, so changing the length or
+     the cards after saving offers the button again — what is on screen is
+     no longer what was kept. */
+  const [name, setName] = useState("");
+  const [savedSpec, setSavedSpec] = useState("");
   const [q, setQ] = useState("");
 
   useEffect(() => {
-    const onKey = (/** @type {KeyboardEvent} */ e) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -7563,19 +7440,19 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
     );
   }, [eligible, q]);
 
-  const toggleOne = (/** @type {string} */ id) =>
+  const toggleOne = (id: string) =>
     setPicked((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
 
-  const tagState = (/** @type {Item[]} */ group) => {
+  const tagState = (group: Item[]) => {
     const on = group.filter((i) => picked.has(i.id)).length;
     return on === 0 ? "none" : on === group.length ? "all" : "some";
   };
 
-  const toggleTag = (/** @type {Item[]} */ group) =>
+  const toggleTag = (group: Item[]) =>
     setPicked((prev) => {
       const next = new Set(prev);
       const all = group.every((i) => next.has(i.id));
@@ -7583,11 +7460,13 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
       return next;
     });
 
-  /* Unknown until a mode is picked, and three steps is the safer guess:
-     showing two and then growing a step reads as the app changing its mind
-     about what it asked for. */
+  /* Ultimate is the one mode with no length to choose — it asks everything
+     about everything — but the last step is still there for it, because
+     keeping the session is offered from the same place. Three steps
+     whatever the mode also means the count stops changing under somebody
+     halfway through it. */
   const needsLength = mode !== "ultimate";
-  const steps = needsLength ? ["Mode", "Cards", "Length"] : ["Mode", "Cards"];
+  const steps = ["Mode", "Cards", "Finish"];
   const last = step === steps.length - 1;
 
   const typeCount = typesForMode(mode, settings).length;
@@ -7631,11 +7510,26 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
    * room for them, and the button keeps its verb.
    */
   const LABEL_LIMIT = 26;
-  const onButton = (/** @type {string} */ reason) =>
+  const onButton = (reason: string) =>
     reason && reason.length <= LABEL_LIMIT ? reason : "";
   const spelledOut = [stepProblem, last ? problem : ""].find(
     (r) => r && r.length > LABEL_LIMIT
   );
+
+  /* Named after what it is, so a list of them reads without opening any:
+     the mode is the shape of the session and the count is its size. */
+  const suggestion = mode
+    ? `${(MODES as Record<string, { label: string }>)[mode].label} · ${plural(picked.size, "card")}`
+    : "";
+  const spec = JSON.stringify({
+    name: name.trim() || suggestion,
+    ids: [...picked].sort(),
+    mode,
+    limitKind,
+    count,
+    minutes,
+  });
+  const saved = !!savedSpec && savedSpec === spec;
 
   function start() {
     onStart({
@@ -7716,7 +7610,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
                       </span>
                       <span className="nm">{name}</span>
                       <span className="ct">
-                        {group.filter((/** @type {Item} */ i) => picked.has(i.id)).length}/{group.length}
+                        {group.filter((i: Item) => picked.has(i.id)).length}/{group.length}
                       </span>
                     </button>
                     <button
@@ -7729,7 +7623,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
                   </div>
                   {openTag === name && (
                     <div className="at-tagpickcards">
-                      {group.map((/** @type {Item} */ it) => (
+                      {group.map((it: Item) => (
                         <button
                           key={it.id}
                           className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
@@ -7845,6 +7739,55 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
           </Help>
         </>
       )}
+
+      {/*
+        * Keeping it, which is the other half of what this step is for.
+        *
+        * Building one of these is several minutes of picking, and until now
+        * all of it was spent again the next morning. What is kept is the
+        * description — the cards, the mode, the length — so a card edited
+        * since is practised as it now reads.
+        *
+        * An extra rather than the way on: Start is still the button, and a
+        * session nobody saves behaves exactly as it did.
+        */}
+      {step === 2 && (
+        <div className="at-formblock at-mt5">
+          <FormField
+            label="Keep this session"
+            hint="It will be under Saved sessions, beside Build a session."
+          >
+            <input
+              className="at-input"
+              placeholder={suggestion}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormField>
+          <div className="at-row at-mt3">
+            <Button
+              variant="ghost"
+              icon={saved ? "check" : "save"}
+              disabled={!!problem || saved}
+              onClick={() => {
+                onSave({
+                  name: name.trim() || suggestion,
+                  ids: [...picked] as string[],
+                  mode,
+                  count: limitKind === "count" ? count : 999,
+                  minutes: limitKind === "time" && needsLength ? minutes : 0,
+                });
+                setSavedSpec(spec);
+              }}
+            >
+              {saved ? "Saved" : "Save"}
+            </Button>
+          </div>
+          {/* Which is not the same as having started it: somebody who saves
+              and then leaves has kept the session and practised nothing. */}
+          {saved && <Help>Kept. Start it now, or find it later under Saved sessions.</Help>}
+        </div>
+      )}
     </Screen>
   );
 }
@@ -7856,13 +7799,14 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onClose }) {
 
 
 /* A read-only rendering of what is about to be saved. */
-/**
- * @param {{
- *   item: Item, units: { unit: Form, isSub: boolean }[], index: number, total: number,
- *   onRemove?: () => void, onEdit?: () => void,
- * }} props
- */
-function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
+function ReviewItem({ item, units, index, total, onRemove, onEdit }: {
+  item: Item;
+  units: { unit: Form, isSub: boolean }[];
+  index: number;
+  total: number;
+  onRemove?: () => void;
+  onEdit?: () => void;
+}) {
   const counts = familyCounts(item);
   return (
     <div className="at-reviewgroup">
@@ -7920,7 +7864,7 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
             {unit.note && <p className="at-note">{unit.note}</p>}
 
             <ClipList
-                    clips={(unit.recs || []).map((/** @type {any} */ r, /** @type {number} */ i) => ({
+                    clips={(unit.recs || []).map((r: any, i: number) => ({
                       id: r.id,
                       label: r.label || `Voice ${i + 1}`,
                     }))}
@@ -7975,15 +7919,12 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }) {
    Full-screen: add many, with a review step
    ------------------------------------------------------------------ */
 
-/**
- * @param {{
- *   allTags: string[],
- *   onAdd: (items: any[]) => void,
- *   onImport: (file: File) => void,
- *   onClose: () => void,
- * }} props
- */
-function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
+function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
+  allTags: string[];
+  onAdd: (items: any[]) => void;
+  onImport: (file: File) => void;
+  onClose: () => void;
+}) {
   const [bulk, setBulk] = useState("");
   const [step, setStep] = useState("paste");
   const parsed = useMemo(() => parseLines(bulk, allTags), [bulk, allTags]);
@@ -8133,10 +8074,8 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }) {
 
 /* How far along a whole family is: the mean across every form and every
    exercise type it supports. 1 means every one of them is mature. */
-/** @param {Item} it */
-function itemProgress(it) {
-  /** @type {number[]} */
-  const vals = [];
+function itemProgress(it: Item) {
+  const vals: number[] = [];
   for (const { unit } of unitsOf(it)) {
     for (const t of availableTypes(unit)) {
       const st = statesOf(unit)[t];
@@ -8154,8 +8093,7 @@ function itemProgress(it) {
    small card in the app. A real button rather than a div with a click on
    it: it has nothing interactive inside it, so it can be the one thing
    you press, and reach with a keyboard. */
-/** @param {{ item: Item, progress?: any, onOpen?: () => void }} props */
-function ItemProgressCard({ item, progress, onOpen }) {
+function ItemProgressCard({ item, progress, onOpen }: { item: Item; progress?: any; onOpen?: () => void }) {
   const p = progress === undefined ? itemProgress(item) : progress;
   const done = p !== null && p >= 1;
   const pctLabel = p === null ? "—" : `${Math.round(p * 100)}%`;
@@ -8189,17 +8127,6 @@ function ItemProgressCard({ item, progress, onOpen }) {
    and handed down — not once per section and again per tile on every
    render. */
 const TagSection = React.memo(
-  /**
-   * @param {{
-   *   name: string,
-   *   items: Item[],
-   *   open: boolean,
-   *   onToggle: () => void,
-   *   onPractice: (ids: string[], mode: string) => void,
-   *   progressOf: Map<string, number | null>,
-   *   onOpen: (it: Item) => void,
-   * }} props
-   */
   function TagSection({
     name,
     items: group,
@@ -8208,11 +8135,19 @@ const TagSection = React.memo(
     onPractice,
     progressOf,
     onOpen,
+  }: {
+    name: string;
+    items: Item[];
+    open: boolean;
+    onToggle: () => void;
+    onPractice: (ids: string[], mode: string) => void;
+    progressOf: Map<string, number | null>;
+    onOpen: (it: Item) => void;
   }) {
     const [arming, setArming] = useState(false);
     const scored = group
       .map((it) => progressOf.get(it.id))
-      .filter((/** @type {number | null | undefined} x */ x) => x != null);
+      .filter((x): x is number => x != null);
     const mean = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : 0;
     const done = scored.filter((x) => x >= 1).length;
 
@@ -8284,27 +8219,25 @@ const TagSection = React.memo(
   }
 );
 
-/**
- * @param {{
- *   data: any, items: Item[], myCourses?: Course[],
- *   settings: Settings, onPractice: (ids: string[], mode: string) => void,
- * }} props
- */
-function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
+function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
+  data: any;
+  items: Item[];
+  myCourses?: Course[];
+  settings: Settings;
+  onPractice: (ids: string[], mode: string) => void;
+}) {
   // Collapsed by default: the point of this screen is the overview.
   const [open, setOpen] = useState(() => new Set());
-  const [viewing, setViewing] = useState(/** @type {any | null} */ (null));
+  const [viewing, setViewing] = useState<any | null>(null);
 
   const progressOf = useMemo(() => {
-    /** @type {Map<string, number | null>} */
-    const m = new Map();
+    const m: Map<string, number | null> = new Map();
     for (const it of items) m.set(it.id, itemProgress(it));
     return m;
   }, [items]);
 
   const buckets = ["new", "learning", "young", "mature"];
-  /** @type {Record<string, number>} */
-  const totals = { new: 0, learning: 0, young: 0, mature: 0 };
+  const totals: Record<string, number> = { new: 0, learning: 0, young: 0, mature: 0 };
   for (const it of items) totals[familyMaturity(it)] += 1;
 
   /* A card shows up under each of its decks, and once under "Not in a deck" if
@@ -8329,7 +8262,7 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }) {
     return out;
   }, [items]);
 
-  const toggle = (/** @type {string} */ name) =>
+  const toggle = (name: string) =>
     setOpen((prev) => {
       const next = new Set(prev);
       next.has(name) ? next.delete(name) : next.add(name);
@@ -8461,8 +8394,7 @@ function Guide() {
  * a User is what everyone else sees, and the key is the one part of it
  * that never leaves the device that signed in.
  */
-/** @param {{ me: User & { key: string }, onRename: (name: string) => void }} props */
-function AccountPanel({ me, onRename }) {
+function AccountPanel({ me, onRename }: { me: User & { key: string }; onRename: (name: string) => void }) {
   const [showKey, setShowKey] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -8544,8 +8476,7 @@ function AccountPanel({ me, onRename }) {
 
 /* Closing an account is irreversible, so it asks for the handle rather
    than a yes/no anyone taps through. */
-/** @param {{ handle: string, onClosed: () => void }} props */
-function CloseAccount({ handle, onClosed }) {
+function CloseAccount({ handle, onClosed }: { handle: string; onClosed: () => void }) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -8613,8 +8544,7 @@ function CloseAccount({ handle, onClosed }) {
    around it.
    ------------------------------------------------------------------ */
 
-/** @param {string | null} [name] */
-const initialsOf = (name) =>
+const initialsOf = (name?: string | null) =>
   String(name || "?")
     .split(/\s+/)
     .slice(0, 2)
@@ -8622,10 +8552,8 @@ const initialsOf = (name) =>
     .join("")
     .toUpperCase() || "?";
 
-/** @type {Record<string, string>} */
-const SPACE_LABEL = { learn: "Learning", teach: "Teaching", admin: "Admin" };
-/** @type {Record<string, string>} */
-const SPACE_ICON = { learn: "cards", teach: "school", admin: "tune" };
+const SPACE_LABEL: Record<string, string> = { learn: "Learning", teach: "Teaching", admin: "Admin" };
+const SPACE_ICON: Record<string, string> = { learn: "cards", teach: "school", admin: "tune" };
 
 /* Which part of the app you are in, sitting beside the account menu.
    Someone who only studies has one space, so there is nothing to choose and
@@ -8634,8 +8562,11 @@ const SPACE_ICON = { learn: "cards", teach: "school", admin: "tune" };
    A row rather than a dropdown: there are at most three, and moving this out
    of the menu was about reaching them in one tap. Shown only to people with
    somewhere to go — a student who only studies sees nothing. */
-/** @param {{ space: string, spaces: string[], onSpace: (space: string) => void }} props */
-function SpaceSwitch({ space, spaces, onSpace }) {
+function SpaceSwitch({ space, spaces, onSpace }: {
+  space: string;
+  spaces: string[];
+  onSpace: (space: string) => void;
+}) {
   if (!spaces || spaces.length < 2) return null;
   return (
     <div className="at-spaces" role="tablist" aria-label="Part of the app">
@@ -8681,8 +8612,7 @@ const APP_COMMIT = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev"
 const APP_BUILT_AT = typeof __BUILT_AT__ === "string" ? __BUILT_AT__ : "";
 
 /* Short and local: enough to tell two deploys on the same day apart. */
-/** @param {string} [iso] */
-function buildStamp(iso) {
+function buildStamp(iso?: string) {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -8698,7 +8628,7 @@ function AppVersion() {
   /* null while asking, then the server's answer, or false if it could not
      be reached — which is not an error worth showing: offline is a normal
      state for this app, and it says nothing about the deploy. */
-  const [deployed, setDeployed] = useState(/** @type {any | null} */ (null));
+  const [deployed, setDeployed] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
   /* The reload waits for the new worker to take over, which takes a
      moment — so the button says it is working rather than looking like
@@ -8759,7 +8689,7 @@ function AppVersion() {
   const stale = deployed && deployed.commit !== APP_COMMIT;
 
   /* Reload onto the build that is actually deployed. The waiting for the
-     new worker to take over is in updates.js, with the rest of it: what
+     new worker to take over is in updates.ts, with the rest of it: what
      this button does by hand is what the app now does by itself, and the
      two had drifted into two versions of the same dance. */
   function reload() {
@@ -8799,14 +8729,16 @@ function AppVersion() {
   );
 }
 
-/**
- * @param {{
- *   account: User | null, syncState?: string, onSyncNow: () => void,
- *   theme?: string, onTheme: (theme: string) => void,
- *   onAccount: () => void, onPrefs: () => void, onGuide: () => void,
- * }} props
- */
-function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }) {
+function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }: {
+  account: User | null;
+  syncState?: string;
+  onSyncNow: () => void;
+  theme?: string;
+  onTheme: (theme: string) => void;
+  onAccount: () => void;
+  onPrefs: () => void;
+  onGuide: () => void;
+}) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -8943,12 +8875,10 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
  * is why they are asked for together — there is one caller and it passes
  * both sets.
  */
-/**
- * @param {{ kind?: string, onClose: () => void }
- *   & React.ComponentProps<typeof AccountSettings>
- *   & React.ComponentProps<typeof AppPreferences>} props
- */
-function SettingsScreen({ kind, onClose, ...rest }) {
+function SettingsScreen({ kind, onClose, ...rest }: {
+  kind?: string;
+  onClose: () => void;
+} & React.ComponentProps<typeof AccountSettings> & React.ComponentProps<typeof AppPreferences>) {
   const title =
     kind === "account" ? "Account settings" : kind === "guide" ? "How it works" : "App preferences";
   return (
@@ -8964,19 +8894,6 @@ function SettingsScreen({ kind, onClose, ...rest }) {
   );
 }
 
-/**
- * @param {{
- *   account: User & { key: string },
- *   onRename: (name: string) => void,
- *   onReset?: () => void,
- *   isAdmin?: boolean,
- *   onOpenAdmin?: () => void,
- *   onBecameAdmin?: () => void,
- *   onCloseAccount: () => void,
- *   onLogOut: () => void,
- *   allClipIds?: string[],
- * }} props
- */
 function AccountSettings({
   account,
   onRename,
@@ -8987,10 +8904,20 @@ function AccountSettings({
   onCloseAccount,
   onLogOut,
   allClipIds = [],
+}: {
+  account: User & { key: string };
+  onRename: (name: string) => void;
+  onReset?: () => void;
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
+  onBecameAdmin?: () => void;
+  onCloseAccount: () => void;
+  onLogOut: () => void;
+  allClipIds?: string[];
 }) {
   /* The storage figures moved here with the section that shows them. */
-  const [stats, setStats] = useState(/** @type {any | null} */ (null));
-  const [warming, setWarming] = useState(/** @type {any | null} */ (null)); // { done, total, fetched }
+  const [stats, setStats] = useState<any | null>(null);
+  const [warming, setWarming] = useState<any | null>(null); // { done, total, fetched }
 
   async function downloadAll() {
     const total = new Set(allClipIds).size;
@@ -9165,14 +9092,11 @@ function AccountSettings({
   );
 }
 
-/**
- * @param {{
- *   settings: Settings,
- *   setSetting: (key: string, value: any) => void,
- *   toggleIn: (key: string, value: any) => void,
- * }} props
- */
-function AppPreferences({ settings, setSetting, toggleIn }) {
+function AppPreferences({ settings, setSetting, toggleIn }: {
+  settings: Settings;
+  setSetting: (key: string, value: any) => void;
+  toggleIn: (key: string, value: any) => void;
+}) {
   const [advanced, setAdvanced] = useState(false);
 
   return (
@@ -9422,13 +9346,8 @@ function AppPreferences({ settings, setSetting, toggleIn }) {
   );
 }
 
-/**
- * @param {Item[]} pool
- * @param {Settings} settings
- */
-function nextDueLine(pool, settings) {
-  /** @type {Millis[]} */
-  const future = [];
+function nextDueLine(pool: Item[], settings: Settings) {
+  const future: Millis[] = [];
   for (const it of pool) {
     for (const { unit } of drillableUnits(it, settings)) {
       for (const t of enabledTypes(unit, settings)) {

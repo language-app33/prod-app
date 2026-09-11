@@ -10,10 +10,10 @@
  * Named .test-d.js so `node --test tests/*.test.mjs` does not try to run
  * it, the way the ecosystem's type-test files are named.
  */
-import * as API from "../src/courses-api.js";
-import { langOf } from "../src/languages.js";
+import * as API from "../src/courses-api.ts";
+import { langOf } from "../src/languages.ts";
 
-/** @type {import("../src/types.js").Settings} */
+/** @type {import("../src/types.ts").Settings} */
 const settings = { language: "ar-PS" };
 
 const base = /** @type {const} */ ({

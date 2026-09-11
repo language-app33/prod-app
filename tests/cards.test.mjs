@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { build } from "esbuild";
 import path from "node:path";
 
-/* spaces.jsx is JSX and imports React, so it is bundled the way the smoke
+/* spaces.tsx is JSX and imports React, so it is bundled the way the smoke
    harness does rather than imported raw. Only the pure helpers are used.
 
    Built inside the project rather than in a temp directory: React is left
@@ -20,7 +20,7 @@ import path from "node:path";
 const here = path.dirname(new URL(import.meta.url).pathname);
 const out = path.join(here, ".cards-build");
 await build({
-  entryPoints: [path.join(here, "..", "src", "spaces.jsx")],
+  entryPoints: [path.join(here, "..", "src", "spaces.tsx")],
   outfile: path.join(out, "spaces.js"),
   bundle: true,
   format: "esm",
@@ -31,11 +31,11 @@ await build({
 const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, CARD_SORTS } =
   await import(path.join(out, "spaces.js"));
 
-/* The two halves of card identity live in shared.jsx, so it is bundled the
+/* The two halves of card identity live in shared.tsx, so it is bundled the
    same way. They are one subject with the sorting above: what a card is
    called, on the device and on the server. */
 await build({
-  entryPoints: [path.join(here, "..", "src", "shared.jsx")],
+  entryPoints: [path.join(here, "..", "src", "shared.tsx")],
   outfile: path.join(out, "shared.js"),
   bundle: true,
   format: "esm",
@@ -50,7 +50,7 @@ const { localIdFor, cardToItem, serverCardId } = await import(path.join(out, "sh
    card's progress and belongs with the rest of them. The trainer is bundled
    the same way; nothing in it touches a browser on the way in. */
 await build({
-  entryPoints: [path.join(here, "..", "src", "ArabicTrainer.jsx")],
+  entryPoints: [path.join(here, "..", "src", "ArabicTrainer.tsx")],
   outfile: path.join(out, "trainer.js"),
   bundle: true,
   format: "esm",

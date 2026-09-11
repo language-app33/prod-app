@@ -21,8 +21,7 @@ export const QUESTION = "The question screen";
 export const ANSWER = "The answer screen";
 
 /* [name, what it is, an example of what it holds] */
-/** @type {[string, [string, string, string][]][]} */
-export const SCREEN_ELEMENTS = [
+export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
   [BOTH, [
     ["card", "The whole exercise block — everything between the progress bar and the buttons at the foot.", ""],
     ["leave-session", "The ✕ at the top left, which offers to end the session.", ""],
@@ -38,10 +37,13 @@ export const SCREEN_ELEMENTS = [
     ["scene-line", "One turn in it — who spoke, and what they said.", ""],
     ["scene-speaker", "Whose turn it is. One colour per speaker, for the whole scene.", "Layla"],
     ["scene-line-text", "The line itself, in the language being taught.", "السَّلامُ عَلَيْكُم"],
-    ["scene-line-meaning", "What that line means. On the read-through and the answer, never while a line is being asked.", "Peace be upon you"],
+    ["scene-line-said", "How that line sounds. Only where the reader asked to see it.", "as-salaamu 3alaykum"],
+    ["scene-line-meaning", "What that line means. On the read-through and the answer, and wherever the reader asked to see it — never while a line is being asked.", "Peace be upon you"],
     ["scene-turn", "The gap where your turn goes, on the question that asks for it.", ""],
     ["answer-order", "The scrambled lines, on the question that asks for the scene in order. Tap them into place.", ""],
-    ["answer-part", "The whole scene with your speaker's turns left blank, on the question that asks you to play a part.", ""],
+    ["reveal-said", "On reading a scene through: the button that shows how the lines sound, and puts them away again.", "Show the transliteration"],
+    ["reveal-meaning", "The same, for what the lines mean.", "Show the meaning"],
+    ["answer-self", "The two answers to \"could you follow all of it\". Nobody else was in the room, so the reader marks it.", ""],
     ["question-context-meaning", "On a gap-fill, which word is wanted — the word's own meaning, never the phrase's.", "book"],
     ["hint-button", "The question-mark button in the bar at the foot. Reveals the nudge, and puts it away again.", "Show meaning"],
     ["hint-value", "The nudge, once revealed.", ""],
@@ -75,6 +77,7 @@ export const SCREEN_ELEMENTS = [
     ["related-words", "Words related to this one — sharing a root, or told apart only by tone.", ""],
     ["related-words-label", "What the language calls that relation.", "Built on the same root"],
     ["related-word", "One of those words, with what it means.", "كُتُب — books"],
+    ["answer-grammar", "Which of the accepted answers they wrote, where the card takes more than one and they differ in something the language names.", "You wrote the feminine one."],
     ["bare-note", "A nudge when a right answer was typed without its marks.", "The harakat are above — worth a look."],
     ["card-note", "The teacher's own note on the card, if there is one.", ""],
     ["flag-button", "Opens the list of what can be wrong with the question, and closes it again.", "⚑ Flag a problem"],

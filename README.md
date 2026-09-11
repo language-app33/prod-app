@@ -18,12 +18,14 @@ npm run dev        # Vite alone: the UI only, with no API behind it
 npm run build      # production build into dist/
 npm test           # unit tests, including the server (no browser needed)
 npm run test:smoke # renders the whole app in jsdom against a stubbed server
-npm run typecheck  # types, for the files that have opted in — see Types below
+npm run typecheck  # types: every file, strict — see Types below
 npm run check      # all of it, as CI runs it
 ```
 
-Node 22 or newer. The tests need no configuration; `test:smoke` builds the
-app into `tests/.smoke-build/`, which is git-ignored.
+Node 22.18 or newer — the first 22 that strips types without a flag, which
+the server and the tests both rely on. The tests need no configuration;
+`test:smoke` builds the app into `tests/.smoke-build/`, which is
+git-ignored.
 
 Use `npm run serve` to work on anything that touches an account, a course or
 sync. `npm run dev` runs Vite on its own, which serves no `/api`, so the app
@@ -90,14 +92,14 @@ release number alone is never taken as proof of a deploy.
 
 ```
 src/
-  languages.js     every language-specific rule: grammar axes, grading,
+  languages.ts     every language-specific rule: grammar axes, grading,
                    keyboards, exercise definitions. Imports nothing from the
                    app, so it can be read and tested on its own.
-  ArabicTrainer.jsx  the learner's app: scheduler, session builder, screens
-  spaces.jsx       the teaching and admin spaces, loaded lazily so a student
+  ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
+  spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
-  shared.jsx       the component library both sides use
-  sync.js          merging two devices' documents, and clip sync
+  shared.tsx       the component library both sides use
+  sync.ts          merging two devices' documents, and clip sync
   index.css        one stylesheet, with the design tokens at the top
 server/
   index.js         the process: routes /api, serves dist/, nothing else
@@ -114,7 +116,7 @@ widely it is used — worth reading before adding UI.
 
 A few rules the code follows, learned the hard way:
 
-- **Anything language-specific lives in `languages.js`.** Divergent copies of
+- **Anything language-specific lives in `languages.ts`.** Divergent copies of
   a grader or an editor are where the subtle bugs come from.
 - **One implementation of a thing.** If two versions of a component coexist,
   the goal is to converge on one, not to keep both.
@@ -125,21 +127,23 @@ A few rules the code follows, learned the hard way:
 
 ### Types
 
-The code is JavaScript and stays JavaScript. TypeScript reads it without
-compiling it: `npm run typecheck`, which `npm run check` and CI both run.
+Every file is checked, in `strict` mode, by `npm run typecheck` — which
+`npm run check` and CI both run. Nothing is compiled by tsc: it is a second
+reader, and the server still runs from source.
 
-**A file is checked only if it starts with `// @ts-check`.** That is the
-whole convention. Turning it on everywhere would have meant a few hundred
-errors on day one and `strict` off to get a green build; this way `strict`
-is on, every commit is green, and a file is adopted when somebody has
-reason to.
+**`src` is TypeScript, and there is still no build step for it.** Node 22
+strips types on the way in, so a `.ts` module is imported by the tests and
+by the server exactly as a `.js` one was — no loader, no transpile, and
+nothing emitted by tsc. Only erasable syntax is used, which is what makes
+that true: no `enum`, no `namespace`, no parameter properties. DECISIONS.md
+records how the conversion went and what it found.
 
-To adopt one: add the comment, run `npm run typecheck`, and describe the
-shapes with JSDoc until it is quiet. Nothing is renamed and nothing is
-compiled, so the server still runs from source and the tests still import
-plain modules.
+What Node will not do is guess an extension, so **an import names the file
+it means**: `"./chance.ts"`, `"./shared.tsx"`. The server is JavaScript and
+stays JavaScript — it runs the same modules `src` does, and has nothing to
+gain from the move.
 
-The records both sides pass are in `src/types.js` — a card, a deck, a
+The records both sides pass are in `src/types.ts` — a card, a deck, a
 course, an account, a report, a language pack. It has no runtime value; it
 exists so the two ends of a request describe the same thing. `LangId` is a
 string and a `Lang` is the pack that has one, and sending the second where

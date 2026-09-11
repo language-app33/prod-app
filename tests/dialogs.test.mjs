@@ -17,11 +17,14 @@ import {
   MIN_ORDER_LINES,
   ORDER_SEP,
   PART_SEP,
+  SELF_ALL,
+  SELF_SOME,
   buildDialogIndex,
   cueFor,
   dialogNeedMet,
   dialogPhrases,
   isDialog,
+  isTwoSided,
   linesOf,
   namedPart,
   orderIsRight,
@@ -33,13 +36,15 @@ import {
   roleOf,
   sceneBefore,
   scrambledLines,
+  sideOf,
+  sidesOf,
   speakerName,
   speakersOf,
   yourLines,
   youOf,
-} from "../src/dialogs.js";
-import { EX, TYPES, checkAnswer } from "../src/languages.js";
-import { unitsOf } from "../src/scheduler.js";
+} from "../src/dialogs.ts";
+import { EX, TYPES, checkAnswer } from "../src/languages.ts";
+import { unitsOf } from "../src/scheduler.ts";
 
 /* A scene of four turns, two people, written the way the editor writes
    one. `uses` names the word cards a line contains, as the editor works
@@ -149,6 +154,52 @@ test("a scene need not name a part, and one that doesn't takes them in turn", ()
   assert.equal(youOf(scene(), 7), 1);
 });
 
+test("two people talking get a side of the page each", () => {
+  /* The one who opens takes the leading side, and the other the far one —
+     so whose turn it is is seen rather than read. Not the learner's own
+     part: a card may leave that unset, the question then picks a different
+     one each sitting, and the scene would reflect itself between them. */
+  const card = scene();
+  assert.equal(isTwoSided(card), true);
+  assert.deepEqual(sidesOf(card), [0, 1]);
+  assert.equal(sideOf(card, 0), 0, "Layla opens, so Layla leads");
+  assert.equal(sideOf(card, 1), 1);
+
+  /* And it stays put whoever is playing: the same scene, read and drilled
+     and edited, is the same picture. */
+  assert.equal(sideOf({ ...card, you: 0 }, 0), 0);
+  assert.equal(sideOf({ ...card, you: null }, 0), 0);
+});
+
+test("a scene opened by the second speaker puts that speaker first", () => {
+  const card = { ...scene(), lines: scene().lines.slice(1) };
+  assert.deepEqual(sidesOf(card), [1, 0], "whoever speaks first leads");
+  assert.equal(sideOf(card, 1), 0);
+  assert.equal(sideOf(card, 0), 1);
+});
+
+test("three people are a list, because there is no third side of a page", () => {
+  const card = {
+    ...scene(),
+    speakers: ["Layla", "Karim", "Nadia"],
+    lines: scene().lines.concat([line({ id: "l5", who: 2, ar: "ahlan", en: "welcome" })]),
+  };
+  assert.equal(isTwoSided(card), false);
+  assert.equal(sideOf(card, 2), null, "null rather than a side, so nobody can forget to ask");
+  assert.equal(sideOf(card, 0), null);
+});
+
+test("a scene being written has both sides before the second person speaks", () => {
+  /* Otherwise the editor would rearrange itself under a teacher the moment
+     they filled in the reply. Two speakers named is two sides. */
+  const half = { speakers: ["Layla", "Karim"], lines: [line({ id: "l1", who: 0, ar: "salaam" })] };
+  assert.deepEqual(sidesOf(half), [0, 1]);
+  assert.equal(sideOf(half, 1), 1, "the side the reply will land on");
+  /* And a speaker with no name and no line is nobody, so a blank scene is
+     still the two people the editor starts with. */
+  assert.deepEqual(sidesOf({ lines: [line({ id: "l1", who: 0 })] }), [0, 1]);
+});
+
 test("the parts are the people who actually say something", () => {
   const open = { ...scene(), you: null, speakers: ["Layla", "Karim", "Nobody"] };
   assert.deepEqual(partsToPlay(open), [1, 0], "the answerer first, the opener last");
@@ -165,7 +216,7 @@ test("the parts are the people who actually say something", () => {
 test("a question shows what was said before it and no more", () => {
   const card = scene();
   assert.deepEqual(sceneBefore(card, 2).map((l) => l.id), ["l1", "l2"]);
-  assert.equal(cueFor(card, 2).id, "l2", "the line actually being answered");
+  assert.equal((cueFor(card, 2) || {}).id, "l2", "the line actually being answered");
   /* Nothing comes before the first line, which is why it is never asked
      as a reply. */
   assert.deepEqual(sceneBefore(card, 0), []);
@@ -311,7 +362,44 @@ test("the read-through is never scheduled", () => {
      something to switch off. */
   assert.equal(TYPES.includes("dlgread"), false);
   assert.equal(EX.dlgread.intro, true);
-  assert.ok(TYPES.includes("dlgreply"), "the ones that are answered are scheduled");
+  assert.ok(TYPES.includes("dlgpick"), "the ones that are answered are scheduled");
+});
+
+test("what a scene is asked, and what it is no longer asked", () => {
+  /* Three went. Translating one line was the word question with a
+     speaker's name over it — what makes a line worth having is the turn
+     before it and the turn after. Writing your own next turn asked for
+     one particular sentence out of the several that would do and marked
+     the rest wrong. Typing out every turn at once was the longest answer
+     in the app and the least forgiving.
+
+     What is left is what a conversation is actually for: reading a page
+     of two people talking, choosing what comes next, and knowing the
+     order it happened in. */
+  assert.deepEqual(TYPES.filter((t) => EX[t].dialog), ["dlgwhole", "dlgpick", "dlgorder"]);
+  for (const gone of ["dlg2en", "dlgreply", "dlgplay"]) {
+    assert.equal(TYPES.includes(gone), false, `${gone} is still offered`);
+    /* The definition stays, as a retired one does: a stored session or an
+       export naming it must still resolve to a label rather than crash. */
+    assert.equal(EX[gone].retired, true, `${gone} has no definition left to read`);
+    assert.ok(EX[gone].label, `${gone} has no label left to read`);
+  }
+});
+
+test("reading a scene through is marked by the reader", () => {
+  /* Nobody else was in the room. An app that pretended to check whether
+     somebody followed a conversation would be marking something it never
+     saw, so it asks and takes the answer. */
+  const card = scene();
+  assert.equal(EX.dlgwhole.answerMode, "self");
+  assert.equal(EX.dlgwhole.dialog, "card", "it is about the whole scene, not a turn in it");
+  assert.deepEqual(EX.dlgwhole.needs, ["dialog"], "and it needs nothing a scene has not got");
+  assert.equal(checkAnswer(SELF_ALL, card, "dlgwhole", {}).ok, true);
+  const missed = checkAnswer(SELF_SOME, card, "dlgwhole", {});
+  assert.equal(missed.ok, false);
+  assert.equal(missed.reason, "self",
+    "not 'wrong' — a scene they could not quite follow is one to come back to");
+  assert.equal(checkAnswer("", card, "dlgwhole", {}).ok, false, "and saying nothing is not saying yes");
 });
 
 test("no dialog exercise needs a recording", () => {

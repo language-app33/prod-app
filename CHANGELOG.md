@@ -8,6 +8,177 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.74 — 11 September 2026
+
+- **Teaching · adding cards to a deck.** The deck list now has a New deck
+  button, so somewhere to put them can be made on the spot. Before this, a
+  teacher who had selected thirty cards and found no deck for them had to
+  leave and make one — which threw the selection away, so the way out of
+  the screen was to lose the work that got you there. The new deck is
+  ticked as soon as it is made, and takes its language from the cards going
+  into it.
+- **Learning · keeping a session you built.** The last step of Build a
+  session is now called Finish, and besides the length it offers to keep
+  what you just built. Kept sessions are under a new Saved sessions button,
+  beside Build a session.
+- What is kept is the description — which cards, which mode, how long — not
+  a snapshot, so a card edited since is practised as it now reads. A card
+  deleted since simply drops out, and the list says so before you start
+  rather than after.
+
+## 0.73 — 11 September 2026
+
+- Selecting cards in Teaching no longer hides the last ones. The bulk
+  actions tray floats at the foot of the window, and the list carried on
+  underneath it — so the cards you were reaching for were behind the
+  buttons acting on them. The list now leaves exactly the tray's own room,
+  measured, so it stays right whatever the buttons say and however narrow
+  the phone is.
+
+## 0.72 — 11 September 2026
+
+- Nothing you can see; an audit of 0.71. The linter had quietly stopped
+  reading the app the moment its files were renamed — its file pattern
+  named the old extensions — so the checks it exists for (a hook called
+  conditionally, a dependency list that lies) were off for every screen.
+  It reads them again, through a parser already in the tree.
+- Six imports the conversion left dead are gone, and a cast that let one
+  screen name a lookup table where a component was wanted is replaced by
+  a type that refuses it.
+- An Arabic answer typed in "presentation forms" — the same letters, in
+  the encoding some keyboards and most clipboards use, which looks
+  identical on screen — was marked wrong in every letter: a flat
+  "Incorrect" with no "Very close", for a word that was right or one
+  hamza off. The checker now folds those shapes back to letters before
+  comparing, in every language.
+- The "Hamza and final letters" setting now says everything it does:
+  lenient also takes و for ؤ and ي for ئ, which it always did and never
+  said — so an answer marked wrong on exactly that letter could not be
+  checked against the setting's own description.
+- **Hosting: Node 22.18 or newer is now the stated floor** (it was "22").
+  The server imports a TypeScript file, and stripping types unflagged
+  began at 22.18. Earlier 22s fail at startup. If you deploy this, check
+  which 22 you are on.
+
+## 0.71 — 11 September 2026
+
+- Nothing you can see. The migration 0.70 started is finished: every file
+  the app is built from is TypeScript now, screens included, rather than
+  JavaScript with its types written beside it in comments. It is checked
+  the same way it was, by the same command, and still builds and runs with
+  no step added.
+- What it found, all of it in code nobody was editing. `Verdicts` was being
+  read as though it had any number of keys when it has four. `verdictWord`
+  took an arbitrary string and had a word for none of them. Several
+  components declared props as required that every caller was already
+  leaving out, and several more said `Set` where the list they were handed
+  to wanted `Set<string>`. Two generics — the item list and the segmented
+  picker — had been declared generic in a comment the checker was ignoring,
+  so what went in and what came out were unrelated.
+- Two shapes the card editor relied on and nothing stated: what a
+  confirmation is, and that a draft carries a conversation's speakers and
+  lines only when the card is a conversation.
+- The reasoning, and what the conversion script got wrong, is in
+  DECISIONS.md.
+
+## 0.70 — 11 September 2026
+
+- Nothing you can see. The modules that decide what a learner is asked —
+  the scheduler, the exercise table's rules, conversations, accepted
+  answers — are written in TypeScript now rather than in JavaScript with
+  types in comments. They were checked before and are checked the same way;
+  what changed is that the types are in the code rather than beside it.
+- It is being done a module at a time from the outside in, with everything
+  green at each step. Seven of twenty-one so far, and the reasoning is in
+  DECISIONS.md.
+- Three real defects fell out of it on the way, all in files nobody was
+  editing: two places passing the wrong shape into the card editor, a test
+  reading a value that is null on the first line of a conversation, and a
+  guard that would have stopped checking a file the moment it was
+  converted.
+
+## 0.69 — 11 September 2026
+
+- Gender, number and whatever else a language names now belong to an
+  accepted answer rather than to the card over all of them. A card may
+  accept two answers that differ in exactly those things — "I'm happy" said
+  by a man and by a woman is one thing to know with two right answers — and
+  a single "masculine" over the pair described one of them and was wrong
+  about the other.
+- They are written where they apply: one row per accepted answer holding
+  the answer, how it is said, and what it is. The grammar is folded away
+  behind its own name, so a card with one answer and the usual values looks
+  no busier than before.
+- Answering such a card now says which one you wrote. "Correct" was true
+  and unhelpful when the card took both the masculine and the feminine.
+- Cards you have already written convert themselves the first time they are
+  opened. Each answer keeps the values the card carried, which is what they
+  meant when there was only one set of them, and a card with one answer —
+  almost all of them — comes through unchanged.
+- Why it is built this way, and what it cost, is written down in
+  DECISIONS.md.
+
+## 0.68 — 11 September 2026
+
+- A conversation is now a run of chat bubbles: the words in a box only as
+  wide as it needs to be, with whoever said them named above it.
+- Which is also the fix for the bug. A turn was a block the width of the
+  page, and a block that wide puts its text at whichever end the text
+  itself starts from — so an Arabic line sat hard against the right of its
+  column whichever side of the page that column was on, and both speakers
+  came out down the right with only their names on opposite sides.
+- The same fault was there for a language written left to right, mirrored
+  and quieter: the far speaker's words started at the left of their column
+  too, so they were nudged over by the indent but never reached the other
+  side. Both are gone. A box that hugs its words cannot do it: where the
+  words sit is where the box is.
+- Each side is tinted the colour of the name above it, so a scene still
+  reads as two people at arm's length. Three or four speakers keep one
+  column of bubbles, like a group chat — there is still no third side of a
+  page.
+
+## 0.67 — 11 September 2026
+
+- Three conversation exercises are gone. Translating one line was the word
+  question with a speaker's name over it — what makes a line worth having
+  is the turn before it and the turn after. Writing your own next turn
+  asked for one particular sentence out of the several that would do and
+  marked the rest wrong. Playing a whole part was the longest answer in the
+  app and the least forgiving: one missed mark in the third line made the
+  whole conversation wrong.
+- In their place, the one that asks what a conversation is actually for.
+  The whole scene in the language, laid out the way a teacher sees it on
+  the card, with how it sounds and what it means each a tap away — taken
+  when you need them rather than given. Then it asks whether you could
+  follow all of it, and takes your word for it. Nobody else was in the
+  room; an app that pretended to check would be marking something it never
+  saw.
+- What a conversation is asked now: read it through, choose what comes
+  next, put it back in order.
+- Conversations you have written are untouched. The part a scene names is
+  the one thing left with nothing reading it — the picker and the line on
+  the card still say whose it is, but no exercise asks for it any more.
+
+## 0.66 — 11 September 2026
+
+- A conversation between two people now reads with one of them down each
+  side, everywhere it appears: read through at the start of a session,
+  played a part in, put back in order, read on the card, and written in the
+  editor. Whose turn it is is something you see rather than something you
+  read off a name — which is what made a scene of six turns a thing to
+  parse rather than scan.
+- The one who opens takes the leading side. Not the student's own part: a
+  card may leave that unset and the question then picks a different one
+  each sitting, so a scene would reflect itself between them.
+- A scene of three or four keeps its list. There is no third side of a
+  page, and the names are already doing that work there.
+- In the editor each turn also carries its speaker's name in its heading
+  and a rule in their colour down its own edge — the block keeps most of
+  its width, because a form is fields and half a phone is not enough for
+  one.
+- It follows the script rather than the screen, so an Arabic or Hebrew
+  scene puts its opener where an Arabic or Hebrew reader starts.
+
 ## 0.65 — 11 September 2026
 
 - Each accepted answer now carries its own transliteration. A card that

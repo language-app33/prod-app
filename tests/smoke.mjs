@@ -14,7 +14,7 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.js", "src/gallery.jsx", "src/shared.jsx"],
+  entryPoints: ["src/ArabicTrainer.tsx", "src/storage.ts", "src/gallery.tsx", "src/shared.tsx"],
   bundle: true,
   format: "esm",
   splitting: true,
@@ -75,6 +75,10 @@ const calls = [];
    than merely counted. */
 /** @type {any[]} */
 const reported = [];
+/* The decks made through the UI, so a walk can check what was actually
+   asked for rather than only what the screen then showed. */
+/** @type {any[]} */
+const madeDecks = [];
 /* `data` is the wire document: JSON as the sync endpoint stores it, which
    the checks below navigate field by field. */
 /** @type {Map<string, { etag: string, data: any }>} */
@@ -200,6 +204,22 @@ const fakeFetch = async (input, opts = {}) => {
         cards: [{ ...card, decks: ["d1"] }, { ...phrase, decks: ["d1"] }, { ...talk, decks: [] }],
       });
     }
+    if (action === "create-deck") {
+      const body = JSON.parse(opts.body || "{}");
+      madeDecks.push(body);
+      return json({
+        ok: true,
+        deck: {
+          id: `d${madeDecks.length + 1}`,
+          title: body.title,
+          owner: account.handle,
+          lang: body.lang || "ar-PS",
+          cardIds: [],
+          cardCount: 0,
+          courses: [],
+        },
+      });
+    }
     if (action === "clip") return json({ error: "not-found" }, 404);
     if (action === "report-flag") {
       reported.push(JSON.parse(opts.body || "{}"));
@@ -259,6 +279,15 @@ remoteDocs.set(realToken, {
       { id: "v2card", ar: "باب", en: "door", lat: "baab", kind: "word", tags: [],
         created: 1, updated: 5,
         s: { mean: { box: 2, due: 0, right: 3, wrong: 1 }, read: { box: 2, due: 0, right: 2, wrong: 0 } } },
+      /* Two more cards in the same state as each other and due at the same
+         moment, so that "six sessions are not one session six times" has
+         something to be random about that no other walk can spend. It used
+         to lean on the conversation being unmet, which made the test a
+         hostage to whatever the walk before it had answered. */
+      { id: "tied1", ar: "شمس", en: "sun", lat: "shams", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } },
+      { id: "tied2", ar: "قمر", en: "moon", lat: "qamar", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } },
     ],
   },
 });
@@ -268,6 +297,8 @@ remoteDocs.set(realToken, {
 const errors = [];
 const origError = console.error;
 console.error = (/** @type {unknown[]} */ ...a) => { errors.push(a.map(String).join(" ")); };
+/* ".js" whatever the source was called: this is esbuild's output, and it
+   writes JavaScript however the entry point was spelt. */
 const { storage } = await import(path.join(out, "storage.js"));
 anyWindow.storage = anyGlobal.window.storage = storage;
 const React = (await import("react")).default;
@@ -308,7 +339,7 @@ check("stored document no longer carries an account", !("account" in stored));
    and the one on the wire — as the JSON they are. */
 /** @type {Record<string, any>} */
 const byId = Object.fromEntries(stored.items.map((/** @type {any} */ i) => [i.id, i]));
-check("both course cards and both old cards landed in storage", stored.items.length === 4 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+check("both course cards and every old card landed in storage", stored.items.length === 6 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
 
 /* What a course card is, rather than what it used to be told it was. Every
    one of them arrived labelled "word" — which is why the practice filter did
@@ -327,7 +358,7 @@ check("a v2 card gains no state for the retired exercise",
   byId.v2card && !("ar2tr" in byId.v2card.s),
   byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
 check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
-check("every card counts as ready to practice", /Cards ready to practice\s*4/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+check("every card counts as ready to practice", /Cards ready to practice\s*6/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
 const wire = remoteDocs.get(realToken)?.data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
@@ -415,6 +446,31 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(80);
   check("choosing a length is all that was left", start().there && !start().disabled && /^Start$/.test(start().label),
     start().label);
+
+  /* Keeping it, which is the other half of what the last step is for.
+     Several minutes of picking used to be spent again the next morning. */
+  const keepBox = [...document.querySelectorAll(".at-formblock")]
+    .find((d) => /Keep this session/.test(d.textContent || ""));
+  check("the last step offers to keep the session", !!keepBox,
+    (document.querySelector(".at-screenbody") || { textContent: "" }).textContent.slice(-90));
+  const nameBox = keepBox && keepBox.querySelector("input");
+  if (nameBox) {
+    /* Named, because a list of "Regular · 6 cards" tells nobody which was
+       which. */
+    const setInput = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setInput, "the input's value setter").call(nameBox, "Thursday's verbs");
+    nameBox.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(60);
+    clickNamed(/^Save$/);
+    await sleep(150);
+    check("saving it says so, rather than looking like nothing happened",
+      !!buttonNamed(/^Saved$/), buttonState(/^Saved?$/).label || "no button");
+    check("and Start is still the way on — keeping one is not practising it",
+      start().there && !start().disabled, start().label);
+  }
 
   /* The whole point of the walk: it still builds. Two new blocking
      conditions are two new ways to wedge the builder shut. */
@@ -752,6 +808,30 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("and gives it back, so the chrome has somewhere to sit",
     !back.classList.contains("in-exercise"), back.className);
 
+  /* And the session kept a few steps ago, which is only worth keeping if
+     there is a way back to it. */
+  check("a kept session puts a way back to it on the home screen",
+    !!buttonNamed(/^Saved sessions$/),
+    [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(0, 120));
+  if (buttonNamed(/^Saved sessions$/)) {
+    clickNamed(/^Saved sessions$/);
+    await sleep(250);
+    check("and it is there under the name it was given",
+      /Thursday's verbs/.test(document.body.textContent || ""),
+      (document.body.textContent || "").slice(0, 120));
+    /* Built from the cards it named rather than replayed: the point of
+       keeping a description instead of a snapshot. */
+    clickNamed(/^Start$/);
+    await sleep(500);
+    check("and starting it builds the session again",
+      !!document.querySelector(".at-instruction"),
+      (document.body.textContent || "").slice(0, 100));
+    click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Leave session"));
+    await sleep(120);
+    clickNamed(/^Leave$/);
+    await sleep(250);
+  }
+
   /* Kept for the browser check, which needs cards to have a session at
      all and cannot make them through the UI in reasonable time. */
   if (process.env.DUMP_DOC) {
@@ -892,8 +972,8 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      place it can be. */
   {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync(path.resolve("src/ArabicTrainer.jsx"), "utf8");
-    const updates = readFileSync(path.resolve("src/updates.js"), "utf8");
+    const src = readFileSync(path.resolve("src/ArabicTrainer.tsx"), "utf8");
+    const updates = readFileSync(path.resolve("src/updates.ts"), "utf8");
     const watching = updates.slice(updates.indexOf("export function watchForUpdates"));
     const applying = updates.slice(updates.indexOf("export function applyUpdate"));
     check("the page takes the handover itself, without being asked",
@@ -1016,6 +1096,17 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 }
 
 /* ---- a session: start, answer one card, continue ---- */
+/* What this card already carries. Two walks above answer a question each,
+   and which card they draw is a matter of chance — so "one answer writes
+   one state" has to be counted from here rather than from nothing, which
+   is what made this fail about one run in seven. */
+/** @param {any} it */
+const stateKeys = (it) =>
+  [...Object.keys((it || {}).s || {}), ...((it || {}).subs || []).flatMap((/** @type {any} */ sb) => Object.keys(sb.s || {}))];
+const beforeStates = stateKeys(
+  JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "{}").items
+    ?.find((/** @type {any} */ i) => i.id === "srv" + card.id)
+).length;
 click(buttonNamed(/^Start session$/));
 await sleep(400);
 const instruction = document.querySelector(".at-instruction");
@@ -1052,8 +1143,10 @@ await sleep(900); // the 600 ms save debounce
 const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
 const answered = after.items.find((/** @type {any} */ i) => i.id === "srv" + card.id) || { s: {}, subs: [] };
 check("the course card is still in storage after the session", after.items.some((/** @type {any} */ i) => i.id === "srv" + card.id), `items=${after.items.map((/** @type {any} */ i) => i.id).join(",")}`);
-const storedStates = [...Object.keys(answered.s), ...(answered.subs || []).flatMap((/** @type {any} */ sb) => Object.keys(sb.s))];
-check("exactly the answered state is stored on the answered card, and nothing untouched", storedStates.length <= 1, `stored states: ${storedStates.join(",")}`);
+const storedStates = stateKeys(answered);
+check("answering one question writes one state, and nothing untouched",
+  storedStates.length - beforeStates <= 1,
+  `stored states: ${storedStates.join(",")} · ${beforeStates} before the session`);
 check("no console errors during the session", errors.length === 0, errors.slice(0, 3).join(" | "));
 
 /* ---- the component gallery ----
@@ -1356,7 +1449,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      stop, so the source is checked for a second copy of it. */
   {
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync(path.resolve("src/ArabicTrainer.jsx"), "utf8");
+    const src = readFileSync(path.resolve("src/ArabicTrainer.tsx"), "utf8");
     const invites = src.split("Join a course and").length - 1;
     check("the invitation is written once, not once per screen", invites === 1,
       `${invites} copies`);
@@ -1371,7 +1464,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        scrollers, because the app has three: the page for the learner's
        tabs, the frame's own body for a space's tabs, and a screen's body
        for a screen that replaces another. */
-    const shared = readFileSync(path.resolve("src/shared.jsx"), "utf8");
+    const shared = readFileSync(path.resolve("src/shared.tsx"), "utf8");
     check("the learner's tabs put the page back to the top",
       /useScrollTop\(`\$\{space\}:\$\{tab\}`\)/.test(src));
     check("a space's tabs put its own panel back",
@@ -1499,11 +1592,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   }
 
   const sceneSpeakers = ["Layla", "Karim"];
+  /* With how each line sounds on it, so that reading the scene through has
+     both things to reveal and they can be told apart. */
   const said = [
-    { ar: "سلام", en: "peace", who: 0 },
-    { ar: "وسلام", en: "and peace", who: 1 },
-    { ar: "كيف حالك", en: "how are you", who: 0 },
-    { ar: "بخير", en: "well", who: 1 },
+    { ar: "سلام", en: "peace", lat: "salaam", who: 0 },
+    { ar: "وسلام", en: "and peace", lat: "wa salaam", who: 1 },
+    { ar: "كيف حالك", en: "how are you", lat: "kayf haalak", who: 0 },
+    { ar: "بخير", en: "well", lat: "bikhayr", who: 1 },
   ];
   const remote = must(remoteDocs.get(realToken), "the synced document");
   remote.data = {
@@ -1527,7 +1622,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
           who: l.who,
           ar: l.ar,
           en: l.en,
-          lat: "",
+          lat: l.lat,
           /* The first line contains a word this learner already has, so
              the scene also becomes somewhere that word turned up. */
           uses: i === 0 ? ["oldclient1"] : [],
@@ -1603,6 +1698,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     `${document.querySelectorAll('[data-el="scene-line"]').length} lines shown`);
   check("and the way on says what it is", /read it/i.test((checkBtn() || {}).textContent || ""),
     (checkBtn() || {}).textContent || "no button");
+  /* Two people, one down each side, so whose turn it is is seen rather
+     than read. The opener leads and they alternate from there. */
+  const sides = [...document.querySelectorAll('[data-el="scene-line"]')].map((el) =>
+    el.classList.contains("side0") ? 0 : el.classList.contains("side1") ? 1 : null
+  );
+  check("a two-hander is laid out with one speaker down each side",
+    !!document.querySelector('[data-el="scene"].sided') && sides.join("") === "0101",
+    `${(document.querySelector('[data-el="scene"]') || {}).className || "no scene"} · ${sides.join(",")}`);
 
   click(checkBtn());
   await sleep(300);
@@ -1613,7 +1716,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   for (let n = 0; n < 14 && document.querySelector(".at-instruction"); n++) {
     const asked = instruction();
     const order = document.querySelector('[data-el="answer-order"]');
-    const part = document.querySelector('[data-el="answer-part"]');
+    const self = document.querySelector('[data-el="answer-self"]');
     const choices = document.querySelector('[data-el="answer-choices"]');
     if (/Read the scene/.test(asked)) {
       met.add("read-again");
@@ -1635,18 +1738,34 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         );
         await sleep(40);
       }
-    } else if (part) {
-      met.add("part");
-      /* Whose turns these are is read off the screen rather than assumed:
-         this scene names no part, so the question picked one. Karim on a
-         first meeting — the answering side, which is how a conversation is
-         met — and Layla the next time the scene comes round. */
-      const playing = ((part.querySelector(".at-sceneline.yours .at-speaker") || {}).textContent || "").trim();
-      check("a scene that names no part is still a part to play, and says whose",
-        playing === "Karim", playing || "(nobody named)");
-      const mine = said.filter((l) => sceneSpeakers[l.who] === playing);
-      [...part.querySelectorAll("input")].forEach((el, i) => typeInto(el, (mine[i] || {}).ar || ""));
-      await sleep(80);
+    } else if (self) {
+      met.add("whole");
+      /* The script is what is on screen; how it sounds and what it means
+         are each a tap away. Both taken here, to prove they arrive — a
+         reader would take one or neither. */
+      check("reading a scene through shows the script and nothing else",
+        document.querySelectorAll('[data-el="scene-line-text"]').length === 4 &&
+          document.querySelectorAll('[data-el="scene-line-said"]').length === 0 &&
+          document.querySelectorAll('[data-el="scene-line-meaning"]').length === 0,
+        `${document.querySelectorAll('[data-el="scene-line-meaning"]').length} meanings up front`);
+      click(document.querySelector('[data-el="reveal-meaning"]'));
+      await sleep(120);
+      check("and the meaning is a tap away",
+        document.querySelectorAll('[data-el="scene-line-meaning"]').length === 4,
+        `${document.querySelectorAll('[data-el="scene-line-meaning"]').length} shown`);
+      click(document.querySelector('[data-el="reveal-said"]'));
+      await sleep(120);
+      check("as is how it sounds, separately",
+        document.querySelectorAll('[data-el="scene-line-said"]').length === 4,
+        `${document.querySelectorAll('[data-el="scene-line-said"]').length} shown`);
+      /* And the reader says whether they followed it, because nobody else
+         was in the room. */
+      const answers = [...self.querySelectorAll("button")].map((b) => (b.textContent || "").trim());
+      check("then the reader marks it themselves",
+        answers.length === 2 && /all of it/i.test(answers[0]),
+        answers.join(" | ") || "(nothing to answer with)");
+      click(self.querySelector("button"));
+      await sleep(60);
     } else if (choices) {
       met.add("pick");
       /* The reply that actually comes next: the scene on screen ends with
@@ -1680,9 +1799,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       met.add("order-marked");
       check("putting the lines back in the order they were said is marked right", praised(), verdict());
     }
-    if (met.has("part") && !met.has("part-marked")) {
-      met.add("part-marked");
-      check("and so is holding up your whole end of the conversation", praised(), verdict());
+    if (met.has("whole") && !met.has("whole-marked")) {
+      met.add("whole-marked");
+      check("saying you followed the whole scene is taken at your word", praised(), verdict());
     }
     if (met.has("pick") && !met.has("pick-marked")) {
       met.add("pick-marked");
@@ -1695,7 +1814,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("a session on one scene asks several different things about it",
     met.size >= 3, [...met].join(", ") || "nothing asked");
   check("including at least one that is about the whole scene",
-    met.has("order") || met.has("part"), [...met].join(", "));
+    met.has("order") || met.has("whole"), [...met].join(", "));
   check("and the scene is not read through twice in one session",
     !met.has("read-again"), [...met].join(", "));
 
@@ -1716,6 +1835,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!afterScene && !("dlgread" in (afterScene.s || {})),
     afterScene ? Object.keys(afterScene.s || {}).join(",") : "");
 
+  /* A scene of three exercises runs out inside the loop above, so what is
+     on screen is the end of the session rather than the middle of one —
+     and a finished session is a screen over the tabs, not a tab. */
+  if (buttonNamed(/^Done$/)) {
+    click(buttonNamed(/^Done$/));
+    await sleep(250);
+  }
   click(buttonNamed(/^Home$/));
   await sleep(200);
 }
@@ -2064,6 +2190,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and it says the part is nobody's until the question picks one",
     !!read && /Not set/.test(read.textContent || ""),
     read ? (read.textContent || "").replace(/\s+/g, " ").slice(-140) : "(no readout)");
+  /* Read the same way it is practised: one speaker down each side. */
+  const readSides = read
+    ? [...read.querySelectorAll(".at-sceneline")].map((el) =>
+        el.classList.contains("side0") ? 0 : el.classList.contains("side1") ? 1 : null
+      )
+    : [];
+  check("and the scene reads with one speaker down each side",
+    !!read && !!read.querySelector(".at-scene.sided") && readSides.join("") === "010",
+    readSides.join(",") || "(no turns)");
 
   click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
   await sleep(450);
@@ -2082,6 +2217,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     /^Edit card$/.test(heading.trim()) &&
       /The kind of card/.test(document.body.textContent || ""),
     heading.trim() || "(no title)");
+  /* And written the same way. A column of identical blocks made a teacher
+     read the "who says it" picker on every one to see the shape of what
+     they had; the shape is the shape of the page now. */
+  const editSides = [...document.querySelectorAll(".at-screen.over .at-formblock")]
+    .map((el) => (el.classList.contains("side0") ? 0 : el.classList.contains("side1") ? 1 : null))
+    .filter((x) => x !== null);
+  check("and each turn is written on its speaker's side",
+    editSides.join("") === "010", editSides.join(",") || "(no sided blocks)");
+
   check("with every turn there to edit",
     [...document.querySelectorAll("input")].filter((i) => /^What line \d+ means$/.test(i.getAttribute("aria-label") || "")).length === 3,
     `${[...document.querySelectorAll("input")].filter((i) => /^What line/.test(i.getAttribute("aria-label") || "")).length} turns`);
@@ -2097,6 +2241,58 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+
+  /* ---- somewhere to put them that does not exist yet ----
+
+     Selecting thirty cards and then finding no deck for them used to mean
+     leaving to make one, which threw the selection away: the way out of
+     the screen was to lose the work that got you there. */
+  const cardsFrame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  click(cardsFrame.querySelector(".at-selectbtn"));
+  await sleep(200);
+  const firstPick = cardsFrame.querySelector(".at-ckbox.pick");
+  check("cards can be selected in the teaching space", !!firstPick,
+    cardsFrame.querySelectorAll(".at-tilewrap").length + " tiles");
+  click(firstPick);
+  await sleep(200);
+  check("and ticking one raises the bulk actions", !!document.querySelector(".at-bulkfloat"),
+    (document.body.textContent || "").slice(-80));
+  clickNamed(/^Add to a deck$/);
+  await sleep(300);
+  check("the deck screen offers to make one on the spot", !!buttonNamed(/^New deck$/),
+    [...document.querySelectorAll("button")].map((b) => b.textContent).join("|").slice(-120));
+  clickNamed(/^New deck$/);
+  await sleep(200);
+  const deckName = [...document.querySelectorAll(".at-formblock")]
+    .find((d) => /New deck/.test(d.textContent || ""));
+  const deckInput = deckName && deckName.querySelector("input");
+  if (deckInput) {
+    const setInput = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setInput, "the input's value setter").call(deckInput, "Week 3 · Verbs");
+    deckInput.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(80);
+    clickNamed(/^Create$/);
+    await sleep(400);
+    check("making one takes the language from the cards going into it",
+      madeDecks.length === 1 && madeDecks[0].lang === "ar-PS",
+      JSON.stringify(madeDecks[0] || null));
+    const rows = [...document.querySelectorAll(".at-tickrow")];
+    const made = rows.find((r) => /Week 3/.test(r.textContent || ""));
+    check("the new deck joins the list", !!made,
+      rows.map((r) => (r.textContent || "").slice(0, 14)).join(" | ") || "no decks listed");
+    /* Ticked, because it is the one they were about to choose: choosing it
+       again by hand is a step that says nothing. */
+    check("and is already ticked, which is why it was made",
+      !!made && !!made.querySelector("input:checked"),
+      made ? (made.textContent || "").slice(0, 40) : "");
+  }
+  clickNamed(/^Cancel$/);
+  await sleep(250);
+  click(cardsFrame.querySelector(".at-selectbtn"));
+  await sleep(200);
 
   /* ---- and the report sees it ----
      A conversation keeps its words in its turns, so a report reading the
@@ -2187,6 +2383,33 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("each saying which answer it belongs to",
     saidFields().every((i, n) => (i.getAttribute("aria-label") || "").endsWith(String(n + 1))),
     saidFields().map((i) => i.getAttribute("aria-label")).join(" | "));
+  /* And its own grammar. Two accepted answers may be a masculine and a
+     feminine — one thing to know, two right answers — so what each one is
+     grammatically belongs to it rather than to the card over both. */
+  const grammarBtns = () =>
+    [...document.querySelectorAll("button")].filter((b) =>
+      /^Grammar of accepted answer \d+$/.test(b.getAttribute("aria-label") || "")
+    );
+  check("each accepted answer carries its own grammar",
+    grammarBtns().length === 2,
+    grammarBtns().map((b) => b.getAttribute("aria-label")).join(" | ") || "none");
+  click(grammarBtns()[1]);
+  await sleep(200);
+  const genderGroup = document.querySelector('[role="group"][aria-label="Gender of accepted answer 2"]');
+  check("and opens onto the pickers for that answer alone",
+    !!genderGroup &&
+      !document.querySelector('[role="group"][aria-label="Gender of accepted answer 1"]'),
+    genderGroup ? "the second answer's" : "(no pickers)");
+  click(
+    [...(genderGroup ? genderGroup.querySelectorAll("button") : [])]
+      .find((b) => /feminine/i.test(b.textContent || ""))
+  );
+  await sleep(200);
+  check("choosing one names that answer without touching the other",
+    /sg\. f\.|f\./.test((grammarBtns()[1] || {}).textContent || "") &&
+      !/f\./.test((grammarBtns()[0] || {}).textContent || ""),
+    grammarBtns().map((b) => (b.textContent || "").trim()).join(" | "));
+
   /* And removing an answer takes its pronunciation with it, which is the
      whole guard against the two stored lists drifting apart. */
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Remove this answer"));

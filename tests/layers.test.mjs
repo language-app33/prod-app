@@ -210,6 +210,27 @@ test("what sits above the bar is stacked, not offset by a guessed height", () =>
   assert.doesNotMatch(extra, /bottom:/, "the line above the bar offsets itself off the bar");
 });
 
+test("a list leaves room for the tray that floats over it", () => {
+  /* The bulk tray is fixed to the foot of the window, so the list runs on
+     underneath it: selecting anything put the last card or two behind the
+     buttons acting on them. The shell's standing room at the bottom is
+     108px and the tray with three actions is 144px, more once a phone's
+     home indicator is under it — so the list has to reserve the tray's own
+     height rather than lean on somebody else's margin. */
+  const tray = rule(".at-bulkfloat");
+  assert.match(tray, /position:\s*fixed/, "the tray is in the flow, so it cannot be floating over anything");
+  const wrap = rule(".at-listwrap");
+  assert.match(wrap, /padding-bottom:\s*var\(--bulk-h/,
+    "the list reserves nothing for the tray, so its last row sits under it");
+  /* Measured, not written down: how tall the tray is depends on how many
+     actions there are, how long their labels are and how wide the window
+     is, so a number here would be one label away from the same bug. */
+  assert.doesNotMatch(wrap, /padding-bottom:\s*\d/, "the room for the tray is a guessed number");
+  const src = readFileSync(new URL("../src/shared.tsx", import.meta.url), "utf8");
+  assert.match(src, /--bulk-h/, "nothing measures the tray, so the variable is never set");
+  assert.match(src, /ResizeObserver/, "the tray is measured once and never again when it wraps");
+});
+
 test("the waiting line is over the page, not in it", () => {
   /* It used to be a notice in the flow above the tabs, so every arrival in
      a space pushed the tabs and everything under them down and pulled them
@@ -505,6 +526,50 @@ test("the foot is not cut in two by a rule between its parts", () => {
      the hairline, so 3px over 4px is what comes out even. */
   assert.match(rule(".at-footextra"), /padding:\s*3px [^;]+ 4px\s*;/,
     "the line above the bar is not centred between the edge and the buttons");
+});
+
+test("a turn is a bubble that hugs its words, not a block the width of the page", () => {
+  /* The bug this replaced. A block the width of the page puts its text at
+     whichever end the text itself starts from, so an Arabic line sat hard
+     against the right of its column whichever side of the page that column
+     was on — and both speakers came out down the right. An English scene
+     had the same fault mirrored. A box that hugs its words cannot do that:
+     where the words sit is where the box is. */
+  const line = rule(".at-sceneline");
+  assert.match(line, /flex-direction:\s*column/);
+  assert.match(line, /align-items:\s*flex-start/, "the bubble would fill the row again");
+  assert.match(rule(".at-scenesaid"), /max-width:\s*min\(/,
+    "a bubble with no cap is a block with rounded corners");
+  assert.doesNotMatch(rule(".at-scenesaid"), /width:\s*100%/);
+});
+
+test("two people talking take a side of the page each", () => {
+  /* And the far side is moved by the same lever — where the box goes —
+     rather than by a margin that leaves the words where they were. */
+  assert.match(rule(".at-scene.sided .at-sceneline.side1"), /align-items:\s*flex-end/);
+  /* Each side tinted the colour of the name above it, which is the second
+     thing saying the same thing: the one that survives a scene read at
+     arm's length. */
+  assert.match(rule(".at-scene.sided .at-sceneline.side0 > .at-scenesaid"), /background:\s*var\(--jade-bg\)/);
+  assert.match(rule(".at-scene.sided .at-sceneline.side1 > .at-scenesaid"), /background:\s*var\(--tag-bg\)/);
+
+  /* Logical, not physical. Today the page runs the same way whatever is
+     being taught, so the two agree; the day a whole screen is handed to an
+     Arabic reader, this follows it rather than having to be found. */
+  const sided = [".at-scene", ".at-sceneline", ".at-scenesaid", ".at-scene.sided .at-sceneline.side0 > .at-scenesaid",
+    ".at-scene.sided .at-sceneline.side1 > .at-scenesaid", ".at-formblock.side0", ".at-formblock.side1"]
+    .flatMap((sel) => [...css.matchAll(new RegExp(`\\n${sel.replace(/[.]/g, "\\.")}[^{]*\\{([^}]*)\\}`, "g"))])
+    .map((m) => m[1])
+    .join(" ");
+  assert.ok(sided.length > 200, "the selectors this reads have moved");
+  assert.doesNotMatch(sided, /margin-left|margin-right|border-left|border-right|border-top-left|border-top-right/,
+    "a side is the side the script starts on, not the side of the screen");
+
+  /* A turn being written is on its speaker's side too, by an indent and a
+     thicker rule rather than by halving the form — a form is fields, and
+     half a phone is not enough for one. */
+  assert.match(rule(".at-formblock.side0"), /border-inline-start-width:\s*5px/);
+  assert.match(rule(".at-formblock.side1"), /border-inline-end-width:\s*5px/);
 });
 
 test("the bar reaches both edges of the window and its buttons do not", () => {

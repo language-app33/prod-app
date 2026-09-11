@@ -15,7 +15,7 @@ anyGlobal.localStorage = {
   removeItem: () => {},
 };
 
-const API = await import("../src/courses-api.js");
+const API = await import("../src/courses-api.ts");
 
 /* A stand-in for whatever answered: the body is text, as it is in a
    browser, so a non-JSON answer is reported the way a real one would be. */

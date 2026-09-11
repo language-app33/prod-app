@@ -1,4 +1,4 @@
-/** @import { Card, Course, Deck, Flag, User } from "../../src/types.js" */
+/** @import { Card, Course, Deck, User } from "../../src/types.ts" */
 /**
  * The document store, as store.js hands it over. Named rather than repeated
  * at every helper below.
@@ -8,7 +8,8 @@ import { getStore } from "../store.js";
 import { createHash, randomBytes } from "node:crypto";
 /* The one list of grammatical fields a card may carry, shared with the app so
    that adding an axis to a language does not silently drop it here. */
-import { grammarFields } from "../../src/languages.js";
+import { answerFields, grammarFields } from "../../src/languages.ts";
+import { answersOf } from "../../src/answers.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -754,6 +755,7 @@ export default async (req) => {
         ),
         note: String(card.note || "").slice(0, 500),
         lang: String(card.lang || "").slice(0, 12),
+        answers: storedAnswers(card),
         subs: Array.isArray(card.subs)
           ? card.subs.slice(0, 12).map((/** @type {Record<string, any>} */ sb) => ({
               ar: String(sb.ar || "").slice(0, 400),
@@ -762,6 +764,7 @@ export default async (req) => {
               ...Object.fromEntries(
                 grammarFields().map((f) => [f, String(sb[f] || "").slice(0, 40)])
               ),
+              answers: storedAnswers(sb),
               clips: Array.isArray(sb.clips) ? sb.clips.slice(0, 12) : [],
               slowClips: Array.isArray(sb.slowClips) ? sb.slowClips.slice(0, 12) : [],
             }))
@@ -822,6 +825,21 @@ export default async (req) => {
             }))
           : [],
       };
+
+      /* What each accepted answer is, one entry per answer.
+         Read through answersOf rather than trusted as sent, so a client
+         that omits it — an older build, or a card pasted in — still stores
+         the answers its delimited fields describe, and one that sends
+         something odd stores what the language will actually accept. The
+         `ar` and `lat` strings stay beside it: they are what the wire and
+         every export have always carried, and what a client on the old
+         build still reads. */
+      /** @param {Record<string, any>} form */
+      function storedAnswers(form) {
+        return answersOf(form, answerFields())
+          .slice(0, 12)
+          .map(({ at: _at, ...answer }) => answer);
+      }
 
       let saved;
       /** @type {string[]} */

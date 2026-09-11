@@ -1,4 +1,3 @@
-/** @import { Form, Item } from "./types.js" */
 /*
  * Dialogs: a card that holds a conversation.
  *
@@ -27,22 +26,41 @@
  * — is a second route to a question that already exists, which is how the
  * app already treats hearing a word against reading it.
  *
- * This is a plain module for the same reason scheduler.js is: `node --test`
- * cannot import a .jsx file, so anything that decides what a learner is
- * asked belongs somewhere a test can reach. Nothing here reads the DOM,
- * React state, or any module-level mutable, and nothing picks at random:
+ * This is a plain module for the same reason scheduler.ts is: anything
+ * that decides what a learner is asked belongs somewhere a test can reach
+ * without the app around it. Nothing here reads the DOM, React state, or
+ * any module-level mutable, and nothing picks at random:
  * which three replies are offered and which order the lines arrive in are
  * both worked out from the ids, so a re-render is the same question.
  */
 
-import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.js";
+import type { Item, Line } from "./types.ts";
+import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.ts";
+
+/* A card, a line of one, or the half-written draft in an editor.
+   Deliberately open: the same questions are asked of all three, and only
+   the first is an Item. */
+export type Scene = Record<string, any> | null | undefined;
+
+/* One turn: a form with a speaker on it, declared beside Item in types.ts
+   because that is where it is stored. Re-exported here so that a caller
+   working on dialogs has the word to hand without a second import — and
+   because a caller reaching for two Lines from two places is exactly the
+   divergence this file exists to prevent. */
+export type { Line };
+
+/* Where a line stands in the scene it belongs to. */
+export interface Placed {
+  card: Item;
+  at: number;
+}
 
 export const DIALOG_KIND = "dialog";
 
 /* Two people, unless a scene says otherwise. Named A and B rather than
    left unnamed: a line belongs to somebody, and "A" is a worse name than
    "Layla" but a better one than nothing. */
-export const DEFAULT_SPEAKERS = ["A", "B"];
+export const DEFAULT_SPEAKERS: string[] = ["A", "B"];
 
 /* More than four people in a short scene stops being a conversation and
    starts being a play, and every one of them costs a column in the
@@ -56,8 +74,19 @@ export const MIN_ORDER_LINES = 3;
 export const MIN_PICK_LINES = 3;
 
 /* How many replies "Pick the reply" puts up: the same few as every other
-   question that offers a choice, named once in chance.js. */
-export { PICK_OPTIONS } from "./chance.js";
+   question that offers a choice, named once in chance.ts. */
+export { PICK_OPTIONS } from "./chance.ts";
+
+/*
+ * The two answers to "could you follow all of it".
+ *
+ * Words rather than a true and a false, because they travel in the same
+ * place every other answer travels — the box that holds what the learner
+ * typed — and a bare "true" sitting in a stored session says nothing about
+ * what was asked.
+ */
+export const SELF_ALL = "all of it";
+export const SELF_SOME = "not all";
 
 /* The learner's ordering, and their turns, both travel as one string —
    the answer box holds a string, and every other exercise's answer is one
@@ -87,27 +116,20 @@ export const PART_SEP = "\n";
  * label is a summary of it — which is how the learner's copy has always
  * derived its own (see cardToItem).
  */
-/** @param {Record<string, any> | null | undefined} it */
-export const isDialog = (it) => linesOf(it).length > 0;
+export const isDialog = (it: Scene): boolean => linesOf(it).length > 0;
 
-/** @param {Record<string, any> | null | undefined} it @returns {any[]} */
-export const linesOf = (it) => (it && /** @type {any} */ (it).lines) || [];
+export const linesOf = (it: Scene): Line[] => (it && it.lines) || [];
 
-/** @param {Record<string, any> | null | undefined} it @returns {string[]} */
-export function speakersOf(it) {
-  const named = (it && /** @type {any} */ (it).speakers) || [];
-  const out = named.map((/** @type {unknown} */ n) => String(n || "").trim()).filter(Boolean);
+export function speakersOf(it: Scene): string[] {
+  const named: unknown[] = (it && it.speakers) || [];
+  const out = named.map((n) => String(n || "").trim()).filter(Boolean);
   return out.length ? out.slice(0, MAX_SPEAKERS) : DEFAULT_SPEAKERS.slice();
 }
 
 /* Who said it. A line whose speaker has been deleted since falls back to
    the first, which is wrong in a way that is visible rather than a crash
    in a way that is not. */
-/**
- * @param {Record<string, any> | null | undefined} it
- * @param {number} who
- */
-export function speakerName(it, who) {
+export function speakerName(it: Scene, who: number): string {
   const names = speakersOf(it);
   return names[who] || names[0];
 }
@@ -127,9 +149,8 @@ export function speakerName(it, who) {
  */
 export const NO_PART = null;
 
-/** @param {Record<string, any> | null | undefined} it @returns {number | null} */
-export function namedPart(it) {
-  const said = it && /** @type {any} */ (it).you;
+export function namedPart(it: Scene): number | null {
+  const said = it && it.you;
   if (said === null || said === undefined || said === "") return NO_PART;
   const n = Number(said);
   if (!Number.isFinite(n)) return NO_PART;
@@ -146,15 +167,64 @@ export function namedPart(it) {
  * offered is the answering one, which is what a scene that named no part
  * has always been drilled as.
  */
-/** @param {Record<string, any> | null | undefined} it @returns {number[]} */
-export function partsToPlay(it) {
-  /** @type {number[]} */
-  const seen = [];
+export function partsToPlay(it: Scene): number[] {
+  const seen = speakingParts(it);
+  return seen.length > 1 ? seen.slice(1).concat(seen.slice(0, 1)) : seen;
+}
+
+/* Who actually says something, in the order they first say it. The opener
+   leads, which is what makes the order worth having. */
+export function speakingParts(it: Scene): number[] {
+  const seen: number[] = [];
   for (const line of linesOf(it)) {
     const who = Number(line && line.who) || 0;
     if (!seen.includes(who)) seen.push(who);
   }
-  return seen.length > 1 ? seen.slice(1).concat(seen.slice(0, 1)) : seen;
+  return seen;
+}
+
+/*
+ * Which side of the page a speaker's turns sit on.
+ *
+ * Two people talking is the shape every messaging app in the world has
+ * settled on, and for the same reason: with one of them down each side,
+ * whose turn it is is answered by where it sits rather than by reading a
+ * name. A scene of three or four cannot be two columns, so it stays a list
+ * and keeps the names doing that work.
+ *
+ * The one who opens takes the leading side. Not the learner's own part,
+ * which would be the other obvious rule: a card may leave the part unset
+ * and the question then picks a different one each time, so a scene would
+ * reflect itself between sittings — and the readout, where nobody is
+ * playing anything, would have no side to take at all.
+ *
+ * A scene being written counts the speakers it names as well as the ones
+ * who have said something, so the second column is there before the second
+ * person has any words in it. Without that, the editor would rearrange
+ * itself under a teacher the moment they filled in the reply.
+ */
+export function sidesOf(it: Scene): number[] {
+  const seen = speakingParts(it);
+  const named = speakersOf(it).length;
+  for (let who = 0; who < named; who++) if (!seen.includes(who)) seen.push(who);
+  return seen;
+}
+
+export const SIDES = 2;
+
+export const isTwoSided = (it: Scene): boolean => sidesOf(it).length === SIDES;
+
+/*
+ * Which side, as a number, or null where the scene has no sides.
+ *
+ * Null rather than 0, so a caller cannot put a three-hander down the left
+ * by forgetting to ask whether it had sides at all.
+ */
+export function sideOf(it: Scene, who: number): number | null {
+  const sides = sidesOf(it);
+  if (sides.length !== SIDES) return null;
+  const at = sides.indexOf(Number(who) || 0);
+  return at < 0 ? 0 : at;
 }
 
 /*
@@ -167,8 +237,7 @@ export function partsToPlay(it) {
  * a random draw: nothing in this module picks at random, so a re-render is
  * the same question.
  */
-/** @param {Record<string, any> | null | undefined} it @param {number} [turn] */
-export function youOf(it, turn = 0) {
+export function youOf(it: Scene, turn = 0): number {
   const said = namedPart(it);
   if (said !== NO_PART) return said;
   const parts = partsToPlay(it);
@@ -177,20 +246,14 @@ export function youOf(it, turn = 0) {
   return parts[at];
 }
 
-/** @param {Record<string, any> | null | undefined} it @param {number} [turn] */
-export const yourLines = (it, turn = 0) =>
+export const yourLines = (it: Scene, turn = 0): Line[] =>
   linesOf(it).filter((l) => (l.who || 0) === youOf(it, turn));
 
 /* Where a line stands in its scene, and which scene that is. Built from
    the whole card list rather than kept on the line, so a line never holds
    a pointer back to its own card that an edit could leave stale. */
-/**
- * @param {Item[]} items
- * @returns {Map<string, { card: Item, at: number }>}
- */
-export function buildDialogIndex(items) {
-  /** @type {Map<string, { card: Item, at: number }>} */
-  const index = new Map();
+export function buildDialogIndex(items: Item[]): Map<string, Placed> {
+  const index = new Map<string, Placed>();
   for (const card of items || []) {
     if (!isDialog(card)) continue;
     linesOf(card).forEach((line, at) => {
@@ -203,18 +266,10 @@ export function buildDialogIndex(items) {
 /* The lines a learner has already heard when this one is asked. The
    question is "what do you say now", so what came before is the question
    and what comes after would be the answer to a different one. */
-/**
- * @param {Record<string, any> | null | undefined} card
- * @param {number} at
- */
-export const sceneBefore = (card, at) => linesOf(card).slice(0, Math.max(0, at));
+export const sceneBefore = (card: Scene, at: number): Line[] => linesOf(card).slice(0, Math.max(0, at));
 
 /* The line just before this one: the thing actually being answered. */
-/**
- * @param {Record<string, any> | null | undefined} card
- * @param {number} at
- */
-export const cueFor = (card, at) => (at > 0 ? linesOf(card)[at - 1] : null);
+export const cueFor = (card: Scene, at: number): Line | null => (at > 0 ? linesOf(card)[at - 1] : null);
 
 /*
  * Every line of every dialog, in the shape a phrase card has.
@@ -225,8 +280,7 @@ export const cueFor = (card, at) => (at > 0 ? linesOf(card)[at - 1] : null);
  * scene stand in for a phrase in the gap-fill without the gap-fill
  * knowing what a dialog is.
  */
-/** @param {Item[]} items */
-export function dialogPhrases(items) {
+export function dialogPhrases(items: Item[]) {
   const out = [];
   for (const card of items || []) {
     if (!isDialog(card)) continue;
@@ -249,7 +303,7 @@ export function dialogPhrases(items) {
    Deciding without rolling a die
 
    Which replies are offered, and which order a scrambled scene arrives in,
-   are worked out from the ids involved rather than drawn — see chance.js,
+   are worked out from the ids involved rather than drawn — see chance.ts,
    which the gap-fill's choices come out of too.
    ------------------------------------------------------------------ */
 
@@ -262,11 +316,17 @@ export function dialogPhrases(items) {
  * reply that reads the same as the right one is dropped — being marked
  * wrong for choosing the correct words is the one unforgivable question.
  */
-/**
- * @param {{ card: Record<string, any>, at: number, pool?: any[], wanted?: number }} args
- * @returns {any[]}
- */
-export function replyOptions({ card, at, pool = [], wanted = PICK_OPTIONS }) {
+export function replyOptions({
+  card,
+  at,
+  pool = [],
+  wanted = PICK_OPTIONS,
+}: {
+  card: Record<string, any>;
+  at: number;
+  pool?: Line[];
+  wanted?: number;
+}): Line[] {
   const lines = linesOf(card);
   const answer = lines[at];
   if (!answer) return [];
@@ -284,8 +344,7 @@ export function replyOptions({ card, at, pool = [], wanted = PICK_OPTIONS }) {
 /* The scene, out of order. Held to a shuffle that is actually one: a
    scrambled list that comes back in the order it went in is not a
    puzzle, so the seed is walked until something moves. */
-/** @param {Record<string, any> | null | undefined} card */
-export function scrambledLines(card) {
+export function scrambledLines(card: Scene): Line[] {
   const lines = linesOf(card);
   if (lines.length < 2) return lines.slice();
   for (let n = 0; n < 8; n++) {
@@ -295,15 +354,10 @@ export function scrambledLines(card) {
   return lines.slice().reverse();
 }
 
-/** @param {any[]} lines */
-export const orderOf = (lines) => lines.map((l) => l.id).join(ORDER_SEP);
+export const orderOf = (lines: Line[]): string => lines.map((l) => l.id).join(ORDER_SEP);
 
 /* Right when the ids come back in the order the scene was written in. */
-/**
- * @param {string} typed
- * @param {Record<string, any> | null | undefined} card
- */
-export const orderIsRight = (typed, card) =>
+export const orderIsRight = (typed: string, card: Scene): boolean =>
   !!typed && typed === orderOf(linesOf(card));
 
 /*
@@ -313,11 +367,9 @@ export const orderIsRight = (typed, card) =>
  * holds, and they are marked together because holding up your end of a
  * conversation is one thing rather than four. Missing one is missing it.
  */
-/** @param {string[]} answers */
-export const partOf = (answers) => answers.join(PART_SEP);
+export const partOf = (answers: string[]): string => answers.join(PART_SEP);
 
-/** @param {string} typed */
-export const partAnswers = (typed) => String(typed || "").split(PART_SEP);
+export const partAnswers = (typed: string): string[] => String(typed || "").split(PART_SEP);
 
 /*
  * Whether a scene supports an exercise at all.
@@ -326,12 +378,7 @@ export const partAnswers = (typed) => String(typed || "").split(PART_SEP);
  * once per type per card, and because what each exercise needs is worth
  * being able to read in one place.
  */
-/**
- * @param {string} need
- * @param {{ card: Item, at: number } | null} scene
- * @param {Record<string, any>} unit
- */
-export function dialogNeedMet(need, scene, unit) {
+export function dialogNeedMet(need: string, scene: Placed | null, unit: Record<string, any>): boolean {
   if (need === "dialog") return isDialog(unit);
   if (need === "line") return !!scene;
   /* Something has to have been said before there is a reply to make. */
@@ -345,7 +392,7 @@ export function dialogNeedMet(need, scene, unit) {
   return false;
 }
 
-export const DIALOG_NEEDS = ["dialog", "line", "reply", "choices", "order", "part"];
+export const DIALOG_NEEDS: string[] = ["dialog", "line", "reply", "choices", "order", "part"];
 
 /*
  * What a unit is, as far as the exercise table is concerned.
@@ -355,11 +402,7 @@ export const DIALOG_NEEDS = ["dialog", "line", "reply", "choices", "order", "par
  * exercise can never be asked of a scene and a scene exercise can never
  * be asked of a word.
  */
-/**
- * @param {Record<string, any> | null | undefined} unit
- * @param {{ card: Item, at: number } | null} [scene]
- */
-export function roleOf(unit, scene = null) {
+export function roleOf(unit: Scene, scene: Placed | null = null): "card" | "line" | "word" {
   if (isDialog(unit)) return "card";
   if (scene) return "line";
   return "word";

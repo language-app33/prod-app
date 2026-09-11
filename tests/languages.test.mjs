@@ -29,7 +29,7 @@ import {
   TYPES,
   EX,
   isListening,
-} from "../src/languages.js";
+} from "../src/languages.ts";
 
 test("Arabic: bare letters accepted, wrong harakat rejected, missing harakat depends on setting", () => {
   assert.equal(checkAr("كتاب", "كِتَاب", { tashkeel: "either" }).ok, true);
@@ -370,13 +370,13 @@ test("neither joins the gentle types, and the hint is a nudge not the answer", (
 test("the gentle types are read off the definitions, not kept beside them", () => {
   /* The app held a second list, and a new type had to be remembered twice
      or "Get started" quietly never offered it. Reading a line of a
-     conversation is recognition too, and belongs with the other two: a
-     beginner meeting a scene should be asked what it says before being
-     asked to say any of it. Choosing a word out of a phrase is the same
+     conversation through is recognition too, and belongs with the other
+     two: a beginner meeting a scene should be asked whether they can
+     follow it before being asked to say any of it. Choosing a word out of a phrase is the same
      argument again: the gap-fill used to start at the hard half, so a
      learner's first meeting with a word in context was also their first
      chance to get it wrong. */
-  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "ctx2pick", "dlg2en"]);
+  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "ctx2pick", "dlgwhole"]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);
@@ -525,6 +525,19 @@ test("a key too short to mean anything is no key", () => {
   assert.equal(arRootKey("مال"), "");
   assert.equal(arRootKey("بيت"), "");
   assert.equal(arRootKey(""), "");
+});
+
+test("a word spelt in presentation forms is the word, not a stranger", () => {
+  /* Unicode carries each joined shape of an Arabic letter as a character
+     of its own, and some keyboards and most clipboards hand those over.
+     They rendered identically and compared as different in every letter —
+     a flat "wrong", where a single hamza is a near miss. The learner saw
+     their own correct word marked as if it were another word entirely. */
+  const check = LANGUAGES["ar-PS"].check;
+  const forms = "ﻋﻨﺪﻱ ﺳﻮﺍﻝ"; // ﻋﻨﺪﻱ ﺳﻮﺍﻝ as presentation forms, not letters
+  assert.equal(check(forms, "عندي سؤال", { ignoreHamza: true }).ok, true, "lenient: only the hamza differs, and it is forgiven");
+  assert.equal(check(forms, "عندي سؤال", { ignoreHamza: false }).reason, "near", "strict: one letter off, and said so");
+  assert.equal(check("ﻻ", "لا", {}).ok, true, "and the lam-alef ligature is its two letters");
 });
 
 test("what arSkeleton did, and why it could never have grouped anything", () => {
