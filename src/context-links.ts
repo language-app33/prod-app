@@ -26,11 +26,11 @@
  * so every answer here is something to offer somebody, never something to
  * act on. That is why this module has no writer in it at all.
  *
- * A plain module for the reason scheduler.js is one: it decides what a
+ * A plain module for the reason scheduler.ts is one: it decides what a
  * teacher is shown, and `node --test` cannot import a .jsx file.
  */
 
-import type { Lang } from "./types.js";
+import type { Lang } from "./types.ts";
 import { contextTokens, findWordSpan, isFunctionWord, supportsContext } from "./languages.js";
 import { isDialog, linesOf, speakerName } from "./dialogs.ts";
 

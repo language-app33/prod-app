@@ -1,4 +1,4 @@
-/** @import { Card, Course, Deck, Doc, ExerciseSpec, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Question, Settings, User } from "./types.js" */
+/** @import { Card, Course, Deck, Doc, ExerciseSpec, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Question, Settings, User } from "./types.ts" */
 /** @typedef {React.ReactNode} Node */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {

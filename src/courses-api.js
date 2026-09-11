@@ -6,7 +6,7 @@
  * throws with the server's own error string, which the screens turn into
  * something a person can read.
  */
-/** @import { Card, Flag, LangId, User } from "./types.js" */
+/** @import { Card, Flag, LangId, User } from "./types.ts" */
 
 const ENDPOINT = "/api/courses";
 const KEY_STORE = "arabic-account";

@@ -1,4 +1,4 @@
-/** @import { Lang } from "./types.js" */
+/** @import { Lang } from "./types.ts" */
 /** @typedef {React.ReactNode} Node */
 /** @typedef {{ file: string, line: number, where: string }} Use */
 /*

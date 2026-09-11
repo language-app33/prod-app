@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mergeData, compactItem, isFreshState, syncClips, clipIdsIn } from "../src/sync.js";
 import { TYPES } from "../src/languages.js";
-/** @import { Doc, Item, WireDoc } from "../src/types.js" */
+/** @import { Doc, Item, WireDoc } from "../src/types.ts" */
 
 const fresh = () => ({
   phase: "new", step: 0, ease: 2.5, interval: 0, due: 0, reps: 0, lapses: 0,

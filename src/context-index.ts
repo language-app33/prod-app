@@ -17,7 +17,7 @@
  * the cards it came from, because it is rebuilt from them.
  */
 
-import type { Item, Lang } from "./types.js";
+import type { Item, Lang } from "./types.ts";
 import { findWordSpan, supportsContext } from "./languages.js";
 import { unitsOf } from "./scheduler.ts";
 import { dialogPhrases } from "./dialogs.ts";

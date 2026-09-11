@@ -13,7 +13,7 @@
 import * as API from "../src/courses-api.js";
 import { langOf } from "../src/languages.js";
 
-/** @type {import("../src/types.js").Settings} */
+/** @type {import("../src/types.ts").Settings} */
 const settings = { language: "ar-PS" };
 
 const base = /** @type {const} */ ({

@@ -1,4 +1,4 @@
-/** @import { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.js" */
+/** @import { Card, Course, Deck, Flag, Item, Lang, LangId, User } from "./types.ts" */
 /** @typedef {React.ReactNode} Node */
 /**
  * Whatever is waiting on a yes: the confirmation to show, and what to do
@@ -1379,7 +1379,7 @@ function scriptStyle(languages, langId) {
 export function AdminSpace({ account, languages, onClose }) {
   const [tab, setTab] = useState("courses");
   const [data, setData] = useState(
-    /** @type {import("./types.js").AdminOverview | null} */ (recallSpace("admin", account.handle))
+    /** @type {import("./types.ts").AdminOverview | null} */ (recallSpace("admin", account.handle))
   );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

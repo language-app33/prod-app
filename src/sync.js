@@ -1,4 +1,4 @@
-/** @import { Doc, ExerciseState, Form, Item, WireDoc } from "./types.js" */
+/** @import { Doc, ExerciseState, Form, Item, WireDoc } from "./types.ts" */
 /*
  * Sync client.
  *

@@ -26,15 +26,15 @@
  * — is a second route to a question that already exists, which is how the
  * app already treats hearing a word against reading it.
  *
- * This is a plain module for the same reason scheduler.js is: `node --test`
- * cannot import a .jsx file, so anything that decides what a learner is
- * asked belongs somewhere a test can reach. Nothing here reads the DOM,
- * React state, or any module-level mutable, and nothing picks at random:
+ * This is a plain module for the same reason scheduler.ts is: anything
+ * that decides what a learner is asked belongs somewhere a test can reach
+ * without the app around it. Nothing here reads the DOM, React state, or
+ * any module-level mutable, and nothing picks at random:
  * which three replies are offered and which order the lines arrive in are
  * both worked out from the ids, so a re-render is the same question.
  */
 
-import type { Form, Item } from "./types.js";
+import type { Item, Line } from "./types.ts";
 import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.ts";
 
 /* A card, a line of one, or the half-written draft in an editor.
@@ -42,17 +42,12 @@ import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.ts";
    the first is an Item. */
 export type Scene = Record<string, any> | null | undefined;
 
-/* One turn.
-   A line is a form with a speaker on it — the same three fields every form
-   of a card carries, its own progress, and `who` said it. Declared as such
-   rather than as something looser, because that is what every caller has
-   always assumed: unitsOf walks lines beside a card's other forms, and the
-   scheduler counts one without being told what a dialog is. */
-export interface Line extends Form {
-  who?: number;
-  uses?: string[];
-  [field: string]: any;
-}
+/* One turn: a form with a speaker on it, declared beside Item in types.ts
+   because that is where it is stored. Re-exported here so that a caller
+   working on dialogs has the word to hand without a second import — and
+   because a caller reaching for two Lines from two places is exactly the
+   divergence this file exists to prevent. */
+export type { Line };
 
 /* Where a line stands in the scene it belongs to. */
 export interface Placed {

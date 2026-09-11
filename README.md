@@ -139,7 +139,7 @@ shapes with JSDoc until it is quiet. Nothing is renamed and nothing is
 compiled, so the server still runs from source and the tests still import
 plain modules.
 
-The records both sides pass are in `src/types.js` — a card, a deck, a
+The records both sides pass are in `src/types.ts` — a card, a deck, a
 course, an account, a report, a language pack. It has no runtime value; it
 exists so the two ends of a request describe the same thing. `LangId` is a
 string and a `Lang` is the pack that has one, and sending the second where

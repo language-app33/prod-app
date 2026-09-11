@@ -1,4 +1,4 @@
-/** @import { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.js" */
+/** @import { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.ts" */
 /**
  * Anything React will render: an element, a string, a list of them, or
  * nothing. Written once because nearly every component here takes one.
@@ -2362,7 +2362,7 @@ export function useFreshSpace(space, handle, adopt) {
 /* The administrator's whole view of the site, in one request. */
 /**
  * @param {string} handle
- * @returns {Promise<import("./types.js").AdminOverview>}
+ * @returns {Promise<import("./types.ts").AdminOverview>}
  */
 export async function pullAdmin(handle) {
   const data = await API.adminOverview();

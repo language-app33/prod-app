@@ -14,7 +14,7 @@
  * Nothing in this file imports from the app, so it can be read and tested
  * on its own.
  */
-/** @import { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings } from "./types.js" */
+/** @import { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings, Verdicts } from "./types.ts" */
 /* The one import here, and it goes the way every import in this file has
    to: dialogs.js knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
@@ -1982,7 +1982,7 @@ export function checkAnswer(typed, item, type, settings) {
 /* The tiers are the same everywhere; each language supplies its own words for
    them. "harakat" is the historical name of the partial-credit tier and stays
    as the internal code so stored progress keeps its meaning. */
-/** @type {Record<string, string>} */
+/** @type {Verdicts} */
 export const VERDICT_FALLBACK = {
   partial: "Right letters, wrong marks",
   missing: "Letters right — add the marks",
@@ -1992,10 +1992,13 @@ export const VERDICT_FALLBACK = {
 
 /**
  * @param {Lang | null | undefined} lang
- * @param {string} key
+ * @param {keyof Verdicts} key  One of the four tiers, named rather than left
+ *   an open string: the fallback below has a word for each of them and for
+ *   nothing else, so a key it has never heard of would read as no verdict
+ *   at all rather than as a mistake.
  */
 export function verdictWord(lang, key) {
-  const own = /** @type {Record<string, string>} */ (lang && lang.verdicts) || {};
+  const own = (lang && lang.verdicts) || VERDICT_FALLBACK;
   return own[key] || VERDICT_FALLBACK[key];
 }
 

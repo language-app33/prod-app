@@ -24,7 +24,7 @@
  * places, so it is passed in. Everything else is read off the card.
  */
 
-import type { ExerciseSpec, Form, Item, Lang } from "./types.js";
+import type { ExerciseSpec, Form, Item, Lang } from "./types.ts";
 import type { Placed } from "./dialogs.ts";
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";

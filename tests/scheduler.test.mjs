@@ -41,7 +41,7 @@ import {
   dueRank,
 } from "../src/scheduler.ts";
 import { TYPES } from "../src/languages.js";
-/** @import { ExerciseState, Item } from "../src/types.js" */
+/** @import { ExerciseState, Item } from "../src/types.ts" */
 
 /* A Tuesday, so nothing depends on it being midnight or a month boundary. */
 const T = Date.UTC(2026, 8, 8, 12, 0, 0);

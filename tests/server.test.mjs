@@ -50,14 +50,14 @@ async function listenSomewhere(server) {
  * reads a field the overview does not carry is then a failure at the
  * checker rather than an `undefined` compared against `undefined`.
  * @param {{ json: any }} r
- * @returns {import("../src/types.js").AdminOverview}
+ * @returns {import("../src/types.ts").AdminOverview}
  */
 const overviewOf = (r) => r.json;
 
 /**
  * The courses a person is in, as `my-courses` answers.
  * @param {{ json: any }} r
- * @returns {import("../src/types.js").Course[]}
+ * @returns {import("../src/types.ts").Course[]}
  */
 const coursesOf = (r) => r.json.courses;
 

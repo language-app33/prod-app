@@ -21,7 +21,7 @@
  * Every function is a function of its arguments.
  */
 
-import type { Clock, ExerciseState, Form, Item } from "./types.js";
+import type { Clock, ExerciseState, Form, Item } from "./types.ts";
 import { TYPES } from "./languages.js";
 
 export const DAY = 86400000;
