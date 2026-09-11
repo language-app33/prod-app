@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.73 — 11 September 2026
+
+- Selecting cards in Teaching no longer hides the last ones. The bulk
+  actions tray floats at the foot of the window, and the list carried on
+  underneath it — so the cards you were reaching for were behind the
+  buttons acting on them. The list now leaves exactly the tray's own room,
+  measured, so it stays right whatever the buttons say and however narrow
+  the phone is.
+
 ## 0.72 — 11 September 2026
 
 - Nothing you can see; an audit of 0.71. The linter had quietly stopped

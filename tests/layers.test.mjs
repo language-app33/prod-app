@@ -210,6 +210,27 @@ test("what sits above the bar is stacked, not offset by a guessed height", () =>
   assert.doesNotMatch(extra, /bottom:/, "the line above the bar offsets itself off the bar");
 });
 
+test("a list leaves room for the tray that floats over it", () => {
+  /* The bulk tray is fixed to the foot of the window, so the list runs on
+     underneath it: selecting anything put the last card or two behind the
+     buttons acting on them. The shell's standing room at the bottom is
+     108px and the tray with three actions is 144px, more once a phone's
+     home indicator is under it — so the list has to reserve the tray's own
+     height rather than lean on somebody else's margin. */
+  const tray = rule(".at-bulkfloat");
+  assert.match(tray, /position:\s*fixed/, "the tray is in the flow, so it cannot be floating over anything");
+  const wrap = rule(".at-listwrap");
+  assert.match(wrap, /padding-bottom:\s*var\(--bulk-h/,
+    "the list reserves nothing for the tray, so its last row sits under it");
+  /* Measured, not written down: how tall the tray is depends on how many
+     actions there are, how long their labels are and how wide the window
+     is, so a number here would be one label away from the same bug. */
+  assert.doesNotMatch(wrap, /padding-bottom:\s*\d/, "the room for the tray is a guessed number");
+  const src = readFileSync(new URL("../src/shared.tsx", import.meta.url), "utf8");
+  assert.match(src, /--bulk-h/, "nothing measures the tray, so the variable is never set");
+  assert.match(src, /ResizeObserver/, "the tray is measured once and never again when it wraps");
+});
+
 test("the waiting line is over the page, not in it", () => {
   /* It used to be a notice in the flow above the tabs, so every arrival in
      a space pushed the tabs and everything under them down and pulled them

@@ -580,7 +580,11 @@ button {
 
 /* The shared frame every list of things uses. The New button and the search
    box share one height so the row reads as a single control, not two. */
-.at-listwrap { position:relative; }
+/* --bulk-h is the floating bulk tray's measured height, set by ItemList
+   while it is up and unset the moment it goes. The tray is fixed to the
+   foot of the window, so without this the list runs on underneath it and
+   the last card is behind the buttons acting on it. */
+.at-listwrap { position:relative; padding-bottom: var(--bulk-h, 0px); }
 .at-toolbar { display:flex; gap:8px; align-items:stretch; margin-bottom:10px; flex-wrap:nowrap; }
 /* Both controls are sized the same way — border-box, one height, no inherited
    padding — so the button and the field line up exactly. */

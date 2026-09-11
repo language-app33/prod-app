@@ -1341,8 +1341,46 @@ export function ItemList<T>({
 
   const allShown = shown.length > 0 && shown.every((it) => picked.has(itemKey(it)));
 
+  /*
+   * Room at the end of the list for the tray that floats over it.
+   *
+   * The tray is fixed to the foot of the window, so it is out of the flow
+   * and the list runs on underneath — which left the last card or two
+   * behind it, exactly where somebody selecting things is looking. The
+   * shell's own standing room at the bottom (108px) used to be enough and
+   * is not: with three actions the tray is 144px, and on a phone it also
+   * carries the home indicator's inset.
+   *
+   * Measured rather than written down. How tall the tray is depends on how
+   * many actions there are, how long their labels are, how wide the window
+   * is — the buttons wrap — and on that inset, so a number here would be
+   * one label away from covering the last card again.
+   */
+  const [trayH, setTrayH] = useState(0);
+  const watching = useRef<ResizeObserver | null>(null);
+  const trayRef = useCallback((node: HTMLDivElement | null) => {
+    if (watching.current) {
+      watching.current.disconnect();
+      watching.current = null;
+    }
+    if (!node) {
+      setTrayH(0);
+      return;
+    }
+    setTrayH(node.offsetHeight);
+    /* jsdom has no ResizeObserver, and the smoke harness renders there.
+       The first measurement above is what matters; a window nobody is
+       resizing never needs the second. */
+    if (typeof ResizeObserver === "undefined") return;
+    watching.current = new ResizeObserver(() => setTrayH(node.offsetHeight));
+    watching.current.observe(node);
+  }, []);
+
   return (
-    <div className="at-listwrap">
+    <div
+      className="at-listwrap"
+      style={trayH ? ({ "--bulk-h": `${trayH}px` } as React.CSSProperties) : undefined}
+    >
       <div className="at-toolbar at-toolbar-top">
         {onNew && (
           <button className="at-btn primary" onClick={onNew}>
@@ -1452,7 +1490,7 @@ export function ItemList<T>({
       )}
 
       {selecting && picked.size > 0 && (
-        <div className="at-bulkfloat">
+        <div className="at-bulkfloat" ref={trayRef}>
           <div className="at-bulkhead2">
             <span className="at-bulktitle">Bulk actions</span>
             <span className="at-bulkcount">{picked.size} selected</span>
