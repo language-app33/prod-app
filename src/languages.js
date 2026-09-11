@@ -19,7 +19,7 @@
    to: dialogs.js knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
-import { orderIsRight, partAnswers, yourLines } from "./dialogs.js";
+import { isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
@@ -649,16 +649,30 @@ export function isFunctionWord(word, lang) {
  * @param {Partial<Lang>} lang  A language that declares no context is reported as unsupported, not as empty.
  */
 export function contextCoverage(cards, lang) {
-  const empty = { supported: false, words: [], counts: { word: 0, phrase: 0, sentence: 0 }, covered: 0, links: 0 };
+  const empty = {
+    supported: false, words: [], counts: { word: 0, phrase: 0, sentence: 0, dialog: 0 }, covered: 0, links: 0,
+  };
   if (!supportsContext(lang)) return empty;
 
   /** @type {Record<string, number>} */
-  const counts = { word: 0, phrase: 0, sentence: 0 };
+  const counts = { word: 0, phrase: 0, sentence: 0, dialog: 0 };
   /** @type {Record<string, any>[]} */
   const words = [];
   /** @type {Record<string, any>[]} */
   const contexts = [];
   for (const c of cards || []) {
+    /* A conversation has no text of its own — its words are in its turns —
+       so it stands here as its turns. Counted as the one card it is, and
+       matched as the several phrases it holds: reading `ar` off the card
+       found an empty string, so every scene a teacher wrote counted for
+       nothing in this number. */
+    if (isDialog(c)) {
+      counts.dialog += 1;
+      for (const line of linesOf(c)) {
+        if (line && line.ar) contexts.push({ id: c.id, ar: line.ar, en: line.en || "" });
+      }
+      continue;
+    }
     const kind = c.kind || guessKind(c.ar || c.en || c.lat, lang);
     counts[kind] = (counts[kind] || 0) + 1;
     if (kind === "word") words.push(c);

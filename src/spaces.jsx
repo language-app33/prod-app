@@ -4403,7 +4403,7 @@ function TryExercises({ card, cards, lang, settings, onTry }) {
  *   languages: Record<string, Lang>,
  *   langOfCard: (card: Card) => Lang | undefined,
  *   busy?: boolean,
- *   onLink: (container: Card, word: { id: string, ar: string, en: string }) => void,
+ *   onLink: (card: Card, word: { id: string, ar: string, en: string }, line: number | null) => void,
  *   onAddWord: (text: string, lang: Lang) => void,
  *   onOpenCard: (id: string) => void,
  * }} props
@@ -4507,13 +4507,20 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
                       </span>
                       <span className="at-findgloss">{pair.word.en}</span>
                     </p>
+                    {/* A turn says whose it is. Without the name it reads
+                        as a phrase from nowhere, and a teacher deciding
+                        whether a word really sits in it wants to know it
+                        came out of a conversation. */}
+                    {pair.container.who ? (
+                      <p className="at-findwho">{pair.container.who} says</p>
+                    ) : null}
                     <button
                       type="button"
                       className="at-findphrase"
                       lang={lang.id}
                       dir={lang.direction}
                       style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                      onClick={() => onOpenCard(pair.container.id)}
+                      onClick={() => onOpenCard(pair.container.cardId)}
                     >
                       {pair.container.ar}
                     </button>
@@ -4524,7 +4531,8 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
                     icon="check"
                     onClick={() => {
                       setDone((x) => x.concat([`${pair.container.id}:${pair.word.id}`]));
-                      onLink(byId.get(pair.container.id) || /** @type {any} */ (pair.container), pair.word);
+                      const card = byId.get(pair.container.cardId);
+                      if (card) onLink(card, pair.word, pair.container.line);
                     }}
                   >
                     It does
@@ -4574,7 +4582,7 @@ function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOp
                       lang={lang.id}
                       dir={lang.direction}
                       style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                      onClick={() => onOpenCard(word.examples[0].id)}
+                      onClick={() => onOpenCard(word.examples[0].cardId)}
                     >
                       {word.examples[0].ar}
                     </button>
@@ -4655,6 +4663,10 @@ function ContextReport({ cards, lang }) {
       <Help>
         {plural(counts.word, "word")} · {plural(counts.phrase, "phrase")} ·{" "}
         {plural(counts.sentence, "sentence")}
+        {/* Conversations are counted as the cards they are and matched as
+            the turns they hold, so this is the deck a teacher wrote rather
+            than the number of lines in it. */}
+        {counts.dialog ? ` · ${plural(counts.dialog, "conversation")}` : ""}
         {links ? ` · ${plural(links, "pairing")} in all` : ""}
       </Help>
 
@@ -5888,18 +5900,34 @@ export function TeachSpace({ account, languages, settings, onTry, onClose }) {
               languages={taught}
               langOfCard={langOfCard}
               busy={busy}
-              onLink={(container, word) =>
+              onLink={(card, word, line) =>
                 run(
                   async () => {
+                    /* A link belongs where the words are. On a phrase card
+                       that is the card; on a conversation it is the turn
+                       that says them, because a scene has no text of its
+                       own and the session builder reads a line's own
+                       `uses` to know what it teaches. */
+                    const add = (/** @type {string[] | undefined} */ had) => [
+                      ...new Set((had || []).concat([word.id])),
+                    ];
                     absorbSaved(
                       await API.saveCard(
-                        { ...container, uses: [...new Set((container.uses || []).concat([word.id]))] },
-                        container.decks || []
+                        line === null
+                          ? { ...card, uses: add(card.uses) }
+                          : {
+                              ...card,
+                              lines: linesOf(card).map((/** @type {any} */ l, /** @type {number} */ at) =>
+                                at === line ? { ...l, uses: add(l.uses) } : l
+                              ),
+                            },
+                        card.decks || []
                       )
                     );
-                    return word;
+                    return { word, line };
                   },
-                  (/** @type {any} */ w) => `"${w.en || w.ar}" is now taught inside that phrase`
+                  (/** @type {any} */ r) =>
+                    `"${r.word.en || r.word.ar}" is now taught inside that ${r.line === null ? "phrase" : "turn"}`
                 )
               }
               onAddWord={(text, lang) =>

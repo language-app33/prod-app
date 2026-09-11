@@ -2190,6 +2190,12 @@ body.at-screening .at-spaces { display:none; }
 /* What it means, beside it rather than under it: the word is what is being
    judged and the gloss is how you judge it. */
 .at-findgloss { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted); }
+/* Who says it, where the thing a word turns up in is a turn of a
+   conversation rather than a phrase. Above the line rather than beside it:
+   a name and a line of script on one row, in two directions, is the
+   reordering the gloss rule above exists to avoid. */
+.at-findwho { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
+  margin:0; }
 /* The phrase is a way into the card it belongs to, so it reads as one —
    quieter than the word, and underlined on hover like every other way of
    opening something. */

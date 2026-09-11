@@ -113,7 +113,10 @@ const talk = {
   lines: [
     { who: 0, ar: "سلام", en: "peace", lat: "", clips: [], slowClips: [], uses: [] },
     { who: 1, ar: "وعليكم السلام", en: "and upon you peace", lat: "", clips: [], slowClips: [], uses: [] },
-    { who: 0, ar: "كيف حالك", en: "how are you", lat: "", clips: [], slowClips: [], uses: [] },
+    /* This turn uses a word the teacher teaches and does not say so, which
+       is what the In context tab is for — and a conversation used to be
+       invisible to it. */
+    { who: 0, ar: "وين الكتاب", en: "where is the book", lat: "", clips: [], slowClips: [], uses: [] },
   ],
   clips: [], subs: [], rev: 1, updated: 1,
 };
@@ -2061,6 +2064,36 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+
+  /* ---- and the report sees it ----
+     A conversation keeps its words in its turns, so a report reading the
+     card's own text saw nothing in it: words taught only through dialogue
+     read as bare, and the turns using them never came up to confirm. The
+     session builder had been drilling those same words inside those same
+     turns all along. */
+  const inFrame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const ctxTab = [...inFrame.querySelectorAll("button")].find((b) => /^In context$/.test(b.textContent || ""));
+  click(ctxTab);
+  await sleep(500);
+
+  const rows = [...inFrame.querySelectorAll(".at-findrow")].map((r) => (r.textContent || "").replace(/\s+/g, " "));
+  const turnRow = rows.find((t) => t.includes("وين الكتاب"));
+  check("a turn of a conversation is offered as somewhere a word turns up",
+    !!turnRow, rows.slice(0, 3).join(" // ") || "no rows at all");
+  check("and it reads as a turn, with the person who says it",
+    !!turnRow && /Layla says/.test(turnRow), turnRow || "(no row)");
+  /* The counterpart: the word is no longer listed as turning up nowhere.
+     Matched on the whole word rather than on the text of the panel — the
+     phrase card "الكتاب كبير" is two tokens, so it is word-shaped itself
+     and legitimately bare, and it has the word inside it. */
+  const barePanel = [...inFrame.querySelectorAll(".at-panel")]
+    .find((p) => /Words in no phrase/.test((p.querySelector(".at-eyebrow") || {}).textContent || ""));
+  const bareWords = barePanel
+    ? [...barePanel.querySelectorAll(".at-tag")].map((b) => (b.textContent || "").trim())
+    : [];
+  check("a word said in a conversation is not a word in no phrase",
+    !!barePanel && !bareWords.includes("كتاب"),
+    bareWords.join(" | ") || "(nothing bare)");
 }
 
 console.error = origError;

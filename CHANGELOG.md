@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.63 — 11 September 2026
+
+- In context could not see conversations. A scene keeps its words in its
+  turns and has no text of its own, so the report read an empty string off
+  every one and skipped it: a word taught only through dialogue showed as
+  turning up nowhere, the turns using it never came up to confirm, and a
+  deck taught entirely through conversation measured at nothing. The
+  exercises had been drilling those words inside those turns the whole
+  time — the two halves of the app disagreed about what the material
+  contained. They agree now.
+- A turn is offered as a turn: it says who speaks it, and confirming the
+  link writes it onto that line rather than onto the scene, which is where
+  the session builder reads it from.
+- Words a conversation keeps using and nothing teaches are offered as cards
+  worth writing, alongside the ones your phrases use.
+- The same blindness in a deck's own In context section is gone too. It
+  counts a conversation as the one card it is and matches it as the several
+  turns it holds, so the tally now reads "3 words · 1 conversation" rather
+  than silently filing a scene under phrases.
+
 ## 0.62 — 11 September 2026
 
 - Opening a conversation to edit it put the word editor up: one script box,

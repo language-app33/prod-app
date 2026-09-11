@@ -17,6 +17,11 @@
  *   bare         a word you teach turns up in none of your phrases
  *   missing      a word your phrases keep using has no card at all
  *
+ * "Phrase" throughout means anything a word can sit inside: a phrase card,
+ * a sentence card, or one turn of a conversation. A scene keeps its words
+ * in its lines and has no text of its own, so reading `ar` off each card
+ * saw straight past every conversation a teacher had written.
+ *
  * All three are proposals. The matcher behind them is a good guesser and an
  * occasional liar — Arabic peels كتاب down to تاب, which is also a word —
  * so every answer here is something to offer somebody, never something to
@@ -27,6 +32,7 @@
  */
 
 import { contextTokens, findWordSpan, isFunctionWord, supportsContext } from "./languages.js";
+import { isDialog, linesOf, speakerName } from "./dialogs.js";
 
 /*
  * Where a word stops and a phrase begins, in tokens.
@@ -66,15 +72,76 @@ const lengthOf = (card, lang) => contextTokens(textOf(card), lang).length;
 const named = (card) => ({ id: card.id, ar: textOf(card), en: card.en || "" });
 
 /*
- * Every word-inside-a-card pair the material holds, whether or not anybody
- * has confirmed it.
+ * Everywhere a word could turn up: the teacher's phrases, and the turns of
+ * their conversations.
  *
- * A pair is possible when one card is shorter than another and the language
- * finds the shorter one inside it. Shorter in tokens rather than "is a word
+ * A conversation keeps its words in its lines, and has no text of its own —
+ * so a report that read `ar` off each card saw nothing at all in it. Every
+ * scene a teacher wrote was invisible here: the words in it read as bare,
+ * the lines using them never came up to confirm, and coverage counted a
+ * deck taught entirely through conversation at nothing. Meanwhile the
+ * session builder had been treating those same lines as contexts all
+ * along (see context-index.js), so the two halves of the app disagreed
+ * about what the material contains.
+ *
+ * A container is therefore a card or one turn of one. `cardId` is what to
+ * open and what to save; `line` is which turn, or null for a card that is
+ * its own text. `id` is the two of them together, because a row on screen
+ * is keyed by it and two turns of one scene are two rows.
+ */
+/**
+ * @param {Record<string, any>[]} cards
+ * @returns {{ id: string, cardId: string, line: number | null, ar: string, en: string, who: string, uses: string[] }[]}
+ */
+export function containersIn(cards) {
+  const out = [];
+  for (const card of cards || []) {
+    if (!card || !card.id) continue;
+    if (isDialog(card)) {
+      linesOf(card).forEach((/** @type {any} */ line, /** @type {number} */ at) => {
+        const text = String((line && line.ar) || "").trim();
+        if (!text) return;
+        out.push({
+          id: `${card.id}#${at}`,
+          cardId: card.id,
+          line: at,
+          ar: text,
+          en: line.en || "",
+          /* Who says it, so a turn offered for confirmation reads as a
+             turn rather than as a phrase from nowhere. */
+          who: speakerName(card, line.who || 0),
+          uses: line.uses || [],
+        });
+      });
+      continue;
+    }
+    if (!textOf(card)) continue;
+    out.push({
+      id: card.id,
+      cardId: card.id,
+      line: null,
+      ar: textOf(card),
+      en: card.en || "",
+      who: "",
+      uses: card.uses || [],
+    });
+  }
+  return out;
+}
+
+/*
+ * Every word-inside-something pair the material holds, whether or not
+ * anybody has confirmed it.
+ *
+ * A pair is possible when a card is shorter than a container and the
+ * language finds it inside. Shorter in tokens rather than "is a word
  * card": a card is a word because a teacher wrote it on its own, not
  * because it has no spaces in it, and deciding otherwise is what kept
  * Vietnamese — where most words are two syllables — from ever teaching a
  * word in context at all.
+ *
+ * The word side is always a card, because a word is something a teacher
+ * teaches; the container side is a card or a turn of a conversation.
  */
 /**
  * @param {Record<string, any>[]} cards
@@ -83,19 +150,19 @@ const named = (card) => ({ id: card.id, ar: textOf(card), en: card.en || "" });
 export function pairsIn(cards, lang) {
   const usable = (cards || []).filter((c) => c && c.id && textOf(c));
   const pairs = [];
-  for (const container of usable) {
-    const long = lengthOf(container, lang);
+  for (const container of containersIn(cards)) {
+    const long = contextTokens(container.ar, lang).length;
     for (const word of usable) {
-      if (word.id === container.id) continue;
+      if (word.id === container.cardId) continue;
       if (lengthOf(word, lang) >= long) continue;
-      const span = findWordSpan(textOf(container), textOf(word), lang);
+      const span = findWordSpan(container.ar, textOf(word), lang);
       if (!span) continue;
       pairs.push({
-        container: named(container),
+        container,
         word: named(word),
         at: span.at,
         len: span.len,
-        confirmed: (container.uses || []).includes(word.id),
+        confirmed: container.uses.includes(word.id),
       });
     }
   }
@@ -124,11 +191,14 @@ export function unknownWords(cards, lang) {
   /** @type {{ text: string, forms: string[], count: number, examples: any[] }[]} */
   const groups = [];
 
-  for (const card of usable) {
-    const tokens = contextTokens(textOf(card), lang);
+  /* Turns of a conversation are mined alongside phrases: a word a scene
+     keeps using and nothing teaches is exactly the gap one a sentence keeps
+     using is. */
+  for (const container of containersIn(cards)) {
+    const tokens = contextTokens(container.ar, lang);
     if (tokens.length < MINE_FROM_TOKENS) continue;
-    /* One card counts once towards a word, however many times it says it:
-       a sentence that repeats a word is one example of it, not two. */
+    /* One container counts once towards a word, however many times it says
+       it: a sentence that repeats a word is one example of it, not two. */
     const seenHere = new Set();
     for (const token of tokens) {
       if (!token || seenHere.has(token)) continue;
@@ -144,9 +214,9 @@ export function unknownWords(cards, lang) {
         group.count += 1;
         if (!group.forms.includes(token)) group.forms.push(token);
         if (token.length < group.text.length) group.text = token;
-        if (group.examples.length < EXAMPLES_SHOWN) group.examples.push(named(card));
+        if (group.examples.length < EXAMPLES_SHOWN) group.examples.push(container);
       } else {
-        groups.push({ text: token, forms: [token], count: 1, examples: [named(card)] });
+        groups.push({ text: token, forms: [token], count: 1, examples: [container] });
       }
     }
   }

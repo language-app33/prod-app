@@ -151,3 +151,84 @@ test("the coverage number counts words that could be taught in context", () => {
   assert.equal(coverage.covered, 1, "one of them is taught inside a phrase today");
   assert.equal(coverage.links, 1);
 });
+
+/*
+ * Conversations.
+ *
+ * A scene keeps its words in its turns and has no text of its own, so a
+ * report that read `ar` off each card saw straight past every one a
+ * teacher had written. Everything below is the same three questions asked
+ * of a scene instead of a phrase — and the point of asking them is that
+ * the session builder had been treating those same turns as contexts all
+ * along, so the report was contradicting the app.
+ */
+
+/** A scene whose first turn uses a word and says so, and whose second uses
+    one and does not. */
+const scene = () =>
+  card({
+    id: "d-shop",
+    ar: "",
+    en: "At the shop",
+    speakers: ["Layla", "Karim"],
+    you: null,
+    lines: [
+      { who: 0, ar: "سكّر الباب من فضلك", en: "close the door please", uses: ["w-door"] },
+      { who: 1, ar: "أخذت كتابها معها", en: "she took her book with her", uses: [] },
+    ],
+  });
+
+test("a word used in a turn of a conversation counts as used", () => {
+  const cards = [
+    card({ id: "w-door", ar: "باب", en: "door" }),
+    card({ id: "w-book", ar: "كتاب", en: "book" }),
+    scene(),
+  ];
+  const { bare, confirmed, toConfirm, coverage } = linkReport(cards, ar);
+  assert.deepEqual(bare, [], "both words turn up in the scene, so neither is bare");
+  assert.deepEqual(
+    confirmed.map((p) => p.word.id),
+    ["w-door"],
+    "the turn that says which word it teaches is a confirmed link",
+  );
+  assert.deepEqual(
+    toConfirm.map((p) => p.word.id),
+    ["w-book"],
+    "and the turn that does not is one to confirm",
+  );
+  assert.deepEqual(coverage, { words: 2, covered: 1, links: 1 });
+});
+
+test("a turn is offered as itself: which card, which line, and who says it", () => {
+  /* Confirming the link has to write it onto the turn rather than the
+     card, because a scene has no `uses` of its own that would mean
+     anything — the session builder reads a line's own. */
+  const [pair] = linkReport([card({ id: "w-book", ar: "كتاب", en: "book" }), scene()], ar).toConfirm;
+  assert.ok(pair, "the turn using the word was not offered");
+  assert.equal(pair.container.cardId, "d-shop", "the card to open, and to save");
+  assert.equal(pair.container.line, 1, "the turn to write the link onto");
+  assert.equal(pair.container.who, "Karim", "read as a turn rather than a phrase from nowhere");
+  assert.equal(pair.container.id, "d-shop#1", "two turns of one scene are two rows");
+  /* An ordinary phrase says the same three things, so the screen has one
+     shape of row rather than two. */
+  const [plain] = linkReport(deck(), ar).toConfirm;
+  assert.equal(plain.container.cardId, "p-took");
+  assert.equal(plain.container.line, null);
+  assert.equal(plain.container.who, "");
+});
+
+test("and words a conversation keeps using are worth a card like any others", () => {
+  const missing = unknownWords([scene()], ar);
+  const texts = missing.map((m) => m.text);
+  assert.ok(texts.includes("كتابها"), `nothing was mined from the turns: ${texts.join(" ")}`);
+  assert.equal(missing[0].examples[0].cardId, "d-shop", "and the example opens the scene it came from");
+});
+
+test("a scene is never itself a word waiting for somewhere to be used", () => {
+  /* It has no text, so an earlier reading would have made it a nought-token
+     card — which is shorter than two, and would have put every conversation
+     in the deck on the list of bare words. */
+  const { bare, coverage } = linkReport([scene()], ar);
+  assert.deepEqual(bare, []);
+  assert.equal((coverage || { words: -1 }).words, 0);
+});

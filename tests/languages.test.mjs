@@ -292,6 +292,32 @@ test("coverage counts the words that have a context, and every context each has"
   assert.equal((r.words.at(-1) || { contexts: [] }).contexts.length, 0);
 });
 
+test("a conversation counts as the card it is and matches as the turns it holds", () => {
+  /* A scene has no text of its own, so reading `ar` off the card found an
+     empty string and every conversation in a deck counted for nothing
+     here — while the session builder was already drilling those words
+     inside those turns. */
+  const cards = [
+    { id: "1", ar: "كتاب", en: "book" },
+    { id: "2", ar: "شمس", en: "sun" },
+    {
+      id: "d1", ar: "", en: "At the shop",
+      speakers: ["Layla", "Karim"],
+      lines: [
+        { who: 0, ar: "الكتاب كبير", en: "the book is big" },
+        { who: 1, ar: "بدي كتاب جديد", en: "I want a new book" },
+      ],
+    },
+  ];
+  const r = contextCoverage(cards, AR);
+  assert.equal(r.counts.word, 2, "a scene is not a word");
+  assert.equal(r.counts.phrase, 0, "nor three phrases the teacher never wrote");
+  assert.equal(r.counts.dialog, 1, "it is one conversation");
+  assert.equal(r.covered, 1, "the book turns up in it; the sun does not");
+  assert.equal(r.links, 2, "in both turns, which are two places to meet it");
+  assert.equal(r.words[0].contexts.length, 2);
+});
+
 test("a collection with no phrases at all reports honestly", () => {
   /* The answer this is built to give when it is the true one. */
   const r = contextCoverage([{ id: "1", ar: "كتاب" }, { id: "2", ar: "بيت" }], AR);
