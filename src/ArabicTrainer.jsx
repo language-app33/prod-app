@@ -156,6 +156,7 @@ import {
   ORDER_SEP,
   buildDialogIndex,
   isDialog,
+  isTwoSided,
   linesOf,
   namedPart,
   partAnswers,
@@ -163,6 +164,7 @@ import {
   replyOptions,
   sceneBefore,
   scrambledLines,
+  sideOf,
   speakerName,
   speakersOf,
   yourLines,
@@ -3178,6 +3180,16 @@ function Field({ value, field, kind, lang, name }) {
    answer screen would come to disagree about what a scene looks like.
    ------------------------------------------------------------------ */
 
+/* Which side of the page a turn belongs on, as the class that puts it
+   there. Empty for a scene of three or four, which stays a list — see
+   sidesOf. Written once here because every picture of a scene in this file
+   needs the same answer, and two of them would be two layouts. */
+/** @param {any} card @param {any} line */
+const sideClass = (card, line) => {
+  const side = sideOf(card, line && line.who);
+  return side === null ? "" : ` side${side}`;
+};
+
 /**
  * @param {{
  *   card: any,
@@ -3194,12 +3206,16 @@ function Scene({ card, lines, lang, blankId = null, meanings = false, marks, num
     /* Named here rather than through a prop: the reference in Admin is
        built by reading these names out of this file, and a name that
        arrives as a default argument is a name nobody can find. */
-    <div className="at-scene" data-el="scene">
+    <div className={`at-scene${isTwoSided(card) ? " sided" : ""}`} data-el="scene">
       {lines.map((line) => {
         const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
         const n = numbers && numbers[line.id];
         return (
-          <div className={`at-sceneline${line.id === blankId ? " asked" : ""}${mark}`} key={line.id} data-el="scene-line">
+          <div
+            className={`at-sceneline${sideClass(card, line)}${line.id === blankId ? " asked" : ""}${mark}`}
+            key={line.id}
+            data-el="scene-line"
+          >
             <span className={`at-speaker s${(line.who || 0) % 4}`} data-el="scene-speaker">
               {n ? `${n}. ` : ""}
               {speakerName(card, line.who || 0)}
@@ -3256,10 +3272,15 @@ function SceneOrder({ card, lang, value, onChange, disabled }) {
       {scrambled.map((line) => {
         const at = place(line.id);
         return (
+          /* The button keeps the whole width — the tap is the answer, so
+             it stays as big as the thing being answered — and the words
+             inside it take their speaker's side. Whose turn it is is half
+             of what puts a scrambled scene back together, and here it is
+             read at a glance rather than off a name. */
           <button
             type="button"
             key={line.id}
-            className={`at-orderline${at ? " on" : ""}`}
+            className={`at-orderline${sideClass(card, line)}${at ? " on" : ""}`}
             disabled={disabled || !!at}
             aria-label={`${speakerName(card, line.who || 0)}: ${line.ar}`}
             onClick={() => onChange(picked.concat([line.id]).join(ORDER_SEP))}
@@ -3307,13 +3328,13 @@ function ScenePart({ card, lang, value, onChange, disabled, marks }) {
   const said = partAnswers(value);
   const turns = yourLines(card);
   return (
-    <div className="at-part" data-el="answer-part">
+    <div className={`at-part${isTwoSided(card) ? " sided" : ""}`} data-el="answer-part">
       {linesOf(card).map((line) => {
         const at = turns.indexOf(line);
         const mark = marks && line.id in marks ? (marks[line.id] ? " ok" : " no") : "";
         if ((line.who || 0) !== mine) {
           return (
-            <div className="at-sceneline" key={line.id}>
+            <div className={`at-sceneline${sideClass(card, line)}`} key={line.id}>
               <span className={`at-speaker s${(line.who || 0) % 4}`}>
                 {speakerName(card, line.who || 0)}
               </span>
@@ -3324,7 +3345,7 @@ function ScenePart({ card, lang, value, onChange, disabled, marks }) {
           );
         }
         return (
-          <div className={`at-sceneline yours${mark}`} key={line.id}>
+          <div className={`at-sceneline${sideClass(card, line)} yours${mark}`} key={line.id}>
             <span className={`at-speaker s${mine % 4}`}>{speakerName(card, mine)}</span>
             <div className="at-scenesaid">
               <input

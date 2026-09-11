@@ -492,6 +492,19 @@ button {
 .at-formblock { border:2px solid var(--line); border-radius: var(--r-lg); padding:16px;
   margin-bottom:14px; background: var(--surface); }
 .at-formblock.main { border-color: var(--brass); }
+/* A turn of a conversation, on its speaker's side. The block keeps most of
+   its width, because a form is fields and half a phone is not enough for
+   one — what says which side it is on is the indent away from the far
+   edge and the thicker rule on its own. Logical, so an Arabic scene puts
+   its opener where an Arabic reader starts. */
+.at-formblock.side0, .at-formblock.side1 { --turn-inset: min(12%, 56px); }
+.at-formblock.side0 { margin-inline-end: var(--turn-inset);
+  border-inline-start-width:5px; border-inline-start-color: var(--jade); }
+.at-formblock.side1 { margin-inline-start: var(--turn-inset);
+  border-inline-end-width:5px; border-inline-end-color: var(--brass); }
+/* The name of whoever says it, beside the number. It was only inside the
+   picker, so reading down a scene meant reading four pickers. */
+.at-formhead > .at-speaker { flex:0 0 auto; }
 .at-formhead { display:flex; align-items:baseline; gap:10px; margin-bottom:14px;
   padding-bottom:10px; border-bottom:2px solid var(--line); }
 .at-formnum { font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
@@ -2148,6 +2161,51 @@ body.at-screening .at-spaces { display:none; }
 .at-sceneline.asked .at-speaker { color: var(--text); }
 .at-sceneline.ok .at-input, .at-sceneline.ok .at-arabic { color: var(--jade); }
 .at-sceneline.no .at-input, .at-sceneline.no .at-arabic { color: var(--rose); }
+
+/* ---- two people, one down each side ----
+
+   Whose turn it is stops being something to read and becomes something to
+   see. The names stay — they are who these people are, not merely which
+   column — but they no longer have to carry the alternation on their own,
+   which is what made a scene of six turns a thing to parse rather than
+   scan.
+
+   Only a two-hander. There is no third side of a page, so a scene of
+   three or four keeps the list it has, and `sided` is what says which is
+   which — see sidesOf.
+
+   Logical properties throughout: "the side the opener takes" is the
+   leading edge, which follows the script rather than the screen. An
+   Arabic scene reads from the right, and a first speaker pinned to the
+   physical left of it would be the one thing on the page going the wrong
+   way.
+
+   The inset is what makes two columns out of one: each side gives up a
+   fifth of the width at the far edge, so the two runs of turns cannot
+   line up and be mistaken for one. Capped in pixels because a fifth of a
+   wide screen is a corridor. */
+.at-scene.sided .at-sceneline, .at-part.sided .at-sceneline {
+  --scene-inset: min(20%, 96px); }
+.at-scene.sided .at-sceneline.side0, .at-part.sided .at-sceneline.side0 {
+  margin-inline-end: var(--scene-inset); }
+/* The far side: the words come first and the name sits after them, so the
+   two names hug the outside edges and the words face each other. */
+.at-scene.sided .at-sceneline.side1, .at-part.sided .at-sceneline.side1 {
+  margin-inline-start: var(--scene-inset);
+  grid-template-columns: 1fr minmax(54px, auto); }
+.at-scene.sided .at-sceneline.side1 > .at-speaker,
+.at-part.sided .at-sceneline.side1 > .at-speaker { grid-column:2; grid-row:1; }
+.at-scene.sided .at-sceneline.side1 > .at-scenesaid,
+.at-part.sided .at-sceneline.side1 > .at-scenesaid {
+  grid-column:1; grid-row:1; align-items:flex-end; text-align:end; }
+/* The answer field on the far side is the width of its column like the
+   words it stands in for, so a scene half typed into does not jump about
+   as turns are filled in. */
+.at-part.sided .at-sceneline.side1 .at-input { text-align:end; }
+/* A scene inside the order puzzle keeps its full-width tap target; what
+   moves is the words in it. */
+.at-orderline.side1 { flex-direction:row-reverse; }
+.at-orderline.side1 > .at-orderwords { align-items:flex-end; text-align:end; }
 
 /* Putting it back in order. Each line is a target the width of the
    column: the tap is the answer, so it is as big as the thing being

@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
 import { dimValues, dimsOf, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
-import { DIALOG_KIND, isDialog, linesOf, namedPart } from "./dialogs.js";
+import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.js";
 
 
 
@@ -1566,9 +1566,16 @@ export function CardReadout({ card, lang, decks, whereItLives = true }) {
           <p className="at-hint">
             {card.note || "A conversation. Each line is practised in its own right."}
           </p>
-          <div className="at-scene at-mt3">
+          {/* Two people, one down each side — which is how a conversation
+              is read everywhere else, and the difference between scanning
+              a scene and parsing it. Three or four stay a list: there is
+              no third side of a page. */}
+          <div className={`at-scene at-mt3${isTwoSided(card) ? " sided" : ""}`}>
             {linesOf(card).map((/** @type {any} */ line, /** @type {number} */ i) => (
-              <div className="at-sceneline" key={line.id || i}>
+              <div
+                className={`at-sceneline${sideOf(card, line.who) === null ? "" : ` side${sideOf(card, line.who)}`}`}
+                key={line.id || i}
+              >
                 <span className={`at-speaker s${(line.who || 0) % 4}`}>{nameOf(line.who || 0)}</span>
                 <div className="at-scenesaid">
                   <p className="at-arabic phrase" lang={L.id} dir={L.direction}

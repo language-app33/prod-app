@@ -55,7 +55,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars,
 } from "./languages.js";
-import { MAX_SPEAKERS, isDialog, linesOf, namedPart } from "./dialogs.js";
+import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.js";
 import { answerRows, packAnswers } from "./answers.js";
 import { linkReport, pairsIn } from "./context-links.js";
 import { buildContextIndex } from "./context-index.js";
@@ -3911,6 +3911,15 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   /** @type {(i: number, next: any) => void} */
   const setLine = (i, next) => setLines((x) => x.map((l, j) => (j === i ? next : l)));
   const written = lines.filter((l) => (l.ar || "").trim());
+  /* Which side of the page a turn is written on, as the class that puts it
+     there — empty for a scene of three or four, which stays a list. Asked
+     of the draft rather than of the stored card, so the sides are the ones
+     the teacher is looking at. */
+  /** @param {number} [who] */
+  const turnSide = (who) => {
+    const side = sideOf({ lines, speakers }, who || 0);
+    return side === null ? "" : ` side${side}`;
+  };
 
   const main = forms[0];
   /* English, not "English or a transliteration": with typing the
@@ -4068,10 +4077,21 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 </Field>
               </div>
 
+              {/* Each turn sits on its speaker's side, the way the scene
+                  will read to a student. A column of identical blocks made
+                  a teacher check the "who says it" picker on every one of
+                  them to see the shape of what they had written; the shape
+                  is now the shape of the page. The blocks keep most of
+                  their width — a form is fields, and half a phone is not
+                  enough for one — so what carries the side is the indent,
+                  the coloured edge and the name. */}
               {lines.map((l, i) => (
-                <div className="at-formblock" key={i}>
+                <div className={`at-formblock${turnSide(l.who)}`} key={i}>
                   <div className="at-formhead">
                     <span className="at-formnum">Line {i + 1}</span>
+                    <span className={`at-speaker s${(l.who || 0) % 4}`}>
+                      {speakers[l.who || 0] || `Speaker ${(l.who || 0) + 1}`}
+                    </span>
                     {/* Silent where no part is named: with either side up
                         for grabs, no turn is "theirs" until the question
                         picks, and labelling one would be a guess. */}

@@ -22,6 +22,7 @@ import {
   dialogNeedMet,
   dialogPhrases,
   isDialog,
+  isTwoSided,
   linesOf,
   namedPart,
   orderIsRight,
@@ -33,6 +34,8 @@ import {
   roleOf,
   sceneBefore,
   scrambledLines,
+  sideOf,
+  sidesOf,
   speakerName,
   speakersOf,
   yourLines,
@@ -147,6 +150,52 @@ test("a scene need not name a part, and one that doesn't takes them in turn", ()
 
   /* A card that names one is not rotated, however often it is asked. */
   assert.equal(youOf(scene(), 7), 1);
+});
+
+test("two people talking get a side of the page each", () => {
+  /* The one who opens takes the leading side, and the other the far one —
+     so whose turn it is is seen rather than read. Not the learner's own
+     part: a card may leave that unset, the question then picks a different
+     one each sitting, and the scene would reflect itself between them. */
+  const card = scene();
+  assert.equal(isTwoSided(card), true);
+  assert.deepEqual(sidesOf(card), [0, 1]);
+  assert.equal(sideOf(card, 0), 0, "Layla opens, so Layla leads");
+  assert.equal(sideOf(card, 1), 1);
+
+  /* And it stays put whoever is playing: the same scene, read and drilled
+     and edited, is the same picture. */
+  assert.equal(sideOf({ ...card, you: 0 }, 0), 0);
+  assert.equal(sideOf({ ...card, you: null }, 0), 0);
+});
+
+test("a scene opened by the second speaker puts that speaker first", () => {
+  const card = { ...scene(), lines: scene().lines.slice(1) };
+  assert.deepEqual(sidesOf(card), [1, 0], "whoever speaks first leads");
+  assert.equal(sideOf(card, 1), 0);
+  assert.equal(sideOf(card, 0), 1);
+});
+
+test("three people are a list, because there is no third side of a page", () => {
+  const card = {
+    ...scene(),
+    speakers: ["Layla", "Karim", "Nadia"],
+    lines: scene().lines.concat([line({ id: "l5", who: 2, ar: "ahlan", en: "welcome" })]),
+  };
+  assert.equal(isTwoSided(card), false);
+  assert.equal(sideOf(card, 2), null, "null rather than a side, so nobody can forget to ask");
+  assert.equal(sideOf(card, 0), null);
+});
+
+test("a scene being written has both sides before the second person speaks", () => {
+  /* Otherwise the editor would rearrange itself under a teacher the moment
+     they filled in the reply. Two speakers named is two sides. */
+  const half = { speakers: ["Layla", "Karim"], lines: [line({ id: "l1", who: 0, ar: "salaam" })] };
+  assert.deepEqual(sidesOf(half), [0, 1]);
+  assert.equal(sideOf(half, 1), 1, "the side the reply will land on");
+  /* And a speaker with no name and no line is nobody, so a blank scene is
+     still the two people the editor starts with. */
+  assert.deepEqual(sidesOf({ lines: [line({ id: "l1", who: 0 })] }), [0, 1]);
 });
 
 test("the parts are the people who actually say something", () => {

@@ -1603,6 +1603,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     `${document.querySelectorAll('[data-el="scene-line"]').length} lines shown`);
   check("and the way on says what it is", /read it/i.test((checkBtn() || {}).textContent || ""),
     (checkBtn() || {}).textContent || "no button");
+  /* Two people, one down each side, so whose turn it is is seen rather
+     than read. The opener leads and they alternate from there. */
+  const sides = [...document.querySelectorAll('[data-el="scene-line"]')].map((el) =>
+    el.classList.contains("side0") ? 0 : el.classList.contains("side1") ? 1 : null
+  );
+  check("a two-hander is laid out with one speaker down each side",
+    !!document.querySelector('[data-el="scene"].sided') && sides.join("") === "0101",
+    `${(document.querySelector('[data-el="scene"]') || {}).className || "no scene"} · ${sides.join(",")}`);
 
   click(checkBtn());
   await sleep(300);
@@ -2064,6 +2072,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and it says the part is nobody's until the question picks one",
     !!read && /Not set/.test(read.textContent || ""),
     read ? (read.textContent || "").replace(/\s+/g, " ").slice(-140) : "(no readout)");
+  /* Read the same way it is practised: one speaker down each side. */
+  const readSides = read
+    ? [...read.querySelectorAll(".at-sceneline")].map((el) =>
+        el.classList.contains("side0") ? 0 : el.classList.contains("side1") ? 1 : null
+      )
+    : [];
+  check("and the scene reads with one speaker down each side",
+    !!read && !!read.querySelector(".at-scene.sided") && readSides.join("") === "010",
+    readSides.join(",") || "(no turns)");
 
   click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
   await sleep(450);
@@ -2082,6 +2099,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     /^Edit card$/.test(heading.trim()) &&
       /The kind of card/.test(document.body.textContent || ""),
     heading.trim() || "(no title)");
+  /* And written the same way. A column of identical blocks made a teacher
+     read the "who says it" picker on every one to see the shape of what
+     they had; the shape is the shape of the page now. */
+  const editSides = [...document.querySelectorAll(".at-screen.over .at-formblock")]
+    .map((el) => (el.classList.contains("side0") ? 0 : el.classList.contains("side1") ? 1 : null))
+    .filter((x) => x !== null);
+  check("and each turn is written on its speaker's side",
+    editSides.join("") === "010", editSides.join(",") || "(no sided blocks)");
+
   check("with every turn there to edit",
     [...document.querySelectorAll("input")].filter((i) => /^What line \d+ means$/.test(i.getAttribute("aria-label") || "")).length === 3,
     `${[...document.querySelectorAll("input")].filter((i) => /^What line/.test(i.getAttribute("aria-label") || "")).length} turns`);

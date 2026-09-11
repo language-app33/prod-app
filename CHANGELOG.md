@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.66 — 11 September 2026
+
+- A conversation between two people now reads with one of them down each
+  side, everywhere it appears: read through at the start of a session,
+  played a part in, put back in order, read on the card, and written in the
+  editor. Whose turn it is is something you see rather than something you
+  read off a name — which is what made a scene of six turns a thing to
+  parse rather than scan.
+- The one who opens takes the leading side. Not the student's own part: a
+  card may leave that unset and the question then picks a different one
+  each sitting, so a scene would reflect itself between them.
+- A scene of three or four keeps its list. There is no third side of a
+  page, and the names are already doing that work there.
+- In the editor each turn also carries its speaker's name in its heading
+  and a rule in their colour down its own edge — the block keeps most of
+  its width, because a form is fields and half a phone is not enough for
+  one.
+- It follows the script rather than the screen, so an Arabic or Hebrew
+  scene puts its opener where an Arabic or Hebrew reader starts.
+
 ## 0.65 — 11 September 2026
 
 - Each accepted answer now carries its own transliteration. A card that

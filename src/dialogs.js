@@ -148,13 +148,68 @@ export function namedPart(it) {
  */
 /** @param {Record<string, any> | null | undefined} it @returns {number[]} */
 export function partsToPlay(it) {
+  const seen = speakingParts(it);
+  return seen.length > 1 ? seen.slice(1).concat(seen.slice(0, 1)) : seen;
+}
+
+/* Who actually says something, in the order they first say it. The opener
+   leads, which is what makes the order worth having. */
+/** @param {Record<string, any> | null | undefined} it @returns {number[]} */
+export function speakingParts(it) {
   /** @type {number[]} */
   const seen = [];
   for (const line of linesOf(it)) {
     const who = Number(line && line.who) || 0;
     if (!seen.includes(who)) seen.push(who);
   }
-  return seen.length > 1 ? seen.slice(1).concat(seen.slice(0, 1)) : seen;
+  return seen;
+}
+
+/*
+ * Which side of the page a speaker's turns sit on.
+ *
+ * Two people talking is the shape every messaging app in the world has
+ * settled on, and for the same reason: with one of them down each side,
+ * whose turn it is is answered by where it sits rather than by reading a
+ * name. A scene of three or four cannot be two columns, so it stays a list
+ * and keeps the names doing that work.
+ *
+ * The one who opens takes the leading side. Not the learner's own part,
+ * which would be the other obvious rule: a card may leave the part unset
+ * and the question then picks a different one each time, so a scene would
+ * reflect itself between sittings — and the readout, where nobody is
+ * playing anything, would have no side to take at all.
+ *
+ * A scene being written counts the speakers it names as well as the ones
+ * who have said something, so the second column is there before the second
+ * person has any words in it. Without that, the editor would rearrange
+ * itself under a teacher the moment they filled in the reply.
+ */
+/** @param {Record<string, any> | null | undefined} it @returns {number[]} */
+export function sidesOf(it) {
+  const seen = speakingParts(it);
+  const named = speakersOf(it).length;
+  for (let who = 0; who < named; who++) if (!seen.includes(who)) seen.push(who);
+  return seen;
+}
+
+export const SIDES = 2;
+
+/** @param {Record<string, any> | null | undefined} it */
+export const isTwoSided = (it) => sidesOf(it).length === SIDES;
+
+/*
+ * Which side, as a number, or null where the scene has no sides.
+ *
+ * Null rather than 0, so a caller cannot put a three-hander down the left
+ * by forgetting to ask whether it had sides at all.
+ */
+/** @param {Record<string, any> | null | undefined} it @param {number} who */
+export function sideOf(it, who) {
+  const sides = sidesOf(it);
+  if (sides.length !== SIDES) return null;
+  const at = sides.indexOf(Number(who) || 0);
+  return at < 0 ? 0 : at;
 }
 
 /*

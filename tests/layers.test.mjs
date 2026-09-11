@@ -507,6 +507,35 @@ test("the foot is not cut in two by a rule between its parts", () => {
     "the line above the bar is not centred between the edge and the buttons");
 });
 
+test("two people talking take a side of the page each", () => {
+  /* The far side puts its words first and its name after them, so the two
+     names hug the outside edges and the words face each other — and each
+     side gives up part of its width at the far edge, or the two runs of
+     turns would line up and read as one. */
+  assert.match(rule(".at-scene.sided .at-sceneline, .at-part.sided .at-sceneline"),
+    /--scene-inset:\s*min\(20%, 96px\)/, "there is nothing making two columns out of one");
+  assert.match(rule(".at-scene.sided .at-sceneline.side0, .at-part.sided .at-sceneline.side0"),
+    /margin-inline-end:\s*var\(--scene-inset\)/);
+  assert.match(rule(".at-scene.sided .at-sceneline.side1, .at-part.sided .at-sceneline.side1"),
+    /margin-inline-start:\s*var\(--scene-inset\)/);
+
+  /* Logical, not physical. An Arabic scene reads from the right, and an
+     opener pinned to the left of it would be the one thing on the page
+     going the wrong way. */
+  const sided = [".at-scene.sided", ".at-part.sided", ".at-formblock.side0", ".at-formblock.side1"]
+    .flatMap((sel) => [...css.matchAll(new RegExp(`\\n${sel.replace(/[.]/g, "\\.")}[^{]*\\{([^}]*)\\}`, "g"))])
+    .map((m) => m[1])
+    .join(" ");
+  assert.doesNotMatch(sided, /margin-left|margin-right|border-left|border-right/,
+    "a side is the side the script starts on, not the side of the screen");
+
+  /* A turn being written is on its speaker's side too, by an indent and a
+     thicker rule rather than by halving the form — a form is fields, and
+     half a phone is not enough for one. */
+  assert.match(rule(".at-formblock.side0"), /border-inline-start-width:\s*5px/);
+  assert.match(rule(".at-formblock.side1"), /border-inline-end-width:\s*5px/);
+});
+
 test("the bar reaches both edges of the window and its buttons do not", () => {
   /* The foot used to be a 700px column, so on a desktop the painted strip
      stopped mid-screen with the page showing past each end — a card that
