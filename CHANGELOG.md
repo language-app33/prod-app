@@ -8,6 +8,235 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.65 — 11 September 2026
+
+- Each accepted answer now carries its own transliteration. A card that
+  accepts two spellings is a card with two words on it, each said its own
+  way — one transliteration under the pair belonged to one of them and lied
+  about the other, and a question built from it could show one
+  pronunciation and mark the other spelling right.
+- They are written together: one row per accepted answer, holding the
+  answer and how that one is said. Adding an answer adds both cells,
+  removing one removes both, so the two can never drift apart.
+- A question about pronunciation is now a question about one answer. Asked
+  how a card sounds, or asked to write it from its sound, you get one
+  spelling and one pronunciation — and a card with two is drilled on both,
+  one at a time. Asked what a card means, every accepted answer is still
+  accepted.
+- Nothing to migrate. The pairing is by position in the two lists a card
+  already stores, so every card written so far — one answer, one
+  transliteration — already reads correctly.
+
+## 0.64 — 11 September 2026
+
+- The bar at the foot of a question reaches both edges of the window. It
+  was a 700px column, so on a desktop the painted strip stopped mid-screen
+  with the page showing past each end — a card that failed to stretch
+  rather than the foot of the screen. The buttons stay in their column,
+  centred, and are sized by it rather than by the window.
+- Trying an exercise in Teaching no longer counts you through it. One
+  question has no "1 / 1" and no bar that can only be empty or full; the
+  way out is still there.
+- And answering it puts you back on the card you were reading, rather than
+  on a screen congratulating you for having looked at your own material.
+  Closing it unanswered lands in the same place.
+- A conversation is a kind of card, and now says so. It had a button of
+  its own for making one — which made it read as a separate sort of thing,
+  and meant the Cards tab, with only the one New button, could not make one
+  at all. There is one New card, and the first field asks what kind. An
+  existing card shows its kind instead of offering it: a word does not
+  become a conversation by being edited.
+- The editor is called "New card" and "Edit card" whichever kind it holds,
+  a conversation is marked as one in the card lists, and the two save paths
+  that used to build two different objects are one.
+
+## 0.63 — 11 September 2026
+
+- In context could not see conversations. A scene keeps its words in its
+  turns and has no text of its own, so the report read an empty string off
+  every one and skipped it: a word taught only through dialogue showed as
+  turning up nowhere, the turns using it never came up to confirm, and a
+  deck taught entirely through conversation measured at nothing. The
+  exercises had been drilling those words inside those turns the whole
+  time — the two halves of the app disagreed about what the material
+  contained. They agree now.
+- A turn is offered as a turn: it says who speaks it, and confirming the
+  link writes it onto that line rather than onto the scene, which is where
+  the session builder reads it from.
+- Words a conversation keeps using and nothing teaches are offered as cards
+  worth writing, alongside the ones your phrases use.
+- The same blindness in a deck's own In context section is gone too. It
+  counts a conversation as the one card it is and matches it as the several
+  turns it holds, so the tally now reads "3 words · 1 conversation" rather
+  than silently filing a scene under phrases.
+
+## 0.62 — 11 September 2026
+
+- Opening a conversation to edit it put the word editor up: one script box,
+  one meaning, and the whole scene out of reach behind it. A stored card
+  carries its turns but nothing labelling it a conversation, and every
+  teacher's screen was asking for the label rather than looking at the
+  turns. The turns are the conversation now, which is how the student's
+  copy has always read it. The same fix puts a scene's readout right —
+  who spoke and what they said, instead of an empty word card.
+- A conversation no longer makes you name whose part the student takes.
+  Most scenes are worth holding up from either end, and being asked to pick
+  a side before the second line is written is a question with no reason to
+  have an answer. "Either" is how a new one starts; name a part where only
+  that side is worth producing.
+- Left open, the exercise picks — and takes the parts in turn, so a scene
+  met twice has been played from both ends. Conversations you have already
+  written keep the part they were saved with.
+
+## 0.61 — 11 September 2026
+
+- A card opened in Cards no longer ends with "Where it lives". Which decks
+  a card sits in, and which language pack it belongs to, are a teacher's
+  questions about their own material; a student opened the card to look at
+  the card. The panel is untouched in Teaching and Admin, where it is the
+  thing people came for.
+- The card's note used to be a row inside that panel, so dropping it would
+  have dropped the note with it — and the note is the one line in there
+  written for the student to read. It stands on its own now, on both sides.
+
+## 0.60 — 11 September 2026
+
+- In context reads as four tiles rather than one long page, and the
+  language it is about is asked at the top instead of underneath the
+  numbers it decides. Each of the three lists is one job — a tap, a card to
+  write, a phrase to write — so each gets a tile of its own.
+- Those lists had quietly inherited the indent and the left rule belonging
+  to a deck's context report, because the two screens were sharing a class
+  name. They have their own now.
+
+## 0.59 — 11 September 2026
+
+- Trying an exercise now lives where the cards are written. Open one of
+  your own cards in Teaching and every exercise it could be asked is listed
+  at the foot, one button each; press one and that question runs for real,
+  through the screen a student is asked on, using the card you are looking
+  at. It was on the student's card screen, which was the wrong side of the
+  app: a student is practising, not checking their material.
+- Nothing is recorded. The card is your teaching material rather than
+  something this device is learning, so no progress is kept, nothing is
+  scheduled, and the day's count does not move.
+- And leaving asks nothing. A session asks before you abandon it because
+  there is work to lose; a trial has none, so the way out is the way out.
+- The exercises a card cannot do yet are listed too, out of reach and
+  saying what they are waiting for — a recording, the meaning, a phrase
+  that uses the word.
+
+## 0.58 — 11 September 2026
+
+- Opening a card now lists every exercise it could be asked, one button
+  each, at the foot of the screen. Press one and that single question runs
+  on that card — marked, so you see how it is judged, but not scheduled,
+  because trying a question out should not move where the card sits in your
+  review.
+- The exercises the card cannot do yet are listed too, out of reach and
+  saying what they are waiting for: a recording, the meaning, a phrase that
+  uses the word. A card one field short of two more exercises had nothing
+  anywhere that said so.
+- Exercises that are not about this shape of card, or that the language
+  never drills, are left out rather than shown as impossible — a word card
+  is not waiting for a conversation.
+
+## 0.57 — 11 September 2026
+
+- A word is now met inside a phrase before it has to be written into one.
+  The gap-fill used to start at the hard half — type the missing word — so
+  a learner's first meeting with a word in context was also their first
+  chance to get it wrong. There is a gentler question in front of it now:
+  the phrase with the word missing and four words offered, one of them
+  right, drawn from words the learner has actually met.
+- The phrase a word turns up in is shown after any question about that
+  word, not only the two questions built out of it. Answer the word on its
+  own and the sentence it lives in is there under Learn more, a different
+  one each time where there is more than one. Every link a teacher has
+  made now pays out on every question about that word.
+- Arabic finds a word under what is stuck to the end of it as well as the
+  front: كتابك is كتاب. A phrase using a word in the most ordinary way
+  there is — with somebody owning it — used to teach that word to nobody.
+- A word of more than one syllable can be the word inside a sentence, which
+  is most of the Vietnamese vocabulary. The gap covers the whole of it
+  rather than half.
+- Teaching has a new tab, In context: the phrases that contain a word you
+  teach and do not say so, one tap each; the words your phrases keep using
+  that no card covers, most used first, each opening a half-written card;
+  and the words you teach that turn up in nothing at all. Saving a word
+  card now says when phrases you have already written contain it.
+- A word and the phrase it appears in are now the most closely related two
+  cards the app knows of, so a session that reaches for one brings the
+  other with it — the word on its own first, then the word in use.
+
+## 0.56 — 11 September 2026
+
+- Sessions are no longer the same session every time. Leaving one half way
+  through and starting another gave back the same questions in the same
+  order — and would have gone on doing so, because nothing in the building
+  of a session ever rolled a die: it was built out of orderings, and what
+  those left equal stayed in the order the cards happened to be added in.
+- The orderings still stand; what they call equal is now shuffled. A lower
+  rank always comes first — what is due before what is not, the easiest
+  first while you are warming up, recognition before production on a card
+  you have just met — and chance settles the rest.
+- Everything already due now ranks together. A card due last week is not
+  more urgent than one due this morning, and ordering by the exact minute
+  each fell due was ordering by nothing: it is what made two sessions built
+  a minute apart identical down to the last question. With a backlog, a
+  session now takes a fair draw from what is due rather than the same
+  oldest few every time.
+- Which new cards a session opens with, and which exercises a card is
+  drilled in, vary the same way — so a card met twice in a week is not met
+  the same way twice.
+
+## 0.55 — 11 September 2026
+
+- A card can hold a whole conversation. A teacher writes the scene — what
+  it is called, who is in it, and the turns in order — and it reaches a
+  student the way every other card does. Each line is practised in its own
+  right, keeps its own progress, and counts towards the card being learnt.
+- Five things get asked of a scene, and none of them needs a recording:
+  what a line means, which reply comes next, writing your own turn, putting
+  the lines back in the order they were said, and playing your whole part
+  from the first turn to the last. Where a line does have a recording it
+  can be heard as well as read; where it has none, nothing is missing.
+- A conversation is never opened with a blank. The first time you meet one
+  it is simply shown to you, lines and meanings together, with nothing
+  marked — and a scene you have already met is not introduced again.
+- A scene offers a line or two a session rather than all of itself, so a
+  six-line conversation is learnt across a few evenings instead of taking
+  an evening over.
+- Where a line uses words you are already learning, those words are now
+  practised inside it: the gap-fill has real exchanges to put them in,
+  which it can only otherwise do with a phrase somebody recorded.
+- Both halves of a question are now coloured the way they are read: the
+  instruction is grey and the word being asked about carries the ink.
+
+## 0.54 — 10 September 2026
+
+- A right answer typed in full has nothing shown under the verdict — the
+  answer is already in the box you typed it into, and repeating it says
+  nothing. The praise is then the whole of what the screen came back with,
+  so it is now set large enough to be that: about half again the size of a
+  verdict that is introducing an answer below it. Everything else about it
+  is unchanged, and a verdict with an answer under it is the size it was.
+- On a question, the line telling you what to do is grey and the word being
+  asked about is in full ink. It was the other way round, which put the
+  weight on the sentence that reads the same on every exercise of a kind
+  rather than on the one thing that changes from card to card.
+
+## 0.53 — 10 September 2026
+
+- Every deploy reported a crash, and every deploy cut off whatever request
+  was in flight. Neither was the deploy failing: the host was starting the
+  server through npm, so the signal that says "stop now" reached npm and
+  stopped there. The server never heard it, and npm's own death by signal
+  is a non-zero exit, which is what the crash notice was reporting.
+- The deploy now starts the server directly, which is a one-line file in the
+  repository rather than a setting in a dashboard, and the shutdown the
+  server has always been careful about actually runs.
+
 ## 0.52 — 10 September 2026
 
 - Backing up and restoring are screens of their own now, and both ask what

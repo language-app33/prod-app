@@ -48,11 +48,20 @@ import {
   exOf,
   findWordSlot,
   guessKind,
+  kindLabel,
+  kindOf,
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
   scriptVars,
 } from "./languages.js";
+import { MAX_SPEAKERS, isDialog, linesOf, namedPart } from "./dialogs.js";
+import { answerRows, packAnswers } from "./answers.js";
+import { linkReport, pairsIn } from "./context-links.js";
+import { buildContextIndex } from "./context-index.js";
+import { offersFor } from "./offers.js";
+import { buildDialogIndex } from "./dialogs.js";
+import { freshStates, unitsOf } from "./scheduler.js";
 import {
   Button,
   CardReadout,
@@ -2766,6 +2775,12 @@ export function ClaimAdmin({ onDone }) {
    another. Which of them the editor actually shows is the language's call. */
 const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], slowClips: [], ...dimValues({}) });
 
+/* A turn nobody has written yet. No grammar on it: a line of a dialog is a
+   thing somebody says, and whether it is singular or plural is a question
+   about a word. `uses` is per line rather than per card, because a line is
+   where a word actually turns up. */
+const blankLine = () => ({ who: 0, ar: "", en: "", lat: "", clips: [], slowClips: [], uses: [] });
+
 /* One answer, or several: a field per accepted answer, a + after the last
    to add another and a − on every extra. What is stored is still one
    string with " / " between the answers, so the checker and every card
@@ -2801,6 +2816,76 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
           {i === list.length - 1 && (
             <IconButton icon="add" label={addLabel} onClick={() => commit(list.concat([""]))} />
           )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/*
+ * The same list, where the language also has a transliteration.
+ *
+ * An accepted answer and how it is said are one row, because they are one
+ * thing: two spellings are two words with two pronunciations, and a single
+ * transliteration under the pair belongs to one of them and lies about the
+ * other. Adding an answer adds both cells; removing one removes both. That
+ * is the whole guard against the two stored strings drifting out of step,
+ * and it is here because here is the only place either is written.
+ */
+/**
+ * @param {{
+ *   lang: Lang,
+ *   ar?: string,
+ *   lat?: string,
+ *   onChange: (next: { ar: string, lat: string }) => void,
+ * }} props
+ */
+function ScriptAnswers({ lang, ar, lat, onChange }) {
+  const [rows, setRows] = useState(() => answerRows({ ar, lat }));
+  /** @param {{ ar: string, lat: string }[]} next */
+  const commit = (next) => {
+    setRows(next);
+    onChange(packAnswers(next));
+  };
+  /** @param {number} i @param {Partial<{ ar: string, lat: string }>} patch */
+  const edit = (i, patch) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  return (
+    <div className="at-alts">
+      {rows.map((row, i) => (
+        <div className="at-answerpair" key={i}>
+          <div className="at-altfield">
+            <ScriptInput lang={lang} value={row.ar} onChange={(v) => edit(i, { ar: v })} />
+          </div>
+          {/* The buttons take a column of their own so that the answer and
+              its pronunciation, stacked in the column beside them, line up
+              with each other rather than one running past the other. */}
+          <div className="at-answeracts">
+            {rows.length > 1 && (
+              <IconButton
+                icon="remove"
+                label="Remove this answer"
+                onClick={() => commit(rows.filter((_, j) => j !== i))}
+              />
+            )}
+            {i === rows.length - 1 && (
+              <IconButton
+                icon="add"
+                label="Add another accepted answer"
+                onClick={() => commit(rows.concat([{ ar: "", lat: "" }]))}
+              />
+            )}
+          </div>
+          <input
+            className="at-input at-answersaid"
+            value={row.lat}
+            aria-label={
+              rows.length > 1
+                ? `${lang.translitLabel} of accepted answer ${i + 1}`
+                : lang.translitLabel
+            }
+            placeholder={lang.translitLabel.toLowerCase()}
+            onChange={(e) => edit(i, { lat: e.target.value })}
+          />
         </div>
       ))}
     </div>
@@ -3734,14 +3819,38 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }) {
  *   decks: Deck[],
  *   inDecks?: string[],
  *   allCards: Card[],
- *   onSave: (forms: any, note: string, decks: string[], uses: string[]) => void,
+ *   onSave: (written: {
+ *     forms: any,
+ *     note: string,
+ *     decks: string[],
+ *     uses: string[],
+ *     scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null,
+ *   }) => void,
  *   onDelete?: () => void,
  *   onClose: () => void,
  *   busy?: boolean,
  *   confirming?: Node,
- * }} props
+ *   scene?: boolean,
+ *   draft?: Record<string, any> | null,
+ * }} props `scene` is which kind of card this opens as — turns instead of
+ *   forms — and for a new card it is only the starting answer: the kind is
+ *   a choice made here, in the one editor, rather than by having arrived
+ *   through a different button. `draft` is a first line already written,
+ *   for a card begun from a suggestion.
  */
-function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming }) {
+function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }) {
+  /*
+   * A conversation is a kind of card, not a separate thing to make.
+   *
+   * It used to have a button of its own, which meant a teacher chose
+   * between "a card" and "a conversation" before reaching the editor — and
+   * the Cards tab, having only the one button, could not make one at all.
+   * The choice is here now, among the fields, which is where every other
+   * decision about a card is made. An existing card's kind is shown and not
+   * offered: a word does not become a conversation by being edited, and a
+   * scene with four turns on it would have nowhere to put them.
+   */
+  const [scene, setScene] = useState(opensAsScene);
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
   const dims = dimsOf(lang || LANGUAGES[DEFAULT_LANGUAGE]);
@@ -3759,7 +3868,10 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           },
           ...(card.subs || []).map((s) => ({ ...blankForm(), ...s })),
         ]
-      : [blankForm()]
+      /* A card started from a suggestion arrives with its first line
+         already written — the word the phrases keep using — and everything
+         else blank, which is the shape of the job left to do. */
+      : [{ ...blankForm(), ...(draft || {}) }]
   );
   const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
@@ -3772,12 +3884,44 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      so nothing about a card is saved any earlier than it was. */
   const [recording, setRecording] = useState(/** @type {number | null} */ (null));
 
+  /* ---- a conversation, where the card is one ----
+     Two people and two empty turns to begin with: an empty scene with an
+     "add a line" button is a form that has to be assembled before it can
+     be filled in.
+
+     Nobody's part to begin with, either. Naming one is a real decision — a
+     scene where only one side is worth producing — and most are not that;
+     asking for it before the second line is written is asking a question
+     the teacher has no reason to have an answer to yet. Left open, the
+     question takes the parts in turn. */
+  const [speakers, setSpeakers] = useState(() =>
+    card && (card.speakers || []).length ? (card.speakers || []).slice() : ["A", "B"]
+  );
+  const [you, setYou] = useState(/** @type {number | null} */ (card ? namedPart(card) : null));
+  const [lines, setLines] = useState(() =>
+    card && (card.lines || []).length
+      ? (card.lines || []).map((l) => ({ ...blankLine(), ...l }))
+      : [{ ...blankLine(), who: 0 }, { ...blankLine(), who: 1 }]
+  );
+  /* The scene's name and its setting are the card's own English and note:
+     a conversation has no word of its own to put in either. */
+  const [title, setTitle] = useState((card && card.en) || "");
+  const [setting, setSetting] = useState((card && card.note) || "");
+  const [recordingLine, setRecordingLine] = useState(/** @type {number | null} */ (null));
+  /** @type {(i: number, next: any) => void} */
+  const setLine = (i, next) => setLines((x) => x.map((l, j) => (j === i ? next : l)));
+  const written = lines.filter((l) => (l.ar || "").trim());
+
   const main = forms[0];
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
      practice it. Better to say so here than to save something inert. */
-  const canSave = main.ar.trim() && main.en.trim();
+  /* A conversation needs a name and two turns. One line with the reply
+     missing is a phrase card in the wrong editor. */
+  const canSave = scene
+    ? !!title.trim() && written.length >= 2
+    : main.ar.trim() && main.en.trim();
   /** @type {(i: number, next: any) => void} */
   const setForm = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
@@ -3787,19 +3931,247 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     <>
       {confirming}
       <Screen
+        /* One card, whichever kind it is. The editor used to be named
+           after the thing it happened to be editing, which made a
+           conversation read as a different sort of object rather than a
+           card with turns on it. What kind it is, is said inside. */
         title={card ? "Edit card" : "New card"}
         onBack={onClose}
         action={
           <Button variant="primary" size="sm"
             disabled={!canSave || busy}
-            onClick={() => onSave(forms, note, chosen, uses)}
+            onClick={() =>
+              onSave({
+                forms,
+                note,
+                decks: chosen,
+                uses,
+                scene: scene
+                  ? { title: title.trim(), setting: setting.trim(), speakers, you, lines: written }
+                  : null,
+              })
+            }
           >
             <Icon name="save" />
             {busy ? "Saving…" : "Save"}
           </Button>
         }
       >
-          {forms.map((f, i) => (
+          {/* What kind of card this is — the first thing about it, and for
+              a new one the first decision. Word, phrase and sentence are
+              not offered because they are not chosen: the language reads
+              them off the text. Whether somebody answers it is the one
+              thing no amount of reading the script will tell you. */}
+          <div className="at-formblock">
+            <div className="at-formhead">
+              <span className="at-formnum">The kind of card</span>
+              {card && <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>}
+            </div>
+            {card ? (
+              <Help>
+                {isDialog(card)
+                  ? "A conversation: turns, in order, each practised in its own right."
+                  : "Read off what the card says. A card does not change kind once it is written."}
+              </Help>
+            ) : (
+              <>
+                <Segmented
+                  label="The kind of card"
+                  options={[
+                    { value: false, label: "Word or phrase" },
+                    { value: true, label: "Conversation" },
+                  ]}
+                  value={scene}
+                  onChange={(v) => setScene(!!v)}
+                />
+                <Help>
+                  {scene
+                    ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
+                    : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
+                </Help>
+              </>
+            )}
+          </div>
+
+          {scene && (
+            <>
+              <div className="at-formblock main">
+                <div className="at-formhead">
+                  <span className="at-formnum">The scene</span>
+                  <span className="at-formrole">what it is and who is in it</span>
+                </div>
+                <p className={`at-formneed${canSave ? "" : " unmet"}`}>
+                  A name, and two turns or more.
+                </p>
+
+                <Field label="What it is called">
+                  <input
+                    className="at-input"
+                    value={title}
+                    placeholder="At the door"
+                    onChange={(e) => setTitle(e.target.value)}
+                  />
+                </Field>
+
+                <Field label="Where it happens">
+                  <input
+                    className="at-input"
+                    value={setting}
+                    placeholder="Two neighbours meet in the morning"
+                    onChange={(e) => setSetting(e.target.value)}
+                  />
+                </Field>
+
+                <Field label="Who is in it">
+                  <div className="at-row">
+                    {speakers.map((name, i) => (
+                      <input
+                        key={i}
+                        className="at-input"
+                        value={name}
+                        placeholder={`Speaker ${i + 1}`}
+                        aria-label={`Speaker ${i + 1}`}
+                        onChange={(e) =>
+                          setSpeakers((x) => x.map((n, j) => (j === i ? e.target.value : n)))
+                        }
+                      />
+                    ))}
+                  </div>
+                  {speakers.length < MAX_SPEAKERS && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="at-mt2"
+                      onClick={() => setSpeakers((x) => x.concat([""]))}
+                      icon="add"
+                    >
+                      Add someone
+                    </Button>
+                  )}
+                </Field>
+
+                <Field label="The student plays">
+                  <Segmented
+                    label="The student plays"
+                    options={[
+                      { value: null, label: speakers.length > 2 ? "Any of them" : "Either" },
+                      ...speakers.map((n, i) => ({ value: i, label: n || `Speaker ${i + 1}` })),
+                    ]}
+                    value={you}
+                    onChange={(v) => setYou(v === null ? null : Number(v))}
+                  />
+                  <Help>
+                    {you === null
+                      ? "Whose turns the student produces when the whole scene is asked. Left open, the question takes the parts in turn — so a scene met twice has been held up from both ends. Name one where only that side is worth producing."
+                      : "Whose turns the student produces when the whole scene is asked. Everything else is said to them."}
+                  </Help>
+                </Field>
+              </div>
+
+              {lines.map((l, i) => (
+                <div className="at-formblock" key={i}>
+                  <div className="at-formhead">
+                    <span className="at-formnum">Line {i + 1}</span>
+                    {/* Silent where no part is named: with either side up
+                        for grabs, no turn is "theirs" until the question
+                        picks, and labelling one would be a guess. */}
+                    <span className="at-formrole">
+                      {you === null ? "" : (l.who || 0) === you ? "the student's turn" : "said to them"}
+                    </span>
+                    <span className="at-formacts">
+                      {lines.length > 2 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setLines((x) => x.filter((_, j) => j !== i))}
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </span>
+                  </div>
+
+                  <Field label="Who says it">
+                    <Segmented
+                      label={`Who says line ${i + 1}`}
+                      options={speakers.map((n, j) => ({ value: j, label: n || `Speaker ${j + 1}` }))}
+                      value={l.who || 0}
+                      onChange={(v) => setLine(i, { ...l, who: Number(v) })}
+                    />
+                  </Field>
+
+                  <Field label={lang.scriptLabel}>
+                    <ScriptInput lang={lang} value={l.ar} onChange={(v) => setLine(i, { ...l, ar: v })} />
+                  </Field>
+
+                  <Field label="English">
+                    <input
+                      className="at-input"
+                      value={l.en}
+                      aria-label={`What line ${i + 1} means`}
+                      onChange={(e) => setLine(i, { ...l, en: e.target.value })}
+                    />
+                  </Field>
+
+                  <Field label={lang.translitLabel}>
+                    <input
+                      className="at-input"
+                      value={l.lat}
+                      aria-label={`How line ${i + 1} sounds`}
+                      onChange={(e) => setLine(i, { ...l, lat: e.target.value })}
+                    />
+                  </Field>
+
+                  <div className="at-field">
+                    <Recordings form={l} onOpen={() => setRecordingLine(i)} />
+                  </div>
+
+                  {/* Which of the teacher's own words this line contains.
+                      Confirmed here, line by line, because a line is where
+                      a word actually turns up — and it is what lets a word
+                      be practised inside a real exchange. */}
+                  <WordsUsed
+                    lang={lang}
+                    text={l.ar}
+                    cards={allCards}
+                    selfId={(card && card.id) || ""}
+                    chosen={l.uses || []}
+                    onChange={(next) => setLine(i, { ...l, uses: next })}
+                  />
+                </div>
+              ))}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setLines((x) =>
+                    x.concat([
+                      /* Whoever did not speak last, which is what a
+                         conversation does on its own. */
+                      {
+                        ...blankLine(),
+                        who: x.length && speakers.length > 1
+                          ? ((Number(x[x.length - 1].who) || 0) + 1) % speakers.length
+                          : 0,
+                      },
+                    ])
+                  )
+                }
+                icon="add"
+              >
+                Add a line
+              </Button>
+
+              <Help className="at-mt3">
+                No recordings needed. A scene with none is still drilled every
+                way there is; where a line has one, it can be heard as well as
+                read.
+              </Help>
+            </>
+          )}
+
+          {!scene && forms.map((f, i) => (
             <div className={`at-formblock${i === 0 ? " main" : ""}`} key={i}>
               <div className="at-formhead">
                 <span className="at-formnum">Form {i + 1}</span>
@@ -3847,12 +4219,25 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 </p>
               )}
 
-              <Field label={lang.scriptLabel}>
-                <Alternatives
-                  value={f.ar}
-                  onChange={(v) => setForm(i, { ...f, ar: v })}
-                  render={(v, set) => <ScriptInput lang={lang} value={v} onChange={set} />}
+              {/* An accepted answer and how it is said are written together,
+                  because one transliteration under two spellings belongs to
+                  one of them and lies about the other. Where the language
+                  has no transliteration to write, this is the plain list it
+                  always was. */}
+              <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
+                <ScriptAnswers
+                  lang={lang}
+                  ar={f.ar}
+                  lat={f.lat}
+                  onChange={(next) => setForm(i, { ...f, ...next })}
                 />
+                {!drillsTranslit && (
+                  <Help>
+                    {lang.name} is written in the Latin alphabet, so the{" "}
+                    {lang.translitLabel.toLowerCase()} is never asked for — it is kept
+                    beside the answer it belongs to, and read.
+                  </Help>
+                )}
               </Field>
 
               <Field label="English">
@@ -3865,36 +4250,19 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 />
               </Field>
 
-              {/* Only where the language drills it. Vietnamese is already in
-                  the Latin alphabet, so its note is reference, not an
-                  exercise — it sits below with the rest. */}
-              {drillsTranslit && (
-                <Field label={lang.translitLabel}>
-                  <input
-                    className="at-input"
-                    value={f.lat}
-                    onChange={(e) => setForm(i, { ...f, lat: e.target.value })}
-                  />
-                </Field>
-              )}
-
               <div className="at-field">
                 <Recordings form={f} onOpen={() => setRecording(i)} />
               </div>
 
-              {(!drillsTranslit || dims.length || (i === 0 && lang.lexical)) && (
+              {/* The transliteration used to stand down here for a language
+                  that does not drill it, which is where it belonged when it
+                  was one field about the whole card. It belongs to an
+                  answer, so it is written beside that answer whether or not
+                  anybody is asked for it; what is left here is what is
+                  about the form rather than about one of its answers. */}
+              {(dims.length || (i === 0 && lang.lexical)) && (
                 <>
                   <p className="at-groupline">Reference — not drilled</p>
-
-                  {!drillsTranslit && (
-                    <Field label={lang.translitLabel}>
-                      <input
-                        className="at-input"
-                        value={f.lat}
-                        onChange={(e) => setForm(i, { ...f, lat: e.target.value })}
-                      />
-                    </Field>
-                  )}
 
                   {/* Number and gender name which form this is; nothing asks
                       the student for them. */}
@@ -3929,6 +4297,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           ))}
 
+          {!scene && (
           <Button variant="ghost" size="sm"
             /* No number override: blankForm takes the language's declared
                default, so what a new form starts as is settled in one place. */
@@ -3937,6 +4306,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         >
           Add a form
         </Button>
+          )}
 
           <div className="at-formblock at-mt5">
             <div className="at-formhead">
@@ -3965,14 +4335,16 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           </div>
 
-          <WordsUsed
-            lang={lang}
-            text={main.ar}
-            cards={allCards}
-            selfId={(card && card.id) || ""}
-            chosen={uses}
-            onChange={setUses}
-          />
+          {!scene && (
+            <WordsUsed
+              lang={lang}
+              text={main.ar}
+              cards={allCards}
+              selfId={(card && card.id) || ""}
+              chosen={uses}
+              onChange={setUses}
+            />
+          )}
 
           {card && onDelete && (
             <Button variant="danger" className="at-mt5" onClick={onDelete}>
@@ -3982,6 +4354,14 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
       </Screen>
       {/* Above the editor rather than instead of it: closing it puts the
           form back exactly as it was left, scroll position included. */}
+      {recordingLine !== null && lines[recordingLine] && (
+        <RecordingScreen
+          title={`Recording · line ${recordingLine + 1}`}
+          form={lines[recordingLine]}
+          onChange={(next) => setLine(recordingLine, { ...lines[recordingLine], ...next })}
+          onClose={() => setRecordingLine(null)}
+        />
+      )}
       {recording !== null && forms[recording] && (
         <RecordingScreen
           title={forms.length > 1 ? `Recordings · form ${recording + 1}` : "Recordings"}
@@ -4006,6 +4386,375 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
  * Read-only. It writes nothing and suggests nothing; the whole job is the
  * number at the top.
  */
+/* ------------------------------------------------------------------
+   Trying an exercise
+
+   A teacher writing cards cannot see what a student is actually asked.
+   Everything about that is one screen away in another space, and the one
+   thing they most want to know — does this card work, and what does it
+   look like when it does — was unanswerable without signing in as
+   somebody's student.
+
+   So: every exercise this card could be asked, one button each, at the
+   foot of the card. Pressing one runs that question, for real, through
+   the same screen a student sees; the ones the card cannot do are here
+   too, out of reach and saying what they are waiting for.
+
+   Nothing is recorded. The card being tried is the teacher's own
+   material, turned into the shape a question is asked of and handed over
+   for one question — not a card this device is learning, and not a card
+   with progress to move.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   card: Card,
+ *   cards: Card[],
+ *   lang?: Lang,
+ *   settings?: any,
+ *   onTry?: (plan: { items: any[], exercise: any, back: any }) => void,
+ *   back?: any,
+ * }} props `back` travels with the plan and comes home again: where the
+ *   teacher was standing when they pressed it, so answering the question
+ *   puts them back there rather than at the front of the space.
+ */
+function TryExercises({ card, cards, lang, settings, onTry, back }) {
+  /*
+   * The teacher's material in the shape a question is asked of.
+   *
+   * All of it, not just this card: a question about a word may need the
+   * phrases that word turns up in, and a conversation needs its own
+   * lines. One language at a time, because finding a word inside a phrase
+   * is a language's own rule.
+   */
+  const material = useMemo(() => {
+    if (!lang) return [];
+    return (cards || [])
+      .filter((c) => (c.lang || "") === lang.id)
+      .map((c) => cardToItem(c, "", "", "", freshStates));
+  }, [cards, lang]);
+
+  const contexts = useMemo(
+    () => (lang ? buildContextIndex(material, lang) : new Map()),
+    [material, lang]
+  );
+  const scenes = useMemo(() => buildDialogIndex(material), [material]);
+
+  const mine = material.find((i) => i.id === localIdFor(card.id));
+  const offers = useMemo(() => {
+    if (!mine || !lang) return [];
+    return offersFor({
+      units: unitsOf(mine).map((u) => ({ ...u, scene: scenes.get(u.unit.id) || null })),
+      lang,
+      contextsFor: (unit) => contexts.get(unit.id) || [],
+      /* A student would not be asked an exercise switched off in the app's
+         settings, and a teacher may as well know which those are — but it
+         is still worth being able to try one. */
+      enabled: (type) => !settings || !settings.types || !!settings.types[type],
+    });
+  }, [mine, lang, contexts, scenes, settings]);
+
+  if (!offers.length) return null;
+
+  return (
+    <section className="at-panel at-mt5">
+      <p className="at-eyebrow">Try an exercise</p>
+      <p className="at-hint">
+        What a student is asked, on this card. One question, answered and
+        marked — nothing is recorded, because this is your material rather
+        than a card anybody here is learning.
+      </p>
+      <div className="at-trylist">
+        {offers.map((offer) => (
+          <button
+            type="button"
+            key={offer.type}
+            className={`at-try${offer.ready ? "" : " out"}`}
+            disabled={!offer.ready || !onTry || !mine}
+            aria-label={
+              offer.ready ? `Try ${offer.label}` : `${offer.label} — needs ${offer.missing.join(" and ")}`
+            }
+            onClick={() => {
+              if (!onTry || !mine) return;
+              /* Which phrase the gap-fill stands the word in. The first
+                 one here rather than the rotation a learner gets: a
+                 teacher is looking at one question, not meeting a word
+                 for the fourth time. */
+              const ctx = (contexts.get(offer.unit.id) || [])[0];
+              onTry({
+                items: material,
+                exercise: {
+                  id: mine.id,
+                  subId: offer.subId,
+                  type: offer.type,
+                  ...(ctx ? { ctx: ctx.id } : null),
+                },
+                back: back || { cardId: card.id },
+              });
+            }}
+          >
+            <span className="at-tryname">{offer.label}</span>
+            <span className="at-trywhy">
+              {offer.ready
+                ? offer.off
+                  ? "Try it · off in the app's settings"
+                  : "Try it"
+                : `Needs ${offer.missing.join(" and ")}`}
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------
+   In context
+
+   What a teacher's own material already says about itself, as three lists
+   and one number. Everything here is a proposal: the matcher behind it is
+   a good guesser and an occasional liar, so every row ends in a decision
+   somebody makes rather than a change the app made.
+
+   It exists because the link between a phrase and the words inside it is
+   written once, by hand, at the moment the phrase is written — so a phrase
+   written in week one knows nothing about a word added in week three, and
+   the share of a deck that can be taught in context falls quietly as the
+   deck grows. This is the screen that stops that happening, by being the
+   one place that reads all of the material at once.
+   ------------------------------------------------------------------ */
+
+/**
+ * @param {{
+ *   cards: Card[],
+ *   languages: Record<string, Lang>,
+ *   langOfCard: (card: Card) => Lang | undefined,
+ *   busy?: boolean,
+ *   onLink: (card: Card, word: { id: string, ar: string, en: string }, line: number | null) => void,
+ *   onAddWord: (text: string, lang: Lang) => void,
+ *   onOpenCard: (id: string) => void,
+ * }} props
+ */
+function InContext({ cards, languages, langOfCard, busy, onLink, onAddWord, onOpenCard }) {
+  const ids = Object.keys(languages);
+  const [langId, setLangId] = useState(ids[0] || "");
+  const lang = languages[langId] || languages[ids[0]];
+  /* Rows a teacher has dealt with this sitting. The report is rebuilt from
+     the cards as they arrive back, but a save is a round trip and a row
+     that sits there looking undone in the meantime invites a second tap. */
+  const [done, setDone] = useState(/** @type {string[]} */ ([]));
+
+  /* One language at a time, because finding a word inside a phrase is a
+     language's own rule and running Arabic's over Vietnamese cards would
+     pair words that have nothing to do with each other. */
+  const mine = useMemo(
+    () => cards.filter((c) => (langOfCard(c) || {}).id === (lang || {}).id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cards, lang && lang.id]
+  );
+  const report = useMemo(() => linkReport(mine, lang), [mine, lang]);
+
+  if (!lang || !report.supported) {
+    return (
+      <div className="at-panel">
+        <p className="at-eyebrow">In context</p>
+        <Help>
+          {(lang || {}).name || "This language"} does not describe how to find a word inside a
+          phrase, so nothing here can be measured yet.
+        </Help>
+      </div>
+    );
+  }
+
+  const { toConfirm, bare, missing, coverage } = report;
+  const waiting = toConfirm.filter((p) => !done.includes(`${p.container.id}:${p.word.id}`));
+  const byId = new Map(cards.map((c) => [c.id, c]));
+
+  return (
+    <>
+      {/* Which language, before anything it decides. Finding a word inside
+          a phrase is a language's own rule, so every number and every
+          suggestion below is about one language — and being told them
+          before being asked which is being told about the wrong ones. */}
+      {ids.length > 1 && (
+        <div className="at-panel">
+          <LanguageRadio
+            languages={languages}
+            value={langId}
+            onChange={setLangId}
+            label="Which language"
+          />
+        </div>
+      )}
+
+      <div className="at-panel">
+        <p className="at-eyebrow">In context</p>
+        <Lede>
+          {coverage && coverage.words
+            ? `${coverage.covered} of ${plural(coverage.words, "word")} you teach turn up in a phrase a student can practise them inside.`
+            : "Nothing here yet — write a word and a phrase that uses it, and this is where the two find each other."}
+        </Lede>
+        <Help>
+          A word met inside a sentence somebody wrote is worth several met
+          alone. Everything below is a suggestion read out of your own
+          material: the app finds them and you decide, because finding a
+          word inside another word is a guess that is occasionally wrong.
+        </Help>
+      </div>
+
+      {/* Each of the three is a tile of its own: they are three different
+          jobs — a tap, a card to write, a phrase to write — and a teacher
+          reading them is choosing between them rather than reading down a
+          page. */}
+      <div className="at-panel">
+        <p className="at-eyebrow">{`Links to confirm${waiting.length ? ` · ${waiting.length}` : ""}`}</p>
+        {waiting.length === 0 ? (
+          <Help>
+            Nothing waiting. Every phrase that contains a word you teach says
+            so.
+          </Help>
+        ) : (
+          <>
+            <Help>
+              These phrases contain a word you teach and do not say so, so the
+              word is never practised inside them. One tap each.
+            </Help>
+            <div className="at-findlist">
+              {waiting.slice(0, 40).map((pair) => (
+                <div className="at-findrow" key={`${pair.container.id}:${pair.word.id}`}>
+                  <div className="at-findbody">
+                    {/* The word runs in its own direction and the gloss
+                        beside it runs in the page's. A line that switches
+                        direction halfway reorders itself, which put the
+                        English first on every right-to-left word. */}
+                    <p className="at-findword">
+                      <span lang={lang.id} dir={lang.direction}
+                        style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
+                        {pair.word.ar}
+                      </span>
+                      <span className="at-findgloss">{pair.word.en}</span>
+                    </p>
+                    {/* A turn says whose it is. Without the name it reads
+                        as a phrase from nowhere, and a teacher deciding
+                        whether a word really sits in it wants to know it
+                        came out of a conversation. */}
+                    {pair.container.who ? (
+                      <p className="at-findwho">{pair.container.who} says</p>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="at-findphrase"
+                      lang={lang.id}
+                      dir={lang.direction}
+                      style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                      onClick={() => onOpenCard(pair.container.cardId)}
+                    >
+                      {pair.container.ar}
+                    </button>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    icon="check"
+                    onClick={() => {
+                      setDone((x) => x.concat([`${pair.container.id}:${pair.word.id}`]));
+                      const card = byId.get(pair.container.cardId);
+                      if (card) onLink(card, pair.word, pair.container.line);
+                    }}
+                  >
+                    It does
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="at-panel">
+        <p className="at-eyebrow">{`Words worth a card${missing.length ? ` · ${missing.length}` : ""}`}</p>
+        {missing.length === 0 ? (
+          <Help>
+            Every word your phrases use has a card of its own.
+          </Help>
+        ) : (
+          <>
+            <Help>
+              Words your own phrases keep using that nothing teaches, most used
+              first. What is offered is the form it appears in — the first line
+              of a card you finish.
+            </Help>
+            <div className="at-findlist">
+              {missing.slice(0, 30).map((word) => (
+                <div className="at-findrow" key={word.text}>
+                  <div className="at-findbody">
+                    <p className="at-findword">
+                      <span lang={lang.id} dir={lang.direction}
+                        style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
+                        {word.text}
+                      </span>
+                      <span className="at-findgloss">in {plural(word.count, "phrase")}</span>
+                      {word.forms.length > 1 && (
+                        <span className="at-findgloss" lang={lang.id} dir={lang.direction}>
+                          {/* Separated the way the app separates
+                              everything, rather than with the punctuation
+                              of whichever language this happens to be. */}
+                          · also {word.forms.filter((f) => f !== word.text).join(" · ")}
+                        </span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      className="at-findphrase"
+                      lang={lang.id}
+                      dir={lang.direction}
+                      style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                      onClick={() => onOpenCard(word.examples[0].cardId)}
+                    >
+                      {word.examples[0].ar}
+                    </button>
+                  </div>
+                  <Button size="sm" icon="add" disabled={busy} onClick={() => onAddWord(word.text, lang)}>
+                    Add it
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="at-panel">
+        <p className="at-eyebrow">{`Words in no phrase${bare.length ? ` · ${bare.length}` : ""}`}</p>
+        {bare.length === 0 ? (
+          <Help>Every word you teach turns up somewhere.</Help>
+        ) : (
+          <>
+            <Help>
+              These have a card and nothing to practise them inside. A phrase
+              using one of them is the most useful card you could write next.
+            </Help>
+            <div className="at-tags">
+              {bare.slice(0, 60).map((word) => (
+                <button
+                  type="button"
+                  className="at-tag pick"
+                  key={word.id}
+                  lang={lang.id}
+                  dir={lang.direction}
+                  onClick={() => onOpenCard(word.id)}
+                >
+                  {word.ar}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 /*
  * `lang` is as much of a pack as there is, not a whole one: the first
  * thing this does is say so when the language describes no way to find a
@@ -4041,6 +4790,10 @@ function ContextReport({ cards, lang }) {
       <Help>
         {plural(counts.word, "word")} · {plural(counts.phrase, "phrase")} ·{" "}
         {plural(counts.sentence, "sentence")}
+        {/* Conversations are counted as the cards they are and matched as
+            the turns they hold, so this is the deck a teacher wrote rather
+            than the number of lines in it. */}
+        {counts.dialog ? ` · ${plural(counts.dialog, "conversation")}` : ""}
         {links ? ` · ${plural(links, "pairing")} in all` : ""}
       </Help>
 
@@ -4184,8 +4937,25 @@ export function filterCards(cards, { audio = "any", forms = "any" } = {}) {
   });
 }
 
-/** @param {{ account: User, languages: Record<LangId, Lang>, onClose: () => void }} props */
-export function TeachSpace({ account, languages, onClose }) {
+/**
+ * @param {{
+ *   account: User,
+ *   languages: Record<LangId, Lang>,
+ *   settings?: any,
+ *   onTry?: (plan: { items: any[], exercise: any, back: any }) => void,
+ *   resume?: { cardId?: string, tab?: string, deckId?: string | null } | null,
+ *   onClose: () => void,
+ * }} props `onTry` runs one question on one of these cards, through the
+ *   screen a student is asked on. The teaching space has no such screen of
+ *   its own and should not grow one: a preview that is not the real thing
+ *   is worse than none.
+ *
+ *   `resume` is that trip in reverse. The question is asked on a screen
+ *   this space is not on — it unmounts while the teacher answers — so the
+ *   card they pressed the button on comes back as a prop and is read once,
+ *   here, at the first render.
+ */
+export function TeachSpace({ account, languages, settings, onTry, resume, onClose }) {
   /* What this space was showing when it was last left — see lastShown.
      Asked once, at the first render: recall forgets another person's
      contents when it is asked for them, which is not something to do
@@ -4195,21 +4965,34 @@ export function TeachSpace({ account, languages, onClose }) {
   if (held.current === null) held.current = recallSpace("teach", account.handle) || false;
   /** @type {{ courses: Course[], decks: Deck[], cards: Card[] } | null} */
   const last = held.current || null;
-  const [tab, setTab] = useState("courses");
+  /* Coming back from a trial: the tab, the deck and the card that was
+     being read, in that order — the card sits on top of the screen it was
+     opened from, and closing it has to land somewhere that makes sense.
+     Read from the prop at the first render only, so this is where the
+     teacher was rather than where they have since gone. */
+  const back = useRef(resume || null).current;
+  const [tab, setTab] = useState((back && back.tab) || "courses");
   const [courses, setCourses] = useState(/** @type {Course[]} */ (last ? last.courses : []));
   const [decks, setDecks] = useState(/** @type {Deck[]} */ (last ? last.decks : []));
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const [courseView, setCourseView] = useState(/** @type {any | null} */ (null));
-  const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ (null));
+  const [openDeck, setOpenDeck] = useState(/** @type {any | null} */ ((back && back.deckId) || null));
   const [cards, setCards] = useState(/** @type {Card[]} */ (last ? last.cards : []));
   const [editing, setEditing] = useState(
-    /** @type {{ card: Card | null, decks: string[], lang?: LangId } | null} */ (null)
+    /** @type {{ card: Card | null, decks: string[], lang?: LangId, scene?: boolean, draft?: Record<string, any> } | null} */ (null)
   ); // {card|null, decks:[], lang}
   const [naming, setNaming] = useState(/** @type {any | null} */ (null)); // "new" | deck
   const [confirm, setConfirm] = useState(/** @type {Pending | null} */ (null)); // whatever is awaiting a yes
-  const [viewing, setViewing] = useState(/** @type {any} */ (null)); // a card being read, not edited
+  const [viewing, setViewing] = useState(/** @type {any} */ (
+    /* The card a trial was asked about, found in the copy this space had
+       in hand when it left. Nothing to fetch: it is the same list the
+       button was pressed from, kept across the round trip. */
+    back && back.cardId && last
+      ? (last.cards || []).find((/** @type {Card} */ c) => c.id === back.cardId) || null
+      : null
+  )); // a card being read, not edited
   const [selCards, setSelCards] = useState(() => new Set());
   const [cardAction, setCardAction] = useState(/** @type {"add" | "remove" | null} */ (null)); // "add" | "remove"
   const [newCardLang, setNewCardLang] = useState(/** @type {LangId | null} */ (null));
@@ -4453,35 +5236,86 @@ export function TeachSpace({ account, languages, onClose }) {
         busy={busy}
         onClose={() => setEditing(null)}
         allCards={cards}
-        onSave={(forms, note, inDecks, uses) =>
+        scene={editing.scene || isDialog(editing.card)}
+        draft={editing.draft || null}
+        onSave={({ forms, note, decks: inDecks, uses, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
+              /*
+               * One card, one save.
+               *
+               * A conversation is a kind of card, so it goes up the way
+               * every card does — the same request, the same decks, the
+               * same revision — and this used to be two objects built in
+               * two branches, which is what a separate sort of thing looks
+               * like in code. What differs is only what a scene has
+               * instead of a word: its name is the card's English, its
+               * setting is the note, and the turns travel in `lines`.
+               *
+               * Which is why a scene reaches a student through the same
+               * material payload as everything else.
+               */
               const r = await API.saveCard(
                 {
                   id: editing.card ? editing.card.id : "",
-                  ar: main.ar.trim(),
-                  en: main.en.trim(),
-                  lat: main.lat.trim(),
-                  ...dimValues(main),
-                  clips: main.clips || [],
-                  slowClips: main.slowClips || [],
-                  note: note.trim(),
                   lang: (editLang || {}).id || "",
-                  uses,
-                  subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
+                  ...(written
+                    ? {
+                        ar: "",
+                        en: written.title,
+                        lat: "",
+                        note: written.setting,
+                        uses: [],
+                        subs: [],
+                        clips: [],
+                        slowClips: [],
+                        speakers: written.speakers,
+                        you: written.you,
+                        lines: written.lines,
+                      }
+                    : {
+                        ar: main.ar.trim(),
+                        en: main.en.trim(),
+                        lat: main.lat.trim(),
+                        ...dimValues(main),
+                        clips: main.clips || [],
+                        slowClips: main.slowClips || [],
+                        note: note.trim(),
+                        uses,
+                        subs: subs.filter((/** @type {any} */ f) => f.ar.trim() || f.en.trim()),
+                      }),
                 },
                 inDecks
               );
               absorbSaved(r);
               setEditing(null);
-              return main;
+              /* Whether the card just saved turns up in phrases already
+                 written. Counted against the list with the new card in
+                 it — it is the thing being looked for, and the list in
+                 hand was taken before it existed. */
+              const saved = r && r.card;
+              const waiting =
+                written || !saved
+                  ? 0
+                  : pairsIn(
+                      cards.filter((c) => c.id !== saved.id).concat([saved]),
+                      editLang || LANGUAGES[DEFAULT_LANGUAGE]
+                    ).filter((pair) => !pair.confirmed && pair.word.id === saved.id).length;
+              return { name: (written ? written.title : main.en.trim() || main.ar.trim()) || "Card", waiting };
             },
             /* Named, because the editor closes on save: without the word
                back there is nothing left on screen to confirm which card
                it was. English first — it is the one field a teacher can
-               always read at a glance. */
-            (main) => `${main.en.trim() || main.ar.trim() || "Card"} saved`
+               always read at a glance.
+               And where the card that was just saved turns up in phrases
+               already written, say so — that is the moment the link is
+               worth making, and the alternative is a deck whose coverage
+               quietly falls as it grows. */
+            (/** @type {{ name: string, waiting: number }} */ done) =>
+              done.waiting
+                ? `${done.name} saved · it turns up in ${plural(done.waiting, "phrase")} you have written — confirm them under In context`
+                : `${done.name} saved`
           )
         }
         onDelete={
@@ -4553,9 +5387,23 @@ export function TeachSpace({ account, languages, onClose }) {
               size="small"
               busy={busy}
               empty="No cards in this deck yet. Make one, or add existing cards from the Cards tab."
+              /* A conversation has no word of its own to search for, so
+                 its turns are searched too: a teacher looking for a scene
+                 remembers a line of it, not the name they gave it. */
               match={(c, q) =>
-                (c.ar || "").toLowerCase().includes(q) || (c.en || "").toLowerCase().includes(q)
+                (c.ar || "").toLowerCase().includes(q) ||
+                (c.en || "").toLowerCase().includes(q) ||
+                linesOf(c).some(
+                  (/** @type {any} */ l) =>
+                    (l.ar || "").toLowerCase().includes(q) ||
+                    (l.en || "").toLowerCase().includes(q)
+                )
               }
+              /* One way to make a card, whatever kind of card it is. A
+                 conversation had a second button here, which made it read
+                 as a separate sort of thing to make — and meant the Cards
+                 tab, with only the one button, could not make one at all.
+                 The kind is the first field in the editor now. */
               onNew={() =>
                 setEditing({ card: null, decks: [d.id], lang: (langOfDeck(d) || {}).id })
               }
@@ -4633,6 +5481,17 @@ export function TeachSpace({ account, languages, onClose }) {
             }
           >
             <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+            <TryExercises
+              /* The card, and the screen it was read from — a deck's card
+                 list here, so answering comes back to the card inside the
+                 deck rather than to the space's front door. */
+              back={{ cardId: viewing.id, tab, deckId: openDeck }}
+              card={viewing}
+              cards={cards}
+              lang={langOfCard(viewing)}
+              settings={settings}
+              onTry={onTry}
+            />
           </Screen>
         )}
 
@@ -4840,6 +5699,7 @@ export function TeachSpace({ account, languages, onClose }) {
         ["courses", "Courses", "school"],
         ["decks", "Decks", "folder"],
         ["cards", "Cards", "cards"],
+        ["context", "In context", "search"],
       ]}
       tab={tab}
       onTab={setTab}
@@ -5034,6 +5894,14 @@ export function TeachSpace({ account, languages, onClose }) {
                   }
                 >
                   <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+                  <TryExercises
+                    back={{ cardId: viewing.id, tab, deckId: null }}
+                    card={viewing}
+                    cards={cards}
+                    lang={langOfCard(viewing)}
+                    settings={settings}
+                    onTry={onTry}
+                  />
                 </Screen>
               )}
 
@@ -5115,7 +5983,12 @@ export function TeachSpace({ account, languages, onClose }) {
                 match={(c, q) =>
                   (c.ar || "").toLowerCase().includes(q) ||
                   (c.en || "").toLowerCase().includes(q) ||
-                  (c.lat || "").toLowerCase().includes(q)
+                  (c.lat || "").toLowerCase().includes(q) ||
+                  linesOf(c).some(
+                    (/** @type {any} */ l) =>
+                      (l.ar || "").toLowerCase().includes(q) ||
+                      (l.en || "").toLowerCase().includes(q)
+                  )
                 }
                 onNew={() => {
                   if (mustAsk) setNewCardLang(knownLangs[0] || "");
@@ -5164,6 +6037,49 @@ export function TeachSpace({ account, languages, onClose }) {
               />
 
             </>
+          )}
+
+          {tab === "context" && (
+            <InContext
+              cards={cards}
+              languages={taught}
+              langOfCard={langOfCard}
+              busy={busy}
+              onLink={(card, word, line) =>
+                run(
+                  async () => {
+                    /* A link belongs where the words are. On a phrase card
+                       that is the card; on a conversation it is the turn
+                       that says them, because a scene has no text of its
+                       own and the session builder reads a line's own
+                       `uses` to know what it teaches. */
+                    const add = (/** @type {string[] | undefined} */ had) => [
+                      ...new Set((had || []).concat([word.id])),
+                    ];
+                    absorbSaved(
+                      await API.saveCard(
+                        line === null
+                          ? { ...card, uses: add(card.uses) }
+                          : {
+                              ...card,
+                              lines: linesOf(card).map((/** @type {any} */ l, /** @type {number} */ at) =>
+                                at === line ? { ...l, uses: add(l.uses) } : l
+                              ),
+                            },
+                        card.decks || []
+                      )
+                    );
+                    return { word, line };
+                  },
+                  (/** @type {any} */ r) =>
+                    `"${r.word.en || r.word.ar}" is now taught inside that ${r.line === null ? "phrase" : "turn"}`
+                )
+              }
+              onAddWord={(text, lang) =>
+                setEditing({ card: null, decks: [], lang: lang.id, draft: { ar: text } })
+              }
+              onOpenCard={(id) => setViewing(cards.find((c) => c.id === id) || null)}
+            />
           )}
 
           {tab === "decks" && (

@@ -15,13 +15,25 @@
  * on its own.
  */
 /** @import { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings } from "./types.js" */
+/* The one import here, and it goes the way every import in this file has
+   to: dialogs.js knows nothing about languages, so there is no cycle. It
+   holds the shape of a scene, which marking a part and an ordering both
+   have to read. */
+import { DIALOG_KIND, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.js";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
    which states a card carries, what a session may pick, what the settings
    list, what an export has columns for — so retiring a type is one edit here
    and its definition stays below. */
-export const TYPES = ["ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2ar", "rec2ctx", "rec2attr"];
+export const TYPES = [
+  "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2pick", "ctx2ar", "rec2ctx", "rec2attr",
+  /* The dialog exercises, in the order a learner meets them: read a line,
+     choose what comes next, say it yourself, rebuild the scene, then hold
+     up your whole end of it. Every one is asked with words on a screen —
+     a dialog with no recordings anywhere in it supports all five. */
+  "dlg2en", "dlgpick", "dlgreply", "dlgorder", "dlgplay",
+];
 
 /** @type {Record<string, ExerciseSpec>} */
 export const EX = {
@@ -126,6 +138,25 @@ export const EX = {
      word taken out. Nothing here is invented: the sentence is one they
      wrote, and the only thing the app does is decide which one to show and
      which word to remove. */
+  /* The gentle half of the gap-fill, and the one a word should meet first.
+     Reading a word inside a phrase is recognition; writing it there is
+     production, and every other word in the app is recognised before it is
+     produced. This was the one place that skipped straight to the hard
+     half, which is why a learner's first meeting with a word in context
+     was also their first chance to get it wrong. */
+  ctx2pick: {
+    instruction: "Which word is missing?",
+    label: "In a phrase → choose",
+    short: "P→C",
+    needs: ["ar", "contexts"],
+    question: "Which word is missing?",
+    placeholder: "",
+    promptField: "context",
+    answerField: "ar",
+    answerMode: "choice",
+    picks: "word",
+    gentle: true,
+  },
   ctx2ar: {
     instruction: "Fill the gap",
     label: "In a phrase → {script}",
@@ -165,6 +196,106 @@ export const EX = {
     answerField: "ar",
     answerMode: "choice",
     quizAttr: true,
+  },
+
+  /* ---- a conversation, and a part in it -------------------------
+     Five exercises on a dialog card, plus the read-through that is not
+     one. `dialog` says which of the three things an exercise is asked of
+     — a scene, a line inside one, or an ordinary word — and availableTypes
+     refuses every other pairing, so a word can never be asked to put
+     itself in order and a scene can never be asked what it means.
+
+     `promptField: "scene"` means the question is the conversation so far
+     rather than a field on a card. None of them is `audio`, so none is a
+     listening exercise: a recording on a line is offered beside it where
+     there is one, and changes nothing when there is not. */
+
+  /* Not in TYPES, and deliberately: nothing schedules a read-through and
+     nothing marks it. It is put in front of the first question a scene
+     asks in a session, because a dialog should never open with a blank. */
+  dlgread: {
+    instruction: "Read the scene",
+    label: "Read a scene",
+    short: "Read",
+    needs: ["dialog"],
+    dialog: "card",
+    question: "Read it through",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "",
+    answerMode: "read",
+    intro: true,
+    gentle: true,
+  },
+  dlg2en: {
+    instruction: "Write this line in English",
+    label: "A line → English",
+    short: "D→E",
+    needs: ["line", "en"],
+    dialog: "line",
+    question: "What does this line mean?",
+    placeholder: "Type the English",
+    promptField: "scene",
+    answerField: "en",
+    hintField: "lat",
+    hintLabel: "Show {translit}",
+    hintHideLabel: "Hide {translit}",
+    answerMode: "en",
+    gentle: true,
+  },
+  dlgpick: {
+    instruction: "Choose what you say next",
+    label: "Choose the reply",
+    short: "Pick",
+    needs: ["line", "reply", "choices"],
+    dialog: "line",
+    question: "Which reply fits?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "ar",
+    answerMode: "choice",
+    picks: "reply",
+  },
+  dlgreply: {
+    instruction: "Your turn — write it in {script}",
+    label: "Your turn → {script}",
+    short: "You→{S}",
+    needs: ["line", "reply", "ar"],
+    dialog: "line",
+    question: "What do you say?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "ar",
+    /* The meaning, not the {translit}: what you are meant to say is a
+       nudge, and how it is spelled is the answer. */
+    hintField: "en",
+    hintLabel: "Show meaning",
+    hintHideLabel: "Hide meaning",
+    answerMode: "ar",
+  },
+  dlgorder: {
+    instruction: "Put the scene back in order",
+    label: "Put a scene in order",
+    short: "Order",
+    needs: ["dialog", "order"],
+    dialog: "card",
+    question: "Which line comes first?",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "",
+    answerMode: "order",
+  },
+  dlgplay: {
+    instruction: "Play your part in {script}",
+    label: "Play a part",
+    short: "Part",
+    needs: ["dialog", "part"],
+    dialog: "card",
+    question: "Hold up your end",
+    placeholder: "",
+    promptField: "scene",
+    answerField: "ar",
+    answerMode: "part",
   },
 };
 
@@ -211,10 +342,10 @@ export function editDistance(a, b) {
 /* ------------------------------------------------------------------
    What kind of thing a card is
 
-   A word, a phrase, or a sentence. It decides what a learner can filter
-   practice down to, how the script is typeset, and — the reason it is being
-   taken seriously now — whether a card can serve as a context for the words
-   inside it.
+   A word, a phrase, a sentence, or a conversation. It decides what a
+   learner can filter practice down to, how the script is typeset, and —
+   the reason it is being taken seriously now — whether a card can serve as
+   a context for the words inside it.
 
    It lives here rather than in the app because the answer is the language's
    business: "a space means more than one word" holds for Arabic and
@@ -225,6 +356,42 @@ export function editDistance(a, b) {
 
 /* Sentence-ending punctuation, Latin and Arabic. */
 const SENTENCE_MARK = /[.!?،؛؟]/;
+
+/*
+ * The kinds there are, named once.
+ *
+ * A conversation is one of them. It was built later than the other three
+ * and for a while it read as a separate sort of thing — its own button to
+ * make one, its own word for the editor that made it — which is not what
+ * it is: it is a card, with turns on it instead of a word. Every screen
+ * that names a kind reads this list, so there is one answer to "what can a
+ * card be" rather than one per screen.
+ *
+ * The first three are read off the text by guessKind below; the fourth is
+ * the teacher's own decision, because nothing about a line of script says
+ * whether somebody else was going to answer it.
+ */
+export const CARD_KINDS = [
+  { key: "word", label: "Word", one: "a word" },
+  { key: "phrase", label: "Phrase", one: "a phrase" },
+  { key: "sentence", label: "Sentence", one: "a sentence" },
+  { key: DIALOG_KIND, label: "Conversation", one: "a conversation" },
+];
+
+/** @param {string} [kind] @returns {string} */
+export const kindLabel = (kind) =>
+  (CARD_KINDS.find((k) => k.key === kind) || CARD_KINDS[0]).label;
+
+/* What a stored card is, asked of the card rather than of a label on it:
+   a card with turns is a conversation, and everything else is read off
+   its text. See isDialog — the turns are the fact. */
+/**
+ * @param {Record<string, any>} card
+ * @param {{ guessKind?: (text: string) => string } | null} [lang]
+ * @returns {string}
+ */
+export const kindOf = (card, lang = null) =>
+  isDialog(card) ? DIALOG_KIND : (card && card.kind) || guessKind(card && (card.ar || card.en || card.lat), lang);
 
 /**
  * @param {string | null} [text]  Whatever the card holds, which for an empty field is nothing at all.
@@ -386,21 +553,120 @@ export function contextTokens(text, lang) {
 }
 
 /*
- * Which token of `phrase` is `word`, or -1. The index, not the text: it is
- * what a fill-the-gap question needs in order to blank the right one.
+ * Where `word` sits inside `phrase`: which token it starts at, and how many
+ * it takes. Null when it is not there.
+ *
+ * The count is the word's own — a card that reads "cà phê" is two tokens
+ * wherever it turns up, so two tokens of the phrase are joined and offered
+ * to the language's matcher together. That is the whole of what it takes
+ * to find a compound inside a sentence, and it needs nothing from the pack
+ * beyond the matcher it already declares: a language whose words are one
+ * token asks the same question it always asked.
+ *
+ * A span rather than an index because the gap-fill blanks what it finds,
+ * and blanking one syllable of a two-syllable word is a question with a
+ * clue in it.
  */
 /**
  * @param {string} phrase
  * @param {string} word
- * @param {Partial<Lang>} lang  A language that declares no context answers -1, which is the point.
+ * @param {Partial<Lang>} lang  A language that declares no context finds nothing, which is the point.
+ * @returns {{ at: number, len: number } | null}
+ */
+export function findWordSpan(phrase, word, lang) {
+  if (!supportsContext(lang) || !phrase || !word) return null;
+  const tokens = contextTokens(phrase, lang);
+  const len = Math.min(contextTokens(word, lang).length, MAX_WORD_TOKENS);
+  if (!len || len > tokens.length) return null;
+  for (let i = 0; i + len <= tokens.length; i++) {
+    const window = len === 1 ? tokens[i] : tokens.slice(i, i + len).join(" ");
+    if (lang.context.matches(window, word)) return { at: i, len };
+  }
+  return null;
+}
+
+/* A card longer than this is not a word anybody is going to find inside a
+   sentence, and pairing every card with every window of every other one is
+   the sort of work that grows with the square of a deck. */
+const MAX_WORD_TOKENS = 6;
+
+/*
+ * The same question, answered as an index. Kept because most of the app
+ * only ever asks "is it in there, and where does it start".
+ */
+/**
+ * @param {string} phrase
+ * @param {string} word
+ * @param {Partial<Lang>} lang
  */
 export function findWordSlot(phrase, word, lang) {
-  if (!supportsContext(lang) || !phrase || !word) return -1;
-  const tokens = contextTokens(phrase, lang);
-  for (let i = 0; i < tokens.length; i++) {
-    if (lang.context.matches(tokens[i], word)) return i;
-  }
-  return -1;
+  const span = findWordSpan(phrase, word, lang);
+  return span ? span.at : -1;
+}
+
+/*
+ * What a card would need before an exercise could be asked of it.
+ *
+ * Said in the words a person uses about their own card — "a recording",
+ * "the meaning" — rather than the field names the table is written in.
+ * It exists for the screen that lists every exercise a card could have and
+ * greys out the ones it cannot: a greyed-out button that does not say why
+ * is a puzzle, and the answer is always something small and fixable.
+ *
+ * Language-aware, because two of these have a different name in every
+ * language: the script and the second writing.
+ */
+/**
+ * @param {string} need  One of an exercise's `needs`.
+ * @param {Partial<Lang>} lang
+ */
+export function needLabel(need, lang) {
+  /* Lowered, because these are sentence fragments and the pack's labels
+     are titles: a card is waiting for "the transliteration", not for "the
+     Transliteration". */
+  const script = ((lang && lang.scriptLabel) || "the script").toLowerCase();
+  const translit = ((lang && lang.translitLabel) || "a romanisation").toLowerCase();
+  /** @type {Record<string, string>} */
+  const names = {
+    ar: `the word in ${script}`,
+    en: "the meaning",
+    lat: `the ${translit}`,
+    recs: "a recording",
+    contexts: "a phrase that uses it",
+    contextAudio: "a recorded phrase that uses it",
+    dialog: "a conversation",
+    line: "a line of a conversation",
+    reply: "something said before it",
+    choices: "a third line to choose between",
+    order: "three lines or more",
+    part: "a part to play",
+  };
+  return names[need] || need;
+}
+
+/*
+ * Words not worth a card of their own.
+ *
+ * Every language has a few dozen: the prepositions, the particles, the
+ * words that hold a sentence together and mean nothing much alone. They
+ * are worth naming because the app now offers a teacher the words their
+ * own phrases contain and no card covers — and a list of suggestions whose
+ * first ten entries are "in", "of" and "the" is a list nobody reads twice.
+ *
+ * Pack data rather than app data: which words these are is the one part of
+ * the question the app cannot work out, and the one part a language always
+ * knows. A pack that names none loses nothing but a little noise.
+ */
+/**
+ * @param {string} word
+ * @param {Partial<Lang>} lang
+ */
+export function isFunctionWord(word, lang) {
+  const own = (lang && lang.context && lang.context.skip) || [];
+  if (!own.length) return false;
+  const matches = lang && lang.context && lang.context.matches;
+  if (!matches) return false;
+  return own.some((w) => matches(word, w));
 }
 
 /*
@@ -419,16 +685,30 @@ export function findWordSlot(phrase, word, lang) {
  * @param {Partial<Lang>} lang  A language that declares no context is reported as unsupported, not as empty.
  */
 export function contextCoverage(cards, lang) {
-  const empty = { supported: false, words: [], counts: { word: 0, phrase: 0, sentence: 0 }, covered: 0, links: 0 };
+  const empty = {
+    supported: false, words: [], counts: { word: 0, phrase: 0, sentence: 0, dialog: 0 }, covered: 0, links: 0,
+  };
   if (!supportsContext(lang)) return empty;
 
   /** @type {Record<string, number>} */
-  const counts = { word: 0, phrase: 0, sentence: 0 };
+  const counts = { word: 0, phrase: 0, sentence: 0, dialog: 0 };
   /** @type {Record<string, any>[]} */
   const words = [];
   /** @type {Record<string, any>[]} */
   const contexts = [];
   for (const c of cards || []) {
+    /* A conversation has no text of its own — its words are in its turns —
+       so it stands here as its turns. Counted as the one card it is, and
+       matched as the several phrases it holds: reading `ar` off the card
+       found an empty string, so every scene a teacher wrote counted for
+       nothing in this number. */
+    if (isDialog(c)) {
+      counts.dialog += 1;
+      for (const line of linesOf(c)) {
+        if (line && line.ar) contexts.push({ id: c.id, ar: line.ar, en: line.en || "" });
+      }
+      continue;
+    }
     const kind = c.kind || guessKind(c.ar || c.en || c.lat, lang);
     counts[kind] = (counts[kind] || 0) + 1;
     if (kind === "word") words.push(c);
@@ -457,16 +737,30 @@ export function contextCoverage(cards, lang) {
    Proclitics: the conjunctions و and ف, the prepositions ب ل ك, and the
    article ال, which stack — وبالكتاب is one token and four pieces.
 
+   Enclitics: the pronouns that attach to the end — كتابك is your book and
+   كتابها is hers, and a learner meeting either of them is meeting كتاب.
+   A word carrying one was invisible to this until now, so a phrase that
+   used the word in the ordinary way — with somebody owning it — taught
+   the word to nobody.
+
    Peeled rather than pattern-matched, because the combinations multiply and
-   a list of them goes stale. Two peels deep is enough for anything real,
-   and the remainder must keep three letters: Arabic words are built on
-   three consonants, so a two-letter remainder is the sign of having peeled
-   away the word itself rather than a prefix.
+   a list of them goes stale. Two peels deep at each end is enough for
+   anything real, and the remainder must keep three letters: Arabic words
+   are built on three consonants, so a two-letter remainder is the sign of
+   having peeled away the word itself rather than an affix.
 
    It will still occasionally offer a wrong match — كتاب peels to تاب, which
    is a word. That is why a match is a suggestion for the teacher to accept,
    never a fact the app acts on by itself. */
 const AR_PROCLITICS = ["وال", "فال", "بال", "كال", "لل", "ال", "و", "ف", "ب", "ل", "ك"];
+
+/* Longest first, so كتابهم peels هم rather than م and then stops. The
+   single ي is left out on purpose: it is the first person possessive and
+   also the last letter of a great many words, and peeling it turns كرسي
+   into كرس. */
+const AR_ENCLITICS = ["هما", "كما", "هنّ", "كنّ", "هن", "كن", "هم", "كم", "نا", "ها", "ه", "ك"];
+
+const AR_STEM_FLOOR = 3;
 
 /**
  * @param {string} token
@@ -474,18 +768,30 @@ const AR_PROCLITICS = ["وال", "فال", "بال", "كال", "لل", "ال", "
  */
 export function arWordStems(token, depth = 2) {
   const out = [token];
-  /** @type {(s: string, left: number) => void} */
-  const peel = (s, left) => {
+  /** @type {(list: string[], take: (s: string) => string | null, left: number) => void} */
+  const peel = (list, take, left) => {
     if (left <= 0) return;
-    for (const p of AR_PROCLITICS) {
-      if (!s.startsWith(p)) continue;
-      const rest = s.slice(p.length);
-      if (rest.length < 3 || out.includes(rest)) continue;
-      out.push(rest);
-      peel(rest, left - 1);
+    for (const found of list) {
+      /* Each affix is tried against everything peeled so far, so a word
+         wrapped at both ends — وبكتابهم — comes apart from either side. */
+      for (const s of out.slice()) {
+        if (!s.startsWith(found) && !s.endsWith(found)) continue;
+        const rest = take(s);
+        if (!rest || rest.length < AR_STEM_FLOOR || out.includes(rest)) continue;
+        out.push(rest);
+      }
     }
   };
-  peel(token, depth);
+  for (let i = 0; i < depth; i++) {
+    peel(AR_PROCLITICS, (s) => {
+      const p = AR_PROCLITICS.find((x) => s.startsWith(x));
+      return p ? s.slice(p.length) : null;
+    }, 1);
+    peel(AR_ENCLITICS, (s) => {
+      const e = AR_ENCLITICS.find((x) => s.endsWith(x));
+      return e ? s.slice(0, -e.length) : null;
+    }, 1);
+  }
   return out;
 }
 
@@ -1023,7 +1329,15 @@ export const LANGUAGES = {
     /* Which words a recorded phrase teaches. The article and the one-letter
        conjunctions and prepositions attach to the front of a word here, so
        الكتاب and وبالكتاب are both the word كتاب wearing something. */
-    context: { matches: arTokenIsWord },
+    /* The particles, prepositions and pronouns that hold a sentence
+       together. Written unpointed: they go through the same matcher the
+       phrases do, which strips the harakat before comparing. */
+    context: {
+      matches: arTokenIsWord,
+      skip: ["من", "في", "على", "إلى", "عن", "مع", "هذا", "هذه", "ذلك", "الذي",
+             "التي", "أن", "إن", "لا", "ما", "هل", "يا", "قد", "كان", "هو", "هي",
+             "أنا", "أنت", "نحن", "كل", "بعض", "عند", "بين", "بعد", "قبل"],
+    },
     /* A romanisation of an Arabic word is a different rendering of it, so
        going between the two is a real exercise. */
     translitDrilled: true,
@@ -1128,7 +1442,12 @@ export const LANGUAGES = {
     similarityMode: "exact",
     /* Nothing attaches to anything, so a token either is the word or is
        not — but the tone has to match, because má and ma are two words. */
-    context: { matches: viTokenIsWord },
+    context: {
+      matches: viTokenIsWord,
+      skip: ["là", "và", "của", "có", "không", "được", "một", "các", "những",
+             "này", "đó", "ở", "cho", "với", "thì", "mà", "rằng", "đã", "sẽ",
+             "cũng", "rất", "nhưng", "khi", "để", "về", "ra", "vào"],
+    },
     /* Vietnamese is already written in the Latin alphabet, so a "type the
        transliteration" exercise would ask for the word already on screen.
        The pronunciation note is a note; it is not drilled. */
@@ -1194,7 +1513,11 @@ export const LANGUAGES = {
     ],
     similarityKey: heSimilarityKey,
     similarityMode: "chars",
-    context: { matches: heTokenIsWord },
+    context: {
+      matches: heTokenIsWord,
+      skip: ["של", "את", "על", "עם", "אל", "כי", "לא", "גם", "אבל", "זה", "זאת",
+             "הוא", "היא", "אני", "אתה", "אנחנו", "מה", "מי", "כל", "אם", "או"],
+    },
     /* A romanisation of a Hebrew word is a different rendering of it, so
        going between the two is a real exercise. */
     translitDrilled: true,
@@ -1521,6 +1844,51 @@ export function checkAr(given, expected, settings) {
 export function checkAnswer(typed, item, type, settings) {
   const spec = EX[type];
   const mode = spec.answerMode;
+  /* Nothing to mark: a read-through is met, not answered. It is here so
+     that every exercise can be handed to one function, rather than the
+     screen remembering which ones to keep away from it. */
+  if (mode === "read") return { ok: true, reason: "read" };
+  /* The scene, rebuilt. Right is the order it was written in and there is
+     no near miss: two lines swapped is a conversation that did not
+     happen. */
+  if (mode === "order") {
+    return orderIsRight(String(typed || ""), item)
+      ? { ok: true, reason: "exact" }
+      : { ok: false, reason: "wrong" };
+  }
+  /*
+   * A whole part, marked as one thing.
+   *
+   * Each turn goes through the language's own marking, so a missing mark
+   * in the third line is the near miss it would be on its own; the part
+   * is right only when every turn is. What comes back for a miss is the
+   * kindest of the misses, because the schedule reads it: three turns
+   * right and one short of its harakat is a card to nudge, not one to
+   * send back to the start.
+   */
+  if (mode === "part") {
+    const turns = yourLines(item);
+    const said = partAnswers(String(typed || ""));
+    let best = { ok: false, reason: "wrong" };
+    let allRight = turns.length > 0;
+    for (let i = 0; i < turns.length; i++) {
+      const r = langOf(settings).check(said[i] || "", turns[i].ar, settings);
+      if (r.ok) continue;
+      allRight = false;
+      if (AR_RANK[r.reason] > AR_RANK[best.reason]) best = r;
+    }
+    return allRight ? { ok: true, reason: "exact" } : best;
+  }
+  /* One of a few answers, chosen rather than typed — a line of a scene, or
+     a word missing from a phrase. What came back is the text itself, so it
+     is compared as text. Whitespace only, because both sides are wording
+     the app put on the screen. */
+  if (mode === "choice" && spec.picks) {
+    const want = String(item[spec.answerField] || "").replace(/\s+/g, " ").trim();
+    const got = String(typed || "").replace(/\s+/g, " ").trim();
+    if (!got) return { ok: false, reason: "wrong" };
+    return got === want ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
+  }
   // A property picked from a list rather than typed. Graded in the classes the
   // language actually distinguishes by ear, which may be fewer than it writes.
   if (mode === "choice") {

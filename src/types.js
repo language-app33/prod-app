@@ -56,6 +56,14 @@
  * @property {boolean} [gentle]    Recognition rather than production.
  * @property {boolean} [retired]   Still defined so stored states can be read.
  * @property {boolean} [quizAttr]  Asks a derived property rather than the word.
+ * @property {"card" | "line"} [dialog]  Asked of a whole scene, or of one line
+ *   of one. Anything without it is asked of an ordinary word or form, and the
+ *   three never mix.
+ * @property {boolean} [intro]     Met rather than answered: never scheduled,
+ *   never marked, and not in TYPES.
+ * @property {"reply" | "word"} [picks] What the few answers offered are: a
+ *   line of the conversation, or a word that could fill the gap. Absent
+ *   means a choice between classes of sound, which is graded differently.
  */
 
 /**
@@ -141,7 +149,17 @@
  * @property {Derived[]} derived
  * @property {(word: string) => string} similarityKey
  * @property {string} similarityMode
- * @property {{ matches: (token: string, word: string) => boolean, tokens?: (text: string) => string[] }} context A pack may split a phrase its own way; none does yet, and contextTokens() reads it.
+ * @property {{
+ *   matches: (token: string, word: string) => boolean,
+ *   tokens?: (text: string) => string[],
+ *   skip?: string[],
+ * }} context How this language finds one of its words inside a run of them.
+ *   `matches` is asked of one token, or of several joined, so a word that is
+ *   itself several tokens is found the same way a single one is. `tokens`
+ *   splits a phrase where whitespace is the wrong seam; none does yet.
+ *   `skip` names the words never worth a card of their own — the particles
+ *   and prepositions — which is the one part of that question the app
+ *   cannot work out and the language always knows.
  * @property {boolean} translitDrilled
  * @property {string} formsLabel
  * @property {string} fontStack
@@ -208,6 +226,9 @@
  *   note?: string,
  *   subs?: CardForm[],
  *   uses?: string[],
+ *   lines?: (CardForm & { who?: number, uses?: string[] })[],
+ *   speakers?: string[],
+ *   you?: number | null,
  *   rev?: number,
  *   created?: Millis,
  *   updated?: Millis,
@@ -331,6 +352,17 @@
  */
 
 /**
+ * A line of a dialog: a form, said by somebody, that may name the word
+ * cards it uses.
+ *
+ * It is a Form and not a thing of its own because it is drilled like one —
+ * its own wording, its own recordings, its own progress. `who` indexes the
+ * card's `speakers`; `uses` is the same list a phrase card carries, and is
+ * what lets a scene stand in for a phrase in the gap-fill.
+ * @typedef {Form & { who?: number, uses?: string[] }} Line
+ */
+
+/**
  * A card as it lives on a device: the teacher's wording plus this
  * learner's progress.
  *
@@ -343,11 +375,18 @@
  * differ per language and are not knowable here — sit alongside the ones
  * every card has. It also means an unlisted field reads as `any`, so the
  * fields worth checking are the ones written out.
+ *
+ * A dialog is one of these too: `lines` holds the conversation, `speakers`
+ * names who is in it, and `you` says which of them the learner plays — or
+ * is null, where the card leaves that to the question.
  * @typedef {Form & {
  *   kind?: string,
  *   tags: string[],
  *   flags?: any[],
  *   subs?: Form[],
+ *   lines?: Line[],
+ *   speakers?: string[],
+ *   you?: number | null,
  *   source?: { courseId: string, deckId: string, cardId: string, rev: number },
  *   locked?: boolean,
  *   created: Millis,

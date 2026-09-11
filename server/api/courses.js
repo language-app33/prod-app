@@ -784,6 +784,43 @@ export default async (req) => {
               .filter(Boolean)
               .slice(0, 24)
           : [],
+        /* A conversation, where the card is one: who is in it, which part
+           the learner takes, and the turns in order. A line is a form with
+           a speaker on it, so it is stored the way a form is — and, like a
+           form, it may name the word cards it contains.
+
+           Capped at a dozen turns and four speakers for the same reason
+           everything above is capped: this is written into a document that
+           is handed to every student in the course. A card with no lines
+           stores none, so an ordinary word is unchanged by passing
+           through here. */
+        speakers: Array.isArray(card.speakers)
+          ? card.speakers.slice(0, 4).map((/** @type {unknown} */ n) => String(n || "").slice(0, 40))
+          : [],
+        /* Which part the learner takes, or null where the teacher left it
+           open — most conversations are worth holding up from either end,
+           and the question picks a side when the card names none. Stored
+           as null rather than 0 because 0 is a real answer: "the one who
+           speaks first", which is the opposite of no answer at all. */
+        you:
+          card.you === null || card.you === undefined || card.you === ""
+            ? null
+            : Math.max(0, Math.min(3, Math.round(Number(card.you) || 0))),
+        lines: Array.isArray(card.lines)
+          ? card.lines.slice(0, 12).map((/** @type {Record<string, any>} */ ln) => ({
+              who: Math.max(0, Math.min(3, Math.round(Number(ln.who) || 0))),
+              ar: String(ln.ar || "").slice(0, 400),
+              en: String(ln.en || "").slice(0, 400),
+              lat: String(ln.lat || "").slice(0, 400),
+              clips: Array.isArray(ln.clips) ? ln.clips.slice(0, 12) : [],
+              slowClips: Array.isArray(ln.slowClips) ? ln.slowClips.slice(0, 12) : [],
+              uses: Array.isArray(ln.uses)
+                ? [...new Set(ln.uses.map((/** @type {unknown} */ x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "")))]
+                    .filter(Boolean)
+                    .slice(0, 24)
+                : [],
+            }))
+          : [],
       };
 
       let saved;

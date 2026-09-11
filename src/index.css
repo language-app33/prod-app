@@ -234,7 +234,13 @@ button {
    lines are reserved whatever the wording, and a short one is centred in
    them, so everything below starts in the same place every time. It still
    grows if a language ever needs a third. */
-.at-instruction { font-family: var(--ui); font-size:19px; font-weight:700; color: var(--text);
+/* Grey, not full ink: it says the same thing on every exercise of a kind,
+   and once you have read it twice it is a label rather than something to
+   read again. The word being asked about is what the eye should land on,
+   and it is the one that carries the ink. --muted is the grey the app
+   already uses for secondary text — 5.9:1 on the dark ground and 4.9:1 on
+   the light, so it passes AA at any size. */
+.at-instruction { font-family: var(--ui); font-size:19px; font-weight:700; color: var(--muted);
   margin:0 0 8px; line-height:1.4; min-height:2.8em;
   display:flex; align-items:center; justify-content:center; text-align:center; }
 .at-answerlabel { font-family: var(--ui); font-size:13px; font-weight:700; letter-spacing:.05em;
@@ -356,7 +362,7 @@ button {
    is:" to two lines at 320px, which is narrower than any phone it will
    meet; 30px and above take three there. Only the phone keyboard changes
    it, and the keyboard is not the exercise. */
-.at { --verdict: 28px; }
+.at { --verdict: 28px; --verdict-alone: 40px; }
 /* One line, always. The longest verdict — "Incorrect. The correct answer
    is:" — is 496px wide at 28px, and the page column is 288px on a 320px
    phone, so the size comes from the screen: the column's width divided by
@@ -372,6 +378,17 @@ button {
   font-size: min(var(--verdict), calc((100vw - 36px) / 18));
   color: var(--muted);
   margin:16px 0 0; }
+/* Except when it is on its own. A right answer typed in full has nothing
+   shown under it — the answer is already in the box above, so repeating it
+   says nothing — and the praise is then the whole of what came back rather
+   than the line introducing what did. It is sized as the thing being read.
+   The same one-line rule, taken against what it actually has to fit:
+   "Nicely done!" is the longest praise, 6.8px wide per pixel of type
+   against the wrong verdict's 17.7, so 7 with a little slack. That leaves
+   the cap holding it at 40px from a 320px phone up — 272px of the 288px
+   column there, and further inside it on anything wider. */
+.at-shout.alone {
+  font-size: min(var(--verdict-alone), calc((100vw - 36px) / 7)); }
 .at-after { margin-top:6px; }
 /* Session builder: tag and card selection. These matched nothing before,
    which is why they rendered as bare browser defaults. */
@@ -696,6 +713,10 @@ button {
 .at-readmeaning { font-family: var(--ui); font-size:19px; font-weight:700;
   margin:0 0 2px; overflow-wrap:anywhere; }
 .at-readlat { font-family: var(--ui); font-size:14px; color: var(--muted); margin:0; }
+/* One accepted answer with its own transliteration under it. Several of
+   them stack, with air between, because the thing being read is which
+   pronunciation goes with which spelling. */
+.at-readanswer + .at-readanswer { margin-top:10px; }
 @media (max-width: 420px) {
   .at-readlabel { flex-basis:100%; }}
 /* Someone's own name in a roster. */
@@ -719,6 +740,11 @@ button {
 .at-minien { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
   line-clamp:2; font-size:12px; font-weight:600; color: var(--muted);
   overflow:hidden; word-break:break-word; }
+/* What kind of card it is, where that is not obvious from the face. Above
+   the words rather than below them: it is how to read what follows, not a
+   note about it. */
+.at-minikind { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.07em;
+  text-transform:uppercase; color: var(--faint); line-height:1.4; }
 .at-minimeta { font-size:11px; color: var(--faint); line-height:1.4; margin-top:auto;
   padding-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .at-minilat { font-size:11px; color: var(--muted); }
@@ -1242,12 +1268,22 @@ button {
    nothing has to know how tall a button is. */
 .at-foot { position: fixed; left:0; right:0;
   bottom: calc(var(--kb-overlap, 0px) + env(safe-area-inset-bottom));
-  z-index: var(--z-chrome);
-  /* The content column, not the window: on a wide screen the buttons stay
-     with the question rather than stretching across the page. */
-  max-width: 700px; margin-inline:auto; }
+  z-index: var(--z-chrome); }
+/* The bar reaches both edges of the window; its buttons do not.
+   The foot used to be a 700px column, which meant the painted strip
+   stopped mid-screen on a desktop and the page carried on underneath it —
+   a bar with the window showing past each end reads as a card that failed
+   to stretch rather than as the foot of the screen. The surface is the
+   window's; the column is inside it, made by padding rather than by a
+   wrapper, so the row's own layout is untouched.
+
+   Padding rather than max-width for a second reason: .at-row is a query
+   container, and cqi is its content box — so the type that steps down to
+   fit three buttons still measures the column they are actually in, not
+   the window it is centred in. */
+.at-foot { --foot-pad: max(10px, calc((100% - 700px) / 2)); }
 .at-answerbar.at-row { margin:0;
-  padding: 8px 10px;
+  padding: 8px var(--foot-pad);
   background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-top:1px solid var(--line); }
 /* Plain text above the buttons, one foot with one edge. The bar drew its
@@ -1260,7 +1296,7 @@ button {
    the buttons rather than hard against the edge. 3px on top rather than 4
    because the hairline above it is the fourth pixel: what has to be equal
    is the gap you see from the drawn edge, not the padding box. */
-.at-footextra { text-align:center; padding: 3px 10px 4px;
+.at-footextra { text-align:center; padding: 3px var(--foot-pad) 4px;
   background: var(--nav-bg); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
   border-top:1px solid var(--line); }
 .at-footextra + .at-answerbar.at-row { border-top: 0; }
@@ -1287,7 +1323,10 @@ button {
 .at-footextra:has(.at-flagmenu) + .at-answerbar { visibility:hidden; }
 .at-footextra .at-flagmenu { position:absolute; left:0; right:0; bottom:0;
   z-index: var(--z-raised);
-  margin:0; box-shadow: var(--shadow);
+  /* Held to the same column as the buttons it stands on. The bar behind it
+     is the window's whole width; this is a bordered panel, and one of those
+     stretched across a desktop is a different thing altogether. */
+  margin: 0 var(--foot-pad); box-shadow: var(--shadow);
   /* With the keyboard up on a short screen there may be less room than
      there is menu, and the buttons are the part that must stay reachable. */
   max-height: calc(100dvh - 24px); overflow-y:auto; }
@@ -1411,6 +1450,21 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-altrow { display:flex; align-items:flex-start; gap:6px; }
 .at-altrow > .at-altfield { flex:1 1 auto; min-width:0; }
 .at-altrow > .at-icon { flex:0 0 auto; margin-top:8px; }
+/* An accepted answer and how it is said, as one thing. The pronunciation
+   is indented under its answer and set quieter, so the column reads as a
+   list of answers rather than as twice as many fields — which is what two
+   equal boxes in a row would have made of it. The gap between pairs is
+   wider than the gap inside one, because that is the only thing saying
+   which transliteration belongs to which spelling. */
+.at-answerpair { display:grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap:4px 6px; align-items:start; }
+.at-answerpair > .at-answeracts { display:flex; gap:6px; margin-top:8px; }
+.at-alts > .at-answerpair + .at-answerpair { margin-top:10px; }
+/* Under its own answer and in the same column, so the two read as one
+   thing; indented and quieter, so the column reads as a list of answers
+   rather than as twice as many fields. */
+.at-answersaid { grid-column:1; font-family: var(--ui); font-size:14px;
+  padding-block:7px; margin-inline-start:10px; width:auto; }
 /* Which side the button takes is the script's business, not the page's: it
    belongs at the end of the line, which is the left in Arabic. Marked with
    a class rather than left to logical properties, because the button
@@ -1698,7 +1752,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at.kb-open .at-answerbox .at-input { height:52px; }
 .at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
 .at.kb-open .at-progress { height: 10px; }
-.at.kb-open { --verdict: 20px; }
+.at.kb-open { --verdict: 20px; --verdict-alone: 28px; }
 .at.kb-open .at-row { margin-top: 10px; }
 .at.kb-open .at-hint { margin-top: 4px; }
 @media (max-width:480px){
@@ -2030,11 +2084,11 @@ body.at-screening .at-spaces { display:none; }
 .at .at-exercise .at-ask > .at-latin {
   line-height: calc(1.5 * var(--sleading, 1));
   font-weight: 700;
-  /* Grey, not full ink: the question is what you read first, but it is not
-     the answer, and the two used to be the same weight of black. --muted is
-     the grey the app already uses for secondary text — 5.9:1 on the dark
-     ground and 4.9:1 on the light, so it passes AA at any size. */
-  color: var(--muted);
+  /* Full ink. This is the question — the word, the phrase, the thing being
+     asked about — and it is what the eye should land on first. The grey
+     belongs on the instruction above it, which reads the same on every
+     exercise of a kind. */
+  color: var(--text);
   margin: 0;
 }
 /* The one size, taken by each script's own factor. */
@@ -2054,6 +2108,145 @@ body.at-screening .at-spaces { display:none; }
   padding-top: calc((var(--ask) - var(--askl)) * (1.5 * var(--sleading, 1) - 1) / 2);
 }
 .at .at-exercise .at-ask .at-playbig { margin-top: calc(var(--ask) * .25); }
+
+/* --- a conversation on screen -------------------------------------
+   A scene is read down the page, so it is laid out as a transcript
+   rather than as a chat: who spoke on the left, what they said beside
+   it, at one size whoever is speaking. Nobody's line is a bubble — a
+   dialog card is a card, and two speech balloons in the middle of an
+   exercise would be the app pretending to be a phone.
+
+   The script here is smaller than the prompt of a word question and set
+   from the same variable, so a scene takes its size from the language
+   like everything else does: a line is several words long and the size
+   that suits one word makes four of them a wall. */
+.at-scene { display:flex; flex-direction:column; gap:12px; text-align:start; margin:2px 0 4px; }
+.at-sceneline { display:grid; grid-template-columns: minmax(54px, auto) 1fr; gap:2px 12px;
+  align-items:baseline; }
+.at-scenesaid { min-width:0; display:flex; flex-direction:column; gap:2px; }
+/* Who is speaking. Small, uppercase and quiet: it is a label on the
+   words, and the words are the exercise. Each speaker keeps one colour
+   for the whole scene, which is how a run of turns reads as two people
+   rather than as four lines. */
+.at-speaker { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; color: var(--muted); white-space:nowrap; }
+.at-speaker.s0 { color: var(--jade); }
+.at-speaker.s1 { color: var(--brass); }
+.at-speaker.s2 { color: var(--rose); }
+.at-speaker.s3 { color: var(--text-soft); }
+.at-scene .at-arabic, .at-part .at-arabic, .at-order .at-arabic, .at-replies .at-arabic {
+  font-size: calc(var(--ask) * .62); line-height: calc(1.5 * var(--sleading, 1)); margin:0; }
+.at-scene .at-en, .at-part .at-en { margin:0; }
+.at-scenemeaning { font-family: var(--ui); font-size:14px; font-weight:600; color: var(--muted);
+  margin:0; }
+/* The turn being asked for. The rule is the length of a held breath, not
+   of the answer: a blank as wide as the words would say how many there
+   are. */
+.at-sceneblank { margin:0; padding:2px 0; }
+.at-blankrule { display:inline-block; width:96px; height:3px; border-radius:2px;
+  background: var(--faint); vertical-align:middle; }
+.at-sceneline.asked .at-speaker { color: var(--text); }
+.at-sceneline.ok .at-input, .at-sceneline.ok .at-arabic { color: var(--jade); }
+.at-sceneline.no .at-input, .at-sceneline.no .at-arabic { color: var(--rose); }
+
+/* Putting it back in order. Each line is a target the width of the
+   column: the tap is the answer, so it is as big as the thing being
+   answered. */
+.at-order { display:flex; flex-direction:column; gap:8px; }
+.at-orderline { display:flex; align-items:baseline; gap:12px; text-align:start; width:100%;
+  background: var(--surface); border:2px solid var(--line); border-radius: var(--r);
+  padding:10px 12px; cursor:pointer; color: var(--text); font-family: var(--ui); }
+.at-orderline:hover:not(:disabled) { border-color: var(--muted); }
+.at-orderline.on { border-color: var(--jade-soft); background: var(--jade-bg); cursor:default; }
+.at-orderline:disabled:not(.on) { opacity:.5; cursor:default; }
+.at-ordernum { font-size:15px; font-weight:800; color: var(--muted); min-width:1.2em;
+  font-variant-numeric: tabular-nums; }
+.at-orderline.on .at-ordernum { color: var(--jade); }
+.at-orderwords { display:flex; flex-direction:column; gap:2px; min-width:0; }
+
+/* Playing a part: the scene, with your turns as fields in it. The fields
+   sit where the words would, so the shape of the conversation is still
+   the shape of what is on screen. */
+.at-part { display:flex; flex-direction:column; gap:12px; text-align:start; }
+.at-part .at-input { font-size:17px; }
+.at-part .at-sceneline.yours .at-scenesaid { gap:4px; }
+
+/* The replies on offer, one under the other. */
+.at-replies { display:flex; flex-direction:column; gap:8px; }
+.at-reply { text-align:start; width:100%; background: var(--surface);
+  border:2px solid var(--line); border-radius: var(--r); padding:10px 14px; cursor:pointer;
+  color: var(--text); }
+.at-reply:hover:not(:disabled) { border-color: var(--muted); }
+.at-reply.on { border-color: var(--jade-soft); background: var(--jade-bg); }
+.at-reply:disabled { cursor:default; }
+
+/* A word offered as a choice rather than typed. Sits at the size a word
+   is asked at elsewhere; a line of a conversation is longer and takes the
+   phrase size, which is what the two classes are for. */
+.at-replies .at-reply.word .at-arabic { font-size: calc(var(--ask) * .8); }
+
+/* --- every exercise a card could be asked --------------------------
+   One button each, at the foot of the card's own screen, and the ones the
+   card cannot do yet are here too rather than left out: a card a single
+   field short of two more exercises is worth saying so about, and a list
+   that silently omitted them would teach nobody anything.
+
+   Two lines to a button — what it is, and either an invitation or what it
+   is waiting for — because the second line is the whole reason the
+   disabled ones are shown at all. */
+.at-trylist { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px;
+  margin-top:12px; }
+.at-try { display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:start;
+  background: var(--surface); border:2px solid var(--line); border-radius: var(--r);
+  padding:10px 14px; cursor:pointer; color: var(--text); font-family: var(--ui); width:100%; }
+.at-try:hover:not(:disabled) { border-color: var(--jade-soft); background: var(--jade-bg); }
+.at-tryname { font-size:15px; font-weight:800; }
+.at-trywhy { font-size:12px; font-weight:600; color: var(--muted); }
+/* Not a dimmed button but a stated one: it reads as "not yet" rather than
+   as something broken, which is what a missing field actually is. */
+.at-try.out { cursor:default; background:none; border-style:dashed; }
+.at-try.out .at-tryname { color: var(--muted); }
+.at-try.out .at-trywhy { color: var(--faint); }
+
+/* --- what the material says about itself -------------------------
+   The rows of the In context tab: a word, the phrase it turns up in, and
+   the one decision each row is asking for.
+
+   Named "find" rather than "ctx" because a deck's context report already
+   owns that prefix, and these rows quietly inherited its left rule and
+   its indent for a release: two screens sharing a class name is two
+   screens one edit away from changing each other. Laid out as a list rather than
+   as cards — there may be forty of them, and forty cards is a wall. */
+.at-findlist { display:flex; flex-direction:column; }
+.at-findrow { display:flex; align-items:center; gap:12px; justify-content:space-between;
+  padding:12px 0; border-top:1px solid var(--line); }
+.at-findrow:last-child { border-bottom:1px solid var(--line); }
+.at-findbody { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.at-findword { font-size:19px; font-weight:700; margin:0; color: var(--text);
+  display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+/* What it means, beside it rather than under it: the word is what is being
+   judged and the gloss is how you judge it. */
+.at-findgloss { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted); }
+/* Who says it, where the thing a word turns up in is a turn of a
+   conversation rather than a phrase. Above the line rather than beside it:
+   a name and a line of script on one row, in two directions, is the
+   reordering the gloss rule above exists to avoid. */
+.at-findwho { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
+  margin:0; }
+/* The phrase is a way into the card it belongs to, so it reads as one —
+   quieter than the word, and underlined on hover like every other way of
+   opening something. */
+.at-findphrase { font-size:15px; color: var(--text-soft); background:none; border:0; padding:0;
+  text-align:start; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  max-width:100%; }
+.at-findphrase:hover { color: var(--text); text-decoration:underline; }
+
+/* Which of the learner's own words a line turned out to use, under the
+   line in the editor. Found rather than ticked, so it is shown rather
+   than asked for. */
+.at-uses { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
+.at-useslabel { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; }
 
 /* --- the elements of a question and an answer ----------------------
    A reference list in Admin, not a screen anyone practises on: a name, a

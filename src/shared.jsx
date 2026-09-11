@@ -14,7 +14,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.js";
-import { dimValues, dimsOf, guessKind, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
+import { dimValues, dimsOf, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.js";
+import { DIALOG_KIND, isDialog, linesOf, namedPart } from "./dialogs.js";
 
 
 
@@ -516,21 +517,11 @@ export function StickyFoot({ above, children, className }) {
 }
 
 /* --- accepted answers ---------------------------------------------
-   A field may accept several answers. They are stored as one string with
-   " / " between them — the form every existing card already uses, and
-   what the checker splits on — and edited as one field per answer. Split
-   on / or ; because both were accepted when the convention was typed by
-   hand; joined with / only. An empty answer is dropped on the way out, so
-   a field that was added and never filled leaves nothing behind. */
-/** @param {string} value */
-export function splitAlternatives(value) {
-  const parts = String(value || "").split(/[/;]/).map((x) => x.trim());
-  return parts.length ? parts : [""];
-}
-/** @param {string[]} list */
-export function joinAlternatives(list) {
-  return (list || []).map((x) => String(x || "").trim()).filter(Boolean).join(" / ");
-}
+   Lives in answers.js, which is where the pairing between an answer and
+   its transliteration is decided — and which a test can import. Re-exported
+   here because this is where the screens look for it. */
+export { splitAlternatives, joinAlternatives } from "./answers.js";
+import { answersOf } from "./answers.js";
 
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
@@ -544,7 +535,12 @@ export function joinAlternatives(list) {
  * the settings screen picks an on or an off. The value goes out and comes
  * back untouched, and turning it into a string on the way would put the
  * parsing back on every caller.
- * @template {string | number | boolean} T
+ *
+ * null is one of those values rather than the absence of one: a scene's
+ * "either part" is a choice a teacher makes, sits in the row beside the
+ * named parts, and reads back as null. A group with nothing chosen passes
+ * no value at all.
+ * @template {string | number | boolean | null} T
  * @param {{
  *   options: ({ value: T, label?: Node } | T)[],
  *   value?: T | null,
@@ -564,8 +560,11 @@ export function Segmented({ options, value, onChange, size = "sm", label, disabl
       {...rest}
     >
       {options.map((o) => {
-        const v = typeof o === "object" ? o.value : o;
-        const text = typeof o === "object" ? o.label : o;
+        /* `typeof null` is "object", so a bare null option has to be told
+           apart from a {value, label} one by looking for the wrapper. */
+        const wrapped = !!o && typeof o === "object";
+        const v = wrapped ? /** @type {any} */ (o).value : /** @type {any} */ (o);
+        const text = wrapped ? /** @type {any} */ (o).label : /** @type {any} */ (o);
         const on = v === value;
         return (
           <button
@@ -752,10 +751,22 @@ export function LanguageTag({ languages, id }) {
  */
 export function CardTile({ card, lang, showLat, meta, actions, onClick, className }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
+  /* A conversation has no front of its own: its first line stands in for
+     one, which is what a person recognises it by. Here rather than at each
+     list, so every place cards are shown says the same thing about them —
+     the tile with an empty face was the alternative. */
+  const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : card.ar;
   return (
     <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
+      {/* And it says so. A conversation's face is somebody else's opening
+          line, which on its own reads as a phrase card written oddly —
+          this is the word that makes it one of the kinds of card rather
+          than a puzzle. Only this kind is marked: word, phrase and
+          sentence look like what they are, and a label on every tile is
+          the small print this list was cleared of. */}
+      {isDialog(card) ? <div className="at-minikind">{kindLabel(DIALOG_KIND)}</div> : null}
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
-        {card.ar}
+        {face}
       </div>
       <div className="at-minien">{card.en}</div>
       {showLat && card.lat ? <div className="at-minilat">{card.lat}</div> : null}
@@ -1506,13 +1517,20 @@ export function ItemList({
  * the learner an item as this device holds it. Neither is the other, and
  * the fields below are the ones they agree on.
  *
+ * `whereItLives` is the one difference between the two readers. A teacher
+ * needs to know which decks carry a card, because a card in no deck reaches
+ * nobody and that is their problem to fix. A student is already holding the
+ * card; being told which shelf it came off answers a question they did not
+ * ask, so their screen leaves that panel out.
+ *
  * @param {{
  *   card: Record<string, any> & { subs?: Record<string, any>[], decks?: string[] },
  *   lang?: Lang,
  *   decks: { id: string, title?: string }[],
+ *   whereItLives?: boolean,
  * }} props Only a deck's id and title are read, to name where the card lives.
  */
-export function CardReadout({ card, lang, decks }) {
+export function CardReadout({ card, lang, decks, whereItLives = true }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   const dims = dimsOf(L);
   /** @type {Record<string, any>[]} */
@@ -1531,6 +1549,73 @@ export function CardReadout({ card, lang, decks }) {
       </div>
     ) : null;
 
+  /* A conversation reads as one: who spoke, what they said, what it meant.
+     The card above it is built around a word and its other spellings,
+     which is the wrong shape for four people taking turns — and this is
+     the same picture the student sees in a session, drawn from the same
+     classes, so the two cannot drift apart. */
+  const speakers = (card.speakers || []).filter(Boolean);
+  /** @param {number} who */
+  const nameOf = (who) => speakers[who] || speakers[0] || `Speaker ${who + 1}`;
+
+  if (isDialog(card)) {
+    return (
+      <div className="at-readout">
+        <section className="at-panel">
+          <p className="at-eyebrow">The scene</p>
+          <p className="at-hint">
+            {card.note || "A conversation. Each line is practised in its own right."}
+          </p>
+          <div className="at-scene at-mt3">
+            {linesOf(card).map((/** @type {any} */ line, /** @type {number} */ i) => (
+              <div className="at-sceneline" key={line.id || i}>
+                <span className={`at-speaker s${(line.who || 0) % 4}`}>{nameOf(line.who || 0)}</span>
+                <div className="at-scenesaid">
+                  <p className="at-arabic phrase" lang={L.id} dir={L.direction}
+                    style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}>
+                    {line.ar}
+                  </p>
+                  {line.en ? <p className="at-scenemeaning">{line.en}</p> : null}
+                  {line.lat ? <p className="at-scenemeaning">{line.lat}</p> : null}
+                  {clipsOf(line).length ? <ClipList clips={clipsOf(line)} /> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="at-panel">
+          <p className="at-eyebrow">The student's part</p>
+          <p className="at-hint">
+            {namedPart(card) === null
+              ? "Not set. The question picks a part and takes them in turn, so a scene met twice has been held up from both ends."
+              : `${nameOf(/** @type {number} */ (namedPart(card)))} — their turns are the ones they produce when the whole scene is asked. Everything else is said to them.`}
+          </p>
+        </section>
+
+        {whereItLives ? (
+          <section className="at-panel">
+            <p className="at-eyebrow">Where it lives</p>
+            <Row label="Language">{L.name}</Row>
+            <Row label="Decks">
+              {titles.length ? (
+                <span className="at-flags">
+                  {titles.map((t) => (
+                    <span className="at-flag audio" key={t}>
+                      {t}
+                    </span>
+                  ))}
+                </span>
+              ) : (
+                "In no deck"
+              )}
+            </Row>
+          </section>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="at-readout">
       {forms.map((f, i) => (
@@ -1542,11 +1627,20 @@ export function CardReadout({ card, lang, decks }) {
               : "Another way the same thing is said. It is practiced on its own."}
           </p>
 
-          <p className="at-readword" dir={L.direction} style={{ fontFamily: L.fontStack, ...scriptVars(L) }}>
-            {f.ar}
-          </p>
+          {/* Each accepted answer with the transliteration that belongs to
+              it, rather than every spelling on one line and one
+              pronunciation under the lot of them — which said nothing about
+              which was which, and read as a single wrong answer when the two
+              lists were different lengths. */}
+          {answersOf(f).map((answer, n) => (
+            <div className="at-readanswer" key={n}>
+              <p className="at-readword" dir={L.direction} style={{ fontFamily: L.fontStack, ...scriptVars(L) }}>
+                {answer.ar}
+              </p>
+              {answer.lat ? <p className="at-readlat">{answer.lat}</p> : null}
+            </div>
+          ))}
           <p className="at-readmeaning">{f.en}</p>
-          {f.lat ? <p className="at-readlat">{f.lat}</p> : null}
 
           {clipsOf(f).length ? (
             <>
@@ -1582,27 +1676,39 @@ export function CardReadout({ card, lang, decks }) {
         </section>
       ))}
 
-      <section className="at-panel">
-        <p className="at-eyebrow">Where it lives</p>
-        <p className="at-hint">
-          A card is seen through its decks. One in no deck reaches nobody.
-        </p>
-        <Row label="Language">{L.name}</Row>
-        <Row label="Decks">
-          {titles.length ? (
-            <span className="at-flags">
-              {titles.map((t) => (
-                <span className="at-flag audio" key={t}>
-                  {t}
-                </span>
-              ))}
-            </span>
-          ) : (
-            "In no deck"
-          )}
-        </Row>
-        {card.note ? <Row label="Note">{card.note}</Row> : null}
-      </section>
+      {/* The note used to be a row of the panel below, which meant dropping
+          that panel for the student would have dropped the note with it —
+          and the note is the one thing in there written for them to read.
+          It stands on its own now, so each screen keeps what it needs. */}
+      {card.note ? (
+        <section className="at-panel">
+          <p className="at-eyebrow">Note</p>
+          <p className="at-hint">{card.note}</p>
+        </section>
+      ) : null}
+
+      {whereItLives ? (
+        <section className="at-panel">
+          <p className="at-eyebrow">Where it lives</p>
+          <p className="at-hint">
+            A card is seen through its decks. One in no deck reaches nobody.
+          </p>
+          <Row label="Language">{L.name}</Row>
+          <Row label="Decks">
+            {titles.length ? (
+              <span className="at-flags">
+                {titles.map((t) => (
+                  <span className="at-flag audio" key={t}>
+                    {t}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              "In no deck"
+            )}
+          </Row>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -2402,6 +2508,24 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
     s: freshStates(),
   }));
 
+  /* A conversation's turns, which are forms with a speaker on them. Named
+     the way the other forms are, so a line keeps its progress across a
+     refresh; the words a line uses are card ids on the server and item
+     ids here, the same translation the card's own `uses` gets. */
+  const lines = (/** @type {Record<string, any>[]} */ (card.lines || [])).map((ln, /** @type {number} */ i) => ({
+    id: `${localIdFor(card.id)}-l${i}`,
+    who: Number(ln.who) || 0,
+    ar: ln.ar || "",
+    lat: ln.lat || "",
+    en: ln.en || "",
+    uses: (ln.uses || []).map(localIdFor),
+    lang: card.lang,
+    recs: recsOf(ln),
+    created: Date.now(),
+    updated: Date.now(),
+    s: freshStates(),
+  }));
+
   return {
     id: localIdFor(card.id),
     ar: card.ar || "",
@@ -2413,7 +2537,21 @@ export function cardToItem(card, deckTitle, courseId, deckId, freshStates) {
        set full sentences in the single-word type size — and it is why the
        app cannot yet see that one of these phrases contains one of these
        words. Asked of the language, which owns the rule. */
-    kind: guessKind(card.ar || card.en || card.lat, LANGUAGES[card.lang]),
+    /* A card with turns on it is a conversation, whatever its own fields
+       would otherwise have been guessed as: the kind follows what the card
+       holds. Asked through kindOf, which is the one answer to "what is
+       this card" that every screen reads. */
+    kind: kindOf({ ...card, lines }, LANGUAGES[card.lang]),
+    ...(lines.length
+      ? {
+          lines,
+          speakers: (/** @type {string[]} */ (card.speakers || [])).filter(Boolean),
+          /* Which part the student takes, or null where the teacher left it
+             open — in which case the question picks one, and picks the
+             other next time. */
+          you: namedPart(card),
+        }
+      : null),
     /* See the forms above: the card says what language it is in, and the
        device keeps it. */
     lang: card.lang,

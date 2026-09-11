@@ -92,6 +92,32 @@ const card = {
 const phrase = {
   id: "k222222222222", owner: "t-1", ar: "الكتاب كبير", en: "the book is big", lat: "il-kitaab kbiir",
   note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  /* And it says so, the way a teacher confirms it in their own editor.
+     That one field is what turns two cards into a word met in use. */
+  uses: ["k111111111111"],
+  clips: [], subs: [], rev: 1, updated: 1,
+};
+/* A conversation, exactly as the server stores one: turns, speakers, and
+   no label saying "this is a conversation" — because the server has never
+   had a field for one. Nothing names a part, either, which is the ordinary
+   case now.
+
+   Written out here rather than saved through the editor because that is
+   how the teacher's own screens actually receive it, and the bug this
+   fixture exists for was a screen reading a stored card wrongly. */
+const talk = {
+  id: "k333333333333", owner: "t-1", ar: "", en: "At the door", lat: "",
+  note: "Two neighbours meet", lang: "ar-PS",
+  speakers: ["Layla", "Karim"],
+  you: null,
+  lines: [
+    { who: 0, ar: "سلام", en: "peace", lat: "", clips: [], slowClips: [], uses: [] },
+    { who: 1, ar: "وعليكم السلام", en: "and upon you peace", lat: "", clips: [], slowClips: [], uses: [] },
+    /* This turn uses a word the teacher teaches and does not say so, which
+       is what the In context tab is for — and a conversation used to be
+       invisible to it. */
+    { who: 0, ar: "وين الكتاب", en: "where is the book", lat: "", clips: [], slowClips: [], uses: [] },
+  ],
   clips: [], subs: [], rev: 1, updated: 1,
 };
 let materialHits = 0;
@@ -142,12 +168,36 @@ const fakeFetch = async (input, opts = {}) => {
     if (action === "my-material") {
       materialHits += 1;
       const version = "v-abc";
-      if (url.searchParams.get("version") === version) return json({ ok: true, unchanged: true, version, teaches: false });
+      if (url.searchParams.get("version") === version) return json({ ok: true, unchanged: true, version, teaches: true });
       return json({
-        ok: true, version, teaches: false,
+        ok: true, version, teaches: true,
         courses: [{ id: "c1", title: "Arabic 101", language: "ar-PS", decks: ["d1"], role: "student", studying: true, teaching: false }],
         decks: [{ id: "d1", title: "Lesson 1", owner: "t-1", cardIds: [card.id, phrase.id], cardCount: 2, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 3 }],
         cards: [{ deckId: "d1", cards: [card, phrase] }],
+      });
+    }
+    /* What a teacher's own space is built from. The same two cards the
+       course hands out, which is what makes them worth trying an exercise
+       on: one has a recording and one does not, and one is a phrase that
+       teaches the other. */
+    if (action === "my-courses") {
+      return json({
+        ok: true,
+        courses: [
+          { id: "c1", title: "Arabic 101", language: "ar-PS", decks: ["d1"], students: [], teachers: [account.handle], role: "teacher" },
+        ],
+      });
+    }
+    if (action === "my-decks") {
+      return json({
+        ok: true,
+        decks: [{ id: "d1", title: "Lesson 1", owner: account.handle, lang: "ar-PS", cardIds: [card.id, phrase.id], cardCount: 2, courses: [{ courseId: "c1", addedAt: 1 }] }],
+      });
+    }
+    if (action === "my-cards") {
+      return json({
+        ok: true,
+        cards: [{ ...card, decks: ["d1"] }, { ...phrase, decks: ["d1"] }, { ...talk, decks: [] }],
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
@@ -952,6 +1002,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("and it is the card the tile was showing",
     !!open && !!tileWord && (open.textContent || "").includes((tileWord.textContent || "").trim()),
     open ? (open.textContent || "").slice(0, 60).replace(/\s+/g, " ") : "(nothing open)");
+  /* Which decks a card came in, and which language pack it belongs to, are
+     a teacher's questions about their own material. The student opened the
+     card to look at the card. */
+  const readout = open ? (open.textContent || "") : "";
+  check("and it stops at the card, without the shelf it came off",
+    !!open && !/Where it lives/i.test(readout) && !/In no deck/i.test(readout),
+    readout.replace(/\s+/g, " ").slice(0, 120) || "(nothing open)");
   click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent || "") || b.getAttribute("aria-label") === "Back"));
   await sleep(250);
   click(buttonNamed(/^Home$/));
@@ -1399,6 +1456,746 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const untouched = withoutListening(queue.filter((e) => e.type === "ar2en"), 0, stored2.items, set);
   check("a queue with no listening exercises is returned unchanged",
     untouched.length === 1 && untouched[0].type === "ar2en");
+}
+
+
+/* ---- a conversation, met and practised ----
+   The dialog feature end to end, through the real screens: a scene of
+   four turns arrives the way every card arrives — from a teacher, over
+   sync — and is then met in a session. Read through first, because a
+   scene never opens with a blank, and afterwards drilled a line and a
+   whole scene at a time.
+
+   Nothing in it has a recording, which is the point: a silent scene
+   supports every exercise there is.
+
+   Filed in a deck of its own, so the session below is only this scene. A
+   session drawn from everything would be a coin toss over which questions
+   came up, and a test that passes four times in five is worse than none.
+
+   Written rather than typed into the editor because making your own cards
+   is switched off in this build — OWN_CARDS — so the learner's card sheet
+   is not in the bundle to drive. What a teacher writes is checked where a
+   teacher writes it, in tests/server.test.mjs. */
+{
+  /** The React-controlled value setter, the way a keystroke sets one. */
+  const typeInto = (/** @type {any} */ el, /** @type {string} */ value) => {
+    if (!el) return false;
+    const proto = el.tagName === "TEXTAREA" ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype;
+    const setter = must(Object.getOwnPropertyDescriptor(proto, "value"), "the value descriptor").set;
+    must(setter, "the value setter").call(el, value);
+    el.dispatchEvent(new w.Event("input", { bubbles: true }));
+    return true;
+  };
+
+  /* Whatever the walk above left running, this starts from the home
+     screen: a session on screen is a screen over the tabs, and clicking
+     underneath it does nothing at all. */
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+
+  const sceneSpeakers = ["Layla", "Karim"];
+  const said = [
+    { ar: "سلام", en: "peace", who: 0 },
+    { ar: "وسلام", en: "and peace", who: 1 },
+    { ar: "كيف حالك", en: "how are you", who: 0 },
+    { ar: "بخير", en: "well", who: 1 },
+  ];
+  const remote = must(remoteDocs.get(realToken), "the synced document");
+  remote.data = {
+    ...remote.data,
+    items: remote.data.items.concat([
+      {
+        id: "scene1",
+        kind: "dialog",
+        ar: "",
+        en: "At the door",
+        lat: "",
+        note: "Two neighbours meet in the morning",
+        tags: ["Scenes"],
+        speakers: sceneSpeakers,
+        /* Nobody's part: the teacher wrote a scene worth holding up from
+           either end and was not made to pick a side. The question picks
+           one, and picks the other next time. */
+        you: null,
+        lines: said.map((l, i) => ({
+          id: `sl${i + 1}`,
+          who: l.who,
+          ar: l.ar,
+          en: l.en,
+          lat: "",
+          /* The first line contains a word this learner already has, so
+             the scene also becomes somewhere that word turned up. */
+          uses: i === 0 ? ["oldclient1"] : [],
+          recs: [],
+        })),
+        created: 2,
+        updated: 9,
+      },
+    ]),
+  };
+  remote.etag = "e-scene";
+  w.dispatchEvent(new w.Event("focus"));
+  await sleep(1600);
+
+  const doc = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  const scene = (doc.items || []).find((/** @type {any} */ i) => i.id === "scene1");
+  check("a conversation arrives as one card with its lines on it",
+    !!scene && (scene.lines || []).length === 4 && (scene.speakers || []).length === 2,
+    scene ? `${(scene.lines || []).length} lines` : "no dialog stored");
+  check("with each turn carrying who said it, what it means and its own id",
+    !!scene &&
+      scene.lines.every((/** @type {any} */ l, /** @type {number} */ i) =>
+        l.id && l.en === said[i].en && l.who === said[i].who) &&
+      scene.lines.every((/** @type {any} */ l) => (l.recs || []).length === 0),
+    scene ? JSON.stringify(scene.lines[0]).slice(0, 110) : "");
+  /* Stored sparse, like every other unit: a line nobody has answered yet
+     keeps no states at all, and they are put back on load. The states it
+     earns by being answered are checked at the end of the session
+     below. */
+  check("and a turn nobody has answered yet is stored without a schedule",
+    !!scene && scene.lines.every((/** @type {any} */ l) => Object.keys(l.s || {}).length === 0),
+    scene ? JSON.stringify(scene.lines.map((/** @type {any} */ l) => Object.keys(l.s || {}).length)) : "");
+
+  /* ---- practise it ---- */
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+  click(buttonNamed(/Build a session|Choose what to practice|Pick cards/));
+  await sleep(300);
+  click([...document.querySelectorAll(".at-modecard")].find((b) => /Regular/.test(b.textContent || "")));
+  await sleep(60);
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  await sleep(150);
+  const deck = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Scenes/.test(b.textContent || ""));
+  check("the scene's own deck is there to practise from", !!deck,
+    [...document.querySelectorAll(".at-tagpickmain")].map((b) => (b.textContent || "").slice(0, 12)).join("|"));
+  click(deck);
+  await sleep(80);
+  clickNamed(/^(Next|Choose at least one card)$/);
+  await sleep(150);
+  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => (b.textContent || "").trim() === "10"));
+  await sleep(60);
+  clickNamed(/^(Start|Choose a length)$/);
+  await sleep(500);
+
+  const instruction = () => (document.querySelector(".at-instruction") || {}).textContent || "";
+  const checkBtn = () => document.querySelector('[data-el="check-button"]');
+  const verdict = () => (document.querySelector('[data-el="verdict"]') || {}).textContent || "";
+  const praised = () => /Correct|Good job|Nicely done|Great/.test(verdict());
+
+  check("a session built from one conversation starts on that conversation",
+    !!document.querySelector('[data-el="scene"]'), instruction() || "no question");
+  /* The first thing a scene ever does is show itself. Nothing is marked,
+     there is no way to be wrong, and the only way on is having read it. */
+  check("and it opens by reading the scene through, not with a blank",
+    /Read the scene/.test(instruction()) &&
+      !document.querySelector('[data-el="dont-know-button"]') &&
+      !document.querySelector('[data-el="answer-input"]'),
+    `${instruction()} / ${(checkBtn() || {}).textContent || "no button"}`);
+  check("the read-through shows every line, with who said it and what it means",
+    document.querySelectorAll('[data-el="scene-line"]').length === 4 &&
+      document.querySelectorAll('[data-el="scene-line-meaning"]').length === 4 &&
+      /Layla/.test(document.body.textContent || ""),
+    `${document.querySelectorAll('[data-el="scene-line"]').length} lines shown`);
+  check("and the way on says what it is", /read it/i.test((checkBtn() || {}).textContent || ""),
+    (checkBtn() || {}).textContent || "no button");
+
+  click(checkBtn());
+  await sleep(300);
+
+  /* Then the questions themselves, each answered the way its own control
+     is used. The walk records which ones turned up. */
+  const met = new Set();
+  for (let n = 0; n < 14 && document.querySelector(".at-instruction"); n++) {
+    const asked = instruction();
+    const order = document.querySelector('[data-el="answer-order"]');
+    const part = document.querySelector('[data-el="answer-part"]');
+    const choices = document.querySelector('[data-el="answer-choices"]');
+    if (/Read the scene/.test(asked)) {
+      met.add("read-again");
+      click(checkBtn());
+      await sleep(250);
+      continue;
+    }
+    if (order) {
+      met.add("order");
+      /* Tapped into place, in the order the scene was written: the taps
+         are the answer, so this is somebody getting it right. */
+      for (const line of said) {
+        /* Matched on the whole line, not on part of one: "سلام" sits
+           inside "وسلام", and a substring match taps the wrong turn. */
+        click(
+          [...order.querySelectorAll("button")].find(
+            (b) => ((b.querySelector(".at-arabic") || {}).textContent || "").trim() === line.ar
+          )
+        );
+        await sleep(40);
+      }
+    } else if (part) {
+      met.add("part");
+      /* Whose turns these are is read off the screen rather than assumed:
+         this scene names no part, so the question picked one. Karim on a
+         first meeting — the answering side, which is how a conversation is
+         met — and Layla the next time the scene comes round. */
+      const playing = ((part.querySelector(".at-sceneline.yours .at-speaker") || {}).textContent || "").trim();
+      check("a scene that names no part is still a part to play, and says whose",
+        playing === "Karim", playing || "(nobody named)");
+      const mine = said.filter((l) => sceneSpeakers[l.who] === playing);
+      [...part.querySelectorAll("input")].forEach((el, i) => typeInto(el, (mine[i] || {}).ar || ""));
+      await sleep(80);
+    } else if (choices) {
+      met.add("pick");
+      /* The reply that actually comes next: the scene on screen ends with
+         the blank, so the turn wanted is the one after the last line
+         shown with words in it. Matched whole, since one line of this
+         scene sits inside another. */
+      const shown = [...document.querySelectorAll('[data-el="scene-line-text"]')].map(
+        (e) => (e.textContent || "").trim()
+      );
+      const last = said.findIndex((l) => l.ar === shown[shown.length - 1]);
+      const want = (said[last + 1] || {}).ar;
+      click(
+        [...choices.querySelectorAll("button")].find(
+          (b) => ((b.querySelector(".at-arabic") || {}).textContent || "").trim() === want
+        ) || choices.querySelector("button")
+      );
+      await sleep(40);
+    } else {
+      met.add(/mean/i.test(asked) ? "meaning" : "reply");
+      typeInto(document.querySelector('[data-el="answer-input"]'), "something");
+      await sleep(40);
+    }
+    click(checkBtn());
+    await sleep(250);
+    if (!document.querySelector('[data-el="verdict"]')) {
+      check(`answering "${asked.slice(0, 34)}" produced a verdict`, false,
+        (document.body.textContent || "").slice(0, 100).replace(/\s+/g, " "));
+      break;
+    }
+    if (met.has("order") && !met.has("order-marked")) {
+      met.add("order-marked");
+      check("putting the lines back in the order they were said is marked right", praised(), verdict());
+    }
+    if (met.has("part") && !met.has("part-marked")) {
+      met.add("part-marked");
+      check("and so is holding up your whole end of the conversation", praised(), verdict());
+    }
+    if (met.has("pick") && !met.has("pick-marked")) {
+      met.add("pick-marked");
+      check("choosing the reply that actually comes next is marked right", praised(), verdict());
+    }
+    click(buttonNamed(/^Continue$/));
+    await sleep(250);
+  }
+
+  check("a session on one scene asks several different things about it",
+    met.size >= 3, [...met].join(", ") || "nothing asked");
+  check("including at least one that is about the whole scene",
+    met.has("order") || met.has("part"), [...met].join(", "));
+  check("and the scene is not read through twice in one session",
+    !met.has("read-again"), [...met].join(", "));
+
+  /* Answers are written to the device 600ms after the last one, so the
+     document is read once that has had time to happen. Reading straight
+     after the final Continue caught it mid-flight. */
+  await sleep(900);
+  const afterDoc = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  const afterScene = (afterDoc.items || []).find((/** @type {any} */ i) => i.id === "scene1");
+  const answered = (/** @type {any} */ u) =>
+    Object.values((u && u.s) || {}).some((/** @type {any} */ st) => (st.reps || 0) > 0);
+  check("what was answered is recorded against the line it was about",
+    !!afterScene && (afterScene.lines || []).concat([afterScene]).some(answered),
+    afterScene ? JSON.stringify((afterScene.lines || []).map((/** @type {any} */ l) => Object.keys(l.s || {}).length)) : "");
+  /* The read-through leaves nothing behind: it is an introduction, not an
+     exercise, so there is nothing to schedule and nothing to store. */
+  check("but the read-through is not scheduled, because it was never marked",
+    !!afterScene && !("dlgread" in (afterScene.s || {})),
+    afterScene ? Object.keys(afterScene.s || {}).join(",") : "");
+
+  click(buttonNamed(/^Home$/));
+  await sleep(200);
+}
+
+/* ---- leaving a session and starting another ----
+   The bug this was written for: a session was built out of orderings that
+   left ties — everything due ranks together, everything nobody has been
+   wrong about is equally easy — and the ties kept whatever order the
+   document happened to hold. Nothing in building one ever rolled a die,
+   so leaving half way through and starting again gave back the same
+   questions in the same order, for good.
+
+   Six sessions, each abandoned on the first question. They do not have to
+   differ from each other one by one — with a handful of cards two draws
+   can coincide — but six identical ones is the old behaviour exactly. */
+{
+  /* Whatever is on screen from the walk above. */
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+
+  /** What a session is, as a string: every question in it, in order. */
+  const queueNow = () => {
+    const el = document.querySelector('[data-el="session-count"]');
+    const asked = (document.querySelector(".at-instruction") || {}).textContent || "";
+    const prompt = (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
+    return `${(el || {}).textContent || "?"}|${asked}|${prompt}`.replace(/\s+/g, " ");
+  };
+
+  const openings = [];
+  for (let n = 0; n < 6; n++) {
+    click(buttonNamed(/^Start session$/));
+    await sleep(450);
+    if (!document.querySelector(".at-instruction")) {
+      check("a session starts from the home screen", false,
+        (document.body.textContent || "").slice(0, 90).replace(/\s+/g, " "));
+      break;
+    }
+    openings.push(queueNow());
+    /* Left in the middle, which is the whole point: nothing is answered,
+       so nothing about the cards has changed and the next session is
+       built from exactly the same state. */
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(350);
+  }
+
+  check("six sessions built from the same cards are not one session six times",
+    new Set(openings).size > 1,
+    `${new Set(openings).size} distinct opening(s): ${openings[0] || "none"}`);
+  check("and every one of them actually started", openings.length === 6, `${openings.length} started`);
+}
+
+/* ---- a word, and the phrase it turns up in ----
+   The seeded course holds كتاب and "الكتاب كبير", and the phrase says it
+   teaches the word. What that link is worth is the whole of this block:
+   the word can be chosen out of the phrase before it has to be written
+   into it, and the phrase is shown after any question about the word
+   rather than only the two built out of it.
+
+   Driven through Ultimate, which asks every type a card supports, so
+   which questions come up is not a draw — everything else about a session
+   now is. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+  click(buttonNamed(/Build a session|Choose what to practice|Pick cards/));
+  await sleep(300);
+  click([...document.querySelectorAll(".at-modecard")].find((b) => /Ultimate/.test(b.textContent || "")));
+  await sleep(80);
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  await sleep(150);
+  const lesson = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Lesson 1/.test(b.textContent || ""));
+  click(lesson);
+  await sleep(80);
+  clickNamed(/^(Next|Choose at least one card|Start|Choose a length)$/);
+  await sleep(200);
+  clickNamed(/^(Start|Choose a length)$/);
+  await sleep(500);
+
+  const instruction = () => (document.querySelector(".at-instruction") || {}).textContent || "";
+  const prompt = () => (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
+  let sawPicker = false;
+  let pickerOptions = 0;
+  let pickerHadTheWord = false;
+  let sawWhereItTurnedUp = 0;
+  let sawOnAPlainQuestion = false;
+
+  for (let n = 0; n < 26 && document.querySelector(".at-instruction"); n++) {
+    const asked = instruction();
+    const gapped = /____/.test(prompt());
+    const choices = document.querySelector('[data-el="answer-choices"]');
+    const contextQuestion = gapped || /phrase/i.test(asked);
+
+    if (choices && gapped) {
+      /* Move one: the gentle half of the gap-fill. The word is chosen out
+         of a few before it ever has to be spelled into the gap. */
+      sawPicker = true;
+      const options = [...choices.querySelectorAll("button")];
+      pickerOptions = options.length;
+      pickerHadTheWord = options.some((b) => (b.textContent || "").includes("كتاب"));
+      click(options[0]);
+      await sleep(40);
+    } else if (choices) {
+      click(choices.querySelector("button"));
+      await sleep(40);
+    } else if (document.querySelector('[data-el="answer-input"]')) {
+      click(buttonNamed(/^I don't know$/));
+      await sleep(200);
+    } else if (document.querySelector('[data-el="check-button"]')) {
+      click(document.querySelector('[data-el="check-button"]'));
+      await sleep(200);
+    }
+    if (!document.querySelector('[data-el="verdict"]')) {
+      click(document.querySelector('[data-el="check-button"]'));
+      await sleep(250);
+    }
+
+    /* Move two: what the answer screen says about where the word lives.
+       Behind "Learn more", which is where everything that is not the
+       answer lives. */
+    const more = document.querySelector('[data-el="also-toggle"]');
+    if (more) {
+      click(more);
+      await sleep(120);
+      const where = document.querySelector('[data-el="also-context"]');
+      if (where && /الكتاب كبير/.test(where.textContent || "")) {
+        sawWhereItTurnedUp += 1;
+        if (!contextQuestion) sawOnAPlainQuestion = true;
+      }
+    }
+    click(buttonNamed(/^Continue$/));
+    await sleep(200);
+  }
+
+  check("a word can be chosen out of the phrase before it has to be written into it",
+    sawPicker, sawPicker ? "the gap was offered as a choice" : "no question offered it");
+  check("and the choice is between a few real words, one of them right",
+    pickerOptions > 1 && pickerHadTheWord, `${pickerOptions} offered, the right one among them: ${pickerHadTheWord}`);
+  check("the phrase a word turns up in is shown after the question",
+    sawWhereItTurnedUp > 0, `shown after ${sawWhereItTurnedUp} answers`);
+  check("including after questions that are not about the phrase at all",
+    sawOnAPlainQuestion,
+    sawOnAPlainQuestion
+      ? "which is the thing that changed: the link pays out everywhere now"
+      : "it only paid out on the questions built from it");
+}
+
+/* ---- every exercise a card could be asked, on the teacher's card ----
+   A teacher writing cards could not see what a student is actually asked.
+   The foot of a card in the teaching space now lists every exercise that
+   card could be asked, one button each, with the ones it cannot do out of
+   reach and saying what they are waiting for. Pressing one runs that
+   question for real, through the screen a student is asked on.
+
+   The seeded phrase is the card to look at: script and meaning, no
+   recording, and it teaches the word — so it can be read and written and
+   not heard, which is the split this is here to show. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+
+  /* First: it is gone from the student's side, where it was built by
+     mistake. A learner opening their own card gets the card. */
+  click(buttonNamed(/^Cards$/));
+  await sleep(400);
+  click(document.querySelector(".at-cardgrid .at-minicard"));
+  await sleep(300);
+  check("a student's card screen does not offer exercises to try",
+    document.querySelectorAll(".at-try").length === 0,
+    `${document.querySelectorAll(".at-try").length} on the learner's card`);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(250);
+
+  /* Into the teaching space, which this person now teaches in. */
+  const toTeaching = [...document.querySelectorAll(".at-spacebtn")]
+    .find((b) => /Teaching/i.test(b.getAttribute("aria-label") || ""));
+  check("a teacher can reach the teaching space", !!toTeaching,
+    [...document.querySelectorAll(".at-spacebtn")].map((b) => b.getAttribute("aria-label")).join(","));
+  click(toTeaching);
+  await sleep(700);
+
+  /* The teaching space's own Cards tab. Both spaces have one, and the
+     learner's nav is still in the document behind this, so the tab is
+     taken from inside the frame rather than by name alone. */
+  /* The space is a screen over the app, which is what "bare" marks. The
+     learner's own nav and card list are still in the document behind it,
+     so everything below is looked for inside the frame. */
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  check("the teaching space has a Cards tab of its own", teachTabs.length > 0,
+    [...frame.querySelectorAll('[role="tab"], .at-tab')].map((b) => b.textContent).join("|"));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  const teachTiles = [...frame.querySelectorAll(".at-minicard")];
+  const phraseTile = teachTiles.find((t) => (t.textContent || "").includes("the book is big"));
+  check("their own cards are listed there", !!phraseTile,
+    teachTiles.map((t) => (t.textContent || "").slice(0, 18)).join(" | ") || "no cards");
+  click(phraseTile);
+  await sleep(450);
+
+  /* The other half of the same split: the panel the student's card screen
+     drops is the one a teacher came here for, so it is still on this one.
+     The card opens over the space rather than inside its frame, so the
+     readout is taken as the last one in the document — the student's is
+     closed by now. */
+  const teachRead = [...document.querySelectorAll(".at-readout")].pop();
+  check("a teacher's card still says which decks it lives in",
+    !!teachRead && /Where it lives/i.test(teachRead.textContent || ""),
+    teachRead ? (teachRead.textContent || "").replace(/\s+/g, " ").slice(0, 120) : "(no readout)");
+
+  const tries = () => /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll(".at-try")]);
+  check("a card in the teaching space lists the exercises it could be asked",
+    tries().length > 1, `${tries().length} offered`);
+  const enabled = tries().filter((b) => !b.disabled);
+  const disabled = tries().filter((b) => b.disabled);
+  check("the ones it has the data for can be pressed", enabled.length > 0,
+    `${enabled.length} of ${tries().length}`);
+  /* The phrase has no recording, so every listening exercise is here and
+     out of reach — the half that had to be built deliberately rather than
+     by leaving them out. */
+  check("and the ones it cannot do are shown too, out of reach",
+    disabled.length > 0, `${disabled.length} greyed out`);
+  check("each of those says what it is waiting for",
+    disabled.every((b) => /Needs /.test(b.textContent || "")),
+    disabled.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).slice(0, 2).join(" | "));
+  check("a recording is what the listening ones are waiting for",
+    disabled.some((b) => /recording/.test(b.textContent || "")),
+    disabled.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).join(" | ").slice(0, 110));
+  check("and a button nobody can press still names itself",
+    disabled.every((b) => /—/.test(b.getAttribute("aria-label") || "")),
+    (disabled[0] && disabled[0].getAttribute("aria-label")) || "");
+
+  /* Pressing one runs that question, on the teacher's own card, through
+     the screen a student is asked on. */
+  const before = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  click(enabled[0]);
+  await sleep(600);
+  check("pressing one runs that question on the teacher's own card",
+    !!document.querySelector(".at-instruction") &&
+      /الكتاب كبير/.test((document.querySelector('[data-el="question-prompt"]') || {}).textContent || ""),
+    ((document.querySelector(".at-instruction") || {}).textContent || "no question") +
+      " · " + ((document.querySelector('[data-el="question-prompt"]') || {}).textContent || ""));
+  /* One question has no "how far through are you". "1 / 1" and a bar that
+     can only be empty or full answer a question nobody asked. */
+  check("and it says nothing about how far through you are",
+    !document.querySelector('[data-el="session-count"]') &&
+      !document.querySelector('[data-el="session-progress"]'),
+    `${document.querySelector('[data-el="session-count"]') ? "count " : ""}${
+      document.querySelector('[data-el="session-progress"]') ? "bar" : ""}` || "neither");
+  check("but the way out is still there",
+    !!document.querySelector('[data-el="leave-session"]'),
+    document.querySelector('[data-el="leave-session"]') ? "the close button" : "nothing to close it with");
+
+  /* Answering it puts the teacher back on the card it was about. There is
+     no score to show and nothing left to do, so the screen that used to
+     say so was a tap between the answer and the card. */
+  click(buttonNamed(/^I don't know$/) || document.querySelector('[data-el="check-button"]'));
+  await sleep(300);
+  check("a trial question can be answered", !!document.querySelector('[data-el="verdict"]'),
+    (document.body.textContent || "").slice(0, 70).replace(/\s+/g, " "));
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  check("and Continue goes straight back, with no screen in between",
+    !/That's the exercise/.test(document.body.textContent || ""),
+    (document.body.textContent || "").slice(0, 70).replace(/\s+/g, " "));
+  const landed = [...document.querySelectorAll(".at-readout")].pop();
+  check("landing on the card that was being tested",
+    !!landed && (landed.textContent || "").includes("الكتاب كبير") &&
+      !document.querySelector(".at-instruction"),
+    landed ? (landed.textContent || "").replace(/\s+/g, " ").slice(0, 70) : "no card open");
+  check("with its exercises there to try again",
+    document.querySelectorAll(".at-try").length > 1,
+    `${document.querySelectorAll(".at-try").length} offered`);
+
+  /* And the other way out — closing it unanswered — asks nothing and
+     lands in the same place. */
+  click(tries().filter((b) => !b.disabled)[0]);
+  await sleep(600);
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(500);
+  check("leaving a trial asks no questions",
+    !buttonNamed(/^Leave$/) && !/Leave this session/.test(document.body.textContent || ""),
+    (document.body.textContent || "").slice(0, 80).replace(/\s+/g, " "));
+  const backOnCard = [...document.querySelectorAll(".at-readout")].pop();
+  check("and it goes back to the card it was asked about",
+    !!backOnCard && (backOnCard.textContent || "").includes("الكتاب كبير") &&
+      !document.querySelector(".at-instruction"),
+    backOnCard ? (backOnCard.textContent || "").replace(/\s+/g, " ").slice(0, 70) : "no card open");
+
+  /* And nothing about it was recorded. The card is the teacher's own
+     material, not something this device is learning. */
+  const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  check("a trial leaves the document exactly as it found it",
+    JSON.stringify(after.items) === JSON.stringify(before.items),
+    `${(after.items || []).length} cards before and after`);
+  check("and adds nothing to the day's count",
+    JSON.stringify(after.log) === JSON.stringify(before.log),
+    `${JSON.stringify(after.log)} vs ${JSON.stringify(before.log)}`);
+}
+
+/* ---- a conversation, opened by the teacher who wrote it ----
+   Opening one from Teaching > Cards put the word editor up: one script
+   box, one meaning, and the whole scene out of reach behind it. A stored
+   card carries its turns but no label saying it is a conversation, and
+   every teacher's screen was asking the label.
+
+   Which side the student takes is asked here too, and is allowed to go
+   unanswered — a scene worth holding up from either end should not make a
+   teacher commit to one before the second line is written. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+
+  const talkTile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("At the door"));
+  check("a conversation is listed with the teacher's other cards", !!talkTile,
+    [...frame.querySelectorAll(".at-minicard")].map((t) => (t.textContent || "").slice(0, 16)).join(" | "));
+  click(talkTile);
+  await sleep(450);
+
+  /* The readout first: a scene reads as a scene, which is the same
+     question about the same stored card. */
+  const read = [...document.querySelectorAll(".at-readout")].pop();
+  check("opening it shows the whole conversation, not one word of it",
+    !!read && document.querySelectorAll(".at-readout .at-sceneline").length === 3,
+    `${document.querySelectorAll(".at-readout .at-sceneline").length} turns shown`);
+  check("and it says the part is nobody's until the question picks one",
+    !!read && /Not set/.test(read.textContent || ""),
+    read ? (read.textContent || "").replace(/\s+/g, " ").slice(-140) : "(no readout)");
+
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  /* The bug, in one assertion: which editor came up. */
+  const heading = (
+    [...document.querySelectorAll(".at-screenhead h2")].pop() || {}
+  ).textContent || "";
+  check("editing it opens the conversation editor, not the word editor",
+    /conversation/i.test(document.body.textContent || "") &&
+      document.querySelectorAll(".at-formblock").length > 3,
+    `${heading || "(no title)"} · ${document.querySelectorAll(".at-formblock").length} blocks`);
+  /* And it is an editor for a card, which this one happens to be a
+     conversation. A screen called "Edit conversation" said the opposite. */
+  check("it is still the card editor, saying which kind of card this is",
+    /^Edit card$/.test(heading.trim()) &&
+      /The kind of card/.test(document.body.textContent || ""),
+    heading.trim() || "(no title)");
+  check("with every turn there to edit",
+    [...document.querySelectorAll("input")].filter((i) => /^What line \d+ means$/.test(i.getAttribute("aria-label") || "")).length === 3,
+    `${[...document.querySelectorAll("input")].filter((i) => /^What line/.test(i.getAttribute("aria-label") || "")).length} turns`);
+
+  /* And the part is offered as a question the teacher may decline. */
+  const parts = [...document.querySelectorAll('[role="group"][aria-label="The student plays"] .at-seg')];
+  check("the student's part offers 'either' alongside the named parts",
+    parts.length === 3 && /Either/.test(parts[0].textContent || ""),
+    parts.map((b) => b.textContent).join(" | ") || "(no part picker)");
+  check("and 'either' is what an unset card comes back on",
+    !!parts[0] && parts[0].getAttribute("aria-pressed") === "true",
+    parts.map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+
+  /* ---- and the report sees it ----
+     A conversation keeps its words in its turns, so a report reading the
+     card's own text saw nothing in it: words taught only through dialogue
+     read as bare, and the turns using them never came up to confirm. The
+     session builder had been drilling those same words inside those same
+     turns all along. */
+  const inFrame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const ctxTab = [...inFrame.querySelectorAll("button")].find((b) => /^In context$/.test(b.textContent || ""));
+  click(ctxTab);
+  await sleep(500);
+
+  const rows = [...inFrame.querySelectorAll(".at-findrow")].map((r) => (r.textContent || "").replace(/\s+/g, " "));
+  const turnRow = rows.find((t) => t.includes("وين الكتاب"));
+  check("a turn of a conversation is offered as somewhere a word turns up",
+    !!turnRow, rows.slice(0, 3).join(" // ") || "no rows at all");
+  check("and it reads as a turn, with the person who says it",
+    !!turnRow && /Layla says/.test(turnRow), turnRow || "(no row)");
+  /* The counterpart: the word is no longer listed as turning up nowhere.
+     Matched on the whole word rather than on the text of the panel — the
+     phrase card "الكتاب كبير" is two tokens, so it is word-shaped itself
+     and legitimately bare, and it has the word inside it. */
+  const barePanel = [...inFrame.querySelectorAll(".at-panel")]
+    .find((p) => /Words in no phrase/.test((p.querySelector(".at-eyebrow") || {}).textContent || ""));
+  const bareWords = barePanel
+    ? [...barePanel.querySelectorAll(".at-tag")].map((b) => (b.textContent || "").trim())
+    : [];
+  check("a word said in a conversation is not a word in no phrase",
+    !!barePanel && !bareWords.includes("كتاب"),
+    bareWords.join(" | ") || "(nothing bare)");
+
+  /* ---- one way to make a card, whatever kind of card it is ----
+     A conversation had a button of its own in a deck's card list, which
+     made it read as a separate sort of thing to make — and meant this tab,
+     with only the one New button, could not make one at all. The kind is
+     the first field in the editor now. */
+  const toCards = [...inFrame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(toCards[toCards.length - 1]);
+  await sleep(450);
+  check("there is no second button for making a conversation",
+    !buttonNamed(/^New conversation$/),
+    buttonNamed(/^New conversation$/) ? "one is still offered" : "just New card");
+  click([...inFrame.querySelectorAll("button")].find((b) => /^New card$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  const kinds = [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')];
+  check("a new card asks what kind of card it is",
+    kinds.length === 2 && /Conversation/.test(kinds[1].textContent || ""),
+    kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
+  check("and starts on the ordinary kind",
+    !!kinds[0] && kinds[0].getAttribute("aria-pressed") === "true",
+    kinds.map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
+
+  click(kinds[1]);
+  await sleep(250);
+  const editor = [...document.querySelectorAll(".at-screen.over")].pop();
+  const editorText = editor ? (editor.textContent || "").replace(/\s+/g, " ") : "";
+  check("choosing Conversation turns the same editor into one",
+    /The scene/.test(editorText) && /Who is in it/.test(editorText) &&
+      [...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length === 1,
+    editorText.slice(0, 100) || "(no editor open)");
+  check("without ever having left the card editor",
+    /^New card$/.test((([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim()),
+    (([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim() || "(no title)");
+
+  /* ---- each accepted answer, and how that one is said ----
+     A card may accept two spellings, and each is its own word with its own
+     pronunciation. One transliteration under the pair belonged to one of
+     them and lied about the other — and a question built from it could
+     show one pronunciation and mark the other spelling right. */
+  click(kinds[0]);
+  await sleep(250);
+  const saidFields = () =>
+    [...document.querySelectorAll("input")].filter((i) =>
+      /^Transliteration$|^Transliteration of accepted answer \d+$/.test(i.getAttribute("aria-label") || "")
+    );
+  check("a card written in a script asks how its answer is said, beside it",
+    saidFields().length === 1, `${saidFields().length} fields`);
+  const addAnswer = [...document.querySelectorAll("button")]
+    .find((b) => b.getAttribute("aria-label") === "Add another accepted answer");
+  check("and another answer can be added", !!addAnswer,
+    addAnswer ? "the + beside the last one" : "no add button");
+  click(addAnswer);
+  await sleep(250);
+  check("a second accepted answer brings its own transliteration",
+    saidFields().length === 2,
+    saidFields().map((i) => i.getAttribute("aria-label")).join(" | ") || "none");
+  check("each saying which answer it belongs to",
+    saidFields().every((i, n) => (i.getAttribute("aria-label") || "").endsWith(String(n + 1))),
+    saidFields().map((i) => i.getAttribute("aria-label")).join(" | "));
+  /* And removing an answer takes its pronunciation with it, which is the
+     whole guard against the two stored lists drifting apart. */
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Remove this answer"));
+  await sleep(250);
+  check("removing an answer takes its transliteration with it",
+    saidFields().length === 1, `${saidFields().length} left`);
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
 }
 
 console.error = origError;

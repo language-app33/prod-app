@@ -1,0 +1,28 @@
+# How this is deployed, in the repository rather than in a dashboard.
+#
+# The one line here is the important one: the host starts the server
+# directly, and not through npm.
+#
+# A deploy stops the old container by sending SIGTERM to whatever it
+# started. Started as `npm run start` — which is what the builder picks by
+# itself, because package.json has a start script — that is npm, and npm is
+# a poor thing to have in the way:
+#
+#   * the signal stops at npm. Between the platform and the server sit npm
+#     and a shell, so the server's own SIGTERM handler never runs and
+#     whatever request was in flight is severed. A card being saved, a sync
+#     being written. The handler was written, tested and never once fired in
+#     production.
+#   * npm dies of the signal and exits 143, which is not zero, so every
+#     ordinary deploy is reported as a crash. Alerts that fire on every
+#     routine event are alerts nobody reads, which costs the next real one.
+#
+# Started as the server itself, SIGTERM arrives where it was aimed: the
+# server closes its listener, lets the requests in hand finish, and exits 0.
+# tests/deploy.test.mjs holds both halves of that to account.
+#
+# Config here beats config in the dashboard, so a Custom Start Command set
+# on a service will need clearing for this to take effect.
+
+[deploy]
+startCommand = "node server/index.js"

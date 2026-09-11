@@ -283,6 +283,30 @@ test("the verdict is one size, and a large one", () => {
     `--verdict is set by ${owners.join(", ")}`);
 });
 
+test("a verdict standing on its own is the largest thing on the screen", () => {
+  /* The one exception to the size above, and it is not an exercise
+     talking: a right answer typed in full shows nothing under the
+     verdict, so the praise is the whole of what came back rather than the
+     line introducing what did. Same rule — capped, fitted to the screen,
+     one line — against the shorter string it actually has to fit. */
+  const alone = rule(".at-shout.alone");
+  assert.ok(alone, "a verdict on its own is not sized at all");
+  assert.match(alone, /font-size:\s*min\(var\(--verdict-alone\),\s*calc\(/,
+    "the lone verdict is not capped by --verdict-alone and fitted to the screen");
+  const caps = [...css.matchAll(/--verdict-alone:\s*(\d+)px/g)].map((m) => Number(m[1]));
+  const sizes = [...css.matchAll(/--verdict:\s*(\d+)px/g)].map((m) => Number(m[1]));
+  assert.equal(caps.length, sizes.length, "the two caps are not set in the same places");
+  assert.ok(caps.every((n, i) => n > sizes[i]),
+    `a lone verdict is ${caps.join(", ")}px against ${sizes.join(", ")}px, which is not larger`);
+  /* And it is still the one shape: nothing but the cap changes, so it
+     cannot start wrapping or shouting in a colour of its own. */
+  assert.doesNotMatch(alone, /color:|white-space:|font-weight:/,
+    "a lone verdict has started differing from the others in more than its size");
+  const aloneOwners = [...css.matchAll(/([^\n{}]+)\{[^{}]*--verdict-alone:/g)].map((m) => m[1].trim());
+  assert.deepEqual(aloneOwners, [".at", ".at.kb-open"],
+    `--verdict-alone is set by ${aloneOwners.join(", ")}`);
+});
+
 test("every rule that sets the script's size multiplies by the script's scale", () => {
   /* font-size sets the em box, not the height of a letter. The sizes here
      were tuned by eye against Arabic, and every script rule is shared
@@ -479,8 +503,28 @@ test("the foot is not cut in two by a rule between its parts", () => {
   /* And the text is centred between the drawn edge and the buttons: the
      button brings 6px of its own on each side, and the top loses one to
      the hairline, so 3px over 4px is what comes out even. */
-  assert.match(rule(".at-footextra"), /padding:\s*3px 10px 4px\s*;/,
+  assert.match(rule(".at-footextra"), /padding:\s*3px [^;]+ 4px\s*;/,
     "the line above the bar is not centred between the edge and the buttons");
+});
+
+test("the bar reaches both edges of the window and its buttons do not", () => {
+  /* The foot used to be a 700px column, so on a desktop the painted strip
+     stopped mid-screen with the page showing past each end — a card that
+     failed to stretch rather than the foot of the screen. The surface is
+     the window's now and the column is made inside it by padding. */
+  const foot = rule(".at-foot");
+  assert.doesNotMatch(foot, /max-width/, "the foot is still a column, so its background stops short");
+  assert.match(foot, /left:\s*0/);
+  assert.match(foot, /right:\s*0/);
+  /* Padding rather than a wrapper, because .at-row is a query container
+     and cqi is its content box: the type that steps down to fit three
+     buttons has to measure the column they are in, not the window it is
+     centred in. */
+  assert.match(foot, /--foot-pad:\s*max\(10px,\s*calc\(\(100% - 700px\) \/ 2\)\)/,
+    "there is no rule making the column inside the full-width bar");
+  assert.match(rule(".at-answerbar.at-row"), /padding:\s*8px var\(--foot-pad\)/,
+    "the buttons are not held to the column");
+  assert.match(rule(".at-footextra"), /var\(--foot-pad\)/, "nor is the line above them");
 });
 
 test("the page reserves room for the bar, and only while there is one", () => {

@@ -88,6 +88,90 @@ export function freshStates(types = TYPES) {
 }
 
 /* ------------------------------------------------------------------
+   Random among equals
+
+   A session is built out of orderings — the most overdue card first, the
+   easiest first, the readiest exercise first — and every one of those
+   leaves ties. Sorting alone keeps ties in whatever order the cards
+   happen to sit in the document, which is an accident of when they were
+   added and never changes: leave a session half way through and start
+   another, and it is the same questions in the same order, because
+   nothing in the building of one ever rolled a die.
+
+   So: the orderings stand, and what they leave equal is shuffled. A card
+   due three days ago does not outrank one due three hours ago — both are
+   simply due — and which of them is asked first is exactly the sort of
+   thing that should differ between one sitting and the next.
+
+   The jitter is passed in, like the clock, so a test gets an order it can
+   write down and the app gets a real one.
+   ------------------------------------------------------------------ */
+
+/**
+ * A permutation, by Fisher–Yates. Never the same array back.
+ * @template T
+ * @param {T[]} list
+ * @param {Clock} [clock]
+ * @returns {T[]}
+ */
+export function shuffled(list, clock = REAL_CLOCK) {
+  const a = list.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(jitterOf(clock) * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/*
+ * Ordered by rank, shuffled within each rank.
+ *
+ * The whole of the randomness in a session comes through here, which is
+ * what keeps it from ever reordering something the design meant: a lower
+ * rank always comes first, and the die is only thrown between things the
+ * ranking itself called equal.
+ */
+/**
+ * @template T
+ * @param {T[]} list
+ * @param {(x: T) => number} rankOf
+ * @param {Clock} [clock]
+ * @returns {T[]}
+ */
+export function inOrder(list, rankOf, clock = REAL_CLOCK) {
+  /** @type {Map<number, T[]>} */
+  const byRank = new Map();
+  for (const x of list) {
+    const r = rankOf(x);
+    byRank.set(r, (byRank.get(r) || []).concat([x]));
+  }
+  return [...byRank.keys()]
+    .sort((a, b) => a - b)
+    .flatMap((r) => shuffled(byRank.get(r) || [], clock));
+}
+
+/*
+ * How overdue a card is, to the only precision that means anything.
+ *
+ * Everything already due ranks the same. The alternative is ordering by
+ * the exact moment each card fell due, which is false precision — a card
+ * due this morning is not more urgent than one due last week in any sense
+ * a learner would recognise — and it is what made two sessions built a
+ * minute apart identical down to the last question.
+ *
+ * A card that is not due yet keeps its own time, because a practice
+ * session that reaches past what is due should still reach for the
+ * nearest thing first.
+ */
+/**
+ * @param {number} due
+ * @param {Clock} [clock]
+ */
+export function dueRank(due, clock = REAL_CLOCK) {
+  return (due || 0) <= timeOf(clock) ? 0 : due;
+}
+
+/* ------------------------------------------------------------------
    Spaced repetition (SM-2)
    ------------------------------------------------------------------ */
 
@@ -243,6 +327,15 @@ export function unitsOf(item) {
   /** @type {{ unit: Form, isSub: boolean }[]} */
   const units = [{ unit: /** @type {Form} */ (item), isSub: false }];
   for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
+  /* The lines of a dialog, which are drilled in their own right exactly as
+     the other forms of a word are: same three fields, same progress, same
+     place in a session. They come through here rather than through a
+     second walk of their own, so everything downstream — what is due, how
+     mature a card is, how hard it has proved — counts a line without
+     having been told what a dialog is. */
+  for (const ln of (item && /** @type {any} */ (item).lines) || []) {
+    units.push({ unit: ln, isSub: true });
+  }
   return units;
 }
 

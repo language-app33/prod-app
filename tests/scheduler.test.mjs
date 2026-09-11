@@ -36,6 +36,9 @@ import {
   itemDifficulty,
   formatGap,
   dayKey,
+  shuffled,
+  inOrder,
+  dueRank,
 } from "../src/scheduler.js";
 import { TYPES } from "../src/languages.js";
 /** @import { ExerciseState, Item } from "../src/types.js" */
@@ -348,4 +351,78 @@ test("the activity log buckets by UTC day", () => {
      tomorrow. Nothing reads the log yet. */
   assert.equal(dayKey(Date.UTC(2026, 8, 8, 23, 30)), "2026-09-08");
   assert.equal(dayKey(Date.UTC(2026, 8, 9, 0, 30)), "2026-09-09");
+});
+
+/* --- random among equals --------------------------------------------
+   A session is built out of orderings that leave ties, and the ties used
+   to keep whatever order the document happened to hold. That is what made
+   leaving a session and starting another give back the same questions in
+   the same order.
+   --------------------------------------------------------------------- */
+
+test("a shuffle keeps everything and moves it", () => {
+  const list = [1, 2, 3, 4, 5, 6, 7, 8];
+  /* A jitter that always says "the first one" rotates a Fisher-Yates
+     shuffle by one, which is a permutation nobody could mistake for the
+     input. A jitter of 1 would be the identity — every element swapped
+     with itself — which is a shuffle that did nothing and would have
+     proved nothing. */
+  const out = shuffled(list, clock(0));
+  assert.deepEqual([...out].sort((a, b) => a - b), list, "nothing gained or lost");
+  assert.notDeepEqual(out, list, "and it actually moved");
+  /* The list handed in is never the list handed back: the callers hold
+     the original, and some of them read it again afterwards. */
+  assert.deepEqual(list, [1, 2, 3, 4, 5, 6, 7, 8]);
+});
+
+test("ranking still decides, and chance only settles what it calls equal", () => {
+  const list = [
+    { id: "a", rank: 2 },
+    { id: "b", rank: 0 },
+    { id: "c", rank: 1 },
+    { id: "d", rank: 0 },
+    { id: "e", rank: 0 },
+  ];
+  const out = inOrder(list, (x) => x.rank, clock(0));
+  assert.deepEqual(out.map((x) => x.rank), [0, 0, 0, 1, 2], "a lower rank always comes first");
+  assert.deepEqual(
+    out.slice(0, 3).map((x) => x.id).sort(),
+    ["b", "d", "e"],
+    "and the ones it called equal are all still there",
+  );
+  assert.notDeepEqual(
+    out.slice(0, 3).map((x) => x.id),
+    ["b", "d", "e"],
+    "in an order the document did not decide",
+  );
+});
+
+test("everything already due is equally due", () => {
+  /* The false precision that made two sessions built a minute apart
+     identical: a card due last week is not more urgent than one due this
+     morning, so ordering by the exact moment was ordering by nothing. */
+  assert.equal(dueRank(T - 7 * DAY, still), 0);
+  assert.equal(dueRank(T - MIN, still), 0);
+  assert.equal(dueRank(T, still), 0, "due exactly now is due");
+  assert.equal(dueRank(0, still), 0, "a card that has never been asked is due");
+  /* What is not due yet keeps its own time, so a practice session that
+     reaches past what is due reaches for the nearest thing first. */
+  assert.equal(dueRank(T + DAY, still), T + DAY);
+  assert.ok(dueRank(T + DAY, still) < dueRank(T + 2 * DAY, still));
+});
+
+test("so two sessions built from the same cards are not the same session", () => {
+  /* The shape of the bug, in the small: five cards, all due, all equal.
+     Ordering them is the first thing a session does, and doing it twice
+     should not give the same answer twice. */
+  const cards = ["a", "b", "c", "d", "e"].map((id) => ({ id, due: T - DAY }));
+  const seen = new Set();
+  let rolls = 0;
+  /* A jitter that walks, so this is a real draw rather than one fixed
+     permutation asserted twice. */
+  const walking = { now: () => T, random: () => ((rolls = (rolls * 7 + 3) % 97), rolls / 97) };
+  for (let i = 0; i < 8; i++) {
+    seen.add(inOrder(cards, (c) => dueRank(c.due, walking), walking).map((c) => c.id).join(","));
+  }
+  assert.ok(seen.size > 1, `eight sessions came out as ${seen.size} order(s)`);
 });
