@@ -39,7 +39,7 @@ import {
   shuffled,
   inOrder,
   dueRank,
-} from "../src/scheduler.js";
+} from "../src/scheduler.ts";
 import { TYPES } from "../src/languages.js";
 /** @import { ExerciseState, Item } from "../src/types.js" */
 

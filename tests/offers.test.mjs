@@ -10,7 +10,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { offersFor, canAsk, unmetNeeds } from "../src/offers.js";
+import { offersFor, canAsk, unmetNeeds } from "../src/offers.ts";
 import { EX, LANGUAGES } from "../src/languages.js";
 
 const ar = LANGUAGES["ar-PS"];

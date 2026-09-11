@@ -1,4 +1,3 @@
-/** @import { ExerciseSpec, Form, Item, Lang } from "./types.js" */
 /*
  * Every exercise a card could be asked, and what the ones it cannot are
  * waiting for.
@@ -25,6 +24,8 @@
  * places, so it is passed in. Everything else is read off the card.
  */
 
+import type { ExerciseSpec, Form, Item, Lang } from "./types.js";
+import type { Placed } from "./dialogs.ts";
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.js";
@@ -41,15 +42,14 @@ import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } fr
  * has to say what it is waiting for — a greyed-out button with no reason
  * is a puzzle, and the answer is always something small and fixable.
  */
-/**
- * @param {Form} unit
- * @param {ExerciseSpec} spec
- * @param {{ card: Item, at: number } | null} scene
- * @param {any[]} contexts  The phrases that show this unit in use.
- * @returns {string[]}
- */
-export function unmetNeeds(unit, spec, scene, contexts) {
-  return spec.needs.filter((/** @type {string} */ f) => {
+export function unmetNeeds(
+  unit: Form,
+  spec: ExerciseSpec,
+  scene: Placed | null,
+  /** The phrases that show this unit in use. */
+  contexts: { recs?: { id: string }[] }[],
+): string[] {
+  return spec.needs.filter((f: string) => {
     if (f === "recs") return !(unit.recs || []).length;
     if (f === "contexts") return !contexts.length;
     if (f === "contextAudio") return !contexts.some((c) => (c.recs || []).length > 0);
@@ -61,18 +61,17 @@ export function unmetNeeds(unit, spec, scene, contexts) {
        second; one with a transliteration and no spelling beside it cannot
        be asked at all. */
     if (f === "lat") return !saidAnswers(unit, answerFields()).length;
-    return !(/** @type {any} */ (unit)[f]);
+    return !(unit as Record<string, unknown>)[f];
   });
 }
 
 /* Whether this unit can be asked this exercise at all: nothing missing,
    the right shape of card, and a language that drills it. */
-/**
- * @param {{ unit: Form, scene: { card: Item, at: number } | null, contexts: any[] }} on
- * @param {string} type
- * @param {Lang} lang
- */
-export function canAsk(on, type, lang) {
+export function canAsk(
+  on: { unit: Form; scene: Placed | null; contexts: { recs?: { id: string }[] }[] },
+  type: string,
+  lang: Lang,
+): boolean {
   const spec = EX[type];
   if (!spec || spec.retired) return false;
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
@@ -81,12 +80,7 @@ export function canAsk(on, type, lang) {
 }
 
 /* The two reasons a language rather than a card refuses an exercise. */
-/**
- * @param {ExerciseSpec} spec
- * @param {Lang} lang
- * @param {Form} [unit]
- */
-function drilledBy(spec, lang, unit) {
+function drilledBy(spec: ExerciseSpec, lang: Lang, unit?: Form): boolean {
   const attr = quizAttrOf(lang);
   /* Only where the language has named something to listen for — and, when
      a particular card is in hand, where its spelling actually yields it. */
@@ -97,32 +91,37 @@ function drilledBy(spec, lang, unit) {
   return true;
 }
 
-/**
- * @typedef {object} Offer
- * @property {string} type
- * @property {string} label      The exercise's name, in this language's words.
- * @property {Form} unit         Which form or line it would be asked of.
- * @property {string | null} subId
- * @property {boolean} ready     Whether it can be asked today.
- * @property {string[]} missing  What it is waiting for, where it cannot.
- * @property {boolean} off       Whether it is switched off in the settings.
- */
+export interface Offer {
+  type: string;
+  /** The exercise's name, in this language's words. */
+  label: string;
+  /** Which form or line it would be asked of. */
+  unit: Form;
+  subId: string | null;
+  /** Whether it can be asked today. */
+  ready: boolean;
+  /** What it is waiting for, where it cannot. */
+  missing: string[];
+  /** Whether it is switched off in the settings. */
+  off: boolean;
+}
 
 /*
  * The list, in the order the exercise table is written in — which runs
  * from recognition to production, so reading it top to bottom is reading
  * what the card can do in the order a learner would meet it.
  */
-/**
- * @param {{
- *   units: { unit: Form, isSub: boolean, scene?: { card: Item, at: number } | null }[],
- *   lang: Lang,
- *   contextsFor?: (unit: Form) => any[],
- *   enabled?: (type: string) => boolean,
- * }} args
- * @returns {Offer[]}
- */
-export function offersFor({ units, lang, contextsFor = () => [], enabled = () => true }) {
+export function offersFor({
+  units,
+  lang,
+  contextsFor = () => [],
+  enabled = () => true,
+}: {
+  units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
+  lang: Lang;
+  contextsFor?: (unit: Form) => { recs?: { id: string }[] }[];
+  enabled?: (type: string) => boolean;
+}): Offer[] {
   const known = units.map((u) => ({
     unit: u.unit,
     isSub: u.isSub,
@@ -130,8 +129,7 @@ export function offersFor({ units, lang, contextsFor = () => [], enabled = () =>
     contexts: contextsFor(u.unit) || [],
   }));
 
-  /** @type {Offer[]} */
-  const offers = [];
+  const offers: Offer[] = [];
   for (const type of TYPES) {
     const spec = EX[type];
     const role = spec.dialog || "word";

@@ -60,11 +60,11 @@ import {
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.ts";
 /** @import { Answer } from "./answers.ts" */
 import { answerRows, packAnswers } from "./answers.ts";
-import { linkReport, pairsIn } from "./context-links.js";
-import { buildContextIndex } from "./context-index.js";
-import { offersFor } from "./offers.js";
+import { linkReport, pairsIn } from "./context-links.ts";
+import { buildContextIndex } from "./context-index.ts";
+import { offersFor } from "./offers.ts";
 import { buildDialogIndex } from "./dialogs.ts";
-import { freshStates, unitsOf } from "./scheduler.js";
+import { freshStates, unitsOf } from "./scheduler.ts";
 import {
   Button,
   CardReadout,

@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { linkReport, pairsIn, unknownWords, MINE_FROM_TOKENS } from "../src/context-links.js";
+import { linkReport, pairsIn, unknownWords, MINE_FROM_TOKENS } from "../src/context-links.ts";
 import { LANGUAGES } from "../src/languages.js";
 
 const ar = LANGUAGES["ar-PS"];

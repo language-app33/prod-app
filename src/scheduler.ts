@@ -1,4 +1,3 @@
-/** @import { Clock, ExerciseState, Form, Item } from "./types.js" */
 /*
  * When a card comes back.
  *
@@ -22,6 +21,7 @@
  * Every function is a function of its arguments.
  */
 
+import type { Clock, ExerciseState, Form, Item } from "./types.js";
 import { TYPES } from "./languages.js";
 
 export const DAY = 86400000;
@@ -43,20 +43,20 @@ export const MATURE_DAYS = 21;
  * one object gets a world that holds still.
  */
 export const REAL_CLOCK = { now: Date.now, random: Math.random };
-/** @type {(clock?: Clock) => number} */
-const timeOf = (clock) => (clock && clock.now ? clock.now() : Date.now());
-/** @type {(clock?: Clock) => number} */
-const jitterOf = (clock) => (clock && clock.random ? clock.random() : Math.random());
 
-/** @type {(e: number) => number} */
-const clampEase = (e) => Math.max(MIN_EASE, Math.min(MAX_EASE, e));
+const timeOf = (clock?: Clock) => (clock && clock.now ? clock.now() : Date.now());
+
+const jitterOf = (clock?: Clock) => (clock && clock.random ? clock.random() : Math.random());
+
+
+const clampEase = (e: number) => Math.max(MIN_EASE, Math.min(MAX_EASE, e));
 
 /* ±5%, so a hundred cards learnt on one evening do not all come back on
    one evening. */
-/** @type {(clock?: Clock) => number} */
-const fuzz = (clock) => 0.95 + jitterOf(clock) * 0.1;
 
-export function freshState() {
+const fuzz = (clock?: Clock) => 0.95 + jitterOf(clock) * 0.1;
+
+export function freshState(): ExerciseState {
   return {
     phase: "new",
     step: 0,
@@ -76,13 +76,9 @@ export function freshState() {
 
 /* One fresh state per exercise type. Takes the list so the caller decides
    what "every type" means — the app passes the real one. */
-/**
- * @param {string[]} [types]
- * @returns {Record<string, ExerciseState>}
- */
-export function freshStates(types = TYPES) {
-  /** @type {Record<string, ExerciseState>} */
-  const s = {};
+
+export function freshStates(types: string[] = TYPES): Record<string, ExerciseState> {
+  const s: Record<string, ExerciseState> = {};
   for (const t of types) s[t] = freshState();
   return s;
 }
@@ -114,7 +110,7 @@ export function freshStates(types = TYPES) {
  * @param {Clock} [clock]
  * @returns {T[]}
  */
-export function shuffled(list, clock = REAL_CLOCK) {
+export function shuffled<T>(list: T[], clock: Clock = REAL_CLOCK): T[] {
   const a = list.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(jitterOf(clock) * (i + 1));
@@ -131,14 +127,8 @@ export function shuffled(list, clock = REAL_CLOCK) {
  * rank always comes first, and the die is only thrown between things the
  * ranking itself called equal.
  */
-/**
- * @template T
- * @param {T[]} list
- * @param {(x: T) => number} rankOf
- * @param {Clock} [clock]
- * @returns {T[]}
- */
-export function inOrder(list, rankOf, clock = REAL_CLOCK) {
+
+export function inOrder<T>(list: T[], rankOf: (x: T) => number, clock: Clock = REAL_CLOCK): T[] {
   /** @type {Map<number, T[]>} */
   const byRank = new Map();
   for (const x of list) {
@@ -163,11 +153,8 @@ export function inOrder(list, rankOf, clock = REAL_CLOCK) {
  * session that reaches past what is due should still reach for the
  * nearest thing first.
  */
-/**
- * @param {number} due
- * @param {Clock} [clock]
- */
-export function dueRank(due, clock = REAL_CLOCK) {
+
+export function dueRank(due: number, clock: Clock = REAL_CLOCK): number {
   return (due || 0) <= timeOf(clock) ? 0 : due;
 }
 
@@ -175,16 +162,10 @@ export function dueRank(due, clock = REAL_CLOCK) {
    Spaced repetition (SM-2)
    ------------------------------------------------------------------ */
 
-/**
- * @param {ExerciseState} prev
- * @param {string} rating
- * @param {Clock} [clock]
- * @returns {ExerciseState}
- */
-export function reschedule(prev, rating, clock = REAL_CLOCK) {
+
+export function reschedule(prev: ExerciseState, rating: string, clock: Clock = REAL_CLOCK): ExerciseState {
   const at = timeOf(clock);
-  /** @type {(n: number) => number} */
-  const inDays = (n) => at + n * DAY;
+  const inDays = (n: number) => at + n * DAY;
   const s = { ...prev };
   s.reps += 1;
   /* "hard" is a near miss, not a success: it is scheduled gently but it is
@@ -260,16 +241,13 @@ export function reschedule(prev, rating, clock = REAL_CLOCK) {
 /* A state with no record yet has never been asked and so is ready by
    definition. In memory every state should exist; this is the guard for
    the render that happens before a lift catches up. */
-/**
- * @param {ExerciseState | null | undefined} s
- * @param {Clock} [clock]
- */
-export function stateReady(s, clock = REAL_CLOCK) {
+
+export function stateReady(s: ExerciseState | null | undefined, clock: Clock = REAL_CLOCK): boolean {
   return !s || s.phase === "new" || (s.due || 0) <= timeOf(clock);
 }
 
-/** @param {ExerciseState} s Read on entry with no guard, unlike stateReady. */
-export function maturity(s) {
+/* Read on entry with no guard, unlike stateReady. */
+export function maturity(s: ExerciseState): string {
   if (s.phase === "new") return "new";
   if (s.phase === "learning" || s.phase === "relearning") return "learning";
   return s.interval >= MATURE_DAYS ? "mature" : "young";
@@ -281,8 +259,8 @@ export const MATURITY_ORDER = ["new", "learning", "young", "mature"];
    Automatic difficulty
    ------------------------------------------------------------------ */
 
-/** @param {ExerciseState} s Read on entry with no guard, unlike stateReady. */
-export function difficultyScore(s) {
+/* Read on entry with no guard, unlike stateReady. */
+export function difficultyScore(s: ExerciseState): number {
   const attempts = (s.right || 0) + (s.wrong || 0);
   if (!attempts) return 0;
   const raw =
@@ -294,8 +272,8 @@ export function difficultyScore(s) {
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
-/** @param {ExerciseState} s Read on entry with no guard, unlike stateReady. */
-export function difficulty(s) {
+/* Read on entry with no guard, unlike stateReady. */
+export function difficulty(s: ExerciseState): string {
   if ((s.right || 0) + (s.wrong || 0) < 2) return "unrated";
   const score = difficultyScore(s);
   if (score < 22) return "easy";
@@ -309,6 +287,14 @@ export function difficulty(s) {
 
 /* A card, then each of its forms — a plural, a feminine — each of which
    carries its own progress. */
+/* A card and every form of it that is drilled on its own: its other
+   spellings, and the turns of a conversation. What is due, how mature a
+   card is and how hard it has proved are all counted over these. */
+export interface Unit {
+  unit: Form;
+  isSub: boolean;
+}
+
 /**
  * A card and its other forms, each drilled in its own right.
  *
@@ -323,9 +309,8 @@ export function difficulty(s) {
  * @param {Item | null | undefined} item
  * @returns {{ unit: Form, isSub: boolean }[]}
  */
-export function unitsOf(item) {
-  /** @type {{ unit: Form, isSub: boolean }[]} */
-  const units = [{ unit: /** @type {Form} */ (item), isSub: false }];
+export function unitsOf(item: Item | null | undefined): Unit[] {
+  const units: Unit[] = [{ unit: item as unknown as Form, isSub: false }];
   for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
   /* The lines of a dialog, which are drilled in their own right exactly as
      the other forms of a word are: same three fields, same progress, same
@@ -333,7 +318,7 @@ export function unitsOf(item) {
      second walk of their own, so everything downstream — what is due, how
      mature a card is, how hard it has proved — counts a line without
      having been told what a dialog is. */
-  for (const ln of (item && /** @type {any} */ (item).lines) || []) {
+  for (const ln of (item && (item as Item & { lines?: Form[] }).lines) || []) {
     units.push({ unit: ln, isSub: true });
   }
   return units;
@@ -347,11 +332,8 @@ export function unitsOf(item) {
  * in because the answer depends on the language pack and on the index of
  * phrases that show a word in use — neither of which belongs in here.
  */
-/**
- * @param {Item} it
- * @param {(unit: Form) => string[]} typesOf
- */
-export function familyMaturity(it, typesOf) {
+
+export function familyMaturity(it: Item, typesOf: (unit: Form) => string[]): string {
   let worst = null;
   for (const { unit } of unitsOf(it)) {
     for (const t of typesOf(unit)) {
@@ -364,11 +346,8 @@ export function familyMaturity(it, typesOf) {
   return worst || "new";
 }
 
-/**
- * @param {Item} it
- * @param {(unit: Form) => string[]} typesOf
- */
-export function itemDifficulty(it, typesOf) {
+
+export function itemDifficulty(it: Item, typesOf: (unit: Form) => string[]): string {
   const rated = [];
   for (const { unit } of unitsOf(it)) {
     for (const t of typesOf(unit)) {
@@ -388,8 +367,8 @@ export function itemDifficulty(it, typesOf) {
    Saying when, in words
    ------------------------------------------------------------------ */
 
-/** @param {number} ms */
-export function formatGap(ms) {
+
+export function formatGap(ms: number): string {
   if (ms <= 0) return "now";
   const m = ms / MIN;
   if (m < 60) return `${Math.max(1, Math.round(m))}m`;
@@ -410,10 +389,6 @@ export function formatGap(ms) {
  * heatmap needs to pass the learner's offset in, and should find this
  * paragraph when they do.
  */
-/**
- * @param {number} [t]
- * @param {Clock} [clock]
- */
-export function dayKey(t, clock = REAL_CLOCK) {
+export function dayKey(t?: number, clock: Clock = REAL_CLOCK): string {
   return new Date(t === undefined ? timeOf(clock) : t).toISOString().slice(0, 10);
 }

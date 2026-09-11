@@ -1,4 +1,3 @@
-/** @import { Item, Lang } from "./types.js" */
 /*
  * Where each word turns up.
  *
@@ -18,8 +17,9 @@
  * the cards it came from, because it is rebuilt from them.
  */
 
+import type { Item, Lang } from "./types.js";
 import { findWordSpan, supportsContext } from "./languages.js";
-import { unitsOf } from "./scheduler.js";
+import { unitsOf } from "./scheduler.ts";
 import { dialogPhrases } from "./dialogs.ts";
 
 /*
@@ -31,12 +31,31 @@ import { dialogPhrases } from "./dialogs.ts";
  * leads with, and asking for the wrong form would be a question with no
  * right answer.
  */
-/**
- * @param {Item[]} items
- * @param {Lang} lang
- */
-export function buildContextIndex(items, lang) {
-  const index = new Map();
+/* Somewhere a word turned up: a phrase or a turn that contains it, with
+   where inside it the word sits. `slot` is which token, `span` how many —
+   a Vietnamese compound takes two, and a gap that blanked one syllable
+   would leave the answer half written on the screen. */
+export interface Context {
+  id: string;
+  ar: string;
+  en: string;
+  recs: { id: string }[];
+  slot: number;
+  span: number;
+}
+
+/* What this reads of a phrase, which is all of what it reads. A card has
+   these and so does a turn of a conversation, once dialogPhrases has handed
+   it over in the same shape — and that is the whole reason a line can stand
+   in for a phrase here without this knowing what a dialog is. */
+type Source = Pick<Item, "id" | "ar" | "en"> & {
+  uses?: string[];
+  recs?: { id: string }[];
+  lang?: string;
+};
+
+export function buildContextIndex(items: Item[], lang: Lang): Map<string, Context[]> {
+  const index = new Map<string, Context[]>();
   if (!supportsContext(lang)) return index;
   const byId = new Map(items.map((it) => [it.id, it]));
 
@@ -47,7 +66,8 @@ export function buildContextIndex(items, lang) {
      what makes a scene worth writing on the first day — every word
      already being learnt gains a real exchange to be gapped inside of,
      with nothing new marked. */
-  for (const phrase of items.concat(/** @type {any} */ (dialogPhrases(items)))) {
+  const sources: Source[] = [...items, ...dialogPhrases(items)];
+  for (const phrase of sources) {
     const uses = phrase.uses || [];
     if (!uses.length || !phrase.ar) continue;
     for (const targetId of uses) {

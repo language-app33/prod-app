@@ -146,10 +146,10 @@ import {
   dueRank,
   inOrder,
   shuffled,
-} from "./scheduler.js";
+} from "./scheduler.ts";
 import { PICK_OPTIONS, optionsFor } from "./chance.ts";
-import { buildContextIndex } from "./context-index.js";
-import { canAsk } from "./offers.js";
+import { buildContextIndex } from "./context-index.ts";
+import { canAsk } from "./offers.ts";
 import {
   DEFAULT_SPEAKERS,
   DIALOG_KIND,

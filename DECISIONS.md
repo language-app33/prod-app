@@ -13,7 +13,7 @@ anything that was never really a choice.
 
 ## Grammar belongs to an accepted answer, not to the form
 
-**11 September 2026** · `src/answers.js`, `src/languages.js` (`answerFields`)
+**11 September 2026** · `src/answers.ts`, `src/languages.js` (`answerFields`)
 
 A card may accept more than one answer. Gender, number and the rest sat on
 the form, one set for the whole card — which is right until two accepted
@@ -58,7 +58,7 @@ comes through identical in every particular.
 
 ## The schema at the storage boundary is hand-written
 
-**11 September 2026** · `readAnswer` in `src/answers.js`
+**11 September 2026** · `readAnswer` in `src/answers.ts`
 
 Asked for as a Valibot schema. It is twenty lines of plain JavaScript
 instead.
@@ -126,7 +126,21 @@ typed `unknown` handed to a picker that takes a string. Converting
 on it) and caught a test dereferencing a `cueFor` result that is null at
 the first line — which the same test asserts two lines further down.
 
-**What is left.** `scheduler`, `offers`, `context-index`, `context-links`,
-then `languages` and `types` themselves; `shared.jsx` and `spaces.jsx`
-after those; `ArabicTrainer.jsx` last and on its own — 9k lines and 404
+**Done so far.** Every pure module: `chance`, `answers`, `dialogs`,
+`context-index`, `offers`, `context-links`, `scheduler`. That is the whole
+layer that decides what a learner is asked, and it is the layer the tests
+drive directly.
+
+**What is left.** `types` and `languages` — `types` is 461 lines of
+typedefs that become real declarations and would be a clean win;
+`languages` is 2,102 lines and the one file allowed to know about a
+language, so it wants its own sitting. Then `sync`, `storage`,
+`courses-api`, `updates`, `screen-elements`. Then `shared.jsx` and
+`spaces.jsx`. `ArabicTrainer.jsx` last and alone — 9k lines and 404
 annotations is not a slice of anything.
+
+**One thing to watch.** Guards keyed by filename rot as files move.
+`tests/language-isolation.test.mjs` listed `scheduler.js` and keyed its
+allowlist by `"ArabicTrainer.jsx"`; it now names files without an extension
+and resolves whichever exists. Anything else that hardcodes a source path
+needs the same treatment before the file it names is converted.

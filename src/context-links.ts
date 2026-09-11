@@ -1,4 +1,3 @@
-/** @import { Lang } from "./types.js" */
 /*
  * What a teacher's own material already says about itself.
  *
@@ -31,6 +30,7 @@
  * teacher is shown, and `node --test` cannot import a .jsx file.
  */
 
+import type { Lang } from "./types.js";
 import { contextTokens, findWordSpan, isFunctionWord, supportsContext } from "./languages.js";
 import { isDialog, linesOf, speakerName } from "./dialogs.ts";
 
@@ -56,20 +56,18 @@ export const MINE_FROM_TOKENS = WORD_TOKENS + 1;
    fewer than a paragraph. */
 export const EXAMPLES_SHOWN = 3;
 
-/** @param {Record<string, any>} card */
-const textOf = (card) => String((card && card.ar) || "").trim();
+/* A card, as this module reads one: whatever it was handed, since the
+   teacher's copy and the learner's differ in everything but these. */
+type Card = Record<string, any>;
 
-/**
- * @param {Record<string, any>} card
- * @param {Lang} lang
- */
-const lengthOf = (card, lang) => contextTokens(textOf(card), lang).length;
+const textOf = (card: Card) => String((card && card.ar) || "").trim();
+
+const lengthOf = (card: Card, lang: Lang) => contextTokens(textOf(card), lang).length;
 
 /* What a card is called in a list, keeping it to the fields every shape of
    card has — the teacher's and the learner's copies differ in everything
    else. */
-/** @param {Record<string, any>} card */
-const named = (card) => ({ id: card.id, ar: textOf(card), en: card.en || "" });
+const named = (card: Card) => ({ id: card.id, ar: textOf(card), en: card.en || "" });
 
 /*
  * Everywhere a word could turn up: the teacher's phrases, and the turns of
@@ -89,16 +87,27 @@ const named = (card) => ({ id: card.id, ar: textOf(card), en: card.en || "" });
  * its own text. `id` is the two of them together, because a row on screen
  * is keyed by it and two turns of one scene are two rows.
  */
-/**
- * @param {Record<string, any>[]} cards
- * @returns {{ id: string, cardId: string, line: number | null, ar: string, en: string, who: string, uses: string[] }[]}
- */
-export function containersIn(cards) {
-  const out = [];
+export interface Container {
+  /** The card and the turn together, because a row on screen is keyed by
+      it and two turns of one scene are two rows. */
+  id: string;
+  /** What to open, and what to save. */
+  cardId: string;
+  /** Which turn, or null for a card that is its own text. */
+  line: number | null;
+  ar: string;
+  en: string;
+  /** Who says it, where it is a turn. */
+  who: string;
+  uses: string[];
+}
+
+export function containersIn(cards: Card[]): Container[] {
+  const out: Container[] = [];
   for (const card of cards || []) {
     if (!card || !card.id) continue;
     if (isDialog(card)) {
-      linesOf(card).forEach((/** @type {any} */ line, /** @type {number} */ at) => {
+      linesOf(card).forEach((line, at) => {
         const text = String((line && line.ar) || "").trim();
         if (!text) return;
         out.push({
@@ -143,11 +152,7 @@ export function containersIn(cards) {
  * The word side is always a card, because a word is something a teacher
  * teaches; the container side is a card or a turn of a conversation.
  */
-/**
- * @param {Record<string, any>[]} cards
- * @param {Lang} lang
- */
-export function pairsIn(cards, lang) {
+export function pairsIn(cards: Card[], lang: Lang) {
   const usable = (cards || []).filter((c) => c && c.id && textOf(c));
   const pairs = [];
   for (const container of containersIn(cards)) {
@@ -182,14 +187,17 @@ export function pairsIn(cards, lang) {
  * with something stuck to it. Likeliest, not certain: what this produces
  * is the first line of a card somebody else finishes.
  */
-/**
- * @param {Record<string, any>[]} cards
- * @param {Lang} lang
- */
-export function unknownWords(cards, lang) {
+export interface Missing {
+  /** The form offered as the first line of a card: the plainest one seen. */
+  text: string;
+  forms: string[];
+  count: number;
+  examples: Container[];
+}
+
+export function unknownWords(cards: Card[], lang: Lang): Missing[] {
   const usable = (cards || []).filter((c) => c && c.id && textOf(c));
-  /** @type {{ text: string, forms: string[], count: number, examples: any[] }[]} */
-  const groups = [];
+  const groups: Missing[] = [];
 
   /* Turns of a conversation are mined alongside phrases: a word a scene
      keeps using and nothing teaches is exactly the gap one a sentence keeps
@@ -227,12 +235,7 @@ export function unknownWords(cards, lang) {
 /* Two written forms of one word, as far as the language is concerned.
    Asked both ways round, because peeling is not symmetrical: الكتاب peels
    to كتاب and كتاب does not peel to الكتاب. */
-/**
- * @param {string} a
- * @param {string} b
- * @param {Lang} lang
- */
-function sameWord(a, b, lang) {
+function sameWord(a: string, b: string, lang: Lang): boolean {
   const matches = lang.context.matches;
   return matches(a, b) || matches(b, a);
 }
@@ -244,11 +247,7 @@ function sameWord(a, b, lang) {
  * because a teacher reading them is deciding one thing: where the next ten
  * minutes of writing would do the most good.
  */
-/**
- * @param {Record<string, any>[]} cards
- * @param {Lang} lang
- */
-export function linkReport(cards, lang) {
+export function linkReport(cards: Card[], lang: Lang) {
   if (!supportsContext(lang)) {
     return { supported: false, toConfirm: [], confirmed: [], bare: [], missing: [], coverage: null };
   }

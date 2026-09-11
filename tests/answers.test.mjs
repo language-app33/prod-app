@@ -22,7 +22,7 @@ import {
   splitAlternatives,
   withAnswer,
 } from "../src/answers.ts";
-import { canAsk, unmetNeeds } from "../src/offers.js";
+import { canAsk, unmetNeeds } from "../src/offers.ts";
 import { EX, LANGUAGES, answerFields, checkAnswer, labelFor } from "../src/languages.js";
 
 const ar = LANGUAGES["ar-PS"];

@@ -44,7 +44,7 @@ import {
   youOf,
 } from "../src/dialogs.ts";
 import { EX, TYPES, checkAnswer } from "../src/languages.js";
-import { unitsOf } from "../src/scheduler.js";
+import { unitsOf } from "../src/scheduler.ts";
 
 /* A scene of four turns, two people, written the way the editor writes
    one. `uses` names the word cards a line contains, as the editor works
