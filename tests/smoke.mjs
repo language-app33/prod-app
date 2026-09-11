@@ -14,7 +14,7 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.ts", "src/gallery.jsx", "src/shared.jsx"],
+  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.ts", "src/gallery.tsx", "src/shared.jsx"],
   bundle: true,
   format: "esm",
   splitting: true,

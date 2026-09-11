@@ -160,8 +160,19 @@ That conversion also emptied a dozen inert casts. `/** @type {any} */
 there — and each one had been standing in for a field that `Item` now
 declares, so they went out with the file they were written for.
 
-**What is left.** `shared.jsx` and `spaces.jsx`. `ArabicTrainer.jsx` last
-and alone — 9k lines and 404 annotations is not a slice of anything.
+Then the two small screens, `gallery` and `main`, which were about
+proving the `.tsx` half of the pipeline rather than about their own size:
+Vite, the esbuild smoke bundle and `index.html`'s entry point all resolve
+`.tsx` with nothing added. What they did want was React's own shapes said
+out loud — a context's value, an error boundary's props and state, and a
+`Node` that a JSDoc alias had been quietly resolving to `React.ReactNode`
+where TypeScript reads the DOM's.
+
+**What is left.** `shared.jsx` and `spaces.jsx`, then `ArabicTrainer.jsx`
+last and alone — 9k lines and 399 annotations is not a slice of anything.
+All three are named by `scripts/component-uses.mjs` and asserted about by
+`tests/component-uses.test.mjs`, which is the filename-keyed guard to fix
+before, not after.
 
 **A file that moves takes its name with it.** An import names the file it
 means, so every specifier pointing at a converted module changes with it,

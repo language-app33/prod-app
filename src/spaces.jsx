@@ -36,10 +36,10 @@ import * as API from "./courses-api.ts";
 /* Loaded only when the gallery is opened: it is a reference an
    administrator reads occasionally, not part of running the site. */
 const ComponentGallery = React.lazy(() =>
-  import("./gallery.jsx").then((m) => ({ default: m.ComponentGallery })),
+  import("./gallery.tsx").then((m) => ({ default: m.ComponentGallery })),
 );
 const ScreenElements = React.lazy(() =>
-  import("./gallery.jsx").then((m) => ({ default: m.ScreenElements })),
+  import("./gallery.tsx").then((m) => ({ default: m.ScreenElements })),
 );
 import {
   contextCoverage,

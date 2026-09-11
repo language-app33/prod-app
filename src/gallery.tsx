@@ -1,6 +1,13 @@
-/** @import { Lang } from "./types.ts" */
-/** @typedef {React.ReactNode} Node */
-/** @typedef {{ file: string, line: number, where: string }} Use */
+import type { Lang } from "./types.ts";
+
+type Node = React.ReactNode;
+
+/* One place a component is used, as `npm run components` records it. */
+interface Use {
+  file: string;
+  line: number;
+  where: string;
+}
 /*
  * The component gallery.
  *
@@ -91,8 +98,7 @@ const ADMIN = "Admin";
 const START = "Signing in";
 const PARTS = "Inside another component";
 
-/** @type {Record<string, [string, string]>} */
-const PLACES = {
+const PLACES: Record<string, [string, string]> = {
   /* The learner's app */
   ArabicTrainer: [LEARN, "The app around everything else"],
   AccountPanel: [LEARN, "Account settings"],
@@ -173,16 +179,14 @@ const PLACES = {
 
 /* Not in the table: say something readable rather than nothing, and put
    it under whichever part of the app its file belongs to. */
-/** @type {Record<string, string>} */
-const FILE_PART = {
+const FILE_PART: Record<string, string> = {
   "ArabicTrainer.jsx": LEARN,
   "spaces.jsx": TEACH,
   "shared.jsx": PARTS,
-  "gallery.jsx": ADMIN,
+  "gallery.tsx": ADMIN,
 };
 
-/** @param {Use} use */
-export function placeOf(use) {
+export function placeOf(use: Use) {
   const known = PLACES[use.where];
   if (known) return { part: known[0], name: known[1], known: true };
   const spaced = String(use.where || "")
@@ -194,10 +198,8 @@ export function placeOf(use) {
 /* Every place it is used, gathered by part of the app. Several uses in
    one place become one line with a count, because "six times on the
    preferences screen" is the useful shape, not six identical rows. */
-/** @param {Use[]} uses */
-function groupUses(uses) {
-  /** @type {Map<string, Map<string, number>>} */
-  const byPart = new Map();
+function groupUses(uses: Use[]) {
+  const byPart: Map<string, Map<string, number>> = new Map();
   for (const use of uses) {
     const { part, name } = placeOf(use);
     if (!byPart.has(part)) byPart.set(part, new Map());
@@ -217,8 +219,7 @@ function groupUses(uses) {
     }));
 }
 
-/** @param {{ name: string }} props */
-function Uses({ name }) {
+function Uses({ name }: { name: string }) {
   const uses = COMPONENT_USES[name];
   /* Hooks and helpers have a row but no call sites gathered for them. */
   if (!uses) return null;
@@ -263,14 +264,16 @@ function Uses({ name }) {
  * are the document order every time.
  */
 /* The running numbers for a row and the specimens inside it. */
-const GalleryCount = React.createContext(
-  /** @type {{ n: number, row: number } | null} */ (null)
-);
+interface Tally {
+  /** Which row, counting from the top of the gallery. */
+  row: number;
+  /** Which specimen inside that row. */
+  n: number;
+}
 
-/**
- * @param {{ name: string, what?: Node, note?: Node, children?: Node }} props
- */
-function Row({ name, what, note, children }) {
+const GalleryCount = React.createContext<Tally | null>(null);
+
+function Row({ name, what, note, children }: { name: string; what?: Node; note?: Node; children?: Node }) {
   const uses = COMPONENT_USES[name];
   const tally = React.useContext(GalleryCount);
   const id = tally ? (tally.row += 1) : 0;
@@ -298,10 +301,7 @@ function Row({ name, what, note, children }) {
 
 /* A labelled specimen inside a row, so a variant can be pointed at by
    name rather than by position. */
-/**
- * @param {{ label?: Node, children?: Node, wide?: boolean }} props
- */
-function V({ label, children, wide }) {
+function V({ label, children, wide }: { label?: Node; children?: Node; wide?: boolean }) {
   const spec = React.useContext(GalleryCount);
   const id = spec && spec.row ? `${spec.row}.${(spec.n += 1)}` : "";
   return (

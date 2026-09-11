@@ -22,32 +22,30 @@ watchForUpdates();
  * offers the two things that always help: a reload, and a copy of the data
  * as it stands so nothing is lost while the cause is found.
  */
-/**
- * @typedef {{ children?: React.ReactNode }} RecoveryProps
- * @typedef {{ error: unknown }} RecoveryState
- * @extends {React.Component<RecoveryProps, RecoveryState>}
- */
-class Recovery extends React.Component {
-  /** @param {RecoveryProps} props */
-  constructor(props) {
+interface RecoveryProps {
+  children?: React.ReactNode;
+}
+
+interface RecoveryState {
+  error: unknown;
+}
+
+class Recovery extends React.Component<RecoveryProps, RecoveryState> {
+  constructor(props: RecoveryProps) {
     super(props);
-    /** @type {RecoveryState} */
     this.state = { error: null };
   }
 
-  /** @param {unknown} error */
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: unknown) {
     return { error };
   }
 
-  /** @param {unknown} error */
-  componentDidCatch(error) {
+  componentDidCatch(error: unknown) {
     console.error("Unrecoverable render error:", error);
   }
 
   download() {
-    /** @type {Record<string, string | null>} */
-    const out = {};
+    const out: Record<string, string | null> = {};
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);

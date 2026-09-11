@@ -32,7 +32,7 @@ test("every element the practice screens carry is in the reference", () => {
     missing,
     [],
     `the screens carry ${missing.join(", ")} and the reference does not mention them — ` +
-      `add a row to SCREEN_ELEMENTS in gallery.jsx`,
+      `add a row to SCREEN_ELEMENTS in gallery.tsx`,
   );
 });
 

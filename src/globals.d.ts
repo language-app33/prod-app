@@ -26,7 +26,7 @@ declare const __BUILT_AT__: string;
 interface Window {
   /*
    * The learner's app was written against the Claude artifact storage API
-   * and still reads window.storage; main.jsx points that at the
+   * and still reads window.storage; main.tsx points that at the
    * localStorage adapter in storage.ts before the first render. See the
    * comment at the top of storage.ts for why it is shaped this way.
    */
