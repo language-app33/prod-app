@@ -27,8 +27,8 @@ interface Window {
   /*
    * The learner's app was written against the Claude artifact storage API
    * and still reads window.storage; main.jsx points that at the
-   * localStorage adapter in storage.js before the first render. See the
-   * comment at the top of storage.js for why it is shaped this way.
+   * localStorage adapter in storage.ts before the first render. See the
+   * comment at the top of storage.ts for why it is shaped this way.
    */
-  storage: typeof import("./storage.js").storage;
+  storage: typeof import("./storage.ts").storage;
 }

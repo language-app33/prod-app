@@ -31,7 +31,7 @@
  * }} Progress
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import * as API from "./courses-api.js";
+import * as API from "./courses-api.ts";
 
 /* Loaded only when the gallery is opened: it is a reference an
    administrator reads occasionally, not part of running the site. */

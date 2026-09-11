@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { SCREEN_ELEMENTS } from "../src/screen-elements.js";
+import { SCREEN_ELEMENTS } from "../src/screen-elements.ts";
 
 const source = readFileSync(new URL("../src/ArabicTrainer.jsx", import.meta.url), "utf8");
 

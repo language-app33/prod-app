@@ -1,7 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { storage, requestPersistence } from "./storage.js";
-import { watchForUpdates } from "./updates.js";
+import { storage, requestPersistence } from "./storage.ts";
+import { watchForUpdates } from "./updates.ts";
 import ArabicTrainer from "./ArabicTrainer.jsx";
 import "./index.css";
 

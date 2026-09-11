@@ -14,7 +14,7 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.js", "src/gallery.jsx", "src/shared.jsx"],
+  entryPoints: ["src/ArabicTrainer.jsx", "src/storage.ts", "src/gallery.jsx", "src/shared.jsx"],
   bundle: true,
   format: "esm",
   splitting: true,
@@ -277,6 +277,8 @@ remoteDocs.set(realToken, {
 const errors = [];
 const origError = console.error;
 console.error = (/** @type {unknown[]} */ ...a) => { errors.push(a.map(String).join(" ")); };
+/* ".js" whatever the source was called: this is esbuild's output, and it
+   writes JavaScript however the entry point was spelt. */
 const { storage } = await import(path.join(out, "storage.js"));
 anyWindow.storage = anyGlobal.window.storage = storage;
 const React = (await import("react")).default;
@@ -902,7 +904,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync(path.resolve("src/ArabicTrainer.jsx"), "utf8");
-    const updates = readFileSync(path.resolve("src/updates.js"), "utf8");
+    const updates = readFileSync(path.resolve("src/updates.ts"), "utf8");
     const watching = updates.slice(updates.indexOf("export function watchForUpdates"));
     const applying = updates.slice(updates.indexOf("export function applyUpdate"));
     check("the page takes the handover itself, without being asked",

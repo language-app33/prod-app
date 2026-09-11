@@ -105,10 +105,6 @@ export function freshStates(types: string[] = TYPES): Record<string, ExerciseSta
 
 /**
  * A permutation, by Fisher–Yates. Never the same array back.
- * @template T
- * @param {T[]} list
- * @param {Clock} [clock]
- * @returns {T[]}
  */
 export function shuffled<T>(list: T[], clock: Clock = REAL_CLOCK): T[] {
   const a = list.slice();
@@ -129,8 +125,7 @@ export function shuffled<T>(list: T[], clock: Clock = REAL_CLOCK): T[] {
  */
 
 export function inOrder<T>(list: T[], rankOf: (x: T) => number, clock: Clock = REAL_CLOCK): T[] {
-  /** @type {Map<number, T[]>} */
-  const byRank = new Map();
+  const byRank = new Map<number, T[]>();
   for (const x of list) {
     const r = rankOf(x);
     byRank.set(r, (byRank.get(r) || []).concat([x]));
@@ -306,8 +301,6 @@ export interface Unit {
  * — a card looked up by an id that has since been withdrawn, most often —
  * and the guard below is what makes that a one-entry list rather than a
  * crash. The tests cover it, so the signature says it.
- * @param {Item | null | undefined} item
- * @returns {{ unit: Form, isSub: boolean }[]}
  */
 export function unitsOf(item: Item | null | undefined): Unit[] {
   const units: Unit[] = [{ unit: item as unknown as Form, isSub: false }];

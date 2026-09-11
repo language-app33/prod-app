@@ -96,7 +96,7 @@ function ChunkFallback() {
   const slow = useSlowWait(true);
   return slow ? <Help>Loading…</Help> : null;
 }
-import * as API from "./courses-api.js";
+import * as API from "./courses-api.ts";
 import {
   DEFAULT_LANGUAGE,
   EX,
@@ -182,7 +182,7 @@ const familyMaturity = (it) => familyMaturityOf(it, (u) => availableTypes(u));
 /** @type {(it: Item) => string} */
 const itemDifficulty = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
-import { applyUpdate, holdUpdates } from "./updates.js";
+import { applyUpdate, holdUpdates } from "./updates.ts";
 import {
   syncClips,
   loadSyncConfig,
@@ -192,7 +192,7 @@ import {
   forgetRemote,
   compactItem,
   mergeData,
-} from "./sync.js";
+} from "./sync.ts";
 
 /* ==================================================================
    Arabic trainer
@@ -1928,7 +1928,7 @@ async function loadData() {
 }
 
 /* Stored sparse: states that have never been answered are left out and
-   put back on load. See compactItem in sync.js for why. */
+   put back on load. See compactItem in sync.ts for why. */
 /** @param {Doc} data */
 async function saveData(data) {
   if (!window.storage) return false;
@@ -3581,7 +3581,7 @@ export default function ArabicTrainer() {
      the unfiltered path. */
   const [deck] = useState(/** @type {any[]} */ ([]));
   const [session, setSession] = useState(/** @type {any | null} */ (null)); // { exercises, practice, items }
-  /* A newly deployed build takes the page over by itself — see updates.js.
+  /* A newly deployed build takes the page over by itself — see updates.ts.
      Mid-question is the one moment where that would land on top of
      something, so a session in flight holds it until the session ends or
      the app is put away. */
@@ -8783,7 +8783,7 @@ function AppVersion() {
   const stale = deployed && deployed.commit !== APP_COMMIT;
 
   /* Reload onto the build that is actually deployed. The waiting for the
-     new worker to take over is in updates.js, with the rest of it: what
+     new worker to take over is in updates.ts, with the rest of it: what
      this button does by hand is what the app now does by itself, and the
      two had drifted into two versions of the same dance. */
   function reload() {

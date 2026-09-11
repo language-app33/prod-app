@@ -146,16 +146,34 @@ read through afterwards — which is the right division of labour: a
 machine for the mechanical half, a person for the seventeen places the
 machine produced something correct and ugly.
 
-**What is left.** `sync`, `storage`, `courses-api`, `updates`,
-`screen-elements`. Then `shared.jsx` and `spaces.jsx`.
-`ArabicTrainer.jsx` last and alone — 9k lines and 404 annotations is not a
-slice of anything.
+Then the rest of the plain modules — `sync`, `storage`, `courses-api`,
+`updates`, `screen-elements` — which are the app's edges rather than its
+middle: what a request looks like, what a document merges to, what a
+recording is stored in. Two of them had a shape written out in a comment
+and nowhere else, and those are now declared: `ClipStore` is the three
+things syncing a recording has to ask of the device it is on, and
+`FlagReport` is the subset of a `Flag` that a learner's report actually
+carries.
+
+That conversion also emptied a dozen inert casts. `/** @type {any} */
+(it).lines` in a `.ts` file suppresses nothing — JSDoc types are ignored
+there — and each one had been standing in for a field that `Item` now
+declares, so they went out with the file they were written for.
+
+**What is left.** `shared.jsx` and `spaces.jsx`. `ArabicTrainer.jsx` last
+and alone — 9k lines and 404 annotations is not a slice of anything.
 
 **A file that moves takes its name with it.** An import names the file it
 means, so every specifier pointing at a converted module changes with it,
 and so does every comment that named one. `dialogs.js` in a sentence about
 cycles is a wrong reference the moment the file is `dialogs.ts`, and prose
 is where a rename rots quietest: nothing fails.
+
+The exception, which a blanket rename gets wrong every time: a path that
+names a *build output* rather than a source file. `tests/smoke.mjs` imports
+`tests/.smoke-build/storage.js`, and it stays `.js` however the entry point
+is spelt, because esbuild writes JavaScript. That one is commented where it
+sits.
 
 **One thing to watch.** Guards keyed by filename rot as files move.
 `tests/language-isolation.test.mjs` listed `scheduler.js` and keyed its

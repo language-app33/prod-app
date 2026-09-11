@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
-import * as API from "./courses-api.js";
+import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 

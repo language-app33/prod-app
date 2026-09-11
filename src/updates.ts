@@ -40,8 +40,7 @@ let waiting = false;
 const GAP_MS = 10000;
 const STAMP = "arabic-trainer:updated-at";
 
-/** @param {string} key */
-function stampOf(key) {
+function stampOf(key: string) {
   try {
     return Number(sessionStorage.getItem(key) || 0);
   } catch (e) {
@@ -49,8 +48,7 @@ function stampOf(key) {
   }
 }
 
-/** @param {string} key */
-function setStamp(key) {
+function setStamp(key: string) {
   try {
     sessionStorage.setItem(key, String(Date.now()));
   } catch (e) {
@@ -72,8 +70,7 @@ function reloadOnce() {
  * Called by the trainer when a session starts and ends. A page nobody is
  * looking at is never in the way, whatever it says.
  */
-/** @param {boolean} on */
-export function holdUpdates(on) {
+export function holdUpdates(on: boolean) {
   held = !!on;
   if (!held && waiting) {
     waiting = false;

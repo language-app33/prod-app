@@ -18,7 +18,7 @@ npm run dev        # Vite alone: the UI only, with no API behind it
 npm run build      # production build into dist/
 npm test           # unit tests, including the server (no browser needed)
 npm run test:smoke # renders the whole app in jsdom against a stubbed server
-npm run typecheck  # types, for the files that have opted in — see Types below
+npm run typecheck  # types: every file, strict — see Types below
 npm run check      # all of it, as CI runs it
 ```
 
@@ -97,7 +97,7 @@ src/
   spaces.jsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
   shared.jsx       the component library both sides use
-  sync.js          merging two devices' documents, and clip sync
+  sync.ts          merging two devices' documents, and clip sync
   index.css        one stylesheet, with the design tokens at the top
 server/
   index.js         the process: routes /api, serves dist/, nothing else
