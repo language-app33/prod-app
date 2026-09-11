@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.70 — 11 September 2026
+
+- Nothing you can see. The modules that decide what a learner is asked —
+  the scheduler, the exercise table's rules, conversations, accepted
+  answers — are written in TypeScript now rather than in JavaScript with
+  types in comments. They were checked before and are checked the same way;
+  what changed is that the types are in the code rather than beside it.
+- It is being done a module at a time from the outside in, with everything
+  green at each step. Seven of twenty-one so far, and the reasoning is in
+  DECISIONS.md.
+- Three real defects fell out of it on the way, all in files nobody was
+  editing: two places passing the wrong shape into the card editor, a test
+  reading a value that is null on the first line of a conversation, and a
+  guard that would have stopped checking a file the moment it was
+  converted.
+
 ## 0.69 — 11 September 2026
 
 - Gender, number and whatever else a language names now belong to an
