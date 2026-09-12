@@ -84,8 +84,11 @@ const madeDecks = [];
 /** @type {Map<string, { etag: string, data: any }>} */
 const remoteDocs = new Map(); // token -> {etag, data}
 const account = { handle: "sara-4f2a", displayName: "Sara", key: "amber-cedar-harbour-lantern-1a2b", admin: false };
+/* Two meanings, in the convention every card uses for them: both are right
+   when the question is what the word means, and one of them is the question
+   when the word is what is being asked for. */
 const card = {
-  id: "k111111111111", owner: "t-1", ar: "كتاب", en: "book", lat: "kitaab", note: "", lang: "ar-PS",
+  id: "k111111111111", owner: "t-1", ar: "كتاب", en: "book / notebook", lat: "kitaab", note: "", lang: "ar-PS",
   number: "singular", gender: "masculine", classifier: "", clips: ["a".repeat(64)],
   subs: [{ ar: "كتب", en: "books", lat: "kutub", number: "plural", gender: "", classifier: "", clips: [] }],
   rev: 2, updated: 1,
@@ -1044,13 +1047,22 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 {
   click(buttonNamed(/^Cards$/));
   await sleep(400);
-  const tile = document.querySelector(".at-cardgrid .at-minicard");
+  const tiles = [...document.querySelectorAll(".at-cardgrid .at-minicard")];
   check("the student's cards are tiles from the library, not a copy of one",
-    !!tile, tile ? tile.className : `no tile — ${document.body.textContent.slice(0, 80).replace(/\s+/g, " ")}`);
+    tiles.length > 0,
+    tiles.length ? tiles[0].className : `no tile — ${document.body.textContent.slice(0, 80).replace(/\s+/g, " ")}`);
+  /* The tile for a known card, found by the word itself rather than by
+     being first in a list nothing here decides the order of — and matched
+     whole, because "كتاب" sits inside "الكتاب كبير" and a substring match
+     reads the phrase's tile as the word's. */
+  const tile = tiles.find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === card.ar);
   const shown = tile ? tile.textContent : "";
   check("a tile says the word, its meaning and when it was added",
-    shown.includes(card.ar) && shown.includes(card.en) && /\d/.test(shown),
-    shown.replace(/\s+/g, " ").trim() || "(no tile)");
+    !!tile &&
+      ((tile.querySelector(".at-minien") || {}).textContent || "").trim() === card.en &&
+      /\d/.test(((tile.querySelector(".at-minimeta") || {}).textContent || "")),
+    shown.replace(/\s+/g, " ").trim() ||
+      tiles.map((t) => (t.textContent || "").replace(/\s+/g, " ").slice(0, 16)).join(" | ") || "(no tile)");
   check("and nothing about decks, forms, recordings or the language",
     !!tile && !tile.querySelector(".at-minidecks, .at-flag") && !/form|♪|Arabic/i.test(shown),
     shown.replace(/\s+/g, " ").trim() || "(no tile)");
@@ -2157,6 +2169,72 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and adds nothing to the day's count",
     JSON.stringify(after.log) === JSON.stringify(before.log),
     `${JSON.stringify(after.log)} vs ${JSON.stringify(before.log)}`);
+}
+
+/* ---- one meaning is one question ----
+   A card may mean two things — "book / notebook" — and both are right when
+   the question is what it means. Asked for the word instead, the meaning is
+   the question, and showing both asked neither: the prompt read as one
+   English phrase with a slash through the middle of it, and a card that
+   means two things gave away more of itself than the question meant to.
+
+   Driven through the teacher's own trial, because that asks one named
+   exercise rather than whichever one a shuffled queue reaches. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+
+  const wordTile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("كتاب"));
+  check("the card that means two things is listed with both of them",
+    !!wordTile && /book\s*\/\s*notebook/.test(wordTile.textContent || ""),
+    wordTile ? (wordTile.textContent || "").replace(/\s+/g, " ").slice(0, 60) : "no tile");
+  click(wordTile);
+  await sleep(450);
+
+  const toScript = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try English →/.test(b.getAttribute("aria-label") || ""));
+  check("writing it from its meaning is one of the exercises offered", !!toScript,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(toScript);
+  await sleep(600);
+
+  const prompt = () =>
+    ((document.querySelector('[data-el="question-prompt"]') || {}).textContent || "").replace(/\s+/g, " ").trim();
+  /* Which of the two it is depends on how often the card has been asked
+     this, and this one has been through a session already — so what is
+     checked is that it is one of them and whole, rather than which. */
+  check("the question shows one meaning, not the pair",
+    ["book", "notebook"].includes(prompt()),
+    `${prompt() || "(no prompt)"} · ${(document.querySelector(".at-instruction") || {}).textContent || ""}`);
+
+  /* And what is accepted is untouched: the answer is the word, and the
+     question narrowing to one meaning does not narrow that. */
+  const scriptInput = document.querySelector('[data-el="answer-input"]');
+  check("with the script asked for in the answer box",
+    !!scriptInput && scriptInput.getAttribute("lang") === "ar-PS",
+    scriptInput ? `lang=${scriptInput.getAttribute("lang")}` : "no answer input");
+  if (scriptInput) {
+    const setter = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor",
+    ).set;
+    must(setter, "the input's value setter").call(scriptInput, card.ar);
+    scriptInput.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(60);
+    click(buttonNamed(/^Check$/));
+    await sleep(300);
+    check("and the word itself is still the answer",
+      /Correct|Good job|Nicely done|Great/.test((document.querySelector('[data-el="verdict"]') || {}).textContent || ""),
+      (document.querySelector('[data-el="verdict"]') || {}).textContent || "(no verdict)");
+    click(buttonNamed(/^Continue$/));
+    await sleep(700);
+  } else {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(500);
+  }
 }
 
 /* ---- a conversation, opened by the teacher who wrote it ----

@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.76 — 12 September 2026
+
+- **Learning · writing a card from its meaning.** A card may mean more than
+  one thing — "office / desk" — and both are still right when the question
+  is what the word means. Asked the other way round, the question now shows
+  one meaning instead of the pair: before this the prompt read as a single
+  English phrase with a slash through the middle of it, and a card that
+  meant two things gave away more of itself than the question meant to.
+- Which one it shows turns over as the card comes round again, the way the
+  phrase a word is shown in does, so a card that means two things is asked
+  from both — one at a time. What the app accepts has not changed: the
+  answer is the word, and every spelling of it still counts.
+
+## 0.75 — 12 September 2026
+
+- Nothing you can see. The comment above the list of exercise types
+  described five conversation exercises "in the order a learner meets
+  them" — reading a line, choosing a reply, writing your own turn,
+  rebuilding the scene, playing a whole part. Three of those were retired
+  releases ago and the list beside it names three, so the comment counted
+  exercises no session can ask. It is gone rather than rewritten: each
+  exercise's own entry already says what it needs and how it is marked.
+
 ## 0.74 — 11 September 2026
 
 - **Teaching · adding cards to a deck.** The deck list now has a New deck

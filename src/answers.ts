@@ -277,6 +277,49 @@ export function answerForTurn(
 }
 
 /*
+ * What a card means, as the meanings it gives.
+ *
+ * The other side of the card keeps the same convention: "office / desk" is
+ * two ways of saying what one word means, and both are accepted when the
+ * question is what it means. They are plain strings rather than Answers —
+ * nothing is declared about an English gloss, and nothing is asked about how
+ * it is pronounced.
+ *
+ * Split only where the app itself joins. The checker is looser and also
+ * splits on a comma, because a card written by hand may separate them that
+ * way; reading a comma as a separator here would cut "close the door,
+ * please" in half and show a learner one clause of a phrase.
+ */
+export function meaningsOf(form: WithAnswers | null | undefined): string[] {
+  return splitAlternatives(field(form, "en")).filter(Boolean);
+}
+
+/*
+ * Which of them the question shows, this time round.
+ *
+ * Asked to write a card from its meaning, a learner is shown one meaning.
+ * Every one of them is still accepted the other way round — asked what the
+ * word means, "office" and "desk" are both right — but a question that
+ * shows both is not asking about either: it reads as one phrase with a
+ * slash in it, and it hands over more of the card than the question meant
+ * to.
+ *
+ * Rotated by how often the exercise has been asked of this form, like
+ * answerForTurn above and for the same reasons: a card that means two
+ * things is asked about both, one at a time, and the meaning on screen does
+ * not change under a re-render.
+ *
+ * "" comes back when the card has no meaning written, which is the one
+ * thing this exercise cannot be asked without (see unmetNeeds) — so the
+ * caller can hand it straight to a prompt without deciding anything.
+ */
+export function meaningForTurn(form: WithAnswers | null | undefined, turn = 0): string {
+  const list = meaningsOf(form);
+  if (!list.length) return "";
+  return list[Math.abs(Math.round(Number(turn) || 0)) % list.length];
+}
+
+/*
  * Which answer the learner actually gave.
  *
  * The answer screen has something to say about the one they wrote — that it
