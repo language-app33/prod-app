@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.77 — 12 September 2026
+
+- **Teaching · one set of controls over every card list.** The Cards tab and
+  an open deck showed the same material through two different screens: the
+  tab could be sorted and narrowed, a deck could do neither, and its cards
+  came in whatever order they arrived. Both now carry the same two rows —
+  New card, the search box and a size button on the first; Select, Sort and
+  Filter on the second — and the same settings, so a deck opened while the
+  list is narrowed opens narrowed the same way.
+- Select is a button with its name on it rather than an unlabelled icon
+  beside the search box, where it read as another way of finding something.
+  Sort and Filter are two buttons rather than one called "Sort and filter",
+  each opening its own panel, and only one is open at a time.
+- **The size button draws the cards bigger** — three steps, each with fewer
+  cards to a row and the word, the meaning and the date all set larger. It
+  is remembered on the device, so the size you work at is the size the next
+  screen opens at.
+- **A new filter: which decks a card is in, or is not in.** Tick any number
+  of decks and see the cards in them, or the cards in none of them — which
+  is how to find what a deck is missing, and what is in no deck at all and
+  so reaches nobody. A mode with nothing ticked narrows nothing.
+
 ## 0.76 — 12 September 2026
 
 - **Learning · writing a card from its meaning.** A card may mean more than

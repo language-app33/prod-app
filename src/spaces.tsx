@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Lang, LangId, User } from "./types.ts";
-import type { Node } from "./shared.tsx";
+import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
  * Whatever is waiting on a yes: the confirmation to show, and what to do
@@ -100,6 +100,7 @@ import {
   dateTime,
   languageName,
   localIdFor,
+  narrowing,
   plural,
   shortDate,
   pullAdmin,
@@ -4868,15 +4869,35 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
   });
 }
 
-export function filterCards(cards: Card[], { audio = "any", forms = "any" }: {
+/*
+ * What a card list leaves out.
+ *
+ * `deckMode` is "in" or "out" against `deckIds`: the cards that are in any
+ * one of the chosen decks, or the cards that are in none of them. Any rather
+ * than all, because that is what picking three decks reads as — show me
+ * these three — and "in all of them at once" is a question nobody asked of a
+ * deck list.
+ *
+ * A mode with no decks chosen narrows nothing. It is the state the filter is
+ * in for as long as it takes to tick the first box, and hiding every card
+ * until then would read as a list that had emptied itself.
+ */
+export function filterCards(cards: Card[], { audio = "any", forms = "any", deckMode = "any", deckIds = [] }: {
   audio?: string;
   forms?: string;
+  deckMode?: string;
+  deckIds?: string[];
 } = {}) {
+  const byDeck = deckIds.length && (deckMode === "in" || deckMode === "out");
   return cards.filter((c) => {
     if (audio === "with" && !cardHasAudio(c)) return false;
     if (audio === "without" && cardHasAudio(c)) return false;
     if (forms === "one" && cardFormCount(c) !== 1) return false;
     if (forms === "several" && cardFormCount(c) < 2) return false;
+    if (byDeck) {
+      const inOne = (c.decks || []).some((id) => deckIds.includes(id));
+      if (deckMode === "in" ? !inOne : inOne) return false;
+    }
     return true;
   });
 }
@@ -5043,13 +5064,151 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
      default, because the card just made is the one most likely wanted. */
   const [sortKey, setSortKey] = useState("changed");
   const [newestFirst, setNewestFirst] = useState(true);
-  const [cardFilter, setCardFilter] = useState({ audio: "any", forms: "any" });
+  const [cardFilter, setCardFilter] = useState({
+    audio: "any",
+    forms: "any",
+    /* Which decks a card is in: "any" until a mode is picked, and narrowing
+       nothing until a deck is ticked. */
+    deckMode: "any",
+    deckIds: [] as string[],
+  });
   /* Narrowed then ordered. ItemList's own search runs after this, over what
      is left, so a search inside a filter behaves the way it reads. */
   const shownCards = useMemo(
     () => sortCards(filterCards(cards, cardFilter), sortKey, newestFirst),
     [cards, cardFilter, sortKey, newestFirst]
   );
+
+  /*
+   * The menus over a list of cards: how to order it, and what to leave out.
+   *
+   * Built once here and handed to both screens that show cards — the Cards
+   * tab and an open deck — because a teacher moving between the two is
+   * looking at the same material through the same controls, and two copies
+   * of this would be two card lists that sort and narrow differently.
+   *
+   * It is one setting for both, too: a deck opened while the list is showing
+   * only cards with recordings opens showing the same, which is what a
+   * filter above a list means everywhere else.
+   */
+  const sortGroups: FilterGroup[] = [
+    {
+      key: "sort",
+      label: "Sort",
+      value: sortKey,
+      onChange: setSortKey,
+      quiet: "changed",
+      options: Object.entries(CARD_SORTS).map(([k, v]) => ({ value: k, label: v.label })),
+    },
+    {
+      key: "dir",
+      label: "Order",
+      value: newestFirst ? "down" : "up",
+      onChange: (v) => setNewestFirst(v === "down"),
+      quiet: "down",
+      /* Named for what they mean rather than which way the arrow points:
+         "most" is newest for a date and the most forms for a count. */
+      options: [
+        { value: "down", label: "Most first" },
+        { value: "up", label: "Least first" },
+      ],
+    },
+  ];
+  const filterGroups: FilterGroup[] = [
+    {
+      key: "audio",
+      label: "Recordings",
+      value: cardFilter.audio,
+      onChange: (v) => setCardFilter((f) => ({ ...f, audio: v })),
+      quiet: "any",
+      options: [
+        { value: "any", label: "Any" },
+        { value: "with", label: "With" },
+        { value: "without", label: "Without" },
+      ],
+    },
+    {
+      key: "forms",
+      label: "Forms",
+      value: cardFilter.forms,
+      onChange: (v) => setCardFilter((f) => ({ ...f, forms: v })),
+      quiet: "any",
+      options: [
+        { value: "any", label: "Any" },
+        { value: "one", label: "One" },
+        { value: "several", label: "Several" },
+      ],
+    },
+    {
+      key: "decks",
+      label: "Decks",
+      /* What the count on the Filter button reads: a mode with no deck
+         ticked narrows nothing, so it is not counted as narrowing. */
+      value: cardFilter.deckMode !== "any" && cardFilter.deckIds.length ? cardFilter.deckMode : "any",
+      quiet: "any",
+      wide: true,
+      /* Not a row of buttons: which decks is a list as long as the decks a
+         teacher has made, and several of them at once. */
+      custom: (
+        <div className="at-deckfilter">
+          <Segmented
+            size={null}
+            label="In or out of the chosen decks"
+            options={[
+              { value: "any", label: "Any deck" },
+              { value: "in", label: "In these" },
+              { value: "out", label: "Not in these" },
+            ]}
+            value={cardFilter.deckMode}
+            onChange={(v) => setCardFilter((f) => ({ ...f, deckMode: v }))}
+          />
+          {cardFilter.deckMode !== "any" && (
+            <>
+              <CheckList
+                options={decks.map((d) => ({
+                  id: d.id,
+                  title: d.title,
+                  note: plural(d.cardCount || 0, "card"),
+                }))}
+                chosen={cardFilter.deckIds}
+                onToggle={(id, on) =>
+                  setCardFilter((f) => ({
+                    ...f,
+                    deckIds: on ? f.deckIds.filter((x) => x !== id) : f.deckIds.concat([id]),
+                  }))
+                }
+                empty="You have no decks yet."
+              />
+              <p className="at-hint">
+                {!cardFilter.deckIds.length
+                  ? "Tick a deck. Until you do, this narrows nothing."
+                  : cardFilter.deckMode === "in"
+                  ? `Cards in ${cardFilter.deckIds.length === 1 ? "that deck" : "any of those decks"}.`
+                  : `Cards in none of ${cardFilter.deckIds.length === 1 ? "that deck" : "those decks"}.`}
+              </p>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+  /* What ItemList draws in its second row, beside Select. */
+  const cardMenus = [
+    {
+      key: "sort",
+      label: "Sort",
+      icon: "sort",
+      busy: narrowing(sortGroups),
+      content: <FilterBar groups={sortGroups} />,
+    },
+    {
+      key: "filter",
+      label: "Filter",
+      icon: "tune",
+      busy: narrowing(filterGroups),
+      content: <FilterBar groups={filterGroups} />,
+    },
+  ];
 
   /* See the note on AdminSpace's run: `done` is the confirmation, and may
      be a function of what the call returned. */
@@ -5350,28 +5509,42 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       setOpenDeck(null);
       return null;
     }
-    const mine = cards.filter((c) => (c.decks || []).includes(d.id));
+    const held = cards.filter((c) => (c.decks || []).includes(d.id));
+    /* The deck's cards, through the same sort and the same filter the Cards
+       tab uses — this screen showed them in whatever order they arrived and
+       offered no way to narrow them at all. */
+    const mine = sortCards(filterCards(held, cardFilter), sortKey, newestFirst);
     return (
       <Screen title={d.title} onBack={() => setOpenDeck(null)}>
             <Notice kind="error">{error}</Notice>
             <Help>
-              {(langOfDeck(d) || {}).name} · {plural(mine.length, "card")}
+              {(langOfDeck(d) || {}).name} · {plural(held.length, "card")}
             </Help>
 
             <Help>
               Tap a card to see it. Tap Select to move or delete several at once.
             </Help>
 
+            {/* The whole deck, whatever the list below is showing: what a
+                deck covers is a fact about the deck, not about the cards a
+                filter has left on screen. */}
             <Section title="In context" className="at-mt5">
-              <ContextReport cards={mine} lang={langOfDeck(d) || LANGUAGES[DEFAULT_LANGUAGE]} />
+              <ContextReport cards={held} lang={langOfDeck(d) || LANGUAGES[DEFAULT_LANGUAGE]} />
             </Section>
 
             <ItemList
               noun="card"
               items={mine}
+              count={mine.length === held.length ? null : `${mine.length} of ${plural(held.length, "card")}`}
+              menus={cardMenus}
+              resizable
               size="small"
               busy={busy}
-              empty="No cards in this deck yet. Make one, or add existing cards from the Cards tab."
+              empty={
+                held.length
+                  ? "No cards in this deck match the filter."
+                  : "No cards in this deck yet. Make one, or add existing cards from the Cards tab."
+              }
               /* A conversation has no word of its own to search for, so
                  its turns are searched too: a teacher looking for a scene
                  remembers a line of it, not the name they gave it. */
@@ -5960,69 +6133,15 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     ? null
                     : `${shownCards.length} of ${plural(cards.length, "card")}`
                 }
-                filters={
-                  <FilterBar
-                    note={
-                      shownCards.length === cards.length
-                        ? null
-                        : `${shownCards.length} of ${cards.length}`
-                    }
-                    groups={[
-                      {
-                        key: "sort",
-                        label: "Sort",
-                        value: sortKey,
-                        onChange: setSortKey,
-                        quiet: "changed",
-                        options: Object.entries(CARD_SORTS).map(([k, v]) => ({
-                          value: k,
-                          label: v.label,
-                        })),
-                      },
-                      {
-                        key: "dir",
-                        label: "Order",
-                        value: newestFirst ? "down" : "up",
-                        onChange: (v) => setNewestFirst(v === "down"),
-                        quiet: "down",
-                        /* Named for what they mean rather than which way the
-                           arrow points: "most" is newest for a date and the
-                           most forms for a count. */
-                        options: [
-                          { value: "down", label: "Most first" },
-                          { value: "up", label: "Least first" },
-                        ],
-                      },
-                      {
-                        key: "audio",
-                        label: "Recordings",
-                        value: cardFilter.audio,
-                        onChange: (v) => setCardFilter((f) => ({ ...f, audio: v })),
-                        quiet: "any",
-                        options: [
-                          { value: "any", label: "Any" },
-                          { value: "with", label: "With" },
-                          { value: "without", label: "Without" },
-                        ],
-                      },
-                      {
-                        key: "forms",
-                        label: "Forms",
-                        value: cardFilter.forms,
-                        onChange: (v) => setCardFilter((f) => ({ ...f, forms: v })),
-                        quiet: "any",
-                        options: [
-                          { value: "any", label: "Any" },
-                          { value: "one", label: "One" },
-                          { value: "several", label: "Several" },
-                        ],
-                      },
-                    ]}
-                  />
-                }
+                menus={cardMenus}
+                resizable
                 size="small"
                 busy={busy}
-                empty="No cards yet. Make one — a card is anything to learn, with its meaning."
+                empty={
+                  cards.length
+                    ? "No cards match the filter."
+                    : "No cards yet. Make one — a card is anything to learn, with its meaning."
+                }
                 match={(c, q) =>
                   (c.ar || "").toLowerCase().includes(q) ||
                   (c.en || "").toLowerCase().includes(q) ||

@@ -151,6 +151,52 @@ test("filtering by recordings and by forms, together", () => {
   assert.deepEqual(ids({ audio: "without", forms: "several" }), ["many"]);
 });
 
+test("filtering by which decks a card is in, and which it is not", () => {
+  /* The filter a teacher reaches for to find what a deck is missing, or
+     what is in no deck at all and so reaches nobody. */
+  const list = [
+    card({ id: "lesson1", decks: ["d1"] }),
+    card({ id: "both", decks: ["d1", "d2"] }),
+    card({ id: "week3", decks: ["d2"] }),
+    card({ id: "loose", decks: [] }),
+    card({ id: "never-in-one" }),
+  ];
+  const ids = (/** @type {Record<string, any>} */ f) =>
+    filterCards(list, f).map((/** @type {any} */ c) => c.id);
+
+  assert.deepEqual(ids({ deckMode: "in", deckIds: ["d1"] }), ["lesson1", "both"]);
+  /* Any of the chosen decks, not all of them: picking three decks reads as
+     "show me these three", and "in all three at once" is a question nobody
+     asks of a deck list. */
+  assert.deepEqual(ids({ deckMode: "in", deckIds: ["d1", "d2"] }), ["lesson1", "both", "week3"]);
+  /* And the other way round is exactly the rest of them. */
+  assert.deepEqual(ids({ deckMode: "out", deckIds: ["d1"] }), ["week3", "loose", "never-in-one"]);
+  assert.deepEqual(ids({ deckMode: "out", deckIds: ["d1", "d2"] }), ["loose", "never-in-one"]);
+  /* A card that has never been in a deck has no list of them at all, which
+     is not the same shape as an empty one and must read the same way. */
+  assert.deepEqual(ids({ deckMode: "in", deckIds: ["d1", "d2", "d3"] }).includes("never-in-one"), false);
+
+  /* A mode with nothing ticked narrows nothing: it is the state the filter
+     is in until the first box is ticked, and emptying the list in the
+     meantime would read as a list that had lost its cards. */
+  assert.deepEqual(ids({ deckMode: "in", deckIds: [] }).length, list.length);
+  assert.deepEqual(ids({ deckMode: "out", deckIds: [] }).length, list.length);
+  /* As does a deck nobody is in, which is what a deck deleted while the
+     filter was on leaves behind. */
+  assert.deepEqual(ids({ deckMode: "in", deckIds: ["gone"] }), []);
+  assert.deepEqual(ids({ deckMode: "out", deckIds: ["gone"] }).length, list.length);
+
+  /* And it narrows alongside the others rather than instead of them. */
+  const heard = [
+    card({ id: "quiet", decks: ["d1"] }),
+    card({ id: "loud", decks: ["d1"], clips: ["a"] }),
+  ];
+  assert.deepEqual(
+    filterCards(heard, { deckMode: "in", deckIds: ["d1"], audio: "with" }).map((/** @type {any} */ c) => c.id),
+    ["loud"]
+  );
+});
+
 test("every order offered has a label and a way to read a card", () => {
   /* The picker is built from this table, so an entry missing either would
      render a blank button that sorts by undefined. */

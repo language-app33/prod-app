@@ -67,6 +67,11 @@ const ICONS: Record<string, string> = {
     "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z",
   tune:
     "M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z",
+  /* Ordering a list, and how big to draw it. `tune` beside them is what
+     narrowing one looks like, so the three buttons over a card list read as
+     three different jobs rather than three shades of the same one. */
+  sort: "M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z",
+  size: "M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z",
   check: "M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z",
   back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
   save:
@@ -1097,77 +1102,123 @@ export function ClipList({ clips, onChange, load }: {
 const PAGE_SIZE = 120;
 
 /*
- * A row of pickers over a list: how to order it, and what to leave out.
+ * How big the tiles in a grid are drawn.
  *
- * Shut until it is asked for. Four groups of buttons standing permanently
- * above a card grid is four rows of chrome before the first card, which is
- * a heavy price for controls most visits do not touch — so the list looks
- * exactly as it did until the button is pressed, and the button says how
- * many groups are away from their default so a narrowed list is never a
- * mystery.
+ * Three steps rather than a slider: the useful range is "as many as fit" to
+ * "readable across the room", and a slider over that invites fiddling with a
+ * number nobody wants to choose. The scale drives the grid's own column
+ * width as well as the type inside a tile, so a bigger card is a bigger
+ * card — fewer to a row, each with its word set larger — rather than the
+ * same tile with the words spilling out of it.
+ */
+const TILE_SIZES = [
+  { name: "Small", scale: 1 },
+  { name: "Medium", scale: 1.35 },
+  { name: "Large", scale: 1.75 },
+];
+
+/* Kept on the device rather than in the synced settings: how big a teacher
+   wants the cards is about this screen and these eyes, not about the
+   material, and settings sync whole — a write here would hand this
+   device's theme and keyboard to every other one. */
+const TILE_KEY = "arabic-trainer-tile-size";
+function loadTileSize() {
+  try {
+    const at = Number(localStorage.getItem(TILE_KEY));
+    return at >= 0 && at < TILE_SIZES.length ? at : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+function saveTileSize(at: number) {
+  try {
+    localStorage.setItem(TILE_KEY, String(at));
+  } catch (e) {
+    /* private browsing; it lasts as long as the app is open */
+  }
+}
+
+/*
+ * One group of a menu over a list: a label, and a way to set one thing.
+ *
+ * `quiet` is the value that counts as not narrowing, which is how the button
+ * that opens the menu comes to carry a count. `custom` is for the one filter
+ * a row of buttons cannot say — which decks a card is in, of every deck
+ * there is — and is drawn under the label in place of them.
+ */
+export interface FilterGroup {
+  key?: string;
+  label?: string;
+  value?: string;
+  /** The value that counts as "not narrowing". */
+  quiet?: string;
+  onChange?: (value: string) => void;
+  /** Segmented's own options. */
+  options?: { value: string; label?: Node; note?: Node }[];
+  /** Drawn instead of the buttons, where the choices are not a few. */
+  custom?: Node;
+  /** A line of its own, for a group too wide to share one. */
+  wide?: boolean;
+}
+
+/* The groups with something to offer. A single option is not a choice, and a
+   group nobody filled in is not a group. */
+const liveGroups = (groups?: FilterGroup[]): FilterGroup[] =>
+  (groups || []).filter((g) => g && (g.custom || (g.options && g.options.length > 1)));
+
+/*
+ * How many of a menu's settings are away from their default.
+ *
+ * The count on the button that opens it, so a list narrowed by something
+ * out of sight is never a mystery. Exported because the button and the
+ * panel are now two different places — ItemList draws the first and
+ * FilterBar the second — and both have to agree about what "narrowed"
+ * means.
+ */
+export function narrowing(groups?: FilterGroup[]): number {
+  return liveGroups(groups).filter((g) => g.quiet !== undefined && g.value !== g.quiet).length;
+}
+
+/*
+ * A panel of pickers over a list: how to order it, or what to leave out.
+ *
+ * The panel, not the button that opens it. It used to be both, which was
+ * right while there was one of them; now a card list carries Sort and Filter
+ * as two buttons that open onto two of these, and only one at a time — so
+ * the disclosure belongs to ItemList, which draws the row they sit in and is
+ * the only thing that can know which of them is open.
  *
  * Built from Segmented rather than a new control, because picking one of a
- * few is a thing this app already does one way. It goes in ItemList's
- * `filters` slot, so a list that wants it gains a line under the search box
- * and nothing else moves.
- *
- * How to order a list, and what to leave out of it. `quiet` is only read
- * to decide whether to flag the button with a count.
+ * few is a thing this app already does one way.
  */
-export function FilterBar({ groups, note, label = "Sort and filter" }: {
-  groups?: {
-    key?: string;
-    label?: string;
-    value?: string;
-    /** The value that counts as "not narrowing". */
-    quiet?: string;
-    onChange: (value: string) => void;
-    /** Segmented's own options. */
-    options?: { value: string; label?: Node; note?: Node }[];
-  }[];
+export function FilterBar({ groups, note }: {
+  groups?: FilterGroup[];
   note?: Node;
-  label?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const live = (groups || []).filter((g) => g && g.options && g.options.length > 1);
+  const live = liveGroups(groups);
   if (!live.length) return null;
-  const busy = live.filter((g) => g.quiet !== undefined && g.value !== g.quiet).length;
 
   return (
-    <div className="at-filterwrap">
-      <button
-        className={`at-btn sm ghost at-filterbtn${busy ? " on" : ""}`}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <Icon name="tune" size={16} />
-        {label}
-        {busy ? <span className="at-filtercount">{busy}</span> : null}
-        <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
-      </button>
-      {note && !open ? <span className="at-filternote">{note}</span> : null}
-
-      {open && (
-        <div className="at-filterbar">
-          {live.map((g) => (
-            <div className="at-filtergroup" key={g.key}>
-              <span className="at-filterlabel">{g.label}</span>
-              {/* Full width: a filter group is a narrow column, and some of
-                  these option sets are long — "Least first", "Recordings".
-                  Compact would take the width the labels want and hang off
-                  the side of the bar. */}
-              <Segmented
-                options={g.options || []}
-                value={g.value}
-                onChange={g.onChange}
-                label={g.label}
-                size={null}
-              />
-            </div>
-          ))}
-          {note ? <span className="at-filternote">{note}</span> : null}
+    <div className="at-filterbar">
+      {live.map((g) => (
+        <div className={`at-filtergroup${g.wide ? " wide" : ""}`} key={g.key}>
+          <span className="at-filterlabel">{g.label}</span>
+          {/* Full width: a filter group is a narrow column, and some of
+              these option sets are long — "Least first", "Recordings".
+              Compact would take the width the labels want and hang off
+              the side of the bar. */}
+          {g.custom || (
+            <Segmented
+              options={g.options || []}
+              value={g.value}
+              onChange={g.onChange || (() => {})}
+              label={g.label}
+              size={null}
+            />
+          )}
         </div>
-      )}
+      ))}
+      {note ? <span className="at-filternote">{note}</span> : null}
     </div>
   );
 }
@@ -1264,12 +1315,14 @@ export function ItemList<T>({
   noun,
   plural,
   tools,
+  menus,
   filters,
   count,
   items,
   itemKey = (it) => (it as any).id,
   match,
   size = "large",
+  resizable,
   onNew,
   renderItem,
   selected,
@@ -1285,12 +1338,23 @@ export function ItemList<T>({
   plural?: string;
   /** Controls in the toolbar itself;
   right of the search box. */ tools?: Node;
+  /**
+   * The menus in the second row, beside Select — Sort and Filter on a card
+   * list. Each is a button that opens its `content` in a panel under the
+   * row, and one is open at a time: two panels at once is two answers to
+   * "why is this list short". `busy` is how many of its settings are away
+   * from their default, which the button carries as a count — `narrowing`
+   * counts a FilterBar's groups for it.
+   */
+  menus?: { key: string; label: string; icon?: string; busy?: number; content?: Node }[];
   /** Controls under the toolbar — tag pickers and the like. */ filters?: Node;
   /** An override for the "n of m" line. */ count?: Node;
   items: T[];
   itemKey?: (item: T) => string;
   match?: (item: T, lowercasedQuery: string) => boolean;
   size?: "large" | "small";
+  /** Whether the tiles can be drawn bigger. Only a grid of them can. */
+  resizable?: boolean;
   onNew?: () => void;
   renderItem: (item: T, state: { selecting: boolean; selected: boolean }) => Node;
   selected?: Set<string>;
@@ -1304,6 +1368,11 @@ export function ItemList<T>({
   /* How many tiles are on the page. A long list is shown a page at a time:
      every tile rendered at once is what made a big course slow to open. */
   const [limit, setLimit] = useState(PAGE_SIZE);
+  /* Which menu is open, by key. One at a time, and "" for none. */
+  const [openMenu, setOpenMenu] = useState("");
+  /* How big the tiles are. Read from the device at the first render, so the
+     size the last screen was left at is the size this one opens at. */
+  const [tile, setTile] = useState(loadTileSize);
 
   /* match is nearly always an inline arrow, so depending on it directly
      would throw the filtered list away on every render of the parent. */
@@ -1325,6 +1394,16 @@ export function ItemList<T>({
   /* Nothing to select means no toggle: an empty list should not offer a mode
      that cannot do anything. */
   const canSelect = !!(onSelectedChange && bulkActions && bulkActions.length && items.length);
+
+  /* A menu with nothing in it is a button that opens onto nothing. */
+  const live = (menus || []).filter((m) => m && m.key && m.content);
+  const shownMenu = live.find((m) => m.key === openMenu) || null;
+  /* What the size button says. The size it is at, and the one it goes to
+     next — an icon that cycles owes the reader both, and "Card size: Medium"
+     alone leaves a person pressing it to find out. */
+  const at = TILE_SIZES[tile] || TILE_SIZES[0];
+  const then = TILE_SIZES[(tile + 1) % TILE_SIZES.length];
+  const sizeLabel = `Card size: ${at.name} — press for ${then.name.toLowerCase()}`;
 
   const stopSelecting = () => {
     setSelecting(false);
@@ -1401,21 +1480,59 @@ export function ItemList<T>({
           />
         )}
         {/* Beside the search box, because narrowing by hand and narrowing by
-            typing are the same job. Before the select toggle, which is not a
-            filter and belongs at the end of the row. */}
+            typing are the same job. */}
         {tools}
-        {canSelect && (
+        {/* And at the far end, how big to draw them — which is about
+            reading the list rather than about what is in it, so it stands
+            apart from the row below that decides that. */}
+        {resizable && items.length > 0 && (
           <button
-            className={`at-icon at-selectbtn${selecting ? " on" : ""}`}
-            title={selecting ? "Done selecting" : "Select several"}
-            aria-label={selecting ? "Done selecting" : "Select several"}
-            aria-pressed={selecting}
-            onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+            className="at-icon at-sizebtn"
+            title={sizeLabel}
+            aria-label={sizeLabel}
+            onClick={() => {
+              const next = (tile + 1) % TILE_SIZES.length;
+              setTile(next);
+              saveTileSize(next);
+            }}
           >
-            <Icon name={selecting ? "close" : "select"} />
+            <Icon name="size" />
           </button>
         )}
       </div>
+
+      {/* Select, and the menus that order and narrow the list — one row,
+          under the one that searches it. Select is not a filter and comes
+          first; the menus are in the order they are given. */}
+      {(canSelect || live.length > 0) && (
+        <div className="at-toolbar at-toolbar-sub">
+          {canSelect && (
+            <button
+              className={`at-btn sm ghost at-selectbtn${selecting ? " on" : ""}`}
+              aria-pressed={selecting}
+              onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+            >
+              <Icon name={selecting ? "close" : "select"} size={16} />
+              {selecting ? "Done" : "Select"}
+            </button>
+          )}
+          {live.map((m) => (
+            <button
+              key={m.key}
+              className={`at-btn sm ghost at-menubtn${m.busy ? " on" : ""}`}
+              aria-expanded={openMenu === m.key}
+              onClick={() => setOpenMenu((v) => (v === m.key ? "" : m.key))}
+            >
+              <Icon name={m.icon || "tune"} size={16} />
+              {m.label}
+              {m.busy ? <span className="at-filtercount">{m.busy}</span> : null}
+              <Icon name={openMenu === m.key ? "chevronUp" : "chevronDown"} size={16} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {shownMenu ? <div className="at-listmenu">{shownMenu.content}</div> : null}
 
       {filters}
 
@@ -1442,7 +1559,12 @@ export function ItemList<T>({
         </div>
       )}
 
-      <div className={size === "small" ? "at-cardgrid" : "at-decklist2"}>
+      {/* The scale rides on the grid rather than on each tile: the columns
+          are as much of "bigger cards" as the type inside them is. */}
+      <div
+        className={size === "small" ? "at-cardgrid" : "at-decklist2"}
+        style={resizable && at.scale !== 1 ? ({ "--tile": String(at.scale) } as React.CSSProperties) : undefined}
+      >
         {page.map((it) => {
           const id = itemKey(it);
           const on = picked.has(id);

@@ -2499,6 +2499,167 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(300);
 }
 
+/* ---- one set of controls over every card list ----
+   The Cards tab and an open deck show the same material and were two
+   different screens about it: the tab could be sorted and narrowed, the deck
+   could do neither, and Select was an unlabelled icon up in the search row.
+   Both now carry the same two rows — New card, search and the size button,
+   then Select, Sort and Filter — and the same settings, so a deck opened
+   while the list is narrowed opens narrowed the same way. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  /* The last one in the document: the learner's nav is still behind this. */
+  const tabNamed = (/** @type {RegExp} */ re) =>
+    [...frame.querySelectorAll("button")].filter((b) => re.test((b.textContent || "").trim())).pop();
+  const rows = () => [...frame.querySelectorAll(".at-toolbar")];
+  const subRow = () => frame.querySelector(".at-toolbar-sub");
+  /* The label a button carries, without the count riding inside it: a
+     narrowed Filter reads "Filter1" to textContent, and what is being
+     checked here is the order of the three. */
+  const named = (/** @type {Element | null} */ row) =>
+    row
+      ? [...row.querySelectorAll("button")].map((b) =>
+          [...b.childNodes]
+            .filter((n) => !(n.nodeType === 1 && /** @type {any} */ (n).classList.contains("at-filtercount")))
+            .map((n) => n.textContent || "")
+            .join("")
+            .trim()
+        )
+      : [];
+  const menuBtn = (/** @type {RegExp} */ re) =>
+    /** @type {any} */ (
+      [...frame.querySelectorAll(".at-menubtn")].find((b) => re.test((b.textContent || "").trim())) || {}
+    );
+  const tiles = () => frame.querySelectorAll(".at-cardgrid .at-minicard").length;
+  /* Whatever this finds, it is a DOM node or nothing — the walk asks it for
+     attributes and styles, which is what the cast is for. */
+  const one = (/** @type {string} */ sel, /** @type {any} */ root) =>
+    /** @type {any} */ ((root || document).querySelector(sel) || null);
+
+  click(tabNamed(/^Cards$/));
+  await sleep(500);
+
+  check("a card list's controls are two rows, not one",
+    rows().length === 2, `${rows().length} rows`);
+  const top = /** @type {any} */ (rows()[0]);
+  check("the first row is New card, the search box and the size button",
+    !!top && /New card/.test(top.textContent || "") &&
+      !!top.querySelector("input.at-search") && !!top.querySelector(".at-sizebtn"),
+    top ? (top.textContent || "").replace(/\s+/g, " ").trim() + ` · ${top.querySelectorAll("input, button").length} controls` : "no row");
+  const sizeName = () => {
+    const btn = one(".at-sizebtn", null);
+    return btn ? btn.getAttribute("aria-label") || "" : "(no size button)";
+  };
+  check("and the size button says which size it is at and what pressing it does",
+    /^Card size: Small — press for medium$/.test(sizeName()), sizeName());
+  check("the second row is Select, Sort and Filter, in that order",
+    named(subRow()).join(" | ") === "Select | Sort | Filter",
+    named(subRow()).join(" | ") || "(no second row)");
+
+  /* Each menu opens onto its own panel, and only one is open: two panels at
+     once is two answers to "why is this list short". */
+  click(menuBtn(/^Sort/));
+  await sleep(200);
+  const sortLabels = () =>
+    [...frame.querySelectorAll(".at-listmenu .at-filterlabel")].map((s) => (s.textContent || "").trim());
+  check("Sort opens onto how to order the list, and nothing else",
+    sortLabels().join(" | ") === "Sort | Order", sortLabels().join(" | ") || "(nothing open)");
+  click(menuBtn(/^Filter/));
+  await sleep(200);
+  check("and Filter replaces it rather than standing beside it",
+    frame.querySelectorAll(".at-listmenu").length === 1 &&
+      sortLabels().join(" | ") === "Recordings | Forms | Decks",
+    `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
+
+  /* ---- the deck filter ----
+     Which decks a card is in, or is not in. A mode with nothing ticked
+     narrows nothing: it is the state the filter is in until the first box is
+     ticked, and emptying the list in the meantime would read as a list that
+     had lost its cards. */
+  const all = tiles();
+  check("every card is listed before the filter is used", all >= 3, `${all} tiles`);
+  const deckMode = (/** @type {RegExp} */ re) =>
+    [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
+      .find((b) => re.test((b.textContent || "").trim()));
+  check("the filter offers in, not in, or any deck at all",
+    [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
+      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any deck | In these | Not in these",
+    [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
+      .map((b) => (b.textContent || "").trim()).join(" | ") || "(no deck filter)");
+  click(deckMode(/^Not in these$/));
+  await sleep(200);
+  check("picking a mode with no deck ticked leaves the list alone",
+    tiles() === all, `${tiles()} of ${all} still listed`);
+  const lesson1 = /** @type {any} */ (
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow")].find((r) => /Lesson 1/.test(r.textContent || ""))
+  );
+  check("and the decks are there to tick, with how many cards each holds",
+    !!lesson1 && /card/.test(lesson1.textContent || ""),
+    lesson1 ? (lesson1.textContent || "").replace(/\s+/g, " ").trim() : "no decks listed");
+  click(lesson1 && lesson1.querySelector("input"));
+  await sleep(250);
+  const outside = tiles();
+  check("ticking one shows the cards that are in no deck of that name",
+    outside > 0 && outside < all, `${outside} of ${all}`);
+  check("and the Filter button says the list is narrowed",
+    /1/.test(menuBtn(/^Filter/).textContent || "") &&
+      !!menuBtn(/^Filter/).classList &&
+      menuBtn(/^Filter/).classList.contains("on"),
+    menuBtn(/^Filter/).textContent || "(no filter button)");
+  /* The other way round shows exactly the rest of them: "in" and "not in"
+     are two halves of the same cut. */
+  click(deckMode(/^In these$/));
+  await sleep(250);
+  check("the other way round shows the rest, and the two make the whole",
+    tiles() === all - outside, `${tiles()} in, ${outside} out, ${all} in total`);
+
+  /* ---- and the same controls over one deck ----
+     Including the filter still in force, which is the point of one setting
+     for both. */
+  click(tabNamed(/^Decks$/));
+  await sleep(500);
+  const deckTile = [...frame.querySelectorAll(".at-deckcard, .at-minicard, .at-tile")]
+    .find((t) => /Lesson 1/.test(t.textContent || ""));
+  check("the teacher's decks are there to open", !!deckTile,
+    [...frame.querySelectorAll(".at-deckcard, .at-minicard, .at-tile")]
+      .map((t) => (t.textContent || "").slice(0, 14)).join(" | ") || "no decks");
+  click(deckTile);
+  await sleep(500);
+  check("an open deck carries the same two rows",
+    [...document.querySelectorAll(".at-toolbar")].length >= 2 &&
+      named(document.querySelector(".at-toolbar-sub")).join(" | ") === "Select | Sort | Filter",
+    named(document.querySelector(".at-toolbar-sub")).join(" | ") || "(no second row)");
+  check("and the same filter, still in force",
+    !!document.querySelector(".at-menubtn.on"),
+    [...document.querySelectorAll(".at-menubtn")].map((b) => (b.textContent || "").trim()).join(" | "));
+
+  /* Bigger cards: fewer to a row, each with its words set larger. The grid
+     carries the scale, so one variable moves both. */
+  const scale = () => {
+    const g = one(".at-cardgrid", null);
+    return g ? g.style.getPropertyValue("--tile") : "";
+  };
+  const sizeBtn = () => one(".at-sizebtn", null);
+  check("the tiles start at the size they have always been", !scale(), scale() || "(no scale set)");
+  click(sizeBtn());
+  await sleep(200);
+  check("pressing the size button draws them bigger", Number(scale()) > 1, scale() || "(no scale set)");
+  check("and the button now offers the next size up",
+    /Medium — press for large/.test(sizeName()), sizeName());
+  /* Kept on the device: a teacher who wants big cards wants them on the next
+     screen too, and on the next visit. */
+  check("the size is remembered on the device, not in the document",
+    localStorage.getItem("arabic-trainer-tile-size") === "1",
+    String(localStorage.getItem("arabic-trainer-tile-size")));
+  click(sizeBtn());
+  await sleep(150);
+  click(sizeBtn());
+  await sleep(150);
+  check("and it comes back round to where it started rather than running out",
+    !scale() && localStorage.getItem("arabic-trainer-tile-size") === "0",
+    `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
+}
+
 console.error = origError;
 console.log(results.join("\n"));
 console.log("\nrequests:", calls.join("\n          "));

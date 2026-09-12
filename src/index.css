@@ -417,7 +417,7 @@ button {
    what it means, and when it was added. Tight at the top and between the
    two lines, because the gap between a word and its meaning was doing the
    work of separating them from each other rather than from the card. */
-.at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r); padding:8px 10px; color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:1px; height:100%; }
+.at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r); padding:calc(8px * var(--tile, 1)) calc(10px * var(--tile, 1)); color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:1px; height:100%; }
 .at-minicard.on { border-color: var(--jade); background: var(--tag-bg); }
 /* Two lines at most, then an ellipsis — not one. A tile a third of a
    phone wide cuts nearly every phrase off after a word or two, and "افتح
@@ -426,7 +426,7 @@ button {
 .at-minicard .ar { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
   line-clamp:2; font-family: var(--sfont); font-weight:700;
   direction: var(--sdir); unicode-bidi:isolate; overflow:hidden; word-break:break-word; }
-.at-minicard .en { display:block; font-size:12px; font-weight:600; color: var(--muted);
+.at-minicard .en { display:block; font-size:calc(12px * var(--tile, 1)); font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .at-lengthgroup { margin-bottom:14px; }
 .at-lengthor { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.1em;
@@ -537,10 +537,14 @@ button {
 /* The outline without the fill, matching .at-btn.ghost — for an icon button
    standing in a row beside ghost buttons. */
 .at-icon.ghost { background: transparent; }
-/* Select sits with the search field, not on its own row. */
-.at-toolbar .at-selectbtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
+/* Select is a named button in the row under the search field, beside the
+   menus that order and narrow the list — it was an unlabelled icon up in
+   the search row, where it read as another way of finding something. */
+.at-toolbar-sub .at-selectbtn.on { border-color: var(--accent); color: var(--accent); }
+/* How big to draw the tiles: an icon at the far end of the search row,
+   sized like the field beside it so the row keeps one height. */
+.at-toolbar .at-sizebtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
   padding:0; box-sizing:border-box; }
-.at-toolbar .at-selectbtn.on { border-color: var(--accent); color: var(--accent); }
 /* The bulk tray: what it is on the left, how many on the right. */
 .at-bulkhead2 { display:flex; align-items:baseline; justify-content:space-between;
   gap:12px; width:100%; margin-bottom:8px; }
@@ -595,6 +599,17 @@ button {
 .at-toolbar .at-btn { flex:0 0 auto; padding:0 16px; white-space:nowrap; font-weight:700; }
 .at-toolbar .at-btn:active:not(:disabled) { transform:none; }
 .at-toolbar .at-search { flex:1 1 0; min-width:0; padding:0 12px; }
+/* The second row: Select, then the menus. Three named buttons is more than a
+   narrow phone has room for on one line, so this row wraps where the row
+   above it must not — a search field that wrapped under its own New button
+   would be a field a thumb's width from nothing. */
+.at-toolbar-sub { flex-wrap:wrap; }
+.at-toolbar-sub .at-btn { padding:0 12px; }
+/* Whichever menu is open, under the row and across it. In the flow rather
+   than floating: it is as tall as its groups need and pushing the list down
+   is honest — a panel hanging over the first row of cards hides the thing
+   being narrowed. */
+.at-listmenu { margin:0 0 12px; }
 /* Room between the line explaining a tab and the controls under it. */
 .at-toolbar-top { margin-top:16px; }
 /* A boxed section inside a full-screen view, so a course reads as three
@@ -743,8 +758,13 @@ button {
    fits three plus their gaps at 360px wide, which is the narrowest phone
    worth designing for; a 320px screen gets two, which is the "very small"
    exception rather than the rule. */
+/* --tile is how big the list is asking for its tiles to be drawn, set on the
+   grid by the size button in the toolbar and 1 when nobody has asked. It
+   scales the column width and the type inside a tile together: a bigger card
+   is fewer to a row with its words set larger, not the same tile with the
+   words spilling out of it. */
 .at-cardgrid { display:grid; gap:8px; margin-top:4px;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(calc(100px * var(--tile, 1)), 1fr));
   align-items:stretch; }
 .at-cardgrid > * { display:flex; }
 .at-cardgrid > * > .at-minicard { flex:1; }
@@ -755,19 +775,19 @@ button {
    empty bands. The grid makes the tiles in a row match; nothing else has
    to. */
 .at-minien { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
-  line-clamp:2; font-size:12px; font-weight:600; color: var(--muted);
+  line-clamp:2; font-size:calc(12px * var(--tile, 1)); font-weight:600; color: var(--muted);
   overflow:hidden; word-break:break-word; }
 /* What kind of card it is, where that is not obvious from the face. Above
    the words rather than below them: it is how to read what follows, not a
    note about it. */
-.at-minikind { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.07em;
+.at-minikind { font-family: var(--ui); font-size:calc(10px * var(--tile, 1)); font-weight:800; letter-spacing:.07em;
   text-transform:uppercase; color: var(--faint); line-height:1.4; }
-.at-minimeta { font-size:11px; color: var(--faint); line-height:1.4; margin-top:auto;
+.at-minimeta { font-size:calc(11px * var(--tile, 1)); color: var(--faint); line-height:1.4; margin-top:auto;
   padding-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.at-minilat { font-size:11px; color: var(--muted); }
+.at-minilat { font-size:calc(11px * var(--tile, 1)); color: var(--muted); }
 .at-minidecks .at-flag { font-size:11px; }
 .at-minicard.picked { border-color: var(--accent); }
-.at-minicard .ar { font-size:calc(18px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
+.at-minicard .ar { font-size:calc(18px * var(--sscale, 1) * var(--tile, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
 /* Room for the descenders the clamp would otherwise shave off an Arabic
    line — the box crops to the line height, which sits above the tail of a
    ب or a ج. */
@@ -1118,11 +1138,10 @@ button {
 .at-ctxmeaning { font-family: var(--ui); font-size:17px; font-weight:700; color: var(--text-soft);
   margin:6px 0 0; text-align:center; }
 .at-answeralso .at-ctxmeaning { font-size:14px; font-weight:600; color: var(--muted); margin-top:2px; }
-/* Ordering and narrowing a list, under its search box. Shut by default, so
-   the list looks as it did; open, the groups wrap rather than scroll, and
-   each stays whole on a phone. */
-.at-filterwrap { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 12px; }
-.at-filterbtn.on { border-color: var(--brass); color: var(--brass); }
+/* What a Sort or Filter button opens onto: the groups, wrapping rather than
+   scrolling, each staying whole on a phone. The button that opens it lives
+   in the toolbar row above and is styled with it. */
+.at-menubtn.on { border-color: var(--brass); color: var(--brass); }
 .at-filtercount { display:inline-flex; align-items:center; justify-content:center;
   min-width:17px; height:17px; padding:0 4px; border-radius:999px;
   background: var(--brass); color: var(--onbrass); font-size:10px; font-weight:800; }
@@ -1137,6 +1156,16 @@ button {
    the bar wraps the groups. */
 .at-filtergroup { display:flex; flex-direction:column; align-items:stretch; gap:6px;
   flex:1 1 150px; min-width:0; }
+/* A group with a list in it rather than a few buttons — which decks a card
+   is in — takes the bar's whole width: shared with three others it would be
+   a column of ticks two words wide. */
+.at-filtergroup.wide { flex:1 1 100%; }
+/* In or out, then which decks. The list is capped and scrolls: every deck a
+   teacher has ever made can be in here, and a filter panel taller than the
+   screen puts the cards it is narrowing out of sight. */
+.at-deckfilter { display:flex; flex-direction:column; gap:8px; }
+.at-deckfilter .at-ticklist { max-height:40vh; overflow-y:auto; }
+.at-deckfilter .at-hint { margin:0; }
 .at-filterlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 .at-filternote { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
