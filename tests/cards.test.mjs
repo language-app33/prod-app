@@ -28,7 +28,7 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, CARD_SORTS } =
+const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, fillsInUse, CARD_SORTS } =
   await import(path.join(out, "spaces.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -195,6 +195,62 @@ test("filtering by which decks a card is in, and which it is not", () => {
     filterCards(heard, { deckMode: "in", deckIds: ["d1"], audio: "with" }).map((/** @type {any} */ c) => c.id),
     ["loud"]
   );
+});
+
+test("filtering by whether a card fills a variable, and which one", () => {
+  /* A teacher who has written forty names wants two things of this list: the
+     names, to check them, and everything that is not a name, to get their
+     material back. */
+  const list = [
+    card({ id: "frame", ar: "ismi {{name}}", en: "My name is {{name}}" }),
+    card({ id: "rafa", en: "Raphael", fills: "name", drill: false }),
+    card({ id: "viktor", en: "Victor", fills: "name", drill: false }),
+    card({ id: "blue", en: "blue", fills: "colour", drill: false }),
+    card({ id: "house", en: "house" }),
+  ];
+  const ids = (/** @type {Record<string, any>} */ f) =>
+    filterCards(list, f).map((/** @type {any} */ c) => c.id);
+
+  assert.deepEqual(ids({ fillsMode: "yes" }), ["rafa", "viktor", "blue"], "every value");
+  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["name"] }), ["rafa", "viktor"]);
+  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["colour"] }), ["blue"]);
+  /* Several variables read as "show me these", the way several decks do. */
+  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["name", "colour"] }), ["rafa", "viktor", "blue"]);
+  /* A variable nothing fills any more — a name left ticked while the last
+     card filling it was deleted — empties the list rather than ignoring the
+     tick, which is the honest answer to what was asked. */
+  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["gone"] }), []);
+
+  /* And the other way: the frame is not a value, so it stays. */
+  assert.deepEqual(ids({ fillsMode: "no" }), ["frame", "house"]);
+  /* The names do not narrow "no" — the list is not offered there, and a
+     stale one must not quietly change what it means. */
+  assert.deepEqual(ids({ fillsMode: "no", fillsNames: ["name"] }), ["frame", "house"]);
+  assert.deepEqual(ids({ fillsMode: "any" }).length, list.length);
+  assert.deepEqual(ids({}).length, list.length);
+
+  /* And it narrows alongside the others rather than instead of them. */
+  assert.deepEqual(
+    filterCards(list, { fillsMode: "yes", forms: "one" }).map((/** @type {any} */ c) => c.id),
+    ["rafa", "viktor", "blue"]
+  );
+});
+
+test("the variables on offer are read off the cards that fill them", () => {
+  /* The filter's list. A variable exists because some card says it fills
+     one; a list kept beside them would be a second place to be wrong. */
+  const list = [
+    card({ id: "a", fills: "name" }),
+    card({ id: "b", fills: "NAME" }),
+    card({ id: "c", fills: "colour" }),
+    card({ id: "d" }),
+  ];
+  assert.deepEqual(fillsInUse(list), [
+    { name: "colour", count: 1 },
+    /* Folded and counted together: {{Name}} and {{name}} are one hole. */
+    { name: "name", count: 2 },
+  ]);
+  assert.deepEqual(fillsInUse([]), []);
 });
 
 test("every order offered has a label and a way to read a card", () => {

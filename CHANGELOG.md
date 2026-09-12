@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.83 — 12 September 2026
+
+- **Teaching · a filter for the values.** Cards → Filter now has a
+  **Variables** group: *Any card*, *Fills one*, or *Fills none*. Pick "fills
+  one" and the variables your cards stand in for are listed — `{{name}}`,
+  `{{colour}}` — with how many cards fill each, to tick as many as you want.
+- It is the filter for both halves of the job. Forty names make a card list
+  hard to read, so "fills none" gives you back the material a student is
+  actually asked about; "fills one" with `{{name}}` ticked is every name you
+  have written, in one screen, to check them over.
+- The variables in the list are read off the cards themselves, so one
+  appears the moment a card says it fills it and goes when the last card
+  filling it does.
+
 ## 0.82 — 12 September 2026
 
 - **Match the pairs reads across rather than down.** The words in the

@@ -2903,16 +2903,56 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks",
+      sortLabels().join(" | ") === "Recordings | Forms | Decks | Variables",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
+
+  /* ---- and by whether a card is a value ----
+     A teacher who has written forty names wants two things of this list: the
+     names, to check them, and everything that is not a name, to get their
+     material back. */
+  const all = tiles();
+  check("every card is listed before either filter is used", all >= 3, `${all} tiles`);
+  const fillsMode = (/** @type {RegExp} */ re) =>
+    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
+      .find((b) => re.test((b.textContent || "").trim()));
+  check("the filter asks whether a card fills a variable, or none",
+    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
+      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any card | Fills one | Fills none",
+    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
+      .map((b) => (b.textContent || "").trim()).join(" | ") || "(no variables filter)");
+  click(fillsMode(/^Fills one$/));
+  await sleep(250);
+  const values = tiles();
+  check("choosing it shows the values and nothing else",
+    values > 0 && values < all, `${values} of ${all}`);
+  /* The variables themselves are listed, read off the cards that fill them,
+     with how many fill each. */
+  const nameRow = [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
+    .find((r) => /\{\{name\}\}/.test(r.textContent || ""));
+  check("and the variables are there to pick from, named and counted",
+    !!nameRow && /card/.test(nameRow.textContent || ""),
+    nameRow ? (nameRow.textContent || "").replace(/\s+/g, " ").trim()
+      : [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
+          .map((r) => (r.textContent || "").slice(0, 12)).join(" | ") || "no variables listed");
+  click(nameRow && nameRow.querySelector("input"));
+  await sleep(250);
+  check("ticking one narrows to the cards that fill it",
+    tiles() > 0 && tiles() <= values, `${tiles()} of ${values} values`);
+  /* And the other way: everything that is not a value, which is the
+     material a student is actually asked about. */
+  click(fillsMode(/^Fills none$/));
+  await sleep(250);
+  check("and the other way leaves the values out",
+    tiles() === all - values, `${tiles()} ordinary, ${values} values, ${all} in all`);
+  click(fillsMode(/^Any card$/));
+  await sleep(250);
+  check("and putting it back shows every card again", tiles() === all, `${tiles()} of ${all}`);
 
   /* ---- the deck filter ----
      Which decks a card is in, or is not in. A mode with nothing ticked
      narrows nothing: it is the state the filter is in until the first box is
      ticked, and emptying the list in the meantime would read as a list that
      had lost its cards. */
-  const all = tiles();
-  check("every card is listed before the filter is used", all >= 3, `${all} tiles`);
   const deckMode = (/** @type {RegExp} */ re) =>
     [...frame.querySelectorAll('[role="group"][aria-label="In or out of the chosen decks"] .at-seg')]
       .find((b) => re.test((b.textContent || "").trim()));
@@ -2947,7 +2987,6 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(250);
   check("the other way round shows the rest, and the two make the whole",
     tiles() === all - outside, `${tiles()} in, ${outside} out, ${all} in total`);
-
   /* ---- and the same controls over one deck ----
      Including the filter still in force, which is the point of one setting
      for both. */
