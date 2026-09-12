@@ -2293,6 +2293,60 @@ body.at-screening .at-spaces { display:none; }
    phrase size, which is what the two classes are for. */
 .at-replies .at-reply.word .at-arabic { font-size: calc(var(--ask) * .8); }
 
+/* The matching grid: the language being learnt down the left, English down
+   the right, side by side at every width.
+
+   Two columns rather than two stacked lists, because the exercise is read
+   across: a word and the meaning it might belong to should be in the eye at
+   once, and a list of five words above a list of seven meanings is two
+   things to scroll between. It used to wrap to one column under 420px,
+   which is most phones — so the shape a learner actually met was the
+   stacked one.
+
+   What that wrapping was protecting against is real, and is handled here
+   instead: the script is set smaller inside a tile than it is when a word
+   is held up alone, tiles wrap their words rather than overflowing, and the
+   columns share the row. The numbers on a pair are what says which goes
+   with which — the rows do not line up, and are not meant to. */
+.at-match { display:flex; gap:8px; align-items:flex-start; }
+.at-matchcol { display:flex; flex-direction:column; gap:8px; flex:1 1 0; min-width:0; }
+.at-matchtile { position:relative; text-align:start; width:100%; background: var(--surface);
+  border:2px solid var(--line); border-radius: var(--r); padding:10px; cursor:pointer;
+  color: var(--text); min-height:48px; display:flex; align-items:center; gap:8px;
+  /* A word longer than its column breaks rather than pushing the other
+     column off the screen. */
+  overflow-wrap:anywhere; }
+.at-matchtile.en { font-family: var(--ui); font-size:15px; font-weight:600; line-height:1.35; }
+/* Smaller than a word held up on its own, and smaller again where the
+   column is a third of a phone: this is a word to recognise in a list, not
+   the word the question is about. */
+.at-matchtile .at-arabic { font-size: calc(var(--ask) * .62);
+  line-height: calc(1.3 * var(--sleading, 1)); }
+.at-matchtile:hover:not(:disabled) { border-color: var(--muted); }
+/* Held, waiting for the other half. */
+.at-matchtile.on { border-color: var(--brass); background: var(--raised); }
+.at-matchtile.paired { border-color: var(--muted); }
+/* Only once it has been checked does a pairing become right or wrong. */
+.at-matchtile.right { border-color: var(--jade-soft); background: var(--jade-bg); }
+.at-matchtile.wrong { border-color: var(--rose-soft); background: rgba(223,95,114,.08); }
+/* Which pairing this is. The one thing tying the two columns together, so
+   it is the same number on both halves and never hidden by the text. */
+.at-matchnum { flex:0 0 auto; width:22px; height:22px; border-radius:999px;
+  background: var(--raised); border:1px solid var(--line);
+  font-family: var(--ui); font-size:11px; font-weight:800; color: var(--muted);
+  display:inline-flex; align-items:center; justify-content:center; }
+.at-matchtile.right .at-matchnum { border-color: var(--jade-soft); color: var(--jade); }
+.at-matchtile.wrong .at-matchnum { border-color: var(--rose-soft); color: var(--rose); }
+/* On a phone the two columns still share the row; what gives is the type
+   and the padding inside a tile, not the shape of the exercise. */
+@media (max-width: 480px) {
+  .at-match { gap:6px; }
+  .at-matchtile { padding:8px; gap:6px; min-height:44px; }
+  .at-matchtile.en { font-size:14px; }
+  .at-matchtile .at-arabic { font-size: calc(var(--ask) * .52); }
+  .at-matchnum { width:18px; height:18px; font-size:10px; }
+}
+
 /* --- every exercise a card could be asked --------------------------
    One button each, at the foot of the card's own screen, and the ones the
    card cannot do yet are here too rather than left out: a card a single

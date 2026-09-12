@@ -29,11 +29,36 @@ import type { AnswerField } from "./answers.ts";
    list, what an export has columns for — so retiring a type is one edit here
    and its definition stays below. */
 export const TYPES = [
-  "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2pick", "ctx2ar", "rec2ctx", "rec2attr",
+  "match", "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2pick", "ctx2ar", "rec2ctx", "rec2attr",
   "dlgwhole", "dlgpick", "dlgorder",
 ];
 
 export const EX: Record<string, ExerciseSpec> = {
+  /* The gentlest question in the app, and the only one that asks nothing of
+     a card beyond a word and its meaning — so it is the one exercise every
+     card can do on the day it is written, with no recording, no phrase
+     linked to it and no second form.
+
+     It is also the only one that puts words beside each other. Every other
+     question holds up one word and asks about it; telling apart two words
+     that could be confused is a different thing to know, and it cannot be
+     asked one word at a time. Which words stand together is therefore the
+     exercise — see matchSet and the pool it is handed. */
+  match: {
+    instruction: "Match each word to its meaning",
+    label: "Match the pairs",
+    short: "Pairs",
+    needs: ["ar", "en", "mates"],
+    question: "Match each word to its meaning",
+    placeholder: "",
+    /* The grid is the question and the answer at once, the way a scene is
+       when it is being put in order: nothing goes above the answer box. */
+    promptField: "pairs",
+    answerField: "en",
+    answerMode: "choice",
+    picks: "pair",
+    gentle: true,
+  },
   ar2en: {
     instruction: "Write in English",
     label: "{Script} → English",
@@ -656,13 +681,14 @@ export function needLabel(need: string, lang: Partial<Lang>) {
     }
   }
   const names: Record<string, string> = {
+    mates: "a few more cards in this language",
     ar: `the word in ${script}`,
     en: "the meaning",
     lat: `the ${translit}`,
     recs: "a recording",
     /* Not a field to fill in: a card whose words vary cannot be the one on
        a recording, so hearing it is the one thing a variable costs. */
-    fixed: "words that don't change — a recording can't follow a variable",
+    fixed: "words that don't change — neither a recording nor a grid can follow a variable",
     contexts: "a phrase that uses it",
     contextAudio: "a recorded phrase that uses it",
     dialog: "a conversation",

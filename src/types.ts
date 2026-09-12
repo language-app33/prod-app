@@ -76,11 +76,11 @@ export interface ExerciseSpec {
    */
   intro?: boolean;
   /**
-   * What the few answers offered are: a line of the conversation, or a word
-   * that could fill the gap. Absent means a choice between classes of
-   * sound, which is graded differently.
+   * What the few answers offered are: a line of the conversation, a word
+   * that could fill the gap, or a meaning to pair a word with. Absent means
+   * a choice between classes of sound, which is graded differently.
    */
-  picks?: "reply" | "word";
+  picks?: "reply" | "word" | "pair";
 }
 
 /** A grammatical axis a word varies along — number, gender, addressee. */
