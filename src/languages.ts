@@ -637,10 +637,13 @@ export function findWordSlot(phrase: string, word: string, lang: Partial<Lang>) 
  * @param need  One of an exercise's `needs`.
  */
 export function needLabel(need: string, lang: Partial<Lang>) {
-  /* Lowered, because these are sentence fragments and the pack's labels
-     are titles: a card is waiting for "the transliteration", not for "the
-     Transliteration". */
-  const script = ((lang && lang.scriptLabel) || "the script").toLowerCase();
+  /* The transliteration's label is lowered, because these are sentence
+     fragments and the pack's labels are titles: a card is waiting for "the
+     transliteration", not for "the Transliteration". The script's is not,
+     because it is a name — the word wanted is "the word in Arabic script",
+     and "arabic" is wrong in the middle of a line as much as at the start
+     of one. */
+  const script = (lang && lang.scriptLabel) || "the script";
   const translit = ((lang && lang.translitLabel) || "a romanisation").toLowerCase();
   const names: Record<string, string> = {
     ar: `the word in ${script}`,
@@ -1574,10 +1577,21 @@ export function exOf(type: string, lang: Lang = activeLang()) {
   if (hit) return hit;
 
   const attr = quizAttrOf(lang);
+  /*
+   * The two labels are different parts of speech, and that — not where they
+   * land in a sentence — decides their case.
+   *
+   * A script's label is a name: Arabic script, Vietnamese, Hebrew. It keeps
+   * its capital in the middle of a line as much as at the start, so both
+   * spellings of the placeholder fill the same way and "write in arabic
+   * script" is gone. A transliteration's label is a common noun —
+   * "transliteration", "pronunciation note" — so it lowers mid-sentence and
+   * {Translit} is there for the places it begins one.
+   */
   const fill = (s: string): string =>
     String(s)
       .replace(/\{Script\}/g, cap(lang.scriptLabel))
-      .replace(/\{script\}/g, lang.scriptLabel.toLowerCase())
+      .replace(/\{script\}/g, cap(lang.scriptLabel))
       .replace(/\{S\}/g, lang.scriptShort || "?")
       .replace(/\{Translit\}/g, cap(lang.translitLabel))
       .replace(/\{translit\}/g, lang.translitLabel.toLowerCase())

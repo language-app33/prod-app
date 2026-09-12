@@ -2203,6 +2203,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   const prompt = () =>
     ((document.querySelector('[data-el="question-prompt"]') || {}).textContent || "").replace(/\s+/g, " ").trim();
+
+  /* The line above it, while a question is on screen. It named the card —
+     "Write this card in Arabic script" — which is the thing underneath it,
+     and it lowered the language's own name, which is a name wherever it
+     lands. */
+  const asked = () =>
+    ((document.querySelector(".at-instruction") || {}).textContent || "").replace(/\s+/g, " ").trim();
+  check("the line above the question says what to do, without naming the card",
+    asked() === "Write in Arabic script", asked() || "(no instruction)");
   /* Which of the two it is depends on how often the card has been asked
      this, and this one has been through a session already — so what is
      checked is that it is one of them and whole, rather than which. */

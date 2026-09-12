@@ -5042,7 +5042,7 @@ Cards ready to practice
                   {!drillable.length && items.length > 0 && (
                     <Notice kind="warn">
                       No card here has two usable exercise types. A card needs the{" "}
-                      {langOf(settings).scriptLabel.toLowerCase()} and at least one more field
+                      {langOf(settings).scriptLabel} and at least one more field
                       before it can be practiced.
                     </Notice>
                   )}
@@ -7904,7 +7904,7 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }: {
               </p>
             ) : (
               <Notice kind="warn">
-                {`No ${activeLang().scriptLabel.toLowerCase()} — this form can't be practiced.`}
+                {`No ${activeLang().scriptLabel} — this form can't be practiced.`}
               </Notice>
             )}
             {unit.en && <p className="at-en" style={{ fontSize: 20 }}>{unit.en}</p>}
@@ -8053,6 +8053,9 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
               filed as singular, and you can change it in bulk afterwards.
             </p>
             <p>Without a table, one card per line, cells split by <code>|</code> or a tab:</p>
+            {/* The one place the script's name is lowered on purpose: these
+                are cells to copy, sitting beside "english" and "decks",
+                and a capital here would read as part of what to type. */}
             <pre>
               english | {activeLang().scriptLabel.toLowerCase()} |{" "}
               {activeLang().translitLabel.toLowerCase()} | decks | note

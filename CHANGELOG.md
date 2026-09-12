@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.79 — 12 September 2026
+
+- **The language's own name is a name again, wherever it is written.** The
+  app said "Write in arabic script", "English → arabic script", "No arabic
+  script — this form can't be practiced": the pack's label was lowered
+  whenever it fell in the middle of a line, which is right for "the
+  transliteration" and wrong for Arabic, Vietnamese and Hebrew. Every
+  exercise name, instruction, question and "Needs …" line now reads Arabic
+  script, in every language.
+- The one place it stays lowercase is the importer's example row —
+  `english | arabic script | …` — because those are cells to copy, and a
+  capital there would read as part of what to type.
+
 ## 0.78 — 12 September 2026
 
 - **Learning · the line above a question** no longer says "this card". It is
