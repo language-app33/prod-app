@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.76 — 12 September 2026
+
+- **Learning · writing a card from its meaning.** A card may mean more than
+  one thing — "office / desk" — and both are still right when the question
+  is what the word means. Asked the other way round, the question now shows
+  one meaning instead of the pair: before this the prompt read as a single
+  English phrase with a slash through the middle of it, and a card that
+  meant two things gave away more of itself than the question meant to.
+- Which one it shows turns over as the card comes round again, the way the
+  phrase a word is shown in does, so a card that means two things is asked
+  from both — one at a time. What the app accepts has not changed: the
+  answer is the word, and every spelling of it still counts.
+
 ## 0.75 — 12 September 2026
 
 - Nothing you can see. The comment above the list of exercise types

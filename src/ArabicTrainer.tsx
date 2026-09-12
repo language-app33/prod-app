@@ -179,7 +179,14 @@ import {
   speakerName,
   speakersOf,
 } from "./dialogs.ts";
-import { answerForTurn, answerGiven, answersOf, packAnswers, withAnswer as oneAnswer } from "./answers.ts";
+import {
+  answerForTurn,
+  answerGiven,
+  answersOf,
+  meaningForTurn,
+  packAnswers,
+  withAnswer as oneAnswer,
+} from "./answers.ts";
 
 /*
  * The two that need to know which exercise types a form supports. That
@@ -568,9 +575,10 @@ function pickContext(unit: Form, type: string) {
  * with two spellings is drilled on both, one at a time, and the question
  * on screen does not change under a re-render.
  *
- * Only these two exercises narrow. Asked what a card means, or to write it
+ * Only these two narrow the answer. Asked what a card means, or to write it
  * from its meaning, every accepted answer is still accepted — the answer
- * there is the word, not one spelling of it.
+ * there is the word, not one spelling of it. What the question shows can
+ * still be narrowed, which is castMeaning below.
  */
 function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
@@ -580,6 +588,40 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
   const answer = answerForTurn(resolved.unit, seen);
   if (!answer) return resolved;
   const unit = (oneAnswer(resolved.unit, answer) as any);
+  return {
+    ...resolved,
+    unit,
+    parent: resolved.parent === resolved.unit ? unit : resolved.parent,
+  };
+}
+
+/*
+ * And which meaning a question made of the meaning asks about.
+ *
+ * A card may mean more than one thing — "office / desk" — and asked what it
+ * means, both are right. The other way round they are not two answers but
+ * two questions, and showing both asks neither: the learner reads one
+ * English phrase with a slash in the middle of it, and a card that means
+ * two things says more about the word than the question set out to give
+ * away.
+ *
+ * So the card is narrowed here too, and the same way — one meaning, rotated
+ * by how often this exercise has been asked of this unit, so a card that
+ * means two things is asked from both, one at a time. What is accepted does
+ * not move: the answer is still the word, and every spelling of it still
+ * counts.
+ */
+function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
+  if (!resolved) return resolved;
+  const spec = EX[type];
+  if (!spec || spec.promptField !== "en") return resolved;
+  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const one = meaningForTurn(resolved.unit, seen);
+  /* Nothing to narrow: one meaning, or none written at all — in which case
+     this exercise was never offered, and the card is left exactly as it is
+     rather than having its one empty field rewritten. */
+  if (!one || one === String(resolved.unit.en || "").trim()) return resolved;
+  const unit = ({ ...resolved.unit, en: one } as any);
   return {
     ...resolved,
     unit,
@@ -4187,7 +4229,13 @@ export default function ArabicTrainer() {
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
-  const resolved = exercise ? castAnswer(resolveUnit(asking, exercise), exercise.type) : null;
+  /* The card, narrowed to the question being asked of it: one accepted
+     answer where the question is about how a word sounds, one meaning where
+     the meaning is the question. Both before anything reads it, so the
+     prompt, the marking and the answer screen cannot disagree. */
+  const resolved = exercise
+    ? castMeaning(castAnswer(resolveUnit(asking, exercise), exercise.type), exercise.type)
+    : null;
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);

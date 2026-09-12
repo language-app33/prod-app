@@ -16,6 +16,8 @@ import {
   answerRows,
   answersOf,
   joinAlternatives,
+  meaningForTurn,
+  meaningsOf,
   packAnswers,
   readAnswer,
   saidAnswers,
@@ -278,4 +280,61 @@ test("the delimited strings win where the array disagrees with them", () => {
   /* Clearing the transliteration clears it, whatever the array remembers —
      which is what a card stripped down to its recordings relies on. */
   assert.deepEqual(answersOf({ ...card, lat: "" }, fields).map((a) => a.lat), [""]);
+});
+
+/* ---- the other side of the card: what it means ---- */
+
+test("a card that means two things means both of them", () => {
+  /* The same convention as the answers, on the English side: one stored
+     string with " / " between them, and a ; where somebody typed one. */
+  assert.deepEqual(meaningsOf({ en: "office / desk" }), ["office", "desk"]);
+  assert.deepEqual(meaningsOf({ en: "office; desk" }), ["office", "desk"]);
+  assert.deepEqual(meaningsOf({ en: " office " }), ["office"]);
+  assert.deepEqual(meaningsOf({ en: "" }), []);
+  assert.deepEqual(meaningsOf(null), []);
+});
+
+test("a comma inside one meaning is not a second meaning", () => {
+  /* The checker splits on a comma too, and is right to: a card written by
+     hand may separate two meanings that way, and marking is where being
+     generous costs nothing. Reading one here would cut a phrase in half
+     and show a learner one clause of it as the question. */
+  assert.deepEqual(meaningsOf({ en: "close the door, please" }), ["close the door, please"]);
+  assert.equal(meaningForTurn({ en: "close the door, please" }), "close the door, please");
+  /* And it is still marked as generously as it ever was. */
+  assert.equal(checkAnswer("please", { en: "close the door, please" }, "ar2en", { language: "ar-PS" }).ok, true);
+});
+
+test("asked to write a card from its meaning, one meaning is the question", () => {
+  /* Both are accepted the other way round — asked what the word means,
+     "office" and "desk" are each right. Asked for the word, showing both
+     asks neither: it reads as one English phrase with a slash in it, and
+     it hands over more of the card than the question meant to. */
+  const form = { ar: "maktab-script", lat: "maktab", en: "office / desk" };
+  assert.equal(checkAnswer("desk", form, "ar2en", { language: "ar-PS" }).ok, true);
+  assert.equal(checkAnswer("office", form, "ar2en", { language: "ar-PS" }).ok, true);
+  assert.equal(meaningForTurn(form), "office", "and one of them is shown");
+
+  /* Rotated by how often the exercise has been asked, like the answer a
+     pronunciation question is about: a card that means two things is asked
+     from both, one at a time, and nothing is drawn — the same count is the
+     same question, so a re-render does not swap it under a learner. */
+  assert.equal(meaningForTurn(form, 1), "desk");
+  assert.equal(meaningForTurn(form, 2), "office", "and round again");
+  assert.equal(meaningForTurn(form, -3), "desk", "however the count arrives");
+
+  /* What is accepted does not move with it. The answer is the word, and a
+     card accepting two spellings still accepts either — narrowing the
+     question narrows the question. */
+  const asked = { ...form, ar: "maktab-script / maktib-script", en: meaningForTurn(form, 1) };
+  assert.equal(checkAnswer("maktab-script", asked, "en2ar", { language: "ar-PS" }).ok, true);
+  assert.equal(checkAnswer("maktib-script", asked, "en2ar", { language: "ar-PS" }).ok, true);
+});
+
+test("a card with nothing written for its meaning is asked nothing", () => {
+  /* Which is the state this exercise is never offered in, so there is
+     nothing to narrow and nothing to put on screen. */
+  assert.equal(meaningForTurn({ ar: "bayt" }), "");
+  assert.equal(meaningForTurn({ ar: "bayt", en: " " }), "");
+  assert.deepEqual(unmetNeeds({ ...two(), en: "" }, EX.en2ar, null, []), ["en"]);
 });
