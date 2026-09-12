@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.82 — 12 September 2026
+
+- **Match the pairs reads across rather than down.** The words in the
+  language you are learning are a column on the left and their meanings a
+  column on the right, side by side at every width. They were laid out that
+  way already on a wide screen, and stacked into one column under 420px —
+  which is most phones, so the shape nearly everybody met was the stacked
+  one: five words above seven meanings, with the pair you were considering
+  at opposite ends of a scroll.
+- What the stacking was protecting against — two columns of script at the
+  size a word is held up at — is handled where it belongs: inside a tile the
+  script is set smaller than a word asked on its own, smaller again on a
+  phone, and a word too long for its column wraps rather than pushing the
+  other column off the screen.
+
 ## 0.81 — 12 September 2026
 
 - **A new exercise: Match the pairs.** Five words down one side, their

@@ -501,6 +501,16 @@ async function playGrid() {
     /* What it put up, so a caller can say what was in it and not only how
        many: which words stand together is the exercise. */
     text: [...words(), ...meanings()].map((el) => (el.textContent || "").trim()).join(" · "),
+    /* And how it is laid out: two columns, the language being learnt first.
+       The stylesheet puts them side by side; this is the order they are
+       written in, which is what decides which side each lands on. */
+    columns: document.querySelectorAll('[data-el="answer-match"] .at-matchcol').length,
+    firstColumn: (() => {
+      const first = document.querySelector('[data-el="answer-match"] .at-matchcol');
+      if (!first) return "none";
+      const el = first.querySelector("[data-el]");
+      return el && el.getAttribute("data-el") === "match-word" ? "words" : "meanings";
+    })(),
     checkedEarly: false,
     marked: false,
   };
@@ -2184,6 +2194,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!grid && grid.checkedEarly, String(grid && grid.checkedEarly));
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  /* The two lists are two columns, the language being learnt first and
+     English second — which the stylesheet lays side by side at every width.
+     jsdom has no layout to measure, so what is checked here is the order
+     the columns are written in; that they sit beside each other rather than
+     stacking is measured in a browser. */
+  check("the words are one column and the meanings another, in that order",
+    !!grid && grid.columns === 2 && grid.firstColumn === "words",
+    grid ? `${grid.columns} columns, first holds ${grid.firstColumn}` : "never dealt");
+
   /* And what is never in one: a frame, whose hole is filled only for the
      card being asked, and a value, which is in the deck to fill somebody
      else's sentence rather than to be told apart from four other words. */
