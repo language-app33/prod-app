@@ -157,7 +157,7 @@ import {
   inOrder,
   shuffled,
 } from "./scheduler.ts";
-import { PICK_OPTIONS, optionsFor } from "./chance.ts";
+import { PICK_OPTIONS, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk } from "./offers.ts";
 import {
@@ -489,6 +489,45 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
   return DIALOG_INDEX.get(unitId) || null;
 }
 
+/* ------------------------------------------------------------------
+   How much company a word has
+
+   The matching grid is the one exercise whose availability is not a fact
+   about the card. A word with a meaning can always be read and always be
+   written; whether it can be *told apart from anything* depends on what
+   else is in the deck. Counted per language, and held here for the reason
+   the two indexes above are: availableTypes is a pure function of a unit,
+   and cannot be handed the rest of the cards as well.
+   ------------------------------------------------------------------ */
+
+let MATE_COUNTS: Map<LangId, number> = new Map();
+
+function setMateCounts(map: Map<LangId, number>) {
+  MATE_COUNTS = map || new Map();
+}
+
+/* Everything else in this language that could stand beside it. Its own
+   card is in the count, so one is taken off. */
+function matesFor(unit: Form, settings?: Settings): number {
+  const id = (unit && unit.lang) || (settings && settings.language) || activeLang().id;
+  return Math.max(0, (MATE_COUNTS.get(id) || 0) - 1);
+}
+
+/* Cards that can be a tile in a grid: a word with a meaning, in one
+   language. A conversation is not one of them — a scene has no single
+   wording to put on a tile. */
+function countMates(items: Item[], settings: Settings): Map<LangId, number> {
+  const counts: Map<LangId, number> = new Map();
+  for (const card of items) {
+    if (isDialog(card)) continue;
+    const id = langIdOf(card, settings);
+    for (const { unit } of unitsOf(card)) {
+      if (unit.ar && unit.en) counts.set(id, (counts.get(id) || 0) + 1);
+    }
+  }
+  return counts;
+}
+
 /*
  * The words a wrong answer could be drawn from.
  *
@@ -701,7 +740,9 @@ function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.
      say what a card could be drilled as before anybody presses anything —
      and two answers to it would be two apps disagreeing about what a card
      supports. */
-  return TYPES.filter((t) => canAsk({ unit: it, scene, contexts: contextsFor(it.id) }, t, lang));
+  return TYPES.filter((t) =>
+    canAsk({ unit: it, scene, contexts: contextsFor(it.id), mates: matesFor(it) }, t, lang)
+  );
 }
 
 function enabledTypes(it: Form, settings: Settings): string[] {
@@ -740,6 +781,31 @@ const shuffle: <T>(arr: T[]) => T[] = (arr) => shuffled(arr);
    Similarity — rule 3
    ------------------------------------------------------------------ */
 
+/*
+ * How alike two words look, in the language's own terms: shared consonants
+ * in Arabic, the same spelling under different marks in Vietnamese.
+ *
+ * Read twice — by the session builder, which uses it to bring related cards
+ * into one sitting, and by the matching grid, which uses it to choose words
+ * worth confusing. Two copies of it would be two apps disagreeing about
+ * what "alike" means.
+ */
+function wordLikeness(a: string, b: string, lang: Lang): number {
+  const key = lang.similarityKey || ((x: string) => String(x || ""));
+  const ka = key(a);
+  const kb = key(b);
+  if (ka.length < 2 || kb.length < 2) return 0;
+  if (lang.similarityMode === "chars") {
+    /* Arabic: shared consonants in any order suggest a shared root. */
+    const setB = new Set(kb);
+    const overlap = [...new Set(ka)].filter((ch) => setB.has(ch)).length;
+    if (overlap >= 3) return 4;
+    return overlap === 2 ? 1.5 : 0;
+  }
+  /* Everyone else: the same word under different marks — a minimal pair. */
+  return ka === kb ? 4 : 0;
+}
+
 function similarity(a: Item, b: Item) {
   let score = 0;
 
@@ -761,24 +827,7 @@ function similarity(a: Item, b: Item) {
   const sharedTags = (b.tags || []).filter((t) => tagsA.has(t)).length;
   score += sharedTags * 3;
 
-  /* What counts as "alike" is the language's business: shared consonants in
-     Arabic, the same spelling under different tones in Vietnamese. */
-  const lang = activeLang();
-  const key = lang.similarityKey || ((x) => String(x || ""));
-  const ka = key(a.ar);
-  const kb = key(b.ar);
-  if (ka.length >= 2 && kb.length >= 2) {
-    if (lang.similarityMode === "chars") {
-      /* Arabic: shared consonants in any order suggest a shared root. */
-      const setB = new Set(kb);
-      const overlap = [...new Set(ka)].filter((ch) => setB.has(ch)).length;
-      if (overlap >= 3) score += 4;
-      else if (overlap === 2) score += 1.5;
-    } else if (ka === kb) {
-      /* Everyone else: the same word under different marks — a minimal pair. */
-      score += 4;
-    }
-  }
+  score += wordLikeness(a.ar, b.ar, activeLang());
 
   if (a.kind === b.kind) score += 0.5;
   // Added in the same sitting — usually the same lesson.
@@ -3091,6 +3140,132 @@ function SceneOrder({ card, lang, value, onChange, disabled }: {
  * phrase — because they are the same question about different material,
  * and two of these would have drifted.
  */
+/*
+ * The matching grid.
+ *
+ * Words down one side, meanings down the other, tapped together in pairs.
+ * The only question in the app that puts words beside each other — every
+ * other one holds up a single word — and the only one a card can be asked
+ * on the day it is written, with no recording and nothing linked to it.
+ *
+ * Paired, then checked, rather than judged a pair at a time. Marking each
+ * pair as it is made turns the grid into a game of elimination: a wrong
+ * guess is worth as much as a right one because it rules a meaning out,
+ * and the last word costs nothing. Everything is committed at once and
+ * marked at once, the way every other answer in this app is.
+ *
+ * A pair shows as a number on both halves rather than a line drawn between
+ * them: a line between two columns is a thing to draw, to redraw on every
+ * resize, and to get wrong in a language that reads right to left.
+ */
+function MatchGrid({ words, meanings, lang, askedId, onChange, checked }: {
+  words: Form[];
+  meanings: string[];
+  lang: Lang;
+  askedId: string;
+  onChange: (v: string) => void;
+  checked?: boolean;
+}) {
+  /* Which meaning is against which word. Keyed by word id, so a meaning can
+     be moved and the grid never holds the same one twice. */
+  const [pairs, setPairs] = useState<Record<string, string>>({});
+  const [held, setHeld] = useState<string | null>(null);
+
+  const takenBy = (meaning: string) =>
+    words.find((w) => pairs[w.id] === meaning);
+  const done = words.every((w) => pairs[w.id]);
+
+  /* Nothing is reported until every word has a meaning: the question is the
+     whole grid, and half of one is not an answer to it. What goes up is the
+     meaning put against the word actually being asked — the others are the
+     company that made it a question. */
+  useEffect(() => {
+    onChange(done ? pairs[askedId] || "" : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pairs, done, askedId]);
+
+  const tapWord = (id: string) => {
+    if (checked) return;
+    if (pairs[id]) {
+      setPairs((p) => {
+        const next = { ...p };
+        delete next[id];
+        return next;
+      });
+      setHeld(id);
+      return;
+    }
+    setHeld((h) => (h === id ? null : id));
+  };
+
+  const tapMeaning = (meaning: string) => {
+    if (checked) return;
+    const owner = takenBy(meaning);
+    /* Tapping a meaning already spoken for frees it, which is the only way
+       back from a pairing made by mistake that does not need a third
+       gesture to undo. */
+    if (owner) {
+      setPairs((p) => {
+        const next = { ...p };
+        delete next[owner.id];
+        return next;
+      });
+      return;
+    }
+    if (!held) return;
+    setPairs((p) => ({ ...p, [held]: meaning }));
+    setHeld(null);
+  };
+
+  const numberOf = (id: string) => words.filter((w) => pairs[w.id]).findIndex((w) => w.id === id) + 1;
+
+  return (
+    <div className="at-match" data-el="answer-match">
+      <div className="at-matchcol">
+        {words.map((w) => {
+          const mine = pairs[w.id];
+          const right = checked && mine === w.en;
+          return (
+            <button
+              type="button"
+              key={w.id}
+              data-el="match-word"
+              className={`at-matchtile${held === w.id ? " on" : ""}${mine ? " paired" : ""}${
+                checked ? (right ? " right" : " wrong") : ""
+              }`}
+              aria-pressed={held === w.id}
+              onClick={() => tapWord(w.id)}
+            >
+              {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
+              <Arabic text={w.ar} kind="word" lang={lang} />
+            </button>
+          );
+        })}
+      </div>
+      <div className="at-matchcol">
+        {meanings.map((m) => {
+          const owner = takenBy(m);
+          const right = checked && owner && owner.en === m;
+          return (
+            <button
+              type="button"
+              key={m}
+              data-el="match-meaning"
+              className={`at-matchtile en${owner ? " paired" : ""}${
+                checked && owner ? (right ? " right" : " wrong") : ""
+              }`}
+              onClick={() => tapMeaning(m)}
+            >
+              {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
+              {m}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase" }: {
   options: any[];
   lang: Lang;
@@ -3770,6 +3945,10 @@ export default function ArabicTrainer() {
   const dialogIndex = useMemo(() => buildDialogIndex(asking), [asking]);
   setDialogIndex(dialogIndex);
 
+  /* And how many words each language has to pair against. */
+  const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
+  setMateCounts(mateCounts);
+
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {
     const ids = [];
@@ -4263,6 +4442,35 @@ export default function ArabicTrainer() {
    * in the same language — a wrong answer has to be a word they could
    * believe, which means one they have actually met.
    */
+  /*
+   * The words a matching grid puts up, and the meanings beside them.
+   *
+   * Ranked before it is drawn, because which words stand together is the
+   * exercise: five unrelated words is a warm-up, five that could be taken
+   * for one another is a test. Ranked by the same reading of "alike" the
+   * session builder uses to bring related cards into one sitting.
+   *
+   * Re-drawn as the card comes round again — the seed carries how many
+   * times it has been asked — so the same word is not always met in the
+   * same company.
+   */
+  const grid = useMemo(() => {
+    if (!item || !spec || spec.picks !== "pair") return { words: [], meanings: [] };
+    const pool = wordPool(asking, settings, qLang.id, item).filter((u) => u.ar && u.en);
+    const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
+    const ranked = [...pool].sort(
+      (x, y) => wordLikeness(item.ar, y.ar, qLang) - wordLikeness(item.ar, x.ar, qLang)
+    );
+    return matchSet({
+      answer: item,
+      pool: ranked,
+      seed: `${item.id} ${reps}`,
+      textOf: (u) => u.ar,
+      meaningOf: (u) => u.en,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item && item.id, exercise && exercise.type, asking, qLang.id]);
+
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
     if (spec.picks === "reply") {
@@ -5108,7 +5316,7 @@ Cards ready to practice
                     )}
                   </p>
                   <div className="at-ask" data-el="question-prompt">
-                    {spec.promptField === "scene" ? (
+                    {spec.promptField === "pairs" ? null : spec.promptField === "scene" ? (
                       /* The conversation is the question. How much of it is
                          shown is the difference between them: everything up
                          to your turn when you are choosing one, all of it
@@ -5235,6 +5443,22 @@ Cards ready to practice
                           </Button>
                         ))}
                       </div>
+                    ) : spec.picks === "pair" ? (
+                      <>
+                        <MatchGrid
+                          key={`${(item && item.id) || ""}-${qi}`}
+                          words={grid.words}
+                          meanings={grid.meanings}
+                          lang={qLang}
+                          askedId={(item && item.id) || ""}
+                          checked={!!checked}
+                          onChange={setTyped}
+                        />
+                        {/* A grid half done is not an answer, and a Check
+                            that sits dead without saying why is the button
+                            people tap twice and then give up on. */}
+                        {!checked && !typed && <Help>Pair them all, then check.</Help>}
+                      </>
                     ) : spec.picks ? (
                       <TextChoices
                         options={choices}

@@ -8,6 +8,36 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.75 — 12 September 2026
+
+- **A new exercise: Match the pairs.** Five words down one side, their
+  meanings down the other, tapped together. It is dealt in ordinary practice
+  sessions alongside everything else, and it is one of the gentle exercises,
+  so "Get started" offers it too.
+
+  It is here because of what it asks of a card, which is nothing. Every other
+  exercise needs something extra before it can be set — a recording, a phrase
+  the word turns up in, a second accepted answer — and a card that is only a
+  word and its meaning could be asked one gentle question, over and over. This
+  one works on every card you own, from the first day.
+
+  Two things keep it an exercise rather than a game. There are seven meanings
+  against five words, so eliminating never completes and the last pair is
+  never free. And the four words standing beside the one being asked are not
+  drawn at random: they are the ones most like it, by the same reading of
+  "alike" the session builder uses to bring related cards into one sitting —
+  telling apart things that resemble each other is the skill a
+  one-word-at-a-time question cannot train. The company is redrawn as a card
+  comes round again, so a word is not always met beside the same four.
+
+  Only the card being asked is marked. The others are the company that made it
+  a question, and a pass that quietly advanced six cards at once would be
+  inflating six schedules on the weakest evidence any exercise produces.
+
+  A card is offered it once its language has a few others to stand beside it;
+  until then the teaching space says so, in the same place it says which cards
+  are waiting for a recording.
+
 ## 0.74 — 11 September 2026
 
 - **Teaching · adding cards to a deck.** The deck list now has a New deck

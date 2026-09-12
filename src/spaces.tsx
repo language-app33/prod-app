@@ -4403,12 +4403,15 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
       units: unitsOf(mine).map((u) => ({ ...u, scene: scenes.get(u.unit.id) || null })),
       lang,
       contextsFor: (unit) => contexts.get(unit.id) || [],
+      /* How many other cards could stand beside it in a matching grid —
+         the one thing a card cannot answer about itself. */
+      matesFor: () => material.filter((c) => !isDialog(c) && c.ar && c.en).length - 1,
       /* A student would not be asked an exercise switched off in the app's
          settings, and a teacher may as well know which those are — but it
          is still worth being able to try one. */
       enabled: (type) => !settings || !settings.types || !!settings.types[type],
     });
-  }, [mine, lang, contexts, scenes, settings]);
+  }, [mine, lang, contexts, scenes, settings, material]);
 
   if (!offers.length) return null;
 

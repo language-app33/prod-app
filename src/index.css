@@ -2264,6 +2264,40 @@ body.at-screening .at-spaces { display:none; }
    phrase size, which is what the two classes are for. */
 .at-replies .at-reply.word .at-arabic { font-size: calc(var(--ask) * .8); }
 
+/* The matching grid: words down one side, meanings down the other.
+
+   Two columns that wrap to one on a narrow phone, because two columns of
+   Arabic at the size a word is asked at do not fit beside two columns of
+   English and the tiles would each be three words tall. Wrapped, the
+   numbers on a pair are what says which goes with which — which is why a
+   pair is numbered rather than joined by a line. */
+.at-match { display:flex; gap:10px; align-items:flex-start; }
+.at-matchcol { display:flex; flex-direction:column; gap:8px; flex:1 1 0; min-width:0; }
+.at-matchtile { position:relative; text-align:start; width:100%; background: var(--surface);
+  border:2px solid var(--line); border-radius: var(--r); padding:10px 12px; cursor:pointer;
+  color: var(--text); min-height:48px; display:flex; align-items:center; gap:8px; }
+.at-matchtile.en { font-family: var(--ui); font-size:15px; font-weight:600; }
+.at-matchtile .at-arabic { font-size: calc(var(--ask) * .7); }
+.at-matchtile:hover:not(:disabled) { border-color: var(--muted); }
+/* Held, waiting for the other half. */
+.at-matchtile.on { border-color: var(--brass); background: var(--raised); }
+.at-matchtile.paired { border-color: var(--muted); }
+/* Only once it has been checked does a pairing become right or wrong. */
+.at-matchtile.right { border-color: var(--jade-soft); background: var(--jade-bg); }
+.at-matchtile.wrong { border-color: var(--rose-soft); background: rgba(223,95,114,.08); }
+/* Which pairing this is. The one thing tying the two columns together, so
+   it is the same number on both halves and never hidden by the text. */
+.at-matchnum { flex:0 0 auto; width:22px; height:22px; border-radius:999px;
+  background: var(--raised); border:1px solid var(--line);
+  font-family: var(--ui); font-size:11px; font-weight:800; color: var(--muted);
+  display:inline-flex; align-items:center; justify-content:center; }
+.at-matchtile.right .at-matchnum { border-color: var(--jade-soft); color: var(--jade); }
+.at-matchtile.wrong .at-matchnum { border-color: var(--rose-soft); color: var(--rose); }
+@media (max-width: 420px) {
+  .at-match { flex-wrap:wrap; }
+  .at-matchcol { flex:1 1 100%; }
+}
+
 /* --- every exercise a card could be asked --------------------------
    One button each, at the foot of the card's own screen, and the ones the
    card cannot do yet are here too rather than left out: a card a single

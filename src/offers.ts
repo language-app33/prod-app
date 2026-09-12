@@ -29,6 +29,7 @@ import type { Placed } from "./dialogs.ts";
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
+import { MIN_PAIR_MATES } from "./chance.ts";
 
 /*
  * What this unit has not got, of what an exercise asks for.
@@ -48,9 +49,16 @@ export function unmetNeeds(
   scene: Placed | null,
   /** The phrases that show this unit in use. */
   contexts: { recs?: { id: string }[] }[],
+  /**
+   * How many other cards in this language could stand beside it. Only the
+   * matching grid asks, and it asks because its question is the company a
+   * word keeps: one card alone has nothing to be told apart from.
+   */
+  mates = 0,
 ): string[] {
   return spec.needs.filter((f: string) => {
     if (f === "recs") return !(unit.recs || []).length;
+    if (f === "mates") return mates < MIN_PAIR_MATES;
     if (f === "contexts") return !contexts.length;
     if (f === "contextAudio") return !contexts.some((c) => (c.recs || []).length > 0);
     if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, unit);
@@ -68,7 +76,12 @@ export function unmetNeeds(
 /* Whether this unit can be asked this exercise at all: nothing missing,
    the right shape of card, and a language that drills it. */
 export function canAsk(
-  on: { unit: Form; scene: Placed | null; contexts: { recs?: { id: string }[] }[] },
+  on: {
+    unit: Form;
+    scene: Placed | null;
+    contexts: { recs?: { id: string }[] }[];
+    mates?: number;
+  },
   type: string,
   lang: Lang,
 ): boolean {
@@ -76,7 +89,7 @@ export function canAsk(
   if (!spec || spec.retired) return false;
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
-  return unmetNeeds(on.unit, spec, on.scene, on.contexts).length === 0;
+  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.mates || 0).length === 0;
 }
 
 /* The two reasons a language rather than a card refuses an exercise. */
@@ -115,11 +128,13 @@ export function offersFor({
   units,
   lang,
   contextsFor = () => [],
+  matesFor = () => 0,
   enabled = () => true,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
   lang: Lang;
   contextsFor?: (unit: Form) => { recs?: { id: string }[] }[];
+  matesFor?: (unit: Form) => number;
   enabled?: (type: string) => boolean;
 }): Offer[] {
   const known = units.map((u) => ({
@@ -127,6 +142,7 @@ export function offersFor({
     isSub: u.isSub,
     scene: u.scene || null,
     contexts: contextsFor(u.unit) || [],
+    mates: matesFor(u.unit) || 0,
   }));
 
   const offers: Offer[] = [];
@@ -151,7 +167,9 @@ export function offersFor({
       ready: !!ready,
       /* Said in the card's own language, so "the script" is the name this
          language gives its script. */
-      missing: ready ? [] : unmetNeeds(on.unit, spec, on.scene, on.contexts).map((f) => needLabel(f, lang)),
+      missing: ready
+        ? []
+        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.mates).map((f) => needLabel(f, lang)),
       off: !enabled(type),
     });
   }

@@ -375,8 +375,11 @@ test("the gentle types are read off the definitions, not kept beside them", () =
      follow it before being asked to say any of it. Choosing a word out of a phrase is the same
      argument again: the gap-fill used to start at the hard half, so a
      learner's first meeting with a word in context was also their first
-     chance to get it wrong. */
-  assert.deepEqual(EASY_TYPES, ["ar2en", "rec2en", "ctx2pick", "dlgwhole"]);
+     chance to get it wrong. Matching leads the list because it is the
+     gentlest of the lot and the only one a card can do with nothing on it
+     but a word and a meaning — which is what a beginner's cards look
+     like. */
+  assert.deepEqual(EASY_TYPES, ["match", "ar2en", "rec2en", "ctx2pick", "dlgwhole"]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);

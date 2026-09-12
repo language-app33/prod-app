@@ -29,7 +29,7 @@ import type { AnswerField } from "./answers.ts";
    list, what an export has columns for — so retiring a type is one edit here
    and its definition stays below. */
 export const TYPES = [
-  "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2pick", "ctx2ar", "rec2ctx", "rec2attr",
+  "match", "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2pick", "ctx2ar", "rec2ctx", "rec2attr",
   /* The dialog exercises, in the order a learner meets them: read a line,
      choose what comes next, say it yourself, rebuild the scene, then hold
      up your whole end of it. Every one is asked with words on a screen —
@@ -38,6 +38,31 @@ export const TYPES = [
 ];
 
 export const EX: Record<string, ExerciseSpec> = {
+  /* The gentlest question in the app, and the only one that asks nothing of
+     a card beyond a word and its meaning — so it is the one exercise every
+     card can do on the day it is written, with no recording, no phrase
+     linked to it and no second form.
+
+     It is also the only one that puts words beside each other. Every other
+     question holds up one word and asks about it; telling apart two words
+     that could be confused is a different thing to know, and it cannot be
+     asked one word at a time. Which words stand together is therefore the
+     exercise — see matchSet and the pool it is handed. */
+  match: {
+    instruction: "Match each word to its meaning",
+    label: "Match the pairs",
+    short: "Pairs",
+    needs: ["ar", "en", "mates"],
+    question: "Match each word to its meaning",
+    placeholder: "",
+    /* The grid is the question and the answer at once, the way a scene is
+       when it is being put in order: nothing goes above the answer box. */
+    promptField: "pairs",
+    answerField: "en",
+    answerMode: "choice",
+    picks: "pair",
+    gentle: true,
+  },
   ar2en: {
     instruction: "Write this card in English",
     label: "{Script} → English",
@@ -647,6 +672,7 @@ export function needLabel(need: string, lang: Partial<Lang>) {
   const script = ((lang && lang.scriptLabel) || "the script").toLowerCase();
   const translit = ((lang && lang.translitLabel) || "a romanisation").toLowerCase();
   const names: Record<string, string> = {
+    mates: "a few more cards in this language",
     ar: `the word in ${script}`,
     en: "the meaning",
     lat: `the ${translit}`,
