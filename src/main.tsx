@@ -76,12 +76,12 @@ class Recovery extends React.Component<RecoveryProps, RecoveryState> {
           The app hit an error it couldn't recover from. Your cards and progress are still saved on
           this device.
         </p>
-        <p style={{ fontSize: 13, opacity: 0.7, wordBreak: "break-word" }}>{msg}</p>
+        <p style={{ fontSize: 15, opacity: 0.7, wordBreak: "break-word" }}>{msg}</p>
         <p>
-          <button onClick={() => window.location.reload()} style={{ padding: "10px 16px", marginRight: 10 }}>
+          <button onClick={() => window.location.reload()} style={{ padding: "12px 18px", marginRight: 12 }}>
             Reload
           </button>
-          <button onClick={() => this.download()} style={{ padding: "10px 16px" }}>
+          <button onClick={() => this.download()} style={{ padding: "12px 18px" }}>
             Download my data
           </button>
         </p>

@@ -2924,7 +2924,7 @@ function ScriptInput({ lang, value, onChange }: {
           /* The room for the keys button is reserved by .at-inputwrap in the
              stylesheet — physical right, not logical, because the button is
              at right:8px whichever way the text runs. */
-          style={{ fontFamily: lang.fontStack, fontSize: 22, textAlign: "start", ...scriptVars(lang) }}
+          style={{ fontFamily: lang.fontStack, fontSize: 25, textAlign: "start", ...scriptVars(lang) }}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />

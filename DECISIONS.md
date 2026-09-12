@@ -283,3 +283,70 @@ sits.
 allowlist by `"ArabicTrainer.jsx"`; it now names files without an extension
 and resolves whichever exists. Anything else that hardcodes a source path
 needs the same treatment before the file it names is converted.
+
+---
+
+## The interface has one scale factor, and it is written into the values
+
+**12 September 2026** · `src/index.css`
+
+Everything was asked to be a bit larger. There are three ways to do that and
+only one of them survives contact with this stylesheet.
+
+**Not a zoom.** `zoom` or a `transform` on `.at` scales the painted result,
+including the hairlines, and it breaks every value measured against the
+window — `100vw`, `100cqi`, `env(safe-area-inset-*)` — because those are
+still the real window's. The answer bar and the fitted keyboard rows are
+sized from exactly those.
+
+**Not a token multiplier.** Wrapping every size in `calc(n * var(--scale))`
+reads well in the abstract and costs the two things this file has that a
+token cannot express: a floor that is a tap target, and a ceiling that keeps
+a label on one line. `clamp(10px, calc(var(--share) * 0.115), 16px)` is not
+a size waiting to be multiplied; it is a rule about fitting, and multiplying
+all three of its arguments breaks the rule it encodes.
+
+**So: the values themselves, by 1.15, applied to type and to the metrics of
+a box.** Padding, height, width, radius, gap and margin, and nothing else —
+a 15% thicker border is not a larger button. Anything under 6px is left
+alone, because at that size a value is a hairline or a separation rather
+than a dimension. The 26 computed values — the fitted clamps, the reserved
+room for fixed furniture, the offsets that make a menu clear the button it
+hangs from — were each done by hand, and only their ceilings moved.
+
+**What it costs.** There is no live scale to expose as a setting, and the
+next change of scale is another pass over the file rather than one edit. That
+is the honest trade: the fitting rules stay readable and keep working, and
+the file still says what every number is for. The compact picker's type is
+the one value a test pinned outright (13px, now 15px); it was updated with
+the rest.
+
+## Iris and sky, because the three colours were all verdicts
+
+**12 September 2026** · `src/index.css`
+
+Brass meant "look again", jade "right", rose "wrong". Every hue in the
+palette was a judgement, which left nothing to colour the parts of the app
+that judge nothing — so the chrome, every heading, every label, every figure
+and every bar was a shade of the ground.
+
+Two hues were added rather than reusing the three, because reusing them
+costs the meaning they already carry: a brass tab does not say "you are
+here", it says "something needs a second look".
+
+- **Iris** is where you are and how you leave: the wordmark, the space
+  selector, the corner button, the selected tab, and focus. Focus was brass,
+  which meant a focused field read as a problem with the field.
+- **Sky** is what a thing is: a label over a control, a card's kind, a
+  subheading.
+
+Both are set per theme, and both carry text, so neither is the pastel a dark
+theme alone could afford: the light theme's iris is #4F3BD1 against the dark
+theme's #A594FF, at 6.7:1 and 6.9:1 on their own grounds.
+
+**The one thing deliberately left grey** is the verdict. It was green and
+red once, and the note above `.at-shout` says why it stopped being: the
+words already say it, and a wrong answer met a wall of red at the moment it
+was least wanted. Colour was added everywhere the app was saying nothing,
+not where it had already chosen to say it quietly.
+

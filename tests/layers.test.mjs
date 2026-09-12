@@ -638,7 +638,7 @@ test("a picker comes in two widths and they mean different things", () => {
      what is inside it, which is what shrinking to fit is. So its type is
      fixed rather than stepped down. */
   assert.match(compact, /container-type:\s*normal/);
-  assert.match(rule(".at-segmented.sm .at-seg"), /font-size:\s*13px/);
+  assert.match(rule(".at-segmented.sm .at-seg"), /font-size:\s*15px/);
   assert.match(rule(".at-segmented"), /width:\s*100%/, "full width is not full width");
 });
 

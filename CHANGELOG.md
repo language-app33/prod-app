@@ -8,6 +8,36 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.75 — 12 September 2026
+
+- **The whole interface is larger.** Type, buttons, fields, menus, tabs,
+  checkboxes, the on-screen keyboard, the chrome in the corners: everything
+  is 15% bigger than it was. A button is 60px tall rather than 52, the text
+  under a control is 15px rather than 13, and a question is asked at 46px
+  rather than 40. Nothing moved — the layout, the wording and the order of
+  everything on every screen are as they were.
+- **What did not scale, and why.** Borders, hairlines, the gaps that hold
+  two things apart, and every value that is a rule about fitting rather than
+  a size: the type on a row of buttons still steps down to keep a label on
+  one line at 320px, and the verdict is still fitted to the screen it is on.
+  Those have a new ceiling, not a new floor.
+- **Two colours joined the three.** Brass, jade and rose all mean a verdict
+  — look again, right, wrong — so anything that was not judging you was
+  grey. **Iris** now carries where you are and how you leave: the wordmark,
+  the space selector, your initials, the tab you are on, and whatever has
+  focus. **Sky** carries what a thing is: a field's label, a card's kind, a
+  subheading.
+- **Colour where there were only shades.** A progress bar fills through
+  iris, sky and jade rather than in one flat brass. The four figures on a
+  summary take one accent each, edge and number together, because they are
+  read against each other. A card is lit from its top edge. The two filled
+  buttons fall from their own hue to its shade. The page carries three very
+  faint washes of its accents so a long screen is not one flat rectangle.
+- **Still checked.** Every colour that carries text was measured against
+  the ground it sits on: the lowest is 4.6:1 and most are past 5:1, which
+  is where they were before. The verdict line stays grey on purpose — a
+  wrong answer does not meet a wall of red.
+
 ## 0.74 — 11 September 2026
 
 - **Teaching · adding cards to a deck.** The deck list now has a New deck

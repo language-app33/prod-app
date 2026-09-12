@@ -14,20 +14,20 @@
 
 :root {
   color-scheme: light dark;
-  --shell: #141a2a;
+  --shell: #121834;
 }
 @media (prefers-color-scheme: light) {
   :root {
-    --shell: #f4f6fa;
+    --shell: #f3f4ff;
   }
 }
 /* Once the app knows the chosen theme it pins the shell, overriding the
    device preference above. */
 html[data-theme="dark"] {
-  --shell: #141a2a;
+  --shell: #121834;
 }
 html[data-theme="light"] {
-  --shell: #f4f6fa;
+  --shell: #f3f4ff;
 }
 html,
 body,
@@ -47,7 +47,7 @@ body {
 input,
 textarea,
 button {
-  font-size: 16px;
+  font-size: 18px;
 }
 /* ------------------------------------------------------------------
    Tokens
@@ -61,19 +61,19 @@ button {
 .at {
   /* spacing — a six-step scale, used for margin, padding and gap */
   --s1: 4px;
-  --s2: 6px;
-  --s3: 10px;
-  --s4: 14px;
-  --s5: 18px;
-  --s6: 24px;
+  --s2: 7px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 21px;
+  --s6: 28px;
 
   /* type */
-  --fs-xs: 11px;
-  --fs-sm: 13px;
-  --fs-md: 15px;
-  --fs-lg: 19px;
-  --fs-xl: 24px;
-  --fs-stat: 36px;
+  --fs-xs: 13px;
+  --fs-sm: 15px;
+  --fs-md: 17px;
+  --fs-lg: 22px;
+  --fs-xl: 28px;
+  --fs-stat: 41px;
 
   /* Layers, in the order they sit above the page. The one that matters:
      the chrome is ABOVE a screen, because a space frame is a screen and
@@ -118,59 +118,87 @@ button {
   --sfont: var(--ui);
   --sdir: ltr;
   --serif: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --r: 16px; --r-lg: 20px; --r-sm: 12px;
+  --r: 18px; --r-lg: 23px; --r-sm: 14px;
 
-  --bg:#141A2A; --surface:#1D2436; --raised:#26304A; --raised-hover:#2E3A58;
-  --line:#313C58; --text:#E9ECF4; --text-soft:#C6CDDD; --muted:#8C96B0; --faint:#5F6980;
-  --well:rgba(0,0,0,.22); --well-deep:rgba(0,0,0,.28);
+  --bg:#121834; --surface:#1B2347; --raised:#28325C; --raised-hover:#323E70;
+  --line:#36407A; --text:#EEF0FF; --text-soft:#C9CFF0; --muted:#949EC8; --faint:#6B76A8;
+  --well:rgba(6,10,30,.30); --well-deep:rgba(6,10,30,.42);
   /* The tint a tap lays over whatever it is pressing. It goes the way
      hover goes in each theme — lighter on the dark one, darker on the
      light one — so a press reads as more of the same gesture. */
-  --press:rgba(255,255,255,.09);
-  --brass:#E0AE44; --brass-hover:#EDBB4F; --onbrass:#1A1408;
-  --jade:#4FB286; --onjade:#06210F; --rose:#DF5F72;
-  --tag-bg:rgba(224,174,68,.12); --tag-line:rgba(224,174,68,.38);
+  --press:rgba(255,255,255,.10);
+  --brass:#F0B43F; --brass-hover:#FFC451; --onbrass:#241703;
+  --jade:#3FD69A; --onjade:#04220F; --rose:#FF6F87; --onrose:#2B0710;
+  /* Two hues beyond the original three. Brass says "look again", jade
+     says "right", rose says "wrong" — all three are verdicts, which left
+     nothing to colour the parts of the app that are not judging anything.
+     Iris carries navigation and the chrome; sky carries a fact about a
+     card. Both are lifted off the ground far enough to read as text: see
+     the ratios in the note under this block. */
+  --iris:#A594FF; --oniris:#150A3A; --sky:#4FC8F0; --onsky:#04202C;
+  --tag-bg:rgba(240,180,63,.14); --tag-line:rgba(240,180,63,.42);
   /* The jade counterpart of --tag-bg, for the second of two roles a
      person can hold at once. */
-  --jade-bg:rgba(79,178,134,.12);
-  --jade-soft:rgba(79,178,134,.45); --rose-soft:rgba(223,95,114,.45);
+  --jade-bg:rgba(63,214,154,.14);
+  --iris-bg:rgba(165,148,255,.16); --sky-bg:rgba(79,200,240,.15);
+  --jade-soft:rgba(63,214,154,.48); --rose-soft:rgba(255,111,135,.48);
+  --iris-soft:rgba(165,148,255,.48); --sky-soft:rgba(79,200,240,.48);
   --shadow:none;
-  --shade:#171E31; --brass-shade:#B8862A; --jade-shade:#2F8A63; --rose-shade:#B23F52;
-  --nav-bg:rgba(29,36,54,.92); --nav-shadow:0 8px 28px rgba(0,0,0,.5);
+  --shade:#151B3C; --brass-shade:#C08A22; --jade-shade:#22A375; --rose-shade:#C2405A;
+  /* A surface is a shade lighter at its top edge than at its foot, which
+     is what stops a screen of stacked cards reading as one flat sheet. */
+  --surface-tint:#232C58;
+  --nav-bg:rgba(27,35,71,.92); --nav-shadow:0 8px 28px rgba(4,6,24,.55);
   /* The page's own ground, not the raised one: what sits behind the
      fixed wordmark so a scrolling page does not read through it. */
-  --wash:rgba(20,26,42,.82);
+  --wash:rgba(18,24,52,.82);
+  /* Three washes of colour over the page's ground, so a long screen is
+     not one flat rectangle. Far too faint to affect what is written on
+     them — the strongest is .16 alpha — and they are the theme's own
+     three accents rather than a fourth palette. */
+  --glow1:rgba(165,148,255,.16); --glow2:rgba(63,214,154,.12); --glow3:rgba(240,180,63,.10);
   /* The ink of the page: what a heading is written in. Fifteen rules named it
      and nothing defined it, so each fell back to whatever it inherited. */
   --ink: var(--text);
-  /* The outline of the selected tab: a dark grey in both themes, so it reads
-     as a stroke on a light fill and as a rim on a dark one. */
-  --tab-stroke: #4B556D;
+  /* The outline of the selected tab. It was a dark grey in both themes,
+     which is a stroke you have to look for; it is iris now, the colour
+     this app navigates in, so which tab you are on is answered by the one
+     coloured thing in the strip. Still a plain colour and not a tint of
+     the fill: it has to read as an edge in both themes. */
+  --tab-stroke: #8A7BF5;
   /* What marks a thing as chosen — the select button, a picked tile. Named in
      the stylesheet and never defined, like --ink; the app's chosen colour. */
   --accent: var(--jade);
   color-scheme: dark;
 }
 .at.light {
-  --bg:#F4F6FA; --surface:#FFFFFF; --raised:#EAEEF6; --raised-hover:#DDE4F0;
-  --line:#D2D9E6; --text:#16203A; --text-soft:#3A4664; --muted:#5F6B85; --faint:#98A2B8;
-  --well:rgba(20,32,58,.05); --well-deep:rgba(20,32,58,.07);
-  --press:rgba(20,32,58,.09);
-  --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
-  --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
-  --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
-  --jade-bg:rgba(31,122,85,.10);
-  --jade-soft:rgba(31,122,85,.4); --rose-soft:rgba(179,39,60,.4);
-  --shadow:0 1px 2px rgba(20,32,58,.06);
-  --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
-  --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
-  --wash:rgba(244,246,250,.82);
+  --bg:#F3F4FF; --surface:#FFFFFF; --raised:#E9EBFF; --raised-hover:#DCDFFA;
+  --line:#CFD4F0; --text:#161B3A; --text-soft:#3A4272; --muted:#5C6493; --faint:#949BC4;
+  --well:rgba(30,26,90,.05); --well-deep:rgba(30,26,90,.08);
+  --press:rgba(30,26,90,.10);
+  --brass:#9A5B00; --brass-hover:#7C4900; --onbrass:#FFFFFF;
+  --jade:#0C7F57; --onjade:#FFFFFF; --rose:#BE1F3F; --onrose:#FFFFFF;
+  /* Darker than their dark-theme counterparts by exactly as much as the
+     ground is lighter: iris reads 6.7:1 on the page here and 6.9:1 there,
+     sky 5.2:1 and 9:1. Both carry text, so neither may be the pastel the
+     dark theme can afford. */
+  --iris:#4F3BD1; --oniris:#FFFFFF; --sky:#0B6E96; --onsky:#FFFFFF;
+  --tag-bg:rgba(154,91,0,.11); --tag-line:rgba(154,91,0,.38);
+  --jade-bg:rgba(12,127,87,.11);
+  --iris-bg:rgba(79,59,209,.10); --sky-bg:rgba(11,110,150,.10);
+  --jade-soft:rgba(12,127,87,.42); --rose-soft:rgba(190,31,63,.42);
+  --iris-soft:rgba(79,59,209,.40); --sky-soft:rgba(11,110,150,.40);
+  --shadow:0 1px 2px rgba(30,26,90,.07);
+  --shade:#C6CBEC; --brass-shade:#6F4200; --jade-shade:#075C3F; --rose-shade:#8E1630;
+  --surface-tint:#F8F7FF;
+  --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(30,26,90,.16);
+  --wash:rgba(243,244,255,.82);
+  --glow1:rgba(79,59,209,.10); --glow2:rgba(12,127,87,.08); --glow3:rgba(154,91,0,.07);
   /* The ink of the page: what a heading is written in. Fifteen rules named it
      and nothing defined it, so each fell back to whatever it inherited. */
   --ink: var(--text);
-  /* The outline of the selected tab: a dark grey in both themes, so it reads
-     as a stroke on a light fill and as a rim on a dark one. */
-  --tab-stroke: #4B556D;
+  /* Iris, as in the dark theme, and darkened for a white ground. */
+  --tab-stroke: #4B39C9;
   /* What marks a thing as chosen — the select button, a picked tile. Named in
      the stylesheet and never defined, like --ink; the app's chosen colour. */
   --accent: var(--jade);
@@ -178,52 +206,67 @@ button {
 }
 @media (prefers-color-scheme: light) {
   .at.auto {
-    --bg:#F4F6FA; --surface:#FFFFFF; --raised:#EAEEF6; --raised-hover:#DDE4F0;
-    --line:#D2D9E6; --text:#16203A; --text-soft:#3A4664; --muted:#5F6B85; --faint:#98A2B8;
-    --well:rgba(20,32,58,.05); --well-deep:rgba(20,32,58,.07);
-    --press:rgba(20,32,58,.09);
-    --brass:#8A6209; --brass-hover:#6F4E06; --onbrass:#FFFFFF;
-    --jade:#1F7A55; --onjade:#FFFFFF; --rose:#B3273C;
-    --tag-bg:rgba(138,98,9,.10); --tag-line:rgba(138,98,9,.35);
-    --jade-bg:rgba(31,122,85,.10);
-    --jade-soft:rgba(31,122,85,.4); --rose-soft:rgba(179,39,60,.4);
-    --shadow:0 1px 2px rgba(20,32,58,.06);
-    --shade:#C3CCDC; --brass-shade:#654807; --jade-shade:#145C3F; --rose-shade:#8A1B2C;
-    --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(20,32,58,.16);
-    --wash:rgba(244,246,250,.82);
+    --bg:#F3F4FF; --surface:#FFFFFF; --raised:#E9EBFF; --raised-hover:#DCDFFA;
+    --line:#CFD4F0; --text:#161B3A; --text-soft:#3A4272; --muted:#5C6493; --faint:#949BC4;
+    --well:rgba(30,26,90,.05); --well-deep:rgba(30,26,90,.08);
+    --press:rgba(30,26,90,.10);
+    --brass:#9A5B00; --brass-hover:#7C4900; --onbrass:#FFFFFF;
+    --jade:#0C7F57; --onjade:#FFFFFF; --rose:#BE1F3F; --onrose:#FFFFFF;
+    --iris:#4F3BD1; --oniris:#FFFFFF; --sky:#0B6E96; --onsky:#FFFFFF;
+    --tag-bg:rgba(154,91,0,.11); --tag-line:rgba(154,91,0,.38);
+    --jade-bg:rgba(12,127,87,.11);
+    --iris-bg:rgba(79,59,209,.10); --sky-bg:rgba(11,110,150,.10);
+    --jade-soft:rgba(12,127,87,.42); --rose-soft:rgba(190,31,63,.42);
+    --iris-soft:rgba(79,59,209,.40); --sky-soft:rgba(11,110,150,.40);
+    --shadow:0 1px 2px rgba(30,26,90,.07);
+    --shade:#C6CBEC; --brass-shade:#6F4200; --jade-shade:#075C3F; --rose-shade:#8E1630;
+    --surface-tint:#F8F7FF;
+    --nav-bg:rgba(255,255,255,.94); --nav-shadow:0 6px 22px rgba(30,26,90,.16);
+    --wash:rgba(243,244,255,.82);
+    --glow1:rgba(79,59,209,.10); --glow2:rgba(12,127,87,.08); --glow3:rgba(154,91,0,.07);
     /* The ink of the page: what a heading is written in. Fifteen rules named it
        and nothing defined it, so each fell back to whatever it inherited. */
     --ink: var(--text);
-    /* The outline of the selected tab: a dark grey in both themes, so it reads
-       as a stroke on a light fill and as a rim on a dark one. */
-    --tab-stroke: #4B556D;
+    /* Iris, as in the dark theme, and darkened for a white ground. */
+    --tab-stroke: #4B39C9;
     /* What marks a thing as chosen — the select button, a picked tile. Named in
        the stylesheet and never defined, like --ink; the app's chosen colour. */
     --accent: var(--jade);
     color-scheme: light;
   }}
 .at {
-  background: var(--bg); color: var(--text); font-family: var(--ui);
-  min-height: 100vh; padding: 66px 16px 108px; -webkit-font-smoothing: antialiased;
+  /* Three washes of the theme's own accents over the ground, fixed so they
+     stay where they are while the page scrolls under them — a moving
+     gradient reads as a rendering fault. They are laid over
+     background-color rather than replacing it, so every rule that reads
+     --bg still gets the flat colour it expects. */
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(58rem 40rem at 12% -8%, var(--glow1), transparent 70%),
+    radial-gradient(48rem 34rem at 100% 8%, var(--glow2), transparent 68%),
+    radial-gradient(52rem 40rem at 40% 104%, var(--glow3), transparent 72%);
+  background-attachment: fixed;
+  color: var(--text); font-family: var(--ui);
+  min-height: 100vh; padding: 76px 18px 124px; -webkit-font-smoothing: antialiased;
   max-width: 100%; overflow-x: hidden;
 }
-/* The 66px above is room for the fixed chrome — the wordmark, the space
+/* The 76px above is room for the fixed chrome — the wordmark, the space
    selector, the corner menu. During an exercise none of that is rendered
    (see inExercise), so the room stayed reserved for nothing and every
    question sat under a band of empty page. Ordinary page margin instead.
 
    Before .at.kb-open, which is the same specificity and has to win: with
    the keyboard up the padding is tighter still. */
-.at.in-exercise { padding-top: 18px; }
+.at.in-exercise { padding-top: 21px; }
 .at-wrap { max-width: 700px; margin: 0 auto; }
-.at-headline { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
-.at-exit { flex-shrink:0; width:34px; height:34px; border-radius:999px; cursor:pointer;
+.at-headline { display:flex; align-items:center; gap:12px; margin-bottom:21px; }
+.at-exit { flex-shrink:0; width:39px; height:39px; border-radius:999px; cursor:pointer;
   background:none; border:2px solid var(--line); color: var(--muted);
-  font-size:19px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
+  font-size:22px; line-height:1; display:inline-flex; align-items:center; justify-content:center; }
 .at-exit:hover { color: var(--text); border-color: var(--muted); }
-.at-learntnote { border:2px dashed var(--line); border-radius: var(--r); padding:10px 12px;
-  margin-bottom:14px; }
-.at-count { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.05em;
+.at-learntnote { border:2px dashed var(--line); border-radius: var(--r); padding:12px 14px;
+  margin-bottom:16px; }
+.at-count { font-family: var(--ui); font-size:15px; font-weight:800; letter-spacing:.05em;
   color: var(--muted); white-space:nowrap; }
 .at-headline .at-progress { flex:1; margin-bottom:0; }
 /* The question line, identical on every exercise.
@@ -240,31 +283,31 @@ button {
    and it is the one that carries the ink. --muted is the grey the app
    already uses for secondary text — 5.9:1 on the dark ground and 4.9:1 on
    the light, so it passes AA at any size. */
-.at-instruction { font-family: var(--ui); font-size:19px; font-weight:700; color: var(--muted);
-  margin:0 0 8px; line-height:1.4; min-height:2.8em;
+.at-instruction { font-family: var(--ui); font-size:22px; font-weight:700; color: var(--muted);
+  margin:0 0 9px; line-height:1.4; min-height:2.8em;
   display:flex; align-items:center; justify-content:center; text-align:center; }
-.at-answerlabel { font-family: var(--ui); font-size:13px; font-weight:700; letter-spacing:.05em;
+.at-answerlabel { font-family: var(--ui); font-size:15px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color: var(--muted); margin:0 0 4px; }
 /* The answer itself carries the weight; anything shown beneath it is a
    second thing worth noticing, not a competing one. */
 /* Room between what you typed and what it should have been: the box, the
    verdict, then the answer, with air on both sides of the verdict rather
    than the six pixels that ran the three together. */
-.at-answermain { margin: 14px 0 4px; }
-.at-answermain .at-arabic { font-size:calc(40px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); margin:6px 0; }
-.at-answermain .at-en { font-size:calc(26px * var(--lscale, 1)); font-weight:800; }
-.at-answermain .at-latin { font-size:calc(24px * var(--lscale, 1)); }
+.at-answermain { margin: 16px 0 4px; }
+.at-answermain .at-arabic { font-size:calc(46px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); margin:7px 0; }
+.at-answermain .at-en { font-size:calc(30px * var(--lscale, 1)); font-weight:800; }
+.at-answermain .at-latin { font-size:calc(28px * var(--lscale, 1)); }
 /* The question and the answer box used to shrink and fade away over 240ms
    once the answer landed, to move the eye onto it. Nothing moves now: the
    question stays the size it was asked at and the answer box stays the
    size it was typed into. .at-ask and .at-answerbox are still here as
    plain hooks — they hold no state and no motion. */
-.at-answeralso { margin-top:16px; padding-top:12px; border-top:1px solid var(--line); }
-.at-alsolabel { font-family: var(--ui); font-size:11px; font-weight:700;
-  letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 6px; }
-.at-answeralso .at-arabic { font-size:calc(26px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
-.at-answeralso .at-en { font-size:calc(16px * var(--lscale, 1)); }
-.at-answeralso .at-latin { font-size:calc(15px * var(--lscale, 1)); }
+.at-answeralso { margin-top:18px; padding-top:14px; border-top:1px solid var(--line); }
+.at-alsolabel { font-family: var(--ui); font-size:13px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 7px; }
+.at-answeralso .at-arabic { font-size:calc(30px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); margin:4px 0; }
+.at-answeralso .at-en { font-size:calc(18px * var(--lscale, 1)); }
+.at-answeralso .at-latin { font-size:calc(17px * var(--lscale, 1)); }
 /* Everything under an answer that is not the answer, in one container:
    where it turned up, how it is written, how it is pronounced, how it
    sounds, what shares its root. Inset rather than raised — the same well
@@ -279,11 +322,11 @@ button {
    Continue, at the foot of the screen. It carries the chevron so the tap
    target says which way the box will go. */
 .at-alsomore { display:flex; align-items:center; justify-content:center; gap:4px;
-  margin: 14px auto 0; background:none; border:0; cursor:pointer;
-  font-family: var(--ui); font-size:13px; font-weight:700; color: var(--muted);
-  padding:6px 10px; }
+  margin: 16px auto 0; background:none; border:0; cursor:pointer;
+  font-family: var(--ui); font-size:15px; font-weight:700; color: var(--muted);
+  padding:7px 12px; }
 .at-alsomore:hover { color: var(--text); }
-.at-alsobox { margin-top:10px; padding:14px; background: var(--well);
+.at-alsobox { margin-top:12px; padding:16px; background: var(--well);
   border:2px solid var(--line); border-radius: var(--r); }
 /* The dividers belong to the box, not to its members: the related words
    are not an .at-answeralso and had their own margin and hairline four
@@ -291,45 +334,45 @@ button {
    .at-pairs now declares no spacing at all. And nothing draws a rule
    against the box's own edge. */
 .at-alsobox > * { margin-top:0; padding-top:0; border-top:0; }
-.at-alsobox > * + * { margin-top:14px; padding-top:12px;
+.at-alsobox > * + * { margin-top:16px; padding-top:14px;
   border-top:1px solid var(--line); }
-.at-flagwrap { position:relative; margin-top:14px; text-align:center; }
+.at-flagwrap { position:relative; margin-top:16px; text-align:center; }
 /* Two quiet ways out, set identically: reporting a bad question, and
    saying you cannot hear this one. Neither is a thing to do with the
    question, so neither takes an outline or a fill — they are text you can
    press, sitting above the row that carries the question forward. */
-.at-flagbtn, .at-quietbtn { display:inline-flex; align-items:center; gap:6px;
+.at-flagbtn, .at-quietbtn { display:inline-flex; align-items:center; gap:7px;
   background:none; border:0; cursor:pointer; font-family: var(--ui);
-  font-size:13px; font-weight:700; color: var(--faint); padding:6px 10px; }
+  font-size:15px; font-weight:700; color: var(--faint); padding:7px 12px; }
 .at-flagbtn:hover, .at-quietbtn:hover { color: var(--muted); }
 .at-flagbtn.on { color: var(--brass); }
-.at-flagmenu { display:flex; flex-direction:column; gap:6px; margin-top:8px;
-  border:2px solid var(--line); border-radius: var(--r); background: var(--surface); padding:8px; }
+.at-flagmenu { display:flex; flex-direction:column; gap:7px; margin-top:9px;
+  border:2px solid var(--line); border-radius: var(--r); background: var(--surface); padding:9px; }
 /* What the menu is, said where the button that opened it used to be — the
    menu stands on top of it now, so without this line the screen has three
    options on it and nothing saying what they are options about. Centred,
    over a panel whose own contents are all left-aligned: it is the head of
    the thing, not the first item in it. */
 .at-flagmenu-label { margin:4px 2px 0; text-align:center;
-  font-size:15px; font-weight:800; color: var(--text); }
+  font-size:17px; font-weight:800; color: var(--text); }
 /* And why it is worth doing, under it. Two lines at 320px, so the panel
    pays a line for it and not more. */
-.at-flagmenu-lede { margin:3px 8px 6px; text-align:center;
-  font-size:12px; font-weight:500; line-height:1.4; color: var(--muted); }
+.at-flagmenu-lede { margin:3px 9px 7px; text-align:center;
+  font-size:14px; font-weight:500; line-height:1.4; color: var(--muted); }
 /* Each option is a card rather than a line: a title says what is wrong and
    the line under it says when to pick that one, which is the part a bare
    label left the reader to guess at. Outlined, so three of them read as
    three things to choose between rather than as a paragraph. */
 .at-flagopt { display:flex; flex-direction:column; gap:2px; width:100%;
   text-align:left; background: var(--raised); border:2px solid var(--line);
-  cursor:pointer; border-radius: var(--r-sm); padding:11px 12px;
+  cursor:pointer; border-radius: var(--r-sm); padding:13px 14px;
   color: var(--text); font-family: var(--ui); }
 .at-flagopt:hover { background: var(--raised-hover); border-color: var(--accent); }
-.at-flagopt-title { font-size:14px; font-weight:700; }
-.at-flagopt-what { font-size:12px; font-weight:500; color: var(--muted); line-height:1.4; }
+.at-flagopt-title { font-size:16px; font-weight:700; }
+.at-flagopt-what { font-size:14px; font-weight:500; color: var(--muted); line-height:1.4; }
 /* What picking it does, as opposed to what it says — the one option that
    also changes the answer you just gave. */
-.at-flagopt-does { font-size:11px; font-weight:700; letter-spacing:.05em;
+.at-flagopt-does { font-size:13px; font-weight:700; letter-spacing:.05em;
   text-transform:uppercase; color: var(--jade); margin-top:3px; }
 /* Saying it in your own words. It sits under the option it belongs to,
    from the moment the menu opens: a box that appears where the options
@@ -340,20 +383,20 @@ button {
    gap taken back, no rule between them. Two separate outlines read as two
    things, and the box read as a fourth choice sitting under three. */
 .at-flagopt.asks { border-bottom:0; border-bottom-left-radius:0; border-bottom-right-radius:0;
-  padding-bottom:9px; }
-.at-flagnote { display:flex; flex-direction:column; gap:8px;
-  margin-top:-6px; padding:0 12px 11px;
+  padding-bottom:10px; }
+.at-flagnote { display:flex; flex-direction:column; gap:9px;
+  margin-top:-6px; padding:0 14px 13px;
   background: var(--raised); border:2px solid var(--line); border-top:0;
   border-radius:0 0 var(--r-sm) var(--r-sm); }
 /* Inside that shape the box is a well rather than a second card: it is
    where the words go, not another thing to choose. */
-.at-flagnote .at-flagtext { border-radius: var(--r-sm); padding:9px 11px; min-height:62px; }
+.at-flagnote .at-flagtext { border-radius: var(--r-sm); padding:10px 13px; min-height:71px; }
 /* The one option that is chosen, told apart the way a chosen thing is told
    apart everywhere else here — and its box lights with it, because they
    are one option. */
 .at-flagopt.on { border-color: var(--accent); background: var(--raised-hover); }
 .at-flagopt.asks.on + .at-flagnote { border-color: var(--accent); background: var(--raised-hover); }
-.at-flagtext { font-size:15px; font-weight:500; resize:vertical; min-height:76px; }
+.at-flagtext { font-size:17px; font-weight:500; resize:vertical; min-height:87px; }
 .at-flagnoterow { margin-top:0; }
 .at-flag.flagged { color: var(--rose); border-color: var(--rose-soft); }
 /* One size, whatever the exercise put on the screen — it is the same
@@ -362,7 +405,7 @@ button {
    is:" to two lines at 320px, which is narrower than any phone it will
    meet; 30px and above take three there. Only the phone keyboard changes
    it, and the keyboard is not the exercise. */
-.at { --verdict: 28px; --verdict-alone: 40px; }
+.at { --verdict: 32px; --verdict-alone: 46px; }
 /* One line, always. The longest verdict — "Incorrect. The correct answer
    is:" — is 496px wide at 28px, and the page column is 288px on a 320px
    phone, so the size comes from the screen: the column's width divided by
@@ -377,7 +420,7 @@ button {
 .at-shout { font-family: var(--ui); font-weight:800; letter-spacing:-.02em; white-space:nowrap;
   font-size: min(var(--verdict), calc((100vw - 36px) / 18));
   color: var(--muted);
-  margin:16px 0 0; }
+  margin:18px 0 0; }
 /* Except when it is on its own. A right answer typed in full has nothing
    shown under it — the answer is already in the box above, so repeating it
    says nothing — and the praise is then the whole of what came back rather
@@ -389,35 +432,35 @@ button {
    column there, and further inside it on anything wider. */
 .at-shout.alone {
   font-size: min(var(--verdict-alone), calc((100vw - 36px) / 7)); }
-.at-after { margin-top:6px; }
+.at-after { margin-top:7px; }
 /* Session builder: tag and card selection. These matched nothing before,
    which is why they rendered as bare browser defaults. */
-.at-taglist { display:flex; flex-direction:column; gap:8px; }
+.at-taglist { display:flex; flex-direction:column; gap:9px; }
 .at-tagpick { border:2px solid var(--line); border-radius: var(--r); background: var(--surface);
   overflow:hidden; }
 .at-tagpick.on { border-color: var(--jade); background: var(--tag-bg); }
 .at-tagpickrow { display:flex; align-items:stretch; }
-.at-tagpickmain { flex:1; min-width:0; display:flex; align-items:center; gap:10px;
-  background:none; border:0; cursor:pointer; color: var(--text); padding:13px 14px;
+.at-tagpickmain { flex:1; min-width:0; display:flex; align-items:center; gap:12px;
+  background:none; border:0; cursor:pointer; color: var(--text); padding:15px 16px;
   text-align:left; font-family: var(--ui); }
-.at-tagpickmain .nm { flex:1; min-width:0; font-size:15px; font-weight:700;
+.at-tagpickmain .nm { flex:1; min-width:0; font-size:17px; font-weight:700;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-tagpickmain .ct { font-size:12px; font-weight:700; color: var(--muted); white-space:nowrap; }
-.at-tagpickmore { flex-shrink:0; width:44px; background:none; border:0; border-left:2px solid var(--line);
-  cursor:pointer; color: var(--muted); font-size:15px; }
+.at-tagpickmain .ct { font-size:14px; font-weight:700; color: var(--muted); white-space:nowrap; }
+.at-tagpickmore { flex-shrink:0; width:51px; background:none; border:0; border-left:2px solid var(--line);
+  cursor:pointer; color: var(--muted); font-size:17px; }
 .at-tagpickmore:hover { background: var(--raised); color: var(--text); }
-.at-box { flex-shrink:0; width:24px; height:24px; border-radius:7px; border:2px solid var(--line);
-  display:inline-flex; align-items:center; justify-content:center; font-size:14px;
+.at-box { flex-shrink:0; width:28px; height:28px; border-radius:8px; border:2px solid var(--line);
+  display:inline-flex; align-items:center; justify-content:center; font-size:16px;
   font-weight:800; color: var(--onjade); background: var(--well); }
 .at-box.all { background: var(--jade); border-color: var(--jade); }
 .at-box.some { background: var(--brass); border-color: var(--brass); color: var(--onbrass); }
 .at-tagpickcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
-  gap:6px; padding:10px; border-top:2px solid var(--line); }
+  gap:7px; padding:12px; border-top:2px solid var(--line); }
 /* A card in a list you are scanning, not a page you are reading: the word,
    what it means, and when it was added. Tight at the top and between the
    two lines, because the gap between a word and its meaning was doing the
    work of separating them from each other rather than from the card. */
-.at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r); padding:8px 10px; color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:1px; height:100%; }
+.at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r); padding:9px 12px; color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:1px; height:100%; }
 .at-minicard.on { border-color: var(--jade); background: var(--tag-bg); }
 /* Two lines at most, then an ellipsis — not one. A tile a third of a
    phone wide cuts nearly every phrase off after a word or two, and "افتح
@@ -426,34 +469,34 @@ button {
 .at-minicard .ar { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
   line-clamp:2; font-family: var(--sfont); font-weight:700;
   direction: var(--sdir); unicode-bidi:isolate; overflow:hidden; word-break:break-word; }
-.at-minicard .en { display:block; font-size:12px; font-weight:600; color: var(--muted);
+.at-minicard .en { display:block; font-size:14px; font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-lengthgroup { margin-bottom:14px; }
-.at-lengthor { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.1em;
-  text-transform:uppercase; color: var(--faint); text-align:center; margin:6px 0 14px; }
-.at-handle { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:14px;
+.at-lengthgroup { margin-bottom:16px; }
+.at-lengthor { font-family: var(--ui); font-size:14px; font-weight:800; letter-spacing:.1em;
+  text-transform:uppercase; color: var(--faint); text-align:center; margin:7px 0 16px; }
+.at-handle { font-family: ui-monospace, Menlo, Consolas, monospace; font-size:16px;
   color: var(--muted); margin:0; }
-.at-key { font-family: var(--sfont); font-size:calc(21px * var(--sscale, 1)); background: var(--raised); border:2px solid var(--line); border-radius:10px; padding:0 7px; color: var(--text); word-break:break-all; user-select:all; margin:0; min-width:38px; height:44px; cursor:pointer; }
+.at-key { font-family: var(--sfont); font-size:calc(24px * var(--sscale, 1)); background: var(--raised); border:2px solid var(--line); border-radius:12px; padding:0 8px; color: var(--text); word-break:break-all; user-select:all; margin:0; min-width:44px; height:51px; cursor:pointer; }
 .ob { position:fixed; inset:0; z-index:500; background: var(--bg); display:flex;
-  align-items:center; justify-content:center; padding:24px 18px; overflow-y:auto; }
+  align-items:center; justify-content:center; padding:28px 21px; overflow-y:auto; }
 .ob-box { width:100%; max-width:420px; }
-.ob-box h1 { font-family: var(--wordmark); font-size:34px; font-weight:700; margin:0 0 14px;
+.ob-box h1 { font-family: var(--wordmark); font-size:39px; font-weight:700; margin:0 0 16px;
   text-align:center; direction: rtl; }
-.ob-box h2 { font-size:22px; font-weight:800; margin:0 0 10px; letter-spacing:-.01em; }
-.ob-lede { font-size:15px; font-weight:500; color: var(--muted); line-height:1.6; margin:0 0 18px; }
-.at-nav2 { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
-.at-tab2 { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background:none; border:2px solid var(--line); border-radius:999px; color: var(--muted); padding:9px 15px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.ob-box h2 { font-size:25px; font-weight:800; margin:0 0 12px; letter-spacing:-.01em; }
+.ob-lede { font-size:17px; font-weight:500; color: var(--muted); line-height:1.6; margin:0 0 21px; }
+.at-nav2 { display:flex; gap:7px; margin-bottom:18px; flex-wrap:wrap; }
+.at-tab2 { font-family: var(--ui); font-size:15px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background:none; border:2px solid var(--line); border-radius:999px; color: var(--muted); padding:10px 17px; cursor:pointer; display:inline-flex; align-items:center; gap:7px; }
 /* The selected tab carries a dark grey outline, so which one is active reads
    at a glance rather than by shade alone. */
 .at-tab2.on { background: var(--raised); color: var(--text); border-color: var(--tab-stroke); }
-.at-codebox { display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+.at-codebox { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
   border:2px solid var(--tag-line); background: var(--tag-bg); border-radius: var(--r-sm);
-  padding:9px 11px; }
-.at-codebox span { font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  padding:10px 13px; }
+.at-codebox span { font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
   color: var(--muted); }
-.at-codebox b { flex:1; min-width:120px; font-family: ui-monospace, Menlo, monospace;
-  font-size:15px; color: var(--brass); user-select:all; }
-.at-mode { position:fixed; top:12px; left:12px; }
+.at-codebox b { flex:1; min-width:138px; font-family: ui-monospace, Menlo, monospace;
+  font-size:17px; color: var(--brass); user-select:all; }
+.at-mode { position:fixed; top:14px; left:14px; }
 /* The app's name, where the space selector used to sit.
 
    It is fixed, so a screen that scrolls passes underneath it — and with
@@ -472,25 +515,25 @@ button {
 
    Still pointer-events:none: it is the app's name, not a button, and
    nothing should be harder to tap for its being behind it. */
-.at-brand { position:fixed; top:12px; left:12px; height:40px;
-  display:flex; align-items:center; padding:0 6px; border-radius:10px;
+.at-brand { position:fixed; top:14px; left:14px; height:46px;
+  display:flex; align-items:center; padding:0 7px; border-radius:12px;
   background: var(--wash);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
-  font-family: var(--ui); font-size:16px;
+  font-family: var(--ui); font-size:18px;
   font-weight:800; letter-spacing:.01em; color: var(--text-soft); pointer-events:none; }
-.at-modebtn { display:inline-flex; align-items:center; gap:7px; cursor:pointer; border:2px solid var(--line); border-radius:999px; padding:9px 14px; background: var(--nav-bg); backdrop-filter:blur(12px); color: var(--text); font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; box-shadow: var(--nav-shadow); justify-content:center; }
+.at-modebtn { display:inline-flex; align-items:center; gap:8px; cursor:pointer; border:2px solid var(--line); border-radius:999px; padding:10px 16px; background: var(--nav-bg); backdrop-filter:blur(12px); color: var(--text); font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; box-shadow: var(--nav-shadow); justify-content:center; }
 .at-modecaret { color: var(--brass); display:inline-flex; transition: transform 150ms; }
 .at-modecaret.up { transform: rotate(180deg); }
-.at-modemenu { position:absolute; top:46px; left:0; min-width:170px; background: var(--surface);
-  border:2px solid var(--line); border-radius:14px; padding:6px;
+.at-modemenu { position:absolute; top:53px; left:0; min-width:195px; background: var(--surface);
+  border:2px solid var(--line); border-radius:16px; padding:7px;
   box-shadow:0 10px 30px rgba(0,0,0,.5); }
 .at-modeitem { display:flex; align-items:center; justify-content:space-between; width:100%;
-  background:none; border:0; cursor:pointer; border-radius:10px; padding:11px 12px;
-  color: var(--text); font-family: var(--ui); font-size:13px; font-weight:700; text-align:left; }
+  background:none; border:0; cursor:pointer; border-radius:12px; padding:13px 14px;
+  color: var(--text); font-family: var(--ui); font-size:15px; font-weight:700; text-align:left; }
 .at-modeitem:hover { background: var(--raised); }
 .at-modeitem.on { color: var(--brass); }
-.at-formblock { border:2px solid var(--line); border-radius: var(--r-lg); padding:16px;
-  margin-bottom:14px; background: var(--surface); }
+.at-formblock { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px;
+  margin-bottom:16px; background: var(--surface); }
 .at-formblock.main { border-color: var(--brass); }
 /* A turn of a conversation, on its speaker's side. The block keeps most of
    its width, because a form is fields and half a phone is not enough for
@@ -505,75 +548,75 @@ button {
 /* The name of whoever says it, beside the number. It was only inside the
    picker, so reading down a scene meant reading four pickers. */
 .at-formhead > .at-speaker { flex:0 0 auto; }
-.at-formhead { display:flex; align-items:baseline; gap:10px; margin-bottom:14px;
-  padding-bottom:10px; border-bottom:2px solid var(--line); }
-.at-formnum { font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+.at-formhead { display:flex; align-items:baseline; gap:12px; margin-bottom:16px;
+  padding-bottom:12px; border-bottom:2px solid var(--line); }
+.at-formnum { font-size:14px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
   color: var(--brass); }
 /* The head carries two actions now, so on a narrow phone the role text has to
    give way — but by shortening on its own line, not by collapsing into a
    column one word wide, which is what it did when it was merely allowed to
    shrink. */
-.at-formrole { flex:1; min-width:0; font-size:12px; color: var(--muted);
+.at-formrole { flex:1; min-width:0; font-size:14px; color: var(--muted);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* The actions stay whole: they are what the row is for. */
-.at-formacts { display:flex; align-items:baseline; gap:8px; flex-shrink:0; }
-.at-cklist { display:flex; flex-direction:column; gap:8px; }
+.at-formacts { display:flex; align-items:baseline; gap:9px; flex-shrink:0; }
+.at-cklist { display:flex; flex-direction:column; gap:9px; }
 /* A tighter card editor: less air between fields, smaller labels. */
-.at-screen.over .at-field { margin-bottom:12px; }
-.at-screen.over .at-label { font-size:11px; margin-bottom:4px; }
-.at-screen.over .at-input { padding:9px 11px; }
-.at-screen.over .at-formblock { padding:16px; margin-bottom:16px; }
-.at-screen.over .at-formhead { margin-bottom:14px; align-items:baseline; }
-.at-screen.over .at-formnum { font-size:17px; font-weight:800; letter-spacing:0;
+.at-screen.over .at-field { margin-bottom:14px; }
+.at-screen.over .at-label { font-size:13px; margin-bottom:4px; }
+.at-screen.over .at-input { padding:10px 13px; }
+.at-screen.over .at-formblock { padding:18px; margin-bottom:18px; }
+.at-screen.over .at-formhead { margin-bottom:16px; align-items:baseline; }
+.at-screen.over .at-formnum { font-size:20px; font-weight:800; letter-spacing:0;
   text-transform:none; color: var(--ink); }
-.at-screen.over .at-formrole { font-size:12px; color: var(--muted); }
+.at-screen.over .at-formrole { font-size:14px; color: var(--muted); }
 .at-screen.over .at-chips { gap:5px; }
-.at-screen.over .at-chips .at-btn.sm { padding:5px 10px; font-size:12px; }
+.at-screen.over .at-chips .at-btn.sm { padding:5px 12px; font-size:14px; }
 /* Icons sit inside buttons at the text baseline. */
 .at-ic { flex:0 0 auto; vertical-align:-4px; }
-.at-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family: var(--ui); font-size:16px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background: var(--raised); color: var(--text); border:2px solid var(--line); border-radius: var(--r); padding:14px 22px; cursor:pointer; transition: transform 60ms, background 120ms; min-height:52px; }
-.at-btn.sm { gap:6px; }
-.at-icon { display:inline-flex; align-items:center; justify-content:center; flex:1; border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised); color: var(--ink); font-size:14px; line-height:1; padding:7px 0; cursor:pointer; }
+.at-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; font-family: var(--ui); font-size:18px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background: var(--raised); color: var(--text); border:2px solid var(--line); border-radius: var(--r); padding:16px 25px; cursor:pointer; transition: transform 60ms, background 120ms; min-height:60px; }
+.at-btn.sm { gap:7px; }
+.at-icon { display:inline-flex; align-items:center; justify-content:center; flex:1; border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised); color: var(--ink); font-size:16px; line-height:1; padding:8px 0; cursor:pointer; }
 /* The outline without the fill, matching .at-btn.ghost — for an icon button
    standing in a row beside ghost buttons. */
 .at-icon.ghost { background: transparent; }
 /* Select sits with the search field, not on its own row. */
-.at-toolbar .at-selectbtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
+.at-toolbar .at-selectbtn { flex:0 0 auto; width:51px; height:51px; min-height:51px;
   padding:0; box-sizing:border-box; }
 .at-toolbar .at-selectbtn.on { border-color: var(--accent); color: var(--accent); }
 /* The bulk tray: what it is on the left, how many on the right. */
 .at-bulkhead2 { display:flex; align-items:baseline; justify-content:space-between;
-  gap:12px; width:100%; margin-bottom:8px; }
-.at-bulktitle { font-size:12px; font-weight:800; text-transform:uppercase;
+  gap:14px; width:100%; margin-bottom:9px; }
+.at-bulktitle { font-size:14px; font-weight:800; text-transform:uppercase;
   letter-spacing:.05em; color: var(--ink); }
-.at-bulkrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%; }
-.at-bulkdel { margin-left:auto; width:44px; height:40px; flex:0 0 auto;
+.at-bulkrow { display:flex; gap:9px; align-items:center; flex-wrap:wrap; width:100%; }
+.at-bulkdel { margin-left:auto; width:51px; height:46px; flex:0 0 auto;
   background: var(--rose); border-color: var(--rose); color:#fff; }
 /* A setting that is deliberately hard to change. */
-.at-lockrow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.at-lockname { display:inline-flex; align-items:center; gap:8px; font-size:15px;
+.at-lockrow { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.at-lockname { display:inline-flex; align-items:center; gap:9px; font-size:17px;
   font-weight:700; color: var(--ink); }
 /* Splitting a form into what gets drilled and what doesn't. */
 /* A subsection inside a form: a coloured rule and a chip, so the split
    between what is drilled and what is reference is impossible to miss. */
-.at-groupline { margin:0 0 14px; font-size:11px; font-weight:800;
+.at-groupline { margin:0 0 16px; font-size:13px; font-weight:800;
   text-transform:uppercase; letter-spacing:.07em; color: var(--accent); }
 .at-formblock .at-groupline + .at-field, .at-formblock .at-groupline + .at-hint {
   margin-top:0; }
-.at-formblock .at-groupline:not(:first-of-type) { margin-top:22px; }
+.at-formblock .at-groupline:not(:first-of-type) { margin-top:25px; }
 /* Ticking decks: a real checkbox, so it looks and behaves like one. */
-.at-ticklist { display:flex; flex-direction:column; gap:6px; }
-.at-tickrow { display:flex; align-items:center; gap:10px; cursor:pointer;
+.at-ticklist { display:flex; flex-direction:column; gap:7px; }
+.at-tickrow { display:flex; align-items:center; gap:12px; cursor:pointer;
   border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised);
-  padding:10px 12px; }
+  padding:12px 14px; }
 .at-tickrow:has(input:checked) { border-color: var(--accent); }
-.at-tickrow input { width:20px; height:20px; flex:0 0 auto; margin:0; cursor:pointer;
+.at-tickrow input { width:23px; height:23px; flex:0 0 auto; margin:0; cursor:pointer;
   accent-color: var(--jade); }
 .at-tickbody { display:flex; flex-direction:column; gap:1px; min-width:0; }
-.at-tickbody b { font-size:14px; font-weight:700; overflow-wrap:anywhere; }
-.at-tickbody i { font-size:11px; font-style:normal; color: var(--muted); }
+.at-tickbody b { font-size:16px; font-weight:700; overflow-wrap:anywhere; }
+.at-tickbody i { font-size:13px; font-style:normal; color: var(--muted); }
 /* What a form still needs, shown beside its fields. */
-.at-formneed { margin:0 0 12px; font-size:12px; color: var(--muted); }
+.at-formneed { margin:0 0 14px; font-size:14px; color: var(--muted); }
 .at-formneed.unmet { color: var(--brass); }
 .at-formneed.unmet { color: var(--brass); }
 /* Decks a card belongs to: chips that tick, rather than a stack of rows. */
@@ -585,49 +628,49 @@ button {
    foot of the window, so without this the list runs on underneath it and
    the last card is behind the buttons acting on it. */
 .at-listwrap { position:relative; padding-bottom: var(--bulk-h, 0px); }
-.at-toolbar { display:flex; gap:8px; align-items:stretch; margin-bottom:10px; flex-wrap:nowrap; }
+.at-toolbar { display:flex; gap:9px; align-items:stretch; margin-bottom:12px; flex-wrap:nowrap; }
 /* Both controls are sized the same way — border-box, one height, no inherited
    padding — so the button and the field line up exactly. */
 .at-toolbar .at-btn, .at-toolbar .at-search {
-  box-sizing:border-box; height:44px; min-height:44px; line-height:normal;
-  border-radius: var(--r-sm); font-size:14px; margin:0;
+  box-sizing:border-box; height:51px; min-height:51px; line-height:normal;
+  border-radius: var(--r-sm); font-size:16px; margin:0;
 }
-.at-toolbar .at-btn { flex:0 0 auto; padding:0 16px; white-space:nowrap; font-weight:700; }
+.at-toolbar .at-btn { flex:0 0 auto; padding:0 18px; white-space:nowrap; font-weight:700; }
 .at-toolbar .at-btn:active:not(:disabled) { transform:none; }
-.at-toolbar .at-search { flex:1 1 0; min-width:0; padding:0 12px; }
+.at-toolbar .at-search { flex:1 1 0; min-width:0; padding:0 14px; }
 /* Room between the line explaining a tab and the controls under it. */
-.at-toolbar-top { margin-top:16px; }
+.at-toolbar-top { margin-top:18px; }
 /* A boxed section inside a full-screen view, so a course reads as three
    distinct things rather than one long column. */
 .at-panel { border:2px solid var(--line); border-radius: var(--r-lg);
-  padding:16px 16px 18px; margin-bottom:16px; background: var(--surface); }
+  padding:18px 18px 21px; margin-bottom:18px; background: var(--surface); }
 /* Section headings are headings, not captions. */
-.at-panel > .at-eyebrow:first-child { margin:0 0 4px; font-size:15px; font-weight:800;
+.at-panel > .at-eyebrow:first-child { margin:0 0 4px; font-size:17px; font-weight:800;
   letter-spacing:0; text-transform:none; color: var(--ink); }
-.at-subhead { font-size:13px; font-weight:800; color: var(--muted);
-  text-transform:uppercase; letter-spacing:.05em; margin:16px 0 8px; }
+.at-subhead { font-size:15px; font-weight:800; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; margin:18px 0 9px; }
 .at-subhead:first-child { margin-top:0; }
 /* The line under a course title carries the facts, so it is readable. */
-.at-coursemeta { font-size:15px; color: var(--ink); font-weight:600;
-  margin:0 0 16px; line-height:1.5; }
+.at-coursemeta { font-size:17px; color: var(--ink); font-weight:600;
+  margin:0 0 18px; line-height:1.5; }
 .at-coursemeta span { color: var(--muted); font-weight:400; }
 /* People in a course: a name, a role, and nothing pretending to be tappable. */
-.at-person { display:flex; align-items:center; gap:10px; padding:10px 12px;
+.at-person { display:flex; align-items:center; gap:12px; padding:12px 14px;
   border:2px solid var(--line); border-radius: var(--r-sm); background: var(--raised);
-  margin-bottom:6px; }
+  margin-bottom:7px; }
 .at-person:last-child { margin-bottom:0; }
-.at-avatar { width:30px; height:30px; border-radius:999px; flex:0 0 auto;
-  display:flex; align-items:center; justify-content:center; font-size:12px;
+.at-avatar { width:35px; height:35px; border-radius:999px; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center; font-size:14px;
   font-weight:800; background: var(--surface); border:2px solid var(--line);
   color: var(--muted); }
-.at-personname { font-size:14px; font-weight:600; min-width:0; overflow-wrap:anywhere; }
+.at-personname { font-size:16px; font-weight:600; min-width:0; overflow-wrap:anywhere; }
 .at-panel .at-decklist2 .at-deckcard { background: var(--raised); }
-.at-listtools { display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+.at-listtools { display:flex; gap:9px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
 /* Dialog titles and screen titles are the same rank, so they are the same
    size — a modal is a small screen, not a different species. */
-.at-modaltitle { font-size:19px; font-weight:800; margin:0 0 10px; }
+.at-modaltitle { font-size:22px; font-weight:800; margin:0 0 12px; }
 /* The teaching tab strip and the learning nav share one type scale. */
-.at-nav2 .at-btn.sm .at-btn.sm { font-size:13px; letter-spacing:.03em; }
+.at-nav2 .at-btn.sm .at-btn.sm { font-size:15px; letter-spacing:.03em; }
 /* A tile carries its own tick when the list is in selecting mode. */
 .at-tilewrap { position:relative; }
 .at-tilewrap.picked > .at-deckcard, .at-tilewrap.picked > .at-minicard,
@@ -637,18 +680,18 @@ button {
    bottom, not a floating pill. */
 .at-bulkfloat {
   position:fixed; left:0; right:0;
-  bottom:0; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-  z-index:120; display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  bottom:0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  z-index:120; display:flex; gap:9px; align-items:center; flex-wrap:wrap;
   background: var(--surface); border-top:2px solid var(--line);
   box-shadow: 0 -6px 20px rgba(0,0,0,.14);
 }
-.at-bulkcount { font-size:12px; font-weight:800; color: var(--muted);
+.at-bulkcount { font-size:14px; font-weight:800; color: var(--muted);
   margin-right:auto; text-transform:uppercase; letter-spacing:.04em; }
 /* A join code and what it grants. */
-.at-codeblock { margin: 0 0 14px; }
-.at-codehead { font-size:11px; letter-spacing:.04em; text-transform:uppercase;
-  color: var(--muted); font-weight:700; margin-bottom:6px; }
-.at-codeblock .at-hint { margin-top:6px; }
+.at-codeblock { margin: 0 0 16px; }
+.at-codehead { font-size:13px; letter-spacing:.04em; text-transform:uppercase;
+  color: var(--muted); font-weight:700; margin-bottom:7px; }
+.at-codeblock .at-hint { margin-top:7px; }
 /* A full-screen editor sits above the app chrome (200) and below the confirm
    dialogs (400). Screens are portalled to the body, so this z-index is
    authoritative no matter how deeply the screen was opened from.
@@ -665,75 +708,75 @@ button {
 .at-clipplay:disabled { opacity:.6; }
 /* Decks in the teaching space: title and actions on one row, wrapping to
    two when the title needs the width. */
-.at-decklist2 { display:flex; flex-direction:column; gap:10px; }
+.at-decklist2 { display:flex; flex-direction:column; gap:12px; }
 .at-deckcard { border:2px solid var(--line); border-radius: var(--r-lg);
-  padding:14px 16px; background: var(--surface); }
-.at-deckrow2 { display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  padding:16px 18px; background: var(--surface); }
+.at-deckrow2 { display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; }
 .at-deckmain { flex:1 1 180px; min-width:0; }
-.at-decktitle { font-size:17px; font-weight:800; overflow-wrap:anywhere; }
-.at-deckmeta { font-size:12px; color: var(--muted); margin-top:3px; }
-.at-deckacts { display:flex; gap:6px; flex:0 0 auto; margin-left:auto; }
+.at-decktitle { font-size:20px; font-weight:800; overflow-wrap:anywhere; }
+.at-deckmeta { font-size:14px; color: var(--muted); margin-top:3px; }
+.at-deckacts { display:flex; gap:7px; flex:0 0 auto; margin-left:auto; }
 /* A reported problem, under the title of the tile carrying it. The question
    as it was asked and, if there was one, what the person typed about it —
    the two things worth reading before deciding whether to open the card. */
-.at-flagreport { margin-top:10px; }
-.at-flagreport > * + * { margin-top:6px; }
-.at-flagreport-q { margin:0; font-size:calc(20px * var(--sscale, 1)); font-weight:600;
+.at-flagreport { margin-top:12px; }
+.at-flagreport > * + * { margin-top:7px; }
+.at-flagreport-q { margin:0; font-size:calc(23px * var(--sscale, 1)); font-weight:600;
   line-height:calc(1.5 * var(--sleading, 1)); overflow-wrap:anywhere; }
-.at-flagreport-en { margin:0; font-size:14px; color: var(--text-soft); overflow-wrap:anywhere; }
+.at-flagreport-en { margin:0; font-size:16px; color: var(--text-soft); overflow-wrap:anywhere; }
 /* Which question it was, and what has become of the card since — the two
    small facts, on one line, sharing the width rather than stacking. The
    chip goes to the right so a column of tiles can be read down it. */
 .at-flagfoot { display:flex; align-items:center; justify-content:space-between;
-  gap:10px; flex-wrap:wrap; }
+  gap:12px; flex-wrap:wrap; }
 .at-flagfoot > .at-hint { margin:0; }
 /* The start of those words in the report's own title, which is what tells
    three reports of the same kind apart. Lighter than the title it follows
    so the kind still leads. */
 .at-flagsaid { font-weight:600; color: var(--text-soft); }
 /* Somebody's own words, set apart as somebody's own words. */
-.at-flagreport-note { margin:0; font-size:13px; color: var(--text-soft);
-  border-left:3px solid var(--line); padding-left:10px; overflow-wrap:anywhere;
+.at-flagreport-note { margin:0; font-size:15px; color: var(--text-soft);
+  border-left:3px solid var(--line); padding-left:12px; overflow-wrap:anywhere;
   white-space:pre-wrap; }
-.at-deckacts .at-icon { flex:0 0 auto; width:auto; min-width:46px; padding:11px 12px;
-  font-size:16px; }
+.at-deckacts .at-icon { flex:0 0 auto; width:auto; min-width:53px; padding:13px 14px;
+  font-size:18px; }
 .at-deckacts .at-btn { flex:0 0 auto; }
 /* Progress summary: the figures carry the screen, so they are read at size. */
-.at-stat b { font-size:30px; line-height:1.1; }
-.at-stat span { font-size:13px; }
+.at-stat b { font-size:35px; line-height:1.1; }
+.at-stat span { font-size:15px; }
 /* A deck row: name, practice, score, then the chevron hard right. */
-.at-tagsecbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:8px; min-width:0; }
-.at-tagsecbar .nm { font-size:16px; font-weight:800; flex:1 1 auto; min-width:0;
+.at-tagsecbar { display:flex; align-items:center; gap:9px; flex-wrap:wrap; padding-bottom:9px; min-width:0; }
+.at-tagsecbar .nm { font-size:18px; font-weight:800; flex:1 1 auto; min-width:0;
   overflow-wrap:anywhere; }
-.at-tagsecbar .ct { font-size:12px; color: var(--muted); margin-left:auto;
+.at-tagsecbar .ct { font-size:14px; color: var(--muted); margin-left:auto;
   white-space:nowrap; }
-.at-chev { width:36px; height:34px; flex:0 0 auto; }
+.at-chev { width:41px; height:39px; flex:0 0 auto; }
 .at-keyfield { letter-spacing:.02em; }
 /* Whether a deck is reaching anyone, at a glance. */
-.at-reach { display:flex; align-items:center; gap:8px; margin-top:10px;
-  padding-top:10px; border-top:1px solid var(--line); flex-wrap:wrap; }
-.at-reachdot { width:9px; height:9px; border-radius:999px; flex:0 0 auto;
+.at-reach { display:flex; align-items:center; gap:9px; margin-top:12px;
+  padding-top:12px; border-top:1px solid var(--line); flex-wrap:wrap; }
+.at-reachdot { width:10px; height:10px; border-radius:999px; flex:0 0 auto;
   background: var(--muted); }
 .at-reachdot.live { background: var(--jade); }
-.at-reachtext { font-size:12px; color: var(--muted); min-width:0; }
+.at-reachtext { font-size:14px; color: var(--muted); min-width:0; }
 .at-reachtext b { color: var(--ink); font-weight:700; }
 /* A card shown rather than edited: label on the left, value on the right,
    stacking on a narrow screen. */
-.at-readrow { display:flex; gap:12px; padding:6px 0; align-items:baseline; flex-wrap:wrap; }
-.at-readlabel { flex:0 0 108px; font-size:11px; letter-spacing:.04em;
+.at-readrow { display:flex; gap:14px; padding:7px 0; align-items:baseline; flex-wrap:wrap; }
+.at-readlabel { flex:0 0 108px; font-size:13px; letter-spacing:.04em;
   text-transform:uppercase; color: var(--muted); font-weight:700; }
 .at-readvalue { flex:1 1 160px; min-width:0; overflow-wrap:anywhere; }
-.at-readvalue .ar { font-size:calc(22px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
+.at-readvalue .ar { font-size:calc(25px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
 /* The card itself, read only: the word, then its meaning under it. */
-.at-readword { font-size:34px; line-height:1.3; margin:4px 0 2px; font-weight:600;
+.at-readword { font-size:39px; line-height:1.3; margin:4px 0 2px; font-weight:600;
   overflow-wrap:anywhere; }
-.at-readmeaning { font-family: var(--ui); font-size:19px; font-weight:700;
+.at-readmeaning { font-family: var(--ui); font-size:22px; font-weight:700;
   margin:0 0 2px; overflow-wrap:anywhere; }
-.at-readlat { font-family: var(--ui); font-size:14px; color: var(--muted); margin:0; }
+.at-readlat { font-family: var(--ui); font-size:16px; color: var(--muted); margin:0; }
 /* One accepted answer with its own transliteration under it. Several of
    them stack, with air between, because the thing being read is which
    pronunciation goes with which spelling. */
-.at-readanswer + .at-readanswer { margin-top:10px; }
+.at-readanswer + .at-readanswer { margin-top:12px; }
 @media (max-width: 420px) {
   .at-readlabel { flex-basis:100%; }}
 /* Someone's own name in a roster. */
@@ -743,7 +786,7 @@ button {
    fits three plus their gaps at 360px wide, which is the narrowest phone
    worth designing for; a 320px screen gets two, which is the "very small"
    exception rather than the rule. */
-.at-cardgrid { display:grid; gap:8px; margin-top:4px;
+.at-cardgrid { display:grid; gap:9px; margin-top:4px;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   align-items:stretch; }
 .at-cardgrid > * { display:flex; }
@@ -755,44 +798,44 @@ button {
    empty bands. The grid makes the tiles in a row match; nothing else has
    to. */
 .at-minien { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
-  line-clamp:2; font-size:12px; font-weight:600; color: var(--muted);
+  line-clamp:2; font-size:14px; font-weight:600; color: var(--muted);
   overflow:hidden; word-break:break-word; }
 /* What kind of card it is, where that is not obvious from the face. Above
    the words rather than below them: it is how to read what follows, not a
    note about it. */
-.at-minikind { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.07em;
+.at-minikind { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.07em;
   text-transform:uppercase; color: var(--faint); line-height:1.4; }
-.at-minimeta { font-size:11px; color: var(--faint); line-height:1.4; margin-top:auto;
-  padding-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.at-minilat { font-size:11px; color: var(--muted); }
-.at-minidecks .at-flag { font-size:11px; }
+.at-minimeta { font-size:13px; color: var(--faint); line-height:1.4; margin-top:auto;
+  padding-top:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.at-minilat { font-size:13px; color: var(--muted); }
+.at-minidecks .at-flag { font-size:13px; }
 .at-minicard.picked { border-color: var(--accent); }
-.at-minicard .ar { font-size:calc(18px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
+.at-minicard .ar { font-size:calc(21px * var(--sscale, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
 /* Room for the descenders the clamp would otherwise shave off an Arabic
    line — the box crops to the line height, which sits above the tail of a
    ب or a ج. */
 .at-minicard .ar { padding-bottom:2px; }
-.at-miniacts { display:flex; gap:6px; margin-top:auto; padding-top:6px; }
+.at-miniacts { display:flex; gap:7px; margin-top:auto; padding-top:7px; }
 /* The tick that puts something into a bulk selection. */
-.at-ckbox.pick { position:absolute; top:8px; right:8px; width:22px; height:22px;
+.at-ckbox.pick { position:absolute; top:8px; right:8px; width:25px; height:25px;
   border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
-  color: var(--ink); font-size:13px; line-height:1; cursor:pointer; padding:0;
+  color: var(--ink); font-size:15px; line-height:1; cursor:pointer; padding:0;
   display:flex; align-items:center; justify-content:center; }
 .at-ckbox.pick.on { border-color: var(--accent); }
-.at-item .at-ckbox.pick { position:static; margin-right:10px; flex:none; }
+.at-item .at-ckbox.pick { position:static; margin-right:12px; flex:none; }
 .at-item.picked { border-color: var(--accent); }
-.at-ck { display:flex; align-items:center; gap:11px; width:100%; cursor:pointer; text-align:left;
+.at-ck { display:flex; align-items:center; gap:13px; width:100%; cursor:pointer; text-align:left;
   background: var(--raised); border:2px solid var(--line); border-radius: var(--r-sm);
-  padding:11px 12px; color: var(--text); }
+  padding:13px 14px; color: var(--text); }
 .at-ck.on { border-color: var(--jade); background: var(--tag-bg); }
-.at-ckbox { flex-shrink:0; width:24px; height:24px; border-radius:7px; border:2px solid var(--line);
+.at-ckbox { flex-shrink:0; width:28px; height:28px; border-radius:8px; border:2px solid var(--line);
   display:inline-flex; align-items:center; justify-content:center; background: var(--well);
-  font-size:14px; font-weight:800; color: var(--onjade); }
+  font-size:16px; font-weight:800; color: var(--onjade); }
 .at-ck.on .at-ckbox { background: var(--jade); border-color: var(--jade); }
 .at-cktext { display:flex; flex-direction:column; min-width:0; }
-.at-cktext b { font-size:14px; font-weight:700; }
-.at-cktext i { font-style:normal; font-size:12px; color: var(--muted); margin-top:2px; }
-.at-corner { position:fixed; top:12px; right:12px; }
+.at-cktext b { font-size:16px; font-weight:700; }
+.at-cktext i { font-style:normal; font-size:14px; color: var(--muted); margin-top:2px; }
+.at-corner { position:fixed; top:14px; right:14px; }
 /* A card you can open lifts a little and takes a darker edge under the
    pointer. Pointer devices only: on a touchscreen :hover sticks to the last
    thing tapped. */
@@ -808,47 +851,47 @@ button {
 }
 .at-deckcard[data-open], .at-minicard { cursor: pointer; }
 /* Sat immediately left of the account button, same height, same rhythm. */
-.at-spaces { position:fixed; top:12px; right:60px; display:flex;
-  align-items:center; gap:2px; height:40px; padding:0 3px; border-radius:999px;
+.at-spaces { position:fixed; top:14px; right:66px; display:flex;
+  align-items:center; gap:2px; height:46px; padding:0 3px; border-radius:999px;
   background: var(--nav-bg); border:2px solid var(--line);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.at-spacebtn { width:34px; height:32px; border:0; border-radius:999px; cursor:pointer;
+.at-spacebtn { width:39px; height:37px; border:0; border-radius:999px; cursor:pointer;
   background:none; color: var(--muted); display:inline-flex; align-items:center;
   justify-content:center; }
 .at-spacebtn.on { background: var(--raised); color: var(--ink); }
-.at-cornerbtn { position:relative; width:40px; height:40px; border-radius:999px; cursor:pointer;
+.at-cornerbtn { position:relative; width:46px; height:46px; border-radius:999px; cursor:pointer;
   display:inline-flex; align-items:center; justify-content:center;
   background: var(--nav-bg); border:2px solid var(--line); color: var(--text);
-  font-family: var(--ui); font-size:13px; font-weight:800; backdrop-filter:blur(12px);
+  font-family: var(--ui); font-size:15px; font-weight:800; backdrop-filter:blur(12px);
   box-shadow: var(--nav-shadow); }
-.at-cdot { width:9px; height:9px; border-radius:50%; background: var(--jade); flex-shrink:0; }
+.at-cdot { width:10px; height:10px; border-radius:50%; background: var(--jade); flex-shrink:0; }
 .at-cdot.syncing { background: var(--brass); }
 .at-cdot.error, .at-cdot.off { background: var(--rose); }
-.at-cornerbtn .at-cdot { position:absolute; top:-2px; right:-2px; width:12px; height:12px;
+.at-cornerbtn .at-cdot { position:absolute; top:-2px; right:-2px; width:14px; height:14px;
   border:2px solid var(--bg); }
 /* The menu grows to fit its rows, so it needs a ceiling: the version line
    underneath carries a build, a date and sometimes a whole sentence about
    a newer deploy, and without this the menu would widen past the screen
    and take its left-hand edge with it. */
-.at-cmenu { position:absolute; top:50px; right:0; min-width:250px;
+.at-cmenu { position:absolute; top:58px; right:0; min-width:288px;
   max-width: calc(100vw - 24px); background: var(--surface);
-  border:2px solid var(--line); border-radius:18px; padding:8px;
+  border:2px solid var(--line); border-radius:21px; padding:9px;
   box-shadow:0 14px 40px rgba(0,0,0,.45); }
-.at-cwho { display:flex; align-items:center; gap:11px; padding:10px 10px 12px; }
-.at-cavatar { width:38px; height:38px; border-radius:999px; flex-shrink:0; display:inline-flex;
+.at-cwho { display:flex; align-items:center; gap:13px; padding:12px 12px 14px; }
+.at-cavatar { width:44px; height:44px; border-radius:999px; flex-shrink:0; display:inline-flex;
   align-items:center; justify-content:center; background: var(--brass); color: var(--onbrass);
-  font-family: var(--ui); font-size:14px; font-weight:800; }
+  font-family: var(--ui); font-size:16px; font-weight:800; }
 .at-cwhotext { display:flex; flex-direction:column; min-width:0; }
-.at-cwhotext b { font-size:15px; font-weight:800; }
+.at-cwhotext b { font-size:17px; font-weight:800; }
 .at-cwhotext i { font-style:normal; font-family: ui-monospace, Menlo, monospace;
-  font-size:11px; color: var(--muted); margin-top:2px; }
-.at-cline { display:flex; align-items:center; gap:10px; width:100%; background:none;
-  border:0; cursor:pointer; border-radius:12px; padding:11px 10px; color: var(--text);
-  text-align:left; font-family: var(--ui); font-size:14px; font-weight:700; }
+  font-size:13px; color: var(--muted); margin-top:2px; }
+.at-cline { display:flex; align-items:center; gap:12px; width:100%; background:none;
+  border:0; cursor:pointer; border-radius:14px; padding:13px 12px; color: var(--text);
+  text-align:left; font-family: var(--ui); font-size:16px; font-weight:700; }
 .at-cline:hover { background: var(--raised); }
 .at-cline:hover, .at-cline.on .at-clinetext { color: var(--ink); font-weight:800; }
-.at-cico { width:20px; display:inline-flex; align-items:center; justify-content:center; color: var(--brass); flex:0 0 auto; text-align:center; font-size:15px; }
-.at-clinetext { flex:1; min-width:0; font-size:13px; font-weight:600; color: var(--text-soft); }
+.at-cico { width:23px; display:inline-flex; align-items:center; justify-content:center; color: var(--brass); flex:0 0 auto; text-align:center; font-size:17px; }
+.at-clinetext { flex:1; min-width:0; font-size:15px; font-weight:600; color: var(--text-soft); }
 /* The action at the end of a row, and the only thing in that row you can
    tap: the row itself states where sync has got to, which you should be
    able to read without starting one.
@@ -858,32 +901,32 @@ button {
    than one you should — and a brass pill would pull the eye every time the
    menu opened. */
 .at-cact { border:2px solid var(--line); background:none; color: var(--muted); cursor:pointer;
-  border-radius:999px; padding:5px 11px; font-family: var(--ui); font-size:11px; font-weight:800;
+  border-radius:999px; padding:5px 13px; font-family: var(--ui); font-size:13px; font-weight:800;
   letter-spacing:.05em; text-transform:uppercase; white-space:nowrap; flex:none; }
 .at-cact:hover { background: var(--raised); color: var(--text); }
 /* A row that names a choice rather than being one: no hover, no pointer,
    because the thing you tap is the picker underneath it. */
 .at-cline.as-field { cursor:default; }
 .at-cline.as-field:hover .at-clinetext { color: var(--text-soft); font-weight:600; }
-.at-cseg { padding:2px 10px 8px 34px; }
-.at-crule { height:2px; background: var(--line); margin:8px 4px; border-radius:2px; }
+.at-cseg { padding:2px 12px 9px 39px; }
+.at-crule { height:2px; background: var(--line); margin:9px 4px; border-radius:2px; }
 /* The version, at the foot of the menu. Quieter than the rows above it —
    it is a fact to look up, not somewhere to go — until the server turns out
    to be serving a newer build, when it becomes the one thing in the menu
    worth acting on. */
-.at-cver { display:flex; align-items:center; gap:10px; padding:8px 10px 4px; }
+.at-cver { display:flex; align-items:center; gap:12px; padding:9px 12px 4px; }
 .at-cvertext { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
 /* The release leads, in the app's own type, because it is the bit you
    read. The build beneath it is a string to compare against GitHub
    character by character, which is what the monospace is for. */
-.at-cver b { font-size:12px; font-weight:800; letter-spacing:.02em; color: var(--text-soft); }
+.at-cver b { font-size:14px; font-weight:800; letter-spacing:.02em; color: var(--text-soft); }
 .at-cver i { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-style:normal; font-size:10px; font-weight:600; color: var(--muted);
+  font-style:normal; font-size:12px; font-weight:600; color: var(--muted);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .at-cver.stale b, .at-cver.stale i { color: var(--brass); }
 .at-cvernew { font-weight:800; }
 .at-cverbtn { border:2px solid var(--brass); background:none; color: var(--brass); cursor:pointer;
-  border-radius:999px; padding:5px 11px; font-family: var(--ui); font-size:10px; font-weight:800;
+  border-radius:999px; padding:5px 13px; font-family: var(--ui); font-size:12px; font-weight:800;
   letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; flex:none; }
 .at-cverbtn:hover { background: var(--brass); color: var(--onbrass); }
 /* Check is a thing you may do; Reload is a thing you should. Only the
@@ -905,81 +948,81 @@ button {
 .at-screen.rise { animation: at-rise 140ms cubic-bezier(.2,.7,.3,1); }
 @keyframes at-rise { from { transform: translateY(6%); opacity:.4; } to { transform:none; opacity:1; } }
 @media (prefers-reduced-motion: reduce) { .at-screen.rise { animation:none; } }
-.at-screenhead { display:flex; align-items:center; gap:12px; padding:14px 16px;
-  padding-top:calc(14px + 46px); border-bottom:2px solid var(--line); background: var(--surface); }
+.at-screenhead { display:flex; align-items:center; gap:14px; padding:16px 18px;
+  padding-top:calc(16px + 53px); border-bottom:2px solid var(--line); background: var(--surface); }
 /* A screen that sits above the chrome has no chrome to clear, so the room
    reserved for it would just be a band of empty space. */
-.at-screen.over .at-screenhead { padding-top:14px; }
-.at-screenhead h2 { margin:0; font-size:19px; font-weight:800; }
+.at-screen.over .at-screenhead { padding-top:16px; }
+.at-screenhead h2 { margin:0; font-size:22px; font-weight:800; }
 .at-screenaction { margin-left:auto; display:inline-flex; align-items:center; flex:0 0 auto; }
-.at-back { width:38px; height:38px; flex-shrink:0; border-radius:999px; cursor:pointer;
-  background:none; border:2px solid var(--line); color: var(--text); font-size:22px; line-height:1; }
-.at-screenbody { flex:1; overflow-y:auto; padding:18px 16px 40px; }
+.at-back { width:44px; height:44px; flex-shrink:0; border-radius:999px; cursor:pointer;
+  background:none; border:2px solid var(--line); color: var(--text); font-size:25px; line-height:1; }
+.at-screenbody { flex:1; overflow-y:auto; padding:21px 18px 46px; }
 .at-screeninner { max-width:640px; margin:0 auto; }
 .at-dangertoggle { display:flex; align-items:center; justify-content:space-between; width:100%;
-  gap:12px; background:none; border:0; padding:0; cursor:pointer; color:inherit;
+  gap:14px; background:none; border:0; padding:0; cursor:pointer; color:inherit;
   font:inherit; text-align:left; }
-.at-dangertoggle .at-chevron { font-size:18px; line-height:1; color: var(--text-soft); }
+.at-dangertoggle .at-chevron { font-size:21px; line-height:1; color: var(--text-soft); }
 .at-modalback { position:fixed; inset:0; z-index:400; background: rgba(0,0,0,.55);
-  display:flex; align-items:center; justify-content:center; padding:20px; }
+  display:flex; align-items:center; justify-content:center; padding:23px; }
 .at-modal { width:100%; max-width:440px; background: var(--surface); border-radius: var(--r-lg);
-  border:2px solid var(--line); padding:22px; max-height:88vh; overflow-y:auto;
+  border:2px solid var(--line); padding:25px; max-height:88vh; overflow-y:auto;
   box-shadow: 0 18px 50px rgba(0,0,0,.4); }
 .at-modal.danger { border-color: var(--rose); }
-.at-modalbody { font-size:14.5px; line-height:1.55; color: var(--text-soft); }
+.at-modalbody { font-size:17px; line-height:1.55; color: var(--text-soft); }
 .at-modalbody strong { color: var(--text); }
 /* A space with no heading of its own: the selector in the corner is the
    title and the way out, so the body just has to clear it. */
-.at-screen.bare .at-screenbody { padding-top: calc(18px + 52px); }
+.at-screen.bare .at-screenbody { padding-top: calc(21px + 60px); }
 /* Present to the browser, invisible to the eye: password managers need a
    username field to attach an entry to. */
 .at-hiddenuser { position:absolute; width:1px; height:1px; padding:0; margin:-1px;
   overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0; }
 .at-showkey { position:absolute; right:10px; top:50%; transform:translateY(-50%);
-  background:none; border:0; cursor:pointer; padding:6px 8px; font:inherit;
-  font-size:13px; font-weight:700; color: var(--text-soft); }
+  background:none; border:0; cursor:pointer; padding:7px 9px; font:inherit;
+  font-size:15px; font-weight:700; color: var(--text-soft); }
 .at-showkey:hover { color: var(--text); }
-.at-guide { border:2px solid var(--line); border-radius: var(--r); margin-bottom:10px;
+.at-guide { border:2px solid var(--line); border-radius: var(--r); margin-bottom:12px;
   background: var(--surface); overflow:hidden; }
 .at-guide.on { border-color: var(--brass); }
-.at-guidehead { display:flex; align-items:center; gap:10px; width:100%; cursor:pointer;
-  background:none; border:0; padding:15px 16px; color: var(--text); text-align:left; }
-.at-guidehead .nm { flex:1; min-width:0; font-family: var(--ui); font-size:16px; font-weight:800; }
-.at-guidehead .at-chevron { font-size:20px; color: var(--brass); }
-.at-guidebody { padding:0 16px 16px; }
-.at-guidebody p { font-size:15px; font-weight:500; line-height:1.65; color: var(--text-soft);
-  margin:0 0 12px; }
+.at-guidehead { display:flex; align-items:center; gap:12px; width:100%; cursor:pointer;
+  background:none; border:0; padding:17px 18px; color: var(--text); text-align:left; }
+.at-guidehead .nm { flex:1; min-width:0; font-family: var(--ui); font-size:18px; font-weight:800; }
+.at-guidehead .at-chevron { font-size:23px; color: var(--brass); }
+.at-guidebody { padding:0 18px 18px; }
+.at-guidebody p { font-size:17px; font-weight:500; line-height:1.65; color: var(--text-soft);
+  margin:0 0 14px; }
 .at-guidebody p:last-child { margin-bottom:0; }
-.at-modelist { display:flex; flex-direction:column; gap:12px; }
+.at-modelist { display:flex; flex-direction:column; gap:14px; }
 .at-modecard { text-align:left; cursor:pointer; background: var(--surface);
-  border:2px solid var(--line); border-radius: var(--r-lg); padding:18px; color: var(--text); }
+  border:2px solid var(--line); border-radius: var(--r-lg); padding:21px; color: var(--text); }
 .at-modecard.on { border-color: var(--jade); background: var(--tag-bg); }
-.at-modecard b { display:block; font-size:19px; font-weight:800; }
-.at-modecard span { display:block; font-size:14px; font-weight:500; color: var(--muted);
-  margin-top:6px; line-height:1.55; }
-.at-sheetnote { font-family: var(--mono); font-size:10px; letter-spacing:.1em;
+.at-modecard b { display:block; font-size:22px; font-weight:800; }
+.at-modecard span { display:block; font-size:16px; font-weight:500; color: var(--muted);
+  margin-top:7px; line-height:1.55; }
+.at-sheetnote { font-family: var(--mono); font-size:12px; letter-spacing:.1em;
   text-transform:uppercase; color: var(--jade); }
 .at-disclosure { display:flex; align-items:center; justify-content:space-between;
   width:100%; background:none; border:0; padding:0; cursor:pointer; color: var(--text); }
 .at-disclosure:hover .at-chevron { color: var(--text); }
-.at-chevron { color: var(--muted); font-size:12px; }
-.at-advgroup { margin-top:18px; padding-top:16px; border-top:1px solid var(--line); }
-.at-advgroup:first-of-type { margin-top:16px; }
+.at-chevron { color: var(--muted); font-size:14px; }
+.at-advgroup { margin-top:21px; padding-top:18px; border-top:1px solid var(--line); }
+.at-advgroup:first-of-type { margin-top:18px; }
 .at-sub.at-danger { border-color: var(--rose-soft); }
-.at-cliplist { display:flex; flex-direction:column; gap:6px; }
-.at-clip { display:flex; align-items:center; gap:8px; border:1px solid var(--line);
-  border-radius:5px; padding:6px 8px; background: var(--well); }
-.at-clipplay { width:28px; height:28px; flex-shrink:0; border-radius:999px; cursor:pointer;
-  background: var(--raised); border:1px solid var(--line); color: var(--brass); font-size:11px; }
+.at-cliplist { display:flex; flex-direction:column; gap:7px; }
+.at-clip { display:flex; align-items:center; gap:9px; border:1px solid var(--line);
+  border-radius:5px; padding:7px 9px; background: var(--well); }
+.at-clipplay { width:32px; height:32px; flex-shrink:0; border-radius:999px; cursor:pointer;
+  background: var(--raised); border:1px solid var(--line); color: var(--brass); font-size:13px; }
 .at-clipplay:hover { background: var(--raised-hover); }
 .at-clipname { flex:1; min-width:0; background:none; border:0; color: var(--text);
-  font-family: var(--ui); font-size:13px; padding:2px 0; }
+  font-family: var(--ui); font-size:15px; padding:2px 0; }
 .at-clipname:focus { outline:none; border-bottom:1px solid var(--brass); }
-.at-clipmeta { font-family: var(--mono); font-size:9px; color: var(--muted); white-space:nowrap; }
-.at-playbig { display:inline-flex; align-items:center; justify-content:center; gap:12px;
-  min-width:170px; padding:16px 28px; border-radius:999px; cursor:pointer;
+.at-clipmeta { font-family: var(--mono); font-size:10px; color: var(--muted); white-space:nowrap; }
+.at-playbig { display:inline-flex; align-items:center; justify-content:center; gap:14px;
+  min-width:195px; padding:18px 32px; border-radius:999px; cursor:pointer;
   background: var(--raised); border:1px solid var(--line); color: var(--text);
-  font-family: var(--ui); font-size:17px; font-weight:600; }
+  font-family: var(--ui); font-size:20px; font-weight:600; }
 .at-playbig:hover { background: var(--raised-hover); }
 /* The icon carries this button, so it is set at its own size rather than
    at the label's, and centres itself instead of riding the text baseline. */
@@ -990,11 +1033,11 @@ button {
    picked: a question offers this word and this word said slowly, and
    ranking the takes a teacher happened to make was never the question. */
 /* Stretched, so the two are one height whatever is in them. */
-.at-playrow { display:flex; gap:10px; justify-content:center; align-items:stretch; }
+.at-playrow { display:flex; gap:12px; justify-content:center; align-items:stretch; }
 /* Side by side they share the row rather than the second landing under the
    first: two at their full size do not fit a 320px screen. */
-.at-playbig.twin { min-width:0; flex:2 1 0; gap:8px;
-  padding-inline:10px; font-size:15px; white-space:nowrap; }
+.at-playbig.twin { min-width:0; flex:2 1 0; gap:9px;
+  padding-inline:12px; font-size:17px; white-space:nowrap; }
 /* The one the card's progress did not ask for takes a third of the row to
    the other's two. A ratio rather than a measurement: it holds at every
    width, where a fixed size has to be guessed against the narrowest screen
@@ -1005,52 +1048,52 @@ button {
    goes to; both come back on hover, so it reads as quiet rather than as
    switched off. */
 .at-playbig.quiet { background:transparent; color: var(--muted);
-  flex:1 1 0; font-size:14px; gap:6px; }
+  flex:1 1 0; font-size:16px; gap:7px; }
 .at-playbig.quiet .dot { color: var(--muted); }
 .at-playbig.quiet:hover { background: var(--raised); color: var(--text); }
 .at-playbig.quiet:hover .dot { color: var(--brass); }
-.at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:18px 16px 8px;
-  margin-bottom:14px; background: var(--surface); }
-.at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:10px;
-  margin:0 0 12px; }
-.at-grouphead span:first-child { font-family: var(--mono); font-size:10px; letter-spacing:.14em;
+.at-group { border:2px solid var(--line); border-radius: var(--r-lg); padding:21px 18px 9px;
+  margin-bottom:16px; background: var(--surface); }
+.at-grouphead { display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+  margin:0 0 14px; }
+.at-grouphead span:first-child { font-family: var(--mono); font-size:12px; letter-spacing:.14em;
   text-transform:uppercase; color: var(--text); }
-.at-grouphead .req { font-family: var(--mono); font-size:9px; letter-spacing:.1em;
+.at-grouphead .req { font-family: var(--mono); font-size:10px; letter-spacing:.1em;
   text-transform:uppercase; color: var(--brass); }
-.at-grouphead .opt { font-family: var(--mono); font-size:9px; letter-spacing:.1em;
+.at-grouphead .opt { font-family: var(--mono); font-size:10px; letter-spacing:.1em;
   text-transform:uppercase; color: var(--faint); }
-.at-inline { display:flex; gap:12px; }
+.at-inline { display:flex; gap:14px; }
 .at-inline > * { flex:1; min-width:0; }
 @media (max-width:460px){ .at-inline { flex-direction:column; gap:0; }}
-.at-status { font-family: var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
-  color: var(--jade); border-top:1px solid var(--line); padding:10px 0 4px; margin-top:4px; }
+.at-status { font-family: var(--mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+  color: var(--jade); border-top:1px solid var(--line); padding:12px 0 4px; margin-top:4px; }
 .at-status.warn { color: var(--rose); }
-.at-emptyforms { border:1px dashed var(--line); border-radius:6px; padding:14px;
-  text-align:center; margin-bottom:10px; }
-.at-subedit { border:1px solid var(--line); border-radius:6px; padding:12px; margin-top:10px;
+.at-emptyforms { border:1px dashed var(--line); border-radius:7px; padding:16px;
+  text-align:center; margin-bottom:12px; }
+.at-subedit { border:1px solid var(--line); border-radius:7px; padding:14px; margin-top:12px;
   background: var(--well); }
-.at-subedithead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.at-reviewgroup { margin-bottom:26px; }
+.at-subedithead { display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; }
+.at-reviewgroup { margin-bottom:30px; }
 .at-reviewbar { display:flex; align-items:center; justify-content:space-between;
-  gap:10px; margin-bottom:10px; }
-.at-reviewacts { display:flex; gap:8px; }
-.at-reviewcard { border:1px solid var(--line); border-radius:6px; padding:16px;
-  margin-bottom:12px; background: var(--surface); text-align:center; }
+  gap:12px; margin-bottom:12px; }
+.at-reviewacts { display:flex; gap:9px; }
+.at-reviewcard { border:1px solid var(--line); border-radius:7px; padding:18px;
+  margin-bottom:14px; background: var(--surface); text-align:center; }
 .at-reviewhead { display:flex; align-items:center; justify-content:space-between;
-  gap:10px; margin-bottom:8px; text-align:left; }
+  gap:12px; margin-bottom:9px; text-align:left; }
 .at-previewrow.weak { background: rgba(223,95,114,.07); }
 .at-bulkbar { position: fixed; left:50%; transform: translateX(-50%);
   bottom: calc(84px + env(safe-area-inset-bottom)); z-index:60;
-  background: var(--surface); border:1px solid var(--line); border-radius:10px;
-  padding:12px 14px; box-shadow: var(--nav-shadow);
+  background: var(--surface); border:1px solid var(--line); border-radius:12px;
+  padding:14px 16px; box-shadow: var(--nav-shadow);
   width: calc(100% - 24px); max-width: 660px; }
 .at-bulkhead { display:flex; align-items:center; justify-content:space-between;
-  gap:10px; margin-bottom:10px; font-size:13px; }
+  gap:12px; margin-bottom:12px; font-size:15px; }
 .at-undo { position: fixed; left:50%; transform: translateX(-50%);
   bottom: calc(84px + env(safe-area-inset-bottom)); z-index:60;
-  background: var(--surface); border:1px solid var(--line); border-radius:8px;
-  padding:10px 14px; display:flex; align-items:center; gap:14px;
-  box-shadow: var(--nav-shadow); max-width: calc(100% - 24px); font-size:13px; }
+  background: var(--surface); border:1px solid var(--line); border-radius:9px;
+  padding:12px 16px; display:flex; align-items:center; gap:16px;
+  box-shadow: var(--nav-shadow); max-width: calc(100% - 24px); font-size:15px; }
 .at-undo .what { color: var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /* The snackbar: the undo bar's shape, because that is already this app's
    way of saying "something floating, and temporary". It sits above
@@ -1064,15 +1107,15 @@ button {
 .at-snack { position: fixed; left:50%; transform: translateX(-50%);
   bottom: calc(84px + env(safe-area-inset-bottom)); z-index: var(--z-toast);
   background: var(--surface); border:1px solid var(--line); border-left-width:3px;
-  border-radius:8px; padding:11px 8px 11px 14px;
-  display:flex; align-items:center; gap:10px;
+  border-radius:9px; padding:13px 9px 13px 16px;
+  display:flex; align-items:center; gap:12px;
   box-shadow: var(--nav-shadow);
   /* Sized like the bulk bar rather than shrunk to its text: a pill that
      hugs three words is easy to miss, and a message the width of the page
      is read without hunting for it. Capped short of the 700px content
      column, which one sentence cannot fill without looking empty. */
   width: calc(100% - 24px); max-width: 560px;
-  font-family: var(--ui); font-size:14px; font-weight:600; color: var(--text);
+  font-family: var(--ui); font-size:16px; font-weight:600; color: var(--text);
   animation: at-snack-in 160ms ease-out; }
 /* Takes the slack, so the dismiss button sits hard right rather than
    trailing the text across a half-empty pill. */
@@ -1081,7 +1124,7 @@ button {
 .at-snack.warn { border-left-color: var(--rose); }
 .at-snack.info { border-left-color: var(--brass); }
 .at-snackx { border:0; background:none; padding:4px; margin:-4px 0; cursor:pointer;
-  color: var(--muted); display:inline-flex; flex:none; border-radius:6px; }
+  color: var(--muted); display:inline-flex; flex:none; border-radius:7px; }
 .at-snackx:hover { color: var(--text); }
 @keyframes at-snack-in { from { opacity:0; transform: translate(-50%, 10px); }
   to { opacity:1; transform: translate(-50%, 0); } }
@@ -1094,40 +1137,40 @@ button {
    border the busy notice has always used. */
 .at-working { position: fixed; left:50%; transform: translateX(-50%);
   bottom: calc(84px + env(safe-area-inset-bottom)); z-index: var(--z-toast);
-  margin:0; padding:10px 16px; border-radius:999px;
+  margin:0; padding:12px 18px; border-radius:999px;
   background: var(--surface); border:2px dashed var(--line);
   box-shadow: var(--nav-shadow);
-  font-family: var(--ui); font-size:13px; font-weight:700; color: var(--muted);
+  font-family: var(--ui); font-size:15px; font-weight:700; color: var(--muted);
   animation: at-snack-in 160ms ease-out; }
 @media (prefers-reduced-motion: reduce) { .at-working { animation: none; } }
 /* The context report: one word, and the phrases that already teach it. */
-.at-ctxrow { border-top:1px solid var(--line); padding:10px 0; }
+.at-ctxrow { border-top:1px solid var(--line); padding:12px 0; }
 .at-ctxrow:first-child { border-top:0; }
-.at-ctxword { display:flex; align-items:baseline; gap:10px; margin:0 0 6px; flex-wrap:wrap; }
-.at-ctxword b { font-size:calc(20px * var(--sscale, 1)); font-weight:600; }
-.at-ctxword i { font-style:normal; font-size:13px; font-weight:600; color: var(--muted); }
-.at-ctxlist { list-style:none; margin:0; padding:0 0 0 12px; border-left:2px solid var(--line); }
-.at-ctxlist li { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:4px; font-size:15px; }
-.at-ctxlist em { font-style:normal; font-size:12px; font-weight:600; color: var(--muted); }
-.at-ctxbare { display:flex; flex-wrap:wrap; gap:8px; }
-.at-ctxbare span { display:inline-flex; align-items:baseline; gap:6px; padding:6px 10px;
+.at-ctxword { display:flex; align-items:baseline; gap:12px; margin:0 0 7px; flex-wrap:wrap; }
+.at-ctxword b { font-size:calc(23px * var(--sscale, 1)); font-weight:600; }
+.at-ctxword i { font-style:normal; font-size:15px; font-weight:600; color: var(--muted); }
+.at-ctxlist { list-style:none; margin:0; padding:0 0 0 14px; border-left:2px solid var(--line); }
+.at-ctxlist li { display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; margin-bottom:4px; font-size:17px; }
+.at-ctxlist em { font-style:normal; font-size:14px; font-weight:600; color: var(--muted); }
+.at-ctxbare { display:flex; flex-wrap:wrap; gap:9px; }
+.at-ctxbare span { display:inline-flex; align-items:baseline; gap:7px; padding:7px 12px;
   border:1px solid var(--line); border-radius:999px; background: var(--well); }
-.at-ctxbare b { font-size:calc(17px * var(--sscale, 1)); font-weight:600; }
-.at-ctxbare i { font-style:normal; font-size:12px; font-weight:600; color: var(--muted); }
+.at-ctxbare b { font-size:calc(20px * var(--sscale, 1)); font-weight:600; }
+.at-ctxbare i { font-style:normal; font-size:14px; font-weight:600; color: var(--muted); }
 /* The word being asked for, under the phrase it is missing from. */
-.at-ctxmeaning { font-family: var(--ui); font-size:17px; font-weight:700; color: var(--text-soft);
-  margin:6px 0 0; text-align:center; }
-.at-answeralso .at-ctxmeaning { font-size:14px; font-weight:600; color: var(--muted); margin-top:2px; }
+.at-ctxmeaning { font-family: var(--ui); font-size:20px; font-weight:700; color: var(--text-soft);
+  margin:7px 0 0; text-align:center; }
+.at-answeralso .at-ctxmeaning { font-size:16px; font-weight:600; color: var(--muted); margin-top:2px; }
 /* Ordering and narrowing a list, under its search box. Shut by default, so
    the list looks as it did; open, the groups wrap rather than scroll, and
    each stays whole on a phone. */
-.at-filterwrap { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:0 0 12px; }
+.at-filterwrap { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0 0 14px; }
 .at-filterbtn.on { border-color: var(--brass); color: var(--brass); }
 .at-filtercount { display:inline-flex; align-items:center; justify-content:center;
-  min-width:17px; height:17px; padding:0 4px; border-radius:999px;
-  background: var(--brass); color: var(--onbrass); font-size:10px; font-weight:800; }
-.at-filterbar { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center;
-  width:100%; padding:12px; border:1px solid var(--line); border-radius:12px;
+  min-width:20px; height:20px; padding:0 4px; border-radius:999px;
+  background: var(--brass); color: var(--onbrass); font-size:12px; font-weight:800; }
+.at-filterbar { display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center;
+  width:100%; padding:14px; border:1px solid var(--line); border-radius:14px;
   background: var(--well); }
 /* Label above its picker, not beside it. The picker is a container query
    of its own so its type can step down with its width, and a container
@@ -1135,17 +1178,17 @@ button {
    its own to go on, it collapsed to nothing and its options spilled out
    over each other. A column gives it the group's width to work with, and
    the bar wraps the groups. */
-.at-filtergroup { display:flex; flex-direction:column; align-items:stretch; gap:6px;
+.at-filtergroup { display:flex; flex-direction:column; align-items:stretch; gap:7px;
   flex:1 1 150px; min-width:0; }
-.at-filterlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em;
+.at-filterlabel { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
-.at-filternote { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
+.at-filternote { font-family: var(--ui); font-size:14px; font-weight:600; color: var(--muted); }
 /* One filter, in the toolbar rather than under it: an icon until it is
    pressed, sized like the select button beside it so the row keeps its
    rhythm. The wrapper is what the menu hangs from, so it takes the button's
    width rather than the row's share. */
 .at-pickwrap { position:relative; flex:0 0 auto; display:flex; }
-.at-toolbar .at-pickbtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
+.at-toolbar .at-pickbtn { flex:0 0 auto; width:51px; height:51px; min-height:51px;
   padding:0; box-sizing:border-box; }
 .at-toolbar .at-pickbtn.on { border-color: var(--brass); color: var(--brass); }
 /* Hangs under its button and is allowed to be taller than the list is
@@ -1153,24 +1196,24 @@ button {
    rather than running off the foot of the screen. Right-aligned: the
    button sits at the right-hand end of the toolbar, and a menu opening
    leftward from it stays on a phone. */
-.at-pickmenu { position:absolute; top:50px; right:0; z-index: var(--z-chrome);
-  min-width:210px; max-width: calc(100vw - 32px); max-height:60vh; overflow-y:auto;
-  background: var(--surface); border:2px solid var(--line); border-radius:18px;
-  padding:8px; box-shadow:0 14px 40px rgba(0,0,0,.45); }
-.at-pickline { display:flex; align-items:center; gap:10px; width:100%; background:none;
-  border:0; cursor:pointer; border-radius:12px; padding:10px; color: var(--text);
-  text-align:left; font-family: var(--ui); font-size:13px; font-weight:600; }
+.at-pickmenu { position:absolute; top:58px; right:0; z-index: var(--z-chrome);
+  min-width:242px; max-width: calc(100vw - 32px); max-height:60vh; overflow-y:auto;
+  background: var(--surface); border:2px solid var(--line); border-radius:21px;
+  padding:9px; box-shadow:0 14px 40px rgba(0,0,0,.45); }
+.at-pickline { display:flex; align-items:center; gap:12px; width:100%; background:none;
+  border:0; cursor:pointer; border-radius:14px; padding:12px; color: var(--text);
+  text-align:left; font-family: var(--ui); font-size:15px; font-weight:600; }
 .at-pickline:hover { background: var(--raised); }
 .at-pickline.on { color: var(--ink); font-weight:800; }
-.at-pickmark { width:16px; flex:0 0 auto; display:inline-flex; align-items:center;
+.at-pickmark { width:18px; flex:0 0 auto; display:inline-flex; align-items:center;
   justify-content:center; color: var(--brass); }
 .at-picktext { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-picknote { flex:0 0 auto; font-size:11px; font-weight:700; color: var(--muted); }
-.at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
-.at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
+.at-picknote { flex:0 0 auto; font-size:13px; font-weight:700; color: var(--muted); }
+.at-eyebrow { font-family: var(--ui); font-size:15px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 14px; }
+.at-hint { font-size:16px; font-weight:500; color: var(--muted); line-height:1.6; margin:12px 0 0; }
 .at-hint em { color: var(--text-soft); font-style:normal; }
 .at-card { background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg);
-  padding:30px 22px; text-align:center; box-shadow: var(--shadow); }
+  padding:35px 25px; text-align:center; box-shadow: var(--shadow); }
 /* A question is not a card. It used to sit in a bordered, shadowed panel,
    which framed it as an object on a page — but there is only ever one
    question on the screen and nothing to tell it apart from, so the frame
@@ -1182,13 +1225,13 @@ button {
    flow: this is what keeps the last line of an answer clear of it. */
 .at-exercise { text-align:center; padding: 4px 2px 0; }
 .at-exercise > :last-child { margin-bottom:0; }
-.at-sub { border:2px solid var(--line); border-radius: var(--r-lg); padding:20px; background: var(--surface);
-  margin-bottom:18px; box-shadow: var(--shadow); }
-.at-arabic { font-family: var(--sfont); direction: var(--sdir); unicode-bidi: isolate; line-height:calc(1.75 * var(--sleading, 1)); font-weight:600; margin:8px 0; word-break: break-word; }
-.at-arabic.word { font-size:calc(54px * var(--sscale, 1)); }
-.at-arabic.phrase { font-size:calc(40px * var(--sscale, 1)); }
-.at-arabic.sentence { font-size:calc(30px * var(--sscale, 1)); line-height:calc(1.85 * var(--sleading, 1)); }
-.at-latin { font-family: var(--ui); font-size:calc(19px * var(--lscale, 1)); font-weight:600; color: var(--muted); margin:8px 0; word-break:break-word; }
+.at-sub { border:2px solid var(--line); border-radius: var(--r-lg); padding:23px; background: var(--surface);
+  margin-bottom:21px; box-shadow: var(--shadow); }
+.at-arabic { font-family: var(--sfont); direction: var(--sdir); unicode-bidi: isolate; line-height:calc(1.75 * var(--sleading, 1)); font-weight:600; margin:9px 0; word-break: break-word; }
+.at-arabic.word { font-size:calc(62px * var(--sscale, 1)); }
+.at-arabic.phrase { font-size:calc(46px * var(--sscale, 1)); }
+.at-arabic.sentence { font-size:calc(35px * var(--sscale, 1)); line-height:calc(1.85 * var(--sleading, 1)); }
+.at-latin { font-family: var(--ui); font-size:calc(22px * var(--lscale, 1)); font-weight:600; color: var(--muted); margin:9px 0; word-break:break-word; }
 /* A hint is the same kind of thing whichever field it comes from — a look
    at part of the answer before committing — so it is set at one size. Left
    to each field's own styling, a revealed meaning came out at 25px and 800
@@ -1198,9 +1241,9 @@ button {
    Not .at-arabic: no exercise hints with the script today, and if one ever
    does it needs the script's own scale, not this one. */
 .at-hintvalue .at-latin,
-.at-hintvalue .at-en { font-size:calc(19px * var(--lscale, 1)); font-weight:600; letter-spacing:0; color: var(--muted); }
-.at-en { font-family: var(--ui); font-size:calc(25px * var(--lscale, 1)); font-weight:800; letter-spacing:-.01em; margin:8px 0; word-break:break-word; }
-.at-note { font-size:14px; font-weight:500; color: var(--muted); margin:12px 0 0; }
+.at-hintvalue .at-en { font-size:calc(22px * var(--lscale, 1)); font-weight:600; letter-spacing:0; color: var(--muted); }
+.at-en { font-family: var(--ui); font-size:calc(29px * var(--lscale, 1)); font-weight:800; letter-spacing:-.01em; margin:9px 0; word-break:break-word; }
+.at-note { font-size:16px; font-weight:500; color: var(--muted); margin:14px 0 0; }
 /* Touch browsers leave :hover stuck on the last thing tapped, which left a
    just-pressed toggle looking washed out until you tapped elsewhere. Hover
    styling is for devices that actually hover. */
@@ -1251,7 +1294,7 @@ button {
 .at-btn.danger { background: var(--rose); border-color: var(--rose); color:#fff; }
 .at-btn.ghost { background:transparent; border-color: var(--line); }
 .at-btn.wide { width:100%; }
-.at-btn.sm { padding:9px 14px; font-size:13px; min-height:0; border-radius: var(--r-sm);
+.at-btn.sm { padding:10px 16px; font-size:15px; min-height:0; border-radius: var(--r-sm);
   letter-spacing:.02em; }
 /* Fading a filled button took its label down with it, leaving jade-on-jade
    that was barely readable. Disabled now drops to the plain surface and
@@ -1359,12 +1402,12 @@ button {
    Its buttons take the zero floor back so the type clamp alone decides. */
 .at-answerbar.at-row { --gap: 8px; flex-wrap: nowrap; }
 .at-answerbar.at-row > * { min-width: 0; }
-.at-answerbar.at-row > .at-btn { font-size: clamp(11px, calc(var(--share) * 0.125), 17px); }
+.at-answerbar.at-row > .at-btn { font-size: clamp(11px, calc(var(--share) * 0.125), 20px); }
 /* Room for it under the question, so the last line of an answer is never
    left beneath the bar. Both states have one — three buttons before the
    answer, Continue after it — so the room is reserved either way. */
 .at.in-exercise:has(.at-answerbar) { --foot-extra: 0px;
-  padding-bottom: calc(var(--kb-overlap, 0px) + 96px + var(--foot-extra) + env(safe-area-inset-bottom)); }
+  padding-bottom: calc(var(--kb-overlap, 0px) + 110px + var(--foot-extra) + env(safe-area-inset-bottom)); }
 /* A line of text above the bar is more foot to clear: 13px of type and a
    16px icon, 6px of button padding each side, the strip's own 3 and 4, and
    the hairline. Later in the file and the same specificity, so it is source
@@ -1383,7 +1426,7 @@ button {
    room. The hint takes a fixed width instead of a share, so the text
    buttons get slightly more than the figure below assumes, which errs
    towards fitting. */
-.at-row { display:flex; flex-wrap: wrap; gap: var(--gap); margin-top:20px;
+.at-row { display:flex; flex-wrap: wrap; gap: var(--gap); margin-top:23px;
   container-type: inline-size; --gap: 12px; --cols: 1; }
 .at-row:has(> :nth-child(2)) { --cols: 2; }
 .at-row:has(> :nth-child(3)) { --cols: 3; }
@@ -1403,8 +1446,8 @@ button {
    .at-btn too — sizing those from the row's share would hand a three-way
    picker the type of a full-width button. */
 .at-row > .at-btn { white-space: nowrap;
-  font-size: clamp(10px, calc(var(--share) * 0.115), 16px);
-  padding-inline: clamp(4px, calc(var(--share) * 0.055), 22px);
+  font-size: clamp(10px, calc(var(--share) * 0.115), 18px);
+  padding-inline: clamp(4px, calc(var(--share) * 0.055), 25px);
   /* Letterspacing is a luxury of a roomy button. On the narrowest phone
      the type is already at its floor and this is the only width left to
      give back — and tracking that reads as considered at 16px reads as
@@ -1419,7 +1462,7 @@ button {
    52px on a narrow phone, which is where those pixels are worth most. The
    floor is a tap target, not a look. */
 .at-row > .at-hintbtn { flex:0 0 auto; padding:0;
-  width: clamp(40px, calc(var(--share) * 0.6), 52px);
+  width: clamp(40px, calc(var(--share) * 0.6), 60px);
   /* The buttons it stands between are .at-btn, which is rounded at --r.
      The corner is the one thing that would still give it away as a
      different sort of button once the fill is gone. */
@@ -1428,9 +1471,9 @@ button {
    on-screen keys button uses — the only other button in the app that stays
    pressed while what it opened is on the screen. */
 .at-hintbtn.on { color: var(--brass); border-color: var(--tag-line); background: var(--tag-bg); }
-.at-input { font-family: var(--ui); font-size:18px; font-weight:600; width:100%;
+.at-input { font-family: var(--ui); font-size:21px; font-weight:600; width:100%;
   background: var(--well); color: var(--text); border:2px solid var(--line);
-  border-radius: var(--r); padding:15px 16px; }
+  border-radius: var(--r); padding:17px 18px; }
 .at-input::placeholder { color: var(--faint); font-weight:500; }
 .at-input:focus { outline:none; border-color: var(--brass); }
 .at-input.ok { border-color: var(--jade); background: var(--tag-bg); }
@@ -1438,16 +1481,16 @@ button {
 /* start, not right: the answer field is aligned to wherever the
    language begins. "right" was Arabic's beginning written down as a
    fixed value, so Vietnamese was typed into a right-aligned box. */
-.at-input.ar { font-family: var(--sfont); font-size:calc(40px * var(--sscale, 1)); font-weight:600; direction: var(--sdir);
-  text-align:start; line-height:calc(1.75 * var(--sleading, 1)); padding:14px 16px; }
+.at-input.ar { font-family: var(--sfont); font-size:calc(46px * var(--sscale, 1)); font-weight:600; direction: var(--sdir);
+  text-align:start; line-height:calc(1.75 * var(--sleading, 1)); padding:16px 18px; }
 /* The box you answer in is one height whichever language you are typing:
    64px, a little over the 55px the English field used to be, and well
    under the 102px the script field was — the two used to be different
    boxes to look at and the screen jumped between exercises. Each script
    keeps its own type size; a single-line field centres its text
    vertically, so the height is set outright and the padding goes. */
-.at-answerbox .at-input { height:64px; box-sizing:border-box; padding-top:0; padding-bottom:0; line-height:normal; }
-textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:vertical; min-height:140px; }
+.at-answerbox .at-input { height:74px; box-sizing:border-box; padding-top:0; padding-bottom:0; line-height:normal; }
+textarea.at-input { font-size:17px; font-weight:500; line-height:1.7; resize:vertical; min-height:161px; }
 
 /* A field with the on-screen keys button in its corner.
 
@@ -1463,10 +1506,10 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    either can go. The buttons sit
    beside the field rather than under it, so the script keypad, which opens
    under its own field, does not push them about. */
-.at-alts { display:flex; flex-direction:column; gap:6px; }
-.at-altrow { display:flex; align-items:flex-start; gap:6px; }
+.at-alts { display:flex; flex-direction:column; gap:7px; }
+.at-altrow { display:flex; align-items:flex-start; gap:7px; }
 .at-altrow > .at-altfield { flex:1 1 auto; min-width:0; }
-.at-altrow > .at-icon { flex:0 0 auto; margin-top:8px; }
+.at-altrow > .at-icon { flex:0 0 auto; margin-top:9px; }
 /* An accepted answer and how it is said, as one thing. The pronunciation
    is indented under its answer and set quieter, so the column reads as a
    list of answers rather than as twice as many fields — which is what two
@@ -1474,14 +1517,14 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    wider than the gap inside one, because that is the only thing saying
    which transliteration belongs to which spelling. */
 .at-answerpair { display:grid; grid-template-columns: minmax(0, 1fr) auto;
-  gap:4px 6px; align-items:start; }
-.at-answerpair > .at-answeracts { display:flex; gap:6px; margin-top:8px; }
-.at-alts > .at-answerpair + .at-answerpair { margin-top:10px; }
+  gap:4px 7px; align-items:start; }
+.at-answerpair > .at-answeracts { display:flex; gap:7px; margin-top:9px; }
+.at-alts > .at-answerpair + .at-answerpair { margin-top:12px; }
 /* Under its own answer and in the same column, so the two read as one
    thing; indented and quieter, so the column reads as a list of answers
    rather than as twice as many fields. */
-.at-answersaid { grid-column:1; font-family: var(--ui); font-size:14px;
-  padding-block:7px; margin-inline-start:10px; width:auto; }
+.at-answersaid { grid-column:1; font-family: var(--ui); font-size:16px;
+  padding-block:8px; margin-inline-start:12px; width:auto; }
 /* Which side the button takes is the script's business, not the page's: it
    belongs at the end of the line, which is the left in Arabic. Marked with
    a class rather than left to logical properties, because the button
@@ -1492,17 +1535,17 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    Both repeated under kb-open, whose rule sets padding as a shorthand and
    would otherwise put the text back under the button. */
 .at-inputwrap:not(.rtl) > .at-input,
-.at.kb-open .at-inputwrap:not(.rtl) > .at-input { padding-right: 52px; }
+.at.kb-open .at-inputwrap:not(.rtl) > .at-input { padding-right: 60px; }
 .at-inputwrap.rtl > .at-input,
-.at.kb-open .at-inputwrap.rtl > .at-input { padding-left: 52px; }
+.at.kb-open .at-inputwrap.rtl > .at-input { padding-left: 60px; }
 .at-keybtn { position:absolute; top:50%; transform:translateY(-50%); right:8px;
-  width:34px; height:34px; border-radius:9px; cursor:pointer; display:inline-flex;
+  width:39px; height:39px; border-radius:10px; cursor:pointer; display:inline-flex;
   align-items:center; justify-content:center; background: var(--raised);
   border:2px solid var(--line); color: var(--muted); }
 .at-inputwrap.rtl .at-keybtn { right:auto; left:8px; }
 .at-keybtn.on { color: var(--brass); border-color: var(--tag-line); background: var(--tag-bg); }
-.at-keypad { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
-.at-kb { margin-top:12px; }
+.at-keypad { display:flex; flex-wrap:wrap; gap:5px; margin-top:12px; }
+.at-kb { margin-top:14px; }
 .at-kbrow { display:flex; gap:4px; justify-content:center; margin-bottom:4px; flex-wrap:wrap; }
 /* A row of letters keeps its layout: a Hebrew or Arabic keyboard whose top
    row has folded in half is not the keyboard anyone has used before, and
@@ -1531,38 +1574,38 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
 .at-kbrow.fit:has(> :nth-child(14)) { --n: 14; }
 .at-kbrow.fit { --kw: calc((100cqi - (var(--n) - 1) * 3px) / var(--n)); }
 .at-kbrow.fit > .at-key { flex:1 1 0; min-width:0; padding:0;
-  font-size: clamp(11px, calc(var(--kw) * 0.68), 21px); }
+  font-size: clamp(11px, calc(var(--kw) * 0.68), 24px); }
 .at-key:active { transform: translateY(1px); }
 .at-key:hover { background: var(--raised-hover); }
-.at-key.util { font-family: var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; min-width:52px; }
+.at-key.util { font-family: var(--mono); font-size:13px; letter-spacing:.1em; text-transform:uppercase; min-width:60px; }
 .at-key.mark { color: var(--brass); }
-.at-progress { height:16px; background: var(--well); border:2px solid var(--line);
-  border-radius:999px; overflow:hidden; margin-bottom:20px; }
+.at-progress { height:18px; background: var(--well); border:2px solid var(--line);
+  border-radius:999px; overflow:hidden; margin-bottom:23px; }
 .at-progress i { display:block; height:100%; background: var(--brass); border-radius:999px;
   transition:width 320ms cubic-bezier(.2,.9,.25,1); }
-.at-formtag { color: var(--jade); margin-inline-end:8px; }
+.at-formtag { color: var(--jade); margin-inline-end:9px; }
 .at-list { border:2px solid var(--line); border-radius: var(--r-lg); overflow:hidden; box-shadow: var(--shadow); }
-.at-item { display:flex; align-items:center; gap:10px; padding:8px 10px;
+.at-item { display:flex; align-items:center; gap:12px; padding:9px 12px;
   border-bottom:2px solid var(--line); background: var(--surface); }
 .at-flag.warn { color: var(--rose); border-color: var(--rose-soft); }
-.at-tag.sm { font-size:10px; padding:1px 7px; border-width:1px; }
+.at-tag.sm { font-size:12px; padding:1px 8px; border-width:1px; }
 .at-item:last-child { border-bottom:0; }
 .at-item .grow { flex:1; min-width:0; }
-.at-item .ar { font-family: var(--sfont); font-size:calc(21px * var(--sscale, 1)); font-weight:700; direction: var(--sdir); unicode-bidi:isolate; line-height:calc(1.45 * var(--sleading, 1)); }
-.at-item .lat { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted); }
-.at-item .en { font-size:14px; font-weight:700; color: var(--text); }
+.at-item .ar { font-family: var(--sfont); font-size:calc(24px * var(--sscale, 1)); font-weight:700; direction: var(--sdir); unicode-bidi:isolate; line-height:calc(1.45 * var(--sleading, 1)); }
+.at-item .lat { font-family: var(--ui); font-size:14px; font-weight:600; color: var(--muted); }
+.at-item .en { font-size:16px; font-weight:700; color: var(--text); }
 /* When somebody was last here, last practiced and last wrote something, on
    their card in the people list. A label column and a value column rather
    than a run of pills: these are three answers to compare down the card,
    and pills would wrap into each other. The block of courses above it is
    built the same way, and each opens with its own rule so the two groups
    don't read as one list of five things. */
-.at-when { display:flex; flex-direction:column; gap:2px; margin-top:8px;
-  padding-top:8px; border-top:2px solid var(--line); }
-.at-whenrow { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
-.at-whenlabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.04em;
+.at-when { display:flex; flex-direction:column; gap:2px; margin-top:9px;
+  padding-top:9px; border-top:2px solid var(--line); }
+.at-whenrow { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.at-whenlabel { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.04em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
-.at-whenvalue { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--text-soft);
+.at-whenvalue { font-family: var(--ui); font-size:14px; font-weight:700; color: var(--text-soft);
   text-align:right; }
 /* Nothing to report is quieter than a date, so a card with three of these
    reads as empty at a glance rather than as three facts. */
@@ -1574,16 +1617,16 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    read, and they read as a list only if they begin in the same place. Left,
    not right like the dates: a date is compared against the date above it,
    a name is scanned down. */
-.at-belongs { display:grid; grid-template-columns:max-content 1fr; gap:6px 12px;
-  align-items:baseline; margin-top:8px; padding-top:8px; border-top:2px solid var(--line); }
-.at-belonglabel { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.04em;
+.at-belongs { display:grid; grid-template-columns:max-content 1fr; gap:7px 14px;
+  align-items:baseline; margin-top:9px; padding-top:9px; border-top:2px solid var(--line); }
+.at-belonglabel { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.04em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 /* A role keeps the colour it has everywhere else — jade for teaching, brass
    for studying, the pair the roster's own switches use. */
 .at-belonglabel.teach { color: var(--jade); }
 .at-belonglabel.study { color: var(--brass); }
 .at-belonglist { display:flex; flex-direction:column; gap:4px; min-width:0; }
-.at-belong { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--text-soft);
+.at-belong { font-family: var(--ui); font-size:14px; font-weight:700; color: var(--text-soft);
   overflow-wrap:anywhere; }
 /* What the course teaches, under its name and quieter — the same two lines
    the course checklist uses, so a course looks like itself wherever it is
@@ -1609,25 +1652,25 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    column — what these are called is the whole reason for keeping them —
    and the icon button is told not to grow, because .at-icon is built to
    fill a toolbar and would otherwise take a third of the row. */
-.at-sessionrow { flex-wrap:wrap; row-gap:8px; }
+.at-sessionrow { flex-wrap:wrap; row-gap:9px; }
 .at-sessionrow > .grow { min-width:11rem; }
-.at-sessionrow > .at-icon { flex:0 0 auto; width:44px; }
-.at-rosterrow { flex-wrap:wrap; row-gap:6px; }
+.at-sessionrow > .at-icon { flex:0 0 auto; width:51px; }
+.at-rosterrow { flex-wrap:wrap; row-gap:7px; }
 /* A floor under the name, so the toggles wrap to their own line rather
    than squeezing a handle into three. Without it the name column can
    shrink to nothing and the row never wraps at all. */
 .at-rosterrow > .grow { min-width:9rem; }
 .at-roles { display:flex; gap:5px; flex:none; margin-left:auto; }
-.at-role { cursor:pointer; font-family: var(--ui); font-size:10px; font-weight:800;
+.at-role { cursor:pointer; font-family: var(--ui); font-size:12px; font-weight:800;
   letter-spacing:.03em; text-transform:uppercase; border:2px solid var(--line);
-  border-radius:999px; padding:3px 9px; color: var(--faint); background:none;
+  border-radius:999px; padding:3px 10px; color: var(--faint); background:none;
   white-space:nowrap; }
 .at-role:hover:not(:disabled) { color: var(--text-soft); border-color: var(--muted); }
 .at-role:disabled { cursor:default; opacity:.55; }
 .at-role.on.teach { color: var(--jade); border-color: var(--jade); background: var(--jade-bg); }
 .at-role.on.study { color: var(--brass); border-color: var(--brass); background: var(--tag-bg); }
 .at-roles.at-rolesown { margin-left:0; }
-.at-flag { cursor:default; font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; border:2px solid var(--line); border-radius:999px; padding:2px 7px; color: var(--muted); white-space:nowrap; }
+.at-flag { cursor:default; font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; border:2px solid var(--line); border-radius:999px; padding:2px 8px; color: var(--muted); white-space:nowrap; }
 button.at-flag { cursor:pointer; }
 button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-flag.forms { color: var(--jade); border-color: var(--jade-soft); }
@@ -1636,64 +1679,64 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    reported it. Two names because the tone is the same and the meaning is
    not — a chip about a card should not have to be called `audio`. */
 .at-flag.audio, .at-flag.stale { color: var(--brass); border-color: var(--tag-line); }
-.at-flag.audio.big { font-size:13px; padding:4px 10px; gap:5px;
+.at-flag.audio.big { font-size:15px; padding:4px 12px; gap:5px;
   display:inline-flex; align-items:center; background: var(--tag-bg); }
-.at-flag.audio.big svg { width:15px; height:15px; }
+.at-flag.audio.big svg { width:17px; height:17px; }
 .at-flag.locked { border-color: var(--tag-line); }
 .at-warn { color: var(--rose); }
-.at-x { background:none; border:0; color: var(--muted); cursor:pointer; font-size:19px; line-height:1; padding:4px 6px; }
+.at-x { background:none; border:0; color: var(--muted); cursor:pointer; font-size:22px; line-height:1; padding:4px 7px; }
 .at-x:hover { color: var(--rose); }
 .at-tags { display:flex; gap:5px; flex-wrap:wrap; margin-top:5px; }
-.at-tag { font-family: var(--ui); font-size:13px; font-weight:700; background: var(--tag-bg);
-  border:2px solid var(--tag-line); color: var(--brass); border-radius:999px; padding:5px 12px;
-  display:inline-flex; align-items:center; gap:6px; }
-.at-tag button { background:none; border:0; color:inherit; cursor:pointer; font-size:12px; line-height:1; padding:0; opacity:.6; }
+.at-tag { font-family: var(--ui); font-size:15px; font-weight:700; background: var(--tag-bg);
+  border:2px solid var(--tag-line); color: var(--brass); border-radius:999px; padding:5px 14px;
+  display:inline-flex; align-items:center; gap:7px; }
+.at-tag button { background:none; border:0; color:inherit; cursor:pointer; font-size:14px; line-height:1; padding:0; opacity:.6; }
 .at-tag button:hover { opacity:1; }
 .at-tag.pick { cursor:pointer; background:transparent; border-color: var(--line); color: var(--muted); }
 .at-tag.pick:hover { border-color: var(--muted); color: var(--text); }
 .at-tag.pick.on { background: var(--tag-bg); border-color: var(--tag-line); color: var(--brass); }
 .at-tag .n { opacity:.6; }
-.at-field { margin-bottom:12px; }
-.at-label { display:block; font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color: var(--muted); margin-bottom:8px; }
+.at-field { margin-bottom:14px; }
+.at-label { display:block; font-family: var(--ui); font-size:14px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color: var(--muted); margin-bottom:9px; }
 .at-optional { color: var(--faint); }
-.at-chips { display:flex; gap:6px; flex-wrap:wrap; }
-.at-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:18px; }
-.at-stat { border:2px solid var(--line); border-radius: var(--r); padding:16px 12px; background: var(--surface); box-shadow: var(--shadow); }
-.at-stat b { display:block; font-family: var(--ui); font-size:30px; font-weight:800; letter-spacing:-.02em; }
-.at-stat span { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
+.at-chips { display:flex; gap:7px; flex-wrap:wrap; }
+.at-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:21px; }
+.at-stat { border:2px solid var(--line); border-radius: var(--r); padding:18px 14px; background: var(--surface); box-shadow: var(--shadow); }
+.at-stat b { display:block; font-family: var(--ui); font-size:35px; font-weight:800; letter-spacing:-.02em; }
+.at-stat span { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
 /* The compact row used on the Progress screen. */
-.at-stats.tight { grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:16px; }
-.at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
-.at-stats.tight .at-stat b { font-size:19px; }
-.at-stats.tight .at-stat span { font-size:8px; letter-spacing:.04em; }
-.at-tagsec { margin-bottom:20px; }
+.at-stats.tight { grid-template-columns:repeat(5,1fr); gap:7px; margin-bottom:18px; }
+.at-stats.tight .at-stat { padding:10px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
+.at-stats.tight .at-stat b { font-size:22px; }
+.at-stats.tight .at-stat span { font-size:9px; letter-spacing:.04em; }
+.at-tagsec { margin-bottom:23px; }
 .at-tagsecbar > .at-btn { flex-shrink:0; }
-.at-modepick { border:2px solid var(--line); border-radius: var(--r); padding:12px;
-  margin:10px 0; background: var(--surface); }
-.at-modepick .at-miniq { font-family: var(--ui); font-size:13px; font-weight:700;
-  color: var(--muted); margin:0 0 10px; }
-.at-modepickopt { display:block; width:100%; text-align:left; cursor:pointer; margin-bottom:8px;
+.at-modepick { border:2px solid var(--line); border-radius: var(--r); padding:14px;
+  margin:12px 0; background: var(--surface); }
+.at-modepick .at-miniq { font-family: var(--ui); font-size:15px; font-weight:700;
+  color: var(--muted); margin:0 0 12px; }
+.at-modepickopt { display:block; width:100%; text-align:left; cursor:pointer; margin-bottom:9px;
   background: var(--raised); border:2px solid var(--line); border-radius: var(--r-sm);
-  padding:11px 12px; color: var(--text); }
+  padding:13px 14px; color: var(--text); }
 .at-modepickopt:last-child { margin-bottom:0; }
 .at-modepickopt:hover { border-color: var(--jade); background: var(--tag-bg); }
-.at-modepickopt b { display:block; font-size:15px; font-weight:800; }
-.at-modepickopt span { display:block; font-size:12px; font-weight:500; color: var(--muted);
+.at-modepickopt b { display:block; font-size:17px; font-weight:800; }
+.at-modepickopt span { display:block; font-size:14px; font-weight:500; color: var(--muted);
   margin-top:3px; line-height:1.45; }
-.at-pbar { height:6px; background: var(--well); border:1px solid var(--line);
+.at-pbar { height:7px; background: var(--well); border:1px solid var(--line);
   border-radius:999px; overflow:hidden; }
 .at-pbar i { display:block; height:100%; background: var(--brass); border-radius:999px;
   transition:width 300ms; }
-.at-pbar.lg { height:10px; border-width:2px; }
+.at-pbar.lg { height:12px; border-width:2px; }
 .at-pbar i.full { background: var(--jade); }
 .at-pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
-  gap:8px; margin-top:12px; min-width:0; }
+  gap:9px; margin-top:14px; min-width:0; }
 /* A button, because it opens the card. The declarations up to `background`
    are the ones that undo a button's own chrome — the rest is the tile it
    has always been. */
 .at-pcard { display:block; width:100%; font:inherit; color:inherit; text-align:left;
   cursor:pointer; -webkit-appearance:none; appearance:none;
-  min-width:0; border:2px solid var(--line); border-radius: var(--r-sm); padding:10px; background: var(--surface); }
+  min-width:0; border:2px solid var(--line); border-radius: var(--r-sm); padding:12px; background: var(--surface); }
 .at-pcard.done { border-color: var(--jade); background: var(--tag-bg); }
 .at-pcard.done .at-pbar i { background: var(--jade); }
 .at-pcard.idle { opacity:.55; }
@@ -1704,45 +1747,45 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 @media (hover: hover) {
   .at-pcard:hover { border-color: var(--ink); transform: translateY(-1px); }
 }
-.at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
-.at-pcardtop .ar { font-family: var(--sfont); font-size:calc(20px * var(--sscale, 1)); font-weight:700; direction: var(--sdir);
+.at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:9px; min-height:51px; }
+.at-pcardtop .ar { font-family: var(--sfont); font-size:calc(23px * var(--sscale, 1)); font-weight:700; direction: var(--sdir);
   unicode-bidi:isolate; line-height:calc(1.35 * var(--sleading, 1)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-pcardtop .en { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
+.at-pcardtop .en { font-family: var(--ui); font-size:15px; font-weight:600; color: var(--muted);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-pcardfoot { display:flex; justify-content:space-between; gap:6px; margin-top:6px;
-  font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.04em;
+.at-pcardfoot { display:flex; justify-content:space-between; gap:7px; margin-top:7px;
+  font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.04em;
   text-transform:uppercase; color: var(--muted); }
 .at-pcard.done .at-pcardfoot { color: var(--jade); }
-.at-empty { text-align:center; padding:36px 20px; }
+.at-empty { text-align:center; padding:41px 23px; }
 /* Visually hidden, but still a real field so password managers see it. */
 
 .at-syntax { border:1px solid var(--line); border-left:2px solid var(--brass); border-radius:4px;
-  padding:14px 16px; margin-bottom:12px; background: var(--well); }
-.at-syntax p { font-size:12px; color: var(--muted); line-height:1.6; margin:0 0 6px; }
+  padding:16px 18px; margin-bottom:14px; background: var(--well); }
+.at-syntax p { font-size:14px; color: var(--muted); line-height:1.6; margin:0 0 7px; }
 .at-syntax p:last-child { margin-bottom:0; }
-.at-syntax code { font-family: var(--mono); font-size:11px; color: var(--brass);
+.at-syntax code { font-family: var(--mono); font-size:13px; color: var(--brass);
   background: var(--tag-bg); border-radius:3px; padding:1px 4px; }
-.at-syntax pre { font-family: var(--mono); font-size:12px; color: var(--text); line-height:1.7;
-  background: var(--well-deep); border-radius:4px; padding:9px 11px; margin:0 0 10px;
+.at-syntax pre { font-family: var(--mono); font-size:14px; color: var(--text); line-height:1.7;
+  background: var(--well-deep); border-radius:4px; padding:10px 13px; margin:0 0 12px;
   white-space:pre-wrap; word-break:break-word; }
-.at-preview { border:1px solid var(--line); border-radius:5px; margin-top:10px; overflow:hidden; }
-.at-previewhead { display:flex; justify-content:space-between; font-family: var(--mono); font-size:10px;
+.at-preview { border:1px solid var(--line); border-radius:5px; margin-top:12px; overflow:hidden; }
+.at-previewhead { display:flex; justify-content:space-between; font-family: var(--mono); font-size:12px;
   letter-spacing:.12em; text-transform:uppercase; color: var(--muted);
-  padding:8px 11px; border-bottom:1px solid var(--line); background: var(--well); }
-.at-previewrow { display:flex; gap:10px; padding:8px 11px; border-bottom:1px solid var(--line); align-items:baseline; }
+  padding:9px 13px; border-bottom:1px solid var(--line); background: var(--well); }
+.at-previewrow { display:flex; gap:12px; padding:9px 13px; border-bottom:1px solid var(--line); align-items:baseline; }
 .at-previewrow:last-child { border-bottom:0; }
-.at-previewrow .cell { flex:1; min-width:0; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-previewrow .ar { font-family: var(--sfont); font-size:calc(17px * var(--sscale, 1)); direction: var(--sdir); unicode-bidi:isolate; }
+.at-previewrow .cell { flex:1; min-width:0; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-previewrow .ar { font-family: var(--sfont); font-size:calc(20px * var(--sscale, 1)); direction: var(--sdir); unicode-bidi:isolate; }
 .at-previewrow .lat { font-family: var(--ui); font-weight:600; color: var(--muted); }
-.at-previewrow .tag { font-family: var(--mono); font-size:10px; color: var(--brass); }
-.at-toast { font-family: var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color: var(--rose); margin-top:10px; text-align:center; }
+.at-previewrow .tag { font-family: var(--mono); font-size:12px; color: var(--brass); }
+.at-toast { font-family: var(--mono); font-size:12px; letter-spacing:.13em; text-transform:uppercase; color: var(--rose); margin-top:12px; text-align:center; }
 .at-item.locked { background: var(--well); }
 /* ---- phone keyboard open: strip everything that isn't the exercise ---- */
-.at.kb-open { padding: 6px 12px 8px; }
+.at.kb-open { padding: 7px 14px 9px; }
 /* The shorthand above would take back the room the answer bar needs, and it
    is exactly when the keyboard is up that the bar is furthest from the foot
    of the window. Three classes, so it wins wherever it sits. */
-.at.kb-open.in-exercise:has(.at-answerbar) { padding-bottom: calc(var(--kb-overlap, 0px) + 82px + var(--foot-extra)); }
+.at.kb-open.in-exercise:has(.at-answerbar) { padding-bottom: calc(var(--kb-overlap, 0px) + 94px + var(--foot-extra)); }
 .at.kb-open .at.kb-open .at.kb-open .at-progress,
 .at.kb-open .at.kb-open .at-note,
 /* The keys button is not in this list: it used to be a labelled button
@@ -1764,35 +1807,35 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    drops. Only this line goes: the flag on the answer screen stays. */
 .at.kb-open .at-foot.quiet .at-footextra { display: none; }
 .at.kb-open.in-exercise:has(.at-foot.quiet) { --foot-extra: 0px; }
-.at.kb-open .at-card { padding: 12px 12px 14px; }
+.at.kb-open .at-card { padding: 14px 14px 16px; }
 .at.kb-open .at-eyebrow { margin-bottom: 4px; }
 .at.kb-open .at-arabic { margin: 2px 0; }
-.at.kb-open .at-arabic.word { font-size:calc(34px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
-.at.kb-open .at-arabic.phrase { font-size:calc(27px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
-.at.kb-open .at-arabic.sentence { font-size:calc(20px * var(--sscale, 1)); line-height:calc(1.5 * var(--sleading, 1)); }
-.at.kb-open .at-en { font-size: calc(20px * var(--lscale, 1)); margin: 2px 0; }
-.at.kb-open .at-latin { font-size: calc(16px * var(--lscale, 1)); margin: 2px 0; }
-.at.kb-open .at-input { padding: 11px 14px; font-size: 17px; }
-.at.kb-open .at-input.ar { font-size:calc(32px * var(--sscale, 1)); }
-.at.kb-open .at-answerbox .at-input { height:52px; }
-.at.kb-open .at-btn { min-height: 46px; padding: 11px 16px; font-size: 15px; }
-.at.kb-open .at-progress { height: 10px; }
-.at.kb-open { --verdict: 20px; --verdict-alone: 28px; }
-.at.kb-open .at-row { margin-top: 10px; }
+.at.kb-open .at-arabic.word { font-size:calc(39px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
+.at.kb-open .at-arabic.phrase { font-size:calc(31px * var(--sscale, 1)); line-height:calc(1.4 * var(--sleading, 1)); }
+.at.kb-open .at-arabic.sentence { font-size:calc(23px * var(--sscale, 1)); line-height:calc(1.5 * var(--sleading, 1)); }
+.at.kb-open .at-en { font-size: calc(23px * var(--lscale, 1)); margin: 2px 0; }
+.at.kb-open .at-latin { font-size: calc(18px * var(--lscale, 1)); margin: 2px 0; }
+.at.kb-open .at-input { padding: 13px 16px; font-size: 20px; }
+.at.kb-open .at-input.ar { font-size:calc(37px * var(--sscale, 1)); }
+.at.kb-open .at-answerbox .at-input { height:60px; }
+.at.kb-open .at-btn { min-height: 53px; padding: 13px 18px; font-size: 17px; }
+.at.kb-open .at-progress { height: 12px; }
+.at.kb-open { --verdict: 23px; --verdict-alone: 32px; }
+.at.kb-open .at-row { margin-top: 12px; }
 .at.kb-open .at-hint { margin-top: 4px; }
 @media (max-width:480px){
-  .at-arabic.word{font-size:calc(44px * var(--sscale, 1));} .at-arabic.phrase{font-size:calc(33px * var(--sscale, 1));} .at-arabic.sentence{font-size:calc(25px * var(--sscale, 1));} .at-key{min-width:31px; font-size:calc(19px * var(--sscale, 1));}
-  .at-btn{font-size:15px; padding:13px 16px;}
+  .at-arabic.word{font-size:calc(51px * var(--sscale, 1));} .at-arabic.phrase{font-size:calc(38px * var(--sscale, 1));} .at-arabic.sentence{font-size:calc(29px * var(--sscale, 1));} .at-key{min-width:36px; font-size:calc(22px * var(--sscale, 1));}
+  .at-btn{font-size:17px; padding:15px 18px;}
   .at-stats{ grid-template-columns:repeat(2,1fr); }
   .at-stats.tight{ grid-template-columns:repeat(5,1fr); }
-  .at-pgrid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
-  .at-pcard { padding:8px 7px; }
-  .at-pcardtop { min-height:38px; }
-  .at-pcardtop .ar { font-size:calc(17px * var(--sscale, 1)); }
-  .at-pcardtop .en { font-size:11px; }
-  .at-pcardfoot { font-size:9px; }
-  .at-modepickopt span { font-size:11px; }
-  .at-previewrow { flex-wrap:wrap; gap:4px 10px; } .at-previewrow .cell { flex:1 1 45%; }}
+  .at-pgrid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; }
+  .at-pcard { padding:9px 8px; }
+  .at-pcardtop { min-height:44px; }
+  .at-pcardtop .ar { font-size:calc(20px * var(--sscale, 1)); }
+  .at-pcardtop .en { font-size:13px; }
+  .at-pcardfoot { font-size:10px; }
+  .at-modepickopt span { font-size:13px; }
+  .at-previewrow { flex-wrap:wrap; gap:4px 12px; } .at-previewrow .cell { flex:1 1 45%; }}
 @media (max-width:360px){
   .at-pgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }}
 @media (prefers-reduced-motion: reduce){ .at * { transition:none !important; }}
@@ -1803,14 +1846,14 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 /* Rules for classes the markup uses. Previously missing, so these elements
    were rendering unstyled. */
 .at-readout { display:block; }
-.at-advanced { margin-top:18px; padding-top:14px; border-top:2px solid var(--line); }
+.at-advanced { margin-top:21px; padding-top:16px; border-top:2px solid var(--line); }
 /* Two clearly separate parts of the courses page. */
-.at-section { margin-bottom:26px; }
-.at-section:first-of-type { margin-top:20px; }
-.at-sectionhead { font-family: var(--ui); font-size:19px; font-weight:800;
-  margin:0 0 10px; color: var(--ink); letter-spacing:-.01em; }
+.at-section { margin-bottom:30px; }
+.at-section:first-of-type { margin-top:23px; }
+.at-sectionhead { font-family: var(--ui); font-size:22px; font-weight:800;
+  margin:0 0 12px; color: var(--ink); letter-spacing:-.01em; }
 .at-joinbox { border:2px solid var(--line); border-radius: var(--r-lg);
-  padding:16px; background: var(--surface); }
+  padding:18px; background: var(--surface); }
 .at-joinbox .at-toolbar { margin-bottom:0; }
 /* ------------------------------------------------------------------
    Primitives added with the component set
@@ -1861,11 +1904,11 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
   background: var(--well-deep); border:2px solid var(--line); border-radius: var(--r-sm);
   padding:3px; gap:3px; container-type: inline-size; }
 .at-seg { flex:1 1 0; min-width: min-content; display:inline-flex; align-items:center;
-  justify-content:center; gap:6px;
+  justify-content:center; gap:7px;
   font-family: var(--ui); font-weight:800; letter-spacing:.03em; text-transform:uppercase;
   white-space:nowrap;
-  background: var(--raised); border:2px solid transparent; border-radius:9px;
-  color: var(--text-soft); cursor:pointer; padding:9px 6px; min-height:38px;
+  background: var(--raised); border:2px solid transparent; border-radius:10px;
+  color: var(--text-soft); cursor:pointer; padding:10px 7px; min-height:44px;
   transition: background 120ms, color 120ms, border-color 120ms; }
 .at-seg:hover:not(:disabled):not(.on) { background: var(--raised-hover); color: var(--text); }
 /* Flat fill, no ring. The border is kept so the chosen option is the same
@@ -1883,7 +1926,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-segmented[data-n="4"] { --n: 4; }
 .at-segmented[data-n="5"] { --n: 5; }
 .at-segmented[data-n="6"] { --n: 6; }
-.at-seg { font-size: clamp(10px, calc(var(--seg) * 0.105), 14px); }
+.at-seg { font-size: clamp(10px, calc(var(--seg) * 0.105), 16px); }
 /* And where even the floor will not fit — a language called Palestinian
    Arabic beside two others — the option keeps its label whole and takes
    the next line down. The track wraps around both, so it still reads as
@@ -1901,7 +1944,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    is in wants the full-width variant, not this one. */
 .at-segmented.sm { display:grid; grid-auto-flow:column; grid-auto-columns:1fr;
   width: max-content; max-width:100%; container-type: normal; }
-.at-segmented.sm .at-seg { min-height:34px; padding:7px 14px; font-size:13px; }
+.at-segmented.sm .at-seg { min-height:39px; padding:8px 16px; font-size:15px; }
 /* A picker sharing a row with a button — Sounds and its Test — holds
    three labels where the button holds one, so an even split starved it
    and pushed its options to the smallest type they have. */
@@ -1916,7 +1959,7 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-stat2 { display:block; }
 .at-stat2 .at-statvalue { font-family: var(--serif); font-size: var(--fs-stat); font-weight:600; line-height:1.05; margin:0; color: var(--text); }
 .at-stat2 .at-statlabel { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.05em; text-transform:uppercase; color: var(--muted); margin: var(--s2) 0 0; }
-.at-stat2.big .at-statvalue { font-size: 40px; }
+.at-stat2.big .at-statvalue { font-size: 46px; }
 /* --- Screen footer: the action bar a sheet keeps at the bottom --- */
 .at-screenfoot { position:sticky; bottom:0; display:flex; flex-wrap: wrap; gap: var(--s3); padding: var(--s4) 0 0; margin-top: var(--s5); background: linear-gradient(to top, var(--surface) 60%, transparent); }
 .at-screenfoot > * { flex:1 1 0; min-width: min-content; }
@@ -1927,8 +1970,8 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-screenfoot:has(> :nth-child(3)) { --cols: 3; }
 .at-screenfoot { --share: calc((100cqi - (var(--cols) - 1) * var(--s3)) / var(--cols)); }
 .at-screenfoot > .at-btn { white-space: nowrap;
-  font-size: clamp(10px, calc(var(--share) * 0.115), 16px);
-  padding-inline: clamp(4px, calc(var(--share) * 0.055), 22px);
+  font-size: clamp(10px, calc(var(--share) * 0.115), 18px);
+  padding-inline: clamp(4px, calc(var(--share) * 0.055), 25px);
   letter-spacing: clamp(0em, calc(var(--share) * 0.00022), 0.03em); }
 /* --- Tabs / space chrome: one owner for the layers ---
    All four together, above --z-screen. They used to be split: the brand on
@@ -2001,9 +2044,9 @@ body.at-screening .at-spaces { display:none; }
 /* The number you point at. Loud enough to find by eye while scrolling,
    quiet enough not to compete with the name beside it. */
 .at-galid { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size:11px; font-weight:800; line-height:1; color: var(--onbrass);
-  background: var(--brass); border-radius:6px; padding:4px 6px; flex:0 0 auto;
-  min-width:22px; text-align:center; }
+  font-size:13px; font-weight:800; line-height:1; color: var(--onbrass);
+  background: var(--brass); border-radius:7px; padding:4px 7px; flex:0 0 auto;
+  min-width:25px; text-align:center; }
 .at-galid.sub { background:none; color: var(--brass); padding:0 4px 0 0;
   min-width:0; font-size: var(--fs-xs); }
 .at-galdemo { display:flex; flex-wrap:wrap; gap: var(--s3); align-items:flex-start;
@@ -2021,7 +2064,7 @@ body.at-screening .at-spaces { display:none; }
 .at-galdemo .at-mode { position:relative; top:auto; left:auto; }
 /* Each specimen carries its own label, so a variant can be named rather
    than pointed at. */
-.at-galv { flex:0 1 auto; min-width:0; border:1px solid var(--line); border-radius:10px;
+.at-galv { flex:0 1 auto; min-width:0; border:1px solid var(--line); border-radius:12px;
   padding: var(--s3); background: var(--surface); }
 .at-galv.wide { flex:1 1 100%; }
 .at-galvlabel { font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
@@ -2033,10 +2076,10 @@ body.at-screening .at-spaces { display:none; }
   gap: var(--s3); width:100%; }
 .at-galicon { display:flex; flex-direction:column; align-items:center; gap: var(--s1);
   text-align:center; color: var(--text); }
-.at-galicon code { font-size: 10px; color: var(--muted); word-break:break-all; }
+.at-galicon code { font-size: 12px; color: var(--muted); word-break:break-all; }
 /* Screen can't be shown for real without covering the page, so this stands
    in for its head. */
-.at-galfake { border:1px dashed var(--line); border-radius:10px; padding: var(--s3); width:100%; }
+.at-galfake { border:1px dashed var(--line); border-radius:12px; padding: var(--s3); width:100%; }
 .at-galfakehead { display:flex; align-items:center; justify-content:space-between;
   gap: var(--s3); margin-bottom: var(--s3); color: var(--muted); font-size: var(--fs-sm); }
 
@@ -2050,7 +2093,7 @@ body.at-screening .at-spaces { display:none; }
 .at-galuses > summary:hover { color: var(--text); }
 .at-galcount { font-weight:700; letter-spacing:0; text-transform:none;
   background: var(--nav-bg); border:1px solid var(--line); border-radius:999px;
-  padding:1px 7px; }
+  padding:1px 8px; }
 /* Where a component turns up, by part of the app and then by screen.
    It used to be file names and line numbers set in monospace, which is a
    developer's answer to a question anyone might ask. */
@@ -2064,8 +2107,8 @@ body.at-screening .at-spaces { display:none; }
 .at-galwhere { font-family: var(--ui); font-size: var(--fs-sm); color: var(--text); }
 /* How many times, and only when it is more than once — a "1" beside every
    line is noise pretending to be information. */
-.at-galtimes { font-family: var(--ui); font-size: 11px; font-weight:700; color: var(--muted);
-  background: var(--well); border-radius:999px; padding:1px 7px; }
+.at-galtimes { font-family: var(--ui); font-size: 13px; font-weight:700; color: var(--muted);
+  background: var(--well); border-radius:999px; padding:1px 8px; }
 
 /* --- the question prompt -------------------------------------------
    The prompt is the thing being asked about, and it is set at one size
@@ -2099,9 +2142,9 @@ body.at-screening .at-spaces { display:none; }
    The base is held apart from both so they cannot compound: in a
    Vietnamese course the script's factor and Latin's are the same number,
    and multiplying them would shrink the prompt twice over. */
-.at { --askbase: 40px; }
-@media (max-width: 480px) { .at { --askbase: 36px; } }
-.at.kb-open { --askbase: 26px; }
+.at { --askbase: 46px; }
+@media (max-width: 480px) { .at { --askbase: 41px; } }
+.at.kb-open { --askbase: 30px; }
 .at { --ask: calc(var(--askbase) * var(--sscale, 1));
       --askl: calc(var(--askbase) * var(--lscale, 1)); }
 .at .at-exercise .at-ask > .at-arabic,
@@ -2154,7 +2197,7 @@ body.at-screening .at-spaces { display:none; }
    from the same variable, so a scene takes its size from the language
    like everything else does: a line is several words long and the size
    that suits one word makes four of them a wall. */
-.at-scene { display:flex; flex-direction:column; gap:10px; text-align:start; margin:2px 0 4px; }
+.at-scene { display:flex; flex-direction:column; gap:12px; text-align:start; margin:2px 0 4px; }
 /* A column, so the bubble shrinks to its contents rather than filling the
    row — that shrinking is the whole fix. align-items is what puts the
    turn on its side; without `sided` every turn stacks at the leading
@@ -2163,7 +2206,7 @@ body.at-screening .at-spaces { display:none; }
 .at-scenesaid { min-width:0; display:flex; flex-direction:column; gap:3px;
   max-width: min(86%, 34rem);
   background: var(--well); border:1px solid var(--line);
-  border-radius:16px; padding:9px 13px; }
+  border-radius:18px; padding:10px 15px; }
 /* Squared off at the corner nearest its speaker's name, which is what
    makes a bubble read as belonging to somebody rather than floating. */
 .at-sceneline > .at-scenesaid { border-start-start-radius:5px; }
@@ -2171,7 +2214,7 @@ body.at-screening .at-spaces { display:none; }
    words, and the words are the exercise. Each speaker keeps one colour
    for the whole scene, which is how a run of turns reads as two people
    rather than as four lines. */
-.at-speaker { font-family: var(--ui); font-size:12px; font-weight:800; letter-spacing:.06em;
+.at-speaker { font-family: var(--ui); font-size:14px; font-weight:800; letter-spacing:.06em;
   text-transform:uppercase; color: var(--muted); white-space:nowrap; }
 .at-sceneline > .at-speaker { padding-inline:4px; }
 .at-speaker.s0 { color: var(--jade); }
@@ -2181,13 +2224,13 @@ body.at-screening .at-spaces { display:none; }
 .at-scene .at-arabic, .at-order .at-arabic, .at-replies .at-arabic {
   font-size: calc(var(--ask) * .62); line-height: calc(1.5 * var(--sleading, 1)); margin:0; }
 .at-scene .at-en { margin:0; }
-.at-scenemeaning { font-family: var(--ui); font-size:14px; font-weight:600; color: var(--muted);
+.at-scenemeaning { font-family: var(--ui); font-size:16px; font-weight:600; color: var(--muted);
   margin:0; }
 /* The turn being asked for. The rule is the length of a held breath, not
    of the answer: a blank as wide as the words would say how many there
    are. */
 .at-sceneblank { margin:0; padding:2px 0; }
-.at-blankrule { display:inline-block; width:96px; height:3px; border-radius:2px;
+.at-blankrule { display:inline-block; width:110px; height:3px; border-radius:2px;
   background: var(--faint); vertical-align:middle; }
 .at-sceneline.asked .at-speaker { color: var(--text); }
 .at-sceneline.asked > .at-scenesaid { border-style:dashed; border-color: var(--muted); }
@@ -2229,14 +2272,14 @@ body.at-screening .at-spaces { display:none; }
 /* Putting it back in order. Each line is a target the width of the
    column: the tap is the answer, so it is as big as the thing being
    answered. */
-.at-order { display:flex; flex-direction:column; gap:8px; }
-.at-orderline { display:flex; align-items:baseline; gap:12px; text-align:start; width:100%;
+.at-order { display:flex; flex-direction:column; gap:9px; }
+.at-orderline { display:flex; align-items:baseline; gap:14px; text-align:start; width:100%;
   background: var(--surface); border:2px solid var(--line); border-radius: var(--r);
-  padding:10px 12px; cursor:pointer; color: var(--text); font-family: var(--ui); }
+  padding:12px 14px; cursor:pointer; color: var(--text); font-family: var(--ui); }
 .at-orderline:hover:not(:disabled) { border-color: var(--muted); }
 .at-orderline.on { border-color: var(--jade-soft); background: var(--jade-bg); cursor:default; }
 .at-orderline:disabled:not(.on) { opacity:.5; cursor:default; }
-.at-ordernum { font-size:15px; font-weight:800; color: var(--muted); min-width:1.2em;
+.at-ordernum { font-size:17px; font-weight:800; color: var(--muted); min-width:1.2em;
   font-variant-numeric: tabular-nums; }
 .at-orderline.on .at-ordernum { color: var(--jade); }
 .at-orderwords { display:flex; flex-direction:column; gap:2px; min-width:0; }
@@ -2245,15 +2288,15 @@ body.at-screening .at-spaces { display:none; }
    say whether they followed it. Both are rows of buttons that wrap rather
    than shrink — these are sentences, not labels, and a squashed "Hide the
    transliteration" says nothing. */
-.at-reveals { gap:8px; margin-top:14px; }
+.at-reveals { gap:9px; margin-top:16px; }
 .at-reveals > .at-btn { flex:0 1 auto; }
-.at-selfmark { display:flex; gap:8px; flex-wrap:wrap; }
+.at-selfmark { display:flex; gap:9px; flex-wrap:wrap; }
 .at-selfmark > .at-btn { flex:1 1 auto; min-width:0; }
 
 /* The replies on offer, one under the other. */
-.at-replies { display:flex; flex-direction:column; gap:8px; }
+.at-replies { display:flex; flex-direction:column; gap:9px; }
 .at-reply { text-align:start; width:100%; background: var(--surface);
-  border:2px solid var(--line); border-radius: var(--r); padding:10px 14px; cursor:pointer;
+  border:2px solid var(--line); border-radius: var(--r); padding:12px 16px; cursor:pointer;
   color: var(--text); }
 .at-reply:hover:not(:disabled) { border-color: var(--muted); }
 .at-reply.on { border-color: var(--jade-soft); background: var(--jade-bg); }
@@ -2273,14 +2316,14 @@ body.at-screening .at-spaces { display:none; }
    Two lines to a button — what it is, and either an invitation or what it
    is waiting for — because the second line is the whole reason the
    disabled ones are shown at all. */
-.at-trylist { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px;
-  margin-top:12px; }
+.at-trylist { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:9px;
+  margin-top:14px; }
 .at-try { display:flex; flex-direction:column; gap:2px; align-items:flex-start; text-align:start;
   background: var(--surface); border:2px solid var(--line); border-radius: var(--r);
-  padding:10px 14px; cursor:pointer; color: var(--text); font-family: var(--ui); width:100%; }
+  padding:12px 16px; cursor:pointer; color: var(--text); font-family: var(--ui); width:100%; }
 .at-try:hover:not(:disabled) { border-color: var(--jade-soft); background: var(--jade-bg); }
-.at-tryname { font-size:15px; font-weight:800; }
-.at-trywhy { font-size:12px; font-weight:600; color: var(--muted); }
+.at-tryname { font-size:17px; font-weight:800; }
+.at-trywhy { font-size:14px; font-weight:600; color: var(--muted); }
 /* Not a dimmed button but a stated one: it reads as "not yet" rather than
    as something broken, which is what a missing field actually is. */
 .at-try.out { cursor:default; background:none; border-style:dashed; }
@@ -2297,35 +2340,35 @@ body.at-screening .at-spaces { display:none; }
    screens one edit away from changing each other. Laid out as a list rather than
    as cards — there may be forty of them, and forty cards is a wall. */
 .at-findlist { display:flex; flex-direction:column; }
-.at-findrow { display:flex; align-items:center; gap:12px; justify-content:space-between;
-  padding:12px 0; border-top:1px solid var(--line); }
+.at-findrow { display:flex; align-items:center; gap:14px; justify-content:space-between;
+  padding:14px 0; border-top:1px solid var(--line); }
 .at-findrow:last-child { border-bottom:1px solid var(--line); }
 .at-findbody { min-width:0; display:flex; flex-direction:column; gap:3px; }
-.at-findword { font-size:19px; font-weight:700; margin:0; color: var(--text);
-  display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.at-findword { font-size:22px; font-weight:700; margin:0; color: var(--text);
+  display:flex; align-items:baseline; gap:9px; flex-wrap:wrap; }
 /* What it means, beside it rather than under it: the word is what is being
    judged and the gloss is how you judge it. */
-.at-findgloss { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted); }
+.at-findgloss { font-family: var(--ui); font-size:15px; font-weight:600; color: var(--muted); }
 /* Who says it, where the thing a word turns up in is a turn of a
    conversation rather than a phrase. Above the line rather than beside it:
    a name and a line of script on one row, in two directions, is the
    reordering the gloss rule above exists to avoid. */
-.at-findwho { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
+.at-findwho { font-family: var(--ui); font-size:15px; font-weight:600; color: var(--muted);
   margin:0; }
 /* What an accepted answer is, grammatically. Folded away behind its own
    name — "sg. f." where it has one, "Grammar" where it has none — because
    most cards accept one answer and want the language's default, and four
    pickers under every row would bury the words the card is about. */
-.at-answergrammar { grid-column:1; margin-inline-start:10px; }
-.at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
-.at-answerdims { display:flex; flex-direction:column; gap:8px; margin-top:8px;
-  padding:10px 12px; background: var(--well); border-radius: var(--r-sm); }
+.at-answergrammar { grid-column:1; margin-inline-start:12px; }
+.at-answergrammar > .at-btn { font-size:14px; padding:4px 9px; gap:4px; }
+.at-answerdims { display:flex; flex-direction:column; gap:9px; margin-top:9px;
+  padding:12px 14px; background: var(--well); border-radius: var(--r-sm); }
 .at-answerdims .at-field { margin:0; }
 
 /* The phrase is a way into the card it belongs to, so it reads as one —
    quieter than the word, and underlined on hover like every other way of
    opening something. */
-.at-findphrase { font-size:15px; color: var(--text-soft); background:none; border:0; padding:0;
+.at-findphrase { font-size:17px; color: var(--text-soft); background:none; border:0; padding:0;
   text-align:start; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   max-width:100%; }
 .at-findphrase:hover { color: var(--text); text-decoration:underline; }
@@ -2333,8 +2376,8 @@ body.at-screening .at-spaces { display:none; }
 /* Which of the learner's own words a line turned out to use, under the
    line in the editor. Found rather than ticked, so it is shown rather
    than asked for. */
-.at-uses { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:8px; }
-.at-useslabel { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--muted);
+.at-uses { display:flex; flex-wrap:wrap; align-items:center; gap:7px; margin-top:9px; }
+.at-useslabel { font-family: var(--ui); font-size:14px; font-weight:700; color: var(--muted);
   text-transform:uppercase; letter-spacing:.05em; }
 
 /* --- the elements of a question and an answer ----------------------
@@ -2343,20 +2386,117 @@ body.at-screening .at-spaces { display:none; }
    name is set in the mono face and left alone by the reading width, so
    it can be copied into a request. */
 .at-els { margin-top: var(--s4); }
-.at-elnaming { border:2px solid var(--line); border-radius: var(--r); padding:12px 14px;
+.at-elnaming { border:2px solid var(--line); border-radius: var(--r); padding:14px 16px;
   background: var(--well); margin: var(--s4) 0; }
-.at-elnaming p { margin:0 0 6px; font-family: var(--ui); font-size:13px; color: var(--text-soft); }
+.at-elnaming p { margin:0 0 7px; font-family: var(--ui); font-size:15px; color: var(--text-soft); }
 .at-elnaming p:last-child { margin-bottom:0; }
-.at-elnaming code { font-family: var(--mono); font-weight:800; color: var(--ink); margin-inline-end:6px; }
+.at-elnaming code { font-family: var(--mono); font-weight:800; color: var(--ink); margin-inline-end:7px; }
 .at-elgroup { margin-top: var(--s5); }
 .at-elscreen { font-family: var(--ui); font-size: var(--fs-xs); font-weight:800; letter-spacing:.05em;
   text-transform:uppercase; color: var(--muted); margin:0 0 var(--s2); }
 .at-elrow { border-top:1px solid var(--line); padding: var(--s3) 0; }
 .at-elrow:last-child { border-bottom:1px solid var(--line); }
-.at-elname { font-family: var(--mono); font-size:13px; font-weight:800; color: var(--ink);
+.at-elname { font-family: var(--mono); font-size:15px; font-weight:800; color: var(--ink);
   word-break:break-all; }
-.at-elwhat { font-family: var(--ui); font-size:14px; color: var(--text-soft); margin:4px 0 0; }
+.at-elwhat { font-family: var(--ui); font-size:16px; color: var(--text-soft); margin:4px 0 0; }
 /* What it actually holds, set the way a value is set elsewhere in the
    gallery: quieter than the sentence, and never mistaken for it. */
-.at-elexample { font-family: var(--ui); font-size:13px; color: var(--muted); margin:4px 0 0;
-  padding-inline-start:10px; border-inline-start:2px solid var(--line); }
+.at-elexample { font-family: var(--ui); font-size:15px; color: var(--muted); margin:4px 0 0;
+  padding-inline-start:12px; border-inline-start:2px solid var(--line); }
+
+/* ------------------------------------------------------------------
+   Colour
+
+   The palette above had three hues and all three were verdicts: brass
+   for "look again", jade for "right", rose for "wrong". Everything that
+   was not judging anything — the chrome, a heading, a label, a figure on
+   the progress screen, a bar filling up — was grey, which is why a screen
+   with nothing wrong on it had no colour on it either.
+
+   Iris and sky are the two hues added for that: iris is where you are
+   and how you move (the wordmark, the chrome, the selected tab, focus),
+   sky is a fact about the material (a label, a kind, a subheading). The
+   three verdict colours keep their meanings untouched.
+
+   This section is last in the file on purpose. Every rule here ties on
+   specificity with the one it is replacing, so source order is what
+   settles it — and each override sits next to the others rather than
+   being scattered through eighty rules that already say what they are.
+   ------------------------------------------------------------------ */
+
+/* ---- surfaces ----
+   A card is a shade lighter at its head than at its foot. It is the same
+   surface colour underneath, so nothing that reads --bg or --surface
+   changes; what it buys is that a screen of stacked panels reads as
+   panels rather than as one flat sheet. */
+.at-card, .at-sub, .at-panel, .at-group, .at-formblock, .at-joinbox,
+.at-modal, .at-deckcard, .at-guide, .at-screenhead, .at-modepick {
+  background-image: linear-gradient(180deg, var(--surface-tint), var(--surface) 62%);
+}
+/* The scrim over a page with a dialog on it, tinted rather than black:
+   black over a blue-violet page reads as a screenshot gone wrong. */
+.at-modalback { background: rgba(10,8,40,.62); }
+
+/* ---- where you are, and how you leave ----
+   All iris. The wordmark is the app's name in the app's colour; the
+   chrome buttons beside it carry the same edge; the tab you are on is
+   the one coloured thing in the strip. */
+.at-brand { color: var(--iris); }
+.at-cornerbtn, .at-modebtn { border-color: var(--iris-soft); }
+.at-modecaret, .at-cico, .at-pickmark { color: var(--iris); }
+.at-spacebtn.on { background: var(--iris-bg); color: var(--iris); }
+.at-tab2:hover:not(.on) { color: var(--iris); border-color: var(--iris-soft); }
+.at-tab2.on { background: var(--iris-bg); color: var(--ink); }
+/* A screen's head is closed with the same colour, so a screen opened from
+   the chrome is visibly the same app rather than a white sheet. */
+.at-screenhead { border-bottom-color: var(--iris-soft); }
+/* Focus follows it too. It used to be brass, which is also the colour of
+   "this needs a second look" — a focused field should not read as a
+   problem with the field. */
+.at-btn:focus-visible { outline-color: var(--iris); }
+.at-input:focus { border-color: var(--iris); }
+
+/* ---- what a thing is ----
+   The small uppercase labels: sky, because they name what is beside them
+   rather than saying anything about it. */
+.at-eyebrow { color: var(--iris); }
+.at-subhead, .at-minikind, .at-label, .at-answerlabel, .at-alsolabel,
+.at-filterlabel, .at-readlabel, .at-whenlabel, .at-codehead { color: var(--sky); }
+/* The fourth speaker in a scene had the page's own text colour, which is
+   to say no colour, while the other three were named in one each. */
+.at-speaker.s3 { color: var(--iris); }
+/* The rule standing in for the turn being asked for. */
+.at-blankrule { background: linear-gradient(90deg, var(--iris), var(--sky)); }
+/* Somebody's initials. */
+.at-avatar { background: var(--iris-bg); border-color: var(--iris-soft); color: var(--iris); }
+.at-cavatar { background: linear-gradient(140deg, var(--brass), var(--rose)); }
+
+/* ---- a figure, and a bar filling up ----
+   The four stat tiles take the four accents in turn: the numbers on the
+   progress screen are read against each other, and a column of grey
+   figures is four things to compare with nothing to tell them apart. The
+   colour is the tile's, held in one variable, so the edge and the figure
+   cannot drift apart. */
+.at-stat:nth-child(4n+1) { --tile: var(--iris); }
+.at-stat:nth-child(4n+2) { --tile: var(--jade); }
+.at-stat:nth-child(4n+3) { --tile: var(--brass); }
+.at-stat:nth-child(4n+4) { --tile: var(--sky); }
+.at-stat { border-inline-start-width:6px; border-inline-start-color: var(--tile, var(--line)); }
+.at-stat b { color: var(--tile, var(--ink)); }
+.at-stat2 .at-statvalue { color: var(--iris); }
+/* A bar fills through the three hues rather than in one: how far along it
+   is becomes a colour as well as a length. The two rules that mean
+   something by their colour — full, and a card that is done — are more
+   specific and still win. */
+.at-progress i, .at-pbar i {
+  background: linear-gradient(90deg, var(--iris), var(--sky) 48%, var(--jade));
+}
+
+/* ---- the two filled buttons ----
+   Both keep their hue and their meaning; what they gain is a fall from
+   the light end of that hue to its shade, which is what tells a filled
+   button from a coloured rectangle. The ink is checked against the dark
+   end, which is the half that has to carry it. */
+.at-btn.primary { background: linear-gradient(140deg, var(--jade), var(--jade-shade)); }
+.at-btn.danger { background: linear-gradient(140deg, var(--rose), var(--rose-shade));
+  color: var(--onrose); }
