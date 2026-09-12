@@ -30,10 +30,6 @@ import type { AnswerField } from "./answers.ts";
    and its definition stays below. */
 export const TYPES = [
   "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2pick", "ctx2ar", "rec2ctx", "rec2attr",
-  /* The dialog exercises, in the order a learner meets them: read a line,
-     choose what comes next, say it yourself, rebuild the scene, then hold
-     up your whole end of it. Every one is asked with words on a screen —
-     a dialog with no recordings anywhere in it supports all five. */
   "dlgwhole", "dlgpick", "dlgorder",
 ];
 
