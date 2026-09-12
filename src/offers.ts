@@ -30,6 +30,7 @@ import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
 import { slotsOf } from "./variables.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
+import { MIN_PAIR_MATES } from "./chance.ts";
 
 /*
  * What this unit has not got, of what an exercise asks for.
@@ -51,6 +52,12 @@ export function unmetNeeds(
   contexts: { recs?: { id: string }[] }[],
   /** What each of the unit's variables can be filled with, where it has any. */
   values: Record<string, unknown[]> = {},
+  /**
+   * How many other cards in this language could stand beside it. Only the
+   * matching grid asks, and it asks because its question is the company a
+   * word keeps: one card alone has nothing to be told apart from.
+   */
+  mates = 0,
 ): string[] {
   const holes = slotsOf(unit);
   const unfilled = holes.filter((slot) => !((values && values[slot]) || []).length);
@@ -63,18 +70,22 @@ export function unmetNeeds(
    * change cannot be heard — the recording says one name, and the next
    * asking of it wants another — so every listening exercise is off the
    * table until somebody records each filling, which is not a thing this
-   * app can hold. Said out loud rather than quietly dropped: a teacher who
-   * wrote a variable into a card with four recordings on it should be told
-   * where they went.
+   * app can hold. The matching grid goes the same way and for a plainer
+   * reason: it puts five words up at once, and only the one being asked is
+   * narrowed to a question, so a frame standing in the company would show
+   * the hole it left. Said out loud rather than quietly dropped: a teacher
+   * who wrote a variable into a card with four recordings on it should be
+   * told where they went.
    *
    * Either of them is the whole answer and comes back alone: a card with a
    * hole nothing fills is not waiting for a recording as well, and saying
    * so would be two reasons where there is one thing to do.
    */
   if (unfilled.length) return [`fills:${unfilled.join(",")}`];
-  if (holes.length && spec.promptField === "audio") return ["fixed"];
+  if (holes.length && (spec.promptField === "audio" || spec.picks === "pair")) return ["fixed"];
   return spec.needs.filter((f: string) => {
     if (f === "recs") return !(unit.recs || []).length;
+    if (f === "mates") return mates < MIN_PAIR_MATES;
     if (f === "contexts") return !contexts.length;
     if (f === "contextAudio") return !contexts.some((c) => (c.recs || []).length > 0);
     if (DIALOG_NEEDS.includes(f)) return !dialogNeedMet(f, scene, unit);
@@ -97,6 +108,7 @@ export function canAsk(
     scene: Placed | null;
     contexts: { recs?: { id: string }[] }[];
     values?: Record<string, unknown[]>;
+    mates?: number;
   },
   type: string,
   lang: Lang,
@@ -105,7 +117,7 @@ export function canAsk(
   if (!spec || spec.retired) return false;
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
-  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}).length === 0;
+  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}, on.mates || 0).length === 0;
 }
 
 /* The two reasons a language rather than a card refuses an exercise. */
@@ -145,6 +157,7 @@ export function offersFor({
   lang,
   contextsFor = () => [],
   valuesFor = () => ({}),
+  matesFor = () => 0,
   enabled = () => true,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
@@ -152,6 +165,8 @@ export function offersFor({
   contextsFor?: (unit: Form) => { recs?: { id: string }[] }[];
   /** What each of a unit's variables can be filled with. */
   valuesFor?: (unit: Form) => Record<string, unknown[]>;
+  /** How many other cards could stand beside it in the matching grid. */
+  matesFor?: (unit: Form) => number;
   enabled?: (type: string) => boolean;
 }): Offer[] {
   const known = units.map((u) => ({
@@ -160,6 +175,7 @@ export function offersFor({
     scene: u.scene || null,
     contexts: contextsFor(u.unit) || [],
     values: valuesFor(u.unit) || {},
+    mates: matesFor(u.unit) || 0,
   }));
 
   const offers: Offer[] = [];
@@ -186,7 +202,9 @@ export function offersFor({
          language gives its script. */
       missing: ready
         ? []
-        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values).map((f) => needLabel(f, lang)),
+        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates).map((f) =>
+            needLabel(f, lang)
+          ),
       off: !enabled(type),
     });
   }

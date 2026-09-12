@@ -375,6 +375,32 @@ const results = [];
  */
 const check = (label, ok, detail = "") => results.push(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? " — " + detail : ""}`);
 
+/*
+ * Say what happened, whatever happened.
+ *
+ * The checks are printed at the end and the app's own console is held in
+ * `errors` until then, so a walk that died halfway used to print a stack
+ * trace and nothing else: the run that most needed explaining was the one
+ * that said least, and the app's complaint about why it had crashed was
+ * sitting in an array nobody read. Both are printed on the way out now, by
+ * whichever exit is taken.
+ */
+/** @param {string} [why] */
+function report(why) {
+  console.error = origError;
+  if (why) console.log(`\n${why}`);
+  console.log(results.join("\n"));
+  if (errors.length) console.log("\nthe app said:\n  " + errors.join("\n  "));
+}
+/** @param {unknown} err */
+const died = (err) => {
+  report("DIED partway through. Everything up to that point:");
+  origError("\n", err);
+  process.exit(1);
+};
+process.on("uncaughtException", died);
+process.on("unhandledRejection", died);
+
 check("app rendered the home screen", /Cards ready to practice/.test(text), text.slice(0, 80).replace(/\s+/g, " "));
 check("no console errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 check("whoami asked once", calls.filter((c) => c.includes("whoami")).length === 1);
@@ -447,6 +473,52 @@ const click = (el) => el && el.dispatchEvent(new w.MouseEvent("click", { bubbles
 /** @param {RegExp} re */
 const buttonNamed = (re) =>
   [...document.querySelectorAll("button")].find((b) => re.test(b.textContent || ""));
+
+/*
+ * Play the matching grid, if that is what is up.
+ *
+ * Every other question on this screen is answered by typing into one box or
+ * pressing one of a few buttons, and each walk below knew how to do both. A
+ * grid is neither, and it cannot be given up on either — it has no input to
+ * leave empty and its Check stays dead until every word has a meaning — so a
+ * walk that met one simply stopped, and every check after it failed for
+ * want of a screen rather than for anything wrong.
+ *
+ * Paired in the order the tiles happen to stand, so some come out right and
+ * some wrong. That is deliberate: what these walks are about is that the
+ * grid takes an answer and marks it, not that a test can read Arabic.
+ *
+ * Returns what it saw, so a walk that cares can check it, and false when
+ * there was no grid to play.
+ */
+async function playGrid() {
+  if (!document.querySelector('[data-el="answer-match"]')) return false;
+  const words = () => [...document.querySelectorAll('[data-el="match-word"]')];
+  const meanings = () => [...document.querySelectorAll('[data-el="match-meaning"]')];
+  const seen = {
+    words: words().length,
+    meanings: meanings().length,
+    /* What it put up, so a caller can say what was in it and not only how
+       many: which words stand together is the exercise. */
+    text: [...words(), ...meanings()].map((el) => (el.textContent || "").trim()).join(" · "),
+    checkedEarly: false,
+    marked: false,
+  };
+  const early = document.querySelector('[data-el="check-button"]');
+  seen.checkedEarly = !!early && /** @type {HTMLButtonElement} */ (early).disabled;
+  for (let k = 0; k < seen.words; k++) {
+    click(words()[k]);
+    await sleep(25);
+    click(meanings()[k]);
+    await sleep(25);
+  }
+  click(document.querySelector('[data-el="check-button"]'));
+  await sleep(250);
+  seen.marked =
+    !!document.querySelector('[data-el="verdict"]') &&
+    document.querySelectorAll(".at-matchtile.right, .at-matchtile.wrong").length > 0;
+  return seen;
+}
 
 /**
  * A button by its label, described whether or not it is there.
@@ -546,7 +618,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      Walk forward until a question actually asks for the script — the queue
      is shuffled, so the first one may not. */
   let scriptField = null;
-  for (let i = 0; i < 8 && !scriptField; i++) {
+  /* Enough tries to step past the questions that are not typed at all. The
+     queue is shuffled and there are more kinds of question than there were,
+     so a fixed eight ran out before one asking for the script came up. */
+  for (let i = 0; i < 16 && !scriptField; i++) {
     scriptField = document.querySelector(".at-answerbox .at-input.ar");
     if (scriptField) break;
     click(buttonNamed(/^I don't know$/));
@@ -1203,6 +1278,8 @@ if (input) {
   click(choice);
   await sleep(50);
   click(buttonNamed(/^Check$/));
+} else if (await playGrid()) {
+  /* A grid answers itself, Check and all. */
 } else {
   check("found something to answer with", false, document.body.textContent.slice(0, 200));
 }
@@ -1584,8 +1661,11 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("the question in front of you is replaced, not skipped",
     out2.length > 1 && out2[1].id === card1.id && out2[1].type !== "rec2en",
     out2.map((/** @type {any} */ e) => e.type).join(","));
-  /* Prefer a question the card is not already being asked: with ar2en and
-     en2ar already in the queue, the free one is tr2ar. */
+  /* Prefer a question the card is not already being asked. Which type that
+     turns out to be is the table's business — asserting the name of it here
+     only pinned the order exercises are declared in, and broke the day a new
+     one was added. What matters is that the substitute is a question this
+     card is not already down for. */
   const one = withoutListening(
     [
       { id: card1.id, subId: null, type: "ar2en" },
@@ -1597,7 +1677,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     set,
   );
   check("a substitute avoids what the card is already being asked",
-    one[1].type === "tr2ar", one.map((/** @type {any} */ e) => e.type).join(","));
+    !!one[1] && !["ar2en", "en2ar", "rec2en"].includes(one[1].type),
+    one.map((/** @type {any} */ e) => e.type).join(","));
 
   /* And when every alternative is already queued, repeat one rather than
      drop the practice — the card is still worth answering. */
@@ -1939,12 +2020,18 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   click(buttonNamed(/^Home$/));
   await sleep(300);
 
-  /** What a session is, as a string: every question in it, in order. */
+  /** What a session opens with, as a string.
+   *
+   *  The answer surface is part of it, not just the prompt: a matching grid
+   *  puts its words where an answer goes and asks nothing above them, so
+   *  reading the prompt alone made every grid in the app look like the same
+   *  question and this guard went blind to a whole exercise. */
   const queueNow = () => {
     const el = document.querySelector('[data-el="session-count"]');
     const asked = (document.querySelector(".at-instruction") || {}).textContent || "";
     const prompt = (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
-    return `${(el || {}).textContent || "?"}|${asked}|${prompt}`.replace(/\s+/g, " ");
+    const answer = (document.querySelector(".at-answerbox") || {}).textContent || "";
+    return `${(el || {}).textContent || "?"}|${asked}|${prompt}|${answer}`.replace(/\s+/g, " ");
   };
 
   const openings = [];
@@ -2010,10 +2097,27 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   let sawPicker = false;
   let pickerOptions = 0;
   let pickerHadTheWord = false;
+  /* The matching grid, met on the way past: it answers nothing this walk is
+     about, but it is a question the session now deals, and worth reporting
+     on where it is met. */
+  /** @type {Awaited<ReturnType<typeof playGrid>>} */
+  let grid = false;
   let sawWhereItTurnedUp = 0;
   let sawOnAPlainQuestion = false;
 
-  for (let n = 0; n < 26 && document.querySelector(".at-instruction"); n++) {
+  /* Walk until this block has met everything it asserts, rather than for a
+     fixed number of turns.
+
+     A count was a bad measure twice over. A session does not end when the
+     queue is walked once — a question given up on comes round again — so no
+     cap reaches the end of one; and Ultimate shuffles, so a cap that only
+     just covered the queue decided by draw whether the one question this
+     block is about fell inside it. Every exercise added to the app tightened
+     that, and adding the thirteenth is what made it fail. */
+  const metEverything = () => sawPicker && !!grid && sawWhereItTurnedUp > 0 && sawOnAPlainQuestion;
+  let asked_ = 0;
+  for (let n = 0; n < 120 && !metEverything() && document.querySelector(".at-instruction"); n++) {
+    asked_ = n + 1;
     const asked = instruction();
     const gapped = /____/.test(prompt());
     const choices = document.querySelector('[data-el="answer-choices"]');
@@ -2031,6 +2135,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     } else if (choices) {
       click(choices.querySelector("button"));
       await sleep(40);
+    } else if (document.querySelector('[data-el="answer-match"]')) {
+      grid = (await playGrid()) || grid;
     } else if (document.querySelector('[data-el="answer-input"]')) {
       click(buttonNamed(/^I don't know$/));
       await sleep(200);
@@ -2059,6 +2165,31 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     click(buttonNamed(/^Continue$/));
     await sleep(200);
   }
+
+  /* If the walk ran out of turns, everything below is reporting on half a
+     session and the failures under it are noise. Said here, once, with the
+     question it gave up on. */
+  check("the walk met every question this block is about, without running out of turns",
+    metEverything(),
+    `${asked_} answered, last on "${instruction()}" — picker:${sawPicker} grid:${!!grid} context:${sawWhereItTurnedUp} plain:${sawOnAPlainQuestion}`
+      .replace(/\s+/g, " "));
+
+  /* The matching grid, which every card can be asked because it wants
+     nothing but a word and a meaning. */
+  check("a session deals the matching grid alongside everything else",
+    !!grid && grid.words > 1, grid ? `${grid.words} words, ${grid.meanings} meanings` : "never dealt");
+  check("and puts up more meanings than words, so the last pair is never free",
+    !!grid && grid.meanings > grid.words, grid ? `${grid.words} words, ${grid.meanings} meanings` : "never dealt");
+  check("a half-paired grid is not an answer to it",
+    !!grid && grid.checkedEarly, String(grid && grid.checkedEarly));
+  check("and pairing them all is, and gets marked",
+    !!grid && grid.marked, String(grid && grid.marked));
+  /* And what is never in one: a frame, whose hole is filled only for the
+     card being asked, and a value, which is in the deck to fill somebody
+     else's sentence rather than to be told apart from four other words. */
+  check("no frame and no value ever stands in the grid",
+    !!grid && !/\{\{|Raphael|Victor|رافائيل|فيكتور|My name is/.test(grid.text || ""),
+    (grid && grid.text) ? (grid.text || "").replace(/\s+/g, " ").slice(0, 90) : "never dealt");
 
   check("a word can be chosen out of the phrase before it has to be written into it",
     sawPicker, sawPicker ? "the gap was offered as a choice" : "no question offered it");
@@ -2845,7 +2976,6 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
 }
 
-console.error = origError;
-console.log(results.join("\n"));
+report();
 console.log("\nrequests:", calls.join("\n          "));
 process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);

@@ -59,7 +59,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { slotsOf, slotTrouble, valuesFor } from "./variables.ts";
+import { hasSlots, slotsOf, slotTrouble, valuesFor } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
@@ -4544,12 +4544,20 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
       lang,
       contextsFor: (unit) => contexts.get(unit.id) || [],
       valuesFor: values,
+      /* How many other cards could stand beside it in a matching grid —
+         the one thing a card cannot answer about itself. A card with a
+         variable in it is not one of them: a grid pairs words, and a frame
+         with a hole in it is not a word. */
+      matesFor: () =>
+        material.filter(
+          (c) => !isDialog(c) && c.ar && c.en && !hasSlots(c) && c.drill !== false
+        ).length - 1,
       /* A student would not be asked an exercise switched off in the app's
          settings, and a teacher may as well know which those are — but it
          is still worth being able to try one. */
       enabled: (type) => !settings || !settings.types || !!settings.types[type],
     });
-  }, [mine, lang, contexts, scenes, settings, values]);
+  }, [mine, lang, contexts, scenes, settings, values, material]);
 
   if (!offers.length) return null;
 

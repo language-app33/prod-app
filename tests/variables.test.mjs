@@ -175,6 +175,25 @@ test("a hole with nothing in it is not a question, and says which hole", () => {
   assert.equal(canAsk({ unit: frame(), scene: null, contexts: [], values: have }, "en2ar", ar), true);
 });
 
+test("a frame is not one of the words in a matching grid", () => {
+  /* The grid puts five words up at once and only narrows the one being
+     asked, so a frame standing in the company would show the hole it left
+     open. It is refused for the same reason a recording is, and says so. */
+  const have = { name: [valueOf(value("v1", "Raphael"))] };
+  assert.deepEqual(unmetNeeds(frame(), EX.match, null, [], have, 99), ["fixed"]);
+  assert.equal(
+    canAsk({ unit: frame(), scene: null, contexts: [], values: have, mates: 99 }, "match", ar),
+    false
+  );
+  /* An ordinary word with company is asked it. */
+  const word = { id: "w1", ar: "bayt", en: "house", lat: "beit", recs: [], s: {} };
+  assert.deepEqual(unmetNeeds(word, EX.match, null, [], {}, 99), []);
+  assert.equal(canAsk({ unit: word, scene: null, contexts: [], mates: 99 }, "match", ar), true);
+  /* And a word with nobody to stand beside it is not: the question is the
+     company it keeps. */
+  assert.deepEqual(unmetNeeds(word, EX.match, null, [], {}, 0), ["mates"]);
+});
+
 test("a card whose words change cannot be the one on a recording", () => {
   /* The cost of the feature, and it is reported rather than quietly
      dropped: a teacher who writes a variable into a card with four
