@@ -2337,6 +2337,10 @@ body.at-screening .at-spaces { display:none; }
   display:inline-flex; align-items:center; justify-content:center; }
 .at-matchtile.right .at-matchnum { border-color: var(--jade-soft); color: var(--jade); }
 .at-matchtile.wrong .at-matchnum { border-color: var(--rose-soft); color: var(--rose); }
+/* The word and, once checked, the meaning it should have been paired with,
+   one under the other inside the tile. */
+.at-matchword { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.at-matchfix { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--rose); line-height:1.3; }
 /* On a phone the two columns still share the row; what gives is the type
    and the padding inside a tile, not the shape of the exercise. */
 @media (max-width: 480px) {

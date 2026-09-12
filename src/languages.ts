@@ -45,6 +45,7 @@ export const EX: Record<string, ExerciseSpec> = {
      asked one word at a time. Which words stand together is therefore the
      exercise — see matchSet and the pool it is handed. */
   match: {
+    level: 1,
     instruction: "Match each word to its meaning",
     label: "Match the pairs",
     short: "Pairs",
@@ -60,6 +61,7 @@ export const EX: Record<string, ExerciseSpec> = {
     gentle: true,
   },
   ar2en: {
+    level: 1,
     instruction: "Write in English",
     label: "{Script} → English",
     short: "{S}→E",
@@ -84,6 +86,7 @@ export const EX: Record<string, ExerciseSpec> = {
      unknown key and its callers dereference the result: a stored or exported
      reference to the type must still resolve to a label rather than crash. */
   ar2tr: {
+    level: 2,
     retired: true,
     instruction: "Write in {translit}",
     label: "{Script} → {translit}",
@@ -99,6 +102,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "tr",
   },
   tr2ar: {
+    level: 2,
     instruction: "Write in {script}",
     label: "{Translit} → {script}",
     short: "T→{S}",
@@ -116,6 +120,7 @@ export const EX: Record<string, ExerciseSpec> = {
      meaning, the spelling, the transliteration — is the answer by another
      route, and the point is to work it out from the sound. */
   rec2en: {
+    level: 1,
     instruction: "Listen, then write it in English",
     label: "Listen → English",
     short: "L→E",
@@ -128,6 +133,7 @@ export const EX: Record<string, ExerciseSpec> = {
     gentle: true,
   },
   rec2ar: {
+    level: 2,
     instruction: "Listen, then write it in {script}",
     label: "Listen → {script}",
     short: "L→{S}",
@@ -139,6 +145,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "ar",
   },
   en2ar: {
+    level: 3,
     instruction: "Write in {script}",
     label: "English → {script}",
     short: "E→{S}",
@@ -167,6 +174,7 @@ export const EX: Record<string, ExerciseSpec> = {
      half, which is why a learner's first meeting with a word in context
      was also their first chance to get it wrong. */
   ctx2pick: {
+    level: 1,
     instruction: "Which word is missing?",
     label: "In a phrase → choose",
     short: "P→C",
@@ -180,6 +188,7 @@ export const EX: Record<string, ExerciseSpec> = {
     gentle: true,
   },
   ctx2ar: {
+    level: 3,
     instruction: "Fill the gap",
     label: "In a phrase → {script}",
     short: "P→{S}",
@@ -197,6 +206,7 @@ export const EX: Record<string, ExerciseSpec> = {
      the point: a word inside running speech is what it will sound like when
      it is met for real. */
   rec2ctx: {
+    level: 3,
     instruction: "Listen to the phrase, then write this word",
     label: "Phrase heard → {script}",
     short: "H→{S}",
@@ -208,6 +218,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "ar",
   },
   rec2attr: {
+    level: 2,
     instruction: "Listen, then choose the {attr}",
     label: "Listen → {attr}",
     short: "L→{A}",
@@ -236,6 +247,7 @@ export const EX: Record<string, ExerciseSpec> = {
      nothing marks it. It is put in front of the first question a scene
      asks in a session, because a dialog should never open with a blank. */
   dlgread: {
+    level: 1,
     instruction: "Read the scene",
     label: "Read a scene",
     short: "Read",
@@ -254,6 +266,7 @@ export const EX: Record<string, ExerciseSpec> = {
      turn before it and the turn after, and asked on its own it had
      neither. Reading the whole scene took its place. */
   dlg2en: {
+    level: 1,
     retired: true,
     instruction: "Write this line in English",
     label: "A line → English",
@@ -287,6 +300,7 @@ export const EX: Record<string, ExerciseSpec> = {
    * comes back later than one they did not.
    */
   dlgwhole: {
+    level: 1,
     instruction: "Read the whole conversation",
     label: "Read a scene through",
     short: "Whole",
@@ -302,6 +316,7 @@ export const EX: Record<string, ExerciseSpec> = {
     gentle: true,
   },
   dlgpick: {
+    level: 2,
     instruction: "Choose what you say next",
     label: "Choose the reply",
     short: "Pick",
@@ -319,6 +334,7 @@ export const EX: Record<string, ExerciseSpec> = {
      marked every other one wrong. Choosing the reply asks the same
      question and can be answered. */
   dlgreply: {
+    level: 3,
     retired: true,
     instruction: "Your turn — write it in {script}",
     label: "Your turn → {script}",
@@ -336,7 +352,10 @@ export const EX: Record<string, ExerciseSpec> = {
     hintHideLabel: "Hide meaning",
     answerMode: "ar",
   },
+  /* Putting lines in order is choosing among them, not writing them: a
+     rung above reading the scene, and beside choosing the reply. */
   dlgorder: {
+    level: 2,
     instruction: "Put the scene back in order",
     label: "Put a scene in order",
     short: "Order",
@@ -352,6 +371,7 @@ export const EX: Record<string, ExerciseSpec> = {
      answer in the app and the least forgiving: one missed mark in the
      third line made the whole conversation wrong. */
   dlgplay: {
+    level: 3,
     retired: true,
     instruction: "Play your part in {script}",
     label: "Play a part",
@@ -1916,6 +1936,14 @@ export function verdictText(result: Record<string, any>, lang?: Lang) {
    had to be remembered in two places or "Get started" quietly never offered
    it. */
 export const EASY_TYPES = TYPES.filter((t) => EX[t].gentle);
+
+/* The rung an exercise stands on, read off the definitions the same way.
+   Recognition is 1, producing the word from a cue — its pronunciation, its
+   sound — is 2, and producing it from the meaning alone is 3. The scheduler
+   opens a rung for a form only once everything below it is mastered; the
+   table here only says which rung is which. Anything unknown is treated as
+   the bottom rung, so a stored session naming a retired type still resolves. */
+export const levelOf = (type: string): number => (EX[type] && EX[type].level) || 1;
 
 export function defaultTypes(): Record<string, boolean> {
   const out: Record<string, boolean> = {};

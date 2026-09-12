@@ -8,6 +8,47 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.84 — 12 September 2026
+
+- **A card is recognised before it is produced.** Every exercise type now
+  stands on a rung: recognition (match the pairs, script → English, listen →
+  English, choose the missing word, read a scene through), then producing
+  the word from a cue (transliteration → script, listen → script, listen →
+  tone, choose the reply, put a scene in order), then producing it from its
+  meaning alone (English → script, fill the gap, phrase heard → script). A
+  card is asked the next rung only once every exercise it supports on the
+  rungs below is mastered — in review, four days of interval or more. Slip
+  on the reading and the writing closes again until you have it back.
+
+  Before this, every exercise a card supported was on the table from the
+  day it was written, softened only by a preference for recognition on the
+  very first outing: a word you had read once could be asked to be written
+  from memory the next day.
+
+- **New cards are introduced only while there is room.** On top of "New
+  cards per session", nothing new is dealt while ten cards are already
+  being learnt, or forty are young and still coming back for review. The
+  settings say so under the slider. Sessions built by hand are not
+  limited, since you chose the cards.
+
+- **Match the pairs is five questions, not one.** Every word in the grid is
+  now asked, marked and scheduled in its own right — a word paired wrong
+  shows the meaning it wanted, under it, and comes back the way any missed
+  word does. The grid's company is dealt when the session is built: the
+  words the session was going to ask anyway, filled out from cards you have
+  already met, the most alike first. A word dealt in to fill the grid that
+  was not due is credited for a right answer without its schedule moving.
+  Nothing you have never met is dealt into a grid, so a grid cannot bring in
+  a card the new-card rules did not admit. A grid can be as small as three
+  words when fewer have been met — a first session's three new words is
+  still a question — and one that cannot be filled to three is not dealt:
+  those words are asked something else instead.
+
+- **Progress reads "Learning" for a card met and not done.** A card with
+  one exercise answered and another not yet — a rung just opened, a plural
+  not yet asked — used to count as New, beside a card written this morning.
+  New now means never met.
+
 ## 0.83 — 12 September 2026
 
 - **Teaching · a filter for the values.** Cards → Filter now has a

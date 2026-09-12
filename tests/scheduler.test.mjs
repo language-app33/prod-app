@@ -20,6 +20,9 @@ import {
   MIN_EASE,
   MAX_EASE,
   MATURE_DAYS,
+  MASTERED_DAYS,
+  LEARNING_CAP,
+  YOUNG_CAP,
   LEARN_STEPS,
   GRADUATE_DAYS,
   EASY_DAYS,
@@ -34,13 +37,17 @@ import {
   unitsOf,
   familyMaturity,
   itemDifficulty,
+  mastered,
+  openTypes,
+  phaseCounts,
+  roomForNew,
   formatGap,
   dayKey,
   shuffled,
   inOrder,
   dueRank,
 } from "../src/scheduler.ts";
-import { TYPES } from "../src/languages.ts";
+import { EX, TYPES, levelOf } from "../src/languages.ts";
 /** @import { ExerciseState, Item } from "../src/types.ts" */
 
 /* A Tuesday, so nothing depends on it being midnight or a month boundary. */
@@ -290,8 +297,106 @@ test("a family is only as grown-up as its weakest form", () => {
   const grown = { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) };
   const item = card({ s: grown, subs: [card({ id: "a-f0", s: { ar2en: freshState(), en2ar: freshState() } })] });
   assert.equal(familyMaturity(card({ s: grown }), twoTypes), "mature");
-  assert.equal(familyMaturity(item, twoTypes), "new",
-    "one untouched plural holds the whole family at new");
+  assert.equal(familyMaturity(item, twoTypes), "learning",
+    "one untouched plural holds the whole family at learning: met, not done");
+  const young = { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 3 }) };
+  assert.equal(familyMaturity(card({ s: young }), twoTypes), "young");
+});
+
+test("new means never met, whatever the card could be asked", () => {
+  assert.equal(familyMaturity(card(), twoTypes), "new", "nothing answered anywhere");
+  /* A card whose reading is mature and whose writing has not been asked
+     yet is being learnt, and reads as such — it used to read as new, which
+     put a card three weeks in beside one written this morning. */
+  const half = { ar2en: state({ phase: "review", interval: 40 }), en2ar: freshState() };
+  assert.equal(familyMaturity(card({ s: half }), twoTypes), "learning");
+  /* A type with no record at all counts as untouched, the way the app
+     reads a fresh state — an absent record is not a mature one. */
+  assert.equal(familyMaturity(card({ s: { ar2en: state({ phase: "review", interval: 40 }) } }), twoTypes), "learning");
+});
+
+test("phaseCounts is the progress screen's four numbers", () => {
+  const items = [
+    card({ id: "n" }),
+    card({ id: "l", s: { ar2en: state({ phase: "learning" }), en2ar: freshState() } }),
+    card({ id: "y", s: { ar2en: state({ phase: "review", interval: 2 }), en2ar: state({ phase: "review", interval: 2 }) } }),
+    card({ id: "m", s: { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) } }),
+  ];
+  assert.deepEqual(phaseCounts(items, twoTypes), { new: 1, learning: 1, young: 1, mature: 1 });
+  assert.deepEqual(phaseCounts([], twoTypes), { new: 0, learning: 0, young: 0, mature: 0 });
+});
+
+/* ---- the ladder ---- */
+
+test("mastered is four days of interval in review, and nothing less", () => {
+  assert.equal(mastered(freshState()), false, "never asked");
+  assert.equal(mastered(state({ phase: "learning", step: 1 })), false, "still on the learning steps");
+  assert.equal(mastered(state({ phase: "review", interval: 1 })), false, "graduated this morning");
+  assert.equal(mastered(state({ phase: "review", interval: MASTERED_DAYS - 1 })), false);
+  assert.equal(mastered(state({ phase: "review", interval: MASTERED_DAYS })), true);
+  assert.equal(mastered(state({ phase: "review", interval: 40 })), true, "mature is mastered too");
+  assert.equal(mastered(state({ phase: "relearning", interval: 20 })), false, "a lapse closes it again");
+  /* "Easy" on a new card lands on exactly the threshold: the learner said
+     it was easy and is taken at their word. */
+  assert.equal(mastered(reschedule(freshState(), "easy", still)), true);
+  assert.equal(mastered(reschedule(reschedule(freshState(), "good", still), "good", still)), false,
+    "graduating the steps is two right answers ten minutes apart, which is not knowing a word");
+});
+
+test("a rung opens only once every exercise below it is mastered", () => {
+  /* Recognition, production from a cue, production from the meaning: one
+     of each, so the three rungs are each one exercise wide. */
+  const ladder = ["ar2en", "tr2ar", "en2ar"];
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
+  assert.deepEqual(openTypes(ladder, table({})), ["ar2en"], "a fresh form is asked to recognise, nothing else");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "review", interval: 2 }) })), ["ar2en"],
+    "graduated is not mastered");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done })), ["ar2en", "tr2ar"]);
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done })), ["ar2en", "tr2ar", "en2ar"]);
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done, en2ar: done })), ladder, "and stays open");
+  assert.deepEqual(
+    openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), tr2ar: done, en2ar: done })),
+    ["ar2en"],
+    "a lapse at the bottom closes everything above it until it is recovered"
+  );
+});
+
+test("a rung with nothing on it is passed straight through", () => {
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  /* No recording and no transliteration: nothing stands on rung two, so
+     mastering the reading is what opens the writing. */
+  assert.deepEqual(openTypes(["match", "ar2en", "en2ar"], (t) => ({ match: done, ar2en: done })[t]),
+    ["match", "ar2en", "en2ar"]);
+  /* Every exercise on a rung has to be mastered, not just one. */
+  assert.deepEqual(openTypes(["match", "ar2en", "en2ar"], (t) => ({ match: done, ar2en: freshState() })[t]),
+    ["match", "ar2en"]);
+  assert.deepEqual(openTypes([], () => undefined), [], "nothing supported, nothing open");
+  /* The order the caller gave is kept: the ladder decides what is open,
+     not where it stands in the list. */
+  assert.deepEqual(openTypes(["en2ar", "ar2en", "match"], (t) => ({ match: done, ar2en: done })[t]),
+    ["ar2en", "match", "en2ar"]);
+});
+
+test("the settings say which rung each exercise stands on, and every one has a rung", () => {
+  for (const t of TYPES) assert.ok([1, 2, 3].includes(levelOf(t)), `${t} has a rung`);
+  /* The gentle half of the set is exactly the bottom rung: "Get started"
+     and the ladder agree about what recognition is. */
+  for (const t of TYPES) assert.equal(levelOf(t) === 1, !!EX[t].gentle, `${t}: gentle iff on rung one`);
+  assert.equal(levelOf("no-such-exercise"), 1, "an unknown type is read as the bottom rung, not a crash");
+});
+
+/* ---- room for what is new ---- */
+
+test("new cards are introduced only while there is room in hand", () => {
+  assert.equal(roomForNew({ learning: 0, young: 0 }, 3), 3, "an empty hand takes the session's limit");
+  assert.equal(roomForNew({ learning: LEARNING_CAP - 1, young: 0 }, 3), 1, "the last place in learning");
+  assert.equal(roomForNew({ learning: LEARNING_CAP, young: 0 }, 3), 0, "learning is full");
+  assert.equal(roomForNew({ learning: LEARNING_CAP + 5, young: 0 }, 3), 0, "and never negative");
+  assert.equal(roomForNew({ learning: 0, young: YOUNG_CAP }, 3), 0, "too much young to review already");
+  assert.equal(roomForNew({ learning: 0, young: YOUNG_CAP - 1 }, 3), 3, "one under is room");
+  assert.equal(roomForNew({ learning: 0, young: 0 }, 0), 0, "a session that wants none gets none");
+  assert.ok(LEARNING_CAP > 0 && YOUNG_CAP > LEARNING_CAP, "the caps are in the order the phases come in");
 });
 
 test("a family is as hard as its hardest form", () => {

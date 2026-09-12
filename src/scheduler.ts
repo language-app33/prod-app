@@ -22,7 +22,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { TYPES } from "./languages.ts";
+import { TYPES, levelOf } from "./languages.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;
@@ -36,6 +36,35 @@ export const MIN_EASE = 1.3;
 export const MAX_EASE = 3.0;
 export const MAX_DAYS = 365;
 export const MATURE_DAYS = 21;
+
+/*
+ * When an exercise counts as mastered, which is what opens the next rung of
+ * the ladder for a form — see openTypes below.
+ *
+ * Four days of interval, in review. Graduating the learning steps is two
+ * right answers ten minutes apart, which is not knowing a word; recalling
+ * it the next day and again a few days after that is, and that is where
+ * the interval first reaches four. It is also where an "easy" on a new
+ * card lands, so a learner who says a word is easy is taken at their word.
+ * Mature — three weeks — would hold a word at recognition for a month
+ * before it could be written, which is the wrong month to spend.
+ */
+export const MASTERED_DAYS = 4;
+
+/*
+ * How many cards may be in hand at once. New cards are introduced only
+ * while there is room, on top of the per-session limit in the settings.
+ *
+ * Learning — met, and not yet through the learning steps at whatever rung
+ * it is on — is what a person is actively holding, and ten is about what a
+ * session of eighteen exercises can carry with a few new ones beside. Young
+ * — graduated everywhere it is open, not yet mature — is the review load:
+ * a young card comes back four or so times over three weeks for each of
+ * its exercises, so forty of them is roughly one session a day of reviews,
+ * which leaves the rest of the day's session for what is new.
+ */
+export const LEARNING_CAP = 10;
+export const YOUNG_CAP = 40;
 
 /*
  * The clock and the jitter. Defaulted here rather than at each call site,
@@ -250,6 +279,68 @@ export function maturity(s: ExerciseState): string {
 
 export const MATURITY_ORDER = ["new", "learning", "young", "mature"];
 
+/* Read on entry with no guard, unlike stateReady. */
+export function mastered(s: ExerciseState): boolean {
+  return s.phase === "review" && (s.interval || 0) >= MASTERED_DAYS;
+}
+
+/* ------------------------------------------------------------------
+   The ladder
+
+   A form is recognised before it is produced. Every exercise stands on a
+   rung — recognition, production from a cue, production from the meaning
+   — and a rung is open for a form only once every exercise on the rungs
+   below it that the form supports is mastered. A form with no recording
+   has nothing on rung two but its transliteration, and that alone is what
+   it must master to reach rung three; a form with nothing at all on a
+   rung passes straight through it.
+
+   Whether a rung counts as mastered is read afresh every time, so a lapse
+   on the bottom rung closes the ones above it until it is recovered:
+   somebody who can no longer read a word is not asked to write it.
+   ------------------------------------------------------------------ */
+
+/**
+ * Which of a form's exercises may be asked now.
+ *
+ * `types` is what the form supports — in the settings, in the material —
+ * and what comes back is that list with the closed rungs taken out, in
+ * the same order. `stateOf` is passed rather than the form, so the caller
+ * decides where a state comes from and a test can hand in a table.
+ */
+export function openTypes(types: string[], stateOf: (type: string) => ExerciseState | null | undefined): string[] {
+  const out: string[] = [];
+  const rungs = [...new Set(types.map(levelOf))].sort((a, b) => a - b);
+  let below = true;
+  for (const rung of rungs) {
+    if (!below) break;
+    const here = types.filter((t) => levelOf(t) === rung);
+    out.push(...here);
+    below = here.every((t) => {
+      const s = stateOf(t);
+      return !!s && mastered(s);
+    });
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------
+   Room for what is new
+   ------------------------------------------------------------------ */
+
+/**
+ * How many new cards a session may introduce.
+ *
+ * `want` is the per-session limit from the settings; what comes back is
+ * that, cut to the room left under the caps. The learning cap is room —
+ * a new card is in learning the moment it is answered — and the young cap
+ * is a gate: nothing new until some of what is young has grown up.
+ */
+export function roomForNew(counts: { learning: number; young: number }, want: number): number {
+  if (counts.young >= YOUNG_CAP) return 0;
+  return Math.max(0, Math.min(want, LEARNING_CAP - counts.learning));
+}
+
 /* ------------------------------------------------------------------
    Automatic difficulty
    ------------------------------------------------------------------ */
@@ -324,19 +415,43 @@ export function unitsOf(item: Item | null | undefined): Unit[] {
  * `typesOf` says which exercise types a given form supports. It is passed
  * in because the answer depends on the language pack and on the index of
  * phrases that show a word in use — neither of which belongs in here.
+ * The app passes the open rungs, so a card is judged on what it can be
+ * asked and not held at "new" by a rung it has not reached.
  */
 
+/*
+ * New means never met: every exercise untouched. A card with one exercise
+ * answered and another not yet — the next rung just opened, a plural not
+ * yet asked — is being learnt, and says so; before this it read as new,
+ * which put a card three weeks in beside one written this morning.
+ */
 export function familyMaturity(it: Item, typesOf: (unit: Form) => string[]): string {
-  let worst = null;
+  let worst: string | null = null;
+  let met = false;
   for (const { unit } of unitsOf(it)) {
     for (const t of typesOf(unit)) {
       const st = unit.s && unit.s[t];
-      if (!st) continue;
-      const m = maturity(st);
+      const m = st ? maturity(st) : "new";
+      if (m !== "new") met = true;
       if (worst === null || MATURITY_ORDER.indexOf(m) < MATURITY_ORDER.indexOf(worst)) worst = m;
     }
   }
-  return worst || "new";
+  if (!met) return "new";
+  return worst === "new" ? "learning" : worst || "new";
+}
+
+/**
+ * How many cards stand in each phase, for the room-for-new sums. Counted
+ * the way the progress screen counts them, so the two never disagree
+ * about how full a learner's hands are.
+ */
+export function phaseCounts(
+  items: Item[],
+  typesOf: (unit: Form) => string[]
+): { new: number; learning: number; young: number; mature: number } {
+  const counts = { new: 0, learning: 0, young: 0, mature: 0 };
+  for (const it of items) counts[familyMaturity(it, typesOf) as keyof typeof counts] += 1;
+  return counts;
 }
 
 

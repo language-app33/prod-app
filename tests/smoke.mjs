@@ -333,10 +333,19 @@ remoteDocs.set(realToken, {
          something to be random about that no other walk can spend. It used
          to lean on the conversation being unmet, which made the test a
          hostage to whatever the walk before it had answered. */
+      /* Both have mastered the bottom rung of the ladder — reading and
+         matching, in review at five days — so the next rung is open on
+         them and a hand-built session can ask them to write the script.
+         Nothing else in the fixture has, which is the ordinary state of a
+         deck and what keeps every other walk on recognition. */
       { id: "tied1", ar: "شمس", en: "sun", lat: "shams", kind: "word", tags: ["Lesson 1"],
-        created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } },
+        created: 1, updated: 5,
+        s: { ar2en: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 },
+             match: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 } } },
       { id: "tied2", ar: "قمر", en: "moon", lat: "qamar", kind: "word", tags: ["Lesson 1"],
-        created: 1, updated: 5, s: { ar2en: { phase: "review", reps: 3, interval: 2, due: 0, updated: 5 } } },
+        created: 1, updated: 5,
+        s: { ar2en: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 },
+             match: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 } } },
     ],
   },
 });
@@ -456,7 +465,9 @@ const wire = remoteDocs.get(realToken)?.data;
    rather than filtered out of the document. */
 const V2_KEYS = ["mean", "read", "write"];
 const typeStates = (/** @type {any} */ i) => Object.keys(i.s).filter((k) => !V2_KEYS.includes(k));
-check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((/** @type {any} */ i) => typeStates(i).length <= 1), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
+/* Answered, that is: a state is on the wire because something was written
+   to it, never because a type exists. */
+check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((/** @type {any} */ i) => typeStates(i).every((k) => (i.s[k].reps || 0) > 0)), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
 check("the retired exercise is never written into the document", wire && wire.items.every((/** @type {any} */ i) => !("ar2tr" in i.s)), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
 check("clip sync uploaded nothing (no blob: URLs)", !calls.some((c) => c.startsWith("POST /api/sync?audio")));
 check("clip sync did not fetch course recordings as a side effect", !calls.some((c) => c.includes("action=clip")), calls.filter((c) => c.includes("clip")).join(","));
@@ -586,7 +597,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     start().there && start().disabled && /Choose a length/.test(start().label),
     start().label || "no button");
 
-  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => (b.textContent || "").trim() === "10"));
+  /* The longest count on offer, so that everything the chosen cards
+     support is in the queue: the walk below needs a question that asks for
+     the script, and the ladder opens that on two of the cards only. */
+  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => (b.textContent || "").trim() === "50"));
   await sleep(80);
   check("choosing a length is all that was left", start().there && !start().disabled && /^Start$/.test(start().label),
     start().label);
@@ -630,11 +644,15 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   let scriptField = null;
   /* Enough tries to step past the questions that are not typed at all. The
      queue is shuffled and there are more kinds of question than there were,
-     so a fixed eight ran out before one asking for the script came up. */
-  for (let i = 0; i < 16 && !scriptField; i++) {
+     so a fixed eight ran out before one asking for the script came up —
+     and now that a fresh card is only ever asked to recognise, the script
+     is asked of the two cards that have earned it, wherever they fall. */
+  for (let i = 0; i < 50 && !scriptField; i++) {
     scriptField = document.querySelector(".at-answerbox .at-input.ar");
     if (scriptField) break;
-    click(buttonNamed(/^I don't know$/));
+    /* A grid has no "I don't know": it is paired and checked instead. */
+    if (document.querySelector('[data-el="answer-match"]')) await playGrid();
+    else click(buttonNamed(/^I don't know$/));
     await sleep(150);
     click(buttonNamed(/Continue|Next/));
     await sleep(250);
@@ -1294,7 +1312,7 @@ if (input) {
   check("found something to answer with", false, document.body.textContent.slice(0, 200));
 }
 await sleep(200);
-check("the answer was marked", /The answer is:|Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(document.body.textContent),
+check("the answer was marked", /The answer is:|Incorrect\.|Not all of them|Correct!|Good job!|Nicely done!|Great!/.test(document.body.textContent),
   (document.querySelector('[data-el="verdict"]') || {}).textContent || (document.body.textContent || "").slice(0, 80));
 click(buttonNamed(/Continue|Next/));
 await sleep(900); // the 600 ms save debounce
@@ -1676,14 +1694,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      only pinned the order exercises are declared in, and broke the day a new
      one was added. What matters is that the substitute is a question this
      card is not already down for. */
+  /* On a card that has earned more than one rung: oldclient1 is still on
+     recognition, where reading is the only question it has not been
+     asked, and repeating that is what the next check is about. The walks
+     above have been answering "I don't know", which closes rungs, so the
+     card is handed in with its bottom rung mastered rather than read off
+     the device — the rewrite reads states from the items it is given. */
+  const done = { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 };
+  const card2 = { ...byId2.tied1, s: { ...byId2.tied1.s, ar2en: done, match: done } };
   const one = withoutListening(
     [
-      { id: card1.id, subId: null, type: "ar2en" },
-      { id: card1.id, subId: null, type: "rec2en" },
-      { id: card1.id, subId: null, type: "en2ar" },
+      { id: card2.id, subId: null, type: "ar2en" },
+      { id: card2.id, subId: null, type: "rec2en" },
+      { id: card2.id, subId: null, type: "en2ar" },
     ],
     1,
-    stored2.items,
+    stored2.items.map((/** @type {any} */ i) => (i.id === card2.id ? card2 : i)),
     set,
   );
   check("a substitute avoids what the card is already being asked",
@@ -1973,10 +1999,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(250);
   }
 
-  check("a session on one scene asks several different things about it",
-    met.size >= 3, [...met].join(", ") || "nothing asked");
-  check("including at least one that is about the whole scene",
-    met.has("order") || met.has("whole"), [...met].join(", "));
+  /* A scene nobody has read yet is on the bottom rung of the ladder: it is
+     read through, and read again for marking, and nothing harder. Putting
+     it in order and choosing a reply wait until the reading is mastered,
+     which no walk can be — so what is checked is that the reading is
+     asked and marked, and that the harder questions are not. */
+  check("a session on one new scene asks it to be read, and marks that",
+    met.has("whole") && met.has("whole-marked"), [...met].join(", ") || "nothing asked");
+  check("and asks nothing harder of it until the reading is mastered",
+    !met.has("order") && !met.has("pick"), [...met].join(", "));
   check("and the scene is not read through twice in one session",
     !met.has("read-again"), [...met].join(", "));
 

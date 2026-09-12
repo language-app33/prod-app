@@ -9,6 +9,27 @@ the material appears on their devices, along with any recordings. Progress
 is tracked per exercise type, not per card, so knowing a word when you read
 it and knowing it when you hear it are scheduled separately.
 
+Three rules shape what a session asks, all of them in `src/scheduler.ts`:
+
+- **A card is recognised before it is produced.** Every exercise type stands
+  on a rung — recognition, production from a cue, production from the
+  meaning alone — and a form is asked the next rung only once every
+  exercise it supports on the rungs below is *mastered*: in review, with
+  an interval of at least four days. A lapse below closes the rungs above
+  until it is recovered.
+- **New cards are introduced only while there is room.** Beyond the
+  per-session limit in the settings, nothing new is dealt while ten cards
+  are already being learnt or forty are young and still coming back for
+  review. A card's phase is read over the rungs it has reached: *New* is
+  never met, *Learning* is met and not yet through the steps somewhere,
+  *Young* is graduated everywhere it is open, *Mature* is three weeks out
+  everywhere.
+- **A matching grid is five questions.** Every word in it is asked, marked
+  and scheduled in its own right. Which words stand together is decided
+  when the session is built: the grid is filled out from cards already
+  met, the most alike first, and a word dealt in to fill it that was not
+  due is credited for a right answer without its schedule moving.
+
 ## Running it
 
 ```bash

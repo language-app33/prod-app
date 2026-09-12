@@ -61,6 +61,13 @@ export interface ExerciseSpec {
   hintHideLabel?: string;
   /** Recognition rather than production. */
   gentle?: boolean;
+  /**
+   * Where it stands on the ladder a form climbs: 1 recognises the word, 2
+   * produces it from a cue, 3 produces it from its meaning alone. A level
+   * opens only once every exercise below it that the form supports has
+   * been mastered — see openTypes in the scheduler.
+   */
+  level: 1 | 2 | 3;
   /** Still defined so stored states can be read. */
   retired?: boolean;
   /** Asks a derived property rather than the word. */
@@ -436,6 +443,12 @@ export interface Question {
   type: string;
   /** The phrase the word is stood in, for the exercises that need one. */
   ctx?: string;
+  /**
+   * The other words in the grid, when the question is a matching grid.
+   * Every one of them is asked and marked in its own right; the card
+   * above is only the first of them.
+   */
+  mates?: { id: string; subId: string | null }[];
 }
 
 /**
