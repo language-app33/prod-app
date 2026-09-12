@@ -8,6 +8,78 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.80 — 12 September 2026
+
+- **Teaching · a card can leave a word open.** Write `{{name}}` anywhere in
+  a card — in every field that has words in it — and make separate cards
+  for Raphael, Victor and Sarah, each saying it fills `name`. The question
+  a student is asked is then "My name is Raphael", and "My name is Victor"
+  the next time it comes round. A frame learnt as one lump is a sentence
+  somebody can say once; met as all three it is a sentence they can say
+  about anyone.
+- Which name comes up turns over as the card comes round again, the way the
+  phrase a word is shown in does — nothing is drawn at random, so the
+  sentence never changes under you mid-answer, and a card with two holes
+  reaches every combination before it repeats one.
+- **Every card now says whether it is practised on its own.** A value —
+  "Raphael" — is turned off by default: it is there to fill a hole in
+  somebody else's sentence, and "what does Raphael mean" is not a question.
+  It is a choice on every card, so a name can be drilled as well as
+  borrowed if that is what you want.
+- Values reach students with every deck whose phrases need them, whatever
+  deck they are filed in, and a name added today arrives today.
+- Two things a variable costs, both said out loud rather than left to be
+  discovered. Listening exercises are not offered on a card with a hole in
+  it — the recording says one of the names and the next question wants
+  another — and the card can't be practised at all until something fills
+  the hole. Both appear under "Try an exercise" with the reason.
+- A card whose fields disagree about their holes can't be saved: a frame
+  whose English has a hole and whose script has not would ask for a name
+  and mark an answer that never contained one.
+
+## 0.79 — 12 September 2026
+
+- **The language's own name is a name again, wherever it is written.** The
+  app said "Write in arabic script", "English → arabic script", "No arabic
+  script — this form can't be practiced": the pack's label was lowered
+  whenever it fell in the middle of a line, which is right for "the
+  transliteration" and wrong for Arabic, Vietnamese and Hebrew. Every
+  exercise name, instruction, question and "Needs …" line now reads Arabic
+  script, in every language.
+- The one place it stays lowercase is the importer's example row —
+  `english | arabic script | …` — because those are cells to copy, and a
+  capital there would read as part of what to type.
+
+## 0.78 — 12 September 2026
+
+- **Learning · the line above a question** no longer says "this card". It is
+  "Write in English", "Write in Arabic script", where it was "Write this
+  card in English" — the card is the thing on the screen underneath, and
+  naming it was two words of furniture on the one line a learner reads at
+  every single question.
+
+## 0.77 — 12 September 2026
+
+- **Teaching · one set of controls over every card list.** The Cards tab and
+  an open deck showed the same material through two different screens: the
+  tab could be sorted and narrowed, a deck could do neither, and its cards
+  came in whatever order they arrived. Both now carry the same two rows —
+  New card, the search box and a size button on the first; Select, Sort and
+  Filter on the second — and the same settings, so a deck opened while the
+  list is narrowed opens narrowed the same way.
+- Select is a button with its name on it rather than an unlabelled icon
+  beside the search box, where it read as another way of finding something.
+  Sort and Filter are two buttons rather than one called "Sort and filter",
+  each opening its own panel, and only one is open at a time.
+- **The size button draws the cards bigger** — three steps, each with fewer
+  cards to a row and the word, the meaning and the date all set larger. It
+  is remembered on the device, so the size you work at is the size the next
+  screen opens at.
+- **A new filter: which decks a card is in, or is not in.** Tick any number
+  of decks and see the cards in them, or the cards in none of them — which
+  is how to find what a deck is missing, and what is in no deck at all and
+  so reaches nobody. A mode with nothing ticked narrows nothing.
+
 ## 0.76 — 12 September 2026
 
 - **Learning · writing a card from its meaning.** A card may mean more than

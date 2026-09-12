@@ -314,6 +314,19 @@ export type Card = CardForm & {
   owner?: string;
   lang: LangId;
   note?: string;
+  /**
+   * The variable this card can stand in for, where it is a value rather
+   * than something to learn: a card saying `name` fills every {{name}} in
+   * every phrase of the same language. Empty on an ordinary card.
+   */
+  fills?: string;
+  /**
+   * Whether the card is practised in its own right. Absent means yes, which
+   * is what every card written before variables existed meant. A value —
+   * "Raphael" — is turned off: it is there to fill a hole in somebody
+   * else's sentence, and asking what it means is not a question.
+   */
+  drill?: boolean;
   subs?: CardForm[];
   uses?: string[];
   lines?: (CardForm & { who?: number; uses?: string[] })[];
@@ -498,6 +511,10 @@ export type Line = Form & { who?: number; uses?: string[] };
 export type Item = Form & {
   kind?: string;
   tags: string[];
+  /** The variable this card stands in for, where it is a value. See Card. */
+  fills?: string;
+  /** Whether it is practised in its own right. Absent means yes. See Card. */
+  drill?: boolean;
   flags?: any[];
   subs?: Form[];
   lines?: Line[];

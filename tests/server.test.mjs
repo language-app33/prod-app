@@ -375,6 +375,95 @@ test("a card can hold a conversation, and keeps its turns in order", async () =>
 });
 
 /*
+ * The values a deck's phrases need travel with it.
+ *
+ * A card that fills a variable is in no deck — that is the point of it: it
+ * is borrowed by whichever phrase has a hole of its name — so nothing about
+ * it moves when it is written, and the version a student's device compares
+ * against would never budge. Both halves are checked here: that the values
+ * are sent at all, and that writing one is a change the student hears
+ * about.
+ */
+test("a deck's phrases are sent with the cards that fill their variables", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Introductions", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Arabic 1", language: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key, body: { deckId, courseId: course.json.course.id },
+  });
+  /* The frame, in the deck. */
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: { id: "", ar: "اسمي {{name}}", en: "My name is {{name}}", lat: "ismi {{name}}", lang: "ar-PS" },
+      decks: [deckId],
+    },
+  });
+  /* The values, in no deck at all, and not practised in their own right. */
+  const value = (/** @type {string} */ ar, /** @type {string} */ en) =>
+    api("/api/courses?action=save-card", {
+      method: "POST", key,
+      body: { card: { id: "", ar, en, lat: en.toLowerCase(), lang: "ar-PS", fills: "name", drill: false }, decks: [] },
+    });
+  await value("رافائيل", "Raphael");
+  await value("فيكتور", "Victor");
+  /* And one in another language, which is not a variation on the sentence
+     but a different sentence. */
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "Tâm", en: "Tam", lang: "vi-HUE", fills: "name", drill: false }, decks: [] },
+  });
+
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Omar" } });
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key, body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+
+  const first = await api("/api/courses?action=my-material", { key: student.json.key });
+  const sent = (first.json.cards || []).flatMap((/** @type {any} */ d) => d.cards);
+  assert.deepEqual(
+    sent.filter((/** @type {any} */ c) => c.fills).map((/** @type {any} */ c) => c.en).sort(),
+    ["Raphael", "Victor"],
+    "the values a deck's phrases need did not travel with it"
+  );
+  assert.equal(
+    sent.every((/** @type {any} */ c) => !c.fills || c.drill === false),
+    true,
+    "a value arrived as something to practise on its own"
+  );
+
+  /* Nothing has changed, so the next ask costs a few bytes. */
+  const again = await api(`/api/courses?action=my-material&version=${first.json.version}`, {
+    key: student.json.key,
+  });
+  assert.equal(again.json.unchanged, true, "the version moved when nothing had");
+
+  /* And a name added today reaches them today, though it belongs to no
+     deck and nothing else about the course has moved. */
+  await value("سارة", "Sarah");
+  const after = await api(`/api/courses?action=my-material&version=${first.json.version}`, {
+    key: student.json.key,
+  });
+  assert.notEqual(after.json.unchanged, true, "a new value never reached the student");
+  assert.deepEqual(
+    (after.json.cards || [])
+      .flatMap((/** @type {any} */ d) => d.cards)
+      .filter((/** @type {any} */ c) => c.fills)
+      .map((/** @type {any} */ c) => c.en)
+      .sort(),
+    ["Raphael", "Sarah", "Victor"]
+  );
+});
+
+/*
  * An ordinary card is not changed by passing through a server that knows
  * about conversations: it comes back with no turns and nobody in it.
  */

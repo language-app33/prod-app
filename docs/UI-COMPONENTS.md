@@ -124,6 +124,19 @@ Pick several. `options, chosen, onToggle, empty`
 `chosen` is an array of ids, and `onToggle` is called `(id, wasOn)` — the
 second argument saves the caller working out which way the tick just went.
 
+### `FilterBar` / `narrowing(groups)` — 3 uses
+The panel a list's Sort or Filter button opens onto. `groups, note`
+
+A group is `{ key, label, value, quiet, onChange, options }` and draws a
+`Segmented`; `quiet` names the value that counts as not narrowing, and
+`narrowing(groups)` counts the ones that are away from it — that count is
+what the button carries. A group with `custom` draws that instead, for a
+choice a row of buttons cannot say (which decks, of all of them), and `wide`
+gives it a line of its own.
+
+It is only the panel: the button, and keeping one panel open at a time,
+belong to `ItemList`'s `menus`.
+
 ### `LanguageRadio` — 4 uses
 A proper radio list of languages. `languages, value, onChange, label, name`
 
@@ -132,11 +145,26 @@ A proper radio list of languages. `languages, value, onChange, label, name`
 ## Lists and tiles
 
 ### `ItemList` — 9 uses
-The standard list frame: New button, search, Select mode, bulk-action tray,
-empty state, and paging at 120 items.
+The standard list frame: two rows of controls, bulk-action tray, empty state,
+and paging at 120 items.
 
-`noun, plural, items, itemKey, match, size="large"|"small", onNew, renderItem,
-selected, onSelectedChange, bulkActions, filters, count, empty, busy`
+`noun, plural, items, itemKey, match, size="large"|"small", resizable, onNew,
+renderItem, selected, onSelectedChange, bulkActions, tools, menus, filters,
+count, empty, busy`
+
+The controls are **two rows**: New, the search box, `tools` and the size
+button on the first; Select and the `menus` on the second. Whichever menu is
+open renders under them, then `filters`, then the tiles.
+
+`menus` is `[{ key, label, icon, busy, content }]` — one open at a time, so
+two panels can never give two answers to "why is this list short". `busy` is
+the count the button carries; `narrowing(groups)` works it out for a
+`FilterBar`'s groups.
+
+`resizable` adds the size button, which steps the tiles through three sizes —
+the grid's columns and the type inside a tile together. Only a grid of tiles
+has anything to do with it. The choice is kept on the device, so it holds
+across screens and launches.
 
 `match` is `(item, lowercasedQuery) => boolean`. `bulkActions` is
 `[{ label, danger, icon, onClick(ids) }]`, and **`ids` is an array, not the
@@ -204,10 +232,10 @@ its play buttons resolve to "missing" rather than fetching.
 ## Odds and ends
 
 - **`Icon`** — 22 uses. `name, size=20`. Available names: `add, search, close,
-  delete, edit, tune, check, back, save, folder, cards, person, group, key,
-  download, verify, play, pause, view, select, school, copy, refresh, mic,
-  remove, chevronDown, chevronUp, soundOff, flag, menu, help, theme, language,
-  lock`.
+  delete, edit, tune, sort, size, check, back, save, folder, cards, person,
+  group, key, download, verify, play, pause, view, select, school, copy,
+  refresh, mic, remove, chevronDown, chevronUp, soundOff, flag, menu, help,
+  theme, language, lock`.
   Use these rather than glyph characters.
 - **`plural(n, noun)`** — `plural(3, "card")` → `"3 cards"`. Use it instead of
   writing `${n} card${n === 1 ? "" : "s"}`.

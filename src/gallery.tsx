@@ -53,6 +53,7 @@ import {
   Tabs,
   Tile,
   TileNote,
+  narrowing,
   plural,
   useSnackbarState,
 } from "./shared.tsx";
@@ -61,10 +62,11 @@ import {
    Icon itself: a name missing from here renders as a blank square, which is
    visible rather than silent. */
 const ICON_NAMES = [
-  "add", "search", "close", "delete", "edit", "tune", "check", "back", "save",
-  "folder", "cards", "person", "group", "key", "download", "verify", "play",
-  "pause", "view", "select", "school", "copy", "refresh", "mic", "remove",
-  "chevronDown", "chevronUp", "menu", "help", "theme", "language", "lock",
+  "add", "search", "close", "delete", "edit", "tune", "sort", "size", "check",
+  "back", "save", "folder", "cards", "person", "group", "key", "download",
+  "verify", "play", "pause", "view", "select", "school", "copy", "refresh",
+  "mic", "remove", "chevronDown", "chevronUp", "menu", "help", "theme",
+  "language", "lock",
 ];
 
 const SAMPLE_CARD = {
@@ -167,7 +169,7 @@ const PLACES: Record<string, [string, string]> = {
   ClipRow: [PARTS, "A recording in a list"],
   CardReadout: [PARTS, "A card's details"],
   ItemList: [PARTS, "A searchable list"],
-  FilterBar: [PARTS, "Sort and filter"],
+  FilterBar: [PARTS, "What Sort or Filter opens onto"],
   FilterMenu: [PARTS, "One filter, in the toolbar"],
   Tabs: [PARTS, "A row of tabs"],
   Screen: [PARTS, "A full screen"],
@@ -478,10 +480,10 @@ export function ComponentGallery() {
 
       <Row
         name="FilterBar"
-        what="How to order a list, and what to leave out of it."
-        note="Goes in ItemList's filters slot. Shut until pressed, because four rows of buttons above a card grid is a heavy price for controls most visits do not touch — and the button carries a count so a narrowed list is never a mystery. Give a group a `quiet` value to say which setting counts as not narrowing."
+        what="The panel a list's Sort or Filter button opens onto: how to order it, or what to leave out."
+        note="Goes in one of ItemList's menus, as its content — ItemList owns the button and keeps one panel open at a time. Give a group a `quiet` value to say which setting counts as not narrowing, and pass the groups through narrowing() to get the count the button carries. A group with `custom` draws that instead of the buttons, for a choice a few buttons cannot say; `wide` gives it a line of its own."
       >
-        <V label="press it" wide>
+        <V label="two groups" wide>
           <FilterBar
             note="3 of 12"
             groups={[
@@ -740,8 +742,8 @@ export function ComponentGallery() {
 
       <Row
         name="ItemList"
-        what="The standard list frame: New button, search, Select mode, bulk actions, empty state, paging at 120."
-        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]."
+        what="The standard list frame: New button, search and tile size on one row; Select and the menus on the next; bulk actions, empty state, paging at 120."
+        note="match is (item, lowercasedQuery) => boolean. bulkActions is [{ label, danger, onClick(ids) }]. menus is [{ key, label, icon, busy, content }] — one open at a time, drawn under the row. resizable adds the size button, which only a grid of tiles has anything to do with."
       >
         <V label="items + renderItem" wide>
           <ItemList
@@ -751,6 +753,32 @@ export function ComponentGallery() {
             itemKey={(d) => d.id}
             match={(d, q) => d.title.toLowerCase().includes(q)}
             size="small"
+            resizable
+            menus={[
+              {
+                key: "sort",
+                label: "Sort",
+                icon: "sort",
+                busy: narrowing([{ key: "order", value: order, quiet: "added" }]),
+                content: (
+                  <FilterBar
+                    groups={[
+                      {
+                        key: "order",
+                        label: "Sort",
+                        value: order,
+                        onChange: setOrder,
+                        quiet: "added",
+                        options: [
+                          { value: "added", label: "Added" },
+                          { value: "changed", label: "Changed" },
+                        ],
+                      },
+                    ]}
+                  />
+                ),
+              },
+            ]}
             renderItem={(d) => <Tile title={d.title} meta="12 cards" />}
             empty={<Empty title="No decks">Nothing here yet.</Empty>}
           />

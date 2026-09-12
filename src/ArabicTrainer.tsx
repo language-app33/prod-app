@@ -187,6 +187,8 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
+import { fillForm, slotsOf, valueOf, valuesForTurn } from "./variables.ts";
+import type { Value } from "./variables.ts";
 
 /*
  * The two that need to know which exercise types a form supports. That
@@ -476,6 +478,38 @@ function setContextIndex(map: Map<string, any[]>) {
 }
 
 /* ------------------------------------------------------------------
+   What fills a variable
+
+   A phrase may leave a hole in itself — "My name is {{name}}" — and any
+   card saying it fills `name` can stand in it. This is that list, by
+   language and by variable, held at module level and rebuilt with the
+   cards for the reason the index above is: availableTypes is a pure
+   function of a unit and cannot be handed a map.
+
+   By language as well as by name, because a Vietnamese name in an Arabic
+   frame is not a variation on the sentence, it is a different sentence.
+   ------------------------------------------------------------------ */
+
+let VALUE_INDEX: Map<string, Value[]> = new Map();
+
+function setValueIndex(map: Map<string, Value[]>) {
+  VALUE_INDEX = map || new Map();
+}
+
+const valueKey = (langId: LangId, slot: string) => `${langId} ${slot}`;
+
+/* What each of a unit's variables can be filled with. Empty for the
+   ordinary card, which has no holes in it and never looks. */
+function fillsFor(unit: Form, langId?: LangId): Record<string, Value[]> {
+  const slots = slotsOf(unit);
+  if (!slots.length) return {};
+  const id = langId || (unit && unit.lang) || activeLang().id;
+  const out: Record<string, Value[]> = {};
+  for (const slot of slots) out[slot] = VALUE_INDEX.get(valueKey(id, slot)) || [];
+  return out;
+}
+
+/* ------------------------------------------------------------------
    Which scene a line belongs to
 
    The same arrangement, for dialogs: a line carries no pointer back to
@@ -558,6 +592,39 @@ function pickContext(unit: Form, type: string) {
    is retired — so a scene that names no part now names nothing that any
    question asks about. The picker in the editor and the line on the card
    still say which part is the student's; nothing yet acts on it. */
+
+/*
+ * The card with its variables filled in.
+ *
+ * First of the three castings, because the other two read the words it
+ * writes: narrowing to one accepted answer and to one meaning both work on
+ * a sentence that already says Raphael rather than {{name}}.
+ *
+ * One value per variable, in every field at once — the prompt, the marking
+ * and the answer screen are looking at the same person — and rotated by how
+ * often this exercise has been asked of this form, like everything else
+ * that varies between askings. Nothing is drawn: a card with three names is
+ * met as all three before it is met as any of them twice, and a re-render
+ * cannot swap the name under somebody halfway through typing.
+ *
+ * Comes back untouched where a variable has nothing to fill it. That is not
+ * a question — canAsk refuses it, so it should never reach here — and
+ * leaving {{name}} standing is a visible bug rather than a silent gap.
+ */
+function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
+  if (!resolved) return resolved;
+  const slots = slotsOf(resolved.unit);
+  if (!slots.length) return resolved;
+  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const took = valuesForTurn(slots, fillsFor(resolved.unit), seen);
+  if (!took) return resolved;
+  const unit = (fillForm(resolved.unit, took) as any);
+  return {
+    ...resolved,
+    unit,
+    parent: resolved.parent === resolved.unit ? unit : resolved.parent,
+  };
+}
 
 /*
  * Which accepted answer a pronunciation question is about.
@@ -738,12 +805,18 @@ export function withoutListening(exercises: Question[], from: number, items: Ite
    ask it that. Silencing here would make a card look broken, or call it
    fully learnt while a third of its exercises were merely paused. */
 function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.id)): string[] {
+  /* What its variables can be filled with, if it has any: a hole with
+     nothing to put in it is not a question, and a card whose words change
+     cannot be the one on a recording. Both are answered inside canAsk. */
   /* One question, asked in one place: which exercises this unit can be
      asked. The teaching space asks the same one of the same cards — to
      say what a card could be drilled as before anybody presses anything —
      and two answers to it would be two apps disagreeing about what a card
      supports. */
-  return TYPES.filter((t) => canAsk({ unit: it, scene, contexts: contextsFor(it.id) }, t, lang));
+  const values = fillsFor(it, lang.id);
+  return TYPES.filter((t) =>
+    canAsk({ unit: it, scene, contexts: contextsFor(it.id), values }, t, lang)
+  );
 }
 
 function enabledTypes(it: Form, settings: Settings): string[] {
@@ -765,6 +838,11 @@ function enabledTypes(it: Form, settings: Settings): string[] {
 const statesOf = (unit: Form): Record<string, ExerciseState> => unit.s || {};
 
 function isDrillable(it: Item, settings: Settings) {
+  /* A card the teacher says is not practised on its own. A value — the
+     "Raphael" that fills {{name}} in somebody else's sentence — is there to
+     be borrowed, and "what does Raphael mean" is not a question. Absent
+     means yes, which is what every card written before this meant. */
+  if (it.drill === false) return false;
   if (!settings.kinds[it.kind || ""]) return false;
   /* A scene qualifies through its lines rather than through itself. The
      card carries the two whole-scene exercises and a short dialog carries
@@ -3812,6 +3890,27 @@ export default function ArabicTrainer() {
   const dialogIndex = useMemo(() => buildDialogIndex(asking), [asking]);
   setDialogIndex(dialogIndex);
 
+  /* And what can fill each variable, by language. Ordered by when the cards
+     were made rather than by where they happen to sit in the document: the
+     rotation walks this list, and a list that reordered itself on a sync
+     would hand somebody a different name for the same count. */
+  const valueIndex = useMemo(() => {
+    const map: Map<string, Value[]> = new Map();
+    const fillers = asking
+      .filter((it) => it.fills)
+      .sort((a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id));
+    for (const it of fillers) {
+      const slot = String(it.fills || "").toLowerCase();
+      const value = valueOf(it);
+      if (!value.ar) continue;
+      const key = valueKey(langIdOf(it, settings), slot);
+      map.set(key, (map.get(key) || []).concat([value]));
+    }
+    return map;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asking, settings.language]);
+  setValueIndex(valueIndex);
+
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {
     const ids = [];
@@ -4229,12 +4328,17 @@ export default function ArabicTrainer() {
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
-  /* The card, narrowed to the question being asked of it: one accepted
-     answer where the question is about how a word sounds, one meaning where
-     the meaning is the question. Both before anything reads it, so the
-     prompt, the marking and the answer screen cannot disagree. */
+  /* The card, narrowed to the question being asked of it: its variables
+     filled in, one accepted answer where the question is about how a word
+     sounds, one meaning where the meaning is the question. All three before
+     anything reads it, so the prompt, the marking and the answer screen
+     cannot disagree — and filling first, because the other two narrow the
+     words it writes. */
   const resolved = exercise
-    ? castMeaning(castAnswer(resolveUnit(asking, exercise), exercise.type), exercise.type)
+    ? castMeaning(
+        castAnswer(castFill(resolveUnit(asking, exercise), exercise.type), exercise.type),
+        exercise.type
+      )
     : null;
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
@@ -5042,7 +5146,7 @@ Cards ready to practice
                   {!drillable.length && items.length > 0 && (
                     <Notice kind="warn">
                       No card here has two usable exercise types. A card needs the{" "}
-                      {langOf(settings).scriptLabel.toLowerCase()} and at least one more field
+                      {langOf(settings).scriptLabel} and at least one more field
                       before it can be practiced.
                     </Notice>
                   )}
@@ -7904,7 +8008,7 @@ function ReviewItem({ item, units, index, total, onRemove, onEdit }: {
               </p>
             ) : (
               <Notice kind="warn">
-                {`No ${activeLang().scriptLabel.toLowerCase()} — this form can't be practiced.`}
+                {`No ${activeLang().scriptLabel} — this form can't be practiced.`}
               </Notice>
             )}
             {unit.en && <p className="at-en" style={{ fontSize: 20 }}>{unit.en}</p>}
@@ -8053,6 +8157,9 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
               filed as singular, and you can change it in bulk afterwards.
             </p>
             <p>Without a table, one card per line, cells split by <code>|</code> or a tab:</p>
+            {/* The one place the script's name is lowered on purpose: these
+                are cells to copy, sitting beside "english" and "decks",
+                and a capital here would read as part of what to type. */}
             <pre>
               english | {activeLang().scriptLabel.toLowerCase()} |{" "}
               {activeLang().translitLabel.toLowerCase()} | decks | note

@@ -29,7 +29,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["session-progress", "The bar beside it, which fills as the session goes on.", ""],
   ]],
   [QUESTION, [
-    ["question-instruction", "The line telling you what to do. The same shape in every exercise.", "Write this card in English"],
+    ["question-instruction", "The line telling you what to do. The same shape in every exercise.", "Write in English"],
     ["question-form-tag", "Which form is being asked, when the card has more than one.", "· plural"],
     ["question-prompt", "The block being asked about. A word, a phrase with a gap in it, a play button, or a conversation, depending on the exercise.", ""],
     ["question-prompt-text", "The words inside it, when it is words. One size in every exercise.", "كِتاب"],

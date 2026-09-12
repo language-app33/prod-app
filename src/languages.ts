@@ -35,7 +35,7 @@ export const TYPES = [
 
 export const EX: Record<string, ExerciseSpec> = {
   ar2en: {
-    instruction: "Write this card in English",
+    instruction: "Write in English",
     label: "{Script} → English",
     short: "{S}→E",
     needs: ["ar", "en"],
@@ -60,7 +60,7 @@ export const EX: Record<string, ExerciseSpec> = {
      reference to the type must still resolve to a label rather than crash. */
   ar2tr: {
     retired: true,
-    instruction: "Write this card in {translit}",
+    instruction: "Write in {translit}",
     label: "{Script} → {translit}",
     short: "{S}→T",
     needs: ["ar", "lat"],
@@ -74,7 +74,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "tr",
   },
   tr2ar: {
-    instruction: "Write this card in {script}",
+    instruction: "Write in {script}",
     label: "{Translit} → {script}",
     short: "T→{S}",
     needs: ["lat", "ar"],
@@ -114,7 +114,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "ar",
   },
   en2ar: {
-    instruction: "Write this card in {script}",
+    instruction: "Write in {script}",
     label: "English → {script}",
     short: "E→{S}",
     needs: ["en", "ar"],
@@ -637,16 +637,32 @@ export function findWordSlot(phrase: string, word: string, lang: Partial<Lang>) 
  * @param need  One of an exercise's `needs`.
  */
 export function needLabel(need: string, lang: Partial<Lang>) {
-  /* Lowered, because these are sentence fragments and the pack's labels
-     are titles: a card is waiting for "the transliteration", not for "the
-     Transliteration". */
-  const script = ((lang && lang.scriptLabel) || "the script").toLowerCase();
+  /* The transliteration's label is lowered, because these are sentence
+     fragments and the pack's labels are titles: a card is waiting for "the
+     transliteration", not for "the Transliteration". The script's is not,
+     because it is a name — the word wanted is "the word in Arabic script",
+     and "arabic" is wrong in the middle of a line as much as at the start
+     of one. */
+  const script = (lang && lang.scriptLabel) || "the script";
   const translit = ((lang && lang.translitLabel) || "a romanisation").toLowerCase();
+  /* A variable with nothing to put in it names itself: "a card that fills
+     {{name}}" is a job somebody can go and do, where "a value" is a riddle.
+     The names travel in the need itself, because which variable is short is
+     a fact about this card rather than about the exercise. */
+  if (need.startsWith("fills:")) {
+    const wanted = need.slice(6).split(",").filter(Boolean);
+    if (wanted.length) {
+      return `a card that fills ${wanted.map((n) => `{{${n}}}`).join(" and ")}`;
+    }
+  }
   const names: Record<string, string> = {
     ar: `the word in ${script}`,
     en: "the meaning",
     lat: `the ${translit}`,
     recs: "a recording",
+    /* Not a field to fill in: a card whose words vary cannot be the one on
+       a recording, so hearing it is the one thing a variable costs. */
+    fixed: "words that don't change — a recording can't follow a variable",
     contexts: "a phrase that uses it",
     contextAudio: "a recorded phrase that uses it",
     dialog: "a conversation",
@@ -1574,10 +1590,21 @@ export function exOf(type: string, lang: Lang = activeLang()) {
   if (hit) return hit;
 
   const attr = quizAttrOf(lang);
+  /*
+   * The two labels are different parts of speech, and that — not where they
+   * land in a sentence — decides their case.
+   *
+   * A script's label is a name: Arabic script, Vietnamese, Hebrew. It keeps
+   * its capital in the middle of a line as much as at the start, so both
+   * spellings of the placeholder fill the same way and "write in arabic
+   * script" is gone. A transliteration's label is a common noun —
+   * "transliteration", "pronunciation note" — so it lowers mid-sentence and
+   * {Translit} is there for the places it begins one.
+   */
   const fill = (s: string): string =>
     String(s)
       .replace(/\{Script\}/g, cap(lang.scriptLabel))
-      .replace(/\{script\}/g, lang.scriptLabel.toLowerCase())
+      .replace(/\{script\}/g, cap(lang.scriptLabel))
       .replace(/\{S\}/g, lang.scriptShort || "?")
       .replace(/\{Translit\}/g, cap(lang.translitLabel))
       .replace(/\{translit\}/g, lang.translitLabel.toLowerCase())
