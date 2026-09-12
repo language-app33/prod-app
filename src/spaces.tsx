@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
-import type { Card, Course, Deck, Flag, Lang, LangId, User } from "./types.ts";
+import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -59,6 +59,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
+import { slotsOf, slotTrouble, valuesFor } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
@@ -3786,13 +3787,23 @@ function WordsUsed({ lang, text, cards, selfId, chosen, onChange }: {
  *   through a different button. `draft` is a first line already written,
  *   for a card begun from a suggestion.
  */
+/* A field of a card, in the words the editor labels it with. The script's
+   name is the language's own and is a name; the other two are what they are
+   called on the screen above. */
+const fieldName = (field: string, lang: Lang): string =>
+  field === "ar"
+    ? (lang && lang.scriptLabel) || "The script"
+    : field === "en"
+    ? "English"
+    : (lang && lang.translitLabel) || "The transliteration";
+
 function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }: {
   card: Card | null;
   lang: Lang;
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, decks: string[], uses: string[], scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, decks: string[], uses: string[], fills: string, drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;
@@ -3835,6 +3846,24 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   );
   const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
+  /* Which variable this card fills, where it is a value rather than
+     something to learn: "Raphael" fills `name`, and every phrase with a
+     {{name}} in it can borrow it. */
+  const [fills, setFills] = useState(((card && card.fills) || "").toLowerCase());
+  /*
+   * Whether it is practised in its own right — and null where nobody has
+   * said, which is every new card.
+   *
+   * Unsaid is not the same as no: it means "whatever this card looks like",
+   * and a card that fills a variable looks like a value, which is not a
+   * question. Derived rather than flipped by a side effect when the field
+   * is typed into, so what the toggle shows is always what will be saved
+   * and nothing changes under the teacher's hand.
+   */
+  const [drillChoice, setDrillChoice] = useState<boolean | null>(
+    card ? card.drill !== false : null
+  );
+  const drill = drillChoice === null ? !fills.trim() : drillChoice;
   /* Which words this phrase teaches. Confirmed, never assumed: the matcher
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
@@ -3886,9 +3915,15 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      practice it. Better to say so here than to save something inert. */
   /* A conversation needs a name and two turns. One line with the reply
      missing is a phrase card in the wrong editor. */
+  /* Which variables the card names, and whether its fields agree about
+     them. A frame whose English has a hole and whose script has not is a
+     question that asks for a name and marks an answer that never contained
+     one, so it is not a card that can be saved. */
+  const holes = scene ? [] : slotsOf(main);
+  const trouble = scene ? null : forms.map((f) => slotTrouble(f)).find(Boolean) || null;
   const canSave = scene
     ? !!title.trim() && written.length >= 2
-    : main.ar.trim() && main.en.trim();
+    : main.ar.trim() && main.en.trim() && !trouble;
   const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
   return (
@@ -3912,6 +3947,8 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 note,
                 decks: chosen,
                 uses,
+                fills: fills.trim(),
+                drill,
                 scene: scene
                   ? { title: title.trim(), setting: setting.trim(), speakers, you, lines: written }
                   : null,
@@ -4265,6 +4302,100 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         </Button>
           )}
 
+          {/* ---- variables ----
+              A hole in a phrase, and the cards that fill it. Written here
+              rather than beside the script field because it is one fact
+              about the whole card, and because what a teacher needs to see
+              while writing one is the sentence a student will actually be
+              shown. */}
+          {!scene && (
+            <div className="at-formblock at-mt5">
+              <div className="at-formhead">
+                <span className="at-formnum">Variables</span>
+                <span className="at-formrole">a word this card leaves open</span>
+              </div>
+              <Help>
+                Write <code>{"{{name}}"}</code> anywhere in a card — in every field that
+                has words in it — and each question fills it with a card that says it
+                fills <code>name</code>. A card that means one thing is met as one
+                sentence; a card with a hole in it is met as all of them.
+              </Help>
+
+              {trouble && (
+                <p className="at-formneed unmet">
+                  {trouble.missing.length
+                    ? `${fieldName(trouble.field, lang)} is missing ${trouble.missing
+                        .map((v) => `{{${v}}}`)
+                        .join(" and ")} — every field with words in it has to leave the same holes.`
+                    : `${fieldName(trouble.field, lang)} names ${trouble.extra
+                        .map((v) => `{{${v}}}`)
+                        .join(" and ")}, which no other field does.`}
+                </p>
+              )}
+
+              {holes.map((slot) => {
+                const values = (allCards || []).filter(
+                  (c) =>
+                    String(c.fills || "").toLowerCase() === slot &&
+                    (!c.lang || !lang || c.lang === lang.id) &&
+                    c.id !== ((card && card.id) || "")
+                );
+                return (
+                  <p className="at-formneed" key={slot}>
+                    <code>{`{{${slot}}}`}</code>{" "}
+                    {values.length
+                      ? `· ${plural(values.length, "card")} to fill it: ${values
+                          .slice(0, 6)
+                          .map((c) => c.en || c.ar)
+                          .join(", ")}${values.length > 6 ? "…" : ""}`
+                      : "· nothing fills this yet. Make a card, write the name in it, and set “Fills a variable” to " +
+                        slot +
+                        ". Until then this card can't be practised."}
+                  </p>
+                );
+              })}
+
+              {holes.length > 0 && (main.clips || []).length > 0 && (
+                <Help>
+                  Listening exercises are not offered on a card with a variable in it:
+                  the recording says one of the words, and the next asking wants another.
+                  The recording is kept, and comes back if the variable goes.
+                </Help>
+              )}
+
+              <Field
+                label="Fills a variable"
+                hint="Leave empty unless this card is a value — a name, a number, a colour — that other cards borrow."
+              >
+                <input
+                  className="at-input"
+                  value={fills}
+                  placeholder="e.g. name"
+                  onChange={(e) =>
+                    setFills(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))
+                  }
+                />
+              </Field>
+
+              <Field label="Practised on its own">
+                <Segmented
+                  label="Practised on its own"
+                  options={[
+                    { value: true, label: "Yes" },
+                    { value: false, label: "No" },
+                  ]}
+                  value={drill}
+                  onChange={(v) => setDrillChoice(!!v)}
+                />
+                <Help>
+                  {drill
+                    ? "Asked as a question of its own, like every other card."
+                    : "Never asked on its own. It is here to fill a hole in another card."}
+                </Help>
+              </Field>
+            </div>
+          )}
+
           <div className="at-formblock at-mt5">
             <div className="at-formhead">
               <span className="at-formnum">Decks</span>
@@ -4396,6 +4527,14 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
     [material, lang]
   );
   const scenes = useMemo(() => buildDialogIndex(material), [material]);
+  /* What this teacher's own cards offer each variable, so the list says
+     "Needs a card that fills {{name}}" rather than greying an exercise out
+     for a reason nobody can see. Their whole library, not one deck: a value
+     is borrowed by whichever phrase has a hole of its name. */
+  const values = useMemo(
+    () => (unit: Form) => valuesFor(unit, material, lang && lang.id),
+    [material, lang]
+  );
 
   const mine = material.find((i) => i.id === localIdFor(card.id));
   const offers = useMemo(() => {
@@ -4404,12 +4543,13 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
       units: unitsOf(mine).map((u) => ({ ...u, scene: scenes.get(u.unit.id) || null })),
       lang,
       contextsFor: (unit) => contexts.get(unit.id) || [],
+      valuesFor: values,
       /* A student would not be asked an exercise switched off in the app's
          settings, and a teacher may as well know which those are — but it
          is still worth being able to try one. */
       enabled: (type) => !settings || !settings.types || !!settings.types[type],
     });
-  }, [mine, lang, contexts, scenes, settings]);
+  }, [mine, lang, contexts, scenes, settings, values]);
 
   if (!offers.length) return null;
 
@@ -5382,7 +5522,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, decks: inDecks, uses, scene: written }) =>
+        onSave={({ forms, note, decks: inDecks, uses, fills, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5427,6 +5567,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                         slowClips: main.slowClips || [],
                         note: note.trim(),
                         uses,
+                        /* Which variable it fills, and whether it is a
+                           question of its own. A conversation is neither:
+                           its turns are the cards, and the editor does not
+                           offer either field on one. */
+                        fills,
+                        drill,
                         subs: subs.filter((f: any) => f.ar.trim() || f.en.trim()),
                       }),
                 },

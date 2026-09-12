@@ -10,6 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
    that adding an axis to a language does not silently drop it here. */
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
+import { slotsOf } from "../../src/variables.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -112,6 +113,15 @@ const K = {
   card: (id) => `card:${id}`,
   /** @param {string} owner */
   myCards: (owner) => `mycards:${owner}`,
+  /**
+   * How many times this person's values have changed — the cards that fill
+   * a variable. They belong to no deck, so nothing else moves when one is
+   * written, and a student's device compares deck versions to decide
+   * whether to fetch. Without this a name added today would reach nobody
+   * until something unrelated changed.
+   * @param {string} owner
+   */
+  fillsRev: (owner) => `fillsrev:${owner}`,
   /** @param {string} c */
   code: (c) => `code:${String(c).toLowerCase()}`,
   /** @param {string} h */
@@ -309,10 +319,20 @@ async function readManyJson(store, keys, opts) {
  * @param {Course[]} courses
  * @param {Deck[]} decks
  */
-function materialVersion(courses, decks) {
+/**
+ * @param {any[]} courses
+ * @param {any[]} decks
+ * @param {[string, number][]} fills  Each teacher's value revision — see K.fillsRev.
+ */
+function materialVersion(courses, decks, fills = []) {
   const summary = {
     courses: courses.map((c) => [c.id, c.title, c.language || "", (c.decks || []).length]),
     decks: decks.map((d) => [d.id, d.version || 1, d.title, (d.cardIds || []).length]),
+    /* The values a teacher has written are material too, and the only
+       material that moves without a deck moving: a card that fills a
+       variable is in no deck. Sorted, so two reads of the same site agree
+       whatever order the teachers came back in. */
+    fills: [...fills].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
   };
   return sha(JSON.stringify(summary)).slice(0, 24);
 }
@@ -633,6 +653,25 @@ export default async (req) => {
       }
     }
 
+    /*
+     * Say that this person's values have changed.
+     *
+     * A card that fills a variable belongs to no deck — that is the point
+     * of it: it is borrowed by whichever phrase has a hole of that name —
+     * so writing one moves nothing a student's device compares against.
+     * This is what moves, and my-material folds it into the version it
+     * hands out.
+     * @param {string} owner
+     */
+    async function bumpFills(/** @type {string} */ owner) {
+      if (!owner) return;
+      const at = (await readJson(store, K.fillsRev(owner))) || {};
+      await writeJson(store, K.fillsRev(owner), {
+        rev: (Number(at.rev) || 0) + 1,
+        updated: Date.now(),
+      });
+    }
+
     /* Delete cards the person may delete. Returns what happened to each id,
        so a batch can report partial success rather than stopping at the
        first card that isn't theirs. */
@@ -644,6 +683,8 @@ export default async (req) => {
       const removals = new Map();
       /** @type {Map<string, string[]>} owner -> ids, for their mycards lists */
       const owned = new Map();
+      /** @type {Set<string>} whose values changed, if any of these was one */
+      const filledOwners = new Set();
       for (const id of ids) {
         const card = await loadCard(id);
         if (!card) {
@@ -666,6 +707,9 @@ export default async (req) => {
           if (!theirs) owned.set(card.owner, (theirs = []));
           theirs.push(id);
         }
+        /* A value that has gone has to reach the devices holding it, and
+           nothing else about it moves — see bumpFills. */
+        if (card.fills) filledOwners.add(card.owner || "");
         result.deleted.push(id);
       }
       await pullFromDecks(removals);
@@ -674,6 +718,7 @@ export default async (req) => {
         const list = (await readJson(store, K.myCards(owner))) || [];
         await writeJson(store, K.myCards(owner), list.filter((/** @type {string} */ x) => !gone.includes(x)));
       }
+      for (const owner of filledOwners) await bumpFills(owner);
       return result;
     }
 
@@ -755,6 +800,20 @@ export default async (req) => {
         ),
         note: String(card.note || "").slice(0, 500),
         lang: String(card.lang || "").slice(0, 12),
+        /* Which variable this card fills, where it is a value rather than
+           something to learn. Narrowed to the shape a slot can name — the
+           braces in a card are matched on exactly these characters — and
+           lowered, so {{Name}} and {{name}} are one variable rather than
+           two that look alike. */
+        fills: String(card.fills || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]/g, "")
+          .slice(0, 24),
+        /* Whether it is practised in its own right. Stored as a boolean
+           either way rather than only when false: a card that has been
+           turned off and on again must come back as on, and an absent field
+           would leave the client reading the last value it synced. */
+        drill: card.drill !== false,
         answers: storedAnswers(card),
         subs: Array.isArray(card.subs)
           ? card.subs.slice(0, 12).map((/** @type {Record<string, any>} */ sb) => ({
@@ -844,9 +903,13 @@ export default async (req) => {
       let saved;
       /** @type {string[]} */
       let current = [];
+      /* Whether this card was a value before this save, so that turning one
+         back into an ordinary card reaches the devices holding it too. */
+      let wasFilling = "";
       if (id) {
         const existing = await loadCard(id);
         if (!existing) return json({ error: "no-card" }, 404);
+        wasFilling = String(existing.fills || "");
         current = await decksHolding(existing);
         if (existing.owner !== mine && !me.admin) {
           /* A card in a deck I teach is mine to correct — a deck it is
@@ -923,6 +986,7 @@ export default async (req) => {
       }
       saved.inDecks = final;
       await writeJson(store, K.card(saved.id), saved);
+      if (fields.fills || wasFilling) await bumpFills(saved.owner || "");
       await taught();
       return json({ ok: true, card: { ...saved, decks: final }, decks: deckRecords });
     }
@@ -1170,7 +1234,28 @@ export default async (req) => {
         Boolean
       );
 
-      const version = materialVersion(courseRows, deckRows);
+      /* Whose values can reach this person: whoever owns a deck they hold,
+         and whoever teaches a course they are in — the same two lists the
+         bundling below reads from, so what is sent and what the version
+         covers cannot come apart. Their revisions go into the version
+         because a value belongs to no deck, and nothing else about it would
+         move when one is written. */
+      const teacherHandles = [
+        ...new Set(
+          deckRows
+            .map((/** @type {any} */ d) => d.owner)
+            .concat(courseRows.flatMap((/** @type {any} */ c) => c.teachers || []))
+            .filter(Boolean)
+        ),
+      ];
+      const fillsRevs = await readManyJson(
+        store,
+        teacherHandles.map((h) => K.fillsRev(h)),
+        EVENTUAL
+      );
+      /** @type {[string, number][]} */
+      const fillsAt = teacherHandles.map((h, i) => [h, (fillsRevs[i] && fillsRevs[i].rev) || 0]);
+      const version = materialVersion(courseRows, deckRows, fillsAt);
       const courses = courseRows.map((c) => ({
         ...c,
         code: undefined,
@@ -1209,12 +1294,52 @@ export default async (req) => {
       const cardRows = await readManyJson(store, allCardIds.map((id) => K.card(id)), EVENTUAL);
       const cardById = new Map();
       allCardIds.forEach((id, i) => cardRows[i] && cardById.set(id, cardRows[i]));
-      const cards = decks.map((d) => ({
-        deckId: d.id,
-        cards: d.cardIds.map((/** @type {string} */ id) => cardById.get(id)).filter(Boolean),
-      }));
+      /*
+       * The values a deck's phrases need, sent with it.
+       *
+       * A card that fills a variable is in no deck: it is borrowed by
+       * whichever phrase has a hole of its name, and asking a teacher to
+       * file "Raphael" under Lesson 3 to make "My name is {{name}}" work
+       * would be filing it where nobody would look for it. So the server
+       * works out which variables a deck actually asks for and sends the
+       * cards that answer them.
+       *
+       * From the teachers of the course the deck is in, in the deck's own
+       * language: those are the people whose material reaches this student
+       * at all, and a Vietnamese name in an Arabic frame is not a variation
+       * on the sentence but a different sentence.
+       *
+       * Nothing is read here for a site that uses no variables — the first
+       * line is a scan of cards already in hand.
+       */
+      const bundled = [];
+      for (const d of decks) {
+        const own = d.cardIds.map((/** @type {string} */ id) => cardById.get(id)).filter(Boolean);
+        const wanted = new Set(own.flatMap((/** @type {any} */ c) => slotsOf(c)));
+        if (!wanted.size) {
+          bundled.push({ deckId: d.id, cards: own });
+          continue;
+        }
+        const course = deckToCourse.get(d.id);
+        const from = [...new Set([d.owner, ...((course && course.teachers) || [])])].filter(Boolean);
+        const held = new Set(own.map((/** @type {any} */ c) => c.id));
+        const values = [];
+        for (const owner of from) {
+          /** @type {string[]} */
+          const ids = (await readJson(store, K.myCards(owner), EVENTUAL)) || [];
+          const rows = await readManyJson(store, ids.map((id) => K.card(id)), EVENTUAL);
+          for (const c of rows) {
+            if (!c || !c.fills || !wanted.has(String(c.fills).toLowerCase())) continue;
+            if (d.lang && c.lang && c.lang !== d.lang) continue;
+            if (held.has(c.id)) continue;
+            held.add(c.id);
+            values.push(c);
+          }
+        }
+        bundled.push({ deckId: d.id, cards: own.concat(values) });
+      }
 
-      return json({ ok: true, version, teaches, courses, decks, cards });
+      return json({ ok: true, version, teaches, courses, decks, cards: bundled });
     }
 
     /* Everything in a course is visible to everyone in it. */

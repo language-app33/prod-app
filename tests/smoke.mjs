@@ -127,6 +127,30 @@ const talk = {
   ],
   clips: [], subs: [], rev: 1, updated: 1,
 };
+/* A phrase with a hole in it, and the cards that fill it. The frame is in
+   the deck; the values are in none at all, which is the whole point of them
+   — they reach a student because the deck's phrases ask for them, not
+   because anybody filed them under Lesson 1. */
+const frameCard = {
+  id: "k444444444444", owner: "t-1", ar: "اسمي {{name}}", en: "My name is {{name}}",
+  lat: "ismi {{name}}", note: "", lang: "ar-PS", number: "singular", gender: "masculine",
+  classifier: "", clips: [], subs: [], uses: [], rev: 1, updated: 1, created: 1,
+};
+/** @param {string} id @param {string} ar @param {string} en @param {string} lat */
+const nameCard = (id, ar, en, lat) => ({
+  id, owner: "t-1", ar, en, lat, note: "", lang: "ar-PS", number: "singular",
+  gender: "masculine", classifier: "", clips: [], subs: [], uses: [],
+  /* What makes it a value: which variable it fills, and that it is never a
+     question of its own. */
+  fills: "name", drill: false, rev: 1, updated: 1,
+  /* When each was made, which is the order the values are offered in — the
+     rotation walks that list, and a card with no date would take today's
+     and sort against the others by luck. Every card the server has ever
+     stored carries one. */
+  created: ar === "رافائيل" ? 2 : 3,
+});
+const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
+const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
 let versionHits = 0;
 /* The build the bundle was compiled with — see the define above — so the
@@ -179,8 +203,20 @@ const fakeFetch = async (input, opts = {}) => {
       return json({
         ok: true, version, teaches: true,
         courses: [{ id: "c1", title: "Arabic 101", language: "ar-PS", decks: ["d1"], role: "student", studying: true, teaching: false }],
-        decks: [{ id: "d1", title: "Lesson 1", owner: "t-1", cardIds: [card.id, phrase.id], cardCount: 2, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 3 }],
-        cards: [{ deckId: "d1", cards: [card, phrase] }],
+        decks: [
+          { id: "d1", title: "Lesson 1", owner: "t-1", cardIds: [card.id, phrase.id], cardCount: 2, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 1 }], version: 3 },
+          /* A second deck, holding the phrase with a hole in it. Its own,
+             so that what a session over Lesson 1 asks is what it always
+             asked — and so the values below are seen arriving with the deck
+             that needs them rather than with any deck at all. */
+          { id: "d2", title: "Introductions", owner: "t-1", cardIds: [frameCard.id], cardCount: 1, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 2 }], version: 1 },
+        ],
+        /* Each deck's own cards, and — as the server bundles them — the
+           values its phrases leave holes for. */
+        cards: [
+          { deckId: "d1", cards: [card, phrase] },
+          { deckId: "d2", cards: [frameCard, rafa, viktor] },
+        ],
       });
     }
     /* What a teacher's own space is built from. The same two cards the
@@ -198,13 +234,23 @@ const fakeFetch = async (input, opts = {}) => {
     if (action === "my-decks") {
       return json({
         ok: true,
-        decks: [{ id: "d1", title: "Lesson 1", owner: account.handle, lang: "ar-PS", cardIds: [card.id, phrase.id], cardCount: 2, courses: [{ courseId: "c1", addedAt: 1 }] }],
+        decks: [
+          { id: "d1", title: "Lesson 1", owner: account.handle, lang: "ar-PS", cardIds: [card.id, phrase.id], cardCount: 2, courses: [{ courseId: "c1", addedAt: 1 }] },
+          { id: "d2", title: "Introductions", owner: account.handle, lang: "ar-PS", cardIds: [frameCard.id], cardCount: 1, courses: [{ courseId: "c1", addedAt: 2 }] },
+        ],
       });
     }
     if (action === "my-cards") {
       return json({
         ok: true,
-        cards: [{ ...card, decks: ["d1"] }, { ...phrase, decks: ["d1"] }, { ...talk, decks: [] }],
+        cards: [
+          { ...card, decks: ["d1"] },
+          { ...phrase, decks: ["d1"] },
+          { ...talk, decks: [] },
+          { ...frameCard, decks: ["d2"] },
+          { ...rafa, decks: [] },
+          { ...viktor, decks: [] },
+        ],
       });
     }
     if (action === "create-deck") {
@@ -342,7 +388,17 @@ check("stored document no longer carries an account", !("account" in stored));
    and the one on the wire — as the JSON they are. */
 /** @type {Record<string, any>} */
 const byId = Object.fromEntries(stored.items.map((/** @type {any} */ i) => [i.id, i]));
-check("both course cards and every old card landed in storage", stored.items.length === 6 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+check("both course cards and every old card landed in storage", stored.items.length === 9 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+/* And the values the deck's phrases need, which are in no deck at all: they
+   arrive because a phrase leaves a hole of their name, carrying what makes
+   them values rather than cards to learn. */
+check("the cards that fill a variable arrive with the deck that needs them",
+  !!byId["srv" + rafa.id] && byId["srv" + rafa.id].fills === "name" &&
+    byId["srv" + rafa.id].drill === false,
+  JSON.stringify(byId["srv" + rafa.id] ? { fills: byId["srv" + rafa.id].fills, drill: byId["srv" + rafa.id].drill } : "not here"));
+check("and the phrase with the hole in it arrives as written",
+  !!byId["srv" + frameCard.id] && byId["srv" + frameCard.id].en === "My name is {{name}}",
+  byId["srv" + frameCard.id] ? byId["srv" + frameCard.id].en : "no frame card");
 
 /* What a course card is, rather than what it used to be told it was. Every
    one of them arrived labelled "word" — which is why the practice filter did
@@ -361,7 +417,10 @@ check("a v2 card gains no state for the retired exercise",
   byId.v2card && !("ar2tr" in byId.v2card.s),
   byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
 check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
-check("every card counts as ready to practice", /Cards ready to practice\s*6/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+/* Seven of the nine: the two values are held and never counted. A card
+   that fills a hole in somebody else's sentence is not a card waiting to be
+   practised, and counting it would promise a session that never comes. */
+check("every card counts as ready to practice, and a value is not one", /Cards ready to practice\s*7/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
 const wire = remoteDocs.get(realToken)?.data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
@@ -2504,8 +2563,125 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("removing an answer takes its transliteration with it",
     saidFields().length === 1, `${saidFields().length} left`);
 
+  /* ---- a hole has to be left in every field, or in none ----
+     A frame whose English has a hole and whose script has not is a question
+     that asks for a name and marks an answer that never contained one. The
+     editor is where somebody can still fix it, so it is refused here rather
+     than discovered in a session. */
+  /* The fields are labelled by the text above them rather than by an
+     aria-label, so they are found the way the eye finds them: the block
+     holding that label, and the input in it. */
+  const fieldNamed = (/** @type {RegExp} */ re) => {
+    const field = [...document.querySelectorAll(".at-formblock.main .at-field")].find((f) =>
+      re.test(((f.querySelector(".at-label") || {}).textContent || "").trim())
+    );
+    return field ? field.querySelector("input") : null;
+  };
+  /** The React-controlled value setter, the way a keystroke sets one. */
+  const typeInto = (/** @type {any} */ el, /** @type {string} */ value) => {
+    if (!el) return false;
+    const proto = el.tagName === "TEXTAREA" ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype;
+    const setter = must(Object.getOwnPropertyDescriptor(proto, "value"), "the value descriptor").set;
+    must(setter, "the value setter").call(el, value);
+    el.dispatchEvent(new w.Event("input", { bubbles: true }));
+    return true;
+  };
+  const saveBtn = () => /** @type {any} */ (buttonNamed(/^Save$|^Saving…$/) || null);
+  typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
+  await sleep(80);
+  typeInto(fieldNamed(/^English$/), "My name is {{name}}");
+  await sleep(200);
+  check("a card with a hole in one field only cannot be saved",
+    !!saveBtn() && saveBtn().disabled,
+    `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+  check("and the editor says which field is short of it",
+    /is missing \{\{name\}\}/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+  typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi {{name}}");
+  await sleep(200);
+  check("and it can be saved once every field leaves the same hole",
+    !!saveBtn() && !saveBtn().disabled,
+    `save is ${saveBtn() && saveBtn().disabled ? "still refused" : "offered"}`);
+
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+}
+
+/* ---- a hole in a card, filled ----
+   "My name is {{name}}" is a frame, not a sentence: the question fills it
+   with one of the cards that say they fill `name`, and fills every field
+   with the same one — so the prompt, the marking and the answer screen are
+   looking at the same person. Driven through the teacher's own trial,
+   because that asks one named exercise rather than whichever one a shuffled
+   queue reaches. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+
+  const holeTile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("My name is"));
+  check("a card with a variable is listed as it was written",
+    !!holeTile && /\{\{name\}\}/.test(holeTile.textContent || ""),
+    holeTile ? (holeTile.textContent || "").replace(/\s+/g, " ").slice(0, 60) : "no tile");
+  click(holeTile);
+  await sleep(450);
+
+  /* What a card with a variable can and cannot be asked. The listening ones
+     are gone and say why: a recording says one of the names, and the next
+     asking wants another. */
+  const tryLabels = [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label") || "");
+  check("a card whose words change cannot be asked by ear, and says so",
+    tryLabels.some((l) => /^Listen/.test(l) && /words that don't change/.test(l)),
+    tryLabels.filter((l) => /^Listen/.test(l)).join(" | ") || "(no listening exercises listed)");
+  check("and everything that reads it is still offered",
+    tryLabels.some((l) => /^Try English →/.test(l)) && tryLabels.some((l) => /^Try Arabic script → English$/.test(l)),
+    tryLabels.join(" | "));
+
+  const toScript = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try English →/.test(b.getAttribute("aria-label") || ""));
+  click(toScript);
+  await sleep(600);
+
+  const asked = () =>
+    ((document.querySelector('[data-el="question-prompt"]') || {}).textContent || "").replace(/\s+/g, " ").trim();
+  check("the question is asked with the hole filled in",
+    asked() === "My name is Raphael", asked() || "(no prompt)");
+  check("and nothing of the frame is left showing",
+    !/[{}]/.test(asked()), asked());
+
+  /* The marking is looking at the same person. Typing the name that was
+     shown is right; typing the other one — a real card, a real name, the
+     one this question did not ask about — is not. */
+  const answerBox = document.querySelector('[data-el="answer-input"]');
+  const setValue = must(
+    Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+    "the input's value descriptor",
+  ).set;
+  const answer = (/** @type {string} */ value) => {
+    must(setValue, "the input's value setter").call(answerBox, value);
+    if (answerBox) answerBox.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  answer("اسمي رافائيل");
+  await sleep(60);
+  click(buttonNamed(/^Check$/));
+  await sleep(300);
+  check("the answer is marked against the name the question showed",
+    /Correct|Good job|Nicely done|Great/.test(
+      (document.querySelector('[data-el="verdict"]') || {}).textContent || ""
+    ),
+    (document.querySelector('[data-el="verdict"]') || {}).textContent || "(no verdict)");
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+
+  /* And the other name is a card in its own right on this device, which is
+     never asked as a question of its own. */
+  const stored = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  const held = (stored.items || []).find((/** @type {any} */ i) => i.id === "srv" + viktor.id);
+  check("a value is held like any card, and practised like none",
+    !!held && held.fills === "name" && held.drill === false,
+    held ? `fills=${held.fills} drill=${held.drill}` : "not on the device");
 }
 
 /* ---- one set of controls over every card list ----

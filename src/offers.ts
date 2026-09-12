@@ -28,6 +28,7 @@ import type { ExerciseSpec, Form, Lang } from "./types.ts";
 import type { Placed } from "./dialogs.ts";
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
+import { slotsOf } from "./variables.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
 
 /*
@@ -48,7 +49,30 @@ export function unmetNeeds(
   scene: Placed | null,
   /** The phrases that show this unit in use. */
   contexts: { recs?: { id: string }[] }[],
+  /** What each of the unit's variables can be filled with, where it has any. */
+  values: Record<string, unknown[]> = {},
 ): string[] {
+  const holes = slotsOf(unit);
+  const unfilled = holes.filter((slot) => !((values && values[slot]) || []).length);
+  /*
+   * Two things a variable takes away from a card, both of them reported
+   * here so a greyed-out exercise says which.
+   *
+   * A hole with nothing to put in it is not a question: there is no
+   * sentence to show and nothing to mark against. And a card whose words
+   * change cannot be heard — the recording says one name, and the next
+   * asking of it wants another — so every listening exercise is off the
+   * table until somebody records each filling, which is not a thing this
+   * app can hold. Said out loud rather than quietly dropped: a teacher who
+   * wrote a variable into a card with four recordings on it should be told
+   * where they went.
+   *
+   * Either of them is the whole answer and comes back alone: a card with a
+   * hole nothing fills is not waiting for a recording as well, and saying
+   * so would be two reasons where there is one thing to do.
+   */
+  if (unfilled.length) return [`fills:${unfilled.join(",")}`];
+  if (holes.length && spec.promptField === "audio") return ["fixed"];
   return spec.needs.filter((f: string) => {
     if (f === "recs") return !(unit.recs || []).length;
     if (f === "contexts") return !contexts.length;
@@ -68,7 +92,12 @@ export function unmetNeeds(
 /* Whether this unit can be asked this exercise at all: nothing missing,
    the right shape of card, and a language that drills it. */
 export function canAsk(
-  on: { unit: Form; scene: Placed | null; contexts: { recs?: { id: string }[] }[] },
+  on: {
+    unit: Form;
+    scene: Placed | null;
+    contexts: { recs?: { id: string }[] }[];
+    values?: Record<string, unknown[]>;
+  },
   type: string,
   lang: Lang,
 ): boolean {
@@ -76,7 +105,7 @@ export function canAsk(
   if (!spec || spec.retired) return false;
   if ((spec.dialog || "word") !== roleOf(on.unit, on.scene)) return false;
   if (!drilledBy(spec, lang, on.unit)) return false;
-  return unmetNeeds(on.unit, spec, on.scene, on.contexts).length === 0;
+  return unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values || {}).length === 0;
 }
 
 /* The two reasons a language rather than a card refuses an exercise. */
@@ -115,11 +144,14 @@ export function offersFor({
   units,
   lang,
   contextsFor = () => [],
+  valuesFor = () => ({}),
   enabled = () => true,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
   lang: Lang;
   contextsFor?: (unit: Form) => { recs?: { id: string }[] }[];
+  /** What each of a unit's variables can be filled with. */
+  valuesFor?: (unit: Form) => Record<string, unknown[]>;
   enabled?: (type: string) => boolean;
 }): Offer[] {
   const known = units.map((u) => ({
@@ -127,6 +159,7 @@ export function offersFor({
     isSub: u.isSub,
     scene: u.scene || null,
     contexts: contextsFor(u.unit) || [],
+    values: valuesFor(u.unit) || {},
   }));
 
   const offers: Offer[] = [];
@@ -151,7 +184,9 @@ export function offersFor({
       ready: !!ready,
       /* Said in the card's own language, so "the script" is the name this
          language gives its script. */
-      missing: ready ? [] : unmetNeeds(on.unit, spec, on.scene, on.contexts).map((f) => needLabel(f, lang)),
+      missing: ready
+        ? []
+        : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values).map((f) => needLabel(f, lang)),
       off: !enabled(type),
     });
   }

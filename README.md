@@ -95,6 +95,8 @@ src/
   languages.ts     every language-specific rule: grammar axes, grading,
                    keyboards, exercise definitions. Imports nothing from the
                    app, so it can be read and tested on its own.
+  variables.ts     a hole in a card — "My name is {{name}}" — and the cards
+                   that fill it. Pure, like the two above.
   ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
   spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
@@ -169,3 +171,8 @@ Course cards carry a `source` pointing back at the deck they came from. The
 teacher owns their wording; the student owns their progress. When a teacher
 withdraws a card it is tombstoned rather than merely deleted, so the next
 sync does not hand it back.
+
+A card that fills a variable (`fills: "name"`) belongs to no deck: the server
+sends it with every deck whose phrases leave a hole of that name. It is the
+one thing in the material that crosses a deck boundary, which is why a
+teacher's values carry a revision of their own — see DECISIONS.md.

@@ -283,3 +283,65 @@ sits.
 allowlist by `"ArabicTrainer.jsx"`; it now names files without an extension
 and resolves whichever exists. Anything else that hardcodes a source path
 needs the same treatment before the file it names is converted.
+
+---
+
+## A variable is a hole in one card, filled by another
+
+**12 September 2026** · `src/variables.ts`, `server/api/courses.js`
+(`my-material`), `src/ArabicTrainer.tsx` (`castFill`)
+
+A card may leave a word open — "My name is `{{name}}`", in every field it is
+written in — and a separate card, Raphael, says it fills `name`. Each
+question fills the hole before anything reads the card. The point is that a
+frame learnt as one lump is a sentence somebody can say once; met as
+Raphael, then Victor, then Sarah, it is a sentence they can say about
+anyone, which is the thing actually being taught.
+
+**Values are cards, not a list on the variable.** They have to carry three
+fields — the script, the meaning and the transliteration — because the hole
+is in all three and one question fills all three from the same value. A list
+of strings could fill one. Being cards also means they are written in the
+editor everybody already knows, sync like everything else, and can be turned
+into something drilled later by one checkbox.
+
+**Which is why every card now says whether it is practised on its own.**
+"What does Raphael mean" is not a question, so `drill: false` keeps a value
+out of every session and every count. It is a field on all cards rather than
+a property of filling something, because the two are genuinely separate: a
+teacher may want a name drilled as well as borrowed, and a card that fills
+nothing may still be reference material. Absent means yes, which is what
+every card written before this meant.
+
+**The server sends the values with the deck that needs them.** A value
+belongs to no deck — filing "Raphael" under Lesson 3 files it where nobody
+would look for it — so `my-material` reads the slots a deck's cards name and
+bundles the matching values from the deck's owner and the course's teachers,
+in the deck's language. This is the only material that crosses a deck
+boundary, and it costs a per-owner revision (`K.fillsRev`) folded into the
+material version: nothing else about a value moves when it is written, so
+without that stamp a name added today would reach nobody until something
+unrelated changed.
+
+**Rotated, not drawn**, like the phrase a word is shown in and the accepted
+answer a pronunciation question is about — and for the same reason: `turn` is
+a count, so the same count is the same sentence and a re-render cannot swap
+the name under somebody halfway through typing. Two variables turn like an
+odometer, so a card with two holes of three values reaches all nine
+sentences rather than three of them.
+
+**What it costs, and what was left out.** A card whose words change cannot be
+the one on a recording, so every listening exercise is refused on a card with
+a hole in it — reported through `unmetNeeds` as a thing the card is waiting
+for, rather than quietly dropped, because a teacher who writes a variable
+into a card with four recordings on it should be told where they went.
+Agreement is not handled: "{{name}} is tall" is طويل or طويلة depending on
+who is being described, and nothing here knows that. The frame is the
+teacher's to write so that the hole is safe, and the editor says so. If it
+is wanted, the pieces are in place — values are cards and cards carry
+gender — but it is a second feature, not a flag on this one.
+
+**Every field with words in it leaves the same holes**, refused at save time
+rather than found in a session: a frame whose English has a hole and whose
+script has not is a question that asks for a name and marks an answer that
+never contained one.

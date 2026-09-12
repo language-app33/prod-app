@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.80 — 12 September 2026
+
+- **Teaching · a card can leave a word open.** Write `{{name}}` anywhere in
+  a card — in every field that has words in it — and make separate cards
+  for Raphael, Victor and Sarah, each saying it fills `name`. The question
+  a student is asked is then "My name is Raphael", and "My name is Victor"
+  the next time it comes round. A frame learnt as one lump is a sentence
+  somebody can say once; met as all three it is a sentence they can say
+  about anyone.
+- Which name comes up turns over as the card comes round again, the way the
+  phrase a word is shown in does — nothing is drawn at random, so the
+  sentence never changes under you mid-answer, and a card with two holes
+  reaches every combination before it repeats one.
+- **Every card now says whether it is practised on its own.** A value —
+  "Raphael" — is turned off by default: it is there to fill a hole in
+  somebody else's sentence, and "what does Raphael mean" is not a question.
+  It is a choice on every card, so a name can be drilled as well as
+  borrowed if that is what you want.
+- Values reach students with every deck whose phrases need them, whatever
+  deck they are filed in, and a name added today arrives today.
+- Two things a variable costs, both said out loud rather than left to be
+  discovered. Listening exercises are not offered on a card with a hole in
+  it — the recording says one of the names and the next question wants
+  another — and the card can't be practised at all until something fills
+  the hole. Both appear under "Try an exercise" with the reason.
+- A card whose fields disagree about their holes can't be saved: a frame
+  whose English has a hole and whose script has not would ask for a name
+  and mark an answer that never contained one.
+
 ## 0.79 — 12 September 2026
 
 - **The language's own name is a name again, wherever it is written.** The

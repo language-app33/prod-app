@@ -645,11 +645,24 @@ export function needLabel(need: string, lang: Partial<Lang>) {
      of one. */
   const script = (lang && lang.scriptLabel) || "the script";
   const translit = ((lang && lang.translitLabel) || "a romanisation").toLowerCase();
+  /* A variable with nothing to put in it names itself: "a card that fills
+     {{name}}" is a job somebody can go and do, where "a value" is a riddle.
+     The names travel in the need itself, because which variable is short is
+     a fact about this card rather than about the exercise. */
+  if (need.startsWith("fills:")) {
+    const wanted = need.slice(6).split(",").filter(Boolean);
+    if (wanted.length) {
+      return `a card that fills ${wanted.map((n) => `{{${n}}}`).join(" and ")}`;
+    }
+  }
   const names: Record<string, string> = {
     ar: `the word in ${script}`,
     en: "the meaning",
     lat: `the ${translit}`,
     recs: "a recording",
+    /* Not a field to fill in: a card whose words vary cannot be the one on
+       a recording, so hearing it is the one thing a variable costs. */
+    fixed: "words that don't change — a recording can't follow a variable",
     contexts: "a phrase that uses it",
     contextAudio: "a recorded phrase that uses it",
     dialog: "a conversation",

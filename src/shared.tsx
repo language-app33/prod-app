@@ -1863,6 +1863,14 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
               "In no deck"
             )}
           </Row>
+          {/* What the card is for, where it is not simply a card. A value
+              reaches students with every deck whose phrases have a hole of
+              its name, whatever deck it is filed in — which is the one case
+              where "in no deck" above is not the whole story. */}
+          {card.fills ? <Row label="Fills">{`{{${card.fills}}}`}</Row> : null}
+          {card.drill === false ? (
+            <Row label="Practised">Not on its own — it fills other cards</Row>
+          ) : null}
         </section>
       ) : null}
     </div>
@@ -2685,6 +2693,12 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        questions maps them to local ids. */
     uses: (card.uses || []).map(localIdFor),
     note: card.note || "",
+    /* A value card and an ordinary one differ in exactly these two fields:
+       which variable it stands in for, and whether it is practised in its
+       own right. Carried rather than derived, because both are the
+       teacher's decision and neither can be read off the words. */
+    ...(card.fills ? { fills: String(card.fills) } : null),
+    ...(card.drill === false ? { drill: false } : null),
     tags: [deckTitle],
     locked: true,
     flags: [],
@@ -2778,10 +2792,19 @@ export async function pullCourses(
     (r.cards || []).map((x: { deckId: string; cards?: Card[] }) => [x.deckId, x.cards || []]),
   );
 
+  /* One card, once. A card can sit in two of the decks a student holds —
+     and a value card is sent with every deck whose phrases need it — so
+     without this the same card arrived twice under one id, and which of the
+     two won was whichever map happened to be read last. The first deck that
+     carries it names it, which is also the order the decks are shown in. */
   const incoming: Item[] = [];
+  const already = new Set<string>();
   for (const deck of decks) {
     for (const card of cardsByDeck.get(deck.id) || []) {
-      incoming.push(cardToItem(card, deck.title, deck.courseId, deck.id, freshStates));
+      const item = cardToItem(card, deck.title, deck.courseId, deck.id, freshStates);
+      if (already.has(item.id)) continue;
+      already.add(item.id);
+      incoming.push(item);
     }
   }
 
