@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.78 — 12 September 2026
+
+- **Learning · the line above a question** no longer says "this card". It is
+  "Write in English", "Write in Arabic script", where it was "Write this
+  card in English" — the card is the thing on the screen underneath, and
+  naming it was two words of furniture on the one line a learner reads at
+  every single question.
+
 ## 0.77 — 12 September 2026
 
 - **Teaching · one set of controls over every card list.** The Cards tab and

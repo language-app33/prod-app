@@ -35,7 +35,7 @@ export const TYPES = [
 
 export const EX: Record<string, ExerciseSpec> = {
   ar2en: {
-    instruction: "Write this card in English",
+    instruction: "Write in English",
     label: "{Script} → English",
     short: "{S}→E",
     needs: ["ar", "en"],
@@ -60,7 +60,7 @@ export const EX: Record<string, ExerciseSpec> = {
      reference to the type must still resolve to a label rather than crash. */
   ar2tr: {
     retired: true,
-    instruction: "Write this card in {translit}",
+    instruction: "Write in {translit}",
     label: "{Script} → {translit}",
     short: "{S}→T",
     needs: ["ar", "lat"],
@@ -74,7 +74,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "tr",
   },
   tr2ar: {
-    instruction: "Write this card in {script}",
+    instruction: "Write in {script}",
     label: "{Translit} → {script}",
     short: "T→{S}",
     needs: ["lat", "ar"],
@@ -114,7 +114,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "ar",
   },
   en2ar: {
-    instruction: "Write this card in {script}",
+    instruction: "Write in {script}",
     label: "English → {script}",
     short: "E→{S}",
     needs: ["en", "ar"],
