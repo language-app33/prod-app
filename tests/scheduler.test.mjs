@@ -37,6 +37,7 @@ import {
   unitsOf,
   familyMaturity,
   itemDifficulty,
+  graduated,
   mastered,
   openTypes,
   phaseCounts,
@@ -364,25 +365,51 @@ test("a rung opens only once every exercise below it is mastered", () => {
 
 test("a rung with nothing on it is passed straight through", () => {
   const done = state({ phase: "review", interval: MASTERED_DAYS });
-  /* No recording and no transliteration: nothing stands on rung two, so
-     mastering the reading is what opens the writing. */
+  /* No recording and no transliteration: nothing stands on rung three, so
+     mastering the reading and the grid is what opens the writing. */
   assert.deepEqual(openTypes(["match", "ar2en", "en2ar"], (t) => ({ match: done, ar2en: done })[t]),
-    ["match", "ar2en", "en2ar"]);
-  /* Every exercise on a rung has to be mastered, not just one. */
-  assert.deepEqual(openTypes(["match", "ar2en", "en2ar"], (t) => ({ match: done, ar2en: freshState() })[t]),
-    ["match", "ar2en"]);
+    ["ar2en", "match", "en2ar"]);
+  /* Every exercise on a rung has to reach the bar, not just one — and the
+     grid stands above reading the word alone. */
+  assert.deepEqual(openTypes(["match", "rec2en", "ar2en", "en2ar"], (t) => ({ match: done, ar2en: done, rec2en: freshState() })[t]),
+    ["rec2en", "ar2en"]);
   assert.deepEqual(openTypes([], () => undefined), [], "nothing supported, nothing open");
-  /* The order the caller gave is kept: the ladder decides what is open,
-     not where it stands in the list. */
+  /* Rung by rung, and within a rung in the order the caller gave: the
+     ladder decides what is open, and the list's own order does not. */
   assert.deepEqual(openTypes(["en2ar", "ar2en", "match"], (t) => ({ match: done, ar2en: done })[t]),
     ["ar2en", "match", "en2ar"]);
 });
 
+test("the grid opens once a word is through the learning steps alone, and writing once the grid is mastered", () => {
+  const ladder = ["ar2en", "match", "tr2ar", "en2ar"];
+  const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
+  const grad = state({ phase: "review", interval: 1 });
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  assert.deepEqual(openTypes(ladder, table({})), ["ar2en"], "a word never met is read alone, and not yet told apart");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "learning", step: 1 }) })), ["ar2en"],
+    "one right answer is still on the steps");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: grad })), ["ar2en", "match"],
+    "graduated is enough for the grid — it is still recognition");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: grad })), ["ar2en", "match"],
+    "but not for the rung above: the grid has to be mastered too");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done })), ["ar2en", "match", "tr2ar"]);
+  assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), match: done })), ["ar2en"],
+    "and a lapse on the reading takes the grid away again until it is back in review");
+  assert.equal(graduated(state({ phase: "review", interval: 1 })), true);
+  assert.equal(graduated(state({ phase: "relearning", interval: 10 })), false);
+  assert.equal(graduated(freshState()), false);
+});
+
 test("the settings say which rung each exercise stands on, and every one has a rung", () => {
-  for (const t of TYPES) assert.ok([1, 2, 3].includes(levelOf(t)), `${t} has a rung`);
-  /* The gentle half of the set is exactly the bottom rung: "Get started"
-     and the ladder agree about what recognition is. */
-  for (const t of TYPES) assert.equal(levelOf(t) === 1, !!EX[t].gentle, `${t}: gentle iff on rung one`);
+  for (const t of TYPES) assert.ok([1, 2, 3, 4].includes(levelOf(t)), `${t} has a rung`);
+  /* The gentle half of the set is the two bottom rungs — recognising a
+     word alone, then among others — so "Get started" and the ladder agree
+     about what recognition is. */
+  for (const t of TYPES) {
+    if (levelOf(t) === 1) assert.ok(EX[t].gentle, `${t}: the bottom rung is gentle`);
+    if (EX[t].gentle) assert.ok(levelOf(t) <= 2, `${t}: gentle is never production`);
+  }
+  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 2), ["match"], "the grid has a rung of its own");
   assert.equal(levelOf("no-such-exercise"), 1, "an unknown type is read as the bottom rung, not a crash");
 });
 

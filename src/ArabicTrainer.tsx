@@ -9902,9 +9902,10 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
             ) : (
               <>
                 A→E is recognition, T→A production from sound, E→A production from meaning, and
-                the L→ types drill the same things by ear. A card climbs them in that order: the
-                harder ones open only once the easier ones are mastered — four days of interval,
-                in review. Turning types off can drop items below the two-type minimum.
+                the L→ types drill the same things by ear. A card climbs them: it is read on its
+                own first, joins a matching grid once it is through the learning steps, and the
+                harder types open only once everything below them is mastered — four days of
+                interval, in review. Turning types off can drop items below the two-type minimum.
               </>
             )}
           </Help>

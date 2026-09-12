@@ -22,7 +22,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { TYPES, levelOf } from "./languages.ts";
+import { TYPES, barOf, levelOf } from "./languages.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;
@@ -284,20 +284,29 @@ export function mastered(s: ExerciseState): boolean {
   return s.phase === "review" && (s.interval || 0) >= MASTERED_DAYS;
 }
 
+/* Through the learning steps and in review, at whatever interval. A lapse
+   takes it back out until the relearning step is passed. */
+export function graduated(s: ExerciseState): boolean {
+  return s.phase === "review";
+}
+
 /* ------------------------------------------------------------------
    The ladder
 
    A form is recognised before it is produced. Every exercise stands on a
-   rung — recognition, production from a cue, production from the meaning
-   — and a rung is open for a form only once every exercise on the rungs
-   below it that the form supports is mastered. A form with no recording
-   has nothing on rung two but its transliteration, and that alone is what
-   it must master to reach rung three; a form with nothing at all on a
-   rung passes straight through it.
+   rung — recognising the word alone, telling it apart from others,
+   production from a cue, production from the meaning — and a rung is open
+   for a form only once every exercise on the rungs below it that the form
+   supports has reached the rung's bar. The bar is mastered, except where
+   the rung says graduated is enough: the grid asks only that a word has
+   been through the learning steps alone before it is met among others. A
+   form with no recording has nothing on rung three but its
+   transliteration, and that alone is what it must master to reach rung
+   four; a form with nothing at all on a rung passes straight through it.
 
-   Whether a rung counts as mastered is read afresh every time, so a lapse
-   on the bottom rung closes the ones above it until it is recovered:
-   somebody who can no longer read a word is not asked to write it.
+   Whether the bar is met is read afresh every time, so a lapse on the
+   bottom rung closes the ones above it until it is recovered: somebody who
+   can no longer read a word is not asked to write it.
    ------------------------------------------------------------------ */
 
 /**
@@ -311,15 +320,19 @@ export function mastered(s: ExerciseState): boolean {
 export function openTypes(types: string[], stateOf: (type: string) => ExerciseState | null | undefined): string[] {
   const out: string[] = [];
   const rungs = [...new Set(types.map(levelOf))].sort((a, b) => a - b);
-  let below = true;
   for (const rung of rungs) {
-    if (!below) break;
     const here = types.filter((t) => levelOf(t) === rung);
-    out.push(...here);
-    below = here.every((t) => {
+    /* The rung's bar is the loosest any exercise on it declares — one
+       exercise to a rung in practice, and a rung that has a gentle way
+       up should not be shut by a stricter neighbour. */
+    const bar = here.some((t) => barOf(t) === "graduated") ? graduated : mastered;
+    const lower = types.filter((t) => levelOf(t) < rung);
+    const reached = lower.every((t) => {
       const s = stateOf(t);
-      return !!s && mastered(s);
+      return !!s && bar(s);
     });
+    if (!reached) break;
+    out.push(...here);
   }
   return out;
 }

@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.85 — 12 September 2026
+
+- **A word is met alone before it is met among others.** Match the pairs
+  now has a rung of its own on the ladder, above reading a word on its own
+  and below producing it: a card joins a grid only once its single-word
+  recognition exercises — script → English, listen → English, choose the
+  missing word — are through the learning steps and in review. That is the
+  graduation bar rather than the four-day one the rest of the ladder asks,
+  because the grid is still recognition and a first week without any grid
+  would have been the wrong week. The rung above the grid — writing from
+  the transliteration, from sound — opens only once the grid, too, is
+  mastered.
+
+  So a card you have never seen is never dealt into a matching grid, as a
+  question or as company. A learner's very first session has no grid at
+  all; the second usually does.
+
 ## 0.84 — 12 September 2026
 
 - **A card is recognised before it is produced.** Every exercise type now

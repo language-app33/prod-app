@@ -12,11 +12,14 @@ it and knowing it when you hear it are scheduled separately.
 Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
 - **A card is recognised before it is produced.** Every exercise type stands
-  on a rung — recognition, production from a cue, production from the
-  meaning alone — and a form is asked the next rung only once every
-  exercise it supports on the rungs below is *mastered*: in review, with
-  an interval of at least four days. A lapse below closes the rungs above
-  until it is recovered.
+  on a rung — recognising the word alone, telling it apart from others in
+  a grid, production from a cue, production from the meaning alone — and a
+  form is asked the next rung only once every exercise it supports on the
+  rungs below has reached that rung's bar. The bar is *mastered* — in
+  review, with an interval of at least four days — except for the grid,
+  which opens once the word is *graduated*: through the learning steps
+  and in review at all. A lapse below closes the rungs above until it is
+  recovered.
 - **New cards are introduced only while there is room.** Beyond the
   per-session limit in the settings, nothing new is dealt while ten cards
   are already being learnt or forty are young and still coming back for
