@@ -139,6 +139,9 @@ import {
   grammarFields,
   normDimValue,
   showsOneAnswer,
+  keysFor,
+  answerOf,
+  typeOf,
   verbOf,
 } from "./languages.ts";
 import {
@@ -219,7 +222,12 @@ import type { Value } from "./variables.ts";
    opened yet is young, not new. The progress screen and the room-for-new
    sums both read this, so they agree about how full a learner's hands are. */
 const familyMaturity: (it: Item) => string = (it) =>
-  familyMaturityOf(it, (u) => openTypesOf(availableTypes(u), (t) => statesOf(u)[t]));
+  familyMaturityOf(it, (u) =>
+    openTypesOf(
+      availableTypes(u).flatMap((t) => keysFor(u, t)),
+      (k) => statesOf(u)[k],
+    ),
+  );
 const itemDifficulty: (it: Item) => string = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
 import { applyUpdate, holdUpdates } from "./updates.ts";
@@ -726,7 +734,7 @@ function contextsFor(unitId: string): any[] {
  */
 function pickContext(unit: Form, type: string) {
   const list = contextsFor(unit.id).filter((c) =>
-    EX[type] && EX[type].needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
+    specOf(type) && specOf(type).needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
   );
   if (!list.length) return null;
   const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
@@ -844,7 +852,7 @@ function verbValue(
  */
 function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
-  const spec = EX[type];
+  const spec = specOf(type);
   if (!spec) return resolved;
   /* Which way this question goes is written down once, in the language
      table, so it can be read and checked against every exercise at once
@@ -852,9 +860,14 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
   if (!showsOneAnswer(type)) return resolved;
   const bySound = spec.needs.includes("lat");
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  /* Which answer this question is about is the key's to say, not the
+     count's: a card accepting two words carries a schedule for each, and
+     the one being asked is named in the key that was dealt. Only where
+     there is no such key — a question about a pronunciation, which picks
+     among the answers that have one — does the count still decide. */
   const answer = bySound
     ? answerForTurn(resolved.unit, seen)
-    : answerAt(resolved.unit, seen, answerFields());
+    : answerAt(resolved.unit, answerOf(type), answerFields());
   if (!answer) return resolved;
   const unit = (oneAnswer(resolved.unit, answer) as any);
   return {
@@ -882,7 +895,7 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
  */
 function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
-  const spec = EX[type];
+  const spec = specOf(type);
   /* Where the meaning is the question, and where it is the answer: a card
      that means two things puts one of them up, so the tile the learner
      taps is the string this is marked against. Without it a card reading
@@ -1029,7 +1042,7 @@ export function withoutListening(exercises: Question[], from: number, items: Ite
     /* The phrase named on the old question is not necessarily right for the
        new one — a spoken context may have no written place to stand, and a
        question that needs no context must not carry one. Decided fresh. */
-    const ctx = EX[pick].needs.includes("contexts") ? pickContext(resolved.unit, pick) : null;
+    const ctx = specOf(pick).needs.includes("contexts") ? pickContext(resolved.unit, pick) : null;
     const { ctx: _dropped, ...rest } = ex;
     tail.push({ ...rest, type: pick, ...(ctx ? { ctx: ctx.id } : null) });
   }
@@ -1071,11 +1084,19 @@ function enabledTypes(it: Form, settings: Settings): string[] {
   );
 }
 
+/* The exercise a schedule key is about. Keys carry which accepted answer
+   they belong to, and nothing that reads a spec cares which. */
+const specOf = (key: string) => EX[typeOf(key)];
+
 /* And of those, the ones on a level the form has reached — see the ladder
    in the scheduler. This is what a session asks from; enabledTypes is what
    a card supports, which is the question the card list and the counts of
    what is drillable ask. A level that has not opened is still the card's
-   to reach, not a hole in it. */
+   to reach, not a hole in it.
+
+   Keys rather than types, so a card accepting two words is dealt both and
+   counted as having both still to learn. The ladder itself is unchanged:
+   it reads a level off a key the same way it read one off a type. */
 function openTypes(it: Form, settings: Settings): string[] {
   /* The levels are read over everything the card supports and the learner
      has switched on, and only then is the quiet window applied: a
@@ -1089,8 +1110,10 @@ function openTypes(it: Form, settings: Settings): string[] {
      card is, and therefore how much room there is for anything new. A row
      still to come is the card's to reach, not a hole in it. */
   if (cellClosed(it)) return [];
-  const supported = availableTypes(it, langOf(settingsFor(settings, it))).filter((t) => settings.types[t]);
-  return openTypesOf(supported, (t) => statesOf(it)[t]).filter((t) => typeAllowedNow(t));
+  const supported = availableTypes(it, langOf(settingsFor(settings, it)))
+    .filter((t) => settings.types[t])
+    .flatMap((t) => keysFor(it, t));
+  return openTypesOf(supported, (k) => statesOf(it)[k]).filter((k) => typeAllowedNow(k));
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -1407,7 +1430,7 @@ function buildSession({
       /* Asked in the table's own order, which runs from recognition to
          production: which exercises a unit gets is a matter of chance,
          the order they come in is not. */
-      picked.sort((x, y) => TYPES.indexOf(x) - TYPES.indexOf(y));
+      picked.sort((x, y) => TYPES.indexOf(typeOf(x)) - TYPES.indexOf(typeOf(y)));
       plans.push({ id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked });
     }
   }
@@ -1543,7 +1566,7 @@ function withGrids(
     if (dealt.has(r.unit.id) || !dropped.has(r.unit.id)) continue;
     const pick = substitute(r.unit, queued.get(keyOf(ex)) || new Set());
     if (!pick) continue;
-    const ctx = EX[pick].needs.includes("contexts") ? pickContext(r.unit, pick) : null;
+    const ctx = specOf(pick).needs.includes("contexts") ? pickContext(r.unit, pick) : null;
     const { mates: _none, ...bare } = ex;
     result.push({ ...bare, type: pick, ...(ctx ? { ctx: ctx.id } : null) });
   }
@@ -1603,7 +1626,7 @@ function pickableTypes(unit: Form, settings: Settings) {
   const fresh = types.every((t) => statesOf(unit)[t].phase === "new");
   return inOrder(types, (t) => {
     const ready = stateReady(statesOf(unit)[t]) ? 0 : 2;
-    const gentle = fresh && !EX[t].gentle ? 1 : 0;
+    const gentle = fresh && !specOf(t).gentle ? 1 : 0;
     return ready + gentle;
   });
 }
@@ -1621,7 +1644,7 @@ function typesForMode(mode: string, settings: Settings) {
      two gentle types, one of which is listening, so during the window it
      builds from recognition alone — which is still the gentle end. */
   const enabled = TYPES.filter((t) => settings.types[t] && typeAllowedNow(t));
-  return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(t)) : enabled;
+  return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(typeOf(t))) : enabled;
 }
 
 /* Ultimate drills every type on every card; the rest take a sample. */
@@ -1661,7 +1684,11 @@ function buildManualSession({ items, settings, ids, mode, count }: {
      material that has to offer two exercises — and is asked from the
      second. */
   const supportedFor = (unit: Form) => availableTypes(unit).filter((t) => allowed.has(t));
-  const usableFor = (unit: Form) => openTypesOf(supportedFor(unit), (t) => statesOf(unit)[t]);
+  const usableFor = (unit: Form) =>
+    openTypesOf(
+      supportedFor(unit).flatMap((t) => keysFor(unit, t)),
+      (k) => statesOf(unit)[k],
+    );
   /* Every exercise the chosen forms support between them, for the
      variety rule below. */
   const offered: Set<string> = new Set();
@@ -5247,7 +5274,9 @@ export default function ArabicTrainer() {
       const it = { ...next.items[idx] };
       it.flags = (it.flags || [])
         .filter((f) => !(f.kind === kind && f.ex === exercise.type && f.subId === (exercise.subId || null)))
-        .concat([{ kind, ex: exercise.type, subId: exercise.subId || null, note: said, at: now() }]);
+        .concat([
+          { kind, ex: typeOf(exercise.type), subId: exercise.subId || null, note: said, at: now() },
+        ]);
       it.updated = now();
       next.items[idx] = it;
       return next;
@@ -5264,7 +5293,10 @@ export default function ArabicTrainer() {
          course material arrives as items named srv<cardId>, and a report
          naming the local one points at nothing an administrator can open. */
       cardId: serverCardId(parentItem),
-      exercise: exercise.type,
+      /* The exercise, not which of the card's accepted answers it was
+         about: a teacher reading the report opens the card, and the
+         schedule key would name a thing only this device tracks. */
+      exercise: typeOf(exercise.type),
       subId: exercise.subId || null,
       /* The id, not the pack: what is stored has to survive being read by
          a build whose pack for it has moved on. */

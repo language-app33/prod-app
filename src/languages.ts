@@ -31,7 +31,7 @@ import type {
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
 import { answersOf } from "./answers.ts";
-import type { AnswerField } from "./answers.ts";
+import type { AnswerField, WithAnswers } from "./answers.ts";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
@@ -472,8 +472,42 @@ export const EX: Record<string, ExerciseSpec> = {
 /* Takes nothing as well as a name: it is asked about whatever a stored
    session holds, which may name an exercise that has since been retired,
    or nothing at all. */
-export const isListening = (type?: string | null): boolean =>
-  !!type && !!EX[type] && EX[type].promptField === "audio";
+/* ---- a schedule key ----
+
+   What a card records progress against. It used to be the exercise type
+   alone, and mostly still is — but a card may accept more than one word,
+   and knowing one spelling is not knowing the other. So where a question
+   shows a single accepted answer (see showsOneAnswer above), each answer
+   carries its own progress, and the key says which:
+
+       "ar2en"     the first accepted answer, or the only one
+       "ar2en@1"   the second
+
+   The first answer keeps the bare type deliberately. Every card written
+   before this reads back exactly as it did, sync goes on merging state key
+   by key without being told anything, and a card with one answer — which
+   is almost all of them — has no suffix anywhere in its document.
+
+   Everything that looks an exercise up goes through typeOf first, so a key
+   can be handed to any of it. */
+
+const KEY_SEP = "@";
+
+/** The key a type and an answer are recorded under. */
+export const keyFor = (type: string, at = 0): string =>
+  at > 0 ? `${type}${KEY_SEP}${at}` : String(type);
+
+/** The exercise a key is about, whichever kind of key it is. */
+export const typeOf = (key: string): string => String(key || "").split(KEY_SEP)[0];
+
+/** And which accepted answer. Zero for a bare type. */
+export const answerOf = (key: string): number =>
+  Math.max(0, Math.floor(Number(String(key || "").split(KEY_SEP)[1]) || 0));
+
+export const isListening = (key?: string | null): boolean => {
+  const spec = key ? EX[typeOf(key)] : null;
+  return !!spec && spec.promptField === "audio";
+};
 
 /* "na" maps to nothing on purpose: a form whose number does not apply should
    carry no number label at all, not the letters "na". labelFor falls back to
@@ -1790,7 +1824,10 @@ export function setActiveLang(id: LangId) {
    so a Vietnamese student is never told to write something in Arabic. */
 export const EX_CACHE = new Map();
 
-export function exOf(type: string, lang: Lang = activeLang()) {
+export function exOf(named: string, lang: Lang = activeLang()) {
+  /* Takes a schedule key as readily as a type: the wording of a question is
+     the same whichever accepted answer it happens to be about. */
+  const type = typeOf(named);
   const spec = EX[type];
   if (!spec) return null;
   const key = `${type}\u0000${lang.id}`;
@@ -1975,8 +2012,8 @@ export function checkAr(given: string, expected: string, settings: Settings) {
   return worst;
 }
 
-export function checkAnswer(typed: string, item: Record<string, any>, type: string, settings: Settings) {
-  const spec = EX[type];
+export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {
+  const spec = EX[typeOf(key)];
   const mode = spec.answerMode;
   /* Nothing to mark: a read-through is met, not answered. It is here so
      that every exercise can be handed to one function, rather than the
@@ -2106,7 +2143,10 @@ export const EASY_TYPES = TYPES.filter((t) => EX[t].gentle);
    a form only once everything below it has reached the level's bar; the
    table here only says which level is which. Anything unknown is treated as
    the bottom level, so a stored session naming a retired type still resolves. */
-export const levelOf = (type: string): number => (EX[type] && EX[type].level) || 1;
+export const levelOf = (key: string): number => {
+  const spec = EX[typeOf(key)];
+  return (spec && spec.level) || 1;
+};
 
 /*
  * Whether this question shows one accepted answer, or keeps them all.
@@ -2134,17 +2174,41 @@ export const levelOf = (type: string): number => (EX[type] && EX[type].level) ||
  * Here rather than in the trainer so the rule can be read, and checked
  * against every exercise at once, without rendering anything.
  */
-export function showsOneAnswer(type: string): boolean {
-  const spec = EX[type];
+export function showsOneAnswer(key: string): boolean {
+  const spec = EX[typeOf(key)];
   if (!spec) return true;
   if (spec.needs.includes("lat")) return true;
   return !(spec.answerMode === "ar" && spec.answerField === "ar");
 }
 
+/*
+ * The schedule keys one form carries for one exercise.
+ *
+ * A card may accept more than one word, and knowing one of them is not
+ * knowing the word beside it. So wherever a question shows a single
+ * accepted answer, each answer is asked and scheduled in its own right,
+ * exactly as each cell of a verb's table is, and the key says which.
+ *
+ * The questions that accept every spelling get one key, because there is
+ * one question there: asked to write a word from its meaning, a learner
+ * who writes either of them has answered it.
+ *
+ * One answer, or none written, is the bare type — which is every card
+ * written before this, unchanged.
+ */
+export function keysFor(form: WithAnswers | null | undefined, type: string): string[] {
+  if (!showsOneAnswer(type)) return [typeOf(type)];
+  const many = answersOf(form, answerFields()).length;
+  if (many < 2) return [typeOf(type)];
+  return Array.from({ length: many }, (_, at) => keyFor(typeOf(type), at));
+}
+
 /* And what the levels below must reach for it to open: mastered unless the
    exercise says graduated is enough. */
-export const barOf = (type: string): "graduated" | "mastered" =>
-  (EX[type] && EX[type].opensOn) || "mastered";
+export const barOf = (key: string): "graduated" | "mastered" => {
+  const spec = EX[typeOf(key)];
+  return (spec && spec.opensOn) || "mastered";
+};
 
 export function defaultTypes(): Record<string, boolean> {
   const out: Record<string, boolean> = {};

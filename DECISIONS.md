@@ -435,3 +435,60 @@ A pack could declare its own exceptions, and that remains open. What is
 here now is the plain answer: each cell keeps the words it was given.
 Seventeen boxes is more typing than three, and it is typing that produces
 something true.
+
+---
+
+## An accepted answer carries its own progress, keyed beside the exercise
+
+**13 September 2026** · `keyFor`/`typeOf`/`answerOf`/`keysFor` in
+`src/languages.ts`
+
+The first entry in this file says the opposite, and the reversal is the
+point of writing this one down. It argued that مبسوط and مبسوطة are "one
+thing to know, two right answers", and that making them sub-forms "would
+have doubled the card's schedule to record a fact about one of its
+answers".
+
+What changed is the verb table. Once every person and tense of a verb is
+scheduled on its own — because knowing *she ate* is not knowing *they ate*
+— the same argument plainly applies one step over: knowing one accepted
+spelling is not knowing the one beside it. The card owner asked for it in
+those words, and they are right. A second accepted answer that is never
+asked in its own right is a word the learner has been shown and never
+tested on.
+
+**What it is not.** The obvious build is the one the first entry refused:
+split the answers into sub-forms. That was offered and turned down, and
+the reason holds — it restructures every card that already has two, and it
+narrows what is marked correct, so a learner who writes the other spelling
+starts being told they are wrong.
+
+**What it is.** A schedule key: the exercise, plus which answer it is
+about.
+
+    "ar2en"     the first accepted answer, or the only one
+    "ar2en@1"   the second
+
+The first answer keeps the bare exercise name, and that one choice is what
+makes the whole thing safe to turn on. Every schedule ever written reads
+back exactly as it did. Sync goes on merging state name by name without
+being told anything, because a key is just another name in the same map.
+`compactItem` still drops what was never answered. A card with one answer —
+almost all of them — has no suffix anywhere in its document, and a card
+with two gains one fresh schedule, which is honest: that answer has never
+been practised on its own.
+
+**Which questions split, and which do not**, is `showsOneAnswer` and not a
+list: a question that *shows* one answer splits, because showing each is a
+different question; a question that asks for the word to be *typed* does
+not, because either spelling answers it and marking the second one wrong is
+the bug a second accepted answer exists to prevent. Listening does not
+split either — a recording belongs to the form rather than to one of its
+spellings, so nothing knows which was said.
+
+**What it costs.** Every reader of a schedule now holds a key where it held
+a type, and everything that looks an exercise up — the ladder, the wording,
+the grader, the quiet window — goes through `typeOf` first. That is a
+handful of call sites and one rule to remember when adding another. The
+alternative was the restructure, and the suffix is the cheaper of the two
+by a long way.

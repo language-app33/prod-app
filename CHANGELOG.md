@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.99 — 13 September 2026
+
+- **A second accepted answer is now practised in its own right.** A card
+  accepting two words for one meaning was showing them turn about but
+  keeping a single record of how they were going, so knowing one counted
+  as knowing both. Each now carries its own progress, comes up on its own
+  schedule, and holds the card back until it too is known — the same rule
+  a verb's table already follows, where every person and tense stands
+  alone.
+
+  It applies to the questions that put one word on the screen: reading it,
+  telling it apart, hearing it. Writing the word from its meaning stays one
+  question with one record, because either spelling answers it, and
+  listening does too, since a recording belongs to the card rather than to
+  one of its spellings.
+
+- **Nothing already learnt was disturbed.** The first accepted answer keeps
+  the record it had, so every card reads back exactly as it did and two
+  devices go on agreeing without being told anything new. A card with one
+  answer — almost all of them — is untouched in every particular. A second
+  answer simply starts fresh, which is the truth about it: it has never
+  been practised on its own before now.
+
 ## 0.98 — 13 September 2026
 
 - **A question shows one accepted answer, never all of them.** A card that
