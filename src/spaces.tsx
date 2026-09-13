@@ -4155,6 +4155,64 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             )}
           </div>
 
+          {/* ---- is it a verb ----
+              The second question about what a card is, and so it stands
+              directly under the first rather than below the forms, where
+              a teacher writing a verb could finish the card without ever
+              scrolling to it.
+
+              Its own control and not a third option in the selector above,
+              because the two questions have different lifetimes. What
+              shape a card is settles when it is written — a word cannot
+              become a conversation, and the selector above is read-only
+              once there is a card. Whether a word conjugates is not like
+              that: "to eat" is written as a plain word early on and given
+              its table weeks later, when the course reaches tenses. Folded
+              into the selector it would inherit that lock, and the only
+              way to add a table would be to delete the card and lose every
+              recording and every student's progress on it.
+
+              Offered only where the language lays verbs out, which is the
+              same thing as saying it is offered where it means anything: a
+              pack that declares no rows and columns has no table to fill
+              in, and nothing here is rendered at all. */}
+          {!scene && verbSpec && (
+            <div className="at-formblock">
+              <div className="at-formhead">
+                <span className="at-formnum">Verb</span>
+                <span className="at-formrole">its forms, one for each person and tense</span>
+                <span className="at-formacts">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAsVerb((v) => !v)}
+                  >
+                    {asVerb ? "Not a verb" : "This is a verb"}
+                  </Button>
+                </span>
+              </div>
+              {asVerb ? (
+                <>
+                  <Help>
+                    Write each form in the {lang.scriptLabel.toLowerCase()} box. Leave a
+                    box empty where {lang.name} has no such form — there is no command
+                    for <em>I</em> — and it is never asked. The tenses open in the order
+                    below, one at a time. The word itself goes in the main form
+                    underneath, as on any other card.
+                  </Help>
+                  <VerbTable lang={lang} spec={verbSpec} cells={cells} onChange={setCells} />
+                </>
+              ) : (
+                <Help>
+                  {lang.name} marks a verb for who is doing it and when. Say this card is
+                  one and its forms are drilled separately — each on its own schedule, so
+                  a shaky past does not drag the present along with it. It can be said at
+                  any time, including long after the card is written.
+                </Help>
+              )}
+            </div>
+          )}
+
           {scene && (
             <>
               <div className="at-formblock main">
@@ -4459,46 +4517,6 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         >
           Add a form
         </Button>
-          )}
-
-          {/* ---- the verb's table ----
-              Offered only where the language lays verbs out, which is the
-              same thing as saying it is offered where it means anything:
-              a pack that declares no rows and columns has no table to
-              fill in, and this is not rendered at all. */}
-          {!scene && verbSpec && (
-            <div className="at-formblock at-mt5">
-              <div className="at-formhead">
-                <span className="at-formnum">Verb</span>
-                <span className="at-formrole">its forms, one for each person and tense</span>
-                <span className="at-formacts">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAsVerb((v) => !v)}
-                  >
-                    {asVerb ? "Not a verb" : "This is a verb"}
-                  </Button>
-                </span>
-              </div>
-              {asVerb ? (
-                <>
-                  <Help>
-                    Write each form in the {lang.scriptLabel.toLowerCase()} box. Leave a
-                    box empty where {lang.name} has no such form — there is no command
-                    for <em>I</em> — and it is never asked. The tenses open in the order
-                    below, one at a time.
-                  </Help>
-                  <VerbTable lang={lang} spec={verbSpec} cells={cells} onChange={setCells} />
-                </>
-              ) : (
-                <Help>
-                  {lang.name} marks a verb for who is doing it and when. Say this card is
-                  one and its forms are drilled separately — each on its own schedule, so
-                  a shaky past does not drag the present along with it.
-                </Help>
-              )}
-            </div>
           )}
 
           {/* ---- variables ----

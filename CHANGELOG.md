@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.93 — 13 September 2026
+
+- **"Is this a verb?" now sits directly under the kind of card**, instead
+  of below the forms where a teacher could write a whole verb without ever
+  scrolling to it. Both questions about what a card is are now in one
+  place, at the top.
+
+  It stays a control of its own rather than a third option beside *Word or
+  phrase* and *Conversation*, because the two questions have different
+  lifetimes. What shape a card is settles when it is written — a word
+  cannot become a conversation — and that selector is read-only once the
+  card exists. Whether a word conjugates is not like that: a verb is often
+  written as a plain word and given its table weeks later, when the course
+  reaches tenses. Folded into the selector it would inherit the lock, and
+  the only way to add a table would be to delete the card, losing its
+  recordings and every student's progress on it.
+
 ## 0.92 — 13 September 2026
 
 - **Verb cards.** A verb is not one thing to know, and this is the first
