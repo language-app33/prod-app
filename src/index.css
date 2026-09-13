@@ -1732,6 +1732,15 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-stat b { display:block; font-family: var(--ui); font-size:30px; font-weight:800; letter-spacing:-.02em; }
 .at-stat span { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
 /* The compact row used on the Progress screen. */
+/* A tile that opens the cards behind its number. The declarations up to
+   `background` undo a button's own chrome, exactly as .at-pcard does below
+   — the rest is the tile it has always been. */
+button.at-stat { display:block; width:100%; font:inherit; color:inherit; text-align:inherit;
+  cursor:pointer; -webkit-appearance:none; appearance:none; }
+button.at-stat.on { border-color: var(--accent); }
+/* Nothing to show, so nothing to press. Dimmed rather than hidden: the
+   number is still the answer to how many there are. */
+button.at-stat:disabled { cursor:default; opacity:.55; }
 .at-stats.tight { grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:16px; }
 .at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
 .at-stats.tight .at-stat b { font-size:19px; }
@@ -1771,8 +1780,11 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    because `.done` sets a border colour of its own further up the file and
    would otherwise outrank the hover. */
 .at-pcard { transition: border-color 140ms ease, transform 140ms ease; }
+button.at-stat { transition: border-color 140ms ease; }
 @media (hover: hover) {
   .at-pcard:hover { border-color: var(--ink); transform: translateY(-1px); }
+  button.at-stat:hover:not(:disabled) { border-color: var(--ink); }
+  button.at-stat.on:hover:not(:disabled) { border-color: var(--accent); }
 }
 .at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
 .at-pcardtop .ar { font-family: var(--sfont); font-size:calc(20px * var(--sscale, 1)); font-weight:700; direction: var(--sdir);

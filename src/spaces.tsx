@@ -4581,6 +4581,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 fills <code>name</code>. A card that means one thing is met as one
                 sentence; a card with a hole in it is met as all of them.
               </Help>
+              {/* The one slot nobody has to write on a card, and so the one
+                  a teacher cannot find by looking at their own cards. */}
+              <Help>
+                <code>{"{{word}}"}</code> is already filled by every word in this
+                language — nothing to write on them, and a word added later joins in
+                without this card being touched.
+              </Help>
 
               {trouble && (
                 <p className="at-formneed unmet">
@@ -4809,7 +4816,12 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
      for a reason nobody can see. Their whole library, not one deck: a value
      is borrowed by whichever phrase has a hole of its name. */
   const values = useMemo(
-    () => (unit: Form) => valuesFor(unit, material, lang && lang.id),
+    /* The kind goes in so that {{word}} finds its fillers here too: it is
+       filled by any word in the language with nothing written on it, and a
+       teacher trying an exercise should see the same words a learner will
+       be shown. */
+    () => (unit: Form) =>
+      valuesFor(unit, material, lang && lang.id, (c) => kindOf(c, lang)),
     [material, lang]
   );
 

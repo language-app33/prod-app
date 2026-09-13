@@ -124,6 +124,7 @@ import {
   findWordSpan,
   guessKind,
   inScript,
+  kindOf,
   isListening,
   groupAttrOf,
   labelFor,
@@ -208,7 +209,7 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fillForm, hasSlots, slotsOf, valueOf, valuesForTurn } from "./variables.ts";
+import { fillForm, fillsOf, hasSlots, slotsOf, valueOf, valuesForTurn } from "./variables.ts";
 import type { Value } from "./variables.ts";
 
 /*
@@ -4490,17 +4491,27 @@ export default function ArabicTrainer() {
      would hand somebody a different name for the same count. */
   const valueIndex = useMemo(() => {
     const map: Map<string, Value[]> = new Map();
-    const fillers = asking
-      .filter((it) => it.fills)
-      .sort((a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id));
-    for (const it of fillers) {
-      const slot = String(it.fills || "").toLowerCase();
+    /* Every card, not only the ones naming a slot: `{{word}}` is filled by
+       any word in the language with nothing written on it to say so, so
+       what a card fills has to be asked of the card rather than read off a
+       field. Ordered by when they were made, as before — the rotation
+       walks this list, and a list that reordered itself on a sync would
+       hand somebody a different word for the same count. */
+    const byAge = [...asking].sort(
+      (a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id),
+    );
+    for (const it of byAge) {
+      const langId = langIdOf(it, settings);
+      const slots = fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings)));
+      if (!slots.length) continue;
       /* With whatever the language declares about it, so a verb standing
          in the same sentence can agree with it. */
       const value = valueOf(it, grammarFields());
       if (!value.ar) continue;
-      const key = valueKey(langIdOf(it, settings), slot);
-      map.set(key, (map.get(key) || []).concat([value]));
+      for (const slot of slots) {
+        const key = valueKey(langId, slot);
+        map.set(key, (map.get(key) || []).concat([value]));
+      }
     }
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -9164,8 +9175,19 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
   }, [items]);
 
   const buckets = ["new", "learning", "young", "mature"];
-  const totals: Record<string, number> = { new: 0, learning: 0, young: 0, mature: 0 };
-  for (const it of items) totals[familyMaturity(it)] += 1;
+  /* The cards behind each number, worked out once with the numbers
+     themselves: a tile opens to show them, and counting them twice — once
+     to say four hundred and once to list them — is a walk of every card
+     for nothing. */
+  const byBucket = useMemo(() => {
+    const out: Record<string, Item[]> = { all: items, new: [], learning: [], young: [], mature: [] };
+    for (const it of items) (out[familyMaturity(it)] || []).push(it);
+    return out;
+  }, [items]);
+  /* Which tile is open, or none. One at a time: they are five views of the
+     same cards, and two open at once is a screen you have to scroll past
+     rather than read. */
+  const [showing, setShowing] = useState<string>("");
 
   /* A card shows up under each of its decks, and once under "Not in a deck" if
      it has none. */
@@ -9202,18 +9224,57 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
         How well you know each deck. Open one to see its cards.
       </Help>
 
+      {/* A number you want to see the cards behind is a number worth
+          pressing. Buttons rather than divs with a click on them: there is
+          nothing interactive inside a tile, so it can be the one thing you
+          press and the one thing a keyboard reaches. */}
       <div className="at-stats tight">
-        <div className="at-stat">
-          <b>{items.length}</b>
-          <span>Cards</span>
-        </div>
-        {buckets.map((b) => (
-          <div className="at-stat" key={b}>
-            <b style={{ color: b === "new" ? "var(--text)" : MATURITY_COLOR[b] }}>{totals[b]}</b>
-            <span>{MATURITY_LABEL[b]}</span>
-          </div>
-        ))}
+        {[{ key: "all", label: "Cards" }, ...buckets.map((b) => ({ key: b, label: MATURITY_LABEL[b] }))].map(
+          ({ key, label }) => (
+            <button
+              type="button"
+              className={`at-stat${showing === key ? " on" : ""}`}
+              key={key}
+              aria-expanded={showing === key}
+              aria-label={`${byBucket[key].length} ${label} — ${
+                showing === key ? "hide them" : "show them"
+              }`}
+              disabled={!byBucket[key].length}
+              onClick={() => setShowing((v) => (v === key ? "" : key))}
+            >
+              <b style={{ color: key === "all" || key === "new" ? "var(--text)" : MATURITY_COLOR[key] }}>
+                {byBucket[key].length}
+              </b>
+              <span>{label}</span>
+            </button>
+          ),
+        )}
       </div>
+
+      {/* The cards behind the tile that is open, at the smallest size they
+          come in — the point is to see which words are in there, and the
+          list is as long as the number on the tile said it would be. */}
+      {showing && byBucket[showing].length > 0 && (
+        <ItemList
+          noun="card"
+          items={byBucket[showing]}
+          itemKey={(it: Item) => it.id}
+          size="small"
+          empty="No cards match."
+          match={(it: Item, needle: string) =>
+            (it.ar || "").includes(needle) ||
+            (it.lat || "").toLowerCase().includes(needle) ||
+            (it.en || "").toLowerCase().includes(needle)
+          }
+          renderItem={(it: Item) => (
+            <CardTile
+              card={it}
+              lang={langOf(settingsFor(settings, it))}
+              onClick={() => setViewing(it)}
+            />
+          )}
+        />
+      )}
 
       {items.length === 0 ? (
         <Empty title="Nothing to show yet">{noCardsYet(myCourses.length)}</Empty>

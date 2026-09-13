@@ -21,6 +21,8 @@ import {
   valueOf,
   valuesFor,
   valuesForTurn,
+  fillsOf,
+  WORD_SLOT,
 } from "../src/variables.ts";
 import { canAsk, unmetNeeds } from "../src/offers.ts";
 import { EX, LANGUAGES, needLabel } from "../src/languages.ts";
@@ -208,4 +210,77 @@ test("a card whose words change cannot be the one on a recording", () => {
   const fixed = { ...heard, ar: "ismi rafa", en: "My name is Raphael", lat: "ismi rafa" };
   assert.deepEqual(unmetNeeds(fixed, EX.rec2en, null, [], {}), []);
   assert.equal(canAsk({ unit: fixed, scene: null, contexts: [], values: {} }, "rec2en", ar), true);
+});
+
+/*
+ * The one hole nobody has to say they fill.
+ *
+ * Every other variable is a name a teacher invents and then writes on each
+ * card that stands in it. That is right for a hole with a particular sort
+ * of thing in it and wrong for the commonest frame there is — "I like
+ * ____" — where what goes in is simply a word the learner knows. Naming
+ * every word in the deck one at a time to say so is filing, not teaching.
+ */
+test("any word fills {{word}}, with nothing written on it", () => {
+  const word = { id: "w1", ar: "kitaab", en: "book", lat: "kitaab" };
+  assert.deepEqual(fillsOf(word, "word"), [WORD_SLOT]);
+
+  /* And a card that also names a slot of its own stands in both. */
+  const named = { id: "n1", ar: "Raphael", en: "Raphael", lat: "", fills: "name" };
+  assert.deepEqual(fillsOf(named, "word"), ["name", WORD_SLOT]);
+
+  /* Saying it fills `word` adds nothing: it already did. */
+  assert.deepEqual(fillsOf({ ...word, fills: "word" }, "word"), ["word"]);
+});
+
+test("only a word fills it, and never a card with a hole of its own", () => {
+  const phrase = { id: "p1", ar: "sukkir il-baab", en: "close the door", lat: "" };
+  assert.deepEqual(fillsOf(phrase, "phrase"), []);
+  assert.deepEqual(fillsOf(phrase, "sentence"), []);
+  assert.deepEqual(fillsOf(phrase, "dialog"), []);
+
+  /* A frame dropped into somebody else's hole is a sentence with a gap
+     where the point was — and dropped into its own, a sentence inside
+     itself. */
+  const frame = { id: "f1", ar: "bḥibb {{word}}", en: "I like {{word}}", lat: "" };
+  assert.deepEqual(fillsOf(frame, "word"), []);
+
+  /* A caller with no opinion about kinds gets the named slot alone, which
+     is what every card did before this existed. */
+  assert.deepEqual(fillsOf({ ar: "Raphael", en: "Raphael", fills: "name" }, ""), ["name"]);
+  assert.deepEqual(fillsOf({ ar: "kitaab", en: "book" }, ""), []);
+});
+
+test("a frame with {{word}} in it is filled from the whole vocabulary", () => {
+  const frame = { ar: "bḥibb {{word}}", en: "I like {{word}}", lat: "bḥibb {{word}}" };
+  const pool = [
+    { id: "w1", ar: "kitaab", en: "book", lat: "kitaab", lang: "ar-PS" },
+    { id: "w2", ar: "beit", en: "house", lat: "beit", lang: "ar-PS" },
+    /* Not a word, so not a filler. */
+    { id: "p1", ar: "sukkir il-baab", en: "close the door", lat: "", lang: "ar-PS" },
+    /* Another language's word is a different sentence, not a variation. */
+    { id: "v1", ar: "nhà", en: "house", lat: "", lang: "vi-Hue" },
+  ];
+  /** @param {any} c */
+  const kind = (c) => (String(c.ar || "").includes(" ") ? "phrase" : "word");
+  const have = valuesFor(frame, pool, "ar-PS", kind);
+  assert.deepEqual(have.word.map((/** @type {any} */ v) => v.ar), ["kitaab", "beit"]);
+
+  /* And without being told what a kind is, the hole has nothing in it —
+     which is what keeps this module ignorant of every language. */
+  assert.deepEqual(valuesFor(frame, pool, "ar-PS").word, []);
+});
+
+test("a named hole and the built-in one fill from different cards", () => {
+  const frame = { ar: "{{name}} bḥibb {{word}}", en: "{{name}} likes {{word}}", lat: "" };
+  const pool = [
+    { id: "n1", ar: "Raphael", en: "Raphael", lat: "", fills: "name", lang: "ar-PS" },
+    { id: "w1", ar: "kitaab", en: "book", lat: "", lang: "ar-PS" },
+  ];
+  const have = valuesFor(frame, pool, "ar-PS", () => "word");
+  /* Raphael is a word too, so he stands in both — which is right: "Raphael
+     likes Raphael" is a sentence, and a rule to forbid it would be a rule
+     about names. */
+  assert.deepEqual(have.name.map((/** @type {any} */ v) => v.ar), ["Raphael"]);
+  assert.deepEqual(have.word.map((/** @type {any} */ v) => v.ar), ["Raphael", "kitaab"]);
 });

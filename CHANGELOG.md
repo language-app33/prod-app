@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.100 — 13 September 2026
+
+- **`{{word}}` is filled by every word you teach, with nothing written on
+  them.** Every other variable is a name you invent and then write on each
+  card that stands in it, which is right for a hole with a particular sort
+  of thing in it and wrong for the commonest frame there is. Write *I like
+  {{word}}* once and it is met with the whole vocabulary, and a word added
+  next month joins in without the frame being touched.
+
+  Only words fill it — not a phrase, not a conversation, and never a card
+  with a hole of its own, which dropped into another hole would be a
+  sentence with a gap where the point was. A card that already fills a
+  variable of yours fills both.
+
+- **The counts at the top of Progress open.** New, Learning, Young and
+  Mature, and the total beside them, were plain text, so the only way to
+  find out which cards were still new was to read down every deck. Press
+  one and its cards appear underneath at the smallest size they come in,
+  searchable, each opening the card. Press it again to put them away. A
+  count with nothing behind it is dimmed rather than hidden, because the
+  number is still the answer to how many there are.
+
 ## 0.99 — 13 September 2026
 
 - **A second accepted answer is now practised in its own right.** A card

@@ -54,6 +54,48 @@ const SLOT = /\{\{\s*([A-Za-z0-9_-]+)\s*\}\}/g;
 /** The fields a slot may stand in. The three a form is written in. */
 export const FILLED_FIELDS = ["ar", "en", "lat"];
 
+/**
+ * The one slot nobody has to say they fill.
+ *
+ * Every other variable is a name a teacher invents and then writes on the
+ * cards that stand in it: `name` on Raphael, on Victor, on Sarah. That is
+ * right for a hole with a particular sort of thing in it, and wrong for
+ * the commonest frame of all — "I like ____", "where is the ____" — where
+ * what goes in the hole is simply a word the learner knows. Naming every
+ * word in the deck one at a time to say so is filing, not teaching.
+ *
+ * So `{{word}}` is filled by any word card in the same language, with
+ * nothing written on it. A teacher writes one frame and it is met with the
+ * whole vocabulary, and every word added afterwards joins in without the
+ * frame being touched.
+ *
+ * Reserved, therefore: a card saying it fills `word` adds nothing, and a
+ * teacher wanting a narrower hole picks another name.
+ */
+export const WORD_SLOT = "word";
+
+/**
+ * Which slots a card can stand in: the one it names, and the built-in.
+ *
+ * The kind is passed in rather than worked out here, for the reason
+ * answers.ts is handed the fields it may narrow against: what counts as a
+ * word is the language's business — a script written without spaces
+ * between words does not divide them the way Arabic does — and this module
+ * knows no language. A caller with no opinion passes nothing and gets the
+ * named slot alone, which is what every card did before this existed.
+ *
+ * A frame is not a filler, whatever kind it reads as. A card with a hole
+ * in it dropped into somebody else's hole is a sentence with a gap where
+ * the point was, and if the frame is the one being filled it is a sentence
+ * inside itself.
+ */
+export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[] {
+  const named = String((card && card.fills) || "").toLowerCase();
+  const out = named ? [named] : [];
+  if (kind === WORD_SLOT && !hasSlots(card) && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
+  return out;
+}
+
 /* A form, a card, or the half-written thing in an editor — anything with
    those three fields to read. Open for the same reason answers.ts is. */
 export type WithSlots = Record<string, unknown>;
@@ -147,17 +189,22 @@ export function valuesFor(
   form: WithSlots | null | undefined,
   pool: WithSlots[],
   lang?: string,
+  /** What kind of card this is — see fillsOf. Without it, only named slots. */
+  kindOf?: (card: WithSlots) => string,
 ): Record<string, Value[]> {
   const wanted = slotsOf(form);
   const out: Record<string, Value[]> = {};
   for (const slot of wanted) out[slot] = [];
   if (!wanted.length) return out;
   for (const card of pool || []) {
-    const fills = String((card && card.fills) || "").toLowerCase();
-    if (!fills || !out[fills]) continue;
     if (lang && card.lang && card.lang !== lang) continue;
+    const slots = fillsOf(card, kindOf ? kindOf(card) : "");
+    if (!slots.length) continue;
     const value = valueOf(card);
-    if (value.ar) out[fills].push(value);
+    if (!value.ar) continue;
+    /* A card may stand in more than one hole now: the one it names, and
+       the built-in that every word fills. */
+    for (const slot of slots) if (out[slot]) out[slot].push(value);
   }
   return out;
 }
