@@ -416,9 +416,22 @@ storing positions, and a server that now has to carry them through its
 sub-form whitelist. The sub-form cap went from twelve to sixty-four: twelve
 is three fewer than Arabic's smallest useful table, so a teacher would have
 filled in twenty-one forms, saved, and got back the first twelve with no
-error anywhere. And a cell's English is composed from the row's — "she" and
-"ate" make "she ate" — but only as a starting point, written onto the cell
-and editable there. English says *she eats* where it says *I eat*, and a
-rule for that would be a rule about English living in a file that is
-supposed not to know any language. So the app proposes and the teacher
-disposes: three words typed per row, and two cells fixed by hand.
+error anywhere.
+
+**A cell's English is typed, and briefly was not.** There was a box per row
+that wrote every cell in it from one word, composing "she" and "ate" into
+"she ate", so a teacher wrote three words instead of seventeen. It shipped,
+and it was wrong in the place a learner meets first: English inflects the
+present and nothing else, so "eat" composed across a row gave "he eat" and
+"she eat" beside "I eat" and "we eat", and a command composed across every
+column offered "I: eat!". The fix each time was the teacher correcting the
+app's own output on every regular verb they would ever write.
+
+The tempting repair is a rule — mark the third person singular, skip the
+command outside the second person. Both are facts about English, and this
+is a file whose whole point is that it knows no language: the same rule
+would be wrong for the next pack, and right only by accident for this one.
+A pack could declare its own exceptions, and that remains open. What is
+here now is the plain answer: each cell keeps the words it was given.
+Seventeen boxes is more typing than three, and it is typing that produces
+something true.

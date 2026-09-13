@@ -1428,9 +1428,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
       tenses: [
         { id: "present", label: "present" },
         { id: "past", label: "past" },
-        /* "you (m): eat!" — a command is addressed to somebody rather than
-           said about them, and reads wrong run together. */
-        { id: "command", label: "command", join: ": " },
+        { id: "command", label: "command" },
       ],
     },
     /* What each shade of not-quite-right is called here. The tiers are the
@@ -1657,7 +1655,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
         { id: "present", label: "present" },
         { id: "past", label: "past" },
         { id: "future", label: "future" },
-        { id: "command", label: "command", join: ": " },
+        { id: "command", label: "command" },
       ],
     },
     verdicts: {

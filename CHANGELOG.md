@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.97 — 13 September 2026
+
+- **"English for this row" is gone. Each form's meaning is typed on the
+  form.** The box wrote a whole row from one word — *ate* giving *I ate*,
+  *she ate* — which saved typing and produced wrong English where it
+  mattered most. The present tense came out as *he eat* and *she eat*
+  beside *I eat*, and the command offered *I: eat!* for every person it
+  does not apply to. Correcting it was work on every regular verb a
+  teacher would ever write.
+
+  Knowing better would mean the app knowing that English marks the third
+  person, which is exactly the kind of thing the language packs exist to
+  keep out of it. So each box says what somebody typed in it, and nothing
+  is derived.
+
 ## 0.96 — 13 September 2026
 
 - **Every form of a verb can now carry its pronunciation and its own

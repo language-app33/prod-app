@@ -24,7 +24,6 @@ import {
   cellIsOpen,
   cellsOf,
   colOf,
-  composeEnglish,
   framesOf,
   isCell,
   isFrame,
@@ -118,17 +117,17 @@ test("the alternate forms of a verb card are still alternate forms", () => {
   assert.equal(cellAt(withSub, "present", "we"), null);
 });
 
-test("a cell's English is composed from the row and the column", () => {
-  assert.equal(composeEnglish(arabic, "past", "she", "ate"), "she ate");
-  assert.equal(composeEnglish(arabic, "present", "i", "eat"), "I eat");
-  /* A command is addressed to somebody rather than said about them, and
-     the language says so on the row. */
-  assert.equal(composeEnglish(arabic, "command", "you-m", "eat!"), "you (m): eat!");
-  /* Nothing to compose from is nothing, not a bare pronoun. */
-  assert.equal(composeEnglish(arabic, "past", "she", ""), "");
-  /* A language whose verbs do not vary by person has an unlabelled column,
-     and its row's English stands alone. */
-  assert.equal(composeEnglish(viet, "past", "any", "ate"), "ate");
+test("a cell says what it was given, and nothing is derived from it", () => {
+  /* There was a compose step here, making a cell's English from the row's
+     and the column's label. It is gone: English inflects the present, so
+     "eat" across a row gave "he eat" beside "I eat", and a rule that knew
+     better would be a rule about English in a file that knows no language.
+     What a cell means is now only ever what somebody typed, which is what
+     this checks — read it back exactly, whatever the row and column. */
+  assert.equal(must(cellAt(toEat, "present", "he"), "he eats").en, "he eats");
+  assert.equal(must(cellAt(toEat, "present", "i"), "I eat").en, "I eat");
+  assert.equal(must(cellAt(toEat, "command", "you-m"), "the command").en, "you (m): eat!");
+  assert.equal(must(cellAt(toEatViet, "past", "any"), "đã ăn").en, "ate");
 });
 
 test("the subject's grammar picks the column", () => {

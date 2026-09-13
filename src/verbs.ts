@@ -167,51 +167,26 @@ export const tensesOf = (spec: VerbSpec | null | undefined): VerbTense[] =>
 export const personsOf = (spec: VerbSpec | null | undefined): VerbPerson[] =>
   (spec && Array.isArray(spec.persons) ? spec.persons : []).filter((p) => p && str(p.id));
 
-const tenseAt = (spec: VerbSpec | null | undefined, row: string): VerbTense | null =>
-  tensesOf(spec).find((t) => t.id === str(row)) || null;
-
-const personAt = (spec: VerbSpec | null | undefined, col: string): VerbPerson | null =>
-  personsOf(spec).find((p) => p.id === str(col)) || null;
-
-/**
- * What to call one cell, in the learner's own language.
+/*
+ * What a cell means is typed, not composed.
  *
- * "she" and "ate" make "she ate", which is what the learner is asked —
- * never "to eat · she · past", which names a place in a table rather than
- * a thing anybody says.
+ * There was a function here that made one from the row's English and the
+ * column's label — "she" and "ate" giving "she ate" — so that a teacher
+ * wrote three words instead of seventeen. It is gone, and the reason is
+ * worth keeping: it could not be right, and it was wrong in the place a
+ * learner would meet first.
  *
- * Composed rather than stored **only as a starting point**: the editor
- * writes the result onto the cell, the cell keeps it, and a teacher who
- * needs something else types it. That matters because this cannot be
- * right everywhere on its own — English says "she eats" where it says "I
- * eat", and a rule for that would be a rule about English living in a file
- * that is supposed not to know any language. So the app proposes, the
- * teacher disposes, and what is asked is always the words on the cell.
+ * English inflects the present and nothing else, so "eat" composed across
+ * a row gave "I eat" and "we eat" correctly and "he eat" and "she eat"
+ * beside them. A command composed across every column offered "I: eat!"
+ * and "he: eat!", which nobody says. The fix each time was the teacher
+ * correcting the app's own output, on every regular verb they ever wrote —
+ * and a rule that knew better would be a rule about English, living in a
+ * file whose whole point is that it knows no language at all.
  *
- * A person with no label of its own — the single column of a language
- * whose verbs do not vary — contributes nothing, and the row's English
- * stands alone.
+ * So each cell carries the words it was given. Seventeen boxes typed is
+ * more work than three, and it is work that produces something true.
  */
-export function composeEnglish(
-  spec: VerbSpec | null | undefined,
-  row: string,
-  col: string,
-  rowEnglish: string,
-): string {
-  const said = str(rowEnglish);
-  if (!said) return "";
-  const person = personAt(spec, col);
-  const who = person ? str(person.label) : "";
-  if (!who) return said;
-  /* Where a row says how to join it — a command is "you (m): eat!" rather
-     than "you (m) eat!" — the language says so once, on the row. Read
-     without trimming, unlike everything else here: the whole of what a
-     separator says is often its spaces, and ": " trimmed to ":" is the
-     punctuation without the gap it was written for. */
-  const tense = tenseAt(spec, row);
-  const join = tense && typeof tense.join === "string" && tense.join ? tense.join : " ";
-  return `${who}${join}${said}`;
-}
 
 /* ---- agreement: which cell a subject calls for ---- */
 

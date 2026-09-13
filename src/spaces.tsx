@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { composeEnglish, isCell, personsOf, tensesOf } from "./verbs.ts";
+import { isCell, personsOf, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -3830,13 +3830,12 @@ const fieldName = (field: string, lang: Lang): string =>
  * the heading says so — a teacher filling in the past should know the
  * learner will not see it until the present is known.
  *
- * The English is the thing that would otherwise be typed seventeen times.
- * A row's English is written once and stands as every cell's placeholder,
- * composed with the person's own label — "she" and "ate" make "she ate" —
- * and whatever is showing when the card is saved is what the cell keeps. A
- * cell that needs to say something else is typed over, which is what
- * English's own irregulars need: "eat" is right for six of the seven and
- * wrong for "he".
+ * Each cell's English is typed. There was a row-level box that wrote all
+ * of them from one word — "ate" giving "I ate", "she ate" — and it is gone
+ * for the reason set out in verbs.ts: what it produced was wrong in the
+ * present, where English inflects and the app must not know that it does.
+ * Seventeen boxes is more typing than three and it is typing that produces
+ * something true.
  */
 /* What to call one cell out loud — "past · she". Read off the language's
    own labels, so a pack that names no persons says only its tense. */
@@ -3853,47 +3852,18 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
   onChange: (cells: Record<string, any>[]) => void;
   onRecord: (row: string, col: string) => void;
 }) {
-  /* The row's English lives here and is never stored: it is a way of
-     writing the cells' English, not a second place the card holds words.
-     What it composes is written straight onto the cells, so the card
-     carries only what a cell actually says and a card reopened later reads
-     its English off the cells themselves. */
-  const [rowEn, setRowEn] = useState<Record<string, string>>({});
   const at = (row: string, col: string) =>
     cells.find((c) => c.row === row && c.col === col) || null;
 
-  /* One cell written, added or dropped. A cell with nothing in either
-     field is not a blank the teacher is coming back to — it is a form the
+  /* One cell written, added or dropped. A cell with nothing in any of its
+     fields is not a blank the teacher is coming back to — it is a form the
      language has not got — so it leaves the list rather than being saved
-     empty. A cell that gains its first word takes the row's English with
-     it, which is the whole point of writing that once. */
+     empty. */
   const write = (row: string, col: string, patch: Record<string, any>) => {
-    const had = at(row, col);
-    const made = had || {
-      ...blankForm(),
-      row,
-      col,
-      en: composeEnglish(spec, row, col, rowEn[row] || ""),
-    };
-    const next = { ...made, ...patch };
+    const next = { ...(at(row, col) || { ...blankForm(), row, col }), ...patch };
     const rest = cells.filter((c) => !(c.row === row && c.col === col));
-    const keep = String(next.ar || "").trim() || String(next.en || "").trim();
+    const keep = ["ar", "en", "lat"].some((f) => String(next[f] || "").trim());
     onChange(keep ? rest.concat([next]) : rest);
-  };
-
-  /* A row's English, changed. Every cell in the row is rewritten from it —
-     including ones typed over by hand, which is the honest reading of
-     going back and changing what the row says. The alternative is
-     remembering which cells were touched and quietly skipping them, and a
-     teacher who fixes "he eats" and then edits the row would be left
-     wondering why one cell did not follow. */
-  const writeRow = (row: string, said: string) => {
-    setRowEn((x) => ({ ...x, [row]: said }));
-    onChange(
-      cells.map((c) =>
-        c.row === row ? { ...c, en: composeEnglish(spec, row, c.col, said) } : c,
-      ),
-    );
   };
 
   const persons = personsOf(spec);
@@ -3920,18 +3890,8 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
             </span>
           </div>
 
-          <Field label="English for this row">
-            <input
-              className="at-input"
-              value={rowEn[tense.id] || ""}
-              placeholder="ate"
-              onChange={(e) => writeRow(tense.id, e.target.value)}
-            />
-          </Field>
-
           {persons.map((person) => {
             const cell = at(tense.id, person.id);
-            const said = composeEnglish(spec, tense.id, person.id, rowEn[tense.id] || "ate");
             /* What to call this one when a label has to name it out loud —
                for a screen reader, and on the recording screen's title. */
             const which = [tense.label, person.label].filter(Boolean).join(" · ");
@@ -3960,7 +3920,7 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
                     className="at-input"
                     aria-label={`English for ${which}`}
                     value={(cell && cell.en) || ""}
-                    placeholder={said}
+                    placeholder="English"
                     onChange={(e) => write(tense.id, person.id, { en: e.target.value })}
                   />
                 </div>

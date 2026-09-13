@@ -132,13 +132,6 @@ export interface VerbPerson {
 export interface VerbTense {
   id: string;
   label: string;
-  /**
-   * What goes between the person and the row's English. A space unless
-   * said otherwise — a command reads "you (m): eat!" rather than
-   * "you (m) eat!", and only the language knows which of its rows are
-   * like that.
-   */
-  join?: string;
 }
 
 /** A language's verb table: its columns, and its rows in teaching order. */
