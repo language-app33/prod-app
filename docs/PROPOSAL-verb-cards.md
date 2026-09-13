@@ -63,7 +63,8 @@ phrase with a word missing. A verb card lets the gap ask for the *right*
 form: a teacher writes "Yesterday she ___ an apple" with the gap pointing
 at *to eat*, and the learner is marked right only for *she · past*. This is
 the exercise that makes the table worth learning, because it is the one
-that happens in conversation.
+that happens in conversation. With holes in it, one such sentence becomes
+many — see *Verbs and variables* below.
 
 Each cell is asked and scheduled on its own, the way each word in a matching
 grid already is. A learner solid on the present and shaky on the past sees
@@ -88,42 +89,42 @@ write the same forms and the only way to get the *which form?* questions.
 ## Verbs and variables
 
 A card may already leave a hole in itself — *My name is {{name}}* — and
-other cards say they fill it, a different one each time. Verbs add
-nothing to that idea. **Every cell of a verb card fills a hole named for
-it.** A hole called *she-past* is filled by the she · past cell of every
-verb the learner has met — أكلت, شربت, قرأت — in the script and in the
-English alike.
+other cards fill it, a different one each time. A verb card carries a
+sentence of its own in the same way, with the verb's place marked and
+holes around it:
 
-**A verb as a variable.** The teacher writes the sentence and leaves the
-verb out:
+> *{{name}} [verb] {{object}}*
+> → Sarah ate an apple · Ahmad ate bread · the children ate fish
 
-> *Yesterday Sarah {{she-past}} an apple*
-> → Yesterday Sarah ate an apple · drank · wanted · bought
+The verb is the card. The holes are filled from other cards, as today,
+and **the verb's form follows what fills them.** Sarah is singular and
+feminine, so the verb is *she*: أكلت. Ahmad makes it *he*: أكل. The
+children make it *they*: أكلوا. Nothing has to be added to a name for
+this to work — its number and gender are already recorded on it, because
+the app records them on every answer. The object changes the sentence and
+not the form.
 
-One frame becomes as many sentences as the learner has verbs. The learner
-writes the whole sentence each time, and the form inside it is a
-different cell each time.
+A sentence can be tied to a row — *Yesterday {{name}} [verb] {{object}}*
+wants the past — or left free, and a free sentence is asked in whichever
+rows are open. Either way the learner is asked in English, *Yesterday
+Sarah ate an apple*, *The children eat fish*, and the English agrees too,
+because each cell carries its own.
 
-**A verb with other variables.** A frame may have more than one hole, as
-it may today:
+Which hole decides which axis is the language's to say, the same way it
+names its rows and columns. Arabic says the subject's number and gender
+pick the column. Vietnamese says nothing does. A language whose verb
+changes with its object — Hungarian, where *I see a house* and *I see the
+house* end differently — says the object's hole picks that axis. The app
+knows only that a filler has properties, a table has axes, and the
+language has said which reads which.
 
-> *{{woman}} {{she-past}} an apple*
-> → Sarah ate an apple · Layla drank an apple
-
-The teacher keeps the holes agreeing the way they already keep a sentence
-agreeing: by what they put in them. A hole filled with women's names goes
-with a *she* cell, one filled with men's names with a *he* cell, and an
-*I* cell needs no subject hole at all. Wanting both is two frames, not a
-rule. Nothing is inferred, and nothing in the app has to know that Sarah
-is a woman.
-
-In Vietnamese, with one column, a hole is named for the row alone —
-*{{past}}* — and fills with *đã ăn*, *đã uống*, *đã mua*.
-
-Two things stay as they are. The frame is what is asked and scheduled, as
-any frame with a hole is today. And a hole takes only cells the learner
-has met, so a she · past cell is not dealt into a sentence before the past
-of that verb has opened.
+It is asked with the exercises the app has: fill the gap, with the
+sentence up and the verb's place empty — *مبارح سارة ___ تفاحة* — or
+English → script, writing the whole sentence. The fillers rotate as
+variables do today, so the same sentence comes round as *she*, then *he*,
+then *they*, and cannot be answered by shape. Each turn asks one cell and
+credits that cell. A filler is dealt only when the cell it would call for
+is open, so a plural name waits until *they* has been met.
 
 ## Where it fits on the ladder
 
@@ -186,6 +187,12 @@ is. Only one tense of a verb is ever new at a time.
 - Where English does not tell two cells apart — *you (m) eat* and *you (f)
   eat* — the column label does the work. Is that enough on a small screen,
   or should the cue say *to a man* and *to a woman* in words?
-- Should a right answer to a frame also credit the cell it used? Today a
-  filler is not scheduled at all. A verb cell is, and a learner who has
-  just written *أكلت* inside a sentence has arguably shown they know it.
+- Could one sentence serve several verbs? *{{name}} [verb] {{object}}*
+  fits *eat*, *drink* and *buy* alike. A sentence a deck shares, with the
+  verb as one more thing slotted in, would be the same rule again. Left
+  out of a first version so that the card stays what carries its
+  sentence.
+- What fills a hole when no filler has the right properties? A sentence
+  whose only names are women's can never ask *he*. The editor could say
+  so when the sentence is saved, as it already does when the fields'
+  holes disagree.

@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.91 — 13 September 2026
+
+- **In the verb-card proposal, a verb's sentence agrees with what fills
+  it.** A verb card carries a sentence of its own — *{{name}} [verb]
+  {{object}}* — and the verb's form follows the number and gender of
+  whatever fills the holes, which the app already records on every
+  answer: Sarah makes it *she ate*, the children *they ate*. Each
+  language says which hole decides which axis; Vietnamese says none does.
+  Still a proposal; nothing in the app changes.
+
 ## 0.90 — 13 September 2026
 
 - **A simpler plan for verbs and variables in the proposal.** Every cell
