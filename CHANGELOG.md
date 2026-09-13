@@ -8,6 +8,121 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.86 — 13 September 2026
+
+- **Two new exercises, both answered by tapping one of four.**
+  **Choose the meaning** puts the word up with four meanings under it, and
+  **English → choose** gives the meaning and offers four words. Between them
+  they are the two halves of knowing a word before you can write it, and
+  neither asks you to write anything.
+
+  Choose the meaning is now the first thing a card is ever asked: nothing is
+  produced, the answer is on the screen, and all it asks is that the word be
+  told from three others. It sits below writing the meaning out. English →
+  choose is a level up, beside the matching grid, because it asks for the
+  word rather than for what it means — so a card is not asked it until its
+  meaning is known.
+
+  Like the grid, both draw their wrong answers from the learner's other
+  cards in the same language, and neither is offered on a card with a
+  variable in it: a filled-in sentence standing among three bare words is
+  the answer given away by its length.
+
+- **Choosing the missing word moved up a level too.** It asks for the word,
+  out of four, which is the same thing English → choose asks — so it now
+  waits for the meaning to be known rather than being one of the first
+  things a card is asked.
+
+- **The ladder is now four levels**, and the word for one of its steps is
+  **level** throughout — in the app, in the settings, and in what the
+  exercises are called:
+
+  1. What the word means — choose the meaning, {script} → English, listen →
+     English, read a scene through.
+  2. Which word it is — match the pairs, English → choose, choose the
+     missing word.
+  3. Write it from a cue — {translit} → script, listen → script, listen →
+     tone, choose the reply, put a scene in order.
+  4. Write it from its meaning — English → script, fill the gap, phrase
+     heard → script.
+
+- **Home counts what is actually waiting.** "Cards ready to practice" now
+  counts a card only where something is due on a level it has reached. A
+  card whose next review is tomorrow used to be counted because an exercise
+  it has not unlocked yet had never been asked.
+
+## 0.85 — 12 September 2026
+
+- **A word is met alone before it is met among others.** Match the pairs
+  now has a level of its own on the ladder, above reading a word on its own
+  and below producing it: a card joins a grid only once its single-word
+  recognition exercises — script → English, listen → English, choose the
+  missing word — are through the learning steps and in review. That is the
+  graduation bar rather than the four-day one the rest of the ladder asks,
+  because the grid is still recognition and a first week without any grid
+  would have been the wrong week. The level above the grid — writing from
+  the transliteration, from sound — opens only once the grid, too, is
+  mastered.
+
+  So a card you have never seen is never dealt into a matching grid, as a
+  question or as company. A learner's very first session has no grid at
+  all; the second usually does.
+
+## 0.84 — 12 September 2026
+
+- **A card is recognised before it is produced.** Every exercise type now
+  stands on a level: recognition (match the pairs, script → English, listen →
+  English, choose the missing word, read a scene through), then producing
+  the word from a cue (transliteration → script, listen → script, listen →
+  tone, choose the reply, put a scene in order), then producing it from its
+  meaning alone (English → script, fill the gap, phrase heard → script). A
+  card is asked the next level only once every exercise it supports on the
+  levels below is mastered — in review, four days of interval or more. Slip
+  on the reading and the writing closes again until you have it back.
+
+  Before this, every exercise a card supported was on the table from the
+  day it was written, softened only by a preference for recognition on the
+  very first outing: a word you had read once could be asked to be written
+  from memory the next day.
+
+- **New cards are introduced only while there is room.** On top of "New
+  cards per session", nothing new is dealt while ten cards are already
+  being learnt, or forty are young and still coming back for review. The
+  settings say so under the slider. Sessions built by hand are not
+  limited, since you chose the cards.
+
+- **Match the pairs is five questions, not one.** Every word in the grid is
+  now asked, marked and scheduled in its own right — a word paired wrong
+  shows the meaning it wanted, under it, and comes back the way any missed
+  word does. The grid's company is dealt when the session is built: the
+  words the session was going to ask anyway, filled out from cards you have
+  already met, the most alike first. A word dealt in to fill the grid that
+  was not due is credited for a right answer without its schedule moving.
+  Nothing you have never met is dealt into a grid, so a grid cannot bring in
+  a card the new-card rules did not admit. A grid can be as small as three
+  words when fewer have been met — a first session's three new words is
+  still a question — and one that cannot be filled to three is not dealt:
+  those words are asked something else instead.
+
+- **Progress reads "Learning" for a card met and not done.** A card with
+  one exercise answered and another not yet — a level just opened, a plural
+  not yet asked — used to count as New, beside a card written this morning.
+  New now means never met.
+
+## 0.83 — 12 September 2026
+
+- **Teaching · a filter for the values.** Cards → Filter now has a
+  **Variables** group: *Any card*, *Fills one*, or *Fills none*. Pick "fills
+  one" and the variables your cards stand in for are listed — `{{name}}`,
+  `{{colour}}` — with how many cards fill each, to tick as many as you want.
+- It is the filter for both halves of the job. Forty names make a card list
+  hard to read, so "fills none" gives you back the material a student is
+  actually asked about; "fills one" with `{{name}}` ticked is every name you
+  have written, in one screen, to check them over.
+- The variables in the list are read off the cards themselves, so one
+  appears the moment a card says it fills it and goes when the last card
+  filling it does.
+
 ## 0.82 — 12 September 2026
 
 - **Match the pairs reads across rather than down.** The words in the

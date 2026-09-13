@@ -28,8 +28,22 @@ import type { AnswerField } from "./answers.ts";
    which states a card carries, what a session may pick, what the settings
    list, what an export has columns for — so retiring a type is one edit here
    and its definition stays below. */
+/* In the order a card climbs them — see `level` on each definition below,
+   and openTypes in the scheduler. A session asks a unit its exercises in
+   this order, so the easiest of whatever it was dealt comes first. The
+   conversation exercises are kept together at the end rather than filed
+   among the words: they are asked of a scene or a turn in one, never of a
+   word, so the two families never stand in the same queue for a unit. */
 export const TYPES = [
-  "match", "ar2en", "rec2en", "tr2ar", "rec2ar", "en2ar", "ctx2pick", "ctx2ar", "rec2ctx", "rec2attr",
+  /* 1: what does it mean */
+  "ar2pick", "ar2en", "rec2en",
+  /* 2: which one is it */
+  "match", "en2pick", "ctx2pick",
+  /* 3: write it from a cue */
+  "tr2ar", "rec2ar", "rec2attr",
+  /* 4: write it from its meaning */
+  "en2ar", "ctx2ar", "rec2ctx",
+  /* and a conversation, on its own levels: 1, 3, 3 */
   "dlgwhole", "dlgpick", "dlgorder",
 ];
 
@@ -45,6 +59,13 @@ export const EX: Record<string, ExerciseSpec> = {
      asked one word at a time. Which words stand together is therefore the
      exercise — see matchSet and the pool it is handed. */
   match: {
+    /* Its own level, above reading a word on its own: a word is told apart
+       from others only once it has been met alone. Through the learning
+       steps is enough to get there — the grid is still recognition, and
+       the four-day bar the rest of the ladder asks would keep a learner's
+       first week without a grid at all. */
+    level: 2,
+    opensOn: "graduated",
     instruction: "Match each word to its meaning",
     label: "Match the pairs",
     short: "Pairs",
@@ -59,7 +80,31 @@ export const EX: Record<string, ExerciseSpec> = {
     picks: "pair",
     gentle: true,
   },
+  /* The first thing ever asked of a word: here it is, which of these four
+     is what it means. Nothing is written and nothing is produced — the
+     answer is on the screen, and all it asks is that the word be told from
+     three others. It is where a card starts, and the only thing below
+     writing the meaning out.
+
+     Like the grid, it needs company: three other cards to draw the wrong
+     answers from, because a wrong answer nobody could believe is not a
+     wrong answer. Same need, same count — see `mates`. */
+  ar2pick: {
+    level: 1,
+    instruction: "Choose the meaning",
+    label: "{Script} → choose",
+    short: "{S}→?",
+    needs: ["ar", "en", "mates"],
+    question: "What does this mean?",
+    placeholder: "",
+    promptField: "ar",
+    answerField: "en",
+    answerMode: "choice",
+    picks: "meaning",
+    gentle: true,
+  },
   ar2en: {
+    level: 1,
     instruction: "Write in English",
     label: "{Script} → English",
     short: "{S}→E",
@@ -84,6 +129,7 @@ export const EX: Record<string, ExerciseSpec> = {
      unknown key and its callers dereference the result: a stored or exported
      reference to the type must still resolve to a label rather than crash. */
   ar2tr: {
+    level: 3,
     retired: true,
     instruction: "Write in {translit}",
     label: "{Script} → {translit}",
@@ -99,6 +145,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "tr",
   },
   tr2ar: {
+    level: 3,
     instruction: "Write in {script}",
     label: "{Translit} → {script}",
     short: "T→{S}",
@@ -116,6 +163,7 @@ export const EX: Record<string, ExerciseSpec> = {
      meaning, the spelling, the transliteration — is the answer by another
      route, and the point is to work it out from the sound. */
   rec2en: {
+    level: 1,
     instruction: "Listen, then write it in English",
     label: "Listen → English",
     short: "L→E",
@@ -128,6 +176,7 @@ export const EX: Record<string, ExerciseSpec> = {
     gentle: true,
   },
   rec2ar: {
+    level: 3,
     instruction: "Listen, then write it in {script}",
     label: "Listen → {script}",
     short: "L→{S}",
@@ -139,6 +188,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "ar",
   },
   en2ar: {
+    level: 4,
     instruction: "Write in {script}",
     label: "English → {script}",
     short: "E→{S}",
@@ -165,8 +215,13 @@ export const EX: Record<string, ExerciseSpec> = {
      production, and every other word in the app is recognised before it is
      produced. This was the one place that skipped straight to the hard
      half, which is why a learner's first meeting with a word in context
-     was also their first chance to get it wrong. */
+     was also their first chance to get it wrong.
+
+     On the second level for the same reason en2pick is: what it asks for
+     is the word, picked out of four, and a word is asked for only once
+     what it means is known. */
   ctx2pick: {
+    level: 2,
     instruction: "Which word is missing?",
     label: "In a phrase → choose",
     short: "P→C",
@@ -179,7 +234,31 @@ export const EX: Record<string, ExerciseSpec> = {
     picks: "word",
     gentle: true,
   },
+  /* The other way round, and a level up: the meaning is given and the word
+     itself has to be picked out of four. Recognising a spelling is not
+     writing one — the answer is still on the screen — but it is the first
+     question about the word rather than about what it means, which is why
+     it stands with the grid rather than below it.
+
+     A card is not asked this until its meaning is known: the level below
+     is where "what does this mean" lives, and there is nothing to
+     recognise the spelling of until then. */
+  en2pick: {
+    level: 2,
+    instruction: "Choose the word",
+    label: "English → choose",
+    short: "E→?",
+    needs: ["en", "ar", "mates"],
+    question: "Which one means this?",
+    placeholder: "",
+    promptField: "en",
+    answerField: "ar",
+    answerMode: "choice",
+    picks: "word",
+    gentle: true,
+  },
   ctx2ar: {
+    level: 4,
     instruction: "Fill the gap",
     label: "In a phrase → {script}",
     short: "P→{S}",
@@ -197,6 +276,7 @@ export const EX: Record<string, ExerciseSpec> = {
      the point: a word inside running speech is what it will sound like when
      it is met for real. */
   rec2ctx: {
+    level: 4,
     instruction: "Listen to the phrase, then write this word",
     label: "Phrase heard → {script}",
     short: "H→{S}",
@@ -208,6 +288,7 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "ar",
   },
   rec2attr: {
+    level: 3,
     instruction: "Listen, then choose the {attr}",
     label: "Listen → {attr}",
     short: "L→{A}",
@@ -236,6 +317,7 @@ export const EX: Record<string, ExerciseSpec> = {
      nothing marks it. It is put in front of the first question a scene
      asks in a session, because a dialog should never open with a blank. */
   dlgread: {
+    level: 1,
     instruction: "Read the scene",
     label: "Read a scene",
     short: "Read",
@@ -254,6 +336,7 @@ export const EX: Record<string, ExerciseSpec> = {
      turn before it and the turn after, and asked on its own it had
      neither. Reading the whole scene took its place. */
   dlg2en: {
+    level: 1,
     retired: true,
     instruction: "Write this line in English",
     label: "A line → English",
@@ -287,6 +370,7 @@ export const EX: Record<string, ExerciseSpec> = {
    * comes back later than one they did not.
    */
   dlgwhole: {
+    level: 1,
     instruction: "Read the whole conversation",
     label: "Read a scene through",
     short: "Whole",
@@ -302,6 +386,7 @@ export const EX: Record<string, ExerciseSpec> = {
     gentle: true,
   },
   dlgpick: {
+    level: 3,
     instruction: "Choose what you say next",
     label: "Choose the reply",
     short: "Pick",
@@ -319,6 +404,7 @@ export const EX: Record<string, ExerciseSpec> = {
      marked every other one wrong. Choosing the reply asks the same
      question and can be answered. */
   dlgreply: {
+    level: 4,
     retired: true,
     instruction: "Your turn — write it in {script}",
     label: "Your turn → {script}",
@@ -336,7 +422,10 @@ export const EX: Record<string, ExerciseSpec> = {
     hintHideLabel: "Hide meaning",
     answerMode: "ar",
   },
+  /* Putting lines in order is choosing among them, not writing them: a
+     level above reading the scene, and beside choosing the reply. */
   dlgorder: {
+    level: 3,
     instruction: "Put the scene back in order",
     label: "Put a scene in order",
     short: "Order",
@@ -352,6 +441,7 @@ export const EX: Record<string, ExerciseSpec> = {
      answer in the app and the least forgiving: one missed mark in the
      third line made the whole conversation wrong. */
   dlgplay: {
+    level: 4,
     retired: true,
     instruction: "Play your part in {script}",
     label: "Play a part",
@@ -1916,6 +2006,20 @@ export function verdictText(result: Record<string, any>, lang?: Lang) {
    had to be remembered in two places or "Get started" quietly never offered
    it. */
 export const EASY_TYPES = TYPES.filter((t) => EX[t].gentle);
+
+/* The level an exercise stands on, read off the definitions the same way.
+   Recognising a word alone is 1, telling it apart from others is 2,
+   producing it from a cue — its pronunciation, its sound — is 3, and
+   producing it from the meaning alone is 4. The scheduler opens a level for
+   a form only once everything below it has reached the level's bar; the
+   table here only says which level is which. Anything unknown is treated as
+   the bottom level, so a stored session naming a retired type still resolves. */
+export const levelOf = (type: string): number => (EX[type] && EX[type].level) || 1;
+
+/* And what the levels below must reach for it to open: mastered unless the
+   exercise says graduated is enough. */
+export const barOf = (type: string): "graduated" | "mastered" =>
+  (EX[type] && EX[type].opensOn) || "mastered";
 
 export function defaultTypes(): Record<string, boolean> {
   const out: Record<string, boolean> = {};

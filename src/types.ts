@@ -61,6 +61,20 @@ export interface ExerciseSpec {
   hintHideLabel?: string;
   /** Recognition rather than production. */
   gentle?: boolean;
+  /**
+   * Where it stands on the ladder a form climbs: 1 recognises the word on
+   * its own, 2 tells it apart from others, 3 produces it from a cue, 4
+   * produces it from its meaning alone. A level opens only once every
+   * exercise below it that the form supports has reached the level's bar —
+   * see openTypes in the scheduler.
+   */
+  level: 1 | 2 | 3 | 4;
+  /**
+   * The bar the levels below must reach for this one to open. Mastered —
+   * four days of interval, in review — unless said otherwise; "graduated"
+   * asks only that they be through the learning steps.
+   */
+  opensOn?: "graduated" | "mastered";
   /** Still defined so stored states can be read. */
   retired?: boolean;
   /** Asks a derived property rather than the word. */
@@ -76,11 +90,13 @@ export interface ExerciseSpec {
    */
   intro?: boolean;
   /**
-   * What the few answers offered are: a line of the conversation, a word
-   * that could fill the gap, or a meaning to pair a word with. Absent means
-   * a choice between classes of sound, which is graded differently.
+   * What the few answers offered are: a line of the conversation, a word —
+   * one that could fill a gap, or the one a meaning belongs to — a meaning
+   * for the word on screen, or the meanings of a whole grid of words.
+   * Absent means a choice between classes of sound, which is graded
+   * differently.
    */
-  picks?: "reply" | "word" | "pair";
+  picks?: "reply" | "word" | "meaning" | "pair";
 }
 
 /** A grammatical axis a word varies along — number, gender, addressee. */
@@ -436,6 +452,12 @@ export interface Question {
   type: string;
   /** The phrase the word is stood in, for the exercises that need one. */
   ctx?: string;
+  /**
+   * The other words in the grid, when the question is a matching grid.
+   * Every one of them is asked and marked in its own right; the card
+   * above is only the first of them.
+   */
+  mates?: { id: string; subId: string | null }[];
 }
 
 /**

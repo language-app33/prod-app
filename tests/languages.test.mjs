@@ -122,6 +122,36 @@ test("the retired definition stays, so a stored reference still resolves", () =>
   assert.equal(EX.ar2tr.retired, true);
 });
 
+test("the two that offer four whole cards ask opposite ways round", () => {
+  /* One gives the word and offers meanings; the other gives the meaning
+     and offers words. Both are answered by tapping, both need other cards
+     to draw the wrong answers from, and neither is production — which is
+     what puts them on the first two levels. */
+  assert.equal(EX.ar2pick.promptField, "ar");
+  assert.equal(EX.ar2pick.answerField, "en");
+  assert.equal(EX.ar2pick.picks, "meaning");
+  assert.equal(EX.en2pick.promptField, "en");
+  assert.equal(EX.en2pick.answerField, "ar");
+  assert.equal(EX.en2pick.picks, "word");
+  for (const t of ["ar2pick", "en2pick"]) {
+    assert.equal(EX[t].answerMode, "choice", t);
+    assert.equal(EX[t].gentle, true, t);
+    assert.ok(EX[t].needs.includes("mates"), `${t} needs other cards to stand beside`);
+    assert.ok(!EX[t].retired, t);
+    assert.ok(TYPES.includes(t), `${t} is on offer`);
+  }
+  /* Recognising what a word means comes before recognising the word. */
+  assert.ok(EX.ar2pick.level < EX.en2pick.level);
+});
+
+test("every exercise that stands a card beside other cards asks for company", () => {
+  /* The grid and the two pickers put whole cards up together, and a card
+     whose words change cannot be one of them — offers.ts reads that off
+     this need rather than naming the three. */
+  assert.deepEqual(TYPES.filter((t) => EX[t].needs.includes("mates")).sort(),
+    ["ar2pick", "en2pick", "match"]);
+});
+
 /* --- listening exercises --- */
 
 test("the listening exercises are exactly the ones prompted by audio", () => {
@@ -133,7 +163,7 @@ test("the listening exercises are exactly the ones prompted by audio", () => {
      an audio prompt and nothing else: the quiet window, the substitution
      and the "can't listen right now" button all picked it up unprompted,
      which is what deriving this from the prompt rather than a flag buys. */
-  assert.deepEqual(byHelper, ["rec2en", "rec2ar", "rec2ctx", "rec2attr"]);
+  assert.deepEqual(byHelper, ["rec2en", "rec2ar", "rec2attr", "rec2ctx"]);
 });
 
 test("reading and writing exercises are not listening ones", () => {
@@ -370,16 +400,17 @@ test("neither joins the gentle types, and the hint is a nudge not the answer", (
 test("the gentle types are read off the definitions, not kept beside them", () => {
   /* The app held a second list, and a new type had to be remembered twice
      or "Get started" quietly never offered it. Reading a line of a
-     conversation through is recognition too, and belongs with the other
-     two: a beginner meeting a scene should be asked whether they can
-     follow it before being asked to say any of it. Choosing a word out of a phrase is the same
-     argument again: the gap-fill used to start at the hard half, so a
-     learner's first meeting with a word in context was also their first
-     chance to get it wrong. Matching leads the list because it is the
-     gentlest of the lot and the only one a card can do with nothing on it
-     but a word and a meaning — which is what a beginner's cards look
-     like. */
-  assert.deepEqual(EASY_TYPES, ["match", "ar2en", "rec2en", "ctx2pick", "dlgwhole"]);
+     conversation through is recognition too, and belongs with the others:
+     a beginner meeting a scene should be asked whether they can follow it
+     before being asked to say any of it. Choosing a word out of a phrase is
+     the same argument again: the gap-fill used to start at the hard half,
+     so a learner's first meeting with a word in context was also their
+     first chance to get it wrong.
+
+     The gentle set is the first two levels of the ladder exactly:
+     recognising what a word means, then which word it is. Every one of
+     them puts the answer on the screen — nothing here is written out. */
+  assert.deepEqual(EASY_TYPES, ["ar2pick", "ar2en", "rec2en", "match", "en2pick", "ctx2pick", "dlgwhole"]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);

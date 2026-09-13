@@ -5029,13 +5029,25 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
  * A mode with no decks chosen narrows nothing. It is the state the filter is
  * in for as long as it takes to tick the first box, and hiding every card
  * until then would read as a list that had emptied itself.
+ *
+ * `fillsMode` is the same question about variables. "yes" keeps the values —
+ * the cards that stand in for {{name}} — narrowed to particular variables
+ * where any are named; "no" keeps everything that is not a value, which is
+ * how a teacher gets their material back after forty names have been added
+ * to it. The names do not narrow "no": "cards that do not fill {{name}}" is
+ * a question nobody asks, and the list is not offered there.
  */
-export function filterCards(cards: Card[], { audio = "any", forms = "any", deckMode = "any", deckIds = [] }: {
-  audio?: string;
-  forms?: string;
-  deckMode?: string;
-  deckIds?: string[];
-} = {}) {
+export function filterCards(
+  cards: Card[],
+  { audio = "any", forms = "any", deckMode = "any", deckIds = [], fillsMode = "any", fillsNames = [] }: {
+    audio?: string;
+    forms?: string;
+    deckMode?: string;
+    deckIds?: string[];
+    fillsMode?: string;
+    fillsNames?: string[];
+  } = {},
+) {
   const byDeck = deckIds.length && (deckMode === "in" || deckMode === "out");
   return cards.filter((c) => {
     if (audio === "with" && !cardHasAudio(c)) return false;
@@ -5046,8 +5058,34 @@ export function filterCards(cards: Card[], { audio = "any", forms = "any", deckM
       const inOne = (c.decks || []).some((id) => deckIds.includes(id));
       if (deckMode === "in" ? !inOne : inOne) return false;
     }
+    if (fillsMode === "yes" || fillsMode === "no") {
+      const fills = String(c.fills || "").toLowerCase();
+      if (fillsMode === "no" ? !!fills : !fills) return false;
+      if (fillsMode === "yes" && fillsNames.length && !fillsNames.includes(fills)) return false;
+    }
     return true;
   });
+}
+
+/*
+ * The variables a teacher's cards stand in for, with how many cards fill
+ * each.
+ *
+ * Read off the cards rather than kept anywhere: a variable exists because
+ * some card says it fills one, and a list held beside them would be a
+ * second place for the answer to be wrong. Sorted by name, so the list does
+ * not reorder itself as cards are written.
+ */
+export function fillsInUse(cards: Card[]): { name: string; count: number }[] {
+  const counts: Map<string, number> = new Map();
+  for (const c of cards) {
+    const name = String((c && c.fills) || "").toLowerCase();
+    if (!name) continue;
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -5219,6 +5257,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
        nothing until a deck is ticked. */
     deckMode: "any",
     deckIds: [] as string[],
+    /* And whether it is a value — a card that fills a variable — with the
+       variables to keep, where the teacher has named any. */
+    fillsMode: "any",
+    fillsNames: [] as string[],
   });
   /* Narrowed then ordered. ItemList's own search runs after this, over what
      is left, so a search inside a filter behaves the way it reads. */
@@ -5226,6 +5268,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     () => sortCards(filterCards(cards, cardFilter), sortKey, newestFirst),
     [cards, cardFilter, sortKey, newestFirst]
   );
+
+  /* Which variables the teacher's cards stand in for, for the filter to
+     offer. Read off the cards, so a variable appears in the list the moment
+     a card says it fills one and goes when the last of them stops. */
+  const variablesInUse = useMemo(() => fillsInUse(cards), [cards]);
 
   /*
    * The menus over a list of cards: how to order it, and what to leave out.
@@ -5335,6 +5382,68 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   : `Cards in none of ${cardFilter.deckIds.length === 1 ? "that deck" : "those decks"}.`}
               </p>
             </>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "fills",
+      label: "Variables",
+      /* Narrowing from the moment a mode is picked, whether or not a
+         variable is named: "every value" is already a narrower list than
+         every card. */
+      value: cardFilter.fillsMode,
+      quiet: "any",
+      wide: true,
+      /* Which variable is a list as long as the variables a teacher has
+         invented, so it is ticked rather than pressed — the same shape as
+         the decks above it, learned once. */
+      custom: (
+        <div className="at-deckfilter">
+          <Segmented
+            size={null}
+            label="Whether a card fills a variable"
+            options={[
+              { value: "any", label: "Any card" },
+              { value: "yes", label: "Fills one" },
+              { value: "no", label: "Fills none" },
+            ]}
+            value={cardFilter.fillsMode}
+            onChange={(v) => setCardFilter((f) => ({ ...f, fillsMode: v }))}
+          />
+          {cardFilter.fillsMode === "yes" && (
+            <>
+              <CheckList
+                options={variablesInUse.map((v) => ({
+                  id: v.name,
+                  title: `{{${v.name}}}`,
+                  note: plural(v.count, "card"),
+                }))}
+                chosen={cardFilter.fillsNames}
+                onToggle={(name, on) =>
+                  setCardFilter((f) => ({
+                    ...f,
+                    fillsNames: on
+                      ? f.fillsNames.filter((x) => x !== name)
+                      : f.fillsNames.concat([name]),
+                  }))
+                }
+                empty="No card fills a variable yet. Write one in a card's “Fills a variable” field."
+              />
+              <p className="at-hint">
+                {!cardFilter.fillsNames.length
+                  ? "Every value, whichever variable it fills. Tick one to narrow it."
+                  : `Cards that fill ${cardFilter.fillsNames
+                      .map((n) => `{{${n}}}`)
+                      .join(" or ")}.`}
+              </p>
+            </>
+          )}
+          {cardFilter.fillsMode === "no" && (
+            <p className="at-hint">
+              Everything that is not a value — the cards a student is actually
+              asked about.
+            </p>
           )}
         </div>
       ),

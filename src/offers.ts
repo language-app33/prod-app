@@ -70,19 +70,23 @@ export function unmetNeeds(
    * change cannot be heard — the recording says one name, and the next
    * asking of it wants another — so every listening exercise is off the
    * table until somebody records each filling, which is not a thing this
-   * app can hold. The matching grid goes the same way and for a plainer
-   * reason: it puts five words up at once, and only the one being asked is
-   * narrowed to a question, so a frame standing in the company would show
-   * the hole it left. Said out loud rather than quietly dropped: a teacher
-   * who wrote a variable into a card with four recordings on it should be
-   * told where they went.
+   * app can hold. Every exercise that stands a card beside other cards —
+   * the matching grid, and the two that offer four whole cards to choose
+   * between — goes the same way and for a plainer reason: only the one
+   * being asked is narrowed to a question, so a frame among them would
+   * show the hole it left, and a filled sentence among three bare words is
+   * the answer given away by its length. They are exactly the exercises
+   * that ask for `mates`, which is what says a card needs company. Said
+   * out loud rather than quietly dropped: a teacher who wrote a variable
+   * into a card with four recordings on it should be told where they
+   * went.
    *
    * Either of them is the whole answer and comes back alone: a card with a
    * hole nothing fills is not waiting for a recording as well, and saying
    * so would be two reasons where there is one thing to do.
    */
   if (unfilled.length) return [`fills:${unfilled.join(",")}`];
-  if (holes.length && (spec.promptField === "audio" || spec.picks === "pair")) return ["fixed"];
+  if (holes.length && (spec.promptField === "audio" || spec.needs.includes("mates"))) return ["fixed"];
   return spec.needs.filter((f: string) => {
     if (f === "recs") return !(unit.recs || []).length;
     if (f === "mates") return mates < MIN_PAIR_MATES;

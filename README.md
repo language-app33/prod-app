@@ -9,6 +9,38 @@ the material appears on their devices, along with any recordings. Progress
 is tracked per exercise type, not per card, so knowing a word when you read
 it and knowing it when you hear it are scheduled separately.
 
+Three rules shape what a session asks, all of them in `src/scheduler.ts`:
+
+- **A card is recognised before it is produced.** Every exercise type stands
+  on a level, and a form is asked the next level only once every exercise
+  it supports on the levels below has reached that level's bar:
+
+  | level | what it asks | exercises |
+  |---|---|---|
+  | 1 | what the word means | choose the meaning · {script} → English · listen → English · read a scene |
+  | 2 | which word it is | match the pairs · English → choose · choose the missing word |
+  | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
+  | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
+
+  The bar is *mastered* — in review, with an interval of at least four
+  days — except for level 2, which opens once level 1 is *graduated*:
+  through the learning steps and in review at all. A level a card has no
+  material for is passed straight through. A lapse below closes the levels
+  above until it is recovered. Each exercise declares its own level in
+  `src/languages.ts`; `openTypes` in the scheduler reads them.
+- **New cards are introduced only while there is room.** Beyond the
+  per-session limit in the settings, nothing new is dealt while ten cards
+  are already being learnt or forty are young and still coming back for
+  review. A card's phase is read over the levels it has reached: *New* is
+  never met, *Learning* is met and not yet through the steps somewhere,
+  *Young* is graduated everywhere it is open, *Mature* is three weeks out
+  everywhere.
+- **A matching grid is five questions.** Every word in it is asked, marked
+  and scheduled in its own right. Which words stand together is decided
+  when the session is built: the grid is filled out from cards already
+  met, the most alike first, and a word dealt in to fill it that was not
+  due is credited for a right answer without its schedule moving.
+
 ## Running it
 
 ```bash

@@ -141,7 +141,9 @@ import {
 } from "./languages.ts";
 import {
   MIN,
+  LEARNING_CAP,
   MATURE_DAYS,
+  YOUNG_CAP,
   difficulty,
   familyMaturity as familyMaturityOf,
   formatGap,
@@ -149,7 +151,10 @@ import {
   freshStates,
   itemDifficulty as itemDifficultyOf,
   maturity,
+  openTypes as openTypesOf,
+  phaseCounts,
   reschedule,
+  roomForNew,
   stateReady,
   unitsOf,
   dayKey,
@@ -157,7 +162,7 @@ import {
   inOrder,
   shuffled,
 } from "./scheduler.ts";
-import { PICK_OPTIONS, matchSet, optionsFor } from "./chance.ts";
+import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk } from "./offers.ts";
 import {
@@ -196,7 +201,12 @@ import type { Value } from "./variables.ts";
  * a word in use, neither of which belongs in the scheduler — so it is
  * handed in here, at the one place that has both.
  */
-const familyMaturity: (it: Item) => string = (it) => familyMaturityOf(it, (u) => availableTypes(u));
+/* Judged on the levels a form has reached, not on everything it could one
+   day be asked: a card whose reading is mature and whose writing has not
+   opened yet is young, not new. The progress screen and the room-for-new
+   sums both read this, so they agree about how full a learner's hands are. */
+const familyMaturity: (it: Item) => string = (it) =>
+  familyMaturityOf(it, (u) => openTypesOf(availableTypes(u), (t) => statesOf(u)[t]));
 const itemDifficulty: (it: Item) => string = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
 import { applyUpdate, holdUpdates } from "./updates.ts";
@@ -733,7 +743,11 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
 function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
   const spec = EX[type];
-  if (!spec || spec.promptField !== "en") return resolved;
+  /* Where the meaning is the question, and where it is the answer: a card
+     that means two things puts one of them up, so the tile the learner
+     taps is the string this is marked against. Without it a card reading
+     "book, volume" would have that whole string as its one right tile. */
+  if (!spec || (spec.promptField !== "en" && spec.picks !== "meaning")) return resolved;
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
   const one = meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
@@ -835,7 +849,10 @@ export function withoutListening(exercises: Question[], from: number, items: Ite
     if (!resolved) continue;
     /* Filtered here rather than trusting the clock, so this answers the same
        way whenever it is called — including from a test. */
-    const options = enabledTypes(resolved.unit, settings).filter((t) => !isListening(t));
+    /* From the levels the form has reached, and never the grid: a grid is
+       dealt when the session is built, and one conjured here would be a
+       word alone with nothing to be told apart from. */
+    const options = openTypes(resolved.unit, settings).filter((t) => !isListening(t) && t !== "match");
     if (!options.length) continue;
     const seen = used.get(keyOf(ex)) || new Set();
     const pick = options.find((t) => !seen.has(t)) || options[0];
@@ -883,6 +900,20 @@ function enabledTypes(it: Form, settings: Settings): string[] {
   return availableTypes(it, langOf(settingsFor(settings, it))).filter(
     (t) => settings.types[t] && typeAllowedNow(t)
   );
+}
+
+/* And of those, the ones on a level the form has reached — see the ladder
+   in the scheduler. This is what a session asks from; enabledTypes is what
+   a card supports, which is the question the card list and the counts of
+   what is drillable ask. A level that has not opened is still the card's
+   to reach, not a hole in it. */
+function openTypes(it: Form, settings: Settings): string[] {
+  /* The levels are read over everything the card supports and the learner
+     has switched on, and only then is the quiet window applied: a
+     listening exercise silenced for a quarter of an hour is still a level
+     to be climbed, not a gap that lets the one above it open early. */
+  const supported = availableTypes(it, langOf(settingsFor(settings, it))).filter((t) => settings.types[t]);
+  return openTypesOf(supported, (t) => statesOf(it)[t]).filter((t) => typeAllowedNow(t));
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -1082,15 +1113,18 @@ function buildSession({
   /* --- candidate families --- */
   let candidates = pool.map((it) => {
     const units = drillableUnits(it, settings);
-  const dues: number[] = [];
+    /* Over the open levels only. A level not yet reached is all fresh
+       states, and a fresh state is ready by definition — counted, it would
+       have every card in the deck due at once. */
+    const dues: number[] = [];
     for (const { unit } of units) {
-      for (const t of enabledTypes(unit, settings)) dues.push(statesOf(unit)[t].due || 0);
+      for (const t of openTypes(unit, settings)) dues.push(statesOf(unit)[t].due || 0);
     }
     const ready = units.some(({ unit }) =>
-      enabledTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
+      openTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
     );
     const isNew = units.every(({ unit }) =>
-      enabledTypes(unit, settings).every((t) => statesOf(unit)[t].phase === "new")
+      openTypes(unit, settings).every((t) => statesOf(unit)[t].phase === "new")
     );
     return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew };
   });
@@ -1117,11 +1151,19 @@ function buildSession({
       ).length;
       if (backlog >= HARD_BACKLOG_LIMIT) candidates = candidates.filter((c) => !c.isNew);
     }
+    /* How full the learner's hands are, counted over everything they hold
+       in this language and not only the deck in front of them: the deck is
+       what they chose to look at, the load is what they carry. */
+    const inHand = phaseCounts(
+      items.filter((it) => isDrillable(it, settings)),
+      (u) => openTypes(u, settings)
+    );
+    const room = roomForNew(inHand, settings.newPerSession);
     let newSeen = 0;
     candidates = candidates.filter((c) => {
       if (!c.isNew) return true;
       newSeen += 1;
-      return newSeen <= settings.newPerSession;
+      return newSeen <= room;
     });
   }
 
@@ -1171,7 +1213,7 @@ function buildSession({
     const subs = inOrder(
       c.units.filter((u) => u.isSub),
       (u) =>
-        dueRank(Math.min(...enabledTypes(u.unit, settings).map((t) => statesOf(u.unit)[t].due || 0)))
+        dueRank(Math.min(...openTypes(u.unit, settings).map((t) => statesOf(u.unit)[t].due || 0)))
     );
     /* A scene offers a line or two and not all of itself. Six lines would
        otherwise take a session over between them, and a conversation met
@@ -1209,9 +1251,21 @@ function buildSession({
     }
   }
 
-  const varied = varyTypes(exercises);
-  const distinct = new Set(varied.map((e) => e.type));
-  if (distinct.size < 2) return { exercises: [], reason: "no-variety" };
+  /* The grids, dealt: every word the plans mean to ask as a pair is put in
+     one, and a word whose grid could not be filled is asked its next
+     exercise instead. */
+  const varied = varyTypes(
+    withGrids(exercises, items, settings, (unit, queued) =>
+      pickableTypes(unit, settings).find((t) => t !== "match" && !queued.has(t)) || null
+    )
+  );
+  /* Rule 1, judged on the material: a session is refused for want of
+     variety when the cards in it support only one exercise between them,
+     not when the ladder has opened only one so far. A deck of new scenes
+     is asked to read each through and nothing harder, and that is a
+     session — a short one, until the reading is mastered. */
+  const offered = new Set(plans.flatMap((p) => enabledTypes(p.unit, settings)));
+  if (offered.size < 2) return { exercises: [], reason: "no-variety" };
 
   return {
     exercises: withReadThroughs(varied.slice(0, budget), items),
@@ -1219,6 +1273,104 @@ function buildSession({
     items: new Set(plans.map((p) => p.id)).size,
     units: plans.length,
   };
+}
+
+/*
+ * The matching grids, dealt.
+ *
+ * A plan asks a form the grid the way it asks it anything else — one
+ * question about one form — and a grid is five questions at once. So the
+ * grid questions in a queue are gathered here and dealt into grids, and
+ * what goes back is one question per grid, on its first word, carrying the
+ * rest as `mates`: each of them is marked and scheduled in its own right
+ * when the grid is checked.
+ *
+ * A grid is filled out from what the learner has already met — in this
+ * language, with the grid open to it, most overdue first — so that filling
+ * one never introduces a card the rules for what is new did not admit. A
+ * word whose grid still cannot be filled is asked something else instead,
+ * which `substitute` chooses from what the queue does not already ask it.
+ */
+function withGrids(
+  list: Question[],
+  items: Item[],
+  settings: Settings,
+  substitute: (unit: Form, queued: Set<string>) => string | null
+): Question[] {
+  const keyOf = (ex: Question) => `${ex.id} ${ex.subId || ""}`;
+  const queued: Map<string, Set<string>> = new Map();
+  for (const ex of list) {
+    const k = keyOf(ex);
+    if (!queued.has(k)) queued.set(k, new Set());
+    (queued.get(k) as Set<string>).add(ex.type);
+  }
+
+  /* Where a form lives, for turning a grid back into questions. */
+  const placeOf: Map<string, { id: string; subId: string | null }> = new Map();
+  const wanting: Map<LangId, Form[]> = new Map();
+  for (const ex of list) {
+    if (ex.type !== "match") continue;
+    const r = resolveUnit(items, ex);
+    if (!r || placeOf.has(r.unit.id)) continue;
+    placeOf.set(r.unit.id, { id: ex.id, subId: ex.subId || null });
+    const lang = langIdOf(r.unit, settings);
+    wanting.set(lang, (wanting.get(lang) || []).concat([r.unit]));
+  }
+  if (!wanting.size) return list;
+
+  const leadOf: Map<string, Form[]> = new Map(); // first word -> the rest
+  const dealt: Set<string> = new Set();
+  const dropped: Set<string> = new Set();
+  for (const [lang, asked] of wanting) {
+    const spares: Form[] = [];
+    for (const card of items) {
+      if (!isDrillable(card, settings) || langIdOf(card, settings) !== lang) continue;
+      if (isDialog(card) || hasSlots(card)) continue;
+      for (const { unit, isSub } of unitsOf(card)) {
+        if (!unit.ar || !unit.en || placeOf.has(unit.id)) continue;
+        const st = statesOf(unit).match;
+        if (!st || st.phase === "new" || !openTypes(unit, settings).includes("match")) continue;
+        placeOf.set(unit.id, { id: card.id, subId: isSub ? unit.id : null });
+        spares.push(unit);
+      }
+    }
+    const lg = langOf(settingsFor(settings, asked[0]));
+    const { grids, dropped: out } = matchGroups({
+      wanting: asked,
+      spares: inOrder(spares, (u) => dueRank(statesOf(u).match.due || 0)),
+      textOf: (u) => u.ar,
+      meaningOf: (u) => u.en,
+      likeness: (a, b) => wordLikeness(a.ar, b.ar, lg),
+    });
+    for (const grid of grids) {
+      leadOf.set(grid[0].id, grid.slice(1));
+      for (const u of grid) dealt.add(u.id);
+    }
+    for (const u of out) dropped.add(u.id);
+  }
+
+  const result: Question[] = [];
+  for (const ex of list) {
+    if (ex.type !== "match") {
+      result.push(ex);
+      continue;
+    }
+    const r = resolveUnit(items, ex);
+    if (!r) continue;
+    const rest = leadOf.get(r.unit.id);
+    if (rest) {
+      leadOf.delete(r.unit.id); // once, whatever the queue asked twice
+      result.push({ ...ex, mates: rest.map((u) => placeOf.get(u.id) as { id: string; subId: string | null }) });
+      continue;
+    }
+    if (dealt.has(r.unit.id) || !dropped.has(r.unit.id)) continue;
+    const pick = substitute(r.unit, queued.get(keyOf(ex)) || new Set());
+    if (!pick) continue;
+    const ctx = EX[pick].needs.includes("contexts") ? pickContext(r.unit, pick) : null;
+    const { mates: _none, ...bare } = ex;
+    result.push({ ...bare, type: pick, ...(ctx ? { ctx: ctx.id } : null) });
+  }
+  return result;
 }
 
 /*
@@ -1270,7 +1422,7 @@ function sceneUnmet(card: Item) {
  * only when those had been answered into the future.
  */
 function pickableTypes(unit: Form, settings: Settings) {
-  const types = enabledTypes(unit, settings);
+  const types = openTypes(unit, settings);
   const fresh = types.every((t) => statesOf(unit)[t].phase === "new");
   return inOrder(types, (t) => {
     const ready = stateReady(statesOf(unit)[t]) ? 0 : 2;
@@ -1324,22 +1476,35 @@ function buildManualSession({ items, settings, ids, mode, count }: {
 
   const pool = items.filter((i) => chosen.has(i.id) && settings.kinds[i.kind || ""]);
   const perUnit = Math.max(2, settings.perItem);
-  const plans = [];
+  const plans: Question[] = [];
   const learnt = [];
+  /* What the mode allows of what the form supports, and of that, the
+     levels the form has reached: a session built by hand climbs the same
+     ladder a dealt one does. A form qualifies on the first — it is the
+     material that has to offer two exercises — and is asked from the
+     second. */
+  const supportedFor = (unit: Form) => availableTypes(unit).filter((t) => allowed.has(t));
+  const usableFor = (unit: Form) => openTypesOf(supportedFor(unit), (t) => statesOf(unit)[t]);
+  /* Every exercise the chosen forms support between them, for the
+     variety rule below. */
+  const offered: Set<string> = new Set();
 
   for (const it of pool) {
     let anyUsable = false;
     let anyLearnt = false;
 
     for (const { unit, isSub } of unitsOf(it)) {
-      const usable = availableTypes(unit).filter((t) => allowed.has(t));
-      if (usable.length < minTypes) continue;
+      const supported = supportedFor(unit);
+      if (supported.length < minTypes) continue;
       if (unitFullyLearnt(unit)) {
         anyLearnt = true;
         continue;
       }
       if (mode === "mistakes" && !hasRecentMistake(unit)) continue;
+      const usable = usableFor(unit);
+      if (!usable.length) continue;
       anyUsable = true;
+      for (const t of supported) offered.add(t);
 
       const take = everyTypeMode(mode)
         ? usable
@@ -1364,14 +1529,19 @@ function buildManualSession({ items, settings, ids, mode, count }: {
   /* Shuffle first, so the queue doesn't track the order of your card list,
      then space the types out. Ultimate ignores the length: it runs until
      everything has gone right at least once. */
-  const ordered = varyTypes(shuffle(plans));
+  const ordered = varyTypes(
+    withGrids(shuffle(plans), items, settings, (unit, queued) =>
+      shuffle(usableFor(unit)).find((t) => t !== "match" && !queued.has(t)) || null
+    )
+  );
   const exercises = everyTypeMode(mode) ? ordered : ordered.slice(0, Math.max(4, count || 0));
 
   /* The same minimum again, and the one easily missed: when every card chosen
      supports a single gentle type the whole session is that one type, so
-     relaxing only the per-card check above would still refuse to build. */
-  if (new Set(exercises.map((e) => e.type)).size < minTypes)
-    return { exercises: [], reason: "no-variety", learnt };
+     relaxing only the per-card check above would still refuse to build.
+     Judged on what the cards support, as above: a session the ladder has
+     narrowed to one exercise is still a session. */
+  if (offered.size < minTypes) return { exercises: [], reason: "no-variety", learnt };
 
   return {
     exercises: withReadThroughs(exercises, items),
@@ -1542,6 +1712,9 @@ const LEGACY_SYNC_KEYS = new Set<string>();
    and every state change behind it. */
 export const PRAISE = ["Correct!", "Good job!", "Nicely done!", "Great!"];
 export const WRONG_VERDICT = "Incorrect. The correct answer is:";
+/* A grid marks itself: the meaning each wrong word wanted is shown under
+   it, so the verdict says only that there were some. */
+export const GRID_VERDICT = "Not all of them — the right meanings are shown.";
 /* Giving up is not getting it wrong: nothing was offered to be incorrect.
    The answer is simply handed over. */
 export const SKIPPED_VERDICT = "The answer is:";
@@ -3293,12 +3466,14 @@ function SceneOrder({ card, lang, value, onChange, disabled }: {
  * them: a line between two columns is a thing to draw, to redraw on every
  * resize, and to get wrong in a language that reads right to left.
  */
-function MatchGrid({ words, meanings, lang, askedId, onChange, checked }: {
+function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked }: {
   words: Form[];
   meanings: string[];
   lang: Lang;
   askedId: string;
   onChange: (v: string) => void;
+  /** The whole pairing, once complete — every word is marked on it. */
+  onPairs?: (pairs: Record<string, string>) => void;
   checked?: boolean;
 }) {
   /* Which meaning is against which word. Keyed by word id, so a meaning can
@@ -3312,10 +3487,12 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, checked }: {
 
   /* Nothing is reported until every word has a meaning: the question is the
      whole grid, and half of one is not an answer to it. What goes up is the
-     meaning put against the word actually being asked — the others are the
-     company that made it a question. */
+     meaning put against the first word, which is what the answer screen
+     talks about, and the whole pairing beside it, which is what every word
+     in the grid is marked on. */
   useEffect(() => {
     onChange(done ? pairs[askedId] || "" : "");
+    if (onPairs) onPairs(done ? pairs : {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, done, askedId]);
 
@@ -3372,7 +3549,13 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, checked }: {
               onClick={() => tapWord(w.id)}
             >
               {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
-              <Arabic text={w.ar} kind="word" lang={lang} />
+              <span className="at-matchword">
+                <Arabic text={w.ar} kind="word" lang={lang} />
+                {/* What it should have been, under a word paired wrong: the
+                    verdict below speaks of the first word only, and a grid
+                    of five has four others to be told about. */}
+                {checked && !right ? <span className="at-matchfix">{w.en}</span> : null}
+              </span>
             </button>
           );
         })}
@@ -3401,28 +3584,42 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, checked }: {
   );
 }
 
-function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase" }: {
+/**
+ * @param field  Which side of the card the tiles are: the script, or the
+ *   meaning. A question that gives the meaning and asks for the word puts
+ *   the script up; the one that gives the word and asks what it means puts
+ *   the meanings up, in the interface font — an English tile set in the
+ *   script's size and direction is a sentence pretending to be a word.
+ */
+function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase", field = "ar" }: {
   options: any[];
   lang: Lang;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
   kind?: string;
+  field?: string;
 }) {
+  const textOf = (option: any) => String((option && option[field]) || "");
   return (
     <div className="at-replies" data-el="answer-choices">
-      {options.map((option) => (
-        <button
-          type="button"
-          key={option.id}
-          className={`at-reply${value === option.ar ? " on" : ""}${kind === "word" ? " word" : ""}`}
-          aria-pressed={value === option.ar}
-          disabled={disabled}
-          onClick={() => onChange(option.ar)}
-        >
-          <Arabic text={option.ar} kind={kind} lang={lang} />
-        </button>
-      ))}
+      {options.map((option) => {
+        const text = textOf(option);
+        return (
+          <button
+            type="button"
+            key={option.id}
+            className={`at-reply${value === text ? " on" : ""}${kind === "word" ? " word" : ""}${
+              field === "en" ? " en" : ""
+            }`}
+            aria-pressed={value === text}
+            disabled={disabled}
+            onClick={() => onChange(text)}
+          >
+            {field === "en" ? text : <Arabic text={text} kind={kind} lang={lang} />}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -3751,6 +3948,9 @@ export default function ArabicTrainer() {
   const [typed, setTyped] = useState("");
   const [checked, setChecked] = useState<any | null>(null);
   const [pairs, setPairs] = useState<any[]>([]); // minimal pairs for the answered card
+  /* The grid as it was paired: each word's id against the meaning put to
+     it. Every word in a grid is marked on this, not only the first. */
+  const [matched, setMatched] = useState<Record<string, string>>({});
   const [skipped, setSkipped] = useState(false);
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
@@ -4130,11 +4330,14 @@ export default function ArabicTrainer() {
     [items, settings, inDeck]
   );
 
+  /* Over the levels a card has reached, not everything it could one day be
+     asked: a level it has not climbed to is not work waiting to be done,
+     and counting it promised a session that would not include the card. */
   const countReady: (pool: Item[]) => number = useCallback(
     (pool) =>
       pool.filter((it) =>
         drillableUnits(it, settings).some(({ unit }) =>
-          enabledTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
+          openTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
         )
       ).length,
     [settings]
@@ -4512,6 +4715,7 @@ export default function ArabicTrainer() {
     setTyped("");
     setChecked(null);
     setPairs([]);
+    setMatched({});
     setSkipped(false);
     setOverridden(false);
     setFlaggedNow(false);
@@ -4612,31 +4816,47 @@ export default function ArabicTrainer() {
   /*
    * The words a matching grid puts up, and the meanings beside them.
    *
-   * Ranked before it is drawn, because which words stand together is the
-   * exercise: five unrelated words is a warm-up, five that could be taken
-   * for one another is a test. Ranked by the same reading of "alike" the
-   * session builder uses to bring related cards into one sitting.
+   * Which words stand together was decided when the session was dealt —
+   * see withGrids — and travels on the question as its mates; every one of
+   * them is asked. What is drawn here is the spare meanings, from the
+   * learner's other words in this language, the most like the grid's own
+   * first, and the order the two columns stand in. Re-drawn as the card
+   * comes round again — the seed carries how many times it has been asked
+   * — so the columns are not in the same order twice.
    *
-   * Re-drawn as the card comes round again — the seed carries how many
-   * times it has been asked — so the same word is not always met in the
-   * same company.
+   * A mate that has since been withdrawn is simply not up: the grid is
+   * whatever of it is still here.
    */
   const grid = useMemo(() => {
-    if (!item || !spec || spec.picks !== "pair") return { words: [], meanings: [] };
+    if (!item || !spec || !exercise || spec.picks !== "pair") return { words: [], meanings: [] };
+    const answers: Form[] = [item];
+    for (const mate of exercise.mates || []) {
+      const r = resolveUnit(asking, { ...mate, type: exercise.type });
+      if (r && r.unit.ar && r.unit.en) answers.push(r.unit);
+    }
     const pool = wordPool(asking, settings, qLang.id, item).filter((u) => u.ar && u.en);
-    const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
-    const ranked = [...pool].sort(
-      (x, y) => wordLikeness(item.ar, y.ar, qLang) - wordLikeness(item.ar, x.ar, qLang)
-    );
+    const reps = (statesOf(item)[exercise.type] || {}).reps || 0;
+    const likeness = (u: Form) => Math.max(...answers.map((a) => wordLikeness(a.ar, u.ar, qLang)));
+    const ranked = [...pool].sort((x, y) => likeness(y) - likeness(x));
+    /* A question dealt no mates — a teacher trying the exercise on one
+       card — is given its company from the pool, the most alike first, so
+       the grid they see is the grid a learner gets. Nothing is marked on a
+       trial, so nothing is marked on them. */
+    if (!exercise.mates) {
+      for (const u of ranked) {
+        if (answers.length >= PAIR_WORDS) break;
+        if (!answers.some((a) => a.id === u.id)) answers.push(u);
+      }
+    }
     return matchSet({
-      answer: item,
+      answers,
       pool: ranked,
       seed: `${item.id} ${reps}`,
       textOf: (u) => u.ar,
       meaningOf: (u) => u.en,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item && item.id, exercise && exercise.type, asking, qLang.id]);
+  }, [item && item.id, exercise && exercise.type, exercise && exercise.mates, asking, qLang.id]);
 
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
@@ -4646,11 +4866,32 @@ export default function ArabicTrainer() {
         : [];
     }
     if (!item) return [];
+    /* The meanings of the learner's other words, one meaning apiece: a
+       card that means two things offers the first of them, so no tile is
+       two answers with a comma between. The card being asked is narrowed
+       the same way, upstream in castMeaning. */
+    if (spec.picks === "meaning") {
+      const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
+      return optionsFor({
+        answer: item,
+        pool: wordPool(asking, settings, qLang.id, item)
+          .filter((u) => u.en)
+          .map((u) => ({ ...u, en: meaningForTurn(u, 0) || u.en })),
+        wanted: PICK_OPTIONS,
+        seed: `${item.id} meaning ${reps}`,
+        textOf: (w) => w.en,
+      });
+    }
     return optionsFor({
       answer: item,
       pool: wordPool(asking, settings, qLang.id, item),
       wanted: PICK_OPTIONS,
-      seed: `${item.id} ${(exercise && exercise.ctx) || ""}`,
+      /* A question with no phrase behind it — "which of these means this"
+         — has the number of askings for a seed instead, so the three wrong
+         answers are not the same three for ever. */
+      seed: `${item.id} ${(exercise && exercise.ctx) || ""}${
+        exercise && !exercise.ctx ? (statesOf(item)[exercise.type] || {}).reps || 0 : ""
+      }`,
       textOf: (w) => w.ar,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4695,7 +4936,10 @@ export default function ArabicTrainer() {
   const answerRepeated =
     !!checked &&
     (!answerRight || checked.reason === "bare") &&
-    !(spec && spec.answerMode === "part");
+    !(spec && spec.answerMode === "part") &&
+    /* Nor under a grid: every word paired wrong shows its meaning where
+       it stands, and the first word's alone would say less. */
+    !(spec && spec.picks === "pair");
   const verdictAlone = answerRight && !answerRepeated;
 
   useEffect(() => {
@@ -4706,9 +4950,19 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qi]);
 
+  /* Each word of the grid against what was put to it. The grid's own
+     verdict is the whole of it: right when every pair is. */
+  const gridMarks = () =>
+    grid.words.map((w) => ({ unit: w, right: (matched[w.id] || "") === String(w.en || "") }));
+
   function submit() {
     if (!item || checked) return;
-    const result = checkAnswer(typed, item, exercise.type, qSettings);
+    const result =
+      spec && spec.picks === "pair"
+        ? gridMarks().every((m) => m.right)
+          ? { ok: true, reason: "exact" }
+          : { ok: false, reason: "wrong" }
+        : checkAnswer(typed, item, exercise.type, qSettings);
     sfx(result.ok ? "correct" : "wrong");
     setPairs(relatedWords(asking, qLang, item.ar));
     setChecked(result);
@@ -4868,49 +5122,95 @@ export default function ArabicTrainer() {
       checked &&
       ["near", "harakat", "missing"].includes(checked.reason);
     const rating = correct ? "good" : near ? "hard" : "again";
+    /*
+     * What is marked, and how. One question marks one form — except the
+     * grid, where every word up is a question of its own and is marked on
+     * the pair put to it, whatever the rest of the grid did.
+     *
+     * A word dealt in to fill a grid out may not have been due. A success
+     * on it counts — it is a right answer — but does not move its schedule,
+     * the way practice does not; a miss is a miss wherever it happens. The
+     * first word is marked as any question is.
+     */
+    const marks: {
+      id: string;
+      subId: string | null;
+      rating: string;
+      correct: boolean;
+      advance: boolean;
+    }[] = [];
+    if (spec && spec.picks === "pair") {
+      const placeOf = (w: Form) => {
+        if (w.id === item.id) return { id: parentItem.id, subId: exercise.subId || null };
+        for (const mate of exercise.mates || []) {
+          const r = resolveUnit(asking, { ...mate, type: exercise.type });
+          if (r && r.unit.id === w.id) return mate;
+        }
+        return null;
+      };
+      for (const m of gridMarks()) {
+        const place = placeOf(m.unit);
+        if (!place) continue;
+        const lead = m.unit.id === item.id;
+        marks.push({
+          ...place,
+          rating: m.right ? "good" : "again",
+          correct: m.right,
+          advance: !practice && (lead || stateReady(statesOf(m.unit)[exercise.type])),
+        });
+      }
+    } else {
+      marks.push({ id: parentItem.id, subId: exercise.subId || null, rating, correct: !!correct, advance: !practice });
+    }
     persist((cur) => {
       const next = { ...cur, items: cur.items.slice(), log: { ...cur.log } };
-      const idx = next.items.findIndex((i) => i.id === parentItem.id);
-      if (idx < 0) return cur; // withdrawn while it was on screen
-      const it = { ...next.items[idx] };
-      const target = exercise.subId
-        ? (it.subs || []).find((x) => x.id === exercise.subId) ||
-          linesOf(it).find((x) => x.id === exercise.subId)
-        : it;
-      if (!target) return cur;
+      let any = false;
+      for (const mark of marks) {
+        const idx = next.items.findIndex((i) => i.id === mark.id);
+        if (idx < 0) continue; // withdrawn while it was on screen
+        const it = { ...next.items[idx] };
+        const target = mark.subId
+          ? (it.subs || []).find((x) => x.id === mark.subId) ||
+            linesOf(it).find((x) => x.id === mark.subId)
+          : it;
+        if (!target) continue;
 
-      const before = statesOf(target)[exercise.type] || freshState();
-      let s;
-      if (!practice || rating !== "good") {
-        s = reschedule(before, rating);
-      } else {
-        // Practice never advances the schedule on a success.
-        s = { ...before };
-        s.right += 1;
-        s.reps += 1;
-      }
-      if (skipped) s.skips = (s.skips || 0) + 1;
-      if (checked && !checked.ok && checked.reason === "near") s.near = (s.near || 0) + 1;
-      if (checked && !checked.ok && (checked.reason === "harakat" || checked.reason === "missing")) {
-        s.near = (s.near || 0) + 1;
-      }
-      s.hist = (s.hist || []).concat([correct ? 1 : 0]).slice(-6);
-      s.updated = now();
+        const before = statesOf(target)[exercise.type] || freshState();
+        let s;
+        if (mark.advance || mark.rating !== "good") {
+          s = reschedule(before, mark.rating);
+        } else {
+          // Practice never advances the schedule on a success.
+          s = { ...before };
+          s.right += 1;
+          s.reps += 1;
+        }
+        if (skipped) s.skips = (s.skips || 0) + 1;
+        if (checked && !checked.ok && checked.reason === "near") s.near = (s.near || 0) + 1;
+        if (checked && !checked.ok && (checked.reason === "harakat" || checked.reason === "missing")) {
+          s.near = (s.near || 0) + 1;
+        }
+        s.hist = (s.hist || []).concat([mark.correct ? 1 : 0]).slice(-6);
+        s.updated = now();
 
-      if (exercise.subId && (it.subs || []).some((x) => x.id === exercise.subId)) {
-        it.subs = (it.subs || []).map((x) =>
-          x.id === exercise.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
-        );
-      } else if (exercise.subId) {
-        it.lines = linesOf(it).map((x) =>
-          x.id === exercise.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
-        );
-      } else {
-        it.s = { ...it.s, [exercise.type]: s };
+        if (mark.subId && (it.subs || []).some((x) => x.id === mark.subId)) {
+          it.subs = (it.subs || []).map((x) =>
+            x.id === mark.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
+          );
+        } else if (mark.subId) {
+          it.lines = linesOf(it).map((x) =>
+            x.id === mark.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
+          );
+        } else {
+          it.s = { ...it.s, [exercise.type]: s };
+        }
+        it.updated = now();
+        next.items[idx] = it;
+        any = true;
       }
-      it.updated = now();
-      next.items[idx] = it;
+      if (!any) return cur;
 
+      /* One question answered, however many words it marked. */
       next.log[dayKey()] = (next.log[dayKey()] || 0) + 1;
       return next;
     });
@@ -5620,6 +5920,7 @@ Cards ready to practice
                           askedId={(item && item.id) || ""}
                           checked={!!checked}
                           onChange={setTyped}
+                          onPairs={setMatched}
                         />
                         {/* A grid half done is not an answer, and a Check
                             that sits dead without saying why is the button
@@ -5630,6 +5931,7 @@ Cards ready to practice
                       <TextChoices
                         options={choices}
                         kind={spec.picks === "word" ? "word" : "phrase"}
+                        field={spec.picks === "meaning" ? "en" : "ar"}
                         lang={qLang}
                         value={typed}
                         disabled={!!checked}
@@ -5715,6 +6017,8 @@ Cards ready to practice
                           ? praiseFor(tally.ok)
                           : skipped
                           ? SKIPPED_VERDICT
+                          : spec.picks === "pair"
+                          ? GRID_VERDICT
                           : WRONG_VERDICT}
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
@@ -9641,8 +9945,10 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
             ) : (
               <>
                 A→E is recognition, T→A production from sound, E→A production from meaning, and
-                the L→ types drill the same things by ear. Turning types off can drop items below
-                the two-type minimum.
+                the L→ types drill the same things by ear. A card climbs them: it is read on its
+                own first, joins a matching grid once it is through the learning steps, and the
+                harder types open only once everything below them is mastered — four days of
+                interval, in review. Turning types off can drop items below the two-type minimum.
               </>
             )}
           </Help>
@@ -9668,6 +9974,10 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
             value={settings.newPerSession}
             onChange={(e) => setSetting("newPerSession", Number(e.target.value))}
           />
+          <Help>
+            And only while there is room: new cards wait when {LEARNING_CAP} are already being
+            learnt, or {YOUNG_CAP} are young and still coming back for review.
+          </Help>
 </FormField>
 
 <FormField label="Group similar cards">
