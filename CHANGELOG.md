@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.96 — 13 September 2026
+
+- **Every form of a verb can now carry its pronunciation and its own
+  recordings.** Each cell of the table has a box for how it is said and a
+  microphone beside it, so *she ate* can be heard as well as read — and
+  with a recording on it, a cell is asked by ear too, like any other form.
+
+  The pronunciation box appears only where the language writes one that is
+  drilled. Huế calls it a note and never asks it, so its table stays at two
+  boxes a cell and the note sits on the verb itself, where it always did.
+
+- **The table stayed the same height doing it.** A cell is one line: the
+  person, the form, how it is said, what it means, and one microphone that
+  lights up once something is recorded. The recordings list and its
+  explanation, which every ordinary form gets, would have doubled the
+  height of a twenty-one cell table, so a cell gets the button alone and
+  the same recording screen behind it. On a phone the boxes fall into two
+  short lines rather than three stacked ones.
+
 ## 0.95 — 13 September 2026
 
 - **"This is a verb" is now a tick inside The kind of card**, instead of a

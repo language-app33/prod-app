@@ -2900,10 +2900,18 @@ function ScriptAnswers({ lang, form, onChange }: {
   );
 }
 
-function ScriptInput({ lang, value, onChange }: {
+function ScriptInput({ lang, value, onChange, compact = false }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
+  /**
+   * A shorter box, for where there are many of them. A verb's table is
+   * twenty-one of these on one screen, and at the size a single field is
+   * written at it scrolls for a thousand pixels. Only the script shrinks —
+   * still the largest thing on its line, because it is the thing being
+   * read — and only where a caller asks.
+   */
+  compact?: boolean;
 }) {
   const [keys, setKeys] = useState(false);
   const ref: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
@@ -2929,7 +2937,12 @@ function ScriptInput({ lang, value, onChange }: {
           /* The room for the keys button is reserved by .at-inputwrap in the
              stylesheet — physical right, not logical, because the button is
              at right:8px whichever way the text runs. */
-          style={{ fontFamily: lang.fontStack, fontSize: 22, textAlign: "start", ...scriptVars(lang) }}
+          style={{
+            fontFamily: lang.fontStack,
+            fontSize: compact ? 18 : 22,
+            textAlign: "start",
+            ...scriptVars(lang),
+          }}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -3825,11 +3838,20 @@ const fieldName = (field: string, lang: Lang): string =>
  * English's own irregulars need: "eat" is right for six of the seven and
  * wrong for "he".
  */
-function VerbTable({ lang, spec, cells, onChange }: {
+/* What to call one cell out loud — "past · she". Read off the language's
+   own labels, so a pack that names no persons says only its tense. */
+function cellLabel(spec: VerbSpec | null, at: { row: string, col: string }) {
+  const tense = tensesOf(spec).find((t) => t.id === at.row);
+  const person = personsOf(spec).find((p) => p.id === at.col);
+  return [tense ? tense.label : at.row, person ? person.label : ""].filter(Boolean).join(" · ");
+}
+
+function VerbTable({ lang, spec, cells, onChange, onRecord }: {
   lang: Lang;
   spec: VerbSpec;
   cells: Record<string, any>[];
   onChange: (cells: Record<string, any>[]) => void;
+  onRecord: (row: string, col: string) => void;
 }) {
   /* The row's English lives here and is never stored: it is a way of
      writing the cells' English, not a second place the card holds words.
@@ -3879,6 +3901,11 @@ function VerbTable({ lang, spec, cells, onChange }: {
      word for it, and a line reading "any: đã ăn" would be naming something
      the language does not distinguish. */
   const named = persons.some((p) => p.label);
+  /* A box for the pronunciation only where the language asks for one to be
+     written. Huế calls it a note and never drills it, so a column of them
+     across a whole table would be twenty-one boxes nothing reads — the
+     note belongs on the verb itself, which still has its own field below. */
+  const saysHow = lang.translitDrilled !== false;
 
   return (
     <>
@@ -3905,23 +3932,55 @@ function VerbTable({ lang, spec, cells, onChange }: {
           {persons.map((person) => {
             const cell = at(tense.id, person.id);
             const said = composeEnglish(spec, tense.id, person.id, rowEn[tense.id] || "ate");
+            /* What to call this one when a label has to name it out loud —
+               for a screen reader, and on the recording screen's title. */
+            const which = [tense.label, person.label].filter(Boolean).join(" · ");
+            const written = !!(cell && String(cell.ar || "").trim());
+            const heard = cell ? clipsOf(cell).length : 0;
             return (
               <div className="at-cellrow" key={person.id}>
                 {named && <span className="at-celllabel">{person.label}</span>}
                 <div className="at-cellfields">
                   <ScriptInput
+                    compact
                     lang={lang}
                     value={(cell && cell.ar) || ""}
                     onChange={(v) => write(tense.id, person.id, { ar: v })}
                   />
+                  {saysHow && (
+                    <input
+                      className="at-input"
+                      aria-label={`${lang.translitLabel} for ${which}`}
+                      value={(cell && cell.lat) || ""}
+                      placeholder={lang.translitLabel.toLowerCase()}
+                      onChange={(e) => write(tense.id, person.id, { lat: e.target.value })}
+                    />
+                  )}
                   <input
                     className="at-input"
-                    aria-label={`English for ${person.label || tense.label}`}
+                    aria-label={`English for ${which}`}
                     value={(cell && cell.en) || ""}
                     placeholder={said}
                     onChange={(e) => write(tense.id, person.id, { en: e.target.value })}
                   />
                 </div>
+                {/* One button rather than the Recordings block the forms
+                    below get: a list and an explanation under every one of
+                    twenty-one cells would be the table's whole height
+                    again. It says how many there are, and opens the same
+                    screen. Off until there is a word to say — a recording
+                    of an empty cell is a recording of nothing. */}
+                <IconButton
+                  icon="mic"
+                  label={
+                    heard
+                      ? `${heard} ${plural(heard, "recording")} · ${which}`
+                      : `Record ${which}`
+                  }
+                  className={`at-cellmic${heard ? " on" : ""}`}
+                  disabled={!written}
+                  onClick={() => onRecord(tense.id, person.id)}
+                />
               </div>
             );
           })}
@@ -4005,6 +4064,14 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      spelling opens showing it, because a form that vanished when the card
      was called a verb would read as one that had been thrown away. */
   const [moreForms, setMoreForms] = useState(() => forms.length > 1);
+  /* Which cell of the table has the recording screen open, by where it
+     sits rather than by its place in the list: the list is rewritten
+     whenever a cell is typed into, so an index would point at a different
+     form by the time the screen came back. */
+  const [recordingCell, setRecordingCell] = useState<{ row: string, col: string } | null>(null);
+  const cellHere = recordingCell
+    ? cells.find((c) => c.row === recordingCell.row && c.col === recordingCell.col) || null
+    : null;
   const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
   /* Which variable this card fills, where it is a value rather than
@@ -4197,7 +4264,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               plainly an empty box, and the rows are labelled in the order
               they are taught. */}
           {verbMode && verbSpec && (
-            <VerbTable lang={lang} spec={verbSpec} cells={cells} onChange={setCells} />
+            <VerbTable
+              lang={lang}
+              spec={verbSpec}
+              cells={cells}
+              onChange={setCells}
+              onRecord={(row, col) => setRecordingCell({ row, col })}
+            />
           )}
 
           {scene && (
@@ -4684,6 +4757,22 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           form={forms[recording]}
           onChange={(next) => setForm(recording, { ...forms[recording], ...next })}
           onClose={() => setRecording(null)}
+        />
+      )}
+      {recordingCell && cellHere && (
+        <RecordingScreen
+          title={`Recordings · ${cellLabel(verbSpec, recordingCell)}`}
+          form={cellHere}
+          onChange={(next) =>
+            setCells((x) =>
+              x.map((c) =>
+                c.row === recordingCell.row && c.col === recordingCell.col
+                  ? { ...c, ...next }
+                  : c,
+              ),
+            )
+          }
+          onClose={() => setRecordingCell(null)}
         />
       )}
     </>
