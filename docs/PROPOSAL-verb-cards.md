@@ -59,9 +59,9 @@ the past more often, without the present being dragged along.
 Every language already declares its own grammar in one place: Arabic
 says its words carry number and gender, Vietnamese says nothing declines.
 A verb table is described the same way. Each language names its **person**
-choices and its **tense or aspect** choices, with whatever labels it uses,
-and the app builds the grid from those names and asks about them by those
-names. A language with no persons has a one-column table. A language that
+choices and its **tense or aspect** choices, with whatever labels it uses
+and in the order it teaches them, and the app builds the grid from those
+names and asks about them by those names. A language with no persons has a one-column table. A language that
 distinguishes formal and informal *you* has more columns. The app never
 needs to know what a tense is; it needs to know that the table has rows
 and columns, and that a cell is one thing to learn.
@@ -80,6 +80,31 @@ cue is production and sits at level 3; producing it inside a phrase is
 level 4. A lapse on the base word closes the cells above it, as a lapse
 does everywhere.
 
+## Tenses open one after another
+
+The rows are not all as hard as each other, and they should not arrive
+together. A learner who can say what they *do* has something to build the
+past on; one handed present, past and future in the same week has three
+tables to confuse.
+
+So a verb's rows open in turn. The first row is dealt as soon as the base
+word is known. The next is dealt only once the row before it is
+**mastered** — every cell in review and a good way out, the same bar a
+level asks of the level below it. The past of *to eat* is not asked until
+the present of *to eat* is known well, and the future waits on the past. A
+lapse in the present closes the rows above it until it is recovered, as a
+lapse does on the ladder.
+
+Which row comes first is the language's call, not the app's. Each
+language lists its tenses in the order it teaches them — present, past,
+future for Arabic; the bare verb, then its markers, for Vietnamese — and
+the app knows only that there is a first row and a next one. A teacher who
+wants a row held back longer leaves it blank and fills it in later.
+
+Within a row, cells are dealt in the order the language lists its persons,
+so *I* and *you* are met before *they*. That order is not a gate; the row
+is. Only one tense of a verb is ever new at a time.
+
 ## What a first version would leave out
 
 - **Compound forms** (*would have eaten*): a cell holds a string, and a
@@ -96,9 +121,10 @@ does everywhere.
 - Should a cell be told apart from a spelling slip? Writing *he · past* when
   *she · past* was asked is a different mistake from a missing vowel mark,
   and probably deserves its own verdict ("Right verb, wrong person").
-- How many cells is too many to introduce at once? Six new forms in a
-  session when the base word is dealt would swamp it; a cap of two or
-  three per session per verb seems right to start.
+- How many cells is too many to introduce at once? A row at a time keeps
+  the tenses apart, but seven persons in one session would still swamp it;
+  a cap of two or three new cells per verb per session seems right to
+  start.
 - Is a pronoun a word to learn? A learner asked "she · past" needs to know
   the app's word for *she*. Showing the pronoun in the target language
   beside the label, once the pronoun card is known, would join the two.

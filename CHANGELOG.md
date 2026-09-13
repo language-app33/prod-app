@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.88 — 13 September 2026
+
+- **The verb-card proposal now opens tenses one after another.** A verb's
+  first row is dealt as soon as the base word is known, and each next row
+  waits until the one before it is mastered — so the past of a verb is not
+  asked until its present is known well, and the future waits on the past.
+  Which row comes first is listed by the language, not decided by the app.
+  Still a proposal; nothing in the app changes.
+
 ## 0.87 — 13 September 2026
 
 - **A proposal for verb cards**, in `docs/PROPOSAL-verb-cards.md`: one card
