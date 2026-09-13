@@ -23,9 +23,12 @@ import {
   cellAt,
   cellIsOpen,
   cellsOf,
+  citationOf,
+  citedCell,
   colOf,
   framesOf,
   isCell,
+  isCitation,
   isFrame,
   isVerb,
   openRows,
@@ -312,4 +315,64 @@ test("a language that lays out no verbs has no table", () => {
   assert.deepEqual(personsOf(null), []);
   assert.deepEqual(tableOf(toEat, null), []);
   assert.equal(agreedCell(toEat, null, "past", { number: "plural" }), null);
+});
+
+/*
+ * The form a dictionary lists, where the language has no infinitive.
+ *
+ * Arabic's *to eat* is listed under أكل, which is the he-past and so a
+ * cell of this very table. Said plainly: a card's own word and that cell
+ * are one word. Left unsaid, they are one word drilled twice — asked,
+ * marked and scheduled as though they were two things to learn.
+ */
+test("a language says which cell a dictionary would list, or says nothing", () => {
+  assert.deepEqual(citationOf(arabic), { row: "past", col: "he" });
+  /* Huế cites the bare verb, which is a card's word and not a cell of
+     anything, so there is nothing to reconcile. */
+  assert.equal(citationOf(viet), null);
+  assert.equal(citationOf(null), null);
+
+  /* A pack naming a cell its own table has not got is naming nothing.
+     Taken at its word, a card's own form would be silenced in favour of a
+     cell that can never exist. */
+  const wrong = { persons: personsOf(arabic), tenses: tensesOf(arabic), citation: { row: "future", col: "he" } };
+  assert.equal(citationOf(wrong), null);
+  const alsoWrong = { persons: personsOf(arabic), tenses: tensesOf(arabic), citation: { row: "past", col: "nobody" } };
+  assert.equal(citationOf(alsoWrong), null);
+});
+
+test("the cited cell is the one it names, and only that one", () => {
+  assert.ok(isCitation(arabic, must(cellAt(toEat, "past", "he"), "he ate")));
+  assert.equal(isCitation(arabic, must(cellAt(toEat, "past", "she"), "she ate")), false);
+  assert.equal(isCitation(arabic, must(cellAt(toEat, "present", "he"), "he eats")), false);
+  /* A language that cites nothing cites nothing. */
+  assert.equal(isCitation(viet, must(cellAt(toEatViet, "plain", "any"), "ăn")), false);
+  assert.equal(isCitation(arabic, { ar: "kitaab" }), false);
+});
+
+test("the card's word is stood in for only where the cell is actually written", () => {
+  assert.equal(must(citedCell(toEat, arabic), "the cited cell").ar, "أكل");
+  /* Left blank, the card's word is all there is of the verb, and goes on
+     being practised as itself rather than being silenced for nothing. */
+  const noPast = { ...toEat, subs: toEat.subs.filter((c) => !(c.row === "past" && c.col === "he")) };
+  assert.equal(citedCell(noPast, arabic), null);
+  /* And a language that cites nothing never stands in for anything. */
+  assert.equal(citedCell(toEatViet, viet), null);
+});
+
+test("the cited cell is open from the start, whatever row it sits in", () => {
+  /* Arabic cites the past, which is the second row. Without the exception
+     a learner would hold a card reading "to eat" whose word they were not
+     shown until the whole present tense was mastered. */
+  const he = must(cellAt(toEat, "past", "he"), "he ate");
+  assert.equal(cellIsOpen(toEat, arabic, he, () => false), true);
+
+  /* The rest of its row still waits its turn. */
+  const she = must(cellAt(toEat, "past", "she"), "she ate");
+  assert.equal(cellIsOpen(toEat, arabic, she, () => false), false);
+
+  /* And the row itself is still an ordinary row: the command opens once
+     every cell of the past is mastered, the cited one included. */
+  const done = new Set(["present"]);
+  assert.deepEqual(openRows(toEat, arabic, (c) => done.has(rowOf(c))), ["present", "past"]);
 });

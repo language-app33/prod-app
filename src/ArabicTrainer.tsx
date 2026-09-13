@@ -150,6 +150,8 @@ import {
   agreedCell,
   cellsOf,
   isVerb,
+  citedCell,
+  isCitation,
   openRows,
   rowOf,
   subjectSlot,
@@ -466,7 +468,13 @@ function settingsFor(settings: Settings, unit: Form | null | undefined): Setting
 }
 
 function drillableUnits(item: Item, settings: Settings) {
-  return unitsOf(item).filter(({ unit }) => enabledTypes(unit, settings).length >= 2);
+  /* A unit with nothing to ask is left out here rather than further down,
+     where it would take one of the four places a family gets in a session
+     and fill it with no question — so a verb whose word is cited by one of
+     its own cells would be dealt three cells instead of four. */
+  return unitsOf(item).filter(
+    ({ unit }) => !isQuiet(unit) && enabledTypes(unit, settings).length >= 2,
+  );
 }
 
 /* Totals for the list indicators: how many forms, how many clips. */
@@ -563,44 +571,49 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
 }
 
 /* ------------------------------------------------------------------
-   Which rows of a verb's table are open
+   The units a verb card asks nothing of
 
-   A verb's forms are laid out on two axes, and the rows are not as hard as
-   each other: somebody who can say what they *do* has something to hang
-   the past on, and somebody handed present, past and command in one week
-   has three tables to confuse. So a row opens only once the row above it
-   is mastered — the same bar a level asks of the level below it, applied
+   Two reasons a form carries no questions of its own, and one set, because
+   every reader has the same question: is there anything to ask here?
+
+   A cell of a row nobody has reached. The rows are not as hard as each
+   other — somebody who can say what they *do* has something to hang the
+   past on, and somebody handed present, past and command in one week has
+   three tables to confuse — so a row opens only once the row above it is
+   mastered, which is the bar a level asks of the level below it applied
    down the other axis.
 
-   Held at module level for the reason the three indexes above are: a cell
-   is a unit, the question is asked of one unit at a time, and a cell
-   carries no pointer back to the card whose other cells decide whether it
-   is open yet.
+   And the card's own word, where the language cites a cell that is the
+   same word. Arabic has no infinitive: a dictionary lists the he-past, so
+   a card reading *to eat* and the cell under he · past hold one word
+   between them, and drilling both is drilling it twice. The word stays on
+   the card, as its face and its dictionary meaning; the cell is what is
+   practised, and is met the day the card is.
 
-   What is stored is the answer rather than the card, so the walk over the
-   table happens once per rebuild instead of once per question.
+   Held at module level for the reason the three indexes above are: a form
+   is asked about one at a time, and it carries no pointer back to the card
+   whose other cells decide whether it has anything to say.
    ------------------------------------------------------------------ */
 
-let CLOSED_CELLS: Set<string> = new Set();
+let QUIET_UNITS: Set<string> = new Set();
 
-function setClosedCells(closed: Set<string>) {
-  CLOSED_CELLS = closed || new Set();
+function setQuietUnits(quiet: Set<string>) {
+  QUIET_UNITS = quiet || new Set();
 }
 
-/* Whether this unit is a cell of a row nobody has reached yet. False for
-   every unit that is not a cell at all, which is every form on every card
-   written before verbs had tables. */
-const cellClosed = (unit: Form): boolean => !!unit && CLOSED_CELLS.has(unit.id);
+/* Whether this unit is one of them. False for every form on every card
+   written before verbs had tables, which is nearly all of them. */
+const isQuiet = (unit: Form): boolean => !!unit && QUIET_UNITS.has(unit.id);
 
 /*
- * The cells whose row has not opened, across every card in hand.
+ * Working them out, across every card in hand.
  *
  * A row counts as mastered when every cell in it is mastered at everything
  * it is asked — read off the same open types the rest of the app uses, so
  * a cell the learner has switched every exercise off for cannot hold the
  * rows below it shut for ever.
  */
-function closedCells(items: Item[], settings: Settings): Set<string> {
+function quietUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
@@ -626,8 +639,15 @@ function closedCells(items: Item[], settings: Settings): Set<string> {
       });
     });
     for (const cell of cellsOf(card)) {
+      /* The cited cell is the word on the front of the card and is met the
+         day the card is, whichever row it happens to sit in. */
+      if (isCitation(spec, cell)) continue;
       if (!open.includes(rowOf(cell))) out.add(cell.id);
     }
+    /* And the card's own word, where a filled cell says the same word. An
+       unfilled one leaves the word as all there is of the verb, so it goes
+       on being practised as itself. */
+    if (citedCell(card, spec)) out.add(card.id);
   }
   return out;
 }
@@ -1110,7 +1130,7 @@ function openTypes(it: Form, settings: Settings): string[] {
      function: what a session may deal, what counts towards how mature a
      card is, and therefore how much room there is for anything new. A row
      still to come is the card's to reach, not a hole in it. */
-  if (cellClosed(it)) return [];
+  if (isQuiet(it)) return [];
   const supported = availableTypes(it, langOf(settingsFor(settings, it)))
     .filter((t) => settings.types[t])
     .flatMap((t) => keysFor(it, t));
@@ -4527,8 +4547,8 @@ export default function ArabicTrainer() {
      row out reads the ladder for every cell in it, and the ladder reads
      what a cell can be asked, which is the question the count above
      answers. */
-  const closed = useMemo(() => closedCells(asking, settings), [asking, settings]);
-  setClosedCells(closed);
+  const quiet = useMemo(() => quietUnits(asking, settings), [asking, settings]);
+  setQuietUnits(quiet);
 
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {

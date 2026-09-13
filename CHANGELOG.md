@@ -8,6 +8,31 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.101 — 13 September 2026
+
+- **A language with no infinitive now says which form a dictionary lists,
+  and that form is no longer learnt twice.** Arabic has no *to eat*: a
+  dictionary lists أكل, which is the he-past and so one of the card's own
+  cells. The card's word and that cell were the same word asked, marked
+  and scheduled as if they were two things to learn.
+
+  Arabic and Hebrew cite the he-past. The card keeps its word — it is what
+  the card shows in every list and what carries the meaning *to eat* — and
+  the cell is what is practised. Vietnamese cites nothing, because there
+  the bare verb is the card's own word and there is nothing to reconcile;
+  nothing about it changes.
+
+- **The cited form is met the day the card is.** It sits in the past,
+  which is the second row, so it would otherwise have waited behind the
+  whole present tense — leaving a learner holding a card that says *to
+  eat* and never showing them the word. The rest of its row still waits
+  its turn, and the row still has to be mastered in full before the
+  command opens.
+
+- **Left blank, nothing is assumed.** A teacher who has not filled the
+  cited cell in has a verb whose word is all there is of it, and it goes
+  on being practised as itself.
+
 ## 0.100 — 13 September 2026
 
 - **`{{word}}` is filled by every word you teach, with nothing written on

@@ -527,6 +527,11 @@ button {
 .at-celllabel { flex:0 0 5.5em; min-width:0; font-size:12px; font-weight:800;
   color: var(--muted); text-align:end; overflow:hidden; text-overflow:ellipsis;
   white-space:nowrap; }
+/* The cell a dictionary lists the verb under, where the language has no
+   infinitive. It needs more room than a pronoun, and says in its own words
+   why the card's word is already in it. */
+.at-celllabel.cited { flex:0 0 auto; max-width:12em; color: var(--brass); white-space:normal; }
+.at-celllabel.cited i { font-style:normal; font-weight:700; color: var(--muted); }
 /* The script, how it is said and what it means share the line, and stack
    once there is no room — at which point the label sits above them all. */
 .at-cellfields { flex:1; min-width:0; display:flex; gap:8px; }
