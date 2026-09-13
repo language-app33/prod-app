@@ -8,16 +8,59 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.86 — 13 September 2026
+
+- **Two new exercises, both answered by tapping one of four.**
+  **Choose the meaning** puts the word up with four meanings under it, and
+  **English → choose** gives the meaning and offers four words. Between them
+  they are the two halves of knowing a word before you can write it, and
+  neither asks you to write anything.
+
+  Choose the meaning is now the first thing a card is ever asked: nothing is
+  produced, the answer is on the screen, and all it asks is that the word be
+  told from three others. It sits below writing the meaning out. English →
+  choose is a level up, beside the matching grid, because it asks for the
+  word rather than for what it means — so a card is not asked it until its
+  meaning is known.
+
+  Like the grid, both draw their wrong answers from the learner's other
+  cards in the same language, and neither is offered on a card with a
+  variable in it: a filled-in sentence standing among three bare words is
+  the answer given away by its length.
+
+- **Choosing the missing word moved up a level too.** It asks for the word,
+  out of four, which is the same thing English → choose asks — so it now
+  waits for the meaning to be known rather than being one of the first
+  things a card is asked.
+
+- **The ladder is now four levels**, and the word for one of its steps is
+  **level** throughout — in the app, in the settings, and in what the
+  exercises are called:
+
+  1. What the word means — choose the meaning, {script} → English, listen →
+     English, read a scene through.
+  2. Which word it is — match the pairs, English → choose, choose the
+     missing word.
+  3. Write it from a cue — {translit} → script, listen → script, listen →
+     tone, choose the reply, put a scene in order.
+  4. Write it from its meaning — English → script, fill the gap, phrase
+     heard → script.
+
+- **Home counts what is actually waiting.** "Cards ready to practice" now
+  counts a card only where something is due on a level it has reached. A
+  card whose next review is tomorrow used to be counted because an exercise
+  it has not unlocked yet had never been asked.
+
 ## 0.85 — 12 September 2026
 
 - **A word is met alone before it is met among others.** Match the pairs
-  now has a rung of its own on the ladder, above reading a word on its own
+  now has a level of its own on the ladder, above reading a word on its own
   and below producing it: a card joins a grid only once its single-word
   recognition exercises — script → English, listen → English, choose the
   missing word — are through the learning steps and in review. That is the
   graduation bar rather than the four-day one the rest of the ladder asks,
   because the grid is still recognition and a first week without any grid
-  would have been the wrong week. The rung above the grid — writing from
+  would have been the wrong week. The level above the grid — writing from
   the transliteration, from sound — opens only once the grid, too, is
   mastered.
 
@@ -28,13 +71,13 @@ and moves once per batch of work you would notice, not once per commit.
 ## 0.84 — 12 September 2026
 
 - **A card is recognised before it is produced.** Every exercise type now
-  stands on a rung: recognition (match the pairs, script → English, listen →
+  stands on a level: recognition (match the pairs, script → English, listen →
   English, choose the missing word, read a scene through), then producing
   the word from a cue (transliteration → script, listen → script, listen →
   tone, choose the reply, put a scene in order), then producing it from its
   meaning alone (English → script, fill the gap, phrase heard → script). A
-  card is asked the next rung only once every exercise it supports on the
-  rungs below is mastered — in review, four days of interval or more. Slip
+  card is asked the next level only once every exercise it supports on the
+  levels below is mastered — in review, four days of interval or more. Slip
   on the reading and the writing closes again until you have it back.
 
   Before this, every exercise a card supported was on the table from the
@@ -62,7 +105,7 @@ and moves once per batch of work you would notice, not once per commit.
   those words are asked something else instead.
 
 - **Progress reads "Learning" for a card met and not done.** A card with
-  one exercise answered and another not yet — a rung just opened, a plural
+  one exercise answered and another not yet — a level just opened, a plural
   not yet asked — used to count as New, beside a card written this morning.
   New now means never met.
 

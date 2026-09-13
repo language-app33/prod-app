@@ -201,7 +201,7 @@ import type { Value } from "./variables.ts";
  * a word in use, neither of which belongs in the scheduler — so it is
  * handed in here, at the one place that has both.
  */
-/* Judged on the rungs a form has reached, not on everything it could one
+/* Judged on the levels a form has reached, not on everything it could one
    day be asked: a card whose reading is mature and whose writing has not
    opened yet is young, not new. The progress screen and the room-for-new
    sums both read this, so they agree about how full a learner's hands are. */
@@ -743,7 +743,11 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
 function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
   const spec = EX[type];
-  if (!spec || spec.promptField !== "en") return resolved;
+  /* Where the meaning is the question, and where it is the answer: a card
+     that means two things puts one of them up, so the tile the learner
+     taps is the string this is marked against. Without it a card reading
+     "book, volume" would have that whole string as its one right tile. */
+  if (!spec || (spec.promptField !== "en" && spec.picks !== "meaning")) return resolved;
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
   const one = meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
@@ -845,7 +849,7 @@ export function withoutListening(exercises: Question[], from: number, items: Ite
     if (!resolved) continue;
     /* Filtered here rather than trusting the clock, so this answers the same
        way whenever it is called — including from a test. */
-    /* From the rungs the form has reached, and never the grid: a grid is
+    /* From the levels the form has reached, and never the grid: a grid is
        dealt when the session is built, and one conjured here would be a
        word alone with nothing to be told apart from. */
     const options = openTypes(resolved.unit, settings).filter((t) => !isListening(t) && t !== "match");
@@ -898,15 +902,15 @@ function enabledTypes(it: Form, settings: Settings): string[] {
   );
 }
 
-/* And of those, the ones on a rung the form has reached — see the ladder
+/* And of those, the ones on a level the form has reached — see the ladder
    in the scheduler. This is what a session asks from; enabledTypes is what
    a card supports, which is the question the card list and the counts of
-   what is drillable ask. A rung that has not opened is still the card's
+   what is drillable ask. A level that has not opened is still the card's
    to reach, not a hole in it. */
 function openTypes(it: Form, settings: Settings): string[] {
-  /* The rungs are read over everything the card supports and the learner
+  /* The levels are read over everything the card supports and the learner
      has switched on, and only then is the quiet window applied: a
-     listening exercise silenced for a quarter of an hour is still a rung
+     listening exercise silenced for a quarter of an hour is still a level
      to be climbed, not a gap that lets the one above it open early. */
   const supported = availableTypes(it, langOf(settingsFor(settings, it))).filter((t) => settings.types[t]);
   return openTypesOf(supported, (t) => statesOf(it)[t]).filter((t) => typeAllowedNow(t));
@@ -1109,7 +1113,7 @@ function buildSession({
   /* --- candidate families --- */
   let candidates = pool.map((it) => {
     const units = drillableUnits(it, settings);
-    /* Over the open rungs only. A rung not yet reached is all fresh
+    /* Over the open levels only. A level not yet reached is all fresh
        states, and a fresh state is ready by definition — counted, it would
        have every card in the deck due at once. */
     const dues: number[] = [];
@@ -1475,7 +1479,7 @@ function buildManualSession({ items, settings, ids, mode, count }: {
   const plans: Question[] = [];
   const learnt = [];
   /* What the mode allows of what the form supports, and of that, the
-     rungs the form has reached: a session built by hand climbs the same
+     levels the form has reached: a session built by hand climbs the same
      ladder a dealt one does. A form qualifies on the first — it is the
      material that has to offer two exercises — and is asked from the
      second. */
@@ -3580,28 +3584,42 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
   );
 }
 
-function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase" }: {
+/**
+ * @param field  Which side of the card the tiles are: the script, or the
+ *   meaning. A question that gives the meaning and asks for the word puts
+ *   the script up; the one that gives the word and asks what it means puts
+ *   the meanings up, in the interface font — an English tile set in the
+ *   script's size and direction is a sentence pretending to be a word.
+ */
+function TextChoices({ options, lang, value, onChange, disabled, kind = "phrase", field = "ar" }: {
   options: any[];
   lang: Lang;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
   kind?: string;
+  field?: string;
 }) {
+  const textOf = (option: any) => String((option && option[field]) || "");
   return (
     <div className="at-replies" data-el="answer-choices">
-      {options.map((option) => (
-        <button
-          type="button"
-          key={option.id}
-          className={`at-reply${value === option.ar ? " on" : ""}${kind === "word" ? " word" : ""}`}
-          aria-pressed={value === option.ar}
-          disabled={disabled}
-          onClick={() => onChange(option.ar)}
-        >
-          <Arabic text={option.ar} kind={kind} lang={lang} />
-        </button>
-      ))}
+      {options.map((option) => {
+        const text = textOf(option);
+        return (
+          <button
+            type="button"
+            key={option.id}
+            className={`at-reply${value === text ? " on" : ""}${kind === "word" ? " word" : ""}${
+              field === "en" ? " en" : ""
+            }`}
+            aria-pressed={value === text}
+            disabled={disabled}
+            onClick={() => onChange(text)}
+          >
+            {field === "en" ? text : <Arabic text={text} kind={kind} lang={lang} />}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -4312,11 +4330,14 @@ export default function ArabicTrainer() {
     [items, settings, inDeck]
   );
 
+  /* Over the levels a card has reached, not everything it could one day be
+     asked: a level it has not climbed to is not work waiting to be done,
+     and counting it promised a session that would not include the card. */
   const countReady: (pool: Item[]) => number = useCallback(
     (pool) =>
       pool.filter((it) =>
         drillableUnits(it, settings).some(({ unit }) =>
-          enabledTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
+          openTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
         )
       ).length,
     [settings]
@@ -4845,11 +4866,32 @@ export default function ArabicTrainer() {
         : [];
     }
     if (!item) return [];
+    /* The meanings of the learner's other words, one meaning apiece: a
+       card that means two things offers the first of them, so no tile is
+       two answers with a comma between. The card being asked is narrowed
+       the same way, upstream in castMeaning. */
+    if (spec.picks === "meaning") {
+      const reps = (statesOf(item)[(exercise && exercise.type) || ""] || {}).reps || 0;
+      return optionsFor({
+        answer: item,
+        pool: wordPool(asking, settings, qLang.id, item)
+          .filter((u) => u.en)
+          .map((u) => ({ ...u, en: meaningForTurn(u, 0) || u.en })),
+        wanted: PICK_OPTIONS,
+        seed: `${item.id} meaning ${reps}`,
+        textOf: (w) => w.en,
+      });
+    }
     return optionsFor({
       answer: item,
       pool: wordPool(asking, settings, qLang.id, item),
       wanted: PICK_OPTIONS,
-      seed: `${item.id} ${(exercise && exercise.ctx) || ""}`,
+      /* A question with no phrase behind it — "which of these means this"
+         — has the number of askings for a seed instead, so the three wrong
+         answers are not the same three for ever. */
+      seed: `${item.id} ${(exercise && exercise.ctx) || ""}${
+        exercise && !exercise.ctx ? (statesOf(item)[exercise.type] || {}).reps || 0 : ""
+      }`,
       textOf: (w) => w.ar,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5889,6 +5931,7 @@ Cards ready to practice
                       <TextChoices
                         options={choices}
                         kind={spec.picks === "word" ? "word" : "phrase"}
+                        field={spec.picks === "meaning" ? "en" : "ar"}
                         lang={qLang}
                         value={typed}
                         disabled={!!checked}

@@ -298,6 +298,34 @@ const fakeFetch = async (input, opts = {}) => {
 };
 anyWindow.fetch = anyGlobal.fetch = fakeFetch;
 
+/* A card climbed: every exercise it could be asked, mastered, and none of
+   them due again until tomorrow. What a card looks like on a device where
+   it has been practised for a fortnight.
+ *
+ * Two walks below need cards in that state, because most of what the app
+ * can ask only opens once the levels under it are mastered: the matching
+ * grid wants three cards the learner has met, the gentle half of the
+ * gap-fill sits above knowing what the word means, and writing the script
+ * sits above both.
+ *
+ * Nothing due is what keeps them in that state. An ordinary session asks
+ * what is due and reaches past it only on a card that has something due —
+ * so a card with nothing due is not in one at all, and none of the walks
+ * that give questions up can lapse one of these and close the level above
+ * it. The walk that does ask them is Ultimate, which asks every exercise a
+ * card has open whether it is due or not. */
+const CLIMBABLE = [
+  "ar2pick", "ar2en", "rec2en", "match", "en2pick", "ctx2pick",
+  "tr2ar", "rec2ar", "en2ar", "ctx2ar",
+];
+const climbed = () =>
+  Object.fromEntries(
+    CLIMBABLE.map((t) => [
+      t,
+      { phase: "review", reps: 3, interval: 5, due: Date.now() + 86400000, updated: 5 },
+    ])
+  );
+
 /* ---- what the device held before this build: a signed-in account and a
    document from an older build carrying its own private sync key ---- */
 localStorage.setItem("arabic-account", JSON.stringify(account));
@@ -333,19 +361,49 @@ remoteDocs.set(realToken, {
          something to be random about that no other walk can spend. It used
          to lean on the conversation being unmet, which made the test a
          hostage to whatever the walk before it had answered. */
-      /* Both have mastered the bottom rung of the ladder — reading and
-         matching, in review at five days — so the next rung is open on
-         them and a hand-built session can ask them to write the script.
-         Nothing else in the fixture has, which is the ordinary state of a
-         deck and what keeps every other walk on recognition. */
+      /* Two cards a fortnight in. Nothing else in the fixture has climbed,
+         which is the ordinary state of a deck and what keeps every other
+         walk on recognition. */
       { id: "tied1", ar: "شمس", en: "sun", lat: "shams", kind: "word", tags: ["Lesson 1"],
-        created: 1, updated: 5,
-        s: { ar2en: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 },
-             match: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 } } },
+        created: 1, updated: 5, s: climbed() },
       { id: "tied2", ar: "قمر", en: "moon", lat: "qamar", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5, s: climbed() },
+      /* And two in the same state as each other and due at the same moment,
+         so that "six sessions are not one session six times" has something
+         to be random about that no other walk can spend. It used to lean on
+         the conversation being unmet, which made the test a hostage to
+         whatever the walk before it had answered. */
+      /* Answered exactly as often, and as well, as the v2 card above: a
+         session puts the easiest first, so three cards of one difficulty
+         are three that can lead it and one is a session that always opens
+         the same way. */
+      { id: "spare1", ar: "نجم", en: "star", lat: "najm", kind: "word", tags: ["Lesson 1"],
         created: 1, updated: 5,
-        s: { ar2en: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 },
-             match: { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 } } },
+        s: { ar2en: { phase: "review", reps: 4, right: 3, wrong: 1, interval: 2, due: 0, updated: 5 } } },
+      { id: "spare2", ar: "ورد", en: "roses", lat: "ward", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5,
+        s: { ar2en: { phase: "review", reps: 4, right: 3, wrong: 1, interval: 2, due: 0, updated: 5 } } },
+      /* And the course card for كتاب, met on this device before today: the
+         teacher owns its wording and the student owns its progress, so what
+         is stored here is progress alone and the wording is overwritten by
+         the material when it arrives. It has climbed the same two levels,
+         which is what opens the gap-fill's gentle half on it — and what
+         gives the matching grid a third word to deal, since a grid is only
+         ever filled from cards the learner has already met. */
+      /* And the course card for كتاب, climbed on this device before today:
+         the teacher owns its wording and the student owns its progress, so
+         what is stored here is progress alone and the wording is written
+         over by the material when it arrives. It is the card the seeded
+         phrase teaches, so climbing it is what opens the gap-fill's gentle
+         half — and it is the matching grid's third word.
+
+         Its plural is climbed with it. A family is in a session when any
+         one of its forms has something due, so a plural left untouched
+         would carry the whole card into sessions that are meant to leave
+         it alone. */
+      { id: "srvk111111111111", ar: "كتاب", en: "book", lat: "kitaab", kind: "word", tags: ["Lesson 1"],
+        created: 1, updated: 5, s: climbed(),
+        subs: [{ id: "srvk111111111111-f0", ar: "كتب", en: "books", lat: "kutub", s: climbed() }] },
     ],
   },
 });
@@ -423,7 +481,7 @@ check("stored document no longer carries an account", !("account" in stored));
    and the one on the wire — as the JSON they are. */
 /** @type {Record<string, any>} */
 const byId = Object.fromEntries(stored.items.map((/** @type {any} */ i) => [i.id, i]));
-check("both course cards and every old card landed in storage", stored.items.length === 9 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+check("both course cards and every old card landed in storage", stored.items.length === 11 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
 /* And the values the deck's phrases need, which are in no deck at all: they
    arrive because a phrase leaves a hole of their name, carrying what makes
    them values rather than cards to learn. */
@@ -451,11 +509,20 @@ check("a v2 card's skills lift onto types that exist, and no further",
 check("a v2 card gains no state for the retired exercise",
   byId.v2card && !("ar2tr" in byId.v2card.s),
   byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
-check("untouched states are not stored", byId["srv" + card.id] && Object.keys(byId["srv" + card.id].s).length === 0 && Object.keys(byId["srv" + card.id].subs[0].s).length === 0);
+/* On the phrase, which nobody has answered. The word card beside it in the
+   same deck arrived carrying progress made on another device, which is the
+   other half of the same rule: what is stored is what was answered. */
+check("untouched states are not stored",
+  byId["srv" + phrase.id] && Object.keys(byId["srv" + phrase.id].s).length === 0,
+  Object.keys((byId["srv" + phrase.id] || { s: {} }).s).join(",") || "none");
 /* Seven of the nine: the two values are held and never counted. A card
    that fills a hole in somebody else's sentence is not a card waiting to be
    practised, and counting it would promise a session that never comes. */
-check("every card counts as ready to practice, and a value is not one", /Cards ready to practice\s*7/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+/* Six: every card with something to do on a level it has reached. The two
+   values are not among them, which is the thing this is here for — and nor
+   are the three climbed above, whose next review is tomorrow. A card with
+   nothing due is not a card waiting to be practised. */
+check("every card with something due counts, and a value is never one", /Cards ready to practice\s*6/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
 const wire = remoteDocs.get(realToken)?.data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
@@ -541,6 +608,51 @@ async function playGrid() {
   return seen;
 }
 
+/*
+ * The on-screen keys button, checked wherever a question asking for the
+ * script turns up.
+ *
+ * It used to be a labelled button in the flow under the answer box and is
+ * now an icon in the field's corner. Which question it is met on is not
+ * this walk's business — only two of the seeded cards have climbed far
+ * enough to be asked for the script at all — so it is a function called
+ * from whichever walk meets one first, and it runs once.
+ *
+ */
+/** @param {Element} field  The script input on screen. */
+async function checkKeys(field) {
+  const wrap = field.parentElement;
+  if (!wrap) return false;
+  check("the answer field carries the keys button in its corner",
+    wrap.classList.contains("at-inputwrap") && !!wrap.querySelector(".at-keybtn"),
+    wrap.className);
+  /* Which side it takes is settled by this class, not by the stylesheet
+     guessing: the seeded course is Arabic, so it is the left. */
+  check("and the wrapper says which end of the line that is",
+    wrap.classList.contains("rtl"), wrap.className);
+  check("and nothing is left of the labelled button under the box",
+    !document.querySelector(".at-kbtoggle") && !/Show on-screen keys/.test(document.body.textContent || ""));
+
+  /* It says what it is and whether it is on, which is all a button with
+     no words on it has to go on. */
+  const keys = must(wrap.querySelector(".at-keybtn"), "the keys button in the answer field");
+  check("the icon-only button is named for a screen reader",
+    keys.getAttribute("aria-label") === "On-screen keys" && keys.getAttribute("aria-pressed") !== null,
+    `${keys.getAttribute("aria-label")} / pressed=${keys.getAttribute("aria-pressed")}`);
+
+  const wasOpen = !!document.querySelector(".at-kb");
+  click(keys);
+  await sleep(120);
+  check("and it opens and closes the keys",
+    !!document.querySelector(".at-kb") !== wasOpen,
+    `was ${wasOpen ? "open" : "shut"}, now ${document.querySelector(".at-kb") ? "open" : "shut"}`);
+  check("the button shows which it is",
+    must(wrap.querySelector(".at-keybtn"), "the keys button").getAttribute("aria-pressed") === String(!wasOpen));
+  click(wrap.querySelector(".at-keybtn"));
+  await sleep(120);
+  return true;
+}
+
 /**
  * A button by its label, described whether or not it is there.
  *
@@ -582,7 +694,11 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
   await sleep(120);
   check("no card is chosen for you either", !document.querySelector(".at-tagpick.on, .at-minicard.on"));
-  const everything = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Everything/.test(b.textContent));
+  /* Introductions rather than Everything: the walks further down need the
+     climbed cards untouched, and a hand-built session asks a card every
+     exercise it has open whether it is due or not — so the one deck none
+     of them is in is the one to practise here. */
+  const everything = [...document.querySelectorAll(".at-tagpickmain")].find((b) => /Introductions/.test(b.textContent));
   click(everything);
   await sleep(80);
   clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
@@ -597,10 +713,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     start().there && start().disabled && /Choose a length/.test(start().label),
     start().label || "no button");
 
-  /* The longest count on offer, so that everything the chosen cards
-     support is in the queue: the walk below needs a question that asks for
-     the script, and the ladder opens that on two of the cards only. */
-  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => (b.textContent || "").trim() === "50"));
+  click([...document.querySelectorAll(".at-lengthgroup button")].find((b) => (b.textContent || "").trim() === "10"));
   await sleep(80);
   check("choosing a length is all that was left", start().there && !start().disabled && /^Start$/.test(start().label),
     start().label);
@@ -637,19 +750,20 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("a hand-built session actually starts", !!document.querySelector(".at-instruction"),
     document.body.textContent.slice(0, 120));
 
-  /* The on-screen keys button, which used to be a labelled button in the
-     flow under the answer box and is now an icon in the field's corner.
-     Walk forward until a question actually asks for the script — the queue
-     is shuffled, so the first one may not. */
-  let scriptField = null;
-  /* Enough tries to step past the questions that are not typed at all. The
-     queue is shuffled and there are more kinds of question than there were,
-     so a fixed eight ran out before one asking for the script came up —
-     and now that a fresh card is only ever asked to recognise, the script
-     is asked of the two cards that have earned it, wherever they fall. */
-  for (let i = 0; i < 50 && !scriptField; i++) {
-    scriptField = document.querySelector(".at-answerbox .at-input.ar");
-    if (scriptField) break;
+  /* Everything below reads a question that is typed into: the names on
+     its parts, the hint, the answer screen under it. Most of a session is
+     not one — the first two levels of the ladder are answered by tapping —
+     so walk forward until one comes up.
+
+     Short, and deliberately: every step of it gives a card up, and the
+     walks after this one need a deck that is still due. A card met for
+     the first time is asked what it means, in writing, which is the
+     second exercise on the bottom level — so this is a step or two, not
+     a session. */
+  let typedField = null;
+  for (let i = 0; i < 12 && !typedField; i++) {
+    typedField = document.querySelector('[data-el="answer-input"]');
+    if (typedField) break;
     /* A grid has no "I don't know": it is paired and checked instead. */
     if (document.querySelector('[data-el="answer-match"]')) await playGrid();
     else click(buttonNamed(/^I don't know$/));
@@ -657,38 +771,8 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     click(buttonNamed(/Continue|Next/));
     await sleep(250);
   }
-  check("a question asking for the script was reached", !!scriptField,
+  check("a question that is typed into was reached", !!typedField,
     (document.body.textContent || "").slice(0, 90));
-  const wrap = scriptField && scriptField.parentElement;
-  if (wrap) {
-    check("the answer field carries the keys button in its corner",
-      wrap.classList.contains("at-inputwrap") && !!wrap.querySelector(".at-keybtn"),
-      wrap.className);
-    /* Which side it takes is settled by this class, not by the stylesheet
-       guessing: the seeded course is Arabic, so it is the left. */
-    check("and the wrapper says which end of the line that is",
-      wrap.classList.contains("rtl"), wrap.className);
-    check("and nothing is left of the labelled button under the box",
-      !document.querySelector(".at-kbtoggle") && !/Show on-screen keys/.test(document.body.textContent || ""));
-
-    /* It says what it is and whether it is on, which is all a button with
-       no words on it has to go on. */
-    const keys = must(wrap.querySelector(".at-keybtn"), "the keys button in the answer field");
-    check("the icon-only button is named for a screen reader",
-      keys.getAttribute("aria-label") === "On-screen keys" && keys.getAttribute("aria-pressed") !== null,
-      `${keys.getAttribute("aria-label")} / pressed=${keys.getAttribute("aria-pressed")}`);
-
-    const wasOpen = !!document.querySelector(".at-kb");
-    click(keys);
-    await sleep(120);
-    check("and it opens and closes the keys",
-      !!document.querySelector(".at-kb") !== wasOpen,
-      `was ${wasOpen ? "open" : "shut"}, now ${document.querySelector(".at-kb") ? "open" : "shut"}`);
-    check("the button shows which it is",
-      must(wrap.querySelector(".at-keybtn"), "the keys button").getAttribute("aria-pressed") === String(!wasOpen));
-    click(wrap.querySelector(".at-keybtn"));
-    await sleep(120);
-  }
 
   /* Names on the parts of a question and an answer. They are how a change
      gets asked for — "make question-prompt bigger" — so the thing worth
@@ -1287,6 +1371,11 @@ const instruction = document.querySelector(".at-instruction");
 check("a session started and shows an exercise", !!instruction, (instruction && instruction.textContent) || "");
 const input = document.querySelector(".at-answerbox input");
 const choice = document.querySelector(".at-answerbox .at-chips button");
+/* A question answered by tapping one of a few: which word this is, or
+   which of these meanings it has. Whichever tile is first will do — this
+   walk is about a session starting and an answer being marked, not about
+   reading Arabic. */
+const tile = document.querySelector('[data-el="answer-choices"] .at-reply');
 if (input) {
   const lang = input.getAttribute("lang");
   check(
@@ -1302,8 +1391,8 @@ if (input) {
   input.dispatchEvent(new w.Event("input", { bubbles: true }));
   await sleep(50);
   click(buttonNamed(/^Check$/));
-} else if (choice) {
-  click(choice);
+} else if (choice || tile) {
+  click(choice || tile);
   await sleep(50);
   click(buttonNamed(/^Check$/));
 } else if (await playGrid()) {
@@ -1694,11 +1783,11 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      only pinned the order exercises are declared in, and broke the day a new
      one was added. What matters is that the substitute is a question this
      card is not already down for. */
-  /* On a card that has earned more than one rung: oldclient1 is still on
+  /* On a card that has earned more than one level: oldclient1 is still on
      recognition, where reading is the only question it has not been
      asked, and repeating that is what the next check is about. The walks
-     above have been answering "I don't know", which closes rungs, so the
-     card is handed in with its bottom rung mastered rather than read off
+     above have been answering "I don't know", which closes levels, so the
+     card is handed in with its bottom level mastered rather than read off
      the device — the rewrite reads states from the items it is given. */
   const done = { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 };
   const card2 = { ...byId2.tied1, s: { ...byId2.tied1.s, ar2en: done, match: done } };
@@ -1999,7 +2088,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(250);
   }
 
-  /* A scene nobody has read yet is on the bottom rung of the ladder: it is
+  /* A scene nobody has read yet is on the bottom level of the ladder: it is
      read through, and read again for marking, and nothing harder. Putting
      it in order and choosing a reply wait until the reading is mastered,
      which no walk can be — so what is checked is that the reading is
@@ -2145,6 +2234,19 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   let grid = false;
   let sawWhereItTurnedUp = 0;
   let sawOnAPlainQuestion = false;
+  /* The two that put four whole cards up and ask which one: the meanings
+     of the word on screen, and the word a meaning belongs to. What is
+     checked of each is that its tiles are drawn from the right side of the
+     card — an English tile set in the script's size and direction is the
+     bug this catches. */
+  /** @type {{options: number, script: number} | null} */
+  let meaningTiles = null;
+  /** @type {{options: number, script: number} | null} */
+  let wordTiles = null;
+  /* And the on-screen keys, which need a question asking for the script.
+     Ultimate asks every exercise a card has open, and two of these cards
+     have the writing open, so one comes up here without being hunted. */
+  let sawKeys = false;
 
   /* Walk until this block has met everything it asserts, rather than for a
      fixed number of turns.
@@ -2155,7 +2257,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      just covered the queue decided by draw whether the one question this
      block is about fell inside it. Every exercise added to the app tightened
      that, and adding the thirteenth is what made it fail. */
-  const metEverything = () => sawPicker && !!grid && sawWhereItTurnedUp > 0 && sawOnAPlainQuestion;
+  const metEverything = () =>
+    sawPicker && !!grid && sawWhereItTurnedUp > 0 && sawOnAPlainQuestion && sawKeys &&
+    !!meaningTiles && !!wordTiles;
   let asked_ = 0;
   for (let n = 0; n < 120 && !metEverything() && document.querySelector(".at-instruction"); n++) {
     asked_ = n + 1;
@@ -2163,6 +2267,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     const gapped = /____/.test(prompt());
     const choices = document.querySelector('[data-el="answer-choices"]');
     const contextQuestion = gapped || /phrase/i.test(asked);
+
+    const scriptField = document.querySelector(".at-answerbox .at-input.ar");
+    if (scriptField && !sawKeys) sawKeys = await checkKeys(scriptField);
 
     if (choices && gapped) {
       /* Move one: the gentle half of the gap-fill. The word is chosen out
@@ -2174,7 +2281,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       click(options[0]);
       await sleep(40);
     } else if (choices) {
-      click(choices.querySelector("button"));
+      const tiles = [...choices.querySelectorAll("button")];
+      const seen = {
+        options: tiles.length,
+        script: tiles.filter((b) => !!b.querySelector(".at-arabic")).length,
+      };
+      if (/Choose the meaning/.test(asked)) meaningTiles = seen;
+      if (/Choose the word/.test(asked)) wordTiles = seen;
+      click(tiles[0]);
       await sleep(40);
     } else if (document.querySelector('[data-el="answer-match"]')) {
       grid = (await playGrid()) || grid;
@@ -2212,8 +2326,27 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      question it gave up on. */
   check("the walk met every question this block is about, without running out of turns",
     metEverything(),
-    `${asked_} answered, last on "${instruction()}" — picker:${sawPicker} grid:${!!grid} context:${sawWhereItTurnedUp} plain:${sawOnAPlainQuestion}`
+    `${asked_} answered, last on "${instruction()}" — picker:${sawPicker} grid:${!!grid} context:${sawWhereItTurnedUp} plain:${sawOnAPlainQuestion} keys:${sawKeys}`
       .replace(/\s+/g, " "));
+  check("a question asking for the script was reached, so the keys were looked at",
+    sawKeys, "no card in this deck has the writing open");
+
+  /* The gentlest question there is: the word, and four meanings to choose
+     between. It is where a card starts, so every card in the deck is asked
+     it. */
+  check("a word can be met by choosing what it means, out of a few",
+    !!meaningTiles && meaningTiles.options > 1,
+    meaningTiles ? `${meaningTiles.options} meanings offered` : "never asked");
+  check("and the meanings are set as meanings, not as words in the script",
+    !!meaningTiles && meaningTiles.script === 0,
+    meaningTiles ? `${meaningTiles.script} of ${meaningTiles.options} tiles in the script` : "never asked");
+  /* And the other way round, a level up. */
+  check("a word can be chosen out of a few from its meaning",
+    !!wordTiles && wordTiles.options > 1,
+    wordTiles ? `${wordTiles.options} words offered` : "never asked");
+  check("and those tiles are the words themselves, in the script",
+    !!wordTiles && wordTiles.script === wordTiles.options,
+    wordTiles ? `${wordTiles.script} of ${wordTiles.options} tiles in the script` : "never asked");
 
   /* The matching grid, which every card can be asked because it wants
      nothing but a word and a meaning. */

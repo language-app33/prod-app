@@ -12,18 +12,26 @@ it and knowing it when you hear it are scheduled separately.
 Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
 - **A card is recognised before it is produced.** Every exercise type stands
-  on a rung — recognising the word alone, telling it apart from others in
-  a grid, production from a cue, production from the meaning alone — and a
-  form is asked the next rung only once every exercise it supports on the
-  rungs below has reached that rung's bar. The bar is *mastered* — in
-  review, with an interval of at least four days — except for the grid,
-  which opens once the word is *graduated*: through the learning steps
-  and in review at all. A lapse below closes the rungs above until it is
-  recovered.
+  on a level, and a form is asked the next level only once every exercise
+  it supports on the levels below has reached that level's bar:
+
+  | level | what it asks | exercises |
+  |---|---|---|
+  | 1 | what the word means | choose the meaning · {script} → English · listen → English · read a scene |
+  | 2 | which word it is | match the pairs · English → choose · choose the missing word |
+  | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
+  | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
+
+  The bar is *mastered* — in review, with an interval of at least four
+  days — except for level 2, which opens once level 1 is *graduated*:
+  through the learning steps and in review at all. A level a card has no
+  material for is passed straight through. A lapse below closes the levels
+  above until it is recovered. Each exercise declares its own level in
+  `src/languages.ts`; `openTypes` in the scheduler reads them.
 - **New cards are introduced only while there is room.** Beyond the
   per-session limit in the settings, nothing new is dealt while ten cards
   are already being learnt or forty are young and still coming back for
-  review. A card's phase is read over the rungs it has reached: *New* is
+  review. A card's phase is read over the levels it has reached: *New* is
   never met, *Learning* is met and not yet through the steps somewhere,
   *Young* is graduated everywhere it is open, *Mature* is three weeks out
   everywhere.

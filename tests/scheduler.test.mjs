@@ -84,7 +84,7 @@ test("a new card answered well climbs the learning ladder one step", () => {
   const first = reschedule(freshState(), "good", still);
   assert.equal(first.phase, "learning");
   assert.equal(first.step, 1);
-  /* The second rung of the ladder, in minutes from now. */
+  /* The second level of the ladder, in minutes from now. */
   assert.equal(first.due, T + LEARN_STEPS[1] * MIN);
   assert.equal(first.reps, 1);
   assert.equal(first.right, 1);
@@ -101,7 +101,7 @@ test("the ladder and the first intervals are the ones promised", () => {
   assert.equal(RELEARN_STEP, 10, "a forgotten card comes back in ten minutes");
 });
 
-test("answering well off the last rung graduates it to review", () => {
+test("answering well off the last level graduates it to review", () => {
   const last = { ...freshState(), phase: "learning", step: LEARN_STEPS.length - 1 };
   const out = reschedule(last, "good", still);
   assert.equal(out.phase, "review");
@@ -116,7 +116,7 @@ test("Easy on a new card skips the ladder entirely", () => {
   assert.equal(out.due, T + 4 * DAY);
 });
 
-test("getting it wrong while learning drops back to the first rung", () => {
+test("getting it wrong while learning drops back to the first level", () => {
   const half = { ...freshState(), phase: "learning", step: 1 };
   const out = reschedule(half, "again", still);
   assert.equal(out.phase, "learning");
@@ -124,10 +124,10 @@ test("getting it wrong while learning drops back to the first rung", () => {
   assert.equal(out.due, T + LEARN_STEPS[0] * MIN);
 });
 
-test("a near miss while learning holds the rung rather than losing it", () => {
+test("a near miss while learning holds the level rather than losing it", () => {
   const half = { ...freshState(), phase: "learning", step: 1 };
   const out = reschedule(half, "hard", still);
-  assert.equal(out.step, 1, "the rung is kept");
+  assert.equal(out.step, 1, "the level is kept");
   assert.equal(out.due, T + LEARN_STEPS[1] * MIN);
   /* But it is still counted as wrong, so the progress screen tells the
      truth about it. */
@@ -344,9 +344,9 @@ test("mastered is four days of interval in review, and nothing less", () => {
     "graduating the steps is two right answers ten minutes apart, which is not knowing a word");
 });
 
-test("a rung opens only once every exercise below it is mastered", () => {
+test("a level opens only once every exercise below it is mastered", () => {
   /* Recognition, production from a cue, production from the meaning: one
-     of each, so the three rungs are each one exercise wide. */
+     of each, so the three levels are each one exercise wide. */
   const ladder = ["ar2en", "tr2ar", "en2ar"];
   const done = state({ phase: "review", interval: MASTERED_DAYS });
   const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
@@ -363,18 +363,18 @@ test("a rung opens only once every exercise below it is mastered", () => {
   );
 });
 
-test("a rung with nothing on it is passed straight through", () => {
+test("a level with nothing on it is passed straight through", () => {
   const done = state({ phase: "review", interval: MASTERED_DAYS });
-  /* No recording and no transliteration: nothing stands on rung three, so
+  /* No recording and no transliteration: nothing stands on level three, so
      mastering the reading and the grid is what opens the writing. */
   assert.deepEqual(openTypes(["match", "ar2en", "en2ar"], (t) => ({ match: done, ar2en: done })[t]),
     ["ar2en", "match", "en2ar"]);
-  /* Every exercise on a rung has to reach the bar, not just one — and the
+  /* Every exercise on a level has to reach the bar, not just one — and the
      grid stands above reading the word alone. */
   assert.deepEqual(openTypes(["match", "rec2en", "ar2en", "en2ar"], (t) => ({ match: done, ar2en: done, rec2en: freshState() })[t]),
     ["rec2en", "ar2en"]);
   assert.deepEqual(openTypes([], () => undefined), [], "nothing supported, nothing open");
-  /* Rung by rung, and within a rung in the order the caller gave: the
+  /* Level by level, and within a level in the order the caller gave: the
      ladder decides what is open, and the list's own order does not. */
   assert.deepEqual(openTypes(["en2ar", "ar2en", "match"], (t) => ({ match: done, ar2en: done })[t]),
     ["ar2en", "match", "en2ar"]);
@@ -391,7 +391,7 @@ test("the grid opens once a word is through the learning steps alone, and writin
   assert.deepEqual(openTypes(ladder, table({ ar2en: grad })), ["ar2en", "match"],
     "graduated is enough for the grid — it is still recognition");
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: grad })), ["ar2en", "match"],
-    "but not for the rung above: the grid has to be mastered too");
+    "but not for the level above: the grid has to be mastered too");
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done })), ["ar2en", "match", "tr2ar"]);
   assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), match: done })), ["ar2en"],
     "and a lapse on the reading takes the grid away again until it is back in review");
@@ -400,17 +400,20 @@ test("the grid opens once a word is through the learning steps alone, and writin
   assert.equal(graduated(freshState()), false);
 });
 
-test("the settings say which rung each exercise stands on, and every one has a rung", () => {
-  for (const t of TYPES) assert.ok([1, 2, 3, 4].includes(levelOf(t)), `${t} has a rung`);
-  /* The gentle half of the set is the two bottom rungs — recognising a
+test("the settings say which level each exercise stands on, and every one has a level", () => {
+  for (const t of TYPES) assert.ok([1, 2, 3, 4].includes(levelOf(t)), `${t} has a level`);
+  /* The gentle half of the set is the two bottom levels — recognising a
      word alone, then among others — so "Get started" and the ladder agree
      about what recognition is. */
   for (const t of TYPES) {
-    if (levelOf(t) === 1) assert.ok(EX[t].gentle, `${t}: the bottom rung is gentle`);
+    if (levelOf(t) === 1) assert.ok(EX[t].gentle, `${t}: the bottom level is gentle`);
     if (EX[t].gentle) assert.ok(levelOf(t) <= 2, `${t}: gentle is never production`);
   }
-  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 2), ["match"], "the grid has a rung of its own");
-  assert.equal(levelOf("no-such-exercise"), 1, "an unknown type is read as the bottom rung, not a crash");
+  /* The second level is the one that asks which word it is rather than
+     what it means: the grid, and the two that offer the word among four. */
+  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 2), ["match", "en2pick", "ctx2pick"]);
+  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 1), ["ar2pick", "ar2en", "rec2en", "dlgwhole"]);
+  assert.equal(levelOf("no-such-exercise"), 1, "an unknown type is read as the bottom level, not a crash");
 });
 
 /* ---- room for what is new ---- */

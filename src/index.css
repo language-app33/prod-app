@@ -2292,6 +2292,9 @@ body.at-screening .at-spaces { display:none; }
    is asked at elsewhere; a line of a conversation is longer and takes the
    phrase size, which is what the two classes are for. */
 .at-replies .at-reply.word .at-arabic { font-size: calc(var(--ask) * .8); }
+/* A tile holding a meaning rather than a word: the interface font, at the
+   size the meanings in a matching grid are set. */
+.at-reply.en { font-family: var(--ui); font-size:15px; font-weight:600; line-height:1.35; }
 
 /* The matching grid: the language being learnt down the left, English down
    the right, side by side at every width.

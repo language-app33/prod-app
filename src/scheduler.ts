@@ -38,7 +38,7 @@ export const MAX_DAYS = 365;
 export const MATURE_DAYS = 21;
 
 /*
- * When an exercise counts as mastered, which is what opens the next rung of
+ * When an exercise counts as mastered, which is what opens the next level of
  * the ladder for a form — see openTypes below.
  *
  * Four days of interval, in review. Graduating the learning steps is two
@@ -55,7 +55,7 @@ export const MASTERED_DAYS = 4;
  * How many cards may be in hand at once. New cards are introduced only
  * while there is room, on top of the per-session limit in the settings.
  *
- * Learning — met, and not yet through the learning steps at whatever rung
+ * Learning — met, and not yet through the learning steps at whatever level
  * it is on — is what a person is actively holding, and ten is about what a
  * session of eighteen exercises can carry with a few new ones beside. Young
  * — graduated everywhere it is open, not yet mature — is the review load:
@@ -294,18 +294,18 @@ export function graduated(s: ExerciseState): boolean {
    The ladder
 
    A form is recognised before it is produced. Every exercise stands on a
-   rung — recognising the word alone, telling it apart from others,
-   production from a cue, production from the meaning — and a rung is open
-   for a form only once every exercise on the rungs below it that the form
-   supports has reached the rung's bar. The bar is mastered, except where
-   the rung says graduated is enough: the grid asks only that a word has
+   level — recognising the word alone, telling it apart from others,
+   production from a cue, production from the meaning — and a level is open
+   for a form only once every exercise on the levels below it that the form
+   supports has reached the level's bar. The bar is mastered, except where
+   the level says graduated is enough: the grid asks only that a word has
    been through the learning steps alone before it is met among others. A
-   form with no recording has nothing on rung three but its
-   transliteration, and that alone is what it must master to reach rung
-   four; a form with nothing at all on a rung passes straight through it.
+   form with no recording has nothing on level three but its
+   transliteration, and that alone is what it must master to reach level
+   four; a form with nothing at all on a level passes straight through it.
 
    Whether the bar is met is read afresh every time, so a lapse on the
-   bottom rung closes the ones above it until it is recovered: somebody who
+   bottom level closes the ones above it until it is recovered: somebody who
    can no longer read a word is not asked to write it.
    ------------------------------------------------------------------ */
 
@@ -313,20 +313,20 @@ export function graduated(s: ExerciseState): boolean {
  * Which of a form's exercises may be asked now.
  *
  * `types` is what the form supports — in the settings, in the material —
- * and what comes back is that list with the closed rungs taken out, in
+ * and what comes back is that list with the closed levels taken out, in
  * the same order. `stateOf` is passed rather than the form, so the caller
  * decides where a state comes from and a test can hand in a table.
  */
 export function openTypes(types: string[], stateOf: (type: string) => ExerciseState | null | undefined): string[] {
   const out: string[] = [];
-  const rungs = [...new Set(types.map(levelOf))].sort((a, b) => a - b);
-  for (const rung of rungs) {
-    const here = types.filter((t) => levelOf(t) === rung);
-    /* The rung's bar is the loosest any exercise on it declares — one
-       exercise to a rung in practice, and a rung that has a gentle way
+  const levels = [...new Set(types.map(levelOf))].sort((a, b) => a - b);
+  for (const level of levels) {
+    const here = types.filter((t) => levelOf(t) === level);
+    /* The level's bar is the loosest any exercise on it declares — one
+       exercise to a level in practice, and a level that has a gentle way
        up should not be shut by a stricter neighbour. */
     const bar = here.some((t) => barOf(t) === "graduated") ? graduated : mastered;
-    const lower = types.filter((t) => levelOf(t) < rung);
+    const lower = types.filter((t) => levelOf(t) < level);
     const reached = lower.every((t) => {
       const s = stateOf(t);
       return !!s && bar(s);
@@ -428,13 +428,13 @@ export function unitsOf(item: Item | null | undefined): Unit[] {
  * `typesOf` says which exercise types a given form supports. It is passed
  * in because the answer depends on the language pack and on the index of
  * phrases that show a word in use — neither of which belongs in here.
- * The app passes the open rungs, so a card is judged on what it can be
- * asked and not held at "new" by a rung it has not reached.
+ * The app passes the open levels, so a card is judged on what it can be
+ * asked and not held at "new" by a level it has not reached.
  */
 
 /*
  * New means never met: every exercise untouched. A card with one exercise
- * answered and another not yet — the next rung just opened, a plural not
+ * answered and another not yet — the next level just opened, a plural not
  * yet asked — is being learnt, and says so; before this it read as new,
  * which put a card three weeks in beside one written this morning.
  */

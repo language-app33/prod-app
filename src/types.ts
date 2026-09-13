@@ -64,13 +64,13 @@ export interface ExerciseSpec {
   /**
    * Where it stands on the ladder a form climbs: 1 recognises the word on
    * its own, 2 tells it apart from others, 3 produces it from a cue, 4
-   * produces it from its meaning alone. A rung opens only once every
-   * exercise below it that the form supports has reached the rung's bar —
+   * produces it from its meaning alone. A level opens only once every
+   * exercise below it that the form supports has reached the level's bar —
    * see openTypes in the scheduler.
    */
   level: 1 | 2 | 3 | 4;
   /**
-   * The bar the rungs below must reach for this one to open. Mastered —
+   * The bar the levels below must reach for this one to open. Mastered —
    * four days of interval, in review — unless said otherwise; "graduated"
    * asks only that they be through the learning steps.
    */
@@ -90,11 +90,13 @@ export interface ExerciseSpec {
    */
   intro?: boolean;
   /**
-   * What the few answers offered are: a line of the conversation, a word
-   * that could fill the gap, or a meaning to pair a word with. Absent means
-   * a choice between classes of sound, which is graded differently.
+   * What the few answers offered are: a line of the conversation, a word —
+   * one that could fill a gap, or the one a meaning belongs to — a meaning
+   * for the word on screen, or the meanings of a whole grid of words.
+   * Absent means a choice between classes of sound, which is graded
+   * differently.
    */
-  picks?: "reply" | "word" | "pair";
+  picks?: "reply" | "word" | "meaning" | "pair";
 }
 
 /** A grammatical axis a word varies along — number, gender, addressee. */
