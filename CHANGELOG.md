@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.95 — 13 September 2026
+
+- **"This is a verb" is now a tick inside The kind of card**, instead of a
+  block of its own further down with a button and two paragraphs
+  explaining itself. Both questions about what a card is are answered in
+  one place, in two lines.
+
+  A tick rather than a third option beside *Word or phrase* and
+  *Conversation*, because a verb is not a third kind of card: it is a
+  word, with a table as well. It also stays offered on a card that is
+  already saved, which the selector beside it is not.
+
+- **The verb copy is gone.** What was explained in sentences is read off
+  the screen instead: an empty box in the table is plainly an empty box,
+  and each tense says in its own heading when it opens.
+
 ## 0.94 — 13 September 2026
 
 - **A verb card's editor now reads as a verb's.** The main form is called

@@ -3893,10 +3893,7 @@ function VerbTable({ lang, spec, cells, onChange }: {
             </span>
           </div>
 
-          <Field
-            label="English for this row"
-            hint="Written once. Each form below takes it with its own pronoun, and can be typed over."
-          >
+          <Field label="English for this row">
             <input
               className="at-input"
               value={rowEn[tense.id] || ""}
@@ -3997,9 +3994,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      verb" is a question about the word and not one the app can read off
      its spelling. */
   const [asVerb, setAsVerb] = useState(() => cells.length > 0);
-  /* Whether the table is standing in for the forms below. Read in three
-     places, so it is named once here rather than spelled out at each. */
-  const verbMode = !!verbSpec && asVerb;
+  /* Whether the table is standing in for the forms below. Read in four
+     places, so it is named once here rather than spelled out at each. A
+     conversation is never a verb: it has turns where a word has forms,
+     and there is nothing for a table to lay out. */
+  const verbMode = !scene && !!verbSpec && asVerb;
   /* Whether this card's other forms are on show. Put away on a verb,
      where the table is what a teacher came to fill in — but only where
      there is nothing to put away: a card that already carries a second
@@ -4162,64 +4161,43 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 </Help>
               </>
             )}
+
+            {/* And whether it is a verb, which is the same question about
+                what a card is and so belongs in the same block.
+
+                A tick rather than a third option beside "Word or phrase"
+                and "Conversation", because it is not a third kind: a verb
+                is a word, with a table as well. It also outlives the
+                choice above, which is read-only once a card exists — a
+                verb is often written as a plain word and given its table
+                weeks later, when the course reaches tenses — so it stays
+                offered on a card that is already saved.
+
+                Only where the language lays verbs out. A pack that
+                declares no rows and columns shows no tick. */}
+            {!scene && verbSpec && (
+              <label className="at-tickrow at-mt3">
+                <input
+                  type="checkbox"
+                  checked={asVerb}
+                  onChange={() => setAsVerb((v) => !v)}
+                />
+                <span className="at-tickbody">
+                  <b>This is a verb</b>
+                </span>
+              </label>
+            )}
           </div>
 
-          {/* ---- is it a verb ----
-              The second question about what a card is, and so it stands
-              directly under the first rather than below the forms, where
-              a teacher writing a verb could finish the card without ever
-              scrolling to it.
-
-              Its own control and not a third option in the selector above,
-              because the two questions have different lifetimes. What
-              shape a card is settles when it is written — a word cannot
-              become a conversation, and the selector above is read-only
-              once there is a card. Whether a word conjugates is not like
-              that: "to eat" is written as a plain word early on and given
-              its table weeks later, when the course reaches tenses. Folded
-              into the selector it would inherit that lock, and the only
-              way to add a table would be to delete the card and lose every
-              recording and every student's progress on it.
-
-              Offered only where the language lays verbs out, which is the
-              same thing as saying it is offered where it means anything: a
-              pack that declares no rows and columns has no table to fill
-              in, and nothing here is rendered at all. */}
-          {!scene && verbSpec && (
-            <div className="at-formblock">
-              <div className="at-formhead">
-                <span className="at-formnum">Verb</span>
-                <span className="at-formrole">its forms, one for each person and tense</span>
-                <span className="at-formacts">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setAsVerb((v) => !v)}
-                  >
-                    {asVerb ? "Not a verb" : "This is a verb"}
-                  </Button>
-                </span>
-              </div>
-              {asVerb ? (
-                <>
-                  <Help>
-                    Write each form in the {lang.scriptLabel.toLowerCase()} box. Leave a
-                    box empty where {lang.name} has no such form — there is no command
-                    for <em>I</em> — and it is never asked. The tenses open in the order
-                    below, one at a time. The word itself goes in the main form
-                    underneath, as on any other card.
-                  </Help>
-                  <VerbTable lang={lang} spec={verbSpec} cells={cells} onChange={setCells} />
-                </>
-              ) : (
-                <Help>
-                  {lang.name} marks a verb for who is doing it and when. Say this card is
-                  one and its forms are drilled separately — each on its own schedule, so
-                  a shaky past does not drag the present along with it. It can be said at
-                  any time, including long after the card is written.
-                </Help>
-              )}
-            </div>
+          {/* ---- the verb's table ----
+              The question that opens this is the tick in the block above,
+              where the other question about what a card is lives. Nothing
+              here but the table: what a blank cell means and which rows
+              open first are read off the table itself — an empty box is
+              plainly an empty box, and the rows are labelled in the order
+              they are taught. */}
+          {verbMode && verbSpec && (
+            <VerbTable lang={lang} spec={verbSpec} cells={cells} onChange={setCells} />
           )}
 
           {scene && (
@@ -4429,7 +4407,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 </span>
                 <span className="at-formrole">
                   {i === 0 && verbMode
-                    ? "the word itself — its conjugations are in the table above"
+                    ? "the verb itself"
                     : i === 0
                       ? "the main form"
                       : "another form of the same card"}
@@ -4538,16 +4516,9 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           ))}
 
           {!scene && (verbMode && !moreForms ? (
-            <>
-              <Help>
-                A conjugation goes in the table above, where it is drilled under its
-                own person and tense. Anything else this word is also said as — a
-                second spelling, another dialect — is a form of its own.
-              </Help>
-              <Button variant="ghost" size="sm" onClick={() => setMoreForms(true)}>
-                Another way to say it
-              </Button>
-            </>
+            <Button variant="ghost" size="sm" onClick={() => setMoreForms(true)} icon="add">
+              Another way to say it
+            </Button>
           ) : (
           <Button variant="ghost" size="sm"
             /* No number override: blankForm takes the language's declared
