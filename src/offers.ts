@@ -29,6 +29,7 @@ import type { Placed } from "./dialogs.ts";
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
 import { slotsOf } from "./variables.ts";
+import { VERB_SLOT } from "./verbs.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
 import { MIN_PAIR_MATES } from "./chance.ts";
 
@@ -60,7 +61,16 @@ export function unmetNeeds(
   mates = 0,
 ): string[] {
   const holes = slotsOf(unit);
-  const unfilled = holes.filter((slot) => !((values && values[slot]) || []).length);
+  /* The verb's own place in a verb card's sentence is a hole no card
+     fills: the card fills it out of its own table, from whatever fills the
+     subject beside it. So it is not something to wait for, and asking
+     `values` about it would grey out every sentence a verb was ever
+     written into. Whether the table has the cell the sentence turns out to
+     want is decided when the sentence is filled, one filler at a time, and
+     is not a fact about the card that could be reported here. */
+  const unfilled = holes.filter(
+    (slot) => slot !== VERB_SLOT && !((values && values[slot]) || []).length,
+  );
   /*
    * Two things a variable takes away from a card, both of them reported
    * here so a greyed-out exercise says which.

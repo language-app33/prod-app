@@ -517,6 +517,25 @@ button {
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* The actions stay whole: they are what the row is for. */
 .at-formacts { display:flex; align-items:baseline; gap:8px; flex-shrink:0; }
+/* One cell of a verb's table: who it is, then the form and what it means.
+   Down the page rather than across it — a grid of seven columns is how a
+   grammar book prints a paradigm and is unusable on a phone, which is what
+   this app is mostly opened on. The label keeps a fixed measure so the
+   fields line up down the block and the eye reads a column anyway. */
+.at-cellrow { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.at-cellrow:last-child { margin-bottom:0; }
+.at-celllabel { flex:0 0 5.5em; min-width:0; font-size:12px; font-weight:800;
+  color: var(--muted); text-align:end; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; }
+/* The script and its English share the line, and stack once there is no
+   room for two — at which point the label sits above them both. */
+.at-cellfields { flex:1; min-width:0; display:flex; gap:8px; }
+.at-cellfields > * { flex:1; min-width:0; }
+@media (max-width: 560px) {
+  .at-cellrow { flex-direction:column; align-items:stretch; gap:4px; }
+  .at-celllabel { flex:none; text-align:start; }
+  .at-cellfields { flex-direction:column; }
+}
 .at-cklist { display:flex; flex-direction:column; gap:8px; }
 /* A tighter card editor: less air between fields, smaller labels. */
 .at-screen.over .at-field { margin-bottom:12px; }

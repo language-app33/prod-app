@@ -99,6 +99,54 @@ export interface ExerciseSpec {
   picks?: "reply" | "word" | "meaning" | "pair";
 }
 
+/* ---- a verb's table ----
+
+   The two axes a verb's forms are laid out on. Which of them exist, what
+   they are called and what order they are taught in is the language pack's
+   answer and never the app's: Arabic declares seven persons and three
+   tenses, Huế one person and four, and a language whose verbs do not vary
+   declares no table at all. Nothing outside the pack knows what a tense
+   is — only that a table has rows and columns and that a cell is one thing
+   to learn. See src/verbs.ts. */
+
+/**
+ * One column: who is doing it.
+ *
+ * `picks` is what makes a verb agree with whatever fills a sentence. A
+ * column naming the grammar values a subject must carry — singular and
+ * feminine for *she* — is chosen when a filler carries them, so
+ * "{{name}} [verb] {{object}}" filled with Sarah asks for the *she* form
+ * without anything being added to Sarah. A column with no `picks` is never
+ * chosen that way, which is right for *I*, *you* and *we*: no noun dropped
+ * into a subject is ever the first or second person.
+ */
+export interface VerbPerson {
+  id: string;
+  /** What the learner is shown — "she", "you (f)". "" where none is wanted. */
+  label: string;
+  /** The grammar values on a subject that call for this column. */
+  picks?: Record<string, string>;
+}
+
+/** One row: when it happened, or what mood it is in. */
+export interface VerbTense {
+  id: string;
+  label: string;
+  /**
+   * What goes between the person and the row's English. A space unless
+   * said otherwise — a command reads "you (m): eat!" rather than
+   * "you (m) eat!", and only the language knows which of its rows are
+   * like that.
+   */
+  join?: string;
+}
+
+/** A language's verb table: its columns, and its rows in teaching order. */
+export interface VerbSpec {
+  persons: VerbPerson[];
+  tenses: VerbTense[];
+}
+
 /** A grammatical axis a word varies along — number, gender, addressee. */
 export interface GrammarDim {
   label: string;
@@ -231,6 +279,12 @@ export interface Lang {
   /** Only where the language has one. */
   lexical?: { key: string; label: string; help: string };
   /**
+   * How this language lays a verb out, where it lays one out at all. A
+   * pack without it teaches verbs as ordinary cards, which is every pack
+   * before this existed.
+   */
+  verb?: VerbSpec;
+  /**
    * A pack's own rule for word/phrase/sentence. None has one yet;
    * guessKind() reads it.
    */
@@ -315,6 +369,19 @@ export interface CardForm {
    * speeds.
    */
   slowClips?: string[];
+  /**
+   * Where this form sits in its card's verb table: which tense, which
+   * person. Both or neither — one without the other places nothing.
+   *
+   * A cell of a conjugation table is a sub-form and nothing more, which is
+   * why there is no separate list of them: a sub-form is already an
+   * alternate form drilled on its own, with its own recordings and its own
+   * progress, and that is exactly what a cell is. These two fields say
+   * where in the table it sits, and src/verbs.ts is the only place that
+   * reads them.
+   */
+  row?: string;
+  col?: string;
 }
 
 /**

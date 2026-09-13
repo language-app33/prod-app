@@ -138,7 +138,17 @@ import {
   defaultLanguageOptions,
   grammarFields,
   normDimValue,
+  verbOf,
 } from "./languages.ts";
+import {
+  VERB_SLOT,
+  agreedCell,
+  cellsOf,
+  isVerb,
+  openRows,
+  rowOf,
+  subjectSlot,
+} from "./verbs.ts";
 import {
   MIN,
   LEARNING_CAP,
@@ -150,6 +160,7 @@ import {
   freshState,
   freshStates,
   itemDifficulty as itemDifficultyOf,
+  mastered,
   maturity,
   openTypes as openTypesOf,
   phaseCounts,
@@ -541,6 +552,76 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
 }
 
 /* ------------------------------------------------------------------
+   Which rows of a verb's table are open
+
+   A verb's forms are laid out on two axes, and the rows are not as hard as
+   each other: somebody who can say what they *do* has something to hang
+   the past on, and somebody handed present, past and command in one week
+   has three tables to confuse. So a row opens only once the row above it
+   is mastered — the same bar a level asks of the level below it, applied
+   down the other axis.
+
+   Held at module level for the reason the three indexes above are: a cell
+   is a unit, the question is asked of one unit at a time, and a cell
+   carries no pointer back to the card whose other cells decide whether it
+   is open yet.
+
+   What is stored is the answer rather than the card, so the walk over the
+   table happens once per rebuild instead of once per question.
+   ------------------------------------------------------------------ */
+
+let CLOSED_CELLS: Set<string> = new Set();
+
+function setClosedCells(closed: Set<string>) {
+  CLOSED_CELLS = closed || new Set();
+}
+
+/* Whether this unit is a cell of a row nobody has reached yet. False for
+   every unit that is not a cell at all, which is every form on every card
+   written before verbs had tables. */
+const cellClosed = (unit: Form): boolean => !!unit && CLOSED_CELLS.has(unit.id);
+
+/*
+ * The cells whose row has not opened, across every card in hand.
+ *
+ * A row counts as mastered when every cell in it is mastered at everything
+ * it is asked — read off the same open types the rest of the app uses, so
+ * a cell the learner has switched every exercise off for cannot hold the
+ * rows below it shut for ever.
+ */
+function closedCells(items: Item[], settings: Settings): Set<string> {
+  const out: Set<string> = new Set();
+  for (const card of items) {
+    const lang = langOf(settingsFor(settings, card));
+    const spec = verbOf(lang);
+    if (!spec || !isVerb(card)) continue;
+    const open = openRows(card, spec, (cell) => {
+      /* The ladder as it stands for this cell alone, and deliberately not
+         through openTypes: that one asks this very gate, and a gate that
+         asks itself would read a cell closed by the row above as having
+         nothing left to master — which would open every row at once. The
+         quiet window is left out for the same reason it is applied after
+         the ladder there: a listening exercise silenced for a quarter of
+         an hour is still something to master, not a gap to slip through. */
+      const supported = availableTypes(cell, lang).filter((t) => settings.types[t]);
+      const climbing = openTypesOf(supported, (t) => statesOf(cell)[t]);
+      /* Nothing switched on, so nothing to wait for. A learner who has
+         turned an exercise off must not thereby hold the rows below it
+         shut for ever. */
+      if (!climbing.length) return true;
+      return climbing.every((t) => {
+        const s = statesOf(cell)[t];
+        return !!s && mastered(s);
+      });
+    });
+    for (const cell of cellsOf(card)) {
+      if (!open.includes(rowOf(cell))) out.add(cell.id);
+    }
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------
    How much company a word has
 
    The matching grid is the one exercise whose availability is not a fact
@@ -678,14 +759,56 @@ function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null,
   const slots = slotsOf(resolved.unit);
   if (!slots.length) return resolved;
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
-  const took = valuesForTurn(slots, fillsFor(resolved.unit), seen);
+  /* The verb's own place is not filled from the cards: it is filled from
+     the card's own table, by whatever fills the subject. So it is left out
+     of the draw and put back below. */
+  const drawn = slots.filter((slot) => slot !== VERB_SLOT);
+  const took = valuesForTurn(drawn, fillsFor(resolved.unit), seen);
   if (!took) return resolved;
+  if (slots.length !== drawn.length) {
+    const agreed = verbValue(resolved, took);
+    /* No cell for what filled the subject — a sentence wanting the plural
+       of a verb whose plural the teacher left blank. Nothing to ask, and
+       nothing to invent: left as it stands, the way an unfilled hole is,
+       so it reads as the bug it is rather than as a silent gap. */
+    if (!agreed) return resolved;
+    took[VERB_SLOT] = agreed;
+  }
   const unit = (fillForm(resolved.unit, took) as any);
   return {
     ...resolved,
     unit,
     parent: resolved.parent === resolved.unit ? unit : resolved.parent,
   };
+}
+
+/*
+ * The form of the verb this sentence wants, this time round.
+ *
+ * The row is the sentence's — one that opens "Yesterday" wants the past
+ * whoever is in it — and the column is the subject's, worked out from the
+ * grammar already recorded on whatever filled the first hole. Sarah is
+ * singular and feminine, so the verb is the *she* cell; the children are
+ * plural, so it is *they*. Nothing has to be added to Sarah for this: her
+ * card already says what she is, because every card does.
+ *
+ * Null where the pair names a cell the teacher left blank, or where the
+ * subject's card declares nothing for the language to read.
+ */
+function verbValue(
+  resolved: { unit: Form, parent: Item },
+  took: Record<string, Value>,
+): Value | null {
+  const card = resolved.parent;
+  /* The card's own language, the way every module-level reader here takes
+     it: the pointer set during render is not to be relied on from a
+     function that runs from anywhere. */
+  const spec = verbOf(LANGUAGES[String((card && card.lang) || "")] || activeLang());
+  const subject = subjectSlot(slotsOf(resolved.unit));
+  const filler = subject ? took[subject] : null;
+  const cell = agreedCell(card, spec, rowOf(resolved.unit), filler ? filler.grammar : null);
+  if (!cell || !cell.ar) return null;
+  return { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
 }
 
 /*
@@ -912,6 +1035,14 @@ function openTypes(it: Form, settings: Settings): string[] {
      has switched on, and only then is the quiet window applied: a
      listening exercise silenced for a quarter of an hour is still a level
      to be climbed, not a gap that lets the one above it open early. */
+  /* A cell of a verb's table whose row has not opened is asked nothing at
+     all. Said here rather than in the scheduler because it is the same
+     kind of answer the ladder gives — which of this unit's exercises are
+     open — and because everything that matters reads it through this one
+     function: what a session may deal, what counts towards how mature a
+     card is, and therefore how much room there is for anything new. A row
+     still to come is the card's to reach, not a hole in it. */
+  if (cellClosed(it)) return [];
   const supported = availableTypes(it, langOf(settingsFor(settings, it))).filter((t) => settings.types[t]);
   return openTypesOf(supported, (t) => statesOf(it)[t]).filter((t) => typeAllowedNow(t));
 }
@@ -4291,7 +4422,9 @@ export default function ArabicTrainer() {
       .sort((a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id));
     for (const it of fillers) {
       const slot = String(it.fills || "").toLowerCase();
-      const value = valueOf(it);
+      /* With whatever the language declares about it, so a verb standing
+         in the same sentence can agree with it. */
+      const value = valueOf(it, grammarFields());
       if (!value.ar) continue;
       const key = valueKey(langIdOf(it, settings), slot);
       map.set(key, (map.get(key) || []).concat([value]));
@@ -4304,6 +4437,14 @@ export default function ArabicTrainer() {
   /* And how many words each language has to pair against. */
   const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
   setMateCounts(mateCounts);
+
+  /* And which cells of a verb's table are still behind their row's gate.
+     Last of the four, and deliberately after the mate counts: working a
+     row out reads the ladder for every cell in it, and the ladder reads
+     what a cell can be asked, which is the question the count above
+     answers. */
+  const closed = useMemo(() => closedCells(asking, settings), [asking, settings]);
+  setClosedCells(closed);
 
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {

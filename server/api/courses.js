@@ -815,14 +815,28 @@ export default async (req) => {
            would leave the client reading the last value it synced. */
         drill: card.drill !== false,
         answers: storedAnswers(card),
+        /* The cap was twelve, which is more alternate forms than a word has
+           ever wanted. A verb's table is made of these — one sub-form per
+           cell — and seven persons across three tenses is twenty-one before
+           a teacher has added a plural, so twelve would have silently
+           thrown away the end of every table saved. It is a guard against a
+           runaway client rather than a limit anybody should meet, so it is
+           raised to where a table fits with room over. */
         subs: Array.isArray(card.subs)
-          ? card.subs.slice(0, 12).map((/** @type {Record<string, any>} */ sb) => ({
+          ? card.subs.slice(0, 64).map((/** @type {Record<string, any>} */ sb) => ({
               ar: String(sb.ar || "").slice(0, 400),
               en: String(sb.en || "").slice(0, 400),
               lat: String(sb.lat || "").slice(0, 400),
               ...Object.fromEntries(
                 grammarFields().map((f) => [f, String(sb[f] || "").slice(0, 40)])
               ),
+              /* Where this form sits in the card's verb table, when it is a
+                 cell of one. Stored as given, like the grammar values above
+                 and for the same reason: which rows and columns a language
+                 has is the language's business, and the server does not
+                 know one language from another. Narrowed to the shape an
+                 id can take so what comes back is what a pack can name. */
+              ...cellAt(sb),
               answers: storedAnswers(sb),
               clips: Array.isArray(sb.clips) ? sb.clips.slice(0, 12) : [],
               slowClips: Array.isArray(sb.slowClips) ? sb.slowClips.slice(0, 12) : [],
@@ -898,6 +912,27 @@ export default async (req) => {
         return answersOf(form, answerFields())
           .slice(0, 12)
           .map(({ at: _at, ...answer }) => answer);
+      }
+
+      /* Where a sub-form sits in its card's verb table, when it sits in one.
+         Both halves or neither: one without the other places nothing, and a
+         form carrying half a position would read as a cell of a row with no
+         column. Which rows and columns exist is the language's business, so
+         nothing is checked against a list here — only that what comes back
+         is the shape a pack can name, which is the shape of an id.
+
+         Spread into the sub-form, so a form that is not a cell gains no
+         fields at all rather than two empty ones. */
+      /** @param {Record<string, any>} form */
+      function cellAt(form) {
+        const part = (/** @type {unknown} */ x) =>
+          String(x || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9_-]/g, "")
+            .slice(0, 24);
+        const row = part(form.row);
+        const col = part(form.col);
+        return row && col ? { row, col } : {};
       }
 
       let saved;

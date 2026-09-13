@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
-import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
+import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
+import { composeEnglish, isCell, personsOf, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -45,6 +46,8 @@ import {
   contextCoverage,
   dimsOf,
   dimValues,
+  teachesVerbs,
+  verbOf,
   exOf,
   findWordSlot,
   answerFields,
@@ -3797,6 +3800,140 @@ const fieldName = (field: string, lang: Lang): string =>
     ? "English"
     : (lang && lang.translitLabel) || "The transliteration";
 
+/*
+ * A verb's forms, laid out the way the language lays them out.
+ *
+ * The table is the card's sub-forms seen through its two axes: a cell is a
+ * sub-form carrying the row and column it sits in, and nothing more. So
+ * this writes the same list the form blocks above write, and everything
+ * downstream — the schedule, the recordings, the sync, the export — goes
+ * on working without having been told what a verb is.
+ *
+ * Laid out down the page rather than across it. A grid of seven columns is
+ * the way a grammar book prints one, and it is unusable on the phone this
+ * app is mostly opened on; one line per cell, gathered under its tense,
+ * says the same thing and can be typed with a thumb. The tenses are in the
+ * order the language teaches them, which is the order they open in, and
+ * the heading says so — a teacher filling in the past should know the
+ * learner will not see it until the present is known.
+ *
+ * The English is the thing that would otherwise be typed seventeen times.
+ * A row's English is written once and stands as every cell's placeholder,
+ * composed with the person's own label — "she" and "ate" make "she ate" —
+ * and whatever is showing when the card is saved is what the cell keeps. A
+ * cell that needs to say something else is typed over, which is what
+ * English's own irregulars need: "eat" is right for six of the seven and
+ * wrong for "he".
+ */
+function VerbTable({ lang, spec, cells, onChange }: {
+  lang: Lang;
+  spec: VerbSpec;
+  cells: Record<string, any>[];
+  onChange: (cells: Record<string, any>[]) => void;
+}) {
+  /* The row's English lives here and is never stored: it is a way of
+     writing the cells' English, not a second place the card holds words.
+     What it composes is written straight onto the cells, so the card
+     carries only what a cell actually says and a card reopened later reads
+     its English off the cells themselves. */
+  const [rowEn, setRowEn] = useState<Record<string, string>>({});
+  const at = (row: string, col: string) =>
+    cells.find((c) => c.row === row && c.col === col) || null;
+
+  /* One cell written, added or dropped. A cell with nothing in either
+     field is not a blank the teacher is coming back to — it is a form the
+     language has not got — so it leaves the list rather than being saved
+     empty. A cell that gains its first word takes the row's English with
+     it, which is the whole point of writing that once. */
+  const write = (row: string, col: string, patch: Record<string, any>) => {
+    const had = at(row, col);
+    const made = had || {
+      ...blankForm(),
+      row,
+      col,
+      en: composeEnglish(spec, row, col, rowEn[row] || ""),
+    };
+    const next = { ...made, ...patch };
+    const rest = cells.filter((c) => !(c.row === row && c.col === col));
+    const keep = String(next.ar || "").trim() || String(next.en || "").trim();
+    onChange(keep ? rest.concat([next]) : rest);
+  };
+
+  /* A row's English, changed. Every cell in the row is rewritten from it —
+     including ones typed over by hand, which is the honest reading of
+     going back and changing what the row says. The alternative is
+     remembering which cells were touched and quietly skipping them, and a
+     teacher who fixes "he eats" and then edits the row would be left
+     wondering why one cell did not follow. */
+  const writeRow = (row: string, said: string) => {
+    setRowEn((x) => ({ ...x, [row]: said }));
+    onChange(
+      cells.map((c) =>
+        c.row === row ? { ...c, en: composeEnglish(spec, row, c.col, said) } : c,
+      ),
+    );
+  };
+
+  const persons = personsOf(spec);
+  /* A language whose verbs do not vary by person has one column and no
+     word for it, and a line reading "any: đã ăn" would be naming something
+     the language does not distinguish. */
+  const named = persons.some((p) => p.label);
+
+  return (
+    <>
+      {tensesOf(spec).map((tense, at_) => (
+        <div className="at-formblock at-mt5" key={tense.id}>
+          <div className="at-formhead">
+            <span className="at-formnum">{tense.label}</span>
+            <span className="at-formrole">
+              {at_ === 0
+                ? "taught first"
+                : `opens once the ${tensesOf(spec)[at_ - 1].label} is known`}
+            </span>
+          </div>
+
+          <Field
+            label="English for this row"
+            hint="Written once. Each form below takes it with its own pronoun, and can be typed over."
+          >
+            <input
+              className="at-input"
+              value={rowEn[tense.id] || ""}
+              placeholder="ate"
+              onChange={(e) => writeRow(tense.id, e.target.value)}
+            />
+          </Field>
+
+          {persons.map((person) => {
+            const cell = at(tense.id, person.id);
+            const said = composeEnglish(spec, tense.id, person.id, rowEn[tense.id] || "ate");
+            return (
+              <div className="at-cellrow" key={person.id}>
+                {named && <span className="at-celllabel">{person.label}</span>}
+                <div className="at-cellfields">
+                  <ScriptInput
+                    lang={lang}
+                    value={(cell && cell.ar) || ""}
+                    onChange={(v) => write(tense.id, person.id, { ar: v })}
+                  />
+                  <input
+                    className="at-input"
+                    aria-label={`English for ${person.label || tense.label}`}
+                    value={(cell && cell.en) || ""}
+                    placeholder={said}
+                    onChange={(e) => write(tense.id, person.id, { en: e.target.value })}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }: {
   card: Card | null;
   lang: Lang;
@@ -3837,13 +3974,29 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             clips: card.clips || [],
             slowClips: card.slowClips || [],
           },
-          ...(card.subs || []).map((s) => ({ ...blankForm(), ...s })),
+          /* The cells of a verb's table are sub-forms too, and are edited
+             in the table below rather than as blocks here — so they are
+             held apart while the editor is open and put back on save. */
+          ...(card.subs || []).filter((s) => !isCell(s)).map((s) => ({ ...blankForm(), ...s })),
         ]
       /* A card started from a suggestion arrives with its first line
          already written — the word the phrases keep using — and everything
          else blank, which is the shape of the job left to do. */
       : [{ ...blankForm(), ...(draft || {}) }]
   );
+  /* The card's verb table, where the language lays verbs out and this card
+     is one. Kept beside `forms` rather than inside it because the two are
+     edited in different shapes — a list of blocks, and a table — and
+     joined again at save. */
+  const verbSpec = teachesVerbs(lang) ? verbOf(lang) : null;
+  const [cells, setCells] = useState<Record<string, any>[]>(() =>
+    ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s })),
+  );
+  /* Whether this card is a verb at all. A card that already has cells
+     plainly is; anything else is the teacher's to say, because "is this a
+     verb" is a question about the word and not one the app can read off
+     its spelling. */
+  const [asVerb, setAsVerb] = useState(() => cells.length > 0);
   const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
   /* Which variable this card fills, where it is a value rather than
@@ -3943,7 +4096,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             disabled={!canSave || busy}
             onClick={() =>
               onSave({
-                forms,
+                /* The table's cells go back into the one list of forms
+                   they came out of: a cell is a sub-form, and the save
+                   path has no idea there is such a thing as a verb. Kept
+                   only while the card says it is a verb, so turning that
+                   off puts the table away rather than saving a hidden
+                   one. */
+                forms: asVerb ? forms.concat(cells as typeof forms) : forms,
                 note,
                 decks: chosen,
                 uses,
@@ -4300,6 +4459,46 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         >
           Add a form
         </Button>
+          )}
+
+          {/* ---- the verb's table ----
+              Offered only where the language lays verbs out, which is the
+              same thing as saying it is offered where it means anything:
+              a pack that declares no rows and columns has no table to
+              fill in, and this is not rendered at all. */}
+          {!scene && verbSpec && (
+            <div className="at-formblock at-mt5">
+              <div className="at-formhead">
+                <span className="at-formnum">Verb</span>
+                <span className="at-formrole">its forms, one for each person and tense</span>
+                <span className="at-formacts">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setAsVerb((v) => !v)}
+                  >
+                    {asVerb ? "Not a verb" : "This is a verb"}
+                  </Button>
+                </span>
+              </div>
+              {asVerb ? (
+                <>
+                  <Help>
+                    Write each form in the {lang.scriptLabel.toLowerCase()} box. Leave a
+                    box empty where {lang.name} has no such form — there is no command
+                    for <em>I</em> — and it is never asked. The tenses open in the order
+                    below, one at a time.
+                  </Help>
+                  <VerbTable lang={lang} spec={verbSpec} cells={cells} onChange={setCells} />
+                </>
+              ) : (
+                <Help>
+                  {lang.name} marks a verb for who is doing it and when. Say this card is
+                  one and its forms are drilled separately — each on its own schedule, so
+                  a shaky past does not drag the present along with it.
+                </Help>
+              )}
+            </div>
           )}
 
           {/* ---- variables ----

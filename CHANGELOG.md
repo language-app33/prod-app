@@ -8,6 +8,44 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.92 — 13 September 2026
+
+- **Verb cards.** A verb is not one thing to know, and this is the first
+  release that says so. Where a language lays its verbs out in a table,
+  the card editor offers one: write each form under the person and tense
+  it belongs to, and leave a box empty where the language has no such form
+  — there is no command for *I* — and it is never asked.
+
+  Each form is drilled in its own right, by the exercises every other form
+  already gets, and each keeps its own schedule. A shaky past no longer
+  drags the present along with it.
+
+  The rows and columns belong to the language, not the app. Palestinian
+  Arabic and Hebrew declare seven persons; Huế declares one, because
+  nothing about a Vietnamese verb changes for who is doing it, and its rows
+  are the markers in front — *đã*, *đang*, *sẽ*. A language that lays out
+  no verbs shows no table at all.
+
+- **One tense of a verb is ever new at a time.** The rows open in the order
+  the language teaches them, each waiting until every form in the row above
+  it is mastered. The past of a verb is not asked until its present is
+  known well, and a lapse in the present closes the rows above it until it
+  is recovered — the ladder the app already climbs, turned on its side. A
+  row a teacher left blank is passed straight through.
+
+- **A verb agrees with what fills the sentence around it.** A card may
+  carry a sentence with its own place marked — `{{name}} {{verb}}
+  {{object}}` — and the form that stands there follows whatever fills the
+  holes: Sarah makes it *she ate*, Ahmad *he ate*, the children *they ate*.
+  Nothing has to be added to a name for this. Its number and gender are
+  already on its card, which is what the note on variables in
+  `DECISIONS.md` said would make this possible one day.
+
+- **A card may now carry sixty-four forms, up from twelve.** Twelve is
+  three fewer than the smallest useful Arabic table, so a teacher would
+  have filled in twenty-one forms, saved, and got back the first twelve
+  with nothing anywhere saying so.
+
 ## 0.91 — 13 September 2026
 
 - **In the verb-card proposal, a verb's sentence agrees with what fills

@@ -345,3 +345,80 @@ gender — but it is a second feature, not a flag on this one.
 rather than found in a session: a frame whose English has a hole and whose
 script has not is a question that asks for a name and marks an answer that
 never contained one.
+
+---
+
+## A verb's table is its sub-forms, seen through two axes
+
+**13 September 2026** · `src/verbs.ts`, `src/languages.ts` (`verb`), `types.ts`
+(`row`, `col`)
+
+A verb is not one thing to know. *To eat* in Palestinian Arabic is a dozen
+words depending on who is eating and when, and a learner needs the one that
+fits the sentence they are about to say — which no exercise asked for.
+
+The obvious build is a new kind of card carrying a grid of strings. This is
+not that. **A cell is a sub-form with two extra fields saying where it
+sits**, `row` and `col`, and the table is a view over `subs`:
+
+    subs: [
+      { id, ar: "أكلت", en: "she ate", lat: "akalat", row: "past", col: "she" },
+    ]
+
+A sub-form is already an alternate form drilled on its own, with its own
+recordings and its own progress. That is exactly what a cell is, so
+everything downstream was already right: `unitsOf` enumerates cells,
+`resolveUnit` finds them, `applyGrade` writes their marks back, sync merges
+them per form and per type, the editor preserves their state by id, and the
+existing exercises ask them — a cell has `ar` and `en`, so *{script} →
+English* and *English → {script}* work on it the day it is written. **No new
+exercise type was added, and no third collection.** The alternative was a
+parallel walk beside `subs` and `lines` in five files, each of which would
+have had to learn what a verb is, and one of which — the write-back in
+`applyGrade` — would have dropped a grade silently rather than failing.
+
+**The axes are the language's, as `grammar` and `lexical` already are.** A
+pack declares its persons and its tenses, in the order it teaches them, and
+nothing outside the pack knows what a tense is. Arabic declares seven and
+three; Huế declares one unlabelled person and four markers; a pack that
+declares none renders no table and every function in `verbs.ts` comes back
+empty. The Vietnamese table is the whole language-agnostic claim in one
+place: the same editor and the same exercises, over a table one column wide.
+
+**Agreement is the thing the variables entry above said was left out.** The
+pieces really were in place: a value is a card, a card carries number and
+gender, so a column can name the values a subject must have —
+`{ id: "she", picks: { number: "singular", gender: "feminine" } }` — and a
+sentence with the card's own place marked in it, `{{name}} {{verb}}
+{{object}}`, takes the cell whatever filled the subject calls for. Sarah
+makes it *she ate*, the children *they ate*. Nothing is inferred and nothing
+was added to Sarah: her card already said what she is. `{{verb}}` is a slot
+like any other, so the editor's check that every field leaves the same holes
+goes on working untold; it is simply the one slot no card fills, because the
+card fills it from its own table.
+
+Only the third person carries `picks`, and that is the rule rather than an
+omission: no noun dropped into a subject is ever *I* or *you*. The most
+specific match wins, so a pack can declare a broad column and a narrow one
+without ranking them by hand.
+
+**The rows open one at a time**, which is the same ladder turned ninety
+degrees: a row opens once every cell of the row above it is mastered. It is
+enforced in one place — `openTypes` returns nothing for a cell behind its
+gate — and that one place is why it also throttles correctly: a closed cell
+contributes no open types, so `familyMaturity` does not count it, and a
+verb's twenty-one cells therefore cannot make its card read *new* for ever
+and starve the whole language of room for new cards. A row the teacher left
+blank is passed straight through, the way a level with no material is.
+
+**What it costs.** Two flat fields on a form where the app otherwise avoids
+storing positions, and a server that now has to carry them through its
+sub-form whitelist. The sub-form cap went from twelve to sixty-four: twelve
+is three fewer than Arabic's smallest useful table, so a teacher would have
+filled in twenty-one forms, saved, and got back the first twelve with no
+error anywhere. And a cell's English is composed from the row's — "she" and
+"ate" make "she ate" — but only as a starting point, written onto the cell
+and editable there. English says *she eats* where it says *I eat*, and a
+rule for that would be a rule about English living in a file that is
+supposed not to know any language. So the app proposes and the teacher
+disposes: three words typed per row, and two cells fixed by hand.

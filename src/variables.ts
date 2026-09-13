@@ -64,6 +64,17 @@ export interface Value {
   ar: string;
   en: string;
   lat: string;
+  /**
+   * What the language declares about it — its number, its gender. Carried
+   * because a verb standing in the same sentence has to agree with it:
+   * "Sarah ___ an apple" wants the feminine singular of the verb, and the
+   * only thing that knows Sarah is one is Sarah's own card.
+   *
+   * Nested rather than spread flat beside the words, so a grammar field
+   * can never be mistaken for one of the three fields a hole is filled
+   * from. Empty for a value whose card declares nothing, which is most.
+   */
+  grammar?: Record<string, string>;
 }
 
 const text = (form: WithSlots | null | undefined, field: string): string => {
@@ -158,13 +169,25 @@ export function valuesFor(
  * may accept two spellings, and "كتاب / سفر" dropped whole into a sentence
  * is not a sentence. The first is the one the teacher wrote first.
  */
-export function valueOf(card: WithSlots | null | undefined): Value {
+export function valueOf(card: WithSlots | null | undefined, fields: string[] = []): Value {
   const first = (field: string) => (splitAlternatives(text(card, field))[0] || "").trim();
+  /* Which fields hold a grammatical value is the language table's answer
+     and not this module's, so the names are passed in, exactly as
+     answers.ts is handed the fields it may narrow against. Read off the
+     card rather than off its first answer: a value card is one word with
+     one set of values, and the flat fields are what every writer of one —
+     the editor, an import, the server — actually sets. */
+  const grammar: Record<string, string> = {};
+  for (const field of fields) {
+    const value = text(card, field).trim();
+    if (value) grammar[field] = value;
+  }
   return {
     id: String((card && card.id) || ""),
     ar: first("ar"),
     en: first("en"),
     lat: first("lat"),
+    ...(Object.keys(grammar).length ? { grammar } : {}),
   };
 }
 

@@ -14,7 +14,17 @@
  * Nothing in this file imports from the app, so it can be read and tested
  * on its own.
  */
-import type { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings, Verdicts } from "./types.ts";
+import type {
+  Derived,
+  ExerciseSpec,
+  GrammarDim,
+  Lang,
+  LangId,
+  Settings,
+  Verdicts,
+  VerbPerson,
+  VerbSpec,
+} from "./types.ts";
 /* The one import here, and it goes the way every import in this file has
    to: dialogs.ts knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
@@ -1033,6 +1043,44 @@ export const GRAMMAR: Record<string, GrammarDim> = {
 export const dimsOf = (lang: Lang): GrammarDim[] =>
   (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
 
+/*
+ * The persons a language with subject agreement declares, ready to be
+ * spread into a pack.
+ *
+ * Here rather than written out twice because Arabic and Hebrew mark a verb
+ * for the same seven — the two are not related by accident — and a pack
+ * that wants six or nine simply writes its own. Nothing reads this but the
+ * packs below.
+ *
+ * `picks` is the agreement rule, and it is deliberately only on the third
+ * person: those are the columns a *noun* in the subject can call for. A
+ * sentence filled with Sarah wants "she", one filled with the children
+ * wants "they", and nothing a teacher drops into a hole is ever "I" or
+ * "you" — a frame that wants those says so itself. "they" asks for number
+ * alone, so a plural of either gender reaches it; the two singulars ask
+ * for both and therefore win over it wherever they match, by the
+ * most-specific rule in verbs.ts.
+ */
+const SUBJECT_PERSONS: VerbPerson[] = [
+  { id: "i", label: "I" },
+  { id: "you-m", label: "you (m)" },
+  { id: "you-f", label: "you (f)" },
+  { id: "he", label: "he", picks: { number: "singular", gender: "masculine" } },
+  { id: "she", label: "she", picks: { number: "singular", gender: "feminine" } },
+  { id: "we", label: "we" },
+  { id: "they", label: "they", picks: { number: "plural" } },
+];
+
+/** The rows and columns a language lays its verbs out on, where it has any. */
+export const verbOf = (lang: Lang | null | undefined): VerbSpec | null =>
+  (lang && lang.verb) || null;
+
+/** Whether this language lays verbs out in a table at all. */
+export const teachesVerbs = (lang: Lang | null | undefined): boolean => {
+  const spec = verbOf(lang);
+  return !!spec && spec.tenses.length > 0 && spec.persons.length > 0;
+};
+
 /* Every value any dimension can hold, for validating stored cards without
    knowing which language wrote them. */
 export const DIM_VALUES: Record<string, string[]> = {};
@@ -1370,6 +1418,21 @@ export const LANGUAGES: Record<LangId, Lang> = {
     ],
     translitLabel: "Transliteration",
     grammar: ["number", "gender"],
+    /* A verb is marked for who is doing it and when, so its forms are laid
+       out on those two axes. The tenses are in the order they are taught,
+       which is the order they open in: what you do before what you did,
+       and the command last — it is the one a beginner hears more than they
+       say. */
+    verb: {
+      persons: SUBJECT_PERSONS,
+      tenses: [
+        { id: "present", label: "present" },
+        { id: "past", label: "past" },
+        /* "you (m): eat!" — a command is addressed to somebody rather than
+           said about them, and reads wrong run together. */
+        { id: "command", label: "command", join: ": " },
+      ],
+    },
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -1472,6 +1535,24 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* A noun is not usable without its classifier, and which one it takes is
        simply memorised — the job gender does in Arabic. */
     lexical: { key: "classifier", label: "Classifier", help: "con, cái, cây, quả …" },
+    /* Nothing about a verb changes for who is doing it — ăn is ăn whoever
+       eats — so there is one column, and it is unlabelled: "đã ăn" is what
+       the learner is asked, not "any: đã ăn". What does change is when, and
+       that is a word in front rather than a different word, which makes the
+       rows markers rather than tenses. The bare verb is taught first and
+       everything else hangs off it.
+
+       This is the whole language-agnostic claim in one pack: the same
+       editor and the same exercises, over a table one column wide. */
+    verb: {
+      persons: [{ id: "any", label: "" }],
+      tenses: [
+        { id: "plain", label: "plain" },
+        { id: "past", label: "past (đã)" },
+        { id: "ongoing", label: "ongoing (đang)" },
+        { id: "future", label: "future (sẽ)" },
+      ],
+    },
     verdicts: {
       partial: "Right letters, wrong tone",
       missing: "Letters right — add the tone marks",
@@ -1566,6 +1647,19 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* Nouns carry number and gender, and adjectives agree with both —
        the same two axes Arabic declares. */
     grammar: ["number", "gender"],
+    /* Marked for the same seven persons as Arabic, and for the same reason
+       — so the same columns, declared once above. The rows are its own:
+       Hebrew's future is a form of the verb rather than a word in front of
+       it, and is taught after the past. */
+    verb: {
+      persons: SUBJECT_PERSONS,
+      tenses: [
+        { id: "present", label: "present" },
+        { id: "past", label: "past" },
+        { id: "future", label: "future" },
+        { id: "command", label: "command", join: ": " },
+      ],
+    },
     verdicts: {
       partial: "Right letters, wrong niqqud",
       missing: "Letters right — add the niqqud",
