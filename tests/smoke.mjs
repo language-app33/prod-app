@@ -1349,6 +1349,33 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     readout.replace(/\s+/g, " ").slice(0, 120) || "(nothing open)");
   click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent || "") || b.getAttribute("aria-label") === "Back"));
   await sleep(250);
+
+  /* ---- and the counts at the top open too ----
+     A number you want to see the cards behind is a number worth pressing.
+     They were plain text, so the only way to find out which cards were
+     still new was to read every deck. */
+  const counts = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll("button.at-stat")]);
+  check("every count at the top is a button", counts.length === 5, `${counts.length} tiles`);
+  const live = counts.find((b) => !b.disabled);
+  check("a count with cards behind it can be pressed", !!live,
+    counts.map((b) => `${(b.textContent || "").replace(/\s+/g, " ")}${b.disabled ? " (off)" : ""}`).join(" · "));
+  const said = Number(((live || {}).textContent || "").trim().match(/^\d+/));
+  click(live);
+  await sleep(300);
+  const shown = document.querySelectorAll(".at-cardgrid .at-minicard");
+  check("pressing it shows that many cards, at the size they come smallest",
+    shown.length === said, `said ${said}, showed ${shown.length}`);
+  check("and the tile says it is the one open",
+    !!live && live.getAttribute("aria-expanded") === "true",
+    live ? `aria-expanded=${live.getAttribute("aria-expanded")}` : "no tile");
+  /* Tapping the same one again puts them away, so the overview comes back
+     without having to find another way out of it. */
+  click(live);
+  await sleep(250);
+  check("pressing it again puts them away",
+    document.querySelectorAll(".at-cardgrid .at-minicard").length === 0,
+    `${document.querySelectorAll(".at-cardgrid .at-minicard").length} still up`);
+
   click(buttonNamed(/^Home$/));
   await sleep(300);
 }

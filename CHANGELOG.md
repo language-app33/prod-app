@@ -8,6 +8,240 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.100 — 13 September 2026
+
+- **`{{word}}` is filled by every word you teach, with nothing written on
+  them.** Every other variable is a name you invent and then write on each
+  card that stands in it, which is right for a hole with a particular sort
+  of thing in it and wrong for the commonest frame there is. Write *I like
+  {{word}}* once and it is met with the whole vocabulary, and a word added
+  next month joins in without the frame being touched.
+
+  Only words fill it — not a phrase, not a conversation, and never a card
+  with a hole of its own, which dropped into another hole would be a
+  sentence with a gap where the point was. A card that already fills a
+  variable of yours fills both.
+
+- **The counts at the top of Progress open.** New, Learning, Young and
+  Mature, and the total beside them, were plain text, so the only way to
+  find out which cards were still new was to read down every deck. Press
+  one and its cards appear underneath at the smallest size they come in,
+  searchable, each opening the card. Press it again to put them away. A
+  count with nothing behind it is dimmed rather than hidden, because the
+  number is still the answer to how many there are.
+
+## 0.99 — 13 September 2026
+
+- **A second accepted answer is now practised in its own right.** A card
+  accepting two words for one meaning was showing them turn about but
+  keeping a single record of how they were going, so knowing one counted
+  as knowing both. Each now carries its own progress, comes up on its own
+  schedule, and holds the card back until it too is known — the same rule
+  a verb's table already follows, where every person and tense stands
+  alone.
+
+  It applies to the questions that put one word on the screen: reading it,
+  telling it apart, hearing it. Writing the word from its meaning stays one
+  question with one record, because either spelling answers it, and
+  listening does too, since a recording belongs to the card rather than to
+  one of its spellings.
+
+- **Nothing already learnt was disturbed.** The first accepted answer keeps
+  the record it had, so every card reads back exactly as it did and two
+  devices go on agreeing without being told anything new. A card with one
+  answer — almost all of them — is untouched in every particular. A second
+  answer simply starts fresh, which is the truth about it: it has never
+  been practised on its own before now.
+
+## 0.98 — 13 September 2026
+
+- **A question shows one accepted answer, never all of them.** A card that
+  accepts two spellings was putting both up, joined by a slash, wherever
+  the word itself was on screen. The matching grid was the worst of it —
+  both spellings on one tile and both meanings on another, so the longest
+  tile in the grid was the answer, given away by its shape rather than by
+  what it meant.
+
+  Now every question that shows the word shows one, rotated so that both
+  are met, one at a time. That covers the grid's two columns, the word
+  above a question, and the four words or meanings a question offers to
+  choose between, including the three wrong ones drawn from other cards.
+
+- **What is accepted has not moved.** Asked to write the word in the
+  script, every accepted spelling is still right — that is what a second
+  accepted answer is for. The rule now has a name in the language table
+  and a test that holds it against every exercise there is, so a type
+  added later cannot quietly pick the wrong side of it.
+
+## 0.97 — 13 September 2026
+
+- **"English for this row" is gone. Each form's meaning is typed on the
+  form.** The box wrote a whole row from one word — *ate* giving *I ate*,
+  *she ate* — which saved typing and produced wrong English where it
+  mattered most. The present tense came out as *he eat* and *she eat*
+  beside *I eat*, and the command offered *I: eat!* for every person it
+  does not apply to. Correcting it was work on every regular verb a
+  teacher would ever write.
+
+  Knowing better would mean the app knowing that English marks the third
+  person, which is exactly the kind of thing the language packs exist to
+  keep out of it. So each box says what somebody typed in it, and nothing
+  is derived.
+
+## 0.96 — 13 September 2026
+
+- **Every form of a verb can now carry its pronunciation and its own
+  recordings.** Each cell of the table has a box for how it is said and a
+  microphone beside it, so *she ate* can be heard as well as read — and
+  with a recording on it, a cell is asked by ear too, like any other form.
+
+  The pronunciation box appears only where the language writes one that is
+  drilled. Huế calls it a note and never asks it, so its table stays at two
+  boxes a cell and the note sits on the verb itself, where it always did.
+
+- **The table stayed the same height doing it.** A cell is one line: the
+  person, the form, how it is said, what it means, and one microphone that
+  lights up once something is recorded. The recordings list and its
+  explanation, which every ordinary form gets, would have doubled the
+  height of a twenty-one cell table, so a cell gets the button alone and
+  the same recording screen behind it. On a phone the boxes fall into two
+  short lines rather than three stacked ones.
+
+## 0.95 — 13 September 2026
+
+- **"This is a verb" is now a tick inside The kind of card**, instead of a
+  block of its own further down with a button and two paragraphs
+  explaining itself. Both questions about what a card is are answered in
+  one place, in two lines.
+
+  A tick rather than a third option beside *Word or phrase* and
+  *Conversation*, because a verb is not a third kind of card: it is a
+  word, with a table as well. It also stays offered on a card that is
+  already saved, which the selector beside it is not.
+
+- **The verb copy is gone.** What was explained in sentences is read off
+  the screen instead: an empty box in the table is plainly an empty box,
+  and each tense says in its own heading when it opens.
+
+## 0.94 — 13 September 2026
+
+- **A verb card's editor now reads as a verb's.** The main form is called
+  *The verb* rather than *Form 1*, and says the conjugations are in the
+  table above — a block numbered as the first of many, sitting under a
+  table of twenty-one forms, read as though the table were forms two
+  onwards.
+
+- **"Add a form" is put away on a verb**, behind *Another way to say it*.
+  It was the one place the screen invited a mistake: a teacher wanting the
+  past tense would reach for it and write a conjugation outside the table,
+  where nothing knows its person or tense — so it would never wait for its
+  row to open and never agree with a sentence. The door stays open for what
+  it is actually for, a second spelling or another dialect, and a card that
+  already carries one opens showing it.
+
+## 0.93 — 13 September 2026
+
+- **"Is this a verb?" now sits directly under the kind of card**, instead
+  of below the forms where a teacher could write a whole verb without ever
+  scrolling to it. Both questions about what a card is are now in one
+  place, at the top.
+
+  It stays a control of its own rather than a third option beside *Word or
+  phrase* and *Conversation*, because the two questions have different
+  lifetimes. What shape a card is settles when it is written — a word
+  cannot become a conversation — and that selector is read-only once the
+  card exists. Whether a word conjugates is not like that: a verb is often
+  written as a plain word and given its table weeks later, when the course
+  reaches tenses. Folded into the selector it would inherit the lock, and
+  the only way to add a table would be to delete the card, losing its
+  recordings and every student's progress on it.
+
+## 0.92 — 13 September 2026
+
+- **Verb cards.** A verb is not one thing to know, and this is the first
+  release that says so. Where a language lays its verbs out in a table,
+  the card editor offers one: write each form under the person and tense
+  it belongs to, and leave a box empty where the language has no such form
+  — there is no command for *I* — and it is never asked.
+
+  Each form is drilled in its own right, by the exercises every other form
+  already gets, and each keeps its own schedule. A shaky past no longer
+  drags the present along with it.
+
+  The rows and columns belong to the language, not the app. Palestinian
+  Arabic and Hebrew declare seven persons; Huế declares one, because
+  nothing about a Vietnamese verb changes for who is doing it, and its rows
+  are the markers in front — *đã*, *đang*, *sẽ*. A language that lays out
+  no verbs shows no table at all.
+
+- **One tense of a verb is ever new at a time.** The rows open in the order
+  the language teaches them, each waiting until every form in the row above
+  it is mastered. The past of a verb is not asked until its present is
+  known well, and a lapse in the present closes the rows above it until it
+  is recovered — the ladder the app already climbs, turned on its side. A
+  row a teacher left blank is passed straight through.
+
+- **A verb agrees with what fills the sentence around it.** A card may
+  carry a sentence with its own place marked — `{{name}} {{verb}}
+  {{object}}` — and the form that stands there follows whatever fills the
+  holes: Sarah makes it *she ate*, Ahmad *he ate*, the children *they ate*.
+  Nothing has to be added to a name for this. Its number and gender are
+  already on its card, which is what the note on variables in
+  `DECISIONS.md` said would make this possible one day.
+
+- **A card may now carry sixty-four forms, up from twelve.** Twelve is
+  three fewer than the smallest useful Arabic table, so a teacher would
+  have filled in twenty-one forms, saved, and got back the first twelve
+  with nothing anywhere saying so.
+
+## 0.91 — 13 September 2026
+
+- **In the verb-card proposal, a verb's sentence agrees with what fills
+  it.** A verb card carries a sentence of its own — *{{name}} [verb]
+  {{object}}* — and the verb's form follows the number and gender of
+  whatever fills the holes, which the app already records on every
+  answer: Sarah makes it *she ate*, the children *they ate*. Each
+  language says which hole decides which axis; Vietnamese says none does.
+  Still a proposal; nothing in the app changes.
+
+## 0.90 — 13 September 2026
+
+- **A simpler plan for verbs and variables in the proposal.** Every cell
+  of a verb card fills a hole named for it — *{{she-past}}* takes the
+  she · past cell of every verb the learner has met — and that is the
+  whole mechanism. A frame with a name hole beside it is kept agreeing
+  by the teacher's choice of fillers, not by the app reading a name's
+  gender; wanting both *he* and *she* is two frames. Nothing is inferred.
+  Still a proposal; nothing in the app changes.
+
+## 0.89 — 13 September 2026
+
+- **The verb-card proposal asks in English, and meets variables.** A
+  learner is asked *she ate*, not *to eat · she · past*: a row gets its
+  English once and a cell overrides it only where English differs, with
+  the pronoun coming from the column. A new section says how a verb fits
+  a hole in a card — as the thing in the hole, or following whatever is
+  (Sarah makes it *she ate*), with who from the subject and when from the
+  frame. Still a proposal; nothing in the app changes.
+
+## 0.88 — 13 September 2026
+
+- **The verb-card proposal now opens tenses one after another.** A verb's
+  first row is dealt as soon as the base word is known, and each next row
+  waits until the one before it is mastered — so the past of a verb is not
+  asked until its present is known well, and the future waits on the past.
+  Which row comes first is listed by the language, not decided by the app.
+  Still a proposal; nothing in the app changes.
+
+## 0.87 — 13 September 2026
+
+- **A proposal for verb cards**, in `docs/PROPOSAL-verb-cards.md`: one card
+  holding a verb's forms in a table whose rows and columns each language
+  names for itself, with exercises that ask for a single cell — write the
+  form for *she · past*, say who and when a form is, or fill a gap in a
+  sentence with the form that fits. Nothing in the app changes yet; this is
+  the shape of the thing, for discussion.
+
 ## 0.86 — 13 September 2026
 
 - **Two new exercises, both answered by tapping one of four.**

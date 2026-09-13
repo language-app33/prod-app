@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  answerAt,
   answerForTurn,
   answerGiven,
   answerRows,
@@ -25,7 +26,25 @@ import {
   withAnswer,
 } from "../src/answers.ts";
 import { canAsk, unmetNeeds } from "../src/offers.ts";
-import { EX, LANGUAGES, answerFields, checkAnswer, labelFor } from "../src/languages.ts";
+import {
+  EX,
+  LANGUAGES,
+  TYPES,
+  answerFields,
+  checkAnswer,
+  labelFor,
+  showsOneAnswer,
+  answerOf,
+  barOf,
+  exOf,
+  isListening,
+  keyFor,
+  keysFor,
+  levelOf,
+  typeOf,
+} from "../src/languages.ts";
+import { openTypes } from "../src/scheduler.ts";
+import { must } from "./helpers.mjs";
 
 const ar = LANGUAGES["ar-PS"];
 /* What a stored answer may carry, as the grammar table declares it. */
@@ -337,4 +356,165 @@ test("a card with nothing written for its meaning is asked nothing", () => {
   assert.equal(meaningForTurn({ ar: "bayt" }), "");
   assert.equal(meaningForTurn({ ar: "bayt", en: " " }), "");
   assert.deepEqual(unmetNeeds({ ...two(), en: "" }, EX.en2ar, null, []), ["en"]);
+});
+
+/*
+ * One accepted answer on the screen, every accepted answer in the marking.
+ *
+ * A card may accept كتاب or سفر. Put up together they read as one long
+ * word with a slash through it, and on a tile they are the longest tile in
+ * the grid — the answer given away by its shape rather than by its
+ * meaning. But typed, either is right, and marking the second one wrong is
+ * the bug the second answer exists to prevent.
+ *
+ * The two halves of that are checked here against every exercise there is,
+ * so a type added later cannot quietly pick the wrong side.
+ */
+test("every question shows one accepted answer, and the typed ones still take any", () => {
+  for (const type of TYPES) {
+    const spec = EX[type];
+    const typesTheScript = spec.answerMode === "ar" && spec.answerField === "ar";
+    const bySound = spec.needs.includes("lat");
+    assert.equal(
+      showsOneAnswer(type),
+      bySound || !typesTheScript,
+      `${type} is on the wrong side of the rule`,
+    );
+  }
+
+  /* The ones that keep every answer are exactly the ones that ask for the
+     word to be written out. Named rather than counted, so that retiring or
+     adding one of them is a visible edit here.
+
+     Listening is in the list and is worth saying why. A recording belongs
+     to the form, not to one of its accepted answers, so nothing knows
+     which spelling was actually said — and marking somebody wrong for
+     writing the other one, on a guess, is worse than accepting both. */
+  const keepsAll = TYPES.filter((t) => !showsOneAnswer(t));
+  assert.deepEqual(keepsAll, ["rec2ar", "en2ar", "ctx2ar", "rec2ctx"]);
+
+  /* And pronunciation is the one that types the script and narrows anyway,
+     because it asks how *that* spelling is said. */
+  assert.equal(showsOneAnswer("tr2ar"), true);
+  assert.equal(EX.tr2ar.answerMode, "ar");
+});
+
+test("which answer is shown is rotated, not drawn", () => {
+  const form = {
+    ar: "kitaab / safar",
+    lat: "kitaab / safar",
+    en: "book",
+  };
+  /* Every one of them is met before any is met twice, and the same count
+     is the same question — so a re-render cannot swap the word under
+     somebody halfway through answering. */
+  assert.equal(must(answerAt(form, 0), "the first").text, "kitaab");
+  assert.equal(must(answerAt(form, 1), "the second").text, "safar");
+  assert.equal(must(answerAt(form, 2), "round again").text, "kitaab");
+  assert.equal(must(answerAt(form, -1), "however the count arrives").text, "safar");
+
+  /* Unlike answerForTurn, it does not need a pronunciation written: a
+     question that merely shows the word can show any of them. */
+  const quiet = { ar: "kitaab / safar", lat: "", en: "book" };
+  assert.equal(must(answerAt(quiet, 1), "the second, unsaid").text, "safar");
+  assert.equal(answerForTurn(quiet, 1), null);
+
+  /* Nothing to narrow is nothing, not a crash. */
+  assert.equal(answerAt({ ar: "", en: "book" }), null);
+  assert.equal(answerAt(null), null);
+});
+
+/*
+ * A second accepted answer is a second thing to learn.
+ *
+ * A card may accept two words for one meaning. Knowing one of them is not
+ * knowing the other, so each carries its own progress — the same rule a
+ * verb's table already follows, where every person and tense is scheduled
+ * on its own.
+ *
+ * What makes it safe to turn on for cards that already exist is the shape
+ * of the key: the first answer keeps the bare exercise name, so every
+ * schedule ever written reads back exactly as it did, and sync goes on
+ * merging state name by name without being told anything.
+ */
+test("the first answer keeps the bare name, and the rest are numbered", () => {
+  assert.equal(keyFor("ar2en", 0), "ar2en");
+  assert.equal(keyFor("ar2en"), "ar2en");
+  assert.equal(keyFor("ar2en", 1), "ar2en@1");
+
+  assert.equal(typeOf("ar2en"), "ar2en");
+  assert.equal(typeOf("ar2en@1"), "ar2en");
+  assert.equal(answerOf("ar2en"), 0);
+  assert.equal(answerOf("ar2en@1"), 1);
+
+  /* Nothing sensible in, nothing sharp out: these read keys off stored
+     documents, and a document is somebody's cards. */
+  assert.equal(typeOf(""), "");
+  assert.equal(answerOf("ar2en@"), 0);
+  assert.equal(answerOf("ar2en@nonsense"), 0);
+  assert.equal(answerOf("ar2en@-2"), 0);
+});
+
+test("everything that looks up an exercise takes a key as readily as a type", () => {
+  for (const type of TYPES) {
+    const key = keyFor(type, 1);
+    assert.equal(levelOf(key), levelOf(type), `${type}: level`);
+    assert.equal(barOf(key), barOf(type), `${type}: bar`);
+    assert.equal(isListening(key), isListening(type), `${type}: listening`);
+    assert.equal(showsOneAnswer(key), showsOneAnswer(type), `${type}: the rule`);
+    const one = must(exOf(key, LANGUAGES["ar-PS"]), `${type}: wording`);
+    assert.equal(one.instruction, must(exOf(type, LANGUAGES["ar-PS"]), type).instruction);
+  }
+  /* An unknown key is the bottom of the ladder, like an unknown type: a
+     stored session naming a retired exercise still resolves. */
+  assert.equal(levelOf("gone@3"), 1);
+  assert.equal(exOf("gone@3", LANGUAGES["ar-PS"]), null);
+});
+
+test("a card with one answer is scheduled exactly as it always was", () => {
+  const one = { ar: "kitaab", lat: "kitaab", en: "book" };
+  for (const type of TYPES) assert.deepEqual(keysFor(one, type), [type], type);
+  /* And a card with nothing written for the word at all. */
+  assert.deepEqual(keysFor({ ar: "", en: "book" }, "ar2en"), ["ar2en"]);
+  assert.deepEqual(keysFor(null, "ar2en"), ["ar2en"]);
+});
+
+test("a card with two answers carries a schedule for each, where it shows one", () => {
+  const two = { ar: "kitaab / safar", lat: "kitaab / safar", en: "book" };
+
+  /* Reading the word, telling it apart, hearing it: two questions, two
+     schedules. */
+  assert.deepEqual(keysFor(two, "ar2en"), ["ar2en", "ar2en@1"]);
+  assert.deepEqual(keysFor(two, "ar2pick"), ["ar2pick", "ar2pick@1"]);
+  assert.deepEqual(keysFor(two, "match"), ["match", "match@1"]);
+
+  /* Writing it from its meaning is one question, because either spelling
+     answers it — so one schedule, and no suffix anywhere. */
+  assert.deepEqual(keysFor(two, "en2ar"), ["en2ar"]);
+  assert.deepEqual(keysFor(two, "ctx2ar"), ["ctx2ar"]);
+
+  /* Which is exactly the rule from further up this file, applied. */
+  for (const type of TYPES) {
+    assert.equal(
+      keysFor(two, type).length > 1,
+      showsOneAnswer(type),
+      `${type} splits when and only when it shows one answer`,
+    );
+  }
+});
+
+test("the ladder reads a key the way it read a type", () => {
+  /* The second answer climbs its own ladder: mastered at level one on the
+     first spelling does not open level two on the second. */
+  const done = { phase: "review", interval: 30 };
+  const keys = ["ar2en", "ar2en@1", "en2ar"];
+  /** @type {Record<string, any>} */
+  const states = { ar2en: done };
+  const open = openTypes(keys, (k) => states[k]);
+  /* Level 1 is open for both spellings — nothing below it to reach — and
+     level 4 is shut, because the second spelling has not been read yet. */
+  assert.deepEqual(open, ["ar2en", "ar2en@1"]);
+
+  states["ar2en@1"] = done;
+  assert.deepEqual(openTypes(keys, (k) => states[k]), ["ar2en", "ar2en@1", "en2ar"]);
 });

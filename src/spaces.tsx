@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
-import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
+import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
+import { isCell, personsOf, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -45,6 +46,8 @@ import {
   contextCoverage,
   dimsOf,
   dimValues,
+  teachesVerbs,
+  verbOf,
   exOf,
   findWordSlot,
   answerFields,
@@ -2897,10 +2900,18 @@ function ScriptAnswers({ lang, form, onChange }: {
   );
 }
 
-function ScriptInput({ lang, value, onChange }: {
+function ScriptInput({ lang, value, onChange, compact = false }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
+  /**
+   * A shorter box, for where there are many of them. A verb's table is
+   * twenty-one of these on one screen, and at the size a single field is
+   * written at it scrolls for a thousand pixels. Only the script shrinks —
+   * still the largest thing on its line, because it is the thing being
+   * read — and only where a caller asks.
+   */
+  compact?: boolean;
 }) {
   const [keys, setKeys] = useState(false);
   const ref: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
@@ -2926,7 +2937,12 @@ function ScriptInput({ lang, value, onChange }: {
           /* The room for the keys button is reserved by .at-inputwrap in the
              stylesheet — physical right, not logical, because the button is
              at right:8px whichever way the text runs. */
-          style={{ fontFamily: lang.fontStack, fontSize: 22, textAlign: "start", ...scriptVars(lang) }}
+          style={{
+            fontFamily: lang.fontStack,
+            fontSize: compact ? 18 : 22,
+            textAlign: "start",
+            ...scriptVars(lang),
+          }}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -3797,6 +3813,143 @@ const fieldName = (field: string, lang: Lang): string =>
     ? "English"
     : (lang && lang.translitLabel) || "The transliteration";
 
+/*
+ * A verb's forms, laid out the way the language lays them out.
+ *
+ * The table is the card's sub-forms seen through its two axes: a cell is a
+ * sub-form carrying the row and column it sits in, and nothing more. So
+ * this writes the same list the form blocks above write, and everything
+ * downstream — the schedule, the recordings, the sync, the export — goes
+ * on working without having been told what a verb is.
+ *
+ * Laid out down the page rather than across it. A grid of seven columns is
+ * the way a grammar book prints one, and it is unusable on the phone this
+ * app is mostly opened on; one line per cell, gathered under its tense,
+ * says the same thing and can be typed with a thumb. The tenses are in the
+ * order the language teaches them, which is the order they open in, and
+ * the heading says so — a teacher filling in the past should know the
+ * learner will not see it until the present is known.
+ *
+ * Each cell's English is typed. There was a row-level box that wrote all
+ * of them from one word — "ate" giving "I ate", "she ate" — and it is gone
+ * for the reason set out in verbs.ts: what it produced was wrong in the
+ * present, where English inflects and the app must not know that it does.
+ * Seventeen boxes is more typing than three and it is typing that produces
+ * something true.
+ */
+/* What to call one cell out loud — "past · she". Read off the language's
+   own labels, so a pack that names no persons says only its tense. */
+function cellLabel(spec: VerbSpec | null, at: { row: string, col: string }) {
+  const tense = tensesOf(spec).find((t) => t.id === at.row);
+  const person = personsOf(spec).find((p) => p.id === at.col);
+  return [tense ? tense.label : at.row, person ? person.label : ""].filter(Boolean).join(" · ");
+}
+
+function VerbTable({ lang, spec, cells, onChange, onRecord }: {
+  lang: Lang;
+  spec: VerbSpec;
+  cells: Record<string, any>[];
+  onChange: (cells: Record<string, any>[]) => void;
+  onRecord: (row: string, col: string) => void;
+}) {
+  const at = (row: string, col: string) =>
+    cells.find((c) => c.row === row && c.col === col) || null;
+
+  /* One cell written, added or dropped. A cell with nothing in any of its
+     fields is not a blank the teacher is coming back to — it is a form the
+     language has not got — so it leaves the list rather than being saved
+     empty. */
+  const write = (row: string, col: string, patch: Record<string, any>) => {
+    const next = { ...(at(row, col) || { ...blankForm(), row, col }), ...patch };
+    const rest = cells.filter((c) => !(c.row === row && c.col === col));
+    const keep = ["ar", "en", "lat"].some((f) => String(next[f] || "").trim());
+    onChange(keep ? rest.concat([next]) : rest);
+  };
+
+  const persons = personsOf(spec);
+  /* A language whose verbs do not vary by person has one column and no
+     word for it, and a line reading "any: đã ăn" would be naming something
+     the language does not distinguish. */
+  const named = persons.some((p) => p.label);
+  /* A box for the pronunciation only where the language asks for one to be
+     written. Huế calls it a note and never drills it, so a column of them
+     across a whole table would be twenty-one boxes nothing reads — the
+     note belongs on the verb itself, which still has its own field below. */
+  const saysHow = lang.translitDrilled !== false;
+
+  return (
+    <>
+      {tensesOf(spec).map((tense, at_) => (
+        <div className="at-formblock at-mt5" key={tense.id}>
+          <div className="at-formhead">
+            <span className="at-formnum">{tense.label}</span>
+            <span className="at-formrole">
+              {at_ === 0
+                ? "taught first"
+                : `opens once the ${tensesOf(spec)[at_ - 1].label} is known`}
+            </span>
+          </div>
+
+          {persons.map((person) => {
+            const cell = at(tense.id, person.id);
+            /* What to call this one when a label has to name it out loud —
+               for a screen reader, and on the recording screen's title. */
+            const which = [tense.label, person.label].filter(Boolean).join(" · ");
+            const written = !!(cell && String(cell.ar || "").trim());
+            const heard = cell ? clipsOf(cell).length : 0;
+            return (
+              <div className="at-cellrow" key={person.id}>
+                {named && <span className="at-celllabel">{person.label}</span>}
+                <div className="at-cellfields">
+                  <ScriptInput
+                    compact
+                    lang={lang}
+                    value={(cell && cell.ar) || ""}
+                    onChange={(v) => write(tense.id, person.id, { ar: v })}
+                  />
+                  {saysHow && (
+                    <input
+                      className="at-input"
+                      aria-label={`${lang.translitLabel} for ${which}`}
+                      value={(cell && cell.lat) || ""}
+                      placeholder={lang.translitLabel.toLowerCase()}
+                      onChange={(e) => write(tense.id, person.id, { lat: e.target.value })}
+                    />
+                  )}
+                  <input
+                    className="at-input"
+                    aria-label={`English for ${which}`}
+                    value={(cell && cell.en) || ""}
+                    placeholder="English"
+                    onChange={(e) => write(tense.id, person.id, { en: e.target.value })}
+                  />
+                </div>
+                {/* One button rather than the Recordings block the forms
+                    below get: a list and an explanation under every one of
+                    twenty-one cells would be the table's whole height
+                    again. It says how many there are, and opens the same
+                    screen. Off until there is a word to say — a recording
+                    of an empty cell is a recording of nothing. */}
+                <IconButton
+                  icon="mic"
+                  label={
+                    heard
+                      ? `${heard} ${plural(heard, "recording")} · ${which}`
+                      : `Record ${which}`
+                  }
+                  className={`at-cellmic${heard ? " on" : ""}`}
+                  disabled={!written}
+                  onClick={() => onRecord(tense.id, person.id)}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
 function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }: {
   card: Card | null;
   lang: Lang;
@@ -3837,13 +3990,48 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             clips: card.clips || [],
             slowClips: card.slowClips || [],
           },
-          ...(card.subs || []).map((s) => ({ ...blankForm(), ...s })),
+          /* The cells of a verb's table are sub-forms too, and are edited
+             in the table below rather than as blocks here — so they are
+             held apart while the editor is open and put back on save. */
+          ...(card.subs || []).filter((s) => !isCell(s)).map((s) => ({ ...blankForm(), ...s })),
         ]
       /* A card started from a suggestion arrives with its first line
          already written — the word the phrases keep using — and everything
          else blank, which is the shape of the job left to do. */
       : [{ ...blankForm(), ...(draft || {}) }]
   );
+  /* The card's verb table, where the language lays verbs out and this card
+     is one. Kept beside `forms` rather than inside it because the two are
+     edited in different shapes — a list of blocks, and a table — and
+     joined again at save. */
+  const verbSpec = teachesVerbs(lang) ? verbOf(lang) : null;
+  const [cells, setCells] = useState<Record<string, any>[]>(() =>
+    ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s })),
+  );
+  /* Whether this card is a verb at all. A card that already has cells
+     plainly is; anything else is the teacher's to say, because "is this a
+     verb" is a question about the word and not one the app can read off
+     its spelling. */
+  const [asVerb, setAsVerb] = useState(() => cells.length > 0);
+  /* Whether the table is standing in for the forms below. Read in four
+     places, so it is named once here rather than spelled out at each. A
+     conversation is never a verb: it has turns where a word has forms,
+     and there is nothing for a table to lay out. */
+  const verbMode = !scene && !!verbSpec && asVerb;
+  /* Whether this card's other forms are on show. Put away on a verb,
+     where the table is what a teacher came to fill in — but only where
+     there is nothing to put away: a card that already carries a second
+     spelling opens showing it, because a form that vanished when the card
+     was called a verb would read as one that had been thrown away. */
+  const [moreForms, setMoreForms] = useState(() => forms.length > 1);
+  /* Which cell of the table has the recording screen open, by where it
+     sits rather than by its place in the list: the list is rewritten
+     whenever a cell is typed into, so an index would point at a different
+     form by the time the screen came back. */
+  const [recordingCell, setRecordingCell] = useState<{ row: string, col: string } | null>(null);
+  const cellHere = recordingCell
+    ? cells.find((c) => c.row === recordingCell.row && c.col === recordingCell.col) || null
+    : null;
   const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
   /* Which variable this card fills, where it is a value rather than
@@ -3943,7 +4131,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             disabled={!canSave || busy}
             onClick={() =>
               onSave({
-                forms,
+                /* The table's cells go back into the one list of forms
+                   they came out of: a cell is a sub-form, and the save
+                   path has no idea there is such a thing as a verb. Kept
+                   only while the card says it is a verb, so turning that
+                   off puts the table away rather than saving a hidden
+                   one. */
+                forms: asVerb ? forms.concat(cells as typeof forms) : forms,
                 note,
                 decks: chosen,
                 uses,
@@ -3994,7 +4188,50 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 </Help>
               </>
             )}
+
+            {/* And whether it is a verb, which is the same question about
+                what a card is and so belongs in the same block.
+
+                A tick rather than a third option beside "Word or phrase"
+                and "Conversation", because it is not a third kind: a verb
+                is a word, with a table as well. It also outlives the
+                choice above, which is read-only once a card exists — a
+                verb is often written as a plain word and given its table
+                weeks later, when the course reaches tenses — so it stays
+                offered on a card that is already saved.
+
+                Only where the language lays verbs out. A pack that
+                declares no rows and columns shows no tick. */}
+            {!scene && verbSpec && (
+              <label className="at-tickrow at-mt3">
+                <input
+                  type="checkbox"
+                  checked={asVerb}
+                  onChange={() => setAsVerb((v) => !v)}
+                />
+                <span className="at-tickbody">
+                  <b>This is a verb</b>
+                </span>
+              </label>
+            )}
           </div>
+
+          {/* ---- the verb's table ----
+              The question that opens this is the tick in the block above,
+              where the other question about what a card is lives. Nothing
+              here but the table: what a blank cell means and which rows
+              open first are read off the table itself — an empty box is
+              plainly an empty box, and the rows are labelled in the order
+              they are taught. */}
+          {verbMode && verbSpec && (
+            <VerbTable
+              lang={lang}
+              spec={verbSpec}
+              cells={cells}
+              onChange={setCells}
+              onRecord={(row, col) => setRecordingCell({ row, col })}
+            />
+          )}
 
           {scene && (
             <>
@@ -4185,12 +4422,28 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </>
           )}
 
+          {/* The extra forms, on a verb, are put away rather than removed.
+              A verb may genuinely have a second spelling, so the door has
+              to stay open — but a teacher who wants the past tense and
+              sees "Add a form" will use it, and a conjugated form written
+              there sits outside the table: nothing knows which person or
+              tense it is, so it is never gated by its row and never
+              agrees with a sentence. Hiding the invitation is the whole
+              fix; a card that already carries extra forms shows them, or
+              putting them away would read as having lost them. */}
           {!scene && forms.map((f, i) => (
+            i > 0 && verbMode && !moreForms ? null :
             <div className={`at-formblock${i === 0 ? " main" : ""}`} key={i}>
               <div className="at-formhead">
-                <span className="at-formnum">Form {i + 1}</span>
+                <span className="at-formnum">
+                  {i === 0 && verbMode ? "The verb" : `Form ${i + 1}`}
+                </span>
                 <span className="at-formrole">
-                  {i === 0 ? "the main form" : "another form of the same card"}
+                  {i === 0 && verbMode
+                    ? "the verb itself"
+                    : i === 0
+                      ? "the main form"
+                      : "another form of the same card"}
                 </span>
                 {/* Kept together so the pair stays whole and the role text
                     beside them shortens instead of collapsing into a column. */}
@@ -4203,14 +4456,18 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       be wrong for it, and a wrong recording is worse than a
                       missing one. */}
                   <Button variant="ghost" size="sm"
-                    onClick={() =>
+                    onClick={() => {
+                      /* And show them, where they were put away: a copy
+                         made into a section that is not on screen is a
+                         button that does nothing. */
+                      setMoreForms(true);
                       setForms((x) =>
                         x
                           .slice(0, i + 1)
                           .concat([{ ...x[i], clips: [], slowClips: [] }])
                           .concat(x.slice(i + 1))
-                      )
-                    }
+                      );
+                    }}
                   >
                     Duplicate
                   </Button>
@@ -4291,7 +4548,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           ))}
 
-          {!scene && (
+          {!scene && (verbMode && !moreForms ? (
+            <Button variant="ghost" size="sm" onClick={() => setMoreForms(true)} icon="add">
+              Another way to say it
+            </Button>
+          ) : (
           <Button variant="ghost" size="sm"
             /* No number override: blankForm takes the language's declared
                default, so what a new form starts as is settled in one place. */
@@ -4300,7 +4561,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         >
           Add a form
         </Button>
-          )}
+          ))}
 
           {/* ---- variables ----
               A hole in a phrase, and the cards that fill it. Written here
@@ -4319,6 +4580,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 has words in it — and each question fills it with a card that says it
                 fills <code>name</code>. A card that means one thing is met as one
                 sentence; a card with a hole in it is met as all of them.
+              </Help>
+              {/* The one slot nobody has to write on a card, and so the one
+                  a teacher cannot find by looking at their own cards. */}
+              <Help>
+                <code>{"{{word}}"}</code> is already filled by every word in this
+                language — nothing to write on them, and a word added later joins in
+                without this card being touched.
               </Help>
 
               {trouble && (
@@ -4458,6 +4726,22 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           onClose={() => setRecording(null)}
         />
       )}
+      {recordingCell && cellHere && (
+        <RecordingScreen
+          title={`Recordings · ${cellLabel(verbSpec, recordingCell)}`}
+          form={cellHere}
+          onChange={(next) =>
+            setCells((x) =>
+              x.map((c) =>
+                c.row === recordingCell.row && c.col === recordingCell.col
+                  ? { ...c, ...next }
+                  : c,
+              ),
+            )
+          }
+          onClose={() => setRecordingCell(null)}
+        />
+      )}
     </>
   );
 }
@@ -4532,7 +4816,12 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
      for a reason nobody can see. Their whole library, not one deck: a value
      is borrowed by whichever phrase has a hole of its name. */
   const values = useMemo(
-    () => (unit: Form) => valuesFor(unit, material, lang && lang.id),
+    /* The kind goes in so that {{word}} finds its fillers here too: it is
+       filled by any word in the language with nothing written on it, and a
+       teacher trying an exercise should see the same words a learner will
+       be shown. */
+    () => (unit: Form) =>
+      valuesFor(unit, material, lang && lang.id, (c) => kindOf(c, lang)),
     [material, lang]
   );
 

@@ -517,6 +517,47 @@ button {
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* The actions stay whole: they are what the row is for. */
 .at-formacts { display:flex; align-items:baseline; gap:8px; flex-shrink:0; }
+/* One cell of a verb's table: who it is, then the form and what it means.
+   Down the page rather than across it — a grid of seven columns is how a
+   grammar book prints a paradigm and is unusable on a phone, which is what
+   this app is mostly opened on. The label keeps a fixed measure so the
+   fields line up down the block and the eye reads a column anyway. */
+.at-cellrow { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.at-cellrow:last-child { margin-bottom:0; }
+.at-celllabel { flex:0 0 5.5em; min-width:0; font-size:12px; font-weight:800;
+  color: var(--muted); text-align:end; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; }
+/* The script, how it is said and what it means share the line, and stack
+   once there is no room — at which point the label sits above them all. */
+.at-cellfields { flex:1; min-width:0; display:flex; gap:8px; }
+.at-cellfields > * { flex:1; min-width:0; }
+/* The recording button stays on the line whatever the fields do: it is one
+   tap per cell, and a table of twenty-one cells would be twice the height
+   if each carried the list and the explanation the forms below get. Square,
+   and lit once there is something recorded.
+
+   Written as a child selector, like .at-sessionrow > .at-icon below and for
+   the same reason: .at-icon is built to grow and says `flex:1` further down
+   this file, so a rule of one class up here loses to it wherever it sits in
+   the source. */
+.at-cellrow > .at-cellmic { flex:0 0 auto; width:44px; min-width:0; padding:0;
+  align-self:center; height:44px; }
+.at-cellrow > .at-cellmic.on { border-color: var(--accent); color: var(--accent); }
+.at-cellrow > .at-cellmic:disabled { opacity:.4; cursor:default; }
+/* On a phone the three fields go to a grid rather than a column: stacked,
+   a cell is three boxes tall and a table of twenty-one is most of a
+   morning's scrolling. The script and how it is said share the first line
+   — both are short — and the meaning takes the second, which is also the
+   one most often left to the row's English. Two lines either way, because
+   a language that writes no pronunciation gets a single column and the
+   same two boxes. */
+@media (max-width: 560px) {
+  .at-cellrow { flex-wrap:wrap; align-items:center; gap:4px 8px; }
+  .at-celllabel { flex:0 0 100%; text-align:start; }
+  .at-cellfields { display:grid; grid-template-columns:1fr; gap:6px; }
+  .at-cellfields:has(> :nth-child(3)) { grid-template-columns:1fr 1fr; }
+  .at-cellfields:has(> :nth-child(3)) > :last-child { grid-column:1 / -1; }
+}
 .at-cklist { display:flex; flex-direction:column; gap:8px; }
 /* A tighter card editor: less air between fields, smaller labels. */
 .at-screen.over .at-field { margin-bottom:12px; }
@@ -1691,6 +1732,15 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-stat b { display:block; font-family: var(--ui); font-size:30px; font-weight:800; letter-spacing:-.02em; }
 .at-stat span { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
 /* The compact row used on the Progress screen. */
+/* A tile that opens the cards behind its number. The declarations up to
+   `background` undo a button's own chrome, exactly as .at-pcard does below
+   — the rest is the tile it has always been. */
+button.at-stat { display:block; width:100%; font:inherit; color:inherit; text-align:inherit;
+  cursor:pointer; -webkit-appearance:none; appearance:none; }
+button.at-stat.on { border-color: var(--accent); }
+/* Nothing to show, so nothing to press. Dimmed rather than hidden: the
+   number is still the answer to how many there are. */
+button.at-stat:disabled { cursor:default; opacity:.55; }
 .at-stats.tight { grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:16px; }
 .at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
 .at-stats.tight .at-stat b { font-size:19px; }
@@ -1730,8 +1780,11 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
    because `.done` sets a border colour of its own further up the file and
    would otherwise outrank the hover. */
 .at-pcard { transition: border-color 140ms ease, transform 140ms ease; }
+button.at-stat { transition: border-color 140ms ease; }
 @media (hover: hover) {
   .at-pcard:hover { border-color: var(--ink); transform: translateY(-1px); }
+  button.at-stat:hover:not(:disabled) { border-color: var(--ink); }
+  button.at-stat.on:hover:not(:disabled) { border-color: var(--accent); }
 }
 .at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
 .at-pcardtop .ar { font-family: var(--sfont); font-size:calc(20px * var(--sscale, 1)); font-weight:700; direction: var(--sdir);

@@ -345,3 +345,150 @@ gender — but it is a second feature, not a flag on this one.
 rather than found in a session: a frame whose English has a hole and whose
 script has not is a question that asks for a name and marks an answer that
 never contained one.
+
+---
+
+## A verb's table is its sub-forms, seen through two axes
+
+**13 September 2026** · `src/verbs.ts`, `src/languages.ts` (`verb`), `types.ts`
+(`row`, `col`)
+
+A verb is not one thing to know. *To eat* in Palestinian Arabic is a dozen
+words depending on who is eating and when, and a learner needs the one that
+fits the sentence they are about to say — which no exercise asked for.
+
+The obvious build is a new kind of card carrying a grid of strings. This is
+not that. **A cell is a sub-form with two extra fields saying where it
+sits**, `row` and `col`, and the table is a view over `subs`:
+
+    subs: [
+      { id, ar: "أكلت", en: "she ate", lat: "akalat", row: "past", col: "she" },
+    ]
+
+A sub-form is already an alternate form drilled on its own, with its own
+recordings and its own progress. That is exactly what a cell is, so
+everything downstream was already right: `unitsOf` enumerates cells,
+`resolveUnit` finds them, `applyGrade` writes their marks back, sync merges
+them per form and per type, the editor preserves their state by id, and the
+existing exercises ask them — a cell has `ar` and `en`, so *{script} →
+English* and *English → {script}* work on it the day it is written. **No new
+exercise type was added, and no third collection.** The alternative was a
+parallel walk beside `subs` and `lines` in five files, each of which would
+have had to learn what a verb is, and one of which — the write-back in
+`applyGrade` — would have dropped a grade silently rather than failing.
+
+**The axes are the language's, as `grammar` and `lexical` already are.** A
+pack declares its persons and its tenses, in the order it teaches them, and
+nothing outside the pack knows what a tense is. Arabic declares seven and
+three; Huế declares one unlabelled person and four markers; a pack that
+declares none renders no table and every function in `verbs.ts` comes back
+empty. The Vietnamese table is the whole language-agnostic claim in one
+place: the same editor and the same exercises, over a table one column wide.
+
+**Agreement is the thing the variables entry above said was left out.** The
+pieces really were in place: a value is a card, a card carries number and
+gender, so a column can name the values a subject must have —
+`{ id: "she", picks: { number: "singular", gender: "feminine" } }` — and a
+sentence with the card's own place marked in it, `{{name}} {{verb}}
+{{object}}`, takes the cell whatever filled the subject calls for. Sarah
+makes it *she ate*, the children *they ate*. Nothing is inferred and nothing
+was added to Sarah: her card already said what she is. `{{verb}}` is a slot
+like any other, so the editor's check that every field leaves the same holes
+goes on working untold; it is simply the one slot no card fills, because the
+card fills it from its own table.
+
+Only the third person carries `picks`, and that is the rule rather than an
+omission: no noun dropped into a subject is ever *I* or *you*. The most
+specific match wins, so a pack can declare a broad column and a narrow one
+without ranking them by hand.
+
+**The rows open one at a time**, which is the same ladder turned ninety
+degrees: a row opens once every cell of the row above it is mastered. It is
+enforced in one place — `openTypes` returns nothing for a cell behind its
+gate — and that one place is why it also throttles correctly: a closed cell
+contributes no open types, so `familyMaturity` does not count it, and a
+verb's twenty-one cells therefore cannot make its card read *new* for ever
+and starve the whole language of room for new cards. A row the teacher left
+blank is passed straight through, the way a level with no material is.
+
+**What it costs.** Two flat fields on a form where the app otherwise avoids
+storing positions, and a server that now has to carry them through its
+sub-form whitelist. The sub-form cap went from twelve to sixty-four: twelve
+is three fewer than Arabic's smallest useful table, so a teacher would have
+filled in twenty-one forms, saved, and got back the first twelve with no
+error anywhere.
+
+**A cell's English is typed, and briefly was not.** There was a box per row
+that wrote every cell in it from one word, composing "she" and "ate" into
+"she ate", so a teacher wrote three words instead of seventeen. It shipped,
+and it was wrong in the place a learner meets first: English inflects the
+present and nothing else, so "eat" composed across a row gave "he eat" and
+"she eat" beside "I eat" and "we eat", and a command composed across every
+column offered "I: eat!". The fix each time was the teacher correcting the
+app's own output on every regular verb they would ever write.
+
+The tempting repair is a rule — mark the third person singular, skip the
+command outside the second person. Both are facts about English, and this
+is a file whose whole point is that it knows no language: the same rule
+would be wrong for the next pack, and right only by accident for this one.
+A pack could declare its own exceptions, and that remains open. What is
+here now is the plain answer: each cell keeps the words it was given.
+Seventeen boxes is more typing than three, and it is typing that produces
+something true.
+
+---
+
+## An accepted answer carries its own progress, keyed beside the exercise
+
+**13 September 2026** · `keyFor`/`typeOf`/`answerOf`/`keysFor` in
+`src/languages.ts`
+
+The first entry in this file says the opposite, and the reversal is the
+point of writing this one down. It argued that مبسوط and مبسوطة are "one
+thing to know, two right answers", and that making them sub-forms "would
+have doubled the card's schedule to record a fact about one of its
+answers".
+
+What changed is the verb table. Once every person and tense of a verb is
+scheduled on its own — because knowing *she ate* is not knowing *they ate*
+— the same argument plainly applies one step over: knowing one accepted
+spelling is not knowing the one beside it. The card owner asked for it in
+those words, and they are right. A second accepted answer that is never
+asked in its own right is a word the learner has been shown and never
+tested on.
+
+**What it is not.** The obvious build is the one the first entry refused:
+split the answers into sub-forms. That was offered and turned down, and
+the reason holds — it restructures every card that already has two, and it
+narrows what is marked correct, so a learner who writes the other spelling
+starts being told they are wrong.
+
+**What it is.** A schedule key: the exercise, plus which answer it is
+about.
+
+    "ar2en"     the first accepted answer, or the only one
+    "ar2en@1"   the second
+
+The first answer keeps the bare exercise name, and that one choice is what
+makes the whole thing safe to turn on. Every schedule ever written reads
+back exactly as it did. Sync goes on merging state name by name without
+being told anything, because a key is just another name in the same map.
+`compactItem` still drops what was never answered. A card with one answer —
+almost all of them — has no suffix anywhere in its document, and a card
+with two gains one fresh schedule, which is honest: that answer has never
+been practised on its own.
+
+**Which questions split, and which do not**, is `showsOneAnswer` and not a
+list: a question that *shows* one answer splits, because showing each is a
+different question; a question that asks for the word to be *typed* does
+not, because either spelling answers it and marking the second one wrong is
+the bug a second accepted answer exists to prevent. Listening does not
+split either — a recording belongs to the form rather than to one of its
+spellings, so nothing knows which was said.
+
+**What it costs.** Every reader of a schedule now holds a key where it held
+a type, and everything that looks an exercise up — the ladder, the wording,
+the grader, the quiet window — goes through `typeOf` first. That is a
+handful of call sites and one rule to remember when adding another. The
+alternative was the restructure, and the suffix is the cheaper of the two
+by a long way.

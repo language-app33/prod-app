@@ -265,6 +265,69 @@ test("a card remembers which words it teaches, and keeps the list clean", async 
 });
 
 /*
+ * A verb's table is made of sub-forms, so it travels down the pipe every
+ * other form does. Two things the server has to get right for that to
+ * work, and both of them were wrong before it was asked to: a cell has to
+ * come back still knowing where it sits, and a whole table has to fit.
+ *
+ * The cap mattered more than it looks. Twelve sub-forms is more alternate
+ * spellings than any word has ever wanted, and it is three fewer than
+ * Arabic's smallest useful table — so a teacher would have filled in
+ * twenty-one forms, saved, and got back the first twelve with no error
+ * anywhere.
+ */
+test("a verb's cells come back knowing where they sit, and a whole table fits", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
+  const key = made.json.key;
+
+  /* Seven persons across three tenses, which is what Arabic declares. */
+  const persons = ["i", "you-m", "you-f", "he", "she", "we", "they"];
+  const cells = [];
+  for (const row of ["present", "past", "command"]) {
+    for (const col of persons) {
+      cells.push({ ar: `${row}-${col}`, en: `${col} ${row}`, lat: "", row, col });
+    }
+  }
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "أكل", en: "to eat", lang: "ar-PS", subs: cells }, decks: [] },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.subs.length, 21, "the whole table survived the save");
+
+  const she = saved.json.card.subs.find(
+    (/** @type {Record<string, any>} */ s) => s.row === "past" && s.col === "she",
+  );
+  assert.ok(she, "the she-past cell came back placed");
+  assert.equal(she.ar, "past-she");
+
+  /* Half a position places nothing, so neither half is kept: a form
+     carrying a row and no column would read as a cell of a row with no
+     person, and the table would file it under nobody. */
+  const odd = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: { id: "", ar: "شرب", en: "to drink", lang: "ar-PS",
+              subs: [{ ar: "شربت", en: "drank", lat: "", row: "past" },
+                     { ar: "بيشرب", en: "drinks", lat: "", row: "pre sent!", col: "he" }] },
+      decks: [],
+    },
+  });
+  assert.equal(odd.json.card.subs[0].row, undefined, "a row with no column is not a position");
+  assert.equal(odd.json.card.subs[0].col, undefined);
+  /* And what is kept is narrowed to the shape a language pack can name. */
+  assert.equal(odd.json.card.subs[1].row, "present");
+
+  /* An ordinary card gains no fields it never had. */
+  const plain = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS", subs: [{ ar: "شموس", en: "suns", lat: "" }] }, decks: [] },
+  });
+  assert.equal("row" in plain.json.card.subs[0], false, "no empty position on a plain form");
+});
+
+/*
  * A conversation is a card like any other, so it reaches a student down
  * the same pipe: saved here, stored whole, handed out in the material
  * payload. What the server has to keep is the turns in order, who says

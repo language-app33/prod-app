@@ -124,6 +124,7 @@ import {
   findWordSpan,
   guessKind,
   inScript,
+  kindOf,
   isListening,
   groupAttrOf,
   labelFor,
@@ -138,7 +139,21 @@ import {
   defaultLanguageOptions,
   grammarFields,
   normDimValue,
+  showsOneAnswer,
+  keysFor,
+  answerOf,
+  typeOf,
+  verbOf,
 } from "./languages.ts";
+import {
+  VERB_SLOT,
+  agreedCell,
+  cellsOf,
+  isVerb,
+  openRows,
+  rowOf,
+  subjectSlot,
+} from "./verbs.ts";
 import {
   MIN,
   LEARNING_CAP,
@@ -150,6 +165,7 @@ import {
   freshState,
   freshStates,
   itemDifficulty as itemDifficultyOf,
+  mastered,
   maturity,
   openTypes as openTypesOf,
   phaseCounts,
@@ -185,6 +201,7 @@ import {
   speakersOf,
 } from "./dialogs.ts";
 import {
+  answerAt,
   answerForTurn,
   answerGiven,
   answersOf,
@@ -192,7 +209,7 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fillForm, hasSlots, slotsOf, valueOf, valuesForTurn } from "./variables.ts";
+import { fillForm, fillsOf, hasSlots, slotsOf, valueOf, valuesForTurn } from "./variables.ts";
 import type { Value } from "./variables.ts";
 
 /*
@@ -206,7 +223,12 @@ import type { Value } from "./variables.ts";
    opened yet is young, not new. The progress screen and the room-for-new
    sums both read this, so they agree about how full a learner's hands are. */
 const familyMaturity: (it: Item) => string = (it) =>
-  familyMaturityOf(it, (u) => openTypesOf(availableTypes(u), (t) => statesOf(u)[t]));
+  familyMaturityOf(it, (u) =>
+    openTypesOf(
+      availableTypes(u).flatMap((t) => keysFor(u, t)),
+      (k) => statesOf(u)[k],
+    ),
+  );
 const itemDifficulty: (it: Item) => string = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
 
 import { applyUpdate, holdUpdates } from "./updates.ts";
@@ -541,6 +563,76 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
 }
 
 /* ------------------------------------------------------------------
+   Which rows of a verb's table are open
+
+   A verb's forms are laid out on two axes, and the rows are not as hard as
+   each other: somebody who can say what they *do* has something to hang
+   the past on, and somebody handed present, past and command in one week
+   has three tables to confuse. So a row opens only once the row above it
+   is mastered — the same bar a level asks of the level below it, applied
+   down the other axis.
+
+   Held at module level for the reason the three indexes above are: a cell
+   is a unit, the question is asked of one unit at a time, and a cell
+   carries no pointer back to the card whose other cells decide whether it
+   is open yet.
+
+   What is stored is the answer rather than the card, so the walk over the
+   table happens once per rebuild instead of once per question.
+   ------------------------------------------------------------------ */
+
+let CLOSED_CELLS: Set<string> = new Set();
+
+function setClosedCells(closed: Set<string>) {
+  CLOSED_CELLS = closed || new Set();
+}
+
+/* Whether this unit is a cell of a row nobody has reached yet. False for
+   every unit that is not a cell at all, which is every form on every card
+   written before verbs had tables. */
+const cellClosed = (unit: Form): boolean => !!unit && CLOSED_CELLS.has(unit.id);
+
+/*
+ * The cells whose row has not opened, across every card in hand.
+ *
+ * A row counts as mastered when every cell in it is mastered at everything
+ * it is asked — read off the same open types the rest of the app uses, so
+ * a cell the learner has switched every exercise off for cannot hold the
+ * rows below it shut for ever.
+ */
+function closedCells(items: Item[], settings: Settings): Set<string> {
+  const out: Set<string> = new Set();
+  for (const card of items) {
+    const lang = langOf(settingsFor(settings, card));
+    const spec = verbOf(lang);
+    if (!spec || !isVerb(card)) continue;
+    const open = openRows(card, spec, (cell) => {
+      /* The ladder as it stands for this cell alone, and deliberately not
+         through openTypes: that one asks this very gate, and a gate that
+         asks itself would read a cell closed by the row above as having
+         nothing left to master — which would open every row at once. The
+         quiet window is left out for the same reason it is applied after
+         the ladder there: a listening exercise silenced for a quarter of
+         an hour is still something to master, not a gap to slip through. */
+      const supported = availableTypes(cell, lang).filter((t) => settings.types[t]);
+      const climbing = openTypesOf(supported, (t) => statesOf(cell)[t]);
+      /* Nothing switched on, so nothing to wait for. A learner who has
+         turned an exercise off must not thereby hold the rows below it
+         shut for ever. */
+      if (!climbing.length) return true;
+      return climbing.every((t) => {
+        const s = statesOf(cell)[t];
+        return !!s && mastered(s);
+      });
+    });
+    for (const cell of cellsOf(card)) {
+      if (!open.includes(rowOf(cell))) out.add(cell.id);
+    }
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------
    How much company a word has
 
    The matching grid is the one exercise whose availability is not a fact
@@ -643,7 +735,7 @@ function contextsFor(unitId: string): any[] {
  */
 function pickContext(unit: Form, type: string) {
   const list = contextsFor(unit.id).filter((c) =>
-    EX[type] && EX[type].needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
+    specOf(type) && specOf(type).needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
   );
   if (!list.length) return null;
   const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
@@ -678,14 +770,56 @@ function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null,
   const slots = slotsOf(resolved.unit);
   if (!slots.length) return resolved;
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
-  const took = valuesForTurn(slots, fillsFor(resolved.unit), seen);
+  /* The verb's own place is not filled from the cards: it is filled from
+     the card's own table, by whatever fills the subject. So it is left out
+     of the draw and put back below. */
+  const drawn = slots.filter((slot) => slot !== VERB_SLOT);
+  const took = valuesForTurn(drawn, fillsFor(resolved.unit), seen);
   if (!took) return resolved;
+  if (slots.length !== drawn.length) {
+    const agreed = verbValue(resolved, took);
+    /* No cell for what filled the subject — a sentence wanting the plural
+       of a verb whose plural the teacher left blank. Nothing to ask, and
+       nothing to invent: left as it stands, the way an unfilled hole is,
+       so it reads as the bug it is rather than as a silent gap. */
+    if (!agreed) return resolved;
+    took[VERB_SLOT] = agreed;
+  }
   const unit = (fillForm(resolved.unit, took) as any);
   return {
     ...resolved,
     unit,
     parent: resolved.parent === resolved.unit ? unit : resolved.parent,
   };
+}
+
+/*
+ * The form of the verb this sentence wants, this time round.
+ *
+ * The row is the sentence's — one that opens "Yesterday" wants the past
+ * whoever is in it — and the column is the subject's, worked out from the
+ * grammar already recorded on whatever filled the first hole. Sarah is
+ * singular and feminine, so the verb is the *she* cell; the children are
+ * plural, so it is *they*. Nothing has to be added to Sarah for this: her
+ * card already says what she is, because every card does.
+ *
+ * Null where the pair names a cell the teacher left blank, or where the
+ * subject's card declares nothing for the language to read.
+ */
+function verbValue(
+  resolved: { unit: Form, parent: Item },
+  took: Record<string, Value>,
+): Value | null {
+  const card = resolved.parent;
+  /* The card's own language, the way every module-level reader here takes
+     it: the pointer set during render is not to be relied on from a
+     function that runs from anywhere. */
+  const spec = verbOf(LANGUAGES[String((card && card.lang) || "")] || activeLang());
+  const subject = subjectSlot(slotsOf(resolved.unit));
+  const filler = subject ? took[subject] : null;
+  const cell = agreedCell(card, spec, rowOf(resolved.unit), filler ? filler.grammar : null);
+  if (!cell || !cell.ar) return null;
+  return { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
 }
 
 /*
@@ -704,17 +838,37 @@ function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null,
  * with two spellings is drilled on both, one at a time, and the question
  * on screen does not change under a re-render.
  *
- * Only these two narrow the answer. Asked what a card means, or to write it
- * from its meaning, every accepted answer is still accepted — the answer
- * there is the word, not one spelling of it. What the question shows can
- * still be narrowed, which is castMeaning below.
+ * Every other question narrows too, and for a plainer reason: a card
+ * accepting two spellings put up whole reads as one long word with a slash
+ * through it, and gives away that it has two answers to a learner who was
+ * asked about neither. Whatever the question shows — the word above it,
+ * the four words to choose between, the tiles of a grid — shows one.
+ *
+ * The exception is the question that asks for the word to be *typed* in
+ * the script. There the whole point of a second accepted answer is that it
+ * is accepted, so the card keeps all of them: narrowing what is shown must
+ * never narrow what is right. Pronunciation is the one case that types the
+ * script and narrows anyway, which is the paragraph above — it is asked
+ * about one spelling by name.
  */
 function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
-  const spec = EX[type];
-  if (!spec || !spec.needs.includes("lat")) return resolved;
+  const spec = specOf(type);
+  if (!spec) return resolved;
+  /* Which way this question goes is written down once, in the language
+     table, so it can be read and checked against every exercise at once
+     rather than inferred from here. */
+  if (!showsOneAnswer(type)) return resolved;
+  const bySound = spec.needs.includes("lat");
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
-  const answer = answerForTurn(resolved.unit, seen);
+  /* Which answer this question is about is the key's to say, not the
+     count's: a card accepting two words carries a schedule for each, and
+     the one being asked is named in the key that was dealt. Only where
+     there is no such key — a question about a pronunciation, which picks
+     among the answers that have one — does the count still decide. */
+  const answer = bySound
+    ? answerForTurn(resolved.unit, seen)
+    : answerAt(resolved.unit, answerOf(type), answerFields());
   if (!answer) return resolved;
   const unit = (oneAnswer(resolved.unit, answer) as any);
   return {
@@ -742,12 +896,20 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
  */
 function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
-  const spec = EX[type];
+  const spec = specOf(type);
   /* Where the meaning is the question, and where it is the answer: a card
      that means two things puts one of them up, so the tile the learner
      taps is the string this is marked against. Without it a card reading
      "book, volume" would have that whole string as its one right tile. */
-  if (!spec || (spec.promptField !== "en" && spec.picks !== "meaning")) return resolved;
+  /* And wherever else a meaning is put on the screen. A grid is the one
+     that was missed: it shows a column of meanings beside a column of
+     words, and a card meaning two things had both of them on its tile —
+     the longest tile in the grid, and the answer given away by its
+     length. */
+  if (!spec) return resolved;
+  if (spec.promptField !== "en" && spec.picks !== "meaning" && spec.picks !== "pair") {
+    return resolved;
+  }
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
   const one = meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
@@ -760,6 +922,27 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
     unit,
     parent: resolved.parent === resolved.unit ? unit : resolved.parent,
   };
+}
+
+/*
+ * The same narrowing, for a word the question did not resolve.
+ *
+ * The castings above narrow the unit being asked. A matching grid puts
+ * four more words beside it, and a choice puts three, and those are
+ * fetched straight out of the learner's cards — so they arrive as written,
+ * two spellings and two meanings and all. One long tile among four short
+ * ones is the answer given away by its shape, whichever column it is in.
+ *
+ * Each on its own count, so a word shown in two grids running is not shown
+ * the same spelling both times, and the same word narrows the same way
+ * wherever it turns up in one asking.
+ */
+function oneOf(unit: Form, type: string): Form {
+  const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
+  const answer = answerAt(unit, seen, answerFields());
+  const meaning = meaningForTurn(unit, seen);
+  const out = answer ? (oneAnswer(unit, answer) as Form) : unit;
+  return meaning && meaning !== String(out.en || "").trim() ? { ...out, en: meaning } : out;
 }
 
 /* The phrase with the target word taken out, as the question shows it. */
@@ -860,7 +1043,7 @@ export function withoutListening(exercises: Question[], from: number, items: Ite
     /* The phrase named on the old question is not necessarily right for the
        new one — a spoken context may have no written place to stand, and a
        question that needs no context must not carry one. Decided fresh. */
-    const ctx = EX[pick].needs.includes("contexts") ? pickContext(resolved.unit, pick) : null;
+    const ctx = specOf(pick).needs.includes("contexts") ? pickContext(resolved.unit, pick) : null;
     const { ctx: _dropped, ...rest } = ex;
     tail.push({ ...rest, type: pick, ...(ctx ? { ctx: ctx.id } : null) });
   }
@@ -902,18 +1085,36 @@ function enabledTypes(it: Form, settings: Settings): string[] {
   );
 }
 
+/* The exercise a schedule key is about. Keys carry which accepted answer
+   they belong to, and nothing that reads a spec cares which. */
+const specOf = (key: string) => EX[typeOf(key)];
+
 /* And of those, the ones on a level the form has reached — see the ladder
    in the scheduler. This is what a session asks from; enabledTypes is what
    a card supports, which is the question the card list and the counts of
    what is drillable ask. A level that has not opened is still the card's
-   to reach, not a hole in it. */
+   to reach, not a hole in it.
+
+   Keys rather than types, so a card accepting two words is dealt both and
+   counted as having both still to learn. The ladder itself is unchanged:
+   it reads a level off a key the same way it read one off a type. */
 function openTypes(it: Form, settings: Settings): string[] {
   /* The levels are read over everything the card supports and the learner
      has switched on, and only then is the quiet window applied: a
      listening exercise silenced for a quarter of an hour is still a level
      to be climbed, not a gap that lets the one above it open early. */
-  const supported = availableTypes(it, langOf(settingsFor(settings, it))).filter((t) => settings.types[t]);
-  return openTypesOf(supported, (t) => statesOf(it)[t]).filter((t) => typeAllowedNow(t));
+  /* A cell of a verb's table whose row has not opened is asked nothing at
+     all. Said here rather than in the scheduler because it is the same
+     kind of answer the ladder gives — which of this unit's exercises are
+     open — and because everything that matters reads it through this one
+     function: what a session may deal, what counts towards how mature a
+     card is, and therefore how much room there is for anything new. A row
+     still to come is the card's to reach, not a hole in it. */
+  if (cellClosed(it)) return [];
+  const supported = availableTypes(it, langOf(settingsFor(settings, it)))
+    .filter((t) => settings.types[t])
+    .flatMap((t) => keysFor(it, t));
+  return openTypesOf(supported, (k) => statesOf(it)[k]).filter((k) => typeAllowedNow(k));
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -1230,7 +1431,7 @@ function buildSession({
       /* Asked in the table's own order, which runs from recognition to
          production: which exercises a unit gets is a matter of chance,
          the order they come in is not. */
-      picked.sort((x, y) => TYPES.indexOf(x) - TYPES.indexOf(y));
+      picked.sort((x, y) => TYPES.indexOf(typeOf(x)) - TYPES.indexOf(typeOf(y)));
       plans.push({ id: c.it.id, subId: isSub ? unit.id : null, unit, types: picked });
     }
   }
@@ -1366,7 +1567,7 @@ function withGrids(
     if (dealt.has(r.unit.id) || !dropped.has(r.unit.id)) continue;
     const pick = substitute(r.unit, queued.get(keyOf(ex)) || new Set());
     if (!pick) continue;
-    const ctx = EX[pick].needs.includes("contexts") ? pickContext(r.unit, pick) : null;
+    const ctx = specOf(pick).needs.includes("contexts") ? pickContext(r.unit, pick) : null;
     const { mates: _none, ...bare } = ex;
     result.push({ ...bare, type: pick, ...(ctx ? { ctx: ctx.id } : null) });
   }
@@ -1426,7 +1627,7 @@ function pickableTypes(unit: Form, settings: Settings) {
   const fresh = types.every((t) => statesOf(unit)[t].phase === "new");
   return inOrder(types, (t) => {
     const ready = stateReady(statesOf(unit)[t]) ? 0 : 2;
-    const gentle = fresh && !EX[t].gentle ? 1 : 0;
+    const gentle = fresh && !specOf(t).gentle ? 1 : 0;
     return ready + gentle;
   });
 }
@@ -1444,7 +1645,7 @@ function typesForMode(mode: string, settings: Settings) {
      two gentle types, one of which is listening, so during the window it
      builds from recognition alone — which is still the gentle end. */
   const enabled = TYPES.filter((t) => settings.types[t] && typeAllowedNow(t));
-  return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(t)) : enabled;
+  return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(typeOf(t))) : enabled;
 }
 
 /* Ultimate drills every type on every card; the rest take a sample. */
@@ -1484,7 +1685,11 @@ function buildManualSession({ items, settings, ids, mode, count }: {
      material that has to offer two exercises — and is asked from the
      second. */
   const supportedFor = (unit: Form) => availableTypes(unit).filter((t) => allowed.has(t));
-  const usableFor = (unit: Form) => openTypesOf(supportedFor(unit), (t) => statesOf(unit)[t]);
+  const usableFor = (unit: Form) =>
+    openTypesOf(
+      supportedFor(unit).flatMap((t) => keysFor(unit, t)),
+      (k) => statesOf(unit)[k],
+    );
   /* Every exercise the chosen forms support between them, for the
      variety rule below. */
   const offered: Set<string> = new Set();
@@ -4286,15 +4491,27 @@ export default function ArabicTrainer() {
      would hand somebody a different name for the same count. */
   const valueIndex = useMemo(() => {
     const map: Map<string, Value[]> = new Map();
-    const fillers = asking
-      .filter((it) => it.fills)
-      .sort((a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id));
-    for (const it of fillers) {
-      const slot = String(it.fills || "").toLowerCase();
-      const value = valueOf(it);
+    /* Every card, not only the ones naming a slot: `{{word}}` is filled by
+       any word in the language with nothing written on it to say so, so
+       what a card fills has to be asked of the card rather than read off a
+       field. Ordered by when they were made, as before — the rotation
+       walks this list, and a list that reordered itself on a sync would
+       hand somebody a different word for the same count. */
+    const byAge = [...asking].sort(
+      (a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id),
+    );
+    for (const it of byAge) {
+      const langId = langIdOf(it, settings);
+      const slots = fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings)));
+      if (!slots.length) continue;
+      /* With whatever the language declares about it, so a verb standing
+         in the same sentence can agree with it. */
+      const value = valueOf(it, grammarFields());
       if (!value.ar) continue;
-      const key = valueKey(langIdOf(it, settings), slot);
-      map.set(key, (map.get(key) || []).concat([value]));
+      for (const slot of slots) {
+        const key = valueKey(langId, slot);
+        map.set(key, (map.get(key) || []).concat([value]));
+      }
     }
     return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4304,6 +4521,14 @@ export default function ArabicTrainer() {
   /* And how many words each language has to pair against. */
   const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
   setMateCounts(mateCounts);
+
+  /* And which cells of a verb's table are still behind their row's gate.
+     Last of the four, and deliberately after the mate counts: working a
+     row out reads the ladder for every cell in it, and the ladder reads
+     what a cell can be asked, which is the question the count above
+     answers. */
+  const closed = useMemo(() => closedCells(asking, settings), [asking, settings]);
+  setClosedCells(closed);
 
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {
@@ -4832,9 +5057,14 @@ export default function ArabicTrainer() {
     const answers: Form[] = [item];
     for (const mate of exercise.mates || []) {
       const r = resolveUnit(asking, { ...mate, type: exercise.type });
-      if (r && r.unit.ar && r.unit.en) answers.push(r.unit);
+      /* Narrowed here rather than at the tile, because the grid is marked
+         against the word's own `en` — a tile showing one meaning and a
+         mark expecting two would call every right answer wrong. */
+      if (r && r.unit.ar && r.unit.en) answers.push(oneOf(r.unit, exercise.type));
     }
-    const pool = wordPool(asking, settings, qLang.id, item).filter((u) => u.ar && u.en);
+    const pool = wordPool(asking, settings, qLang.id, item)
+      .filter((u) => u.ar && u.en)
+      .map((u) => oneOf(u, exercise.type));
     const reps = (statesOf(item)[exercise.type] || {}).reps || 0;
     const likeness = (u: Form) => Math.max(...answers.map((a) => wordLikeness(a.ar, u.ar, qLang)));
     const ranked = [...pool].sort((x, y) => likeness(y) - likeness(x));
@@ -4876,7 +5106,7 @@ export default function ArabicTrainer() {
         answer: item,
         pool: wordPool(asking, settings, qLang.id, item)
           .filter((u) => u.en)
-          .map((u) => ({ ...u, en: meaningForTurn(u, 0) || u.en })),
+          .map((u) => oneOf(u, exercise ? exercise.type : "")),
         wanted: PICK_OPTIONS,
         seed: `${item.id} meaning ${reps}`,
         textOf: (w) => w.en,
@@ -4884,7 +5114,12 @@ export default function ArabicTrainer() {
     }
     return optionsFor({
       answer: item,
-      pool: wordPool(asking, settings, qLang.id, item),
+      /* One spelling a tile, like the answer's own: a card accepting two
+         would otherwise put both on one tile, and the long one among three
+         short ones is the answer given away by its shape. */
+      pool: wordPool(asking, settings, qLang.id, item).map((u) =>
+        oneOf(u, exercise ? exercise.type : ""),
+      ),
       wanted: PICK_OPTIONS,
       /* A question with no phrase behind it — "which of these means this"
          — has the number of askings for a seed instead, so the three wrong
@@ -5050,7 +5285,9 @@ export default function ArabicTrainer() {
       const it = { ...next.items[idx] };
       it.flags = (it.flags || [])
         .filter((f) => !(f.kind === kind && f.ex === exercise.type && f.subId === (exercise.subId || null)))
-        .concat([{ kind, ex: exercise.type, subId: exercise.subId || null, note: said, at: now() }]);
+        .concat([
+          { kind, ex: typeOf(exercise.type), subId: exercise.subId || null, note: said, at: now() },
+        ]);
       it.updated = now();
       next.items[idx] = it;
       return next;
@@ -5067,7 +5304,10 @@ export default function ArabicTrainer() {
          course material arrives as items named srv<cardId>, and a report
          naming the local one points at nothing an administrator can open. */
       cardId: serverCardId(parentItem),
-      exercise: exercise.type,
+      /* The exercise, not which of the card's accepted answers it was
+         about: a teacher reading the report opens the card, and the
+         schedule key would name a thing only this device tracks. */
+      exercise: typeOf(exercise.type),
       subId: exercise.subId || null,
       /* The id, not the pack: what is stored has to survive being read by
          a build whose pack for it has moved on. */
@@ -8935,8 +9175,19 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
   }, [items]);
 
   const buckets = ["new", "learning", "young", "mature"];
-  const totals: Record<string, number> = { new: 0, learning: 0, young: 0, mature: 0 };
-  for (const it of items) totals[familyMaturity(it)] += 1;
+  /* The cards behind each number, worked out once with the numbers
+     themselves: a tile opens to show them, and counting them twice — once
+     to say four hundred and once to list them — is a walk of every card
+     for nothing. */
+  const byBucket = useMemo(() => {
+    const out: Record<string, Item[]> = { all: items, new: [], learning: [], young: [], mature: [] };
+    for (const it of items) (out[familyMaturity(it)] || []).push(it);
+    return out;
+  }, [items]);
+  /* Which tile is open, or none. One at a time: they are five views of the
+     same cards, and two open at once is a screen you have to scroll past
+     rather than read. */
+  const [showing, setShowing] = useState<string>("");
 
   /* A card shows up under each of its decks, and once under "Not in a deck" if
      it has none. */
@@ -8973,18 +9224,57 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
         How well you know each deck. Open one to see its cards.
       </Help>
 
+      {/* A number you want to see the cards behind is a number worth
+          pressing. Buttons rather than divs with a click on them: there is
+          nothing interactive inside a tile, so it can be the one thing you
+          press and the one thing a keyboard reaches. */}
       <div className="at-stats tight">
-        <div className="at-stat">
-          <b>{items.length}</b>
-          <span>Cards</span>
-        </div>
-        {buckets.map((b) => (
-          <div className="at-stat" key={b}>
-            <b style={{ color: b === "new" ? "var(--text)" : MATURITY_COLOR[b] }}>{totals[b]}</b>
-            <span>{MATURITY_LABEL[b]}</span>
-          </div>
-        ))}
+        {[{ key: "all", label: "Cards" }, ...buckets.map((b) => ({ key: b, label: MATURITY_LABEL[b] }))].map(
+          ({ key, label }) => (
+            <button
+              type="button"
+              className={`at-stat${showing === key ? " on" : ""}`}
+              key={key}
+              aria-expanded={showing === key}
+              aria-label={`${byBucket[key].length} ${label} — ${
+                showing === key ? "hide them" : "show them"
+              }`}
+              disabled={!byBucket[key].length}
+              onClick={() => setShowing((v) => (v === key ? "" : key))}
+            >
+              <b style={{ color: key === "all" || key === "new" ? "var(--text)" : MATURITY_COLOR[key] }}>
+                {byBucket[key].length}
+              </b>
+              <span>{label}</span>
+            </button>
+          ),
+        )}
       </div>
+
+      {/* The cards behind the tile that is open, at the smallest size they
+          come in — the point is to see which words are in there, and the
+          list is as long as the number on the tile said it would be. */}
+      {showing && byBucket[showing].length > 0 && (
+        <ItemList
+          noun="card"
+          items={byBucket[showing]}
+          itemKey={(it: Item) => it.id}
+          size="small"
+          empty="No cards match."
+          match={(it: Item, needle: string) =>
+            (it.ar || "").includes(needle) ||
+            (it.lat || "").toLowerCase().includes(needle) ||
+            (it.en || "").toLowerCase().includes(needle)
+          }
+          renderItem={(it: Item) => (
+            <CardTile
+              card={it}
+              lang={langOf(settingsFor(settings, it))}
+              onClick={() => setViewing(it)}
+            />
+          )}
+        />
+      )}
 
       {items.length === 0 ? (
         <Empty title="Nothing to show yet">{noCardsYet(myCourses.length)}</Empty>

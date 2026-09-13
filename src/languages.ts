@@ -14,14 +14,24 @@
  * Nothing in this file imports from the app, so it can be read and tested
  * on its own.
  */
-import type { Derived, ExerciseSpec, GrammarDim, Lang, LangId, Settings, Verdicts } from "./types.ts";
+import type {
+  Derived,
+  ExerciseSpec,
+  GrammarDim,
+  Lang,
+  LangId,
+  Settings,
+  Verdicts,
+  VerbPerson,
+  VerbSpec,
+} from "./types.ts";
 /* The one import here, and it goes the way every import in this file has
    to: dialogs.ts knows nothing about languages, so there is no cycle. It
    holds the shape of a scene, which marking a part and an ordering both
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
 import { answersOf } from "./answers.ts";
-import type { AnswerField } from "./answers.ts";
+import type { AnswerField, WithAnswers } from "./answers.ts";
 
 
 /* The exercise types on offer. This is the registry everything derives from —
@@ -462,8 +472,42 @@ export const EX: Record<string, ExerciseSpec> = {
 /* Takes nothing as well as a name: it is asked about whatever a stored
    session holds, which may name an exercise that has since been retired,
    or nothing at all. */
-export const isListening = (type?: string | null): boolean =>
-  !!type && !!EX[type] && EX[type].promptField === "audio";
+/* ---- a schedule key ----
+
+   What a card records progress against. It used to be the exercise type
+   alone, and mostly still is — but a card may accept more than one word,
+   and knowing one spelling is not knowing the other. So where a question
+   shows a single accepted answer (see showsOneAnswer above), each answer
+   carries its own progress, and the key says which:
+
+       "ar2en"     the first accepted answer, or the only one
+       "ar2en@1"   the second
+
+   The first answer keeps the bare type deliberately. Every card written
+   before this reads back exactly as it did, sync goes on merging state key
+   by key without being told anything, and a card with one answer — which
+   is almost all of them — has no suffix anywhere in its document.
+
+   Everything that looks an exercise up goes through typeOf first, so a key
+   can be handed to any of it. */
+
+const KEY_SEP = "@";
+
+/** The key a type and an answer are recorded under. */
+export const keyFor = (type: string, at = 0): string =>
+  at > 0 ? `${type}${KEY_SEP}${at}` : String(type);
+
+/** The exercise a key is about, whichever kind of key it is. */
+export const typeOf = (key: string): string => String(key || "").split(KEY_SEP)[0];
+
+/** And which accepted answer. Zero for a bare type. */
+export const answerOf = (key: string): number =>
+  Math.max(0, Math.floor(Number(String(key || "").split(KEY_SEP)[1]) || 0));
+
+export const isListening = (key?: string | null): boolean => {
+  const spec = key ? EX[typeOf(key)] : null;
+  return !!spec && spec.promptField === "audio";
+};
 
 /* "na" maps to nothing on purpose: a form whose number does not apply should
    carry no number label at all, not the letters "na". labelFor falls back to
@@ -1033,6 +1077,44 @@ export const GRAMMAR: Record<string, GrammarDim> = {
 export const dimsOf = (lang: Lang): GrammarDim[] =>
   (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
 
+/*
+ * The persons a language with subject agreement declares, ready to be
+ * spread into a pack.
+ *
+ * Here rather than written out twice because Arabic and Hebrew mark a verb
+ * for the same seven — the two are not related by accident — and a pack
+ * that wants six or nine simply writes its own. Nothing reads this but the
+ * packs below.
+ *
+ * `picks` is the agreement rule, and it is deliberately only on the third
+ * person: those are the columns a *noun* in the subject can call for. A
+ * sentence filled with Sarah wants "she", one filled with the children
+ * wants "they", and nothing a teacher drops into a hole is ever "I" or
+ * "you" — a frame that wants those says so itself. "they" asks for number
+ * alone, so a plural of either gender reaches it; the two singulars ask
+ * for both and therefore win over it wherever they match, by the
+ * most-specific rule in verbs.ts.
+ */
+const SUBJECT_PERSONS: VerbPerson[] = [
+  { id: "i", label: "I" },
+  { id: "you-m", label: "you (m)" },
+  { id: "you-f", label: "you (f)" },
+  { id: "he", label: "he", picks: { number: "singular", gender: "masculine" } },
+  { id: "she", label: "she", picks: { number: "singular", gender: "feminine" } },
+  { id: "we", label: "we" },
+  { id: "they", label: "they", picks: { number: "plural" } },
+];
+
+/** The rows and columns a language lays its verbs out on, where it has any. */
+export const verbOf = (lang: Lang | null | undefined): VerbSpec | null =>
+  (lang && lang.verb) || null;
+
+/** Whether this language lays verbs out in a table at all. */
+export const teachesVerbs = (lang: Lang | null | undefined): boolean => {
+  const spec = verbOf(lang);
+  return !!spec && spec.tenses.length > 0 && spec.persons.length > 0;
+};
+
 /* Every value any dimension can hold, for validating stored cards without
    knowing which language wrote them. */
 export const DIM_VALUES: Record<string, string[]> = {};
@@ -1370,6 +1452,19 @@ export const LANGUAGES: Record<LangId, Lang> = {
     ],
     translitLabel: "Transliteration",
     grammar: ["number", "gender"],
+    /* A verb is marked for who is doing it and when, so its forms are laid
+       out on those two axes. The tenses are in the order they are taught,
+       which is the order they open in: what you do before what you did,
+       and the command last — it is the one a beginner hears more than they
+       say. */
+    verb: {
+      persons: SUBJECT_PERSONS,
+      tenses: [
+        { id: "present", label: "present" },
+        { id: "past", label: "past" },
+        { id: "command", label: "command" },
+      ],
+    },
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -1472,6 +1567,24 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* A noun is not usable without its classifier, and which one it takes is
        simply memorised — the job gender does in Arabic. */
     lexical: { key: "classifier", label: "Classifier", help: "con, cái, cây, quả …" },
+    /* Nothing about a verb changes for who is doing it — ăn is ăn whoever
+       eats — so there is one column, and it is unlabelled: "đã ăn" is what
+       the learner is asked, not "any: đã ăn". What does change is when, and
+       that is a word in front rather than a different word, which makes the
+       rows markers rather than tenses. The bare verb is taught first and
+       everything else hangs off it.
+
+       This is the whole language-agnostic claim in one pack: the same
+       editor and the same exercises, over a table one column wide. */
+    verb: {
+      persons: [{ id: "any", label: "" }],
+      tenses: [
+        { id: "plain", label: "plain" },
+        { id: "past", label: "past (đã)" },
+        { id: "ongoing", label: "ongoing (đang)" },
+        { id: "future", label: "future (sẽ)" },
+      ],
+    },
     verdicts: {
       partial: "Right letters, wrong tone",
       missing: "Letters right — add the tone marks",
@@ -1566,6 +1679,19 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* Nouns carry number and gender, and adjectives agree with both —
        the same two axes Arabic declares. */
     grammar: ["number", "gender"],
+    /* Marked for the same seven persons as Arabic, and for the same reason
+       — so the same columns, declared once above. The rows are its own:
+       Hebrew's future is a form of the verb rather than a word in front of
+       it, and is taught after the past. */
+    verb: {
+      persons: SUBJECT_PERSONS,
+      tenses: [
+        { id: "present", label: "present" },
+        { id: "past", label: "past" },
+        { id: "future", label: "future" },
+        { id: "command", label: "command" },
+      ],
+    },
     verdicts: {
       partial: "Right letters, wrong niqqud",
       missing: "Letters right — add the niqqud",
@@ -1698,7 +1824,10 @@ export function setActiveLang(id: LangId) {
    so a Vietnamese student is never told to write something in Arabic. */
 export const EX_CACHE = new Map();
 
-export function exOf(type: string, lang: Lang = activeLang()) {
+export function exOf(named: string, lang: Lang = activeLang()) {
+  /* Takes a schedule key as readily as a type: the wording of a question is
+     the same whichever accepted answer it happens to be about. */
+  const type = typeOf(named);
   const spec = EX[type];
   if (!spec) return null;
   const key = `${type}\u0000${lang.id}`;
@@ -1883,8 +2012,8 @@ export function checkAr(given: string, expected: string, settings: Settings) {
   return worst;
 }
 
-export function checkAnswer(typed: string, item: Record<string, any>, type: string, settings: Settings) {
-  const spec = EX[type];
+export function checkAnswer(typed: string, item: Record<string, any>, key: string, settings: Settings) {
+  const spec = EX[typeOf(key)];
   const mode = spec.answerMode;
   /* Nothing to mark: a read-through is met, not answered. It is here so
      that every exercise can be handed to one function, rather than the
@@ -2014,12 +2143,72 @@ export const EASY_TYPES = TYPES.filter((t) => EX[t].gentle);
    a form only once everything below it has reached the level's bar; the
    table here only says which level is which. Anything unknown is treated as
    the bottom level, so a stored session naming a retired type still resolves. */
-export const levelOf = (type: string): number => (EX[type] && EX[type].level) || 1;
+export const levelOf = (key: string): number => {
+  const spec = EX[typeOf(key)];
+  return (spec && spec.level) || 1;
+};
+
+/*
+ * Whether this question shows one accepted answer, or keeps them all.
+ *
+ * A card may accept more than one word — كتاب or سفر, مبسوط or مبسوطة —
+ * and what to do about that depends on whether the question *shows* the
+ * word or *asks for* it.
+ *
+ * Showing them all is always wrong. Both spellings put up together read as
+ * one long word with a slash through it, and a tile carrying two of them
+ * is the longest tile in the grid, which is the answer given away by its
+ * shape rather than by its meaning. So every question that puts the word
+ * on screen — above the question, in the four to choose between, in a
+ * column of a grid — puts up one, rotated so that both are met.
+ *
+ * Accepting them all is the point. Asked to write the word in the script,
+ * a learner who knows the other spelling knows the word, and marking them
+ * wrong for it is the bug that the second accepted answer exists to
+ * prevent. So a question that is typed in the script keeps every one.
+ *
+ * Pronunciation is the exception that proves it: it types the script and
+ * still narrows, because it names one spelling by asking how *that* one is
+ * said, and accepting the other would mark the wrong thing right.
+ *
+ * Here rather than in the trainer so the rule can be read, and checked
+ * against every exercise at once, without rendering anything.
+ */
+export function showsOneAnswer(key: string): boolean {
+  const spec = EX[typeOf(key)];
+  if (!spec) return true;
+  if (spec.needs.includes("lat")) return true;
+  return !(spec.answerMode === "ar" && spec.answerField === "ar");
+}
+
+/*
+ * The schedule keys one form carries for one exercise.
+ *
+ * A card may accept more than one word, and knowing one of them is not
+ * knowing the word beside it. So wherever a question shows a single
+ * accepted answer, each answer is asked and scheduled in its own right,
+ * exactly as each cell of a verb's table is, and the key says which.
+ *
+ * The questions that accept every spelling get one key, because there is
+ * one question there: asked to write a word from its meaning, a learner
+ * who writes either of them has answered it.
+ *
+ * One answer, or none written, is the bare type — which is every card
+ * written before this, unchanged.
+ */
+export function keysFor(form: WithAnswers | null | undefined, type: string): string[] {
+  if (!showsOneAnswer(type)) return [typeOf(type)];
+  const many = answersOf(form, answerFields()).length;
+  if (many < 2) return [typeOf(type)];
+  return Array.from({ length: many }, (_, at) => keyFor(typeOf(type), at));
+}
 
 /* And what the levels below must reach for it to open: mastered unless the
    exercise says graduated is enough. */
-export const barOf = (type: string): "graduated" | "mastered" =>
-  (EX[type] && EX[type].opensOn) || "mastered";
+export const barOf = (key: string): "graduated" | "mastered" => {
+  const spec = EX[typeOf(key)];
+  return (spec && spec.opensOn) || "mastered";
+};
 
 export function defaultTypes(): Record<string, boolean> {
   const out: Record<string, boolean> = {};

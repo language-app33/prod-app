@@ -35,6 +35,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   never met, *Learning* is met and not yet through the steps somewhere,
   *Young* is graduated everywhere it is open, *Mature* is three weeks out
   everywhere.
+- **One tense of a verb is ever new at a time.** Where a language lays its
+  verbs out in a table — Arabic in seven persons and three tenses, Huế in
+  one person and four markers — each cell of it is a sub-form, drilled and
+  scheduled in its own right by the exercises every other form gets. The
+  rows open in the order the language teaches them, one waiting on the one
+  above it being mastered, so the past of a verb is not asked until its
+  present is known and a lapse closes the rows above. A verb card may also
+  carry a sentence with its own place marked in it — `{{name}} {{verb}}
+  {{object}}` — and the form that stands there is the one whatever filled
+  the subject calls for, read off the number and gender its card already
+  carries. See `src/verbs.ts`.
 - **A matching grid is five questions.** Every word in it is asked, marked
   and scheduled in its own right. Which words stand together is decided
   when the session is built: the grid is filled out from cards already
@@ -129,6 +140,10 @@ src/
                    app, so it can be read and tested on its own.
   variables.ts     a hole in a card — "My name is {{name}}" — and the cards
                    that fill it. Pure, like the two above.
+  verbs.ts         a verb's forms as a table over the card's own sub-forms:
+                   where the rows and columns come from, what a cell means,
+                   which cell a subject calls for, and which rows are open
+                   yet. Pure, and imports nothing.
   ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
   spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
