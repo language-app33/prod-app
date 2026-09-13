@@ -277,6 +277,31 @@ export function answerForTurn(
 }
 
 /*
+ * Which accepted answer a question puts on the screen, this time round.
+ *
+ * The sibling of answerForTurn above, over every answer rather than only
+ * the ones with a pronunciation written. A question about how a word is
+ * said can only be asked of an answer that says how; a question that
+ * merely *shows* the word can be asked of any of them, and has to show one
+ * — a card accepting كتاب and سفر put up whole reads as one long word with
+ * a slash in it, and hands over the fact that it has two answers to a
+ * learner who was asked about neither.
+ *
+ * Rotated on the same count as everything else that varies between
+ * askings, so a card with two spellings is shown both, one at a time, and
+ * a re-render cannot swap the word under somebody mid-answer.
+ */
+export function answerAt(
+  form: WithAnswers | null | undefined,
+  turn = 0,
+  fields: AnswerField[] = [],
+): PlacedAnswer | null {
+  const all = answersOf(form, fields);
+  if (!all.length) return null;
+  return all[Math.abs(Math.round(Number(turn) || 0)) % all.length];
+}
+
+/*
  * What a card means, as the meanings it gives.
  *
  * The other side of the card keeps the same convention: "office / desk" is

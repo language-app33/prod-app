@@ -11,6 +11,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  answerAt,
   answerForTurn,
   answerGiven,
   answerRows,
@@ -25,7 +26,16 @@ import {
   withAnswer,
 } from "../src/answers.ts";
 import { canAsk, unmetNeeds } from "../src/offers.ts";
-import { EX, LANGUAGES, answerFields, checkAnswer, labelFor } from "../src/languages.ts";
+import {
+  EX,
+  LANGUAGES,
+  TYPES,
+  answerFields,
+  checkAnswer,
+  labelFor,
+  showsOneAnswer,
+} from "../src/languages.ts";
+import { must } from "./helpers.mjs";
 
 const ar = LANGUAGES["ar-PS"];
 /* What a stored answer may carry, as the grammar table declares it. */
@@ -337,4 +347,70 @@ test("a card with nothing written for its meaning is asked nothing", () => {
   assert.equal(meaningForTurn({ ar: "bayt" }), "");
   assert.equal(meaningForTurn({ ar: "bayt", en: " " }), "");
   assert.deepEqual(unmetNeeds({ ...two(), en: "" }, EX.en2ar, null, []), ["en"]);
+});
+
+/*
+ * One accepted answer on the screen, every accepted answer in the marking.
+ *
+ * A card may accept كتاب or سفر. Put up together they read as one long
+ * word with a slash through it, and on a tile they are the longest tile in
+ * the grid — the answer given away by its shape rather than by its
+ * meaning. But typed, either is right, and marking the second one wrong is
+ * the bug the second answer exists to prevent.
+ *
+ * The two halves of that are checked here against every exercise there is,
+ * so a type added later cannot quietly pick the wrong side.
+ */
+test("every question shows one accepted answer, and the typed ones still take any", () => {
+  for (const type of TYPES) {
+    const spec = EX[type];
+    const typesTheScript = spec.answerMode === "ar" && spec.answerField === "ar";
+    const bySound = spec.needs.includes("lat");
+    assert.equal(
+      showsOneAnswer(type),
+      bySound || !typesTheScript,
+      `${type} is on the wrong side of the rule`,
+    );
+  }
+
+  /* The ones that keep every answer are exactly the ones that ask for the
+     word to be written out. Named rather than counted, so that retiring or
+     adding one of them is a visible edit here.
+
+     Listening is in the list and is worth saying why. A recording belongs
+     to the form, not to one of its accepted answers, so nothing knows
+     which spelling was actually said — and marking somebody wrong for
+     writing the other one, on a guess, is worse than accepting both. */
+  const keepsAll = TYPES.filter((t) => !showsOneAnswer(t));
+  assert.deepEqual(keepsAll, ["rec2ar", "en2ar", "ctx2ar", "rec2ctx"]);
+
+  /* And pronunciation is the one that types the script and narrows anyway,
+     because it asks how *that* spelling is said. */
+  assert.equal(showsOneAnswer("tr2ar"), true);
+  assert.equal(EX.tr2ar.answerMode, "ar");
+});
+
+test("which answer is shown is rotated, not drawn", () => {
+  const form = {
+    ar: "kitaab / safar",
+    lat: "kitaab / safar",
+    en: "book",
+  };
+  /* Every one of them is met before any is met twice, and the same count
+     is the same question — so a re-render cannot swap the word under
+     somebody halfway through answering. */
+  assert.equal(must(answerAt(form, 0), "the first").text, "kitaab");
+  assert.equal(must(answerAt(form, 1), "the second").text, "safar");
+  assert.equal(must(answerAt(form, 2), "round again").text, "kitaab");
+  assert.equal(must(answerAt(form, -1), "however the count arrives").text, "safar");
+
+  /* Unlike answerForTurn, it does not need a pronunciation written: a
+     question that merely shows the word can show any of them. */
+  const quiet = { ar: "kitaab / safar", lat: "", en: "book" };
+  assert.equal(must(answerAt(quiet, 1), "the second, unsaid").text, "safar");
+  assert.equal(answerForTurn(quiet, 1), null);
+
+  /* Nothing to narrow is nothing, not a crash. */
+  assert.equal(answerAt({ ar: "", en: "book" }), null);
+  assert.equal(answerAt(null), null);
 });

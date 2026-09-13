@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.98 — 13 September 2026
+
+- **A question shows one accepted answer, never all of them.** A card that
+  accepts two spellings was putting both up, joined by a slash, wherever
+  the word itself was on screen. The matching grid was the worst of it —
+  both spellings on one tile and both meanings on another, so the longest
+  tile in the grid was the answer, given away by its shape rather than by
+  what it meant.
+
+  Now every question that shows the word shows one, rotated so that both
+  are met, one at a time. That covers the grid's two columns, the word
+  above a question, and the four words or meanings a question offers to
+  choose between, including the three wrong ones drawn from other cards.
+
+- **What is accepted has not moved.** Asked to write the word in the
+  script, every accepted spelling is still right — that is what a second
+  accepted answer is for. The rule now has a name in the language table
+  and a test that holds it against every exercise there is, so a type
+  added later cannot quietly pick the wrong side of it.
+
 ## 0.97 — 13 September 2026
 
 - **"English for this row" is gone. Each form's meaning is typed on the

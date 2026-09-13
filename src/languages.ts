@@ -2108,6 +2108,39 @@ export const EASY_TYPES = TYPES.filter((t) => EX[t].gentle);
    the bottom level, so a stored session naming a retired type still resolves. */
 export const levelOf = (type: string): number => (EX[type] && EX[type].level) || 1;
 
+/*
+ * Whether this question shows one accepted answer, or keeps them all.
+ *
+ * A card may accept more than one word — كتاب or سفر, مبسوط or مبسوطة —
+ * and what to do about that depends on whether the question *shows* the
+ * word or *asks for* it.
+ *
+ * Showing them all is always wrong. Both spellings put up together read as
+ * one long word with a slash through it, and a tile carrying two of them
+ * is the longest tile in the grid, which is the answer given away by its
+ * shape rather than by its meaning. So every question that puts the word
+ * on screen — above the question, in the four to choose between, in a
+ * column of a grid — puts up one, rotated so that both are met.
+ *
+ * Accepting them all is the point. Asked to write the word in the script,
+ * a learner who knows the other spelling knows the word, and marking them
+ * wrong for it is the bug that the second accepted answer exists to
+ * prevent. So a question that is typed in the script keeps every one.
+ *
+ * Pronunciation is the exception that proves it: it types the script and
+ * still narrows, because it names one spelling by asking how *that* one is
+ * said, and accepting the other would mark the wrong thing right.
+ *
+ * Here rather than in the trainer so the rule can be read, and checked
+ * against every exercise at once, without rendering anything.
+ */
+export function showsOneAnswer(type: string): boolean {
+  const spec = EX[type];
+  if (!spec) return true;
+  if (spec.needs.includes("lat")) return true;
+  return !(spec.answerMode === "ar" && spec.answerField === "ar");
+}
+
 /* And what the levels below must reach for it to open: mastered unless the
    exercise says graduated is enough. */
 export const barOf = (type: string): "graduated" | "mastered" =>

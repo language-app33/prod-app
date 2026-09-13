@@ -138,6 +138,7 @@ import {
   defaultLanguageOptions,
   grammarFields,
   normDimValue,
+  showsOneAnswer,
   verbOf,
 } from "./languages.ts";
 import {
@@ -196,6 +197,7 @@ import {
   speakersOf,
 } from "./dialogs.ts";
 import {
+  answerAt,
   answerForTurn,
   answerGiven,
   answersOf,
@@ -827,17 +829,32 @@ function verbValue(
  * with two spellings is drilled on both, one at a time, and the question
  * on screen does not change under a re-render.
  *
- * Only these two narrow the answer. Asked what a card means, or to write it
- * from its meaning, every accepted answer is still accepted — the answer
- * there is the word, not one spelling of it. What the question shows can
- * still be narrowed, which is castMeaning below.
+ * Every other question narrows too, and for a plainer reason: a card
+ * accepting two spellings put up whole reads as one long word with a slash
+ * through it, and gives away that it has two answers to a learner who was
+ * asked about neither. Whatever the question shows — the word above it,
+ * the four words to choose between, the tiles of a grid — shows one.
+ *
+ * The exception is the question that asks for the word to be *typed* in
+ * the script. There the whole point of a second accepted answer is that it
+ * is accepted, so the card keeps all of them: narrowing what is shown must
+ * never narrow what is right. Pronunciation is the one case that types the
+ * script and narrows anyway, which is the paragraph above — it is asked
+ * about one spelling by name.
  */
 function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
   if (!resolved) return resolved;
   const spec = EX[type];
-  if (!spec || !spec.needs.includes("lat")) return resolved;
+  if (!spec) return resolved;
+  /* Which way this question goes is written down once, in the language
+     table, so it can be read and checked against every exercise at once
+     rather than inferred from here. */
+  if (!showsOneAnswer(type)) return resolved;
+  const bySound = spec.needs.includes("lat");
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
-  const answer = answerForTurn(resolved.unit, seen);
+  const answer = bySound
+    ? answerForTurn(resolved.unit, seen)
+    : answerAt(resolved.unit, seen, answerFields());
   if (!answer) return resolved;
   const unit = (oneAnswer(resolved.unit, answer) as any);
   return {
@@ -870,7 +887,15 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
      that means two things puts one of them up, so the tile the learner
      taps is the string this is marked against. Without it a card reading
      "book, volume" would have that whole string as its one right tile. */
-  if (!spec || (spec.promptField !== "en" && spec.picks !== "meaning")) return resolved;
+  /* And wherever else a meaning is put on the screen. A grid is the one
+     that was missed: it shows a column of meanings beside a column of
+     words, and a card meaning two things had both of them on its tile —
+     the longest tile in the grid, and the answer given away by its
+     length. */
+  if (!spec) return resolved;
+  if (spec.promptField !== "en" && spec.picks !== "meaning" && spec.picks !== "pair") {
+    return resolved;
+  }
   const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
   const one = meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
@@ -883,6 +908,27 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
     unit,
     parent: resolved.parent === resolved.unit ? unit : resolved.parent,
   };
+}
+
+/*
+ * The same narrowing, for a word the question did not resolve.
+ *
+ * The castings above narrow the unit being asked. A matching grid puts
+ * four more words beside it, and a choice puts three, and those are
+ * fetched straight out of the learner's cards — so they arrive as written,
+ * two spellings and two meanings and all. One long tile among four short
+ * ones is the answer given away by its shape, whichever column it is in.
+ *
+ * Each on its own count, so a word shown in two grids running is not shown
+ * the same spelling both times, and the same word narrows the same way
+ * wherever it turns up in one asking.
+ */
+function oneOf(unit: Form, type: string): Form {
+  const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
+  const answer = answerAt(unit, seen, answerFields());
+  const meaning = meaningForTurn(unit, seen);
+  const out = answer ? (oneAnswer(unit, answer) as Form) : unit;
+  return meaning && meaning !== String(out.en || "").trim() ? { ...out, en: meaning } : out;
 }
 
 /* The phrase with the target word taken out, as the question shows it. */
@@ -4973,9 +5019,14 @@ export default function ArabicTrainer() {
     const answers: Form[] = [item];
     for (const mate of exercise.mates || []) {
       const r = resolveUnit(asking, { ...mate, type: exercise.type });
-      if (r && r.unit.ar && r.unit.en) answers.push(r.unit);
+      /* Narrowed here rather than at the tile, because the grid is marked
+         against the word's own `en` — a tile showing one meaning and a
+         mark expecting two would call every right answer wrong. */
+      if (r && r.unit.ar && r.unit.en) answers.push(oneOf(r.unit, exercise.type));
     }
-    const pool = wordPool(asking, settings, qLang.id, item).filter((u) => u.ar && u.en);
+    const pool = wordPool(asking, settings, qLang.id, item)
+      .filter((u) => u.ar && u.en)
+      .map((u) => oneOf(u, exercise.type));
     const reps = (statesOf(item)[exercise.type] || {}).reps || 0;
     const likeness = (u: Form) => Math.max(...answers.map((a) => wordLikeness(a.ar, u.ar, qLang)));
     const ranked = [...pool].sort((x, y) => likeness(y) - likeness(x));
@@ -5017,7 +5068,7 @@ export default function ArabicTrainer() {
         answer: item,
         pool: wordPool(asking, settings, qLang.id, item)
           .filter((u) => u.en)
-          .map((u) => ({ ...u, en: meaningForTurn(u, 0) || u.en })),
+          .map((u) => oneOf(u, exercise ? exercise.type : "")),
         wanted: PICK_OPTIONS,
         seed: `${item.id} meaning ${reps}`,
         textOf: (w) => w.en,
@@ -5025,7 +5076,12 @@ export default function ArabicTrainer() {
     }
     return optionsFor({
       answer: item,
-      pool: wordPool(asking, settings, qLang.id, item),
+      /* One spelling a tile, like the answer's own: a card accepting two
+         would otherwise put both on one tile, and the long one among three
+         short ones is the answer given away by its shape. */
+      pool: wordPool(asking, settings, qLang.id, item).map((u) =>
+        oneOf(u, exercise ? exercise.type : ""),
+      ),
       wanted: PICK_OPTIONS,
       /* A question with no phrase behind it — "which of these means this"
          — has the number of askings for a seed instead, so the three wrong
