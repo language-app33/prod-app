@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.94 — 13 September 2026
+
+- **A verb card's editor now reads as a verb's.** The main form is called
+  *The verb* rather than *Form 1*, and says the conjugations are in the
+  table above — a block numbered as the first of many, sitting under a
+  table of twenty-one forms, read as though the table were forms two
+  onwards.
+
+- **"Add a form" is put away on a verb**, behind *Another way to say it*.
+  It was the one place the screen invited a mistake: a teacher wanting the
+  past tense would reach for it and write a conjugation outside the table,
+  where nothing knows its person or tense — so it would never wait for its
+  row to open and never agree with a sentence. The door stays open for what
+  it is actually for, a second spelling or another dialect, and a card that
+  already carries one opens showing it.
+
 ## 0.93 — 13 September 2026
 
 - **"Is this a verb?" now sits directly under the kind of card**, instead

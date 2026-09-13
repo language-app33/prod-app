@@ -3997,6 +3997,15 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      verb" is a question about the word and not one the app can read off
      its spelling. */
   const [asVerb, setAsVerb] = useState(() => cells.length > 0);
+  /* Whether the table is standing in for the forms below. Read in three
+     places, so it is named once here rather than spelled out at each. */
+  const verbMode = !!verbSpec && asVerb;
+  /* Whether this card's other forms are on show. Put away on a verb,
+     where the table is what a teacher came to fill in — but only where
+     there is nothing to put away: a card that already carries a second
+     spelling opens showing it, because a form that vanished when the card
+     was called a verb would read as one that had been thrown away. */
+  const [moreForms, setMoreForms] = useState(() => forms.length > 1);
   const [note] = useState((card && card.note) || "");
   const [chosen, setChosen] = useState(inDecks || []);
   /* Which variable this card fills, where it is a value rather than
@@ -4402,12 +4411,28 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </>
           )}
 
+          {/* The extra forms, on a verb, are put away rather than removed.
+              A verb may genuinely have a second spelling, so the door has
+              to stay open — but a teacher who wants the past tense and
+              sees "Add a form" will use it, and a conjugated form written
+              there sits outside the table: nothing knows which person or
+              tense it is, so it is never gated by its row and never
+              agrees with a sentence. Hiding the invitation is the whole
+              fix; a card that already carries extra forms shows them, or
+              putting them away would read as having lost them. */}
           {!scene && forms.map((f, i) => (
+            i > 0 && verbMode && !moreForms ? null :
             <div className={`at-formblock${i === 0 ? " main" : ""}`} key={i}>
               <div className="at-formhead">
-                <span className="at-formnum">Form {i + 1}</span>
+                <span className="at-formnum">
+                  {i === 0 && verbMode ? "The verb" : `Form ${i + 1}`}
+                </span>
                 <span className="at-formrole">
-                  {i === 0 ? "the main form" : "another form of the same card"}
+                  {i === 0 && verbMode
+                    ? "the word itself — its conjugations are in the table above"
+                    : i === 0
+                      ? "the main form"
+                      : "another form of the same card"}
                 </span>
                 {/* Kept together so the pair stays whole and the role text
                     beside them shortens instead of collapsing into a column. */}
@@ -4420,14 +4445,18 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       be wrong for it, and a wrong recording is worse than a
                       missing one. */}
                   <Button variant="ghost" size="sm"
-                    onClick={() =>
+                    onClick={() => {
+                      /* And show them, where they were put away: a copy
+                         made into a section that is not on screen is a
+                         button that does nothing. */
+                      setMoreForms(true);
                       setForms((x) =>
                         x
                           .slice(0, i + 1)
                           .concat([{ ...x[i], clips: [], slowClips: [] }])
                           .concat(x.slice(i + 1))
-                      )
-                    }
+                      );
+                    }}
                   >
                     Duplicate
                   </Button>
@@ -4508,7 +4537,18 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           ))}
 
-          {!scene && (
+          {!scene && (verbMode && !moreForms ? (
+            <>
+              <Help>
+                A conjugation goes in the table above, where it is drilled under its
+                own person and tense. Anything else this word is also said as — a
+                second spelling, another dialect — is a form of its own.
+              </Help>
+              <Button variant="ghost" size="sm" onClick={() => setMoreForms(true)}>
+                Another way to say it
+              </Button>
+            </>
+          ) : (
           <Button variant="ghost" size="sm"
             /* No number override: blankForm takes the language's declared
                default, so what a new form starts as is settled in one place. */
@@ -4517,7 +4557,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
         >
           Add a form
         </Button>
-          )}
+          ))}
 
           {/* ---- variables ----
               A hole in a phrase, and the cards that fill it. Written here
