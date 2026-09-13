@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.87 — 13 September 2026
+
+- **A proposal for verb cards**, in `docs/PROPOSAL-verb-cards.md`: one card
+  holding a verb's forms in a table whose rows and columns each language
+  names for itself, with exercises that ask for a single cell — write the
+  form for *she · past*, say who and when a form is, or fill a gap in a
+  sentence with the form that fits. Nothing in the app changes yet; this is
+  the shape of the thing, for discussion.
+
 ## 0.86 — 13 September 2026
 
 - **Two new exercises, both answered by tapping one of four.**
