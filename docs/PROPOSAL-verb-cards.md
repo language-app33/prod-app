@@ -27,21 +27,36 @@ Spanish would have six columns and as many rows as the teacher wants to
 teach. A cell can be blank — no command for *I* — and that is simply a
 form the language does not have.
 
+Every cell has its own English, but the teacher does not write it
+seventeen times. A row gets its English once, and a cell says otherwise
+only where English differs:
+
+|             | English                   |
+|-------------|---------------------------|
+| **present** | eat · *he, she:* eats     |
+| **past**    | ate                       |
+| **command** | eat!                      |
+
+The pronoun is the column's. What the learner is asked is the two put
+together — *she eats*, *you (f) ate*, *you (m): eat!* — and never *to
+eat · she · past*. Keeping the pronoun out of the cell is what lets a
+frame supply its own subject, below.
+
 ## What the learner sees
 
 Two kinds of question come out of the table.
 
-**Give the form.** The card's meaning is shown with a cell named, and the
-learner writes it:
+**Give the form.** The learner is shown a cell's English and writes the
+form:
 
-> **to eat** · *she · past*
+> **she ate**
 > ______
 
-Or, in the other direction, a form is shown and the learner says who and
-when:
+Or, in the other direction, a form is shown and the learner picks its
+meaning from among the verb's other cells:
 
 > **أكلتي**
-> to eat · ○ I ○ you (f) ○ she · ○ present ○ past ○ command
+> ○ she ate · ○ you (f) ate · ○ you (f) eat · ○ they ate
 
 **Use it in a sentence.** The existing fill-the-gap exercise already shows a
 phrase with a word missing. A verb card lets the gap ask for the *right*
@@ -70,14 +85,50 @@ Teachers who prefer to think in words can still write "you (f) · past" as a
 plain sub-form of the card, as they do today. The table is a tidier way to
 write the same forms and the only way to get the *which form?* questions.
 
+## Verbs and variables
+
+A card may already leave a hole in itself — *My name is {{name}}* — and
+other cards fill it, a different one each time. A verb meets a hole in
+two ways.
+
+**The verb is the hole.** A frame leaves a gap for a verb and says which
+cell goes in it: *Every morning I ___ before work*, filled from *I ·
+present*. Any verb the learner knows drops in — *eat*, *drink*, *read* —
+in the script and in the English alike, because a cell's English is the
+verb on its own. One frame becomes as many sentences as the learner has
+verbs.
+
+**Something else is the hole, and the verb follows it.** *___ ate an
+apple*, filled with names. The verb is not the hole, but its form depends
+on what is: Sarah makes it *she ate*, Ahmad *he ate*, the children *they
+ate*. The app already records gender and number on an answer, so a name
+knows what it is, and the frame reads the cell from it. In English nothing
+moves; in the script the form changes with every name. This is the one
+that teaches agreement, which is what a table of forms is for. The pronoun
+cards do the same more plainly: *___ eats an apple* filled with *I*,
+*you*, *she*, *we* walks through a whole row.
+
+**Both at once.** *___ ___ an apple* takes a name and a verb together —
+*Sarah ate*, *Ahmad drank* — and is dealt with whatever fills it that
+turn, as a frame with two holes already is.
+
+The rule underneath is one sentence: **who comes from whatever fills the
+subject, and when comes from the frame.** Where nothing fills the subject,
+the frame says who as well. And a frame is dealt only with cells the
+learner has met — *Sarah ate an apple* waits until the past of *to eat* is
+open — so a hole is never a way round the rows opening in turn. What is
+asked and scheduled is the frame, as with any variable today; a right
+answer credits the cell it used as well, the way a word dealt into a
+matching grid is credited.
+
 ## Where it fits on the ladder
 
 The verb card's dictionary form climbs the four levels like any word, so a
 learner meets *to eat* and knows what it means before any cell is asked.
-Once it is graduated, cells open on the same ladder: choosing who and when
-from a list is recognition and sits at level 2; writing the form from a
-cue is production and sits at level 3; producing it inside a phrase is
-level 4. A lapse on the base word closes the cells above it, as a lapse
+Once it is graduated, cells open on the same ladder: picking a form's
+meaning from the verb's other cells is recognition and sits at level 2;
+writing the form from its English is production and sits at level 3;
+producing it inside a phrase is level 4. A lapse on the base word closes the cells above it, as a lapse
 does everywhere.
 
 ## Tenses open one after another
@@ -118,13 +169,16 @@ is. Only one tense of a verb is ever new at a time.
 
 ## Open questions
 
-- Should a cell be told apart from a spelling slip? Writing *he · past* when
-  *she · past* was asked is a different mistake from a missing vowel mark,
+- Should a cell be told apart from a spelling slip? Writing *he ate* when
+  *she ate* was asked is a different mistake from a missing vowel mark,
   and probably deserves its own verdict ("Right verb, wrong person").
 - How many cells is too many to introduce at once? A row at a time keeps
   the tenses apart, but seven persons in one session would still swamp it;
   a cap of two or three new cells per verb per session seems right to
   start.
-- Is a pronoun a word to learn? A learner asked "she · past" needs to know
-  the app's word for *she*. Showing the pronoun in the target language
-  beside the label, once the pronoun card is known, would join the two.
+- Is a pronoun a word to learn? A learner asked *she ate* is never shown
+  the language's own word for *she*. Showing it beside the English, once
+  the pronoun card is known, would join the two.
+- Where English does not tell two cells apart — *you (m) eat* and *you (f)
+  eat* — the column label does the work. Is that enough on a small screen,
+  or should the cue say *to a man* and *to a woman* in words?

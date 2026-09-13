@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.89 — 13 September 2026
+
+- **The verb-card proposal asks in English, and meets variables.** A
+  learner is asked *she ate*, not *to eat · she · past*: a row gets its
+  English once and a cell overrides it only where English differs, with
+  the pronoun coming from the column. A new section says how a verb fits
+  a hole in a card — as the thing in the hole, or following whatever is
+  (Sarah makes it *she ate*), with who from the subject and when from the
+  frame. Still a proposal; nothing in the app changes.
+
 ## 0.88 — 13 September 2026
 
 - **The verb-card proposal now opens tenses one after another.** A verb's
