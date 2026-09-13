@@ -88,38 +88,42 @@ write the same forms and the only way to get the *which form?* questions.
 ## Verbs and variables
 
 A card may already leave a hole in itself — *My name is {{name}}* — and
-other cards fill it, a different one each time. A verb meets a hole in
-two ways.
+other cards say they fill it, a different one each time. Verbs add
+nothing to that idea. **Every cell of a verb card fills a hole named for
+it.** A hole called *she-past* is filled by the she · past cell of every
+verb the learner has met — أكلت, شربت, قرأت — in the script and in the
+English alike.
 
-**The verb is the hole.** A frame leaves a gap for a verb and says which
-cell goes in it: *Every morning I ___ before work*, filled from *I ·
-present*. Any verb the learner knows drops in — *eat*, *drink*, *read* —
-in the script and in the English alike, because a cell's English is the
-verb on its own. One frame becomes as many sentences as the learner has
-verbs.
+**A verb as a variable.** The teacher writes the sentence and leaves the
+verb out:
 
-**Something else is the hole, and the verb follows it.** *___ ate an
-apple*, filled with names. The verb is not the hole, but its form depends
-on what is: Sarah makes it *she ate*, Ahmad *he ate*, the children *they
-ate*. The app already records gender and number on an answer, so a name
-knows what it is, and the frame reads the cell from it. In English nothing
-moves; in the script the form changes with every name. This is the one
-that teaches agreement, which is what a table of forms is for. The pronoun
-cards do the same more plainly: *___ eats an apple* filled with *I*,
-*you*, *she*, *we* walks through a whole row.
+> *Yesterday Sarah {{she-past}} an apple*
+> → Yesterday Sarah ate an apple · drank · wanted · bought
 
-**Both at once.** *___ ___ an apple* takes a name and a verb together —
-*Sarah ate*, *Ahmad drank* — and is dealt with whatever fills it that
-turn, as a frame with two holes already is.
+One frame becomes as many sentences as the learner has verbs. The learner
+writes the whole sentence each time, and the form inside it is a
+different cell each time.
 
-The rule underneath is one sentence: **who comes from whatever fills the
-subject, and when comes from the frame.** Where nothing fills the subject,
-the frame says who as well. And a frame is dealt only with cells the
-learner has met — *Sarah ate an apple* waits until the past of *to eat* is
-open — so a hole is never a way round the rows opening in turn. What is
-asked and scheduled is the frame, as with any variable today; a right
-answer credits the cell it used as well, the way a word dealt into a
-matching grid is credited.
+**A verb with other variables.** A frame may have more than one hole, as
+it may today:
+
+> *{{woman}} {{she-past}} an apple*
+> → Sarah ate an apple · Layla drank an apple
+
+The teacher keeps the holes agreeing the way they already keep a sentence
+agreeing: by what they put in them. A hole filled with women's names goes
+with a *she* cell, one filled with men's names with a *he* cell, and an
+*I* cell needs no subject hole at all. Wanting both is two frames, not a
+rule. Nothing is inferred, and nothing in the app has to know that Sarah
+is a woman.
+
+In Vietnamese, with one column, a hole is named for the row alone —
+*{{past}}* — and fills with *đã ăn*, *đã uống*, *đã mua*.
+
+Two things stay as they are. The frame is what is asked and scheduled, as
+any frame with a hole is today. And a hole takes only cells the learner
+has met, so a she · past cell is not dealt into a sentence before the past
+of that verb has opened.
 
 ## Where it fits on the ladder
 
@@ -182,3 +186,6 @@ is. Only one tense of a verb is ever new at a time.
 - Where English does not tell two cells apart — *you (m) eat* and *you (f)
   eat* — the column label does the work. Is that enough on a small screen,
   or should the cue say *to a man* and *to a woman* in words?
+- Should a right answer to a frame also credit the cell it used? Today a
+  filler is not scheduled at all. A verb cell is, and a learner who has
+  just written *أكلت* inside a sentence has arguably shown they know it.

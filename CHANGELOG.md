@@ -8,6 +8,16 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.90 — 13 September 2026
+
+- **A simpler plan for verbs and variables in the proposal.** Every cell
+  of a verb card fills a hole named for it — *{{she-past}}* takes the
+  she · past cell of every verb the learner has met — and that is the
+  whole mechanism. A frame with a name hole beside it is kept agreeing
+  by the teacher's choice of fillers, not by the app reading a name's
+  gender; wanting both *he* and *she* is two frames. Nothing is inferred.
+  Still a proposal; nothing in the app changes.
+
 ## 0.89 — 13 September 2026
 
 - **The verb-card proposal asks in English, and meets variables.** A
