@@ -92,6 +92,12 @@ test("a screen opened on top still covers the chrome", () => {
   );
 });
 
+/* Necessary and not sufficient: a z-index ranks an element against its
+   siblings and nothing else, so these numbers only decide the order of
+   things that share a parent. That a dialog actually reaches this layer —
+   rather than being sealed inside a frame at 140 — is a question about
+   where it is mounted, and it is asked of the running app in the smoke
+   walk ("it leaves the layer it was written in"). */
 test("dialogs sit above every screen", () => {
   assert.ok(layer[".at-modalback"] > layer[".at-screen.over"]);
   assert.ok(layer[".at-modalback"] > layer[".at-screen"]);

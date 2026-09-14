@@ -2184,6 +2184,16 @@ export function useSnackbar() {
    screen opened on top of another doesn't take both down with one key. */
 const SCREEN_STACK: any[] = [];
 
+/* Open confirmations. A modal is above every screen by construction, so
+   while one is up Escape belongs to it and a screen must not also answer —
+   otherwise one key cancels the question and walks out of the screen that
+   asked it. Counted rather than flagged for the same reason the screens are:
+   a confirmation can be raised from inside another one. */
+let MODALS_OPEN = 0;
+export function modalIsOpen() {
+  return MODALS_OPEN > 0;
+}
+
 /*
  * The class hides the app chrome, and it used to come off only when the
  * stack emptied. That made one entry outliving its component permanent: the
@@ -2302,6 +2312,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (modalIsOpen()) return;
       /* Same reason as the class: a stale entry on top would otherwise
          swallow Escape for every screen underneath it. */
       reconcileScreens();
@@ -2442,6 +2453,7 @@ export function ConfirmModal({
   onConfirm: () => void;
 }) {
   const [typed, setTyped] = useState("");
+  const host = useAppHost();
   /* Case and stray spaces aren't the point — the point is that you had to
      type the name rather than tap through. */
   const ready =
@@ -2450,15 +2462,30 @@ export function ConfirmModal({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
     window.addEventListener("keydown", onKey);
+    MODALS_OPEN++;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
+      MODALS_OPEN = Math.max(0, MODALS_OPEN - 1);
       document.body.style.overflow = prev;
     };
   }, [onCancel]);
 
-  return (
+  /* Rendered at the app root, for the same reason a Screen is.
+
+     A confirmation is the most important thing on the page when it is up:
+     nothing else may be tapped until it is answered. `--z-modal` says so,
+     but a z-index is only compared against siblings. A question asked from
+     inside a space frame — "restore this backup?" — was competing from
+     inside that frame's layer, and a screen opened over the frame (a
+     portalled sibling, higher) covered it completely: the modal only
+     appeared once the screen above it was closed, by which point the
+     question had lost its subject.
+
+     Portalling puts the modal in the same context as those screens, where
+     400 beats 300 and the top layer is the one that asked. */
+  const view = (
     <div className="at-modalback" onClick={onCancel}>
       <div
         className={`at-modal${danger ? " danger" : ""}`}
@@ -2501,6 +2528,9 @@ export function ConfirmModal({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined" || !host) return view;
+  return createPortal(view, host);
 }
 
 /* A wait worth mentioning.

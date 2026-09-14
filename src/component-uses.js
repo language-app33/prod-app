@@ -429,7 +429,7 @@ export const COMPONENT_USES = {
     { file: "shared.tsx", line: 1729, where: "ItemList" },
     { file: "shared.tsx", line: 1738, where: "ItemList" },
     { file: "shared.tsx", line: 2090, where: "Snackbar" },
-    { file: "shared.tsx", line: 2332, where: "Screen" },
+    { file: "shared.tsx", line: 2343, where: "Screen" },
     { file: "spaces.tsx", line: 961, where: "CoursesPage" },
     { file: "spaces.tsx", line: 1098, where: "CourseSettings" },
     { file: "spaces.tsx", line: 1149, where: "CourseSettings" },

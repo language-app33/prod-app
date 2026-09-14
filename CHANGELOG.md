@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.111 — 14 September 2026
+
+- **"Restore this backup?" was being asked behind the screen that asked
+  it.** Upload a backup file, press Restore, and nothing appeared to
+  happen: the question was there, underneath the backup screen, and only
+  came into view once you had left that screen — by which point it was a
+  question about nothing you could still see. Anyone who pressed Restore
+  twice, thinking the first press had missed, met it twice.
+
+  The app draws things in layers, and a confirmation is meant to be the
+  top one. It was, within the panel it was drawn in — but that panel is
+  itself a layer, and the backup screen opens above the whole panel, so
+  the confirmation could never climb past it. The confirmation is now
+  drawn at the top of the app rather than inside whichever panel asked,
+  which is where the screens themselves are drawn. It sits above
+  everything, from every part of the app, as it was always meant to.
+
+- **And Escape now answers the confirmation without also closing the
+  screen underneath.** One key used to do both.
+
 ## 0.110 — 14 September 2026
 
 - **The language menu opened off the side of the screen on a phone.** It

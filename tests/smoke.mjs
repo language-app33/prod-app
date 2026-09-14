@@ -1674,6 +1674,37 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       `${document.querySelectorAll(".at-snack").length} on screen`);
   }
 
+  /* The confirmation, for the same contract as the snackbar and one more.
+     `--z-modal` is the highest layer in the app, but a z-index only ranks an
+     element against its siblings: a confirmation left where it was written —
+     inside a space frame, which is itself a layer — was sealed into that
+     frame and a screen opened over the frame covered it, however high the
+     modal's own number went. That was the restore-backup bug: the question
+     appeared only once you left the screen that asked it. So what is checked
+     is where it lands, not what it is numbered. */
+  {
+    const modalRow = [...host.querySelectorAll(".at-galrow")]
+      .find((r) => /^\d*\s*ConfirmModal/.test(r.textContent));
+    const open = modalRow && [...modalRow.querySelectorAll("button")]
+      .find((b) => b.textContent === "Show the modal");
+    click(open);
+    await sleep(60);
+
+    const back = document.querySelector(".at-modalback");
+    check("a confirmation appears when one is asked", !!back && /A confirm modal/.test(back.textContent),
+      (back && back.textContent.slice(0, 40)) || "nothing showed");
+    check("it leaves the layer it was written in",
+      !!back && !host.contains(back), back ? "still inside its parent" : "no modal");
+    check("and lands in the app root, where the theme and the screens are",
+      !!back && back.parentElement === (document.querySelector(".at") || document.body),
+      back ? `parent: ${(back.parentElement || {}).className}` : "no modal");
+
+    const cancel = back && [...back.querySelectorAll("button")].find((b) => b.textContent === "Cancel");
+    click(cancel);
+    await sleep(60);
+    check("and goes when it is answered", !document.querySelector(".at-modalback"));
+  }
+
   galleryRoot.unmount();
   host.remove();
   check("it goes with the component that raised it", !document.querySelector(".at-snack"));
