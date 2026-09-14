@@ -78,6 +78,14 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   leaves: the card list, Progress, what is ready, and what a session is
   dealt from. It appears only where there is a choice to make, and the last
   language on cannot be switched off.
+- **What varies between askings turns on a right answer.** Which values
+  fill a card's holes, which phrase it is shown in, which of its accepted
+  spellings is put up and which of its meanings is asked about are all
+  rotated rather than drawn, so a card with three of something is met as
+  all three before any of them twice. The count is of right answers —
+  `turnOf` in the scheduler — so a question that was missed is the one
+  asked again, rather than the miss itself turning up a sentence nobody
+  has been taught.
 - **A matching grid is five questions.** Every word in it is asked, marked
   and scheduled in its own right. Which words stand together is decided
   when the session is built: the grid is filled out from cards already

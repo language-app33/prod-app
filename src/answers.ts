@@ -255,11 +255,12 @@ export function withAnswer<T extends WithAnswers>(
 /*
  * Which answer a question about pronunciation is about, this time round.
  *
- * Rotated by how often the exercise has been asked of this form — the same
- * rule as the phrase a word is shown in and the part a scene is played
- * from — so a card with two spellings is drilled on both, one at a time,
- * and the question on screen does not change under a re-render. Nothing is
- * drawn at random: `turn` is a count, so the same count is the same
+ * Rotated by how often the exercise has been answered right — the same
+ * rule as the phrase a word is shown in and the values that fill its holes
+ * — so a card with two spellings is drilled on both, one at a time, a
+ * spelling that was missed is the one asked again, and the question on
+ * screen does not change under a re-render. Nothing is drawn at random:
+ * `turn` is a count the caller keeps, so the same count is the same
  * question.
  *
  * Nothing comes back when no answer has a transliteration: there is no
@@ -329,10 +330,11 @@ export function meaningsOf(form: WithAnswers | null | undefined): string[] {
  * slash in it, and it hands over more of the card than the question meant
  * to.
  *
- * Rotated by how often the exercise has been asked of this form, like
+ * Rotated by how often the exercise has been answered right, like
  * answerForTurn above and for the same reasons: a card that means two
- * things is asked about both, one at a time, and the meaning on screen does
- * not change under a re-render.
+ * things is asked about both, one at a time, the meaning that was missed
+ * is the one asked again, and the meaning on screen does not change under
+ * a re-render.
  *
  * "" comes back when the card has no meaning written, which is the one
  * thing this exercise cannot be asked without (see unmetNeeds) — so the

@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.109 — 14 September 2026
+
+- **Get a card wrong and you get that same card again, not a different
+  one.** A card with a hole in it — *My name is {{name}}* — shows a
+  different name each time it comes round, so that all of them are met.
+  Which name it showed was decided by how many times the card had been
+  asked, and a wrong answer counts as an asking. So missing *My name is
+  Sarah* got you *My name is Youssef* a moment later: a sentence nobody
+  had taught you, turned up by your own mistake. Miss that and the next
+  was a third name. You could learn the word on the card long before you
+  could ever finish the card.
+
+  It now turns on getting it right. Miss a question and the same question
+  comes back until you answer it, which is what asking again is for.
+  Answer them all right and you see exactly the variety you did before.
+
+- **The same fix reaches everything that varies between askings**: which
+  phrase a word is shown in, which of a card's accepted spellings it asks
+  for, and which of its meanings. All of them moved on when you got the
+  card wrong, and none of them does now.
+
 ## 0.108 — 14 September 2026
 
 - **Learning two languages? Say which you are working on.** A switch at the

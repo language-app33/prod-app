@@ -298,6 +298,34 @@ export function maturity(s: ExerciseState): string {
 
 export const MATURITY_ORDER = ["new", "learning", "young", "mature"];
 
+/**
+ * Which turn of a card's variations this asking is.
+ *
+ * Several things about a question vary between askings and are rotated
+ * rather than drawn, so that a card with three of something is met as all
+ * three before it is met as any of them twice: which values fill its
+ * holes, which phrase it is shown in, which of its accepted spellings is
+ * put up, and which of its meanings is asked about.
+ *
+ * The turn is how often the exercise has been answered *right*, and it
+ * used to be how often it had been asked at all. That was the bug a
+ * learner felt as never getting anywhere on a card with a variable in it:
+ * miss "My name is Sarah" and the re-ask a moment later was "My name is
+ * Youssef" — a sentence they had not been taught yet, keyed on a count
+ * their miss had just moved on. Miss that and the next was a third name.
+ * The card's own word was learnt long before the card could be, because
+ * every attempt was a fresh question and none of them was ever the one
+ * just failed.
+ *
+ * So it turns on a success. Get it wrong, or nearly right, and the same
+ * question comes back until it is answered — which is the whole of what a
+ * re-ask is for. Answer them all right and the variety is exactly what it
+ * was.
+ */
+export function turnOf(s: ExerciseState | null | undefined): number {
+  return (s && s.right) || 0;
+}
+
 /* Read on entry with no guard, unlike stateReady. */
 export function mastered(s: ExerciseState): boolean {
   return s.phase === "review" && (s.interval || 0) >= MASTERED_DAYS;

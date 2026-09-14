@@ -42,6 +42,7 @@ import {
   openTypes,
   standings,
   standing,
+  turnOf,
   phaseCounts,
   roomForNew,
   formatGap,
@@ -828,3 +829,36 @@ test("a family is only as far up the ladder as its weakest form", () => {
   assert.deepEqual(rows.map((r) => r.status), ["learning", "none", "none", "none"]);
 });
 
+
+test("what a card shows next turns on getting it right, not on being asked", () => {
+  /*
+   * The bug this is here to stop coming back: which values fill a card's
+   * holes, which phrase it is shown in, which of its spellings is put up
+   * and which of its meanings is asked about are all rotated on this
+   * count, and the count used to be every attempt. So a learner who
+   * missed "My name is Sarah" was asked "My name is Youssef" a moment
+   * later — a sentence nobody had taught them, and one their own miss had
+   * turned up. Miss that and the next was a third name. The card's word
+   * was learnt long before the card could be.
+   */
+  let s = freshState();
+  assert.equal(turnOf(s), 0, "nothing answered yet is the first turn");
+  s = reschedule(s, "again", still);
+  assert.equal(turnOf(s), 0, "drawing a blank leaves the question where it was");
+  s = reschedule(s, "hard", still);
+  assert.equal(turnOf(s), 0, "and so does being nearly right");
+  s = reschedule(s, "good", still);
+  assert.equal(turnOf(s), 1, "getting it right is what moves it on");
+  /* And on it goes, so somebody answering well still meets every one of a
+     card's variations before meeting any of them twice. */
+  s = reschedule(s, "good", still);
+  s = reschedule(s, "easy", still);
+  assert.equal(turnOf(s), 3);
+  /* A miss much later still holds rather than skipping ahead. */
+  const held = turnOf(reschedule(s, "again", still));
+  assert.equal(held, 3);
+  /* No state at all is the first turn too — a form that has never been
+     asked carries no record of it. */
+  assert.equal(turnOf(null), 0);
+  assert.equal(turnOf(undefined), 0);
+});

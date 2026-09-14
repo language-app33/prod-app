@@ -174,6 +174,7 @@ import {
   standing,
   standings as standingsOf,
   stateReady,
+  turnOf,
   unitsOf,
   dayKey,
   dueRank,
@@ -830,16 +831,17 @@ function contextsFor(unitId: string): any[] {
  * Which phrase to show this time.
  *
  * Rotated rather than picked at random, and keyed on how many times the
- * form has been answered, so a word that has three contexts meets all three
- * before it meets any of them twice. Random choice would leave one context
- * unseen for a surprisingly long time.
+ * form has been answered *right* — see turnOf — so a word that has three
+ * contexts meets all three before it meets any of them twice, and a phrase
+ * that was missed is the one asked again rather than a new one. Random
+ * choice would leave one context unseen for a surprisingly long time.
  */
 function pickContext(unit: Form, type: string) {
   const list = contextsFor(unit.id).filter((c) =>
     specOf(type) && specOf(type).needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
   );
   if (!list.length) return null;
-  const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
+  const seen = turnOf(unit.s && unit.s[type]);
   return list[seen % list.length];
 }
 
@@ -857,10 +859,12 @@ function pickContext(unit: Form, type: string) {
  *
  * One value per variable, in every field at once — the prompt, the marking
  * and the answer screen are looking at the same person — and rotated by how
- * often this exercise has been asked of this form, like everything else
- * that varies between askings. Nothing is drawn: a card with three names is
- * met as all three before it is met as any of them twice, and a re-render
- * cannot swap the name under somebody halfway through typing.
+ * often this exercise has been answered right, like everything else that
+ * varies between askings: see turnOf, which is where the reason lives.
+ * Nothing is drawn: a card with three names is met as all three before it
+ * is met as any of them twice, the name stays put until the sentence it is
+ * in has been got right, and a re-render cannot swap it under somebody
+ * halfway through typing.
  *
  * Comes back untouched where a variable has nothing to fill it. That is not
  * a question — canAsk refuses it, so it should never reach here — and
@@ -870,7 +874,7 @@ function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null,
   if (!resolved) return resolved;
   const slots = slotsOf(resolved.unit);
   if (!slots.length) return resolved;
-  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
   /* The verb's own place is not filled from the cards: it is filled from
      the card's own table, by whatever fills the subject. So it is left out
      of the draw and put back below. */
@@ -961,7 +965,7 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
      rather than inferred from here. */
   if (!showsOneAnswer(type)) return resolved;
   const bySound = spec.needs.includes("lat");
-  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
   /* Which answer this question is about is the key's to say, not the
      count's: a card accepting two words carries a schedule for each, and
      the one being asked is named in the key that was dealt. Only where
@@ -1011,7 +1015,7 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
   if (spec.promptField !== "en" && spec.picks !== "meaning" && spec.picks !== "pair") {
     return resolved;
   }
-  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
   const one = meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
      this exercise was never offered, and the card is left exactly as it is
@@ -1036,10 +1040,11 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
  *
  * Each on its own count, so a word shown in two grids running is not shown
  * the same spelling both times, and the same word narrows the same way
- * wherever it turns up in one asking.
+ * wherever it turns up in one asking. The count is of right answers, as
+ * everywhere else that rotates — see turnOf.
  */
 function oneOf(unit: Form, type: string): Form {
-  const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
+  const seen = turnOf(unit.s && unit.s[type]);
   const answer = answerAt(unit, seen, answerFields());
   const meaning = meaningForTurn(unit, seen);
   const out = answer ? (oneAnswer(unit, answer) as Form) : unit;

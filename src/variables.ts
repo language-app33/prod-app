@@ -247,8 +247,9 @@ export function valueOf(card: WithSlots | null | undefined, fields: string[] = [
  * second every time the first comes round, and every combination is reached
  * before any is repeated.
  *
- * Nothing is drawn. `turn` is a count — how often this exercise has been
- * asked of this form — so the same count is the same sentence.
+ * Nothing is drawn. `turn` is a count the caller keeps — how often this
+ * exercise has been answered right, in the app — so the same count is the
+ * same sentence, and a sentence that was missed is the one asked again.
  *
  * Null when any slot has nothing to fill it: a sentence with a hole in it
  * is not a question, and unmetNeeds keeps it from being asked at all.
