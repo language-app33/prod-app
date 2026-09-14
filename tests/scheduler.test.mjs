@@ -40,6 +40,9 @@ import {
   graduated,
   mastered,
   openTypes,
+  standings,
+  standing,
+  ladderProgress,
   phaseCounts,
   roomForNew,
   formatGap,
@@ -49,6 +52,7 @@ import {
   dueRank,
 } from "../src/scheduler.ts";
 import { EX, LEVEL_BARS, TYPES, barOf, levelOf } from "../src/languages.ts";
+import { must } from "./helpers.mjs";
 /** @import { ExerciseState, Item } from "../src/types.ts" */
 
 /* A Tuesday, so nothing depends on it being midnight or a month boundary. */
@@ -656,4 +660,184 @@ test("so two sessions built from the same cards are not the same session", () =>
     seen.add(inOrder(cards, (c) => dueRank(c.due, walking), walking).map((c) => c.id).join(","));
   }
   assert.ok(seen.size > 1, `eight sessions came out as ${seen.size} order(s)`);
+});
+
+/* ------------------------------------------------------------------
+   Where a card stands on the ladder
+
+   The same four levels openTypes gates on, said as a person can be told
+   them. The tests that matter are the ones holding the two together: what
+   a screen says and what the scheduler does have to be one answer.
+   ------------------------------------------------------------------ */
+
+/* One exercise on each level, so a level is a single thing to reach. */
+const rungs = () => ["ar2en", "match", "tr2ar", "en2ar"];
+/** @param {Record<string, ExerciseState>} s */
+const climber = (s) => card({ s });
+
+test("a card is on one level, and every level below it is done", () => {
+  const grad = state({ phase: "review", interval: 1 });
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const at = (/** @type {Record<string, ExerciseState>} */ s) =>
+    standings(climber(s), rungs);
+
+  /* Never met: on the bottom level, not started. Every level it has
+     material for is listed, so a screen can show the whole climb. */
+  assert.deepEqual(at({}).map((r) => [r.level, r.status]),
+    [[1, "none"], [2, "none"], [3, "none"], [4, "none"]]);
+  assert.equal(must(standing(at({})), "a standing").level, 1);
+  assert.equal(must(standing(at({})), "a standing").status, "none");
+
+  /* Answered once and still on the learning steps: learning, and nothing
+     above it has opened. */
+  const started = at({ ar2en: state({ phase: "learning", step: 1 }) });
+  assert.deepEqual(started.map((r) => r.status), ["learning", "none", "none", "none"]);
+  assert.equal(must(standing(started), "a standing").level, 1);
+
+  /* Through the steps and in review: the bottom level is done and the card
+     has moved up, with nothing answered there yet. */
+  const up = at({ ar2en: grad });
+  assert.deepEqual(up.map((r) => r.status), ["done", "none", "none", "none"]);
+  assert.equal(must(standing(up), "a standing").level, 2);
+  assert.equal(must(standing(up), "a standing").status, "none");
+
+  /* And on up. The writing waits for four days from everything under it,
+     which is why the third level is not done on graduation alone. */
+  const two = at({ ar2en: grad, match: grad });
+  assert.deepEqual(two.map((r) => r.status), ["done", "done", "none", "none"]);
+  assert.equal(must(standing(two), "a standing").level, 3);
+  const three = at({ ar2en: done, match: done, tr2ar: done });
+  assert.deepEqual(three.map((r) => r.status), ["done", "done", "done", "none"]);
+  assert.equal(must(standing(three), "a standing").level, 4);
+
+  /* Everything done is the one state that names the card rather than a
+     level: there is nothing above left to open. */
+  const all = at({ ar2en: done, match: done, tr2ar: done, en2ar: done });
+  assert.deepEqual(all.map((r) => r.status), ["done", "done", "done", "done"]);
+  assert.equal(must(standing(all), "a standing").status, "done");
+});
+
+test("a level a card has no material for is not one of its levels", () => {
+  /* A scene has nothing to be told apart from and nothing to write from
+     its meaning: it stands on the first and third levels only, and the
+     ladder passes the other two straight through. Listing them as "not
+     started" would be pointing a learner at work that does not exist. */
+  const scene = card({ s: {} });
+  const rows = standings(scene, () => ["dlgwhole", "dlgorder"]);
+  assert.deepEqual(rows.map((r) => r.level), [1, 3]);
+  /* And a card with nothing askable at all has no standing to show. */
+  assert.deepEqual(standings(card({ s: {} }), () => []), []);
+  assert.equal(standing([]), null);
+});
+
+test("a slip below pauses the levels above rather than losing them", () => {
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  /* Three levels mastered, the writing met once — then the reading is
+     forgotten. The levels above shut, and what was done there is still
+     done: nothing is lost, it is waiting. */
+  const rows = standings(
+    climber({
+      ar2en: state({ phase: "relearning", interval: 8 }),
+      match: done,
+      tr2ar: done,
+      en2ar: state({ phase: "learning", step: 1 }),
+    }),
+    rungs,
+  );
+  assert.deepEqual(rows.map((r) => r.status), ["learning", "paused", "paused", "paused"]);
+  /* The card is shown at the level it had reached, not at the rung it has
+     been dropped to: "level 4, paused" is the sentence that explains where
+     the writing went. */
+  assert.equal(must(standing(rows), "a standing").level, 4);
+  assert.equal(must(standing(rows), "a standing").status, "paused");
+  /* A level shut but never answered is simply not started, not paused —
+     there is nothing there to be waiting. */
+  const early = standings(climber({ ar2en: state({ phase: "learning", step: 1 }) }), rungs);
+  assert.deepEqual(early.map((r) => r.status), ["learning", "none", "none", "none"]);
+});
+
+test("the count on a level is what has to hold for the next one to open", () => {
+  const grad = state({ phase: "review", interval: 1 });
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const at = (/** @type {Record<string, ExerciseState>} */ s) => standings(climber(s), rungs);
+  /* Counted over the level and everything under it, because that is what
+     openTypes asks — the writing wants four days from the reading too, not
+     only from the level below it. So the count reaching its total and the
+     level being done are the same fact, and cannot drift apart. */
+  /** @type {Record<string, ExerciseState>[]} */
+  const tables = [{}, { ar2en: grad }, { ar2en: grad, match: grad }, { ar2en: done, match: done, tr2ar: done }];
+  for (const table of tables) {
+    for (const row of at(table)) {
+      assert.equal(row.done === row.of, row.status === "done",
+        `level ${row.level}: ${row.done} of ${row.of} but ${row.status}`);
+    }
+  }
+  assert.deepEqual(at({}).map((r) => `${r.done}/${r.of}`), ["0/1", "0/2", "0/3", "0/4"]);
+  assert.deepEqual(at({ ar2en: grad }).map((r) => `${r.done}/${r.of}`), ["1/1", "1/2", "0/3", "0/4"]);
+  /* The third level asks a stricter bar than the two below it were held
+     to, so reaching it can put the count back to nothing. That is honest:
+     the goal moved, and none of it has held for four days yet. */
+  assert.deepEqual(at({ ar2en: grad, match: grad }).map((r) => `${r.done}/${r.of}`),
+    ["1/1", "2/2", "0/3", "0/4"]);
+});
+
+test("a level is done exactly when the scheduler opens the one above it", () => {
+  /* The claim the whole thing rests on: what a learner is told and what
+     the app deals from are one answer said twice. Walked over every state
+     a rung can be in, on every rung. */
+  const shapes = [
+    freshState(),
+    state({ phase: "learning", step: 1 }),
+    state({ phase: "review", interval: 1 }),
+    state({ phase: "review", interval: MASTERED_DAYS }),
+    state({ phase: "relearning", interval: 9 }),
+  ];
+  const ladder = rungs();
+  let checked = 0;
+  for (const a of shapes) {
+    for (const b of shapes) {
+      for (const c of shapes) {
+        /** @type {Record<string, ExerciseState>} */
+        const s = { ar2en: a, match: b, tr2ar: c };
+        const open = new Set(openTypes(ladder, (t) => s[t]).map(levelOf));
+        for (const row of standings(climber(s), rungs)) {
+          if (row.level >= 4) continue;
+          assert.equal(row.status === "done", open.has(row.level + 1),
+            `level ${row.level} says ${row.status} but level ${row.level + 1} is ${open.has(row.level + 1) ? "open" : "shut"}`);
+          checked += 1;
+        }
+      }
+    }
+  }
+  assert.ok(checked > 300, `${checked} combinations`);
+});
+
+test("a family is only as far up the ladder as its weakest form", () => {
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const grown = { ar2en: done, match: done, tr2ar: done, en2ar: done };
+  assert.equal(must(standing(standings(card({ s: grown }), rungs)), "a standing").status, "done");
+  /* One plural nobody has met holds the whole card on the bottom level,
+     exactly as it holds the card out of the session's higher levels. */
+  const withSub = card({ s: grown, subs: [card({ id: "a-f0", s: {} })] });
+  const rows = standings(withSub, rungs);
+  assert.equal(must(standing(rows), "a standing").level, 1);
+  assert.equal(must(standing(rows), "a standing").status, "learning");
+  /* And the levels above it read as not started rather than paused. A
+     level nobody has got to is not a level something slipped out of, and
+     saying "paused" would send a learner looking for a mistake they never
+     made. */
+  assert.deepEqual(rows.map((r) => r.status), ["learning", "none", "none", "none"]);
+});
+
+test("the bar under a card is how far up the ladder it is", () => {
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const p = (/** @type {Record<string, ExerciseState>} */ s) =>
+    must(ladderProgress(standings(climber(s), rungs)), "a fraction");
+  assert.equal(p({}), 0, "nothing answered is nothing done");
+  assert.equal(p({ ar2en: done, match: done, tr2ar: done, en2ar: done }), 1, "every level done is full");
+  assert.ok(p({ ar2en: done }) > 0 && p({ ar2en: done }) < 1);
+  /* It only ever goes up as a card climbs. */
+  assert.ok(p({ ar2en: done, match: done }) > p({ ar2en: done }));
+  assert.ok(p({ ar2en: done, match: done, tr2ar: done }) > p({ ar2en: done, match: done }));
+  assert.equal(ladderProgress([]), null, "a card with nothing to practise has no bar");
 });

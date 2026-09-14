@@ -1770,7 +1770,9 @@ button.at-stat:disabled { cursor:default; opacity:.55; }
   transition:width 300ms; }
 .at-pbar.lg { height:10px; border-width:2px; }
 .at-pbar i.full { background: var(--jade); }
-.at-pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+/* 165 rather than 150: the foot now names the level and how it is going,
+   and the narrower tile cut that off mid-word. */
+.at-pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
   gap:8px; margin-top:12px; min-width:0; }
 /* A button, because it opens the card. The declarations up to `background`
    are the ones that undo a button's own chrome — the rest is the tile it
@@ -1800,6 +1802,44 @@ button.at-stat { transition: border-color 140ms ease; }
   font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.04em;
   text-transform:uppercase; color: var(--muted); }
 .at-pcard.done .at-pcardfoot { color: var(--jade); }
+/* "Level 4 · Not started" is a good deal longer than the "42%" that used
+   to stand here, and at 10px uppercase with letter-spacing it did not fit
+   a tile. Said in sentence case instead, which buys the room: the foot is
+   a quiet line either way, and this is the one thing on the tile a learner
+   is reading rather than glancing at. It still gives way rather than
+   pushing the count of a card's forms off the end. */
+.at-pcardfoot > span:first-child { text-transform:none; letter-spacing:0; font-size:10.5px;
+  font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* The count of a card's forms gives way first: it is the smaller fact of
+   the two, and "Level 4 · Not started" is the longest thing the foot has
+   to hold. */
+.at-pcardfoot > span + span { flex:none; font-size:9.5px; }
+.at-pcardfoot { gap:4px; }
+
+/* ---- the ladder, on a card's own screen ----
+   One row per level the card has material on: which level, what it asks,
+   how it is going, and — on the level being worked on — how much of what
+   has to hold for the next one to open does. */
+.at-ladder { display:flex; flex-direction:column; gap:1px; background: var(--line);
+  border:1px solid var(--line); border-radius: var(--r-sm); overflow:hidden; }
+.at-ladderrow { display:grid; grid-template-columns:26px 1fr auto auto; gap:10px;
+  align-items:baseline; padding:9px 12px; background: var(--surface); }
+/* The level being worked on is the one you came here to read. */
+.at-ladderrow.on { background: var(--well); }
+.at-ladderrow .num { font-family: var(--ui); font-size:15px; font-weight:800; text-align:center; }
+.at-ladderrow .nm { font-size:13px; font-weight:600; color: var(--text-soft); min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.at-ladderrow .st { font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase;
+  white-space:nowrap; }
+.at-ladderrow .ct { font-size:11px; font-weight:600; color: var(--muted); white-space:nowrap;
+  font-variant-numeric: tabular-nums; }
+@media (max-width: 380px) {
+  /* The name of the level goes rather than the status: which level it is
+     and how it is going are the two facts, and the names are on the tiles
+     at the top of Progress anyway. */
+  .at-ladderrow { grid-template-columns:26px 1fr auto; }
+  .at-ladderrow .nm { display:none; }
+}
 .at-empty { text-align:center; padding:36px 20px; }
 /* Visually hidden, but still a real field so password managers see it. */
 

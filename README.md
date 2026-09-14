@@ -38,6 +38,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   those the nudge is the answer said another way, so it is never opened by
   itself and an answer written with it up is marked as a near miss:
   `hintTells` in `src/languages.ts`.
+
+  **The same ladder is what a learner is shown.** `standings` in the
+  scheduler reads a card as one row per level it has material on, each
+  *not started*, *learning*, *done* or *paused* — paused being a level
+  that had opened and has been shut again by a slip further down, which is
+  the one thing about the ladder nobody could otherwise make sense of. A
+  level is *done* exactly when `openTypes` opens the one above it, so the
+  screen and the scheduler cannot come to disagree; a test walks every
+  combination to hold them together. `standing` picks the one row to put
+  on a card. The Progress tab counts cards by level, and a card's own
+  screen lists them.
 - **New cards are introduced only while there is room.** Beyond the
   per-session limit in the settings, nothing new is dealt while ten cards
   are already being learnt or forty are young and still coming back for

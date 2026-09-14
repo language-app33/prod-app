@@ -8,6 +8,48 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.105 — 14 September 2026
+
+- **Progress is the ladder now, and says so in words.** A card climbs four
+  levels — what it means, which word it is, writing it from a cue, then
+  writing it from its meaning alone — and until now no screen showed that
+  anywhere. The Progress tab counted cards as New, Learning, Young and
+  Mature, which are facts about how long their intervals happen to be, and
+  each card carried a percentage that was the average of those intervals
+  against three weeks. A card the app had two levels up and was asking to
+  be written could read as a third learnt, because eight of its eleven
+  exercises had only just opened.
+
+  Both are gone. The tiles at the top of Progress are now one per level,
+  plus the cards with nothing left to open, and each card says which level
+  it is on and how it is going there:
+
+  - **Not started** — the level has opened and nothing on it has been
+    answered yet.
+  - **Learning** — some of it has, and not all of it is solid.
+  - **Done** — everything under the next level is solid enough to open it.
+  - **Paused** — the level had opened and a slip further down has shut it
+    again. Nothing is lost, and the card says what has to come back.
+
+- **A card's own screen lists its levels.** Open a card from Progress or
+  from Cards and there is a row per level, with the one being worked on
+  marked and a count of how much of what has to hold for the next level
+  does. It is the answer to "why am I not being asked to write this yet?",
+  which the app had never given anywhere.
+
+- **A level a card has no material for is not shown at all.** A
+  conversation has nothing on the second or fourth level; a word with no
+  recording and no phrase may have nothing on the third. The ladder passes
+  those straight through, so listing them would be pointing at work that
+  does not exist.
+
+- **One vocabulary, checked against itself.** A level reads *done* exactly
+  when the scheduler opens the one above it — the same test, asked once —
+  so what a learner is told and what the app deals from are the same
+  answer rather than two that can drift. The young-and-mature counting
+  stays where it always was, out of sight, because the limit on new cards
+  needs a finer distinction than a person does.
+
 ## 0.104 — 14 September 2026
 
 Three more changes to how hard the app makes things, from the same audit

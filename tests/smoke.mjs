@@ -1355,7 +1355,9 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      They were plain text, so the only way to find out which cards were
      still new was to read every deck. */
   const counts = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll("button.at-stat")]);
-  check("every count at the top is a button", counts.length === 5, `${counts.length} tiles`);
+  /* Every card, then one per level of the ladder, then the ones with
+     nothing left to open. They used to be the four maturities. */
+  check("every count at the top is a button", counts.length === 6, `${counts.length} tiles`);
   const live = counts.find((b) => !b.disabled);
   check("a count with cards behind it can be pressed", !!live,
     counts.map((b) => `${(b.textContent || "").replace(/\s+/g, " ")}${b.disabled ? " (off)" : ""}`).join(" · "));

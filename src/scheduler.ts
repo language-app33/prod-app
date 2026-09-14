@@ -22,7 +22,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { TYPES, barOf, levelOf } from "./languages.ts";
+import { TYPES, barAfterLevel, barOf, levelOf } from "./languages.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;
@@ -533,6 +533,147 @@ export function itemDifficulty(it: Item, typesOf: (unit: Form) => string[]): str
   if (rated.includes("hard")) return "hard";
   if (rated.includes("steady")) return "steady";
   return "easy";
+}
+
+/* ------------------------------------------------------------------
+   Where a card stands on the ladder
+
+   The same four levels openTypes gates on, read as something a person can
+   be told: which level a card is on, and how it is going there. One
+   vocabulary for the scheduler and the screen, so the two cannot come to
+   disagree about how far along a word is — which they had, the progress
+   screen saying a card was a third learnt while the app had it two levels
+   up and asking it to be written.
+
+   A level a card has no material for does not appear at all. A scene has
+   nothing on the second or fourth level, a word with no recording and no
+   phrase may have nothing on the third, and openTypes passes those
+   straight through — so showing them as "not started" would set a learner
+   looking for work that does not exist.
+   ------------------------------------------------------------------ */
+
+export interface Standing {
+  /** Which level, as the exercise table numbers them. */
+  level: number;
+  /**
+   * "none" — open, and nothing on it answered yet.
+   * "learning" — open, something answered, not all of it solid.
+   * "done" — solid enough that the level above it opens.
+   * "paused" — it had opened, and a slip further down has shut it again.
+   */
+  status: string;
+  /**
+   * How many of the exercises that must hold for the next level to open
+   * are there yet, and how many there are. That is everything on this
+   * level *and under it*, because that is what openTypes asks: the
+   * writing wants four days from the reading too, not just from the
+   * level below it. So `done === of` is exactly "this level is done",
+   * and the two can never drift apart.
+   */
+  done: number;
+  of: number;
+}
+
+/**
+ * Every level this card has material on, lowest first.
+ *
+ * `typesOf` gives the schedule keys a form climbs with, as openTypes is
+ * given them — the caller decides whether that means everything the card
+ * supports or only what the learner has switched on.
+ *
+ * A family is only as far up as its weakest form, the way familyMaturity
+ * is: a plural nobody has met holds its card on the level that plural is
+ * on. That is also what the scheduler does, so the screen agrees with it.
+ */
+export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing[] {
+  /* Every key the card climbs with, filed under its level. */
+  const at: Map<number, (ExerciseState | null | undefined)[]> = new Map();
+  for (const { unit } of unitsOf(it)) {
+    for (const t of typesOf(unit)) {
+      const level = levelOf(t);
+      at.set(level, (at.get(level) || []).concat([unit.s && unit.s[t]]));
+    }
+  }
+  const levels = [...at.keys()].sort((a, b) => a - b);
+  const out: Standing[] = [];
+  /* The bottom level is open from the first session; each one after it
+     opens when the one below is done. Exactly openTypes' own loop. */
+  let open = true;
+  /* And whether everything under this level has been answered at least
+     once, which is what tells a level shut by a slip from one that was
+     never reached. A card whose plural has not been met holds its whole
+     family on the bottom level — the levels above it are not paused,
+     they have not been got to. */
+  let allMetBelow = true;
+  const answered = (s: ExerciseState | null | undefined) => !!s && s.phase !== "new";
+  for (const level of levels) {
+    const here = at.get(level) || [];
+    const bar = barAfterLevel(level) === "graduated" ? graduated : mastered;
+    /* Counted over this level and everything under it — see `done` above. */
+    const under = levels.filter((l) => l <= level).flatMap((l) => at.get(l) || []);
+    const done = under.filter((s) => !!s && bar(s)).length;
+    const met = here.some(answered);
+    const finished = done === under.length;
+    out.push({
+      level,
+      status: finished
+        ? "done"
+        : !open
+        ? met && allMetBelow
+          ? "paused"
+          : "none"
+        : met
+        ? "learning"
+        : "none",
+      done,
+      of: under.length,
+    });
+    open = finished;
+    allMetBelow = allMetBelow && here.every(answered);
+  }
+  return out;
+}
+
+/**
+ * The one of them to put on a card: where the work is.
+ *
+ * Every level below the card's own is done and every level above it is
+ * shut, so one level and one word is the whole of it — until a slip
+ * further down shuts a level that had been opened, which is the one thing
+ * a learner cannot otherwise make sense of. Then it is the highest level
+ * they had got to, said to be paused, rather than the rung they have been
+ * dropped to: "level four, paused" is the sentence that explains where the
+ * writing went.
+ *
+ * Takes the list rather than the card, so a screen that shows both the
+ * headline and the levels under it walks the card once.
+ *
+ * Null where the card has nothing to practise at all.
+ */
+export function standing(all: Standing[]): Standing | null {
+  if (!all.length) return null;
+  const last = all[all.length - 1];
+  if (last.status === "done") return last;
+  const paused = all.filter((s) => s.status === "paused");
+  if (paused.length) return paused[paused.length - 1];
+  return all.find((s) => s.status !== "done") || last;
+}
+
+/**
+ * How far up the ladder, as a fraction, for the bars that show it.
+ *
+ * The levels already done, plus how far through the one being worked on —
+ * which is what the count on that level says. It replaced a mean over
+ * every exercise of its interval against three weeks: a number that moved
+ * when nothing a learner had done changed, and that read a third for a
+ * card the app had two levels up.
+ */
+export function ladderProgress(all: Standing[]): number | null {
+  if (!all.length) return null;
+  const at = all.findIndex((s) => s.status !== "done");
+  if (at < 0) return 1;
+  const here = all[at];
+  return (at + (here.of ? here.done / here.of : 0)) / all.length;
 }
 
 /* ------------------------------------------------------------------

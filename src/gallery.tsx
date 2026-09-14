@@ -124,6 +124,7 @@ const PLACES: Record<string, [string, string]> = {
   ItemsTab: [LEARN, "The Cards tab"],
   ItemSheet: [LEARN, "The Cards tab · one card's details"],
   CardScreen: [LEARN, "Opening a card from a tile"],
+  CardLadder: [LEARN, "Opening a card from a tile · where it is on the ladder"],
   ProgressTab: [LEARN, "The Progress tab"],
   ReviewItem: [LEARN, "The Progress tab · one card"],
   TagSection: [LEARN, "The Progress tab · one deck"],

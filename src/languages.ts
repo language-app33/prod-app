@@ -2264,6 +2264,14 @@ export const LEVEL_BARS: Record<number, "graduated" | "mastered"> = {
    is the bar of the level it stands on. */
 export const barOf = (key: string): "graduated" | "mastered" => LEVEL_BARS[levelOf(key)] || "mastered";
 
+/* Read the other way round: what a level has to reach to be done with —
+   which is whatever the level above it asks of everything below. The top of
+   the ladder has nothing above it and asks the strictest the app has, so
+   "done" means the same thing there as everywhere else: nothing is left to
+   open, and the card is learnt. */
+export const barAfterLevel = (level: number): "graduated" | "mastered" =>
+  LEVEL_BARS[level + 1] || "mastered";
+
 export function defaultTypes(): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   for (const t of TYPES) out[t] = true;

@@ -159,20 +159,21 @@ import {
 import {
   MIN,
   LEARNING_CAP,
-  MATURE_DAYS,
   YOUNG_CAP,
   difficulty,
-  familyMaturity as familyMaturityOf,
   formatGap,
   freshState,
   freshStates,
   itemDifficulty as itemDifficultyOf,
+  ladderProgress,
   mastered,
   maturity,
   openTypes as openTypesOf,
   phaseCounts,
   reschedule,
   roomForNew,
+  standing,
+  standings as standingsOf,
   stateReady,
   unitsOf,
   dayKey,
@@ -180,6 +181,7 @@ import {
   inOrder,
   shuffled,
 } from "./scheduler.ts";
+import type { Standing } from "./scheduler.ts";
 import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk } from "./offers.ts";
@@ -220,18 +222,14 @@ import type { Value } from "./variables.ts";
  * a word in use, neither of which belongs in the scheduler — so it is
  * handed in here, at the one place that has both.
  */
-/* Judged on the levels a form has reached, not on everything it could one
-   day be asked: a card whose reading is mature and whose writing has not
-   opened yet is young, not new. The progress screen and the room-for-new
-   sums both read this, so they agree about how full a learner's hands are. */
-const familyMaturity: (it: Item) => string = (it) =>
-  familyMaturityOf(it, (u) =>
-    openTypesOf(
-      availableTypes(u).flatMap((t) => keysFor(u, t)),
-      (k) => statesOf(u)[k],
-    ),
-  );
 const itemDifficulty: (it: Item) => string = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
+
+/* Where a card stands on the ladder, over the same keys the ladder itself
+   climbs — see `laddered`. Everything that puts progress on a screen reads
+   this, so what a learner is told and what the scheduler does are the one
+   answer said twice rather than two answers that can drift. */
+const cardStandings = (it: Item, settings: Settings): Standing[] =>
+  standingsOf(it, (u) => laddered(u, settings));
 
 import { applyUpdate, holdUpdates } from "./updates.ts";
 import {
@@ -317,13 +315,56 @@ const now = () => Date.now();
 
 
 
-const MATURITY_LABEL: Record<string, string> = { new: "New", learning: "Learning", young: "Young", mature: "Mature" };
-const MATURITY_COLOR: Record<string, string> = {
-  new: "var(--raised)",
-  learning: "var(--rose)",
-  young: "var(--brass)",
-  mature: "var(--jade)",
+/* ------------------------------------------------------------------
+   The ladder, in the words a learner is shown
+
+   One vocabulary for the whole app: a card is on a level, and it is either
+   not started there, learning it, done with it, or paused because a slip
+   further down has shut it. The four levels are the exercise table's own —
+   see `level` on each definition in languages.ts — and these are their
+   names, said once here rather than in each screen that shows one.
+   ------------------------------------------------------------------ */
+
+const LEVEL_NAME: Record<number, string> = {
+  1: "What it means",
+  2: "Which word it is",
+  3: "Write it from a cue",
+  4: "Write it from its meaning",
 };
+
+const STATUS_LABEL: Record<string, string> = {
+  none: "Not started",
+  learning: "Learning",
+  done: "Done",
+  paused: "Paused",
+};
+
+/* A level further up is a warmer colour, and a card with everything done
+   is the one that stands out. Paused borrows the colour of a miss, because
+   that is what it is: something slipped. */
+const LEVEL_COLOR: Record<number, string> = {
+  1: "var(--text)",
+  2: "var(--rose)",
+  3: "var(--brass)",
+  4: "var(--jade)",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  none: "var(--muted)",
+  learning: "var(--brass)",
+  done: "var(--jade)",
+  paused: "var(--rose)",
+};
+
+/* What a card's tile and its readout say, from the one standing. "Done"
+   names the whole card rather than a level: there is nothing above it
+   left to open, which is the only sense in which this app finishes a
+   word. */
+function standingLabel(at: Standing | null): string {
+  if (!at) return "Can't practice yet";
+  if (at.status === "done") return "Learnt";
+  return `Level ${at.level} · ${STATUS_LABEL[at.status] || at.status}`;
+}
 
 /* ------------------------------------------------------------------
    Automatic difficulty
@@ -1118,23 +1159,36 @@ const specOf = (key: string) => EX[typeOf(key)];
    Keys rather than types, so a card accepting two words is dealt both and
    counted as having both still to learn. The ladder itself is unchanged:
    it reads a level off a key the same way it read one off a type. */
+/*
+ * Every schedule key this form climbs the ladder with.
+ *
+ * What the card can be asked and the learner has switched on, before the
+ * ladder decides which of it is open. Both openTypes below and the
+ * standing a screen shows are read off this one list, so the levels a
+ * learner is told about are the levels the session is dealt from.
+ *
+ * A cell of a verb's table whose row has not opened is asked nothing at
+ * all. Said here rather than in the scheduler because it is the same kind
+ * of answer the ladder gives, and because everything that matters reads it
+ * through here: what a session may deal, what counts towards how mature a
+ * card is, and therefore how much room there is for anything new. A row
+ * still to come is the card's to reach, not a hole in it.
+ */
+function laddered(it: Form, settings: Settings): string[] {
+  if (isQuiet(it)) return [];
+  return availableTypes(it, langOf(settingsFor(settings, it)))
+    .filter((t) => settings.types[t])
+    .flatMap((t) => keysFor(it, t));
+}
+
 function openTypes(it: Form, settings: Settings): string[] {
   /* The levels are read over everything the card supports and the learner
      has switched on, and only then is the quiet window applied: a
      listening exercise silenced for a quarter of an hour is still a level
      to be climbed, not a gap that lets the one above it open early. */
-  /* A cell of a verb's table whose row has not opened is asked nothing at
-     all. Said here rather than in the scheduler because it is the same
-     kind of answer the ladder gives — which of this unit's exercises are
-     open — and because everything that matters reads it through this one
-     function: what a session may deal, what counts towards how mature a
-     card is, and therefore how much room there is for anything new. A row
-     still to come is the card's to reach, not a hole in it. */
-  if (isQuiet(it)) return [];
-  const supported = availableTypes(it, langOf(settingsFor(settings, it)))
-    .filter((t) => settings.types[t])
-    .flatMap((t) => keysFor(it, t));
-  return openTypesOf(supported, (k) => statesOf(it)[k]).filter((k) => typeAllowedNow(k));
+  return openTypesOf(laddered(it, settings), (k) => statesOf(it)[k]).filter((k) =>
+    typeAllowedNow(k)
+  );
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -6903,9 +6957,58 @@ Cards ready to practice
    one per tab. The card is looked up again by id, so a screen left open
    shows what was last synced rather than the copy its tile was drawn
    from. */
-function CardScreen({ card, items, onBack, action }: {
+/*
+ * The ladder, for one card.
+ *
+ * The one screen that answers "why am I not being asked to write this
+ * yet?" — which the app had never answered anywhere, so a learner whose
+ * writing had quietly closed after a slip had nothing to read at all.
+ *
+ * A level the card has no material for is not a row: a scene has nothing
+ * on the second or the fourth, and a word with no recording and no phrase
+ * may have nothing on the third. The ladder passes those straight through,
+ * so listing them would be listing work that does not exist.
+ */
+function CardLadder({ card, settings }: { card: Item; settings: Settings }) {
+  const levels = cardStandings(card, settings);
+  const at = standing(levels);
+  if (!levels.length || !at) return null;
+  return (
+    <Section title="Progress" lede={standingLabel(at)}>
+      <div className="at-ladder">
+        {levels.map((row) => (
+          <div className={`at-ladderrow${row.level === at.level ? " on" : ""}`} key={row.level}>
+            <span className="num" style={{ color: LEVEL_COLOR[row.level] }}>
+              {row.level}
+            </span>
+            <span className="nm">{LEVEL_NAME[row.level] || `Level ${row.level}`}</span>
+            <span className="st" style={{ color: STATUS_COLOR[row.status] }}>
+              {STATUS_LABEL[row.status] || row.status}
+            </span>
+            {/* The count only where it means something: on the level being
+                worked on, where it says how much of what has to hold for
+                the next one to open does. */}
+            <span className="ct">
+              {row.level === at.level && row.status !== "done" ? `${row.done} of ${row.of}` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+      <Help>
+        {at.status === "paused"
+          ? "A word you have slipped on closes the levels above it. Nothing is lost — this opens again as soon as the level under it is back."
+          : at.status === "done"
+          ? "Every level is done. The card still comes back, just further and further apart."
+          : "A level opens once everything under it is through the learning steps and back in review. The last one waits longer: everything under it has to hold for four days."}
+      </Help>
+    </Section>
+  );
+}
+
+function CardScreen({ card, items, settings, onBack, action }: {
   card: Item;
   items: Item[];
+  settings: Settings;
   onBack: () => void;
   action?: Node;
 }) {
@@ -6933,6 +7036,7 @@ function CardScreen({ card, items, onBack, action }: {
         whereItLives={false}
       />
 
+      <CardLadder card={live} settings={settings} />
     </Screen>
   );
 }
@@ -7142,6 +7246,7 @@ function ItemsTab({
         <CardScreen
           card={sheet.view}
           items={items}
+          settings={settings}
           onBack={() => setSheet(null)}
           action={
             OWN && !sheet.view.locked ? (
@@ -9154,20 +9259,26 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
    Progress tab
    ================================================================== */
 
-/* How far along a whole family is: the mean across every form and every
-   exercise type it supports. 1 means every one of them is mature. */
-function itemProgress(it: Item) {
-  const vals: number[] = [];
-  for (const { unit } of unitsOf(it)) {
-    for (const t of availableTypes(unit)) {
-      const st = statesOf(unit)[t];
-      if (st.phase === "new") vals.push(0);
-      else if (st.phase === "review") vals.push(Math.min(1, (st.interval || 0) / MATURE_DAYS));
-      else vals.push(0.15);
-    }
-  }
-  if (!vals.length) return null; // nothing drillable yet
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
+/*
+ * How far along a card is: which level it is on, how it is going there,
+ * and the fraction the bar under it draws.
+ *
+ * This used to be a mean over every exercise of its interval against three
+ * weeks. It was a number nobody could act on — a card the app had two
+ * levels up and was asking to be written read as a third learnt, because
+ * eight of its eleven exercises had only just opened — and it moved when
+ * nothing the learner had done changed. The level is the thing they are
+ * actually climbing, so it is the thing shown.
+ */
+interface CardProgress {
+  at: Standing | null;
+  levels: Standing[];
+  p: number | null;
+}
+
+function itemProgress(it: Item, settings: Settings): CardProgress {
+  const levels = cardStandings(it, settings);
+  return { at: standing(levels), levels, p: ladderProgress(levels) };
 }
 
 /* A tile here shows how far along a card is, which is exactly the moment
@@ -9175,10 +9286,13 @@ function itemProgress(it: Item) {
    small card in the app. A real button rather than a div with a click on
    it: it has nothing interactive inside it, so it can be the one thing
    you press, and reach with a keyboard. */
-function ItemProgressCard({ item, progress, onOpen }: { item: Item; progress?: any; onOpen?: () => void }) {
-  const p = progress === undefined ? itemProgress(item) : progress;
-  const done = p !== null && p >= 1;
-  const pctLabel = p === null ? "—" : `${Math.round(p * 100)}%`;
+function ItemProgressCard({ item, progress, onOpen }: {
+  item: Item;
+  progress: CardProgress;
+  onOpen?: () => void;
+}) {
+  const { at, p } = progress;
+  const done = !!at && at.status === "done";
 
   return (
     <button
@@ -9198,7 +9312,12 @@ function ItemProgressCard({ item, progress, onOpen }: { item: Item; progress?: a
         <i style={{ width: `${p === null ? 0 : Math.max(3, p * 100)}%` }} />
       </div>
       <div className="at-pcardfoot">
-        <span>{p === null ? "Can't practice yet" : done ? "Learnt" : pctLabel}</span>
+        {/* The level, and how it is going there — which is what the app
+            itself is going on, rather than a percentage worked out of
+            intervals nobody sees. */}
+        <span style={at && !done ? { color: STATUS_COLOR[at.status] } : undefined}>
+          {standingLabel(at)}
+        </span>
         {(item.subs || []).length > 0 && <span>⌥ {(item.subs || []).length + 1}</span>}
       </div>
     </button>
@@ -9223,15 +9342,14 @@ const TagSection = React.memo(
     open: boolean;
     onToggle: () => void;
     onPractice: (ids: string[], mode: string) => void;
-    progressOf: Map<string, number | null>;
+    progressOf: Map<string, CardProgress>;
     onOpen: (it: Item) => void;
   }) {
     const [arming, setArming] = useState(false);
-    const scored = group
-      .map((it) => progressOf.get(it.id))
-      .filter((x): x is number => x != null);
+    const here = group.map((it) => progressOf.get(it.id)).filter((x): x is CardProgress => !!x);
+    const scored = here.map((x) => x.p).filter((x): x is number => x != null);
     const mean = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : 0;
-    const done = scored.filter((x) => x >= 1).length;
+    const done = here.filter((x) => x.at && x.at.status === "done").length;
 
     return (
       <div className="at-tagsec">
@@ -9290,7 +9408,7 @@ const TagSection = React.memo(
               <ItemProgressCard
                 item={it}
                 key={it.id}
-                progress={progressOf.get(it.id)}
+                progress={progressOf.get(it.id) || { at: null, levels: [], p: null }}
                 onOpen={() => onOpen(it)}
               />
             ))}
@@ -9313,21 +9431,32 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
   const [viewing, setViewing] = useState<any | null>(null);
 
   const progressOf = useMemo(() => {
-    const m: Map<string, number | null> = new Map();
-    for (const it of items) m.set(it.id, itemProgress(it));
+    const m: Map<string, CardProgress> = new Map();
+    for (const it of items) m.set(it.id, itemProgress(it, settings));
     return m;
-  }, [items]);
+  }, [items, settings]);
 
-  const buckets = ["new", "learning", "young", "mature"];
+  /* One tile per level, and one for the cards with nothing above them left
+     to open. A card counts under the level it is on — see `standing` — so
+     the tiles are a picture of where the deck actually is, rather than of
+     how long its intervals happen to be. */
+  const buckets = ["l1", "l2", "l3", "l4", "done"];
   /* The cards behind each number, worked out once with the numbers
      themselves: a tile opens to show them, and counting them twice — once
      to say four hundred and once to list them — is a walk of every card
      for nothing. */
   const byBucket = useMemo(() => {
-    const out: Record<string, Item[]> = { all: items, new: [], learning: [], young: [], mature: [] };
-    for (const it of items) (out[familyMaturity(it)] || []).push(it);
+    const out: Record<string, Item[]> = { all: items, l1: [], l2: [], l3: [], l4: [], done: [] };
+    for (const it of items) {
+      const at = (progressOf.get(it.id) || { at: null }).at;
+      /* A card with nothing it can be asked yet — no meaning, or every
+         exercise switched off — belongs to no level and is left out of
+         all five, the way it always was left out of the four before. */
+      if (!at) continue;
+      (out[at.status === "done" ? "done" : `l${at.level}`] || []).push(it);
+    }
     return out;
-  }, [items]);
+  }, [items, progressOf]);
   /* Which tile is open, or none. One at a time: they are five views of the
      same cards, and two open at once is a screen you have to scroll past
      rather than read. */
@@ -9365,7 +9494,9 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
   return (
     <>
       <Help>
-        How well you know each deck. Open one to see its cards.
+        Where your cards are on the ladder. A card climbs four levels — what it means, which word
+        it is, writing it from a cue, then writing it from its meaning alone — and moves up when
+        everything under it is solid. Open a tile to see which cards are there.
       </Help>
 
       {/* A number you want to see the cards behind is a number worth
@@ -9373,7 +9504,13 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
           nothing interactive inside a tile, so it can be the one thing you
           press and the one thing a keyboard reaches. */}
       <div className="at-stats tight">
-        {[{ key: "all", label: "Cards" }, ...buckets.map((b) => ({ key: b, label: MATURITY_LABEL[b] }))].map(
+        {[
+          { key: "all", label: "Cards" },
+          ...buckets.map((b) => ({
+            key: b,
+            label: b === "done" ? "Learnt" : `Level ${b.slice(1)}`,
+          })),
+        ].map(
           ({ key, label }) => (
             <button
               type="button"
@@ -9386,7 +9523,16 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
               disabled={!byBucket[key].length}
               onClick={() => setShowing((v) => (v === key ? "" : key))}
             >
-              <b style={{ color: key === "all" || key === "new" ? "var(--text)" : MATURITY_COLOR[key] }}>
+              <b
+                style={{
+                  color:
+                    key === "all"
+                      ? "var(--text)"
+                      : key === "done"
+                      ? "var(--jade)"
+                      : LEVEL_COLOR[Number(key.slice(1))],
+                }}
+              >
                 {byBucket[key].length}
               </b>
               <span>{label}</span>
@@ -9438,7 +9584,12 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
       )}
 
       {viewing && (
-        <CardScreen card={viewing} items={items} onBack={() => setViewing(null)} />
+        <CardScreen
+          card={viewing}
+          items={items}
+          settings={settings}
+          onBack={() => setViewing(null)}
+        />
       )}
     </>
   );
