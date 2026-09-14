@@ -149,6 +149,20 @@ const nameCard = (id, ar, en, lat) => ({
      stored carries one. */
   created: ar === "رافائيل" ? 2 : 3,
 });
+/* A card whose two forms mean the same thing in English, which is the one
+   shape a prompt cannot settle by itself: "teacher" is either of them, so
+   asked to write it a learner has no way to know which was wanted and
+   writing the other is marked wrong for knowing the word. In no deck, so
+   nothing a learner counts moves. */
+const twoGenders = {
+  id: "k777777777777", owner: "t-1", ar: "مدرس", en: "teacher", lat: "mudarris",
+  note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  clips: [], uses: [], rev: 1, updated: 1, created: 4,
+  subs: [{
+    ar: "مدرسة", en: "teacher", lat: "mudarrisa",
+    number: "singular", gender: "feminine", classifier: "", clips: [],
+  }],
+};
 const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
 const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
@@ -259,6 +273,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...frameCard, decks: ["d2"] },
           { ...rafa, decks: [] },
           { ...viktor, decks: [] },
+          { ...twoGenders, decks: [] },
         ],
       });
     }
@@ -3822,6 +3837,71 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a prompt two forms of one card answer says which it wants ----
+
+   A card's forms are drilled on their own, and two of them can answer the
+   same question: both forms of this one mean "teacher". Asked to write it
+   in the script, a learner has no way to know which was wanted, and writing
+   the other is marked wrong for knowing the word.
+
+   Driven through the teacher's own trial, because that asks one named
+   exercise on one named card rather than whichever a shuffled queue
+   reaches. The rule itself is checked over every combination in
+   tests/cards.test.mjs; what is checked here is that the question is
+   actually handed the card's other forms and what is on screen beside it. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("teacher"));
+  check("the card whose two forms mean one thing is listed", !!tile,
+    tile ? (tile.textContent || "").replace(/\s+/g, " ").slice(0, 40) : "no tile");
+  click(tile);
+  await sleep(450);
+
+  const toScript = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try English →/.test(b.getAttribute("aria-label") || ""));
+  click(toScript);
+  await sleep(600);
+
+  const said = () =>
+    ((document.querySelector('[data-el="question-instruction"]') || {}).textContent || "")
+      .replace(/\s+/g, " ").trim();
+  const tag = () =>
+    ((document.querySelector('[data-el="question-form-tag"]') || {}).textContent || "")
+      .replace(/\s+/g, " ").trim();
+  check("writing it from its meaning says which form it wants", !!tag(), said() || "(no question up)");
+  /* The card's own form, which is the half that never got this: the tag was
+     shown on sub-forms alone, so the masculine standing beside its own
+     feminine was left bare. */
+  check("and names it by the grammar the language declares", /m\./.test(tag()),
+    tag() || "(nothing said)");
+
+  /* Answered and continued rather than left, the way the other trial is:
+     the teaching space is unmounted while a question is up, and Continue is
+     what puts it back. Backing out of a trial leaves nothing behind either
+     way — a teacher trying their own exercise is not learning. */
+  click(buttonNamed(/^I don't know$/));
+  await sleep(200);
+  if (!document.querySelector('[data-el="verdict"]')) {
+    click(document.querySelector('[data-el="check-button"]'));
+    await sleep(250);
+  }
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
 }

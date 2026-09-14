@@ -8,6 +8,34 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.128 — 14 September 2026
+
+- **A question two forms of one card could answer now says which it
+  wants.** A card's forms are drilled on their own, and two of them can
+  mean the same thing: a masculine teacher and a feminine one are both
+  *teacher*. Asked to write it in the script, there was no way to know
+  which was wanted — and writing the other one was marked wrong for
+  knowing the word.
+
+  The instruction carries the form's own grammar in the two cases where the
+  question does not already settle it: when **another form of the same card
+  is on screen** among the tiles or in the grid, and when **another form
+  answers the same prompt**, which is the typed case and the worse one,
+  because nothing is up to compare and you find out by being marked wrong.
+
+  It reads *Write in Arabic script · sg. m.*, in whatever the language
+  declares — number and gender in Arabic and Hebrew, and nothing at all in
+  Huế, which declares neither.
+
+- **And it is said about the card's own form too, not only its others.**
+  The tag was shown on sub-forms alone, so of the two forms standing side
+  by side the one that got told apart was never the main one — which is as
+  easily confused with its feminine as the other way round.
+
+- **A card whose language declares no grammar no longer gets a bare
+  separator.** The tag drew its dot and its spacing before asking whether
+  there was anything to put after them.
+
 ## 0.127 — 14 September 2026
 
 - **A deck's figure counts the levels you have finished, not just the cards

@@ -66,7 +66,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent } = await import(path.join(out, "trainer.js"));
+const { leadSpeed, deckPercent, formIsAmbiguous } = await import(path.join(out, "trainer.js"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -479,4 +479,88 @@ test("and is held at 99 until the last card is in", () => {
   assert.equal(deckPercent({ n: 3, learnt: 0, got: 2 }), 66);
   /* An empty deck is nought rather than a division by nothing. */
   assert.equal(deckPercent({ n: 0, learnt: 0, got: 0 }), 0);
+});
+
+/*
+ * When the prompt has to say which form of a card it wants.
+ *
+ * A card's forms are drilled on their own and two of them can answer the
+ * same question: مدرس and مدرسة are both "teacher". Asked to write
+ * "teacher" in the script, a learner has no way to know which was wanted,
+ * and writing the other is marked wrong for knowing the word.
+ */
+const form = (/** @type {any} */ o) => ({ ar: "", en: "", lat: "", ...o });
+
+test("a prompt two forms of one card answer has to say which", () => {
+  const masc = form({ id: "t", ar: "مدرس", en: "teacher", gender: "masculine" });
+  const fem = form({ id: "t-f0", ar: "مدرسة", en: "teacher", gender: "feminine" });
+  /* Writing it from its meaning: the prompt is "teacher", and so is the
+     other form's. Nothing is on screen to compare — the learner finds out
+     by being marked wrong. */
+  assert.equal(
+    formIsAmbiguous({ unit: masc, kin: [fem], shown: [], promptField: "en" }),
+    true
+  );
+  /* And the other way round, which is the half that never got the tag: it
+     was shown on sub-forms alone, so the card's own form — as easily
+     confused with its feminine — was left bare. */
+  assert.equal(
+    formIsAmbiguous({ unit: fem, kin: [masc], shown: [], promptField: "en" }),
+    true
+  );
+  /* Read the other way, the script tells them apart, so it does not. */
+  assert.equal(
+    formIsAmbiguous({ unit: masc, kin: [fem], shown: [], promptField: "ar" }),
+    false
+  );
+});
+
+test("and so does one with another form of the same card among the tiles", () => {
+  const one = form({ id: "b", ar: "كتاب", en: "book", number: "singular" });
+  const many = form({ id: "b-f0", ar: "كتب", en: "books", number: "plural" });
+  const other = form({ id: "x", ar: "باب", en: "door" });
+  /* Their meanings differ, so the prompt settles it on paper — but the
+     pair standing side by side is what invites the mistake, and the tag is
+     what turns "which of these?" into a question with one answer. */
+  assert.equal(
+    formIsAmbiguous({ unit: one, kin: [many], shown: [other, many], promptField: "en" }),
+    true
+  );
+  /* Somebody else's word beside it is just a wrong answer. */
+  assert.equal(
+    formIsAmbiguous({ unit: one, kin: [many], shown: [other], promptField: "en" }),
+    false
+  );
+});
+
+test("and nothing is said where the question already settles it", () => {
+  const one = form({ id: "b", ar: "كتاب", en: "book" });
+  const many = form({ id: "b-f0", ar: "كتب", en: "books" });
+  /* A card with no other form can never be ambiguous about which is meant. */
+  assert.equal(formIsAmbiguous({ unit: one, kin: [], shown: [many], promptField: "en" }), false);
+  /* A recording is of one form and a scene is its own question, so neither
+     can collide this way. */
+  assert.equal(
+    formIsAmbiguous({ unit: one, kin: [{ ...many, en: "book" }], shown: [], promptField: "audio" }),
+    false
+  );
+  /* An empty prompt field is not a collision with another empty one: a
+     form with no transliteration is not the same as its sibling's. */
+  assert.equal(
+    formIsAmbiguous({ unit: one, kin: [many], shown: [], promptField: "lat" }),
+    false
+  );
+  /* A stray space or a capital is not a difference a learner could answer
+     by, so it is not one here either. */
+  assert.equal(
+    formIsAmbiguous({
+      unit: form({ id: "a", en: "Teacher " }),
+      kin: [form({ id: "a-f0", en: "teacher" })],
+      shown: [],
+      promptField: "en",
+    }),
+    true
+  );
+  /* And nothing at all on nothing, which is a question still being cast. */
+  assert.equal(formIsAmbiguous({ unit: null, kin: [many], shown: [], promptField: "en" }), false);
 });

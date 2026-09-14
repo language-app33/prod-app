@@ -5601,6 +5601,28 @@ export default function ArabicTrainer() {
   }, [dialog && dialog.id, at, item && item.id, exercise && exercise.type, exercise && exercise.ctx, asking.length]);
 
   /*
+   * Whether the prompt has to say which form it wants.
+   *
+   * The card's other forms, and what else is on screen beside this one —
+   * the tiles where the question offers any, and the grid's words where it
+   * is a grid. Both are already worked out above; this only asks whether
+   * one of them is kin.
+   */
+  const tellForm = useMemo(() => {
+    if (!item || !parentItem || !spec) return false;
+    const kin = unitsOf(parentItem)
+      .map((u) => u.unit)
+      .filter((u) => u && u.id !== item.id);
+    return formIsAmbiguous({
+      unit: item,
+      kin,
+      shown: (choices as Record<string, any>[]).concat(grid.words || []),
+      promptField: spec.promptField || "",
+    });
+  }, [item, parentItem, spec, choices, grid]);
+
+
+  /*
    * Which of the accepted answers the learner wrote.
    *
    * A card may accept a masculine and a feminine, or a singular and a
@@ -6530,10 +6552,19 @@ Cards ready to practice
                 <div className="at-exercise" data-el="card">
                   <p className="at-instruction" data-el="question-instruction">
                     {spec.instruction}
-                    {isSub && (
+                    {/* Which form of the card is being asked, where that is
+                        not already settled — see formIsAmbiguous. A sub-form
+                        says so whatever else is up, because "the plural of"
+                        is worth knowing on its own; the rest is said only
+                        where two forms could answer the one question.
+
+                        And nothing at all where the language declares no
+                        grammar to say it with: Huế has none, and the tag was
+                        a bare separator there with nothing after it. */}
+                    {(isSub || tellForm) && labelFor(item, qLang) && (
                       <span className="at-formtag" data-el="question-form-tag">
                         {" "}
-                        · {labelFor(item)}
+                        · {labelFor(item, qLang)}
                       </span>
                     )}
                   </p>
@@ -9537,6 +9568,58 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
       )}
     </Screen>
   );
+}
+
+/**
+ * Whether the prompt has to say which form of the card it wants.
+ *
+ * A card's forms are drilled on their own, and two of them can answer the
+ * same question. A masculine teacher and a feminine one are both
+ * *teacher*: asked to write it in the script, a learner has no way to know
+ * which was wanted, and writing the other one is marked wrong for knowing
+ * the word. The same thing happens among tiles — the two standing side by
+ * side with one meaning between them, and nothing saying which.
+ *
+ * So the instruction carries the form's own grammar — "· f", "· pl" — in
+ * the two cases where the question does not already settle it:
+ *
+ *   * **another form of the same card is on screen**, as a tile or in the
+ *     grid. Even where their meanings differ the pair invites the mistake,
+ *     and the tag is what turns "which of these?" into a question with one
+ *     answer.
+ *   * **another form answers the same prompt**, which is the typed case and
+ *     the worse one: nothing is on screen to compare, and the learner finds
+ *     out only by being marked wrong.
+ *
+ * Neither is about being a sub-form. A card's *main* form is as easily
+ * confused with its feminine as the other way round, and the tag was shown
+ * on sub-forms alone — so the half of the pair that needed it most was the
+ * half that never got it.
+ *
+ * Only the fields a prompt is read from. A recording is of one form and a
+ * scene is its own question, so neither can collide this way.
+ */
+const PROMPT_FIELDS = ["ar", "en", "lat"];
+
+export function formIsAmbiguous({ unit, kin, shown, promptField }: {
+  unit: Record<string, any> | null | undefined;
+  /** The card's other forms. */
+  kin: Record<string, any>[];
+  /** What else is on screen as an answer — the tiles, or the grid's words. */
+  shown: Record<string, any>[];
+  promptField: string;
+}): boolean {
+  if (!unit || !kin.length) return false;
+  const ids = new Set((shown || []).map((s) => s && s.id).filter(Boolean));
+  if (kin.some((k) => k && ids.has(k.id))) return true;
+  if (!PROMPT_FIELDS.includes(promptField)) return false;
+  /* Compared as the learner reads it rather than as it is stored: a
+     difference of case or a stray space is not a difference they could
+     answer by. */
+  const said = (x: Record<string, any> | null | undefined) =>
+    String((x && x[promptField]) || "").trim().toLowerCase();
+  const asked = said(unit);
+  return !!asked && kin.some((k) => said(k) === asked);
 }
 
 /* ==================================================================
