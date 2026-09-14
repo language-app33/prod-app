@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { isCell, isCitation, personsOf, tensesOf } from "./verbs.ts";
+import { citationOf, citedWord, isCell, personsOf, tableCount, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -62,7 +62,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { hasSlots, slotsOf, slotTrouble, valuesFor } from "./variables.ts";
+import { fillText, hasSlots, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
@@ -2772,9 +2772,32 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
   addLabel?: string;
 }) {
   const [list, setList] = useState(() => splitAlternatives(value || ""));
+  /*
+   * What this last handed up, so a change made anywhere else comes back
+   * down.
+   *
+   * The rows were read off the prop once and never again, which was
+   * invisible for as long as typing here was the only thing that ever
+   * wrote to the field. It is not any more: a blank is put into the card's
+   * three fields at once from outside, and against a list that had stopped
+   * listening that wrote to the card and changed nothing on screen — then
+   * the next keystroke saved the stale rows back over it.
+   *
+   * Compared against what went up rather than against the list itself, so
+   * an empty row somebody has just added — which packs away to nothing and
+   * would otherwise look like an outside change — is left where it is.
+   */
+  const sent = useRef(value || "");
+  useEffect(() => {
+    if ((value || "") === sent.current) return;
+    sent.current = value || "";
+    setList(splitAlternatives(value || ""));
+  }, [value]);
   const commit = (next: string[]) => {
     setList(next);
-    onChange(joinAlternatives(next));
+    const joined = joinAlternatives(next);
+    sent.current = joined;
+    onChange(joined);
   };
   return (
     <div className="at-alts">
@@ -2821,9 +2844,22 @@ function ScriptAnswers({ lang, form, onChange }: {
   const dims = dimsOf(lang);
   const [rows, setRows] = useState(() => answerRows(form, fields));
   const [open, setOpen] = useState<number | null>(null);
+  /* The same rule as Alternatives above, and for the same reason: these
+     rows were read off the form once, and a blank written into the card
+     from outside would otherwise change the card and not the screen. What
+     went up is what an outside change is measured against. */
+  const sent = useRef(`${form.ar || ""} ${form.lat || ""}`);
+  useEffect(() => {
+    const now = `${form.ar || ""} ${form.lat || ""}`;
+    if (now === sent.current) return;
+    sent.current = now;
+    setRows(answerRows(form, fields));
+  }, [form, fields]);
   const commit = (next: Answer[]) => {
     setRows(next);
-    onChange(packAnswers(next, fields));
+    const packed = packAnswers(next, fields);
+    sent.current = `${packed.ar} ${packed.lat}`;
+    onChange(packed);
   };
   const edit = (i: number, patch: Partial<Answer>) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   const grammarOf = (row: Answer) =>
@@ -2900,10 +2936,19 @@ function ScriptAnswers({ lang, form, onChange }: {
   );
 }
 
-function ScriptInput({ lang, value, onChange, compact = false }: {
+function ScriptInput({ lang, value, onChange, compact = false, label }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
+  /**
+   * What to call this box where the label above it does not say — in a
+   * table, where one heading stands over twenty-one boxes and only the row
+   * and column say which is which. The two boxes beside it in a cell have
+   * carried their own names since the table was written; this one had
+   * none, which on the languages whose dictionary form is a cell now
+   * leaves the field the whole card is identified by unnamed.
+   */
+  label?: string;
   /**
    * A shorter box, for where there are many of them. A verb's table is
    * twenty-one of these on one screen, and at the size a single field is
@@ -2927,6 +2972,7 @@ function ScriptInput({ lang, value, onChange, compact = false }: {
           ref={ref}
           className="at-input"
           lang={lang.id}
+          aria-label={label}
           /* The text decides, once there is any: dir="auto" lays the field out
              by its own first strong character, so a pasted Arabic phrase reads
              right-to-left even if the deck is labelled with another language.
@@ -3897,25 +3943,22 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
             const which = [tense.label, person.label].filter(Boolean).join(" · ");
             const written = !!(cell && String(cell.ar || "").trim());
             const heard = cell ? clipsOf(cell).length : 0;
-            /* The cell a dictionary would list this verb under, where the
-               language has no infinitive and cites one of these instead.
-               It holds the same word as the card itself, so the card's own
-               word stands in the box as the thing to type — which is also
-               how a teacher learns the two are one rather than wondering
-               why they are asked for it twice. */
-            const cites = isCitation(spec, { row: tense.id, col: person.id });
+            /* Nothing marks the cell a dictionary would list this verb
+               under. It used to carry a gold label reading "· the
+               dictionary form", which made one row of the table a
+               different width and a different colour from the rest and
+               asked the teacher to hold a piece of grammar theory in mind
+               while typing. The cell is a cell. Where it matters — a verb
+               cannot be saved without it — the editor says so at the
+               moment it matters, and not before. */
             return (
               <div className="at-cellrow" key={person.id}>
-                {named && (
-                  <span className={`at-celllabel${cites ? " cited" : ""}`}>
-                    {person.label}
-                    {cites && <i> · the dictionary form</i>}
-                  </span>
-                )}
+                {named && <span className="at-celllabel">{person.label}</span>}
                 <div className="at-cellfields">
                   <ScriptInput
                     compact
                     lang={lang}
+                    label={`${lang.scriptLabel} for ${which}`}
                     value={(cell && cell.ar) || ""}
                     onChange={(v) => write(tense.id, person.id, { ar: v })}
                   />
@@ -3962,13 +4005,304 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
   );
 }
 
+/*
+ * Which decks a card is in, as a button and a menu.
+ *
+ * It was the last block on the editor, a full section with a heading, a
+ * paragraph and a tick per deck — so the answer to "where does this card
+ * go?" was several hundred pixels below the question, and a teacher with
+ * twenty decks scrolled past twenty rows to reach Variables. The decision
+ * is one line long and belongs near the top, beside what kind of card this
+ * is: both are facts about the card rather than about its words.
+ *
+ * Built the way the learning space's language switch is, for the same
+ * reason it was: a button whose label is the state, opening a list of
+ * ticks. What differs is where the menu hangs. The language switch is
+ * pinned to the window because it lives in the chrome, which does not
+ * scroll; this one is a control inside a form, so it hangs off the button
+ * and travels with it.
+ */
+/*
+ * A button that opens a list under itself, and puts it away again.
+ *
+ * Two controls on this screen are the same shape — which decks a card is
+ * in, and which blank it fills or leaves — so the part that is fiddly is
+ * written once. "Outside" is read off the click on the way down rather
+ * than waited for at the window: a menu that waits can be left open behind
+ * something that stopped the click travelling. Choosing inside the menu
+ * keeps it open, because these are lists people work down.
+ */
+function usePicker() {
+  const [open, setOpen] = useState(false);
+  const mine: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      const at = e.target;
+      if (mine.current && at instanceof Node && mine.current.contains(at)) return;
+      setOpen(false);
+    };
+    document.addEventListener("click", close, true);
+    return () => document.removeEventListener("click", close, true);
+  }, [open]);
+  return { open, setOpen, mine };
+}
+
+function DeckSwitch({ decks, chosen, onToggle }: {
+  decks: Deck[];
+  chosen: string[];
+  onToggle: (id: string, wasOn: boolean) => void;
+}) {
+  const { open, setOpen, mine } = usePicker();
+
+  const all = decks || [];
+  const inThese = all.filter((d) => chosen.includes(d.id));
+  /* The state in the room a button has: the deck itself when there is one,
+     how many when there are several, and the plain fact when there are
+     none — which is a card no student will ever see, and worth reading as
+     a state rather than as an empty space. */
+  const said = !all.length
+    ? "No decks yet"
+    : !inThese.length
+      ? "In no deck"
+      : inThese.length === 1
+        ? inThese[0].title
+        : `${inThese.length} decks`;
+
+  return (
+    <div className="at-chooser" ref={mine}>
+      <button
+        className={`at-choosebtn${inThese.length ? " on" : ""}`}
+        aria-expanded={open}
+        aria-label={`Decks — ${said.toLowerCase()}. Choose which.`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="folder" size={16} />
+        <span className="at-choosemark">{said}</span>
+      </button>
+
+      {open && (
+        <div className="at-choosemenu">
+          <p className="at-eyebrow">Decks</p>
+          <CheckList
+            options={all.map((d) => ({
+              id: d.id,
+              title: d.title,
+              note: plural(d.cardCount || 0, "card"),
+            }))}
+            chosen={chosen}
+            onToggle={onToggle}
+            empty="You have no decks yet. Make one under Decks, then this card can go in it."
+          />
+          {all.length > 0 && (
+            <Help>A student sees this card only where it is in a deck their course uses.</Help>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/*
+ * A blank, and the cards that fill it: chosen from a list, never spelled.
+ *
+ * The name of a blank is the one thing on this screen that has to match
+ * something written on another card exactly, and it used to be a free-text
+ * box. Typing `names` where every other card says `name` was accepted,
+ * saved, and filled nothing for ever, with nothing on screen to notice —
+ * the only silent failure the editor had. So the blanks this language
+ * already knows about are offered as a list, with what each one is worth,
+ * and typing one out is what you do once, for the first of its kind.
+ *
+ * `word` is in the list rather than in a paragraph above it. It is the
+ * blank every word in the language fills without being told to, which is
+ * worth knowing exactly when you are choosing a blank and nowhere else.
+ */
+function BlankPicker({ label, tone, blanks, current, title, onPick }: {
+  label: Node;
+  tone?: string;
+  blanks: { name: string; words: number; used: number; built?: boolean }[];
+  current?: string;
+  title?: string;
+  onPick: (name: string) => void;
+}) {
+  const { open, setOpen, mine } = usePicker();
+  const [made, setMade] = useState("");
+
+  const take = (name: string) => {
+    const clean = name.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!clean) return;
+    onPick(clean);
+    setMade("");
+    setOpen(false);
+  };
+
+  return (
+    <div className="at-chooser" ref={mine}>
+      <button
+        className={`at-choosebtn${tone ? " " + tone : ""}`}
+        aria-expanded={open}
+        aria-label={title}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="at-choosemark">{label}</span>
+      </button>
+
+      {open && (
+        <div className="at-choosemenu">
+          <p className="at-eyebrow">Blanks</p>
+          <div className="at-blanklist">
+            {blanks.map((b) => (
+              <button
+                key={b.name}
+                className={`at-ck${current === b.name ? " on" : ""}`}
+                onClick={() => take(b.name)}
+              >
+                <span className="at-cktext">
+                  <b>{b.name}</b>
+                  <i>
+                    {b.built
+                      ? `built in · any of ${plural(b.words, "word")} in this language`
+                      : `${plural(b.words, "word")} to fill it · left by ${plural(b.used, "card")}`}
+                  </i>
+                </span>
+              </button>
+            ))}
+          </div>
+          {/* The first blank of its kind has to be named by somebody, and
+              this is where they are already looking. */}
+          <div className="at-blanknew">
+            <input
+              className="at-input"
+              value={made}
+              placeholder="A new blank"
+              aria-label="Name a new blank"
+              onChange={(e) => setMade(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+              onKeyDown={(e) => e.key === "Enter" && take(made)}
+            />
+            <Button variant="ghost" size="sm" disabled={!made} onClick={() => take(made)}>
+              Add
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/*
+ * What a card is, as one question with three answers.
+ *
+ * Underneath there are still two flags and no such thing as a verb: a verb
+ * card is a word card whose subs carry a table, which is all isVerb has ever
+ * read. The selector is derived from the flags rather than replacing them,
+ * so nothing below this line — the table, the cited cell, the form blocks,
+ * what is saved — learns that the question was asked differently.
+ */
+export type CardShape = "word" | "verb" | "scene";
+
+export const shapeOf = (scene: boolean, asVerb: boolean): CardShape =>
+  scene ? "scene" : asVerb ? "verb" : "word";
+
+/* A conversation is never a verb: it has turns where a word has forms, and
+   there is nothing for a table to lay out. */
+export const shapeMeans = (shape: CardShape): { scene: boolean; asVerb: boolean } => ({
+  scene: shape === "scene",
+  asVerb: shape === "verb",
+});
+
+/*
+ * Which answers are still open, which is a different question on a card that
+ * exists.
+ *
+ * A written card does not change into a conversation, and a conversation
+ * does not stop being one — a scene with four turns on it would have nowhere
+ * to put them. A verb with a table does not stop being one either, and for
+ * the same reason: the table is the content, so offering the change would be
+ * offering to throw it away, which until now it quietly did.
+ *
+ * What stays open is the direction that loses nothing. A saved word has no
+ * table yet, and a verb is usually written as a plain word and given its
+ * tenses weeks later, when the course reaches them — so that one is asked of
+ * a card for as long as the card lasts.
+ *
+ * Empty where nothing is left to choose, and the block says what the card is
+ * instead. A pack that declares no rows and columns offers no verb.
+ */
+export const shapeChoices = ({
+  saved,
+  scene,
+  verbs,
+  hasTable,
+}: {
+  saved: boolean;
+  scene: boolean;
+  verbs: boolean;
+  hasTable: boolean;
+}): { value: CardShape; label: string }[] => {
+  const word = { value: "word" as const, label: "Word or phrase" };
+  const verb = { value: "verb" as const, label: "Verb" };
+  const talk = { value: "scene" as const, label: "Conversation" };
+  if (!saved) return verbs ? [word, verb, talk] : [word, talk];
+  if (scene || hasTable || !verbs) return [];
+  return [word, verb];
+};
+
+/*
+ * The card's own word, put into the cell that stands in for it.
+ *
+ * On a language that cites a cell the block asking for the word is not
+ * shown, so the word has to be somewhere the teacher can see and edit it,
+ * and the cell a dictionary would list it under is that place. Run when a
+ * plain word is first called a verb, and when a card written before this
+ * is opened — a table whose cited cell nobody ever filled would otherwise
+ * hide the card's word behind a block that is no longer on screen.
+ *
+ * Never over a cell that already says something: a table the teacher has
+ * filled in knows better than a word field they have not looked at in
+ * weeks. Never from an empty word either, which is every new card.
+ */
+const seedCited = (
+  cells: Record<string, any>[],
+  word: Record<string, any> | null | undefined,
+  spec: VerbSpec | null | undefined,
+): Record<string, any>[] => {
+  const to = citationOf(spec);
+  if (!to || !word || !String(word.ar || "").trim()) return cells;
+  if (cells.some((c) => c.row === to.row && c.col === to.col && String(c.ar || "").trim())) return cells;
+  return cells
+    .filter((c) => !(c.row === to.row && c.col === to.col))
+    .concat([{
+      ...blankForm(),
+      ar: word.ar || "",
+      en: word.en || "",
+      lat: word.lat || "",
+      clips: word.clips || [],
+      slowClips: word.slowClips || [],
+      row: to.row,
+      col: to.col,
+    }]);
+};
+
+/* What to call the cell a dictionary lists the verb under, in the pack's
+   own words for its rows and columns — "past · he". A pack whose columns
+   are unlabelled leaves the row standing on its own, for the same reason
+   the table does not print "any" over a language with one person. */
+const citedLabel = (spec: VerbSpec | null | undefined): string => {
+  const cite = citationOf(spec);
+  if (!cite) return "";
+  const tense = tensesOf(spec).find((t) => t.id === cite.row);
+  const person = personsOf(spec).find((p) => p.id === cite.col);
+  return [tense && tense.label, person && person.label].filter(Boolean).join(" · ");
+};
+
 function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }: {
   card: Card | null;
   lang: Lang;
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, decks: string[], uses: string[], fills: string, drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, decks: string[], uses: string[], fills: string, drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;
@@ -4017,25 +4351,78 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      edited in different shapes — a list of blocks, and a table — and
      joined again at save. */
   const verbSpec = teachesVerbs(lang) ? verbOf(lang) : null;
-  const [cells, setCells] = useState<Record<string, any>[]>(() =>
-    ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s })),
-  );
+  const [cells, setCells] = useState<Record<string, any>[]>(() => {
+    const had = ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s }));
+    /* Only a card that is already a verb: a plain word has no table, and
+       seeding one would be answering the selector above on the teacher's
+       behalf. */
+    return had.length ? seedCited(had, card, verbSpec) : had;
+  });
   /* Whether this card is a verb at all. A card that already has cells
      plainly is; anything else is the teacher's to say, because "is this a
      verb" is a question about the word and not one the app can read off
-     its spelling. */
+     its spelling. It is answered in the selector above rather than stored:
+     nothing saved knows the word "verb". */
   const [asVerb, setAsVerb] = useState(() => cells.length > 0);
   /* Whether the table is standing in for the forms below. Read in four
      places, so it is named once here rather than spelled out at each. A
      conversation is never a verb: it has turns where a word has forms,
      and there is nothing for a table to lay out. */
   const verbMode = !scene && !!verbSpec && asVerb;
-  /* Whether this card's other forms are on show. Put away on a verb,
-     where the table is what a teacher came to fill in — but only where
-     there is nothing to put away: a card that already carries a second
-     spelling opens showing it, because a form that vanished when the card
-     was called a verb would read as one that had been thrown away. */
-  const [moreForms, setMoreForms] = useState(() => forms.length > 1);
+  /*
+   * The one question about what a card is, and the answers still open to it.
+   *
+   * `hasTable` asks the stored card rather than the editor, on purpose: a
+   * table typed into a card that has never been saved is not yet anybody's
+   * work, and locking a teacher into a verb because they filled one box to
+   * see what it did would be the opposite of the point.
+   */
+  const hasTable = ((card && card.subs) || []).some((s) => isCell(s));
+  /* And whether it reads as one on screen, which also wants the language to
+     still lay verbs out: a pack that has dropped its rows and columns leaves
+     a card whose cells nothing can show, and telling a teacher to empty a
+     table they cannot see would be worse than saying nothing. */
+  const readsAsVerb = hasTable && !!verbSpec;
+  const shape = shapeOf(scene, asVerb);
+  const choices = shapeChoices({ saved: !!card, scene, verbs: !!verbSpec, hasTable });
+  /* How much of the table is being held aside — nothing, on every card that
+     is not one. What the line under the selector counts. */
+  const aside = verbSpec && !asVerb ? tableCount({ subs: cells }, verbSpec).filled : 0;
+  /*
+   * Choosing an answer sets both flags at once, so the two can never say a
+   * card is a conversation with a table — which they could, and a scene
+   * saved that way carried cells nothing would ever show again.
+   *
+   * On the way in to verb the card's own word moves into the cell about to
+   * hold it, rather than being left behind in a block that has just
+   * disappeared; and only into an empty cell, because a card that already
+   * has a table knows better than the block does.
+   */
+  const choose = (next: CardShape) => {
+    const flags = shapeMeans(next);
+    setScene(flags.scene);
+    setAsVerb(flags.asVerb);
+    if (flags.asVerb && !asVerb) setCells((x) => seedCited(x, forms[0], verbSpec));
+  };
+  /*
+   * Whether the table holds the card's own word as well as its forms.
+   *
+   * Arabic and Hebrew have no infinitive: a dictionary lists the he-past,
+   * which is a cell of this very table, and the pack says so. So on those
+   * two the cell carries everything the card's own word does — the script,
+   * the pronunciation, the English and the recordings — and a block asking
+   * for them again was asking the teacher to type the same word twice and
+   * then keep the two in step by hand. It is not shown. Huế cites the bare
+   * verb, which is a word and not a cell, so there the block is the verb
+   * and stays.
+   *
+   * What the card is saved as comes off the cell, which is what makes the
+   * block safe to take away: the face in every list, the meaning, the
+   * recordings. Everything that reads a card goes on reading a card.
+   */
+  const cite = verbMode ? citationOf(verbSpec) : null;
+  const citedAt = cite ? cells.find((c) => c.row === cite.row && c.col === cite.col) || null : null;
+  const standsIn = !!cite;
   /* Which cell of the table has the recording screen open, by where it
      sits rather than by its place in the list: the list is rewritten
      whenever a cell is typed into, so an index would point at a different
@@ -4045,6 +4432,9 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     ? cells.find((c) => c.row === recordingCell.row && c.col === recordingCell.col) || null
     : null;
   const [note] = useState((card && card.note) || "");
+  /* What to call the card in a list. Only asked of a verb whose own word is
+     a cell of its table — see the block that asks for it. */
+  const [name, setName] = useState(((card && card.name) || "") as string);
   const [chosen, setChosen] = useState(inDecks || []);
   /* Which variable this card fills, where it is a value rather than
      something to learn: "Raphael" fills `name`, and every phrase with a
@@ -4108,7 +4498,17 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     return side === null ? "" : ` side${side}`;
   };
 
-  const main = forms[0];
+  /*
+   * The card's own word — off the cited cell where the table stands in for
+   * it, and the block's own fields everywhere else.
+   *
+   * Derived rather than written into `forms` as the teacher types: a copy
+   * kept in step by an effect is a copy that can fall out of step, and
+   * everything below this line — what can be saved, which holes the card
+   * leaves, what is sent — then reads one value whichever kind of card it
+   * is. The clips travel with it so the card's face can still be heard.
+   */
+  const main = standsIn ? citedWord(forms[0], citedAt) : forms[0];
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
@@ -4119,12 +4519,123 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      them. A frame whose English has a hole and whose script has not is a
      question that asks for a name and marks an answer that never contained
      one, so it is not a card that can be saved. */
-  const holes = scene ? [] : slotsOf(main);
-  const trouble = scene ? null : forms.map((f) => slotTrouble(f)).find(Boolean) || null;
+  /* Memoised for what reads it below: a fresh array every render would
+     re-fill the preview sentences on every keystroke in any field. */
+  const holes = useMemo(() => (scene ? [] : slotsOf(main)), [scene, main]);
+  /* The card's word as it will be saved, then whatever else it carries —
+     so a hole the cited cell leaves is checked against the fields beside
+     it rather than against a block nobody is filling in. */
+  const ownForms = [main].concat(forms.slice(1));
+  const trouble = scene ? null : ownForms.map((f) => slotTrouble(f)).find(Boolean) || null;
+
+  /*
+   * The blanks this language already knows about, and what each is worth.
+   *
+   * Two numbers, because they answer two different questions a teacher has
+   * while choosing one: how many words fill it, which is whether a card
+   * using it can be practised at all, and how many cards leave it, which
+   * is whether this is the name everybody else is using or a near miss of
+   * it. Read off the cards in hand rather than kept anywhere — a blank is
+   * not a thing that is declared, it is a name two cards happen to agree
+   * on.
+   */
+  const blanksAround = useMemo(() => {
+    const words = new Map<string, number>();
+    const used = new Map<string, number>();
+    let anyWord = 0;
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      const f = String(c.fills || "").toLowerCase();
+      if (f) words.set(f, (words.get(f) || 0) + 1);
+      if (!f && kindOf(c, lang) === "word") anyWord++;
+      for (const slot of slotsOf(c)) used.set(slot, (used.get(slot) || 0) + 1);
+    }
+    const names = [...new Set([...words.keys(), ...used.keys()])]
+      .filter((n) => n !== WORD_SLOT)
+      .sort();
+    return [
+      /* The one nobody writes on a card, so the one a teacher cannot find
+         by looking at their own. */
+      { name: WORD_SLOT, words: anyWord, used: used.get(WORD_SLOT) || 0, built: true },
+      ...names.map((name) => ({
+        name,
+        words: words.get(name) || 0,
+        used: used.get(name) || 0,
+      })),
+    ];
+  }, [allCards, lang]);
+
+  /*
+   * The sentences a student will be asked, filled from the words that
+   * exist today.
+   *
+   * This is the explanation the section used to attempt in ninety words.
+   * Three of them, because three is enough to read as "and so on" and a
+   * fourth adds nothing; distinct, because a blank with one word in it
+   * would otherwise print the same sentence three times and look broken.
+   * Empty where nothing fills a blank yet, which is its own answer.
+   */
+  const asked = useMemo(() => {
+    if (scene || !holes.length) return [];
+    const have = valuesFor(main, allCards || [], lang && lang.id, (c) => kindOf(c, lang));
+    const out: string[] = [];
+    for (let turn = 0; turn < 12 && out.length < 3; turn++) {
+      const took = valuesForTurn(holes, have, turn);
+      if (!took) break;
+      const line = fillText(main.en, took, "en").trim();
+      if (line && !out.includes(line)) out.push(line);
+    }
+    return out;
+  }, [scene, holes, main, allCards, lang]);
+
+  /* Which blanks have nothing to put in them — the reason a card with a
+     hole in it is never asked, named rather than left to be discovered. */
+  const starved = useMemo(() => {
+    if (scene || !holes.length) return [];
+    const have = valuesFor(main, allCards || [], lang && lang.id, (c) => kindOf(c, lang));
+    return holes.filter((slot) => !(have[slot] || []).length);
+  }, [scene, holes, main, allCards, lang]);
   const canSave = scene
     ? !!title.trim() && written.length >= 2
     : main.ar.trim() && main.en.trim() && !trouble;
   const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
+
+  /*
+   * Put a blank into the card, in every field at once.
+   *
+   * The rule the editor spent its longest sentence on is that every field
+   * with words in it leaves the same holes — and the only reason a teacher
+   * could break it was that they were typing the holes by hand, three
+   * times. Written from here they cannot disagree, and the error stops
+   * being reachable rather than being explained better.
+   *
+   * Appended rather than dropped at the caret. Where it goes in the
+   * sentence is the teacher's business and a drag away; guessing at it
+   * across three fields, one of which runs the other way, would be the app
+   * being clever about something it cannot see.
+   */
+  const putBlank = (name: string) => {
+    const mark = `{{${name}}}`;
+    /* A field nobody has filled in is not a field that disagrees — a card
+       with no transliteration is an ordinary card, not a broken one — and
+       a field that already leaves this blank is left alone rather than
+       given it twice. */
+    const grown = (had: string) => {
+      const was = String(had || "");
+      if (!was.trim() || slotsIn(was).includes(name)) return was;
+      return `${was.replace(/\s+$/, "")} ${mark}`;
+    };
+    /* The three FILLED_FIELDS, written out: they are what a draft form is
+       made of here, and reaching them by name through a list of strings
+       would only be true for as long as the two agreed. */
+    setForms((f) =>
+      f.map((form, i) =>
+        i === 0
+          ? { ...form, ar: grown(form.ar), en: grown(form.en), lat: grown(form.lat) }
+          : form,
+      ),
+    );
+  };
 
   return (
     /* "over" puts this above the mode selector and the corner menu, so
@@ -4149,8 +4660,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                    only while the card says it is a verb, so turning that
                    off puts the table away rather than saving a hidden
                    one. */
-                forms: asVerb ? forms.concat(cells as typeof forms) : forms,
+                forms: asVerb ? ownForms.concat(cells as typeof forms) : ownForms,
                 note,
+                /* Only where it was asked for: a card that is not a verb of
+                   this shape is named by its own word, and a name left
+                   behind from a card that briefly was one would go on
+                   labelling it. */
+                name: standsIn ? name.trim() : "",
                 decks: chosen,
                 uses,
                 fills: fills.trim(),
@@ -4169,80 +4685,170 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           {/* What kind of card this is — the first thing about it, and for
               a new one the first decision. Word, phrase and sentence are
               not offered because they are not chosen: the language reads
-              them off the text. Whether somebody answers it is the one
-              thing no amount of reading the script will tell you. */}
+              them off the text. Whether somebody answers it, and whether it
+              has a table, are the two it cannot read.
+
+              Verb is an answer here rather than a tick beside the selector.
+              Underneath it is still a word card with cells on its subs —
+              nothing stored knows the word, and isVerb reads the cells — but
+              a teacher deciding what to write is choosing between three
+              things, not between two and a footnote.
+
+              What the tick had over a selector is that it outlived the
+              choice, so the question is asked of a saved card too, with the
+              answers still open to it. A conversation has turns and a verb
+              has a table, and neither can be offered a kind that would throw
+              its own content away. A saved word has neither yet, so it can
+              still be called a verb, which is the way round that loses
+              nothing. */}
           <div className="at-formblock">
             <div className="at-formhead">
               <span className="at-formnum">The kind of card</span>
-              {card && <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>}
+              {/* What the stored card is, which for a verb would read
+                  "Word" — true of the kind, and a flat contradiction of the
+                  line underneath saying it is a verb. */}
+              {card && !readsAsVerb && (
+                <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>
+              )}
             </div>
-            {card ? (
+            {choices.length ? (
+              <>
+                {/* Full-width, for the reason the language picker above is:
+                    the compact variant sizes every option to the longest
+                    label and never wraps, so three of them is three times
+                    "Word or phrase" — wider than a phone, and it ran off
+                    the side of the screen the moment a third answer was
+                    added. Full width lets the last one take a second row,
+                    with the track wrapping around both so it still reads as
+                    one control. */}
+                <Segmented
+                  size={null}
+                  label="The kind of card"
+                  options={choices}
+                  value={shape}
+                  onChange={choose}
+                />
+                <Help>
+                  {shape === "scene"
+                    ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
+                    : shape === "verb"
+                      ? "A word with a table as well: every person and tense a box of its own, each practised in its own right, and the rows opening in the order they are taught."
+                      : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
+                </Help>
+                {/* Why a written card is asked the same question and offered
+                    fewer answers. Without it, a teacher who remembers three
+                    is left to wonder where the third went. */}
+                {card && (
+                  <Help>
+                    A card does not change kind once it is written. Calling a
+                    word a verb is the one thing that still can — the tenses
+                    usually come weeks later.
+                  </Help>
+                )}
+                {/* The one place a table can still be dropped: a card that
+                    has never been saved, typed into and then called a word.
+                    Said while it is true and not before. */}
+                {aside > 0 && (
+                  <p className="at-formneed unmet">
+                    Its table is put aside — {plural(aside, "box", "boxes")} filled
+                    in. Saving it as a word or phrase drops them. Choose Verb to
+                    keep it.
+                  </p>
+                )}
+              </>
+            ) : (
               <Help>
                 {isDialog(card)
                   ? "A conversation: turns, in order, each practised in its own right."
-                  : "Read off what the card says. A card does not change kind once it is written."}
+                  : readsAsVerb
+                    ? "A verb: its forms are its table, each practised in its own right. Empty the table and it is a word again."
+                    : "Read off what the card says. A card does not change kind once it is written."}
               </Help>
-            ) : (
-              <>
-                <Segmented
-                  label="The kind of card"
-                  options={[
-                    { value: false, label: "Word or phrase" },
-                    { value: true, label: "Conversation" },
-                  ]}
-                  value={scene}
-                  onChange={(v) => setScene(!!v)}
-                />
-                <Help>
-                  {scene
-                    ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
-                    : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
-                </Help>
-              </>
             )}
 
-            {/* And whether it is a verb, which is the same question about
-                what a card is and so belongs in the same block.
-
-                A tick rather than a third option beside "Word or phrase"
-                and "Conversation", because it is not a third kind: a verb
-                is a word, with a table as well. It also outlives the
-                choice above, which is read-only once a card exists — a
-                verb is often written as a plain word and given its table
-                weeks later, when the course reaches tenses — so it stays
-                offered on a card that is already saved.
-
-                Only where the language lays verbs out. A pack that
-                declares no rows and columns shows no tick. */}
-            {!scene && verbSpec && (
-              <label className="at-tickrow at-mt3">
-                <input
-                  type="checkbox"
-                  checked={asVerb}
-                  onChange={() => setAsVerb((v) => !v)}
-                />
-                <span className="at-tickbody">
-                  <b>This is a verb</b>
-                </span>
-              </label>
-            )}
+            {/* And where it goes, which is the other fact about the card
+                rather than about its words — and the one that decides
+                whether anybody ever sees it. */}
+            <div className="at-mt3">
+              <DeckSwitch
+                decks={decks || []}
+                chosen={chosen}
+                onToggle={(id, on) =>
+                  setChosen((x) => (on ? x.filter((y) => y !== id) : x.concat([id])))
+                }
+              />
+            </div>
           </div>
 
           {/* ---- the verb's table ----
-              The question that opens this is the tick in the block above,
+              The question that opens this is the selector in the block above,
               where the other question about what a card is lives. Nothing
               here but the table: what a blank cell means and which rows
               open first are read off the table itself — an empty box is
               plainly an empty box, and the rows are labelled in the order
               they are taught. */}
+          {/* ---- what to call it ----
+
+              A verb in a language with no infinitive is saved as the form a
+              dictionary lists — Arabic's he-past — so a list read as "he
+              ate", which names one cell of the table rather than the verb
+              the card is about. Nothing was wrong with the card; it simply
+              had no name of its own to be listed under.
+
+              Not the block 0.114 took away. That one asked for the script,
+              the pronunciation, the English and the recordings a second
+              time, and the two copies had to be kept in step by hand. This
+              asks for one thing the table cannot supply, and nothing is
+              drilled on it: it is a label, and the microcopy says so.
+
+              Only where the table stands in for the card's own word. Where
+              a language cites nothing — Huế cites the bare verb — the card
+              has a word of its own and is named by it. */}
+          {verbMode && verbSpec && standsIn && (
+            <div className="at-formblock at-mt5">
+              <div className="at-formhead">
+                <span className="at-formnum">What to call it</span>
+                <span className="at-formrole">how it is listed</span>
+              </div>
+              <Field label="Name">
+                <input
+                  className="at-input"
+                  value={name}
+                  placeholder="to eat"
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Field>
+              <Help>
+                How this card is listed and searched. Without one it is
+                listed as {citedLabel(verbSpec)} — the box a dictionary lists
+                the verb under — which names that form rather than the verb.
+                Nobody is ever asked this: the table is what is practised.
+              </Help>
+            </div>
+          )}
+
           {verbMode && verbSpec && (
-            <VerbTable
-              lang={lang}
-              spec={verbSpec}
-              cells={cells}
-              onChange={setCells}
-              onRecord={(row, col) => setRecordingCell({ row, col })}
-            />
+            <>
+              <VerbTable
+                lang={lang}
+                spec={verbSpec}
+                cells={cells}
+                onChange={setCells}
+                onRecord={(row, col) => setRecordingCell({ row, col })}
+              />
+              {/* Only when it is in the way. A line explaining which box a
+                  dictionary lists the verb under, standing there whether or
+                  not anything was wrong with the card, was a paragraph of
+                  theory between the teacher and the table. A Save that
+                  stays grey with nothing saying why is worse, so what is
+                  left is the one sentence that unblocks it, at the moment
+                  it is true and not before. */}
+              {standsIn && !canSave && (
+                <p className="at-formneed unmet">
+                  Fill in {citedLabel(verbSpec)}, plus its English.
+                </p>
+              )}
+            </>
           )}
 
           {scene && (
@@ -4434,17 +5040,20 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </>
           )}
 
-          {/* The extra forms, on a verb, are put away rather than removed.
-              A verb may genuinely have a second spelling, so the door has
-              to stay open — but a teacher who wants the past tense and
-              sees "Add a form" will use it, and a conjugated form written
-              there sits outside the table: nothing knows which person or
-              tense it is, so it is never gated by its row and never
-              agrees with a sentence. Hiding the invitation is the whole
-              fix; a card that already carries extra forms shows them, or
-              putting them away would read as having lost them. */}
+          {/* On a verb, a form outside the table is a form nothing knows
+              the person or tense of: it is never gated by its row and
+              never agrees with a sentence, and a teacher who wants the
+              past tense and is offered "Add a form" will use it for one.
+              So a verb is not offered one — see the button below.
+
+              Shown, though, wherever one exists. This used to be put away
+              behind a reveal, which made the button a teacher pressed do
+              nothing at all: it could only ever be showing while there was
+              nothing to show, because a card that already had extra forms
+              opened with them out. Hiding a form the card carries would
+              also read as having lost it, and it is still saved. */}
           {!scene && forms.map((f, i) => (
-            i > 0 && verbMode && !moreForms ? null :
+            i === 0 && standsIn ? null :
             <div className={`at-formblock${i === 0 ? " main" : ""}`} key={i}>
               <div className="at-formhead">
                 <span className="at-formnum">
@@ -4468,18 +5077,14 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       be wrong for it, and a wrong recording is worse than a
                       missing one. */}
                   <Button variant="ghost" size="sm"
-                    onClick={() => {
-                      /* And show them, where they were put away: a copy
-                         made into a section that is not on screen is a
-                         button that does nothing. */
-                      setMoreForms(true);
+                    onClick={() =>
                       setForms((x) =>
                         x
                           .slice(0, i + 1)
                           .concat([{ ...x[i], clips: [], slowClips: [] }])
                           .concat(x.slice(i + 1))
-                      );
-                    }}
+                      )
+                    }
                   >
                     Duplicate
                   </Button>
@@ -4560,148 +5165,184 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           ))}
 
-          {!scene && (verbMode && !moreForms ? (
-            <Button variant="ghost" size="sm" onClick={() => setMoreForms(true)} icon="add">
-              Another way to say it
-            </Button>
-          ) : (
-          <Button variant="ghost" size="sm"
-            /* No number override: blankForm takes the language's declared
-               default, so what a new form starts as is settled in one place. */
-            onClick={() => setForms((f) => f.concat([blankForm()]))}
-          icon="add"
-        >
-          Add a form
-        </Button>
-          ))}
+          {/* Not on a verb. A verb's forms are the table — and where the
+              language cites one of its cells, the card's own word is the
+              table too — so the only thing left to add here is a form
+              outside it, which is the one thing a verb card should not
+              have. This was a quieter-worded button rather than none, on
+              the grounds that a verb may genuinely have a second spelling;
+              but a spelling is an accepted answer, written beside the one
+              it is an alternative to, and never a form of its own. What
+              the button actually did was reveal a block that was not
+              there, and then turn into the "Add a form" it was standing in
+              for.
 
-          {/* ---- variables ----
-              A hole in a phrase, and the cards that fill it. Written here
-              rather than beside the script field because it is one fact
-              about the whole card, and because what a teacher needs to see
-              while writing one is the sentence a student will actually be
-              shown. */}
+              Duplicate, on a block already on screen, is left alone: it is
+              a way out for somebody who has one, rather than an invitation
+              to everybody who has not. */}
+          {!scene && !verbMode && (
+            <Button variant="ghost" size="sm"
+              /* No number override: blankForm takes the language's declared
+                 default, so what a new form starts as is settled in one place. */
+              onClick={() => setForms((f) => f.concat([blankForm()]))}
+              icon="add"
+            >
+              Add a form
+            </Button>
+          )}
+
+          {/* ---- blanks ----
+              A card with a gap in it — "My name is {{name}}" — and the
+              cards that fill the gap. One fact about the whole card, so it
+              stands on its own rather than beside a field.
+
+              It was called Variables, which is the word the code uses, and
+              it did two opposite jobs in one block: a card that leaves a
+              blank and a card that fills somebody else's. Both were shown
+              to everybody, under ninety words explaining a syntax the
+              teacher had to type by hand into three fields that must
+              agree. The syntax is now written by a button, the two jobs
+              are two panels and only the one that applies is on screen,
+              and the explaining is done by showing the sentences a student
+              will actually be asked. */}
           {!scene && (
             <div className="at-formblock at-mt5">
               <div className="at-formhead">
-                <span className="at-formnum">Variables</span>
-                <span className="at-formrole">a word this card leaves open</span>
+                <span className="at-formnum">Blanks</span>
+                <span className="at-formrole">
+                  {holes.length
+                    ? `${plural(holes.length, "blank")} · ${
+                        starved.length ? "nothing fills it yet" : `met as ${plural(asked.length, "sentence")}`
+                      }`
+                    : fills
+                      ? "this card fills one"
+                      : "a gap this card leaves for another word"}
+                </span>
               </div>
-              <Help>
-                Write <code>{"{{name}}"}</code> anywhere in a card — in every field that
-                has words in it — and each question fills it with a card that says it
-                fills <code>name</code>. A card that means one thing is met as one
-                sentence; a card with a hole in it is met as all of them.
-              </Help>
-              {/* The one slot nobody has to write on a card, and so the one
-                  a teacher cannot find by looking at their own cards. */}
-              <Help>
-                <code>{"{{word}}"}</code> is already filled by every word in this
-                language — nothing to write on them, and a word added later joins in
-                without this card being touched.
-              </Help>
 
+              {holes.length > 0 && (
+                <>
+                  {asked.length > 0 && (
+                    <div className="at-asked">
+                      {asked.map((line, i) => (
+                        <p className="at-askedline" key={i}>
+                          <b>{i === 0 ? "asks" : "then"}</b>
+                          <span>{line}</span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {/* Named, because it is the reason the card is never
+                      asked and the teacher cannot see it from here. */}
+                  {starved.length > 0 && (
+                    <p className="at-formneed unmet">
+                      Nothing fills{" "}
+                      {starved.map((s) => `{{${s}}}`).join(" or ")} yet, so this card
+                      cannot be practised. Write a card that says it fills it.
+                    </p>
+                  )}
+                  <Help>
+                    One card, met as a sentence for every word that fills it. A word
+                    added later joins in without this card being touched.
+                  </Help>
+                </>
+              )}
+
+              <div className="at-blankrow">
+                {holes.map((slot) => (
+                  <span className="at-blankchip" key={slot}>
+                    {slot}
+                  </span>
+                ))}
+                {/* Not where the table stands in for the card's own word:
+                    there is no field on this screen for it to write into. */}
+                {!standsIn && (
+                  <BlankPicker
+                    label="+ Blank"
+                    tone="new"
+                    title="Add a blank to this card"
+                    blanks={blanksAround}
+                    onPick={putBlank}
+                  />
+                )}
+              </div>
+
+              {/* Still possible on a card written before the button, or by
+                  typing the braces by hand, so still said — in one line. */}
               {trouble && (
                 <p className="at-formneed unmet">
                   {trouble.missing.length
                     ? `${fieldName(trouble.field, lang)} is missing ${trouble.missing
                         .map((v) => `{{${v}}}`)
-                        .join(" and ")} — every field with words in it has to leave the same holes.`
+                        .join(" and ")} — every field with words in it leaves the same blanks.`
                     : `${fieldName(trouble.field, lang)} names ${trouble.extra
                         .map((v) => `{{${v}}}`)
                         .join(" and ")}, which no other field does.`}
                 </p>
               )}
 
-              {holes.map((slot) => {
-                const values = (allCards || []).filter(
-                  (c) =>
-                    String(c.fills || "").toLowerCase() === slot &&
-                    (!c.lang || !lang || c.lang === lang.id) &&
-                    c.id !== ((card && card.id) || "")
-                );
-                return (
-                  <p className="at-formneed" key={slot}>
-                    <code>{`{{${slot}}}`}</code>{" "}
-                    {values.length
-                      ? `· ${plural(values.length, "card")} to fill it: ${values
-                          .slice(0, 6)
-                          .map((c) => c.en || c.ar)
-                          .join(", ")}${values.length > 6 ? "…" : ""}`
-                      : "· nothing fills this yet. Make a card, write the name in it, and set “Fills a variable” to " +
-                        slot +
-                        ". Until then this card can't be practised."}
-                  </p>
-                );
-              })}
-
               {holes.length > 0 && (main.clips || []).length > 0 && (
                 <Help>
-                  Listening exercises are not offered on a card with a variable in it:
+                  Listening exercises are not offered on a card with a blank in it:
                   the recording says one of the words, and the next asking wants another.
-                  The recording is kept, and comes back if the variable goes.
+                  The recording is kept, and comes back if the blank goes.
                 </Help>
               )}
 
-              <Field
-                label="Fills a variable"
-                hint="Leave empty unless this card is a value — a name, a number, a colour — that other cards borrow."
-              >
-                <input
-                  className="at-input"
-                  value={fills}
-                  placeholder="e.g. name"
-                  onChange={(e) =>
-                    setFills(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))
-                  }
-                />
-              </Field>
-
-              <Field label="Practised on its own">
-                <Segmented
-                  label="Practised on its own"
-                  options={[
-                    { value: true, label: "Yes" },
-                    { value: false, label: "No" },
-                  ]}
-                  value={drill}
-                  onChange={(v) => setDrillChoice(!!v)}
-                />
-                <Help>
-                  {drill
-                    ? "Asked as a question of its own, like every other card."
-                    : "Never asked on its own. It is here to fill a hole in another card."}
-                </Help>
-              </Field>
+              {/* The other job, and only where it is the card's job. A card
+                  with a blank of its own never fills one — so the two are
+                  never both on screen unless a card already carries both,
+                  in which case hiding this would strand what it carries. */}
+              {(!holes.length || !!fills) && (
+                <>
+                  {holes.length > 0 && <p className="at-groupline">And it fills one</p>}
+                  <div className="at-blankrow">
+                    <BlankPicker
+                      label={fills ? `Fills ${fills}` : "Fills a blank"}
+                      tone={fills ? "on" : ""}
+                      title={fills ? `This card fills ${fills}. Choose another.` : "Choose a blank this card fills"}
+                      blanks={blanksAround}
+                      current={fills}
+                      onPick={(name) => setFills(name === fills ? "" : name)}
+                    />
+                    {fills && (
+                      <Button variant="ghost" size="sm" onClick={() => setFills("")}>
+                        It fills none
+                      </Button>
+                    )}
+                  </div>
+                  {fills ? (
+                    <>
+                      <Help>
+                        Every card with a <code>{`{{${fills}}}`}</code> blank in it can borrow
+                        this word.
+                      </Help>
+                      <label className="at-tickrow">
+                        <input
+                          type="checkbox"
+                          checked={drill}
+                          onChange={() => setDrillChoice(!drill)}
+                        />
+                        <span className="at-tickbody">
+                          <b>Also ask this card on its own</b>
+                          <i>
+                            {drill
+                              ? "Asked as a question of its own, like every other card."
+                              : "Only ever used to fill a blank in another card."}
+                          </i>
+                        </span>
+                      </label>
+                    </>
+                  ) : (
+                    <Help>
+                      Leave this unless the card is a word other cards borrow — a name, a
+                      number, a colour.
+                    </Help>
+                  )}
+                </>
+              )}
             </div>
           )}
-
-          <div className="at-formblock at-mt5">
-            <div className="at-formhead">
-              <span className="at-formnum">Decks</span>
-            </div>
-            {/* The note is hidden rather than removed: cards that already
-                carry one keep it, and it still saves, so nothing is lost if
-                the field comes back. */}
-            <div className="at-field">
-              <Help>
-                {(decks || []).length
-                  ? "Tick every deck this card should belong in. Students only see the card if it's in a deck used in their course."
-                  : "You have no decks yet. Make one under Decks, then this card can go in it."}
-              </Help>
-              <CheckList
-                options={(decks || []).map((d) => ({
-                  id: d.id,
-                  title: d.title,
-                  note: plural(d.cardCount || 0, "card"),
-                }))}
-                chosen={chosen}
-                onToggle={(id, on) =>
-                  setChosen((x) => (on ? x.filter((y) => y !== id) : x.concat([id])))
-                }
-              />
-            </div>
-          </div>
 
           {!scene && (
             <WordsUsed
@@ -5940,7 +6581,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, decks: inDecks, uses, fills, drill, scene: written }) =>
+        onSave={({ forms, note, name, decks: inDecks, uses, fills, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5984,6 +6625,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                         clips: main.clips || [],
                         slowClips: main.slowClips || [],
                         note: note.trim(),
+                        /* What to call it in a list, where its own words do
+                           not name it — a verb saved as the form a
+                           dictionary lists. Empty on every other card. */
+                        name,
                         uses,
                         /* Which variable it fills, and whether it is a
                            question of its own. A conversation is neither:
@@ -6115,6 +6760,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               match={(c, q) =>
                 (c.ar || "").toLowerCase().includes(q) ||
                 (c.en || "").toLowerCase().includes(q) ||
+                /* And what it is called, where it has a name of its own:
+                   a verb listed as "to eat" is looked for under that. */
+                (c.name || "").toLowerCase().includes(q) ||
                 linesOf(c).some(
                   (l: any) =>
                     (l.ar || "").toLowerCase().includes(q) ||
@@ -6710,6 +7358,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   (c.ar || "").toLowerCase().includes(q) ||
                   (c.en || "").toLowerCase().includes(q) ||
                   (c.lat || "").toLowerCase().includes(q) ||
+                  /* And what it is called, where it has a name of its own:
+                     a verb listed as "to eat" is looked for under that. */
+                  (c.name || "").toLowerCase().includes(q) ||
                   linesOf(c).some(
                     (l: any) =>
                       (l.ar || "").toLowerCase().includes(q) ||

@@ -399,6 +399,49 @@ export function openTypes(types: string[], stateOf: (type: string) => ExerciseSt
   return out;
 }
 
+/**
+ * How far up the ladder a form has actually climbed.
+ *
+ * openTypes answers "what may this be asked", which is the session's
+ * question. This answers "how much of this does the learner know", which is
+ * the question a card standing inside somebody else's sentence has to
+ * answer: a name filling a hole in a phrase is read, or written, by
+ * whoever is answering the phrase, so it has to be at least as far along as
+ * the phrase is being asked.
+ *
+ * The same test openTypes makes on its way up, asked about one level rather
+ * than returned as a list — including that a level the form has no material
+ * for is passed straight through, so a word with no recording is not held
+ * back from a level it has nothing standing on.
+ *
+ * With one addition openTypes has no use for: **a form nobody has answered
+ * has reached nothing.** Level one is open on every card from the day it
+ * arrives, which is a fact about the ladder rather than about the learner,
+ * and reading it as knowledge is exactly how a word nobody has met ends up
+ * inside a sentence somebody is being asked to write.
+ */
+export function reachedLevel(
+  types: string[],
+  stateOf: (type: string) => ExerciseState | null | undefined,
+  level: number,
+): boolean {
+  const met = types.some((t) => {
+    const s = stateOf(t);
+    return !!s && s.phase !== "new";
+  });
+  if (!met) return false;
+  /* The bar this level asks of everything under it, which is the bar
+     openTypes reads off the level itself — barAfterLevel(level - 1) is
+     LEVEL_BARS[level], named from the other end. */
+  const bar = barAfterLevel(level - 1) === "graduated" ? graduated : mastered;
+  return types
+    .filter((t) => levelOf(t) < level)
+    .every((t) => {
+      const s = stateOf(t);
+      return !!s && bar(s);
+    });
+}
+
 /* ------------------------------------------------------------------
    Room for what is new
    ------------------------------------------------------------------ */

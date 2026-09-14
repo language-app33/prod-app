@@ -108,8 +108,10 @@ const ALLOWED_SCRIPT = {
   ArabicTrainer: ["الشكل"],
   /* The wordmark on the first screen: "vocabulary". */
   spaces: ["مُفْرَدات"],
-  /* Specimens, which are the point of a gallery. */
-  gallery: ["كِتَاب", "كُتُب"],
+  /* Specimens, which are the point of a gallery. The third is the he-past
+     of "to eat" — the form a dictionary lists a verb under, which is what a
+     card with a name of its own is named instead of. */
+  gallery: ["كِتَاب", "كُتُب", "أكل"],
   /* Examples of what each element holds, which are the point of the list. */
   "screen-elements": ["كِتاب", "الكتاب كبير", "كُتُب", "السَّلامُ عَلَيْكُم"],
 };

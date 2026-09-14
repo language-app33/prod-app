@@ -142,6 +142,8 @@ import {
   showsOneAnswer,
   keysFor,
   answerOf,
+  levelOf,
+  TOP_LEVEL,
   typeOf,
   verbOf,
 } from "./languages.ts";
@@ -169,6 +171,7 @@ import {
   maturity,
   openTypes as openTypesOf,
   phaseCounts,
+  reachedLevel,
   reschedule,
   roomForNew,
   standing,
@@ -213,7 +216,7 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fillForm, fillsOf, hasSlots, slotsOf, valueOf, valuesForTurn } from "./variables.ts";
+import { fillForm, fillsOf, hasSlots, noteMet, refOf, slotsOf, valueOf, valuesAt, valuesForTurn } from "./variables.ts";
 import type { Value } from "./variables.ts";
 
 /*
@@ -342,6 +345,31 @@ const LEVEL_NAME: Record<number, string> = {
   3: "Write it from a cue",
   4: "Write it from its meaning",
 };
+
+/*
+ * The tiles at the top of Progress, in the order a card climbs them.
+ *
+ * Named rather than numbered. "Level 3" says where a card sits and
+ * nothing about what it is being asked to do, and six of those in a row
+ * are a bar chart with no labels — so each tile says what its level
+ * actually asks, in the same words the card's own screen uses, and wears
+ * the number underneath where it is still worth knowing.
+ *
+ * The icons are read off the exercises: a question mark for what a word
+ * means, a magnifier for picking it out of a few, a copy for writing what
+ * is already in front of you, a pen for writing it with nothing to copy.
+ * Learnt is the one that has to carry across a screen, so it gets the
+ * badge, the larger glyph and a tile of its own colour — it is what the
+ * rest of them are climbing towards.
+ */
+const LADDER_TILES: { key: string; label: string; icon: string }[] = [
+  { key: "all", label: "All cards", icon: "cards" },
+  { key: "l1", label: LEVEL_NAME[1], icon: "help" },
+  { key: "l2", label: LEVEL_NAME[2], icon: "search" },
+  { key: "l3", label: LEVEL_NAME[3], icon: "copy" },
+  { key: "l4", label: LEVEL_NAME[4], icon: "edit" },
+  { key: "done", label: "Learnt", icon: "verify" },
+];
 
 const STATUS_LABEL: Record<string, string> = {
   none: "Not started",
@@ -620,8 +648,52 @@ function setValueIndex(map: Map<string, Value[]>) {
 
 const valueKey = (langId: LangId, slot: string) => `${langId} ${slot}`;
 
-/* What each of a unit's variables can be filled with. Empty for the
-   ordinary card, which has no holes in it and never looks. */
+/*
+ * And how far the learner has got with each of them.
+ *
+ * A number is how far up its own ladder a value has climbed; null is a
+ * value that has no ladder — one the teacher marked as not practised on
+ * its own, which is never dealt and so can never climb anything. Which of
+ * the two it is decides how a hole is gated; the rule itself is valuesAt,
+ * in variables.ts, and this is only where the answer is looked up.
+ *
+ * Beside the index rather than inside the Value, because a Value is the
+ * words a card lends and travels into the question itself — how far the
+ * learner has got with it is a fact about them, not about the sentence.
+ */
+let VALUE_REACH: Map<string, number | null> = new Map();
+
+function setValueReach(map: Map<string, number | null>) {
+  VALUE_REACH = map || new Map();
+}
+
+/* What a value has climbed, for valuesAt. A value nothing knows about
+   reads as unmet rather than as met: the whole point of the gate is that a
+   word nobody has answered is not one to put in front of somebody. */
+const reachOfValue = (value: Value): number | null => {
+  const ref = refOf(value);
+  return VALUE_REACH.has(ref) ? (VALUE_REACH.get(ref) as number | null) : 0;
+};
+
+/* Whether a frame has to keep a record of having met a value — only the
+   ones with no ladder of their own to read instead. Everything else is
+   gated on its own progress and needs nothing written down. */
+const needsMetRecord = (ref: string): boolean => VALUE_REACH.get(ref) === null;
+
+/*
+ * What each of a unit's variables can be filled with. Empty for the
+ * ordinary card, which has no holes in it and never looks.
+ *
+ * Everything the slot could take, whatever the learner has met: this is the
+ * card-level fact — has this hole got anything at all to put in it — that
+ * unmetNeeds reports and availableTypes reads. What a *question* may use is
+ * fillsAt below, which is narrower and depends on the level being asked.
+ *
+ * The two are kept apart deliberately. Which exercises a card supports must
+ * not depend on how far the learner has got with somebody else's card, or
+ * the ladder would be reading itself: openTypes is built on availableTypes,
+ * so a pool that shrank as levels opened would change what the levels were.
+ */
 function fillsFor(unit: Form, langId?: LangId): Record<string, Value[]> {
   const slots = slotsOf(unit);
   if (!slots.length) return {};
@@ -629,6 +701,45 @@ function fillsFor(unit: Form, langId?: LangId): Record<string, Value[]> {
   const out: Record<string, Value[]> = {};
   for (const slot of slots) out[slot] = VALUE_INDEX.get(valueKey(id, slot)) || [];
   return out;
+}
+
+/*
+ * And of those, the ones this question may actually be filled with.
+ *
+ * A hole is filled from what the learner is at least as far along with as
+ * the question is asking — see valuesAt, which is where the rule and the
+ * reason for it live. Read at the level of the key being asked, so one
+ * frame draws on more of its values the further up its own ladder it goes:
+ * at the bottom it may take a word merely met, and at the top only one the
+ * learner can already write from its meaning.
+ */
+function fillsAt(unit: Form, key: string, langId?: LangId): Record<string, Value[]> {
+  const level = levelOf(key);
+  const out: Record<string, Value[]> = {};
+  for (const [slot, list] of Object.entries(fillsFor(unit, langId))) {
+    out[slot] = valuesAt(list, slot, level, reachOfValue, unit && unit.met);
+  }
+  return out;
+}
+
+/*
+ * Whether this question's holes can be filled at all.
+ *
+ * A frame whose every value is still ahead of the learner is not a question
+ * yet: there is nothing to put in it that they could read or write, and
+ * asking it anyway is what put a word nobody had met inside a sentence
+ * somebody was told to write. So the key is withheld, and comes back by
+ * itself the moment one of its values catches up.
+ *
+ * The verb's own place is not asked about. A verb card fills that out of
+ * its own table rather than from the cards, and quietUnits already decides
+ * whether the table has anything to say yet.
+ */
+function fillableAt(unit: Form, key: string, settings: Settings): boolean {
+  const slots = slotsOf(unit).filter((slot) => slot !== VERB_SLOT);
+  if (!slots.length) return true;
+  const pools = fillsAt(unit, key, langOf(settingsFor(settings, unit)).id);
+  return slots.every((slot) => (pools[slot] || []).length > 0);
 }
 
 /* ------------------------------------------------------------------
@@ -870,7 +981,18 @@ function pickContext(unit: Form, type: string) {
  * a question — canAsk refuses it, so it should never reach here — and
  * leaving {{name}} standing is a visible bug rather than a silent gap.
  */
-function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null, type: string) {
+function castFill(
+  resolved: { unit: Form, parent: Item, isSub: boolean } | null,
+  type: string,
+  /*
+   * A teacher trying one of their own exercises out, which is not somebody
+   * learning: the card is their material rather than anything this device
+   * has progress on, so there is no "how far along are they" to read and
+   * every value stands. Gating it would show a teacher {{name}} and call it
+   * a preview of the question.
+   */
+  preview = false,
+) {
   if (!resolved) return resolved;
   const slots = slotsOf(resolved.unit);
   if (!slots.length) return resolved;
@@ -879,7 +1001,8 @@ function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null,
      the card's own table, by whatever fills the subject. So it is left out
      of the draw and put back below. */
   const drawn = slots.filter((slot) => slot !== VERB_SLOT);
-  const took = valuesForTurn(drawn, fillsFor(resolved.unit), seen);
+  const pool = preview ? fillsFor(resolved.unit) : fillsAt(resolved.unit, type);
+  const took = valuesForTurn(drawn, pool, seen);
   if (!took) return resolved;
   if (slots.length !== drawn.length) {
     const agreed = verbValue(resolved, took);
@@ -1226,6 +1349,26 @@ function laddered(it: Form, settings: Settings): string[] {
     .flatMap((t) => keysFor(it, t));
 }
 
+/*
+ * And of those, the ones that can actually be put to somebody right now.
+ *
+ * The ladder says which levels a form has reached; this takes away the ones
+ * whose holes there is nothing to fill with yet — see fillableAt. An
+ * ordinary card leaves no hole and keeps all of them, which is nearly every
+ * card.
+ *
+ * Kept apart from openTypes rather than folded into it, because the two
+ * answer different questions and the difference matters to everything that
+ * counts. A level withheld for want of a value is not a level the card has
+ * failed to reach: it is the card's, and it is waiting on the learner's
+ * vocabulary rather than on this card's own progress. So the ladder, the
+ * standing a screen shows and how mature a card counts as all go on reading
+ * openTypes, and only what a session may *deal* reads this.
+ */
+function askableTypes(unit: Form, settings: Settings): string[] {
+  return openTypes(unit, settings).filter((t) => fillableAt(unit, t, settings));
+}
+
 function openTypes(it: Form, settings: Settings): string[] {
   /* The levels are read over everything the card supports and the learner
      has switched on, and only then is the quiet window applied: a
@@ -1461,13 +1604,17 @@ function buildSession({
        have every card in the deck due at once. */
     const dues: number[] = [];
     for (const { unit } of units) {
-      for (const t of openTypes(unit, settings)) dues.push(stateOf(unit, t).due || 0);
+      for (const t of askableTypes(unit, settings)) dues.push(stateOf(unit, t).due || 0);
     }
+    /* Askable rather than merely open, so a frame with nothing to fill it
+       yet is not counted as waiting: it would be picked, admitted against
+       the room for new cards, and then deal no question at all — a new
+       card's place spent on a card that cannot be asked. */
     const ready = units.some(({ unit }) =>
-      openTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
     );
     const isNew = units.every(({ unit }) =>
-      openTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
+      askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
     return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew };
   });
@@ -1782,7 +1929,7 @@ function sceneUnmet(card: Item) {
  * only when those had been answered into the future.
  */
 function pickableTypes(unit: Form, settings: Settings) {
-  const types = openTypes(unit, settings);
+  const types = askableTypes(unit, settings);
   const fresh = types.every((t) => stateOf(unit, t).phase === "new");
   return inOrder(types, (t) => {
     const ready = stateReady(stateOf(unit, t)) ? 0 : 2;
@@ -1834,7 +1981,14 @@ function buildManualSession({ items, settings, ids, mode, count }: {
   const minTypes = mode === "started" ? 1 : 2;
   if (allowed.size < minTypes) return { exercises: [], reason: "no-variety" };
 
-  const pool = items.filter((i) => chosen.has(i.id) && settings.kinds[i.kind || ""]);
+  /* A value is not one of them, however it was chosen. "Raphael" is in the
+     deck to fill somebody else's sentence, and "what does Raphael mean" is
+     not a question — which a dealt session has always honoured, through
+     isDrillable, and this one never did: picking the deck a frame lives in
+     drilled its names as cards in their own right. */
+  const pool = items.filter(
+    (i) => chosen.has(i.id) && settings.kinds[i.kind || ""] && i.drill !== false
+  );
   const perUnit = Math.max(2, settings.perItem);
   const plans: Question[] = [];
   const learnt = [];
@@ -1848,7 +2002,11 @@ function buildManualSession({ items, settings, ids, mode, count }: {
     openTypesOf(
       supportedFor(unit).flatMap((t) => keysFor(unit, t)),
       (k) => statesOf(unit)[k],
-    );
+    )
+      /* And, as a dealt session does, only the ones whose holes can be
+         filled with something the learner has met — see fillableAt. A
+         frame is chosen by hand the same way it is dealt. */
+      .filter((k) => fillableAt(unit, k, settings));
   /* Every exercise the chosen forms support between them, for the
      variety rule below. */
   const offered: Set<string> = new Set();
@@ -4693,6 +4851,45 @@ export default function ArabicTrainer() {
   }, [asking, settings.language]);
   setValueIndex(valueIndex);
 
+  /*
+   * And how far the learner has got with each of them.
+   *
+   * Only the cards that fill something, so this is a walk over the values
+   * rather than over the deck. A value that is drilled on its own carries a
+   * number — the highest level it has climbed to, by the same test the
+   * ladder makes — and a value that is not carries null, because it is
+   * never dealt and has no ladder to read. What each of those means for a
+   * hole is valuesAt's business, not this one's.
+   */
+  const valueReach = useMemo(() => {
+    const map: Map<string, number | null> = new Map();
+    for (const it of asking) {
+      const langId = langIdOf(it, settings);
+      if (!fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings))).length) continue;
+      const ref = refOf(valueOf(it));
+      if (!ref) continue;
+      if (!isDrillable(it, settings)) {
+        map.set(ref, null);
+        continue;
+      }
+      /* Read off the card's own form, which is the word a hole borrows.
+         Highest first, so the answer is the furthest it has got rather
+         than the first level that happens to be clear. */
+      const keys = laddered(it, settings);
+      const stateAt = (key: string) => statesOf(it)[key];
+      let climbed = 0;
+      for (let level = TOP_LEVEL; level >= 1; level--) {
+        if (reachedLevel(keys, stateAt, level)) {
+          climbed = level;
+          break;
+        }
+      }
+      map.set(ref, climbed);
+    }
+    return map;
+  }, [asking, settings]);
+  setValueReach(valueReach);
+
   /* And how many words each language has to pair against. */
   const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
   setMateCounts(mateCounts);
@@ -5179,7 +5376,10 @@ export default function ArabicTrainer() {
      words it writes. */
   const resolved = exercise
     ? castMeaning(
-        castAnswer(castFill(resolveUnit(asking, exercise), exercise.type), exercise.type),
+        castAnswer(
+          castFill(resolveUnit(asking, exercise), exercise.type, !!(session && session.trial)),
+          exercise.type
+        ),
         exercise.type
       )
     : null;
@@ -5663,6 +5863,11 @@ export default function ArabicTrainer() {
     } else {
       marks.push({ id: parentItem.id, subId: exercise.subId || null, rating, correct: !!correct, advance: !practice });
     }
+    /* What the question on screen was filled with, as the frame records it.
+       Read off the cast form here rather than inside the loop, because the
+       grid marks several cards off one question and only the one being
+       asked was the frame. */
+    const filledWith = (item as Record<string, any>).filled as Record<string, string> | undefined;
     persist((cur) => {
       const next = { ...cur, items: cur.items.slice(), log: { ...cur.log } };
       let any = false;
@@ -5699,16 +5904,39 @@ export default function ArabicTrainer() {
         s.hist = (s.hist || []).concat([mark.correct ? 1 : 0]).slice(-6);
         s.updated = now();
 
+        /*
+         * And which of its values this frame has now been met with.
+         *
+         * Written from what the question was actually filled with — fillForm
+         * records that on the form it casts — rather than by working the
+         * values out a second time, which would read a turn count this very
+         * grading is about to move.
+         *
+         * Only for the values that have no ladder of their own: everything
+         * else is gated on its own progress and needs nothing written down,
+         * which is what keeps this small on a frame that draws on the whole
+         * vocabulary. And on any answer rather than only a right one — the
+         * question is whether the learner has seen the word, and getting it
+         * wrong is still having seen it.
+         */
+        const met = noteMet(target.met, filledWith, levelOf(exercise.type), needsMetRecord);
+        const alsoMet = met ? { met } : null;
+
         if (mark.subId && (it.subs || []).some((x) => x.id === mark.subId)) {
           it.subs = (it.subs || []).map((x) =>
-            x.id === mark.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
+            x.id === mark.subId
+              ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
+              : x
           );
         } else if (mark.subId) {
           it.lines = linesOf(it).map((x) =>
-            x.id === mark.subId ? { ...x, s: { ...x.s, [exercise.type]: s }, updated: now() } : x
+            x.id === mark.subId
+              ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
+              : x
           );
         } else {
           it.s = { ...it.s, [exercise.type]: s };
+          if (alsoMet) it.met = alsoMet.met;
         }
         it.updated = now();
         next.items[idx] = it;
@@ -9322,8 +9550,8 @@ function ProgressTab({ items, myCourses = [], settings }: {
   /* One tile per level, and one for the cards with nothing above them left
      to open. A card counts under the level it is on — see `standing` — so
      the tiles are a picture of where the deck actually is, rather than of
-     how long its intervals happen to be. */
-  const buckets = ["l1", "l2", "l3", "l4", "done"];
+     how long its intervals happen to be. The tiles themselves, with what
+     each is called and drawn as, are LADDER_TILES. */
   /* The cards behind each number, worked out once with the numbers
      themselves: a tile opens to show them, and counting them twice — once
      to say four hundred and once to list them — is a walk of every card
@@ -9345,67 +9573,110 @@ function ProgressTab({ items, myCourses = [], settings }: {
      rather than read. */
   const [showing, setShowing] = useState<string>("");
 
+  /*
+   * How far each deck is from being learnt outright.
+   *
+   * A deck is a tag on a card, which is how a deck reaches this side of
+   * the app — so the decks being studied are simply the ones the cards in
+   * view belong to, and the language switch has already had its say by the
+   * time they get here. A card in two decks counts in both, which is the
+   * only honest answer to "how far along is this deck".
+   *
+   * Learnt, rather than any of the four levels, because that is the one
+   * that means finished: nothing left to open. It is the same set of cards
+   * the Learnt tile above counts, cut by deck.
+   */
+  const deckRows = useMemo(() => {
+    const held: Map<string, { n: number; learnt: number }> = new Map();
+    for (const it of items) {
+      const at = progressOf.get(it.id);
+      /* The same exclusion the tiles make: a card with nothing it can be
+         asked is on no level, so it is not progress to be short of. */
+      if (!at) continue;
+      for (const deck of it.tags || []) {
+        const row = held.get(deck) || { n: 0, learnt: 0 };
+        row.n++;
+        if (at.status === "done") row.learnt++;
+        held.set(deck, row);
+      }
+    }
+    return [...held.entries()]
+      .map(([name, { n, learnt }]) => ({
+        name,
+        n,
+        learnt,
+        /* Rounded down, and held at 99 until every card is in: 199 of 200
+           is not a finished deck, and a tile reading 100% over a card
+           still to learn is the one number here nobody could trust
+           again. */
+        pct: n === 0 ? 0 : learnt === n ? 100 : Math.min(99, Math.floor((learnt / n) * 100)),
+      }))
+      .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
+  }, [items, progressOf]);
+
   return (
     <>
-      <Help>
-        Where your cards are on the ladder. A card climbs four levels — what it means, which word
-        it is, writing it from a cue, then writing it from its meaning alone — and moves up when
-        everything under it is solid. Open a tile to see which cards are there.
-      </Help>
+      <Section
+        title="The ladder"
+        lede="Where your cards are. A card climbs four levels and moves up when everything under it is solid — open a tile to see which cards are there."
+      >
 
       {/* A number you want to see the cards behind is a number worth
           pressing. Buttons rather than divs with a click on them: there is
           nothing interactive inside a tile, so it can be the one thing you
-          press and the one thing a keyboard reaches. */}
-      <div className="at-stats tight">
-        {[
-          { key: "all", label: "Cards" },
-          ...buckets.map((b) => ({
-            key: b,
-            label: b === "done" ? "Learnt" : `Level ${b.slice(1)}`,
-          })),
-        ].map(
-          ({ key, label }) => (
+          press and the one thing a keyboard reaches.
+
+          Six of these used to share one row, which on a phone is three
+          columns of eight-point capitals — a row of numbers with their
+          captions too small to read, on the screen whose whole job is
+          saying where you are. They are the size of something worth
+          looking at now, and each says what its level actually asks rather
+          than what number it happens to be. */}
+      <div className="at-rungs">
+        {LADDER_TILES.map(({ key, label, icon }) => {
+          const count = byBucket[key].length;
+          const tone =
+            key === "all" ? "var(--text)" : key === "done" ? "var(--jade)" : LEVEL_COLOR[Number(key.slice(1))];
+          return (
             <button
               type="button"
-              className={`at-stat${showing === key ? " on" : ""}`}
+              className={`at-rung${key === "done" ? " learnt" : ""}`}
               key={key}
-              aria-expanded={showing === key}
-              aria-label={`${byBucket[key].length} ${label} — ${
-                showing === key ? "hide them" : "show them"
-              }`}
-              disabled={!byBucket[key].length}
-              onClick={() => setShowing((v) => (v === key ? "" : key))}
+              /* A screen, not a section opening underneath: the list of
+                 cards is the thing you came for, and it is worth the whole
+                 window rather than a strip under a grid you then have to
+                 scroll back up past. */
+              aria-haspopup="dialog"
+              aria-label={`${count} ${label} — see them`}
+              disabled={!count}
+              onClick={() => setShowing(key)}
             >
-              <b
-                style={{
-                  color:
-                    key === "all"
-                      ? "var(--text)"
-                      : key === "done"
-                      ? "var(--jade)"
-                      : LEVEL_COLOR[Number(key.slice(1))],
-                }}
-              >
-                {byBucket[key].length}
-              </b>
-              <span>{label}</span>
+              <span className="at-rungicon" style={{ color: tone }}>
+                <Icon name={icon} size={key === "done" ? 20 : 18} />
+              </span>
+              <b style={{ color: tone }}>{count}</b>
+              <span className="at-rungname">{label}</span>
+              {/^l\d$/.test(key) && <span className="at-rungstep">Level {key.slice(1)}</span>}
             </button>
-          ),
-        )}
+          );
+        })}
       </div>
 
-      {/* The cards behind the tile that is open, at the smallest size they
-          come in — the point is to see which words are in there, and the
-          list is as long as the number on the tile said it would be.
+      {/* The cards behind the tile that was pressed, on a screen of their
+          own.
 
-          This is the whole of the screen below the tiles now. It used to
-          be followed by every deck as a collapsible section, each with its
-          own bar and its own copy of every card in it, so a card appeared
-          once per deck it was in and again under whichever tile was open.
-          Three views of the same cards, and the tiles are the one that
-          answers the question this screen is for. */}
+          They used to open as a strip underneath the grid, which put a
+          list of any length between the tiles and everything below them:
+          reading it meant scrolling past the tiles, and getting back meant
+          scrolling up to find the one that was open and pressing it again.
+          A list of cards is what you came for, so it gets the window — and
+          leaving it is Back, which is the same way out as every other
+          screen in the app. */}
       {showing && byBucket[showing].length > 0 && (
+        <Screen
+          title={LADDER_TILES.find((t) => t.key === showing)?.label || "Cards"}
+          onBack={() => setShowing("")}
+        >
         <ItemList
           noun="card"
           items={byBucket[showing]}
@@ -9441,6 +9712,41 @@ function ProgressTab({ items, myCourses = [], settings }: {
             />
           )}
         />
+        </Screen>
+      )}
+      </Section>
+
+      {/* ---- the decks, as how far each one is from finished ----
+
+          The ladder above says where the cards are; this says where the
+          decks are, which is the question somebody working through a
+          course actually has. A percentage rather than a count because a
+          deck of thirty and a deck of three hundred are not comparable by
+          how many are left, and a bar beside it because a number alone is
+          read and a bar is seen. */}
+      {deckRows.length > 0 && (
+        <Section title="Decks" lede="How much of each is learnt outright — every card in it with nothing left to open.">
+          <div className="at-deckprog">
+            {deckRows.map((d) => (
+              <div className={`at-deckstat${d.pct === 100 ? " done" : ""}`} key={d.name}>
+                <p className="at-deckstatname">{d.name}</p>
+                <b>
+                  {d.pct}
+                  <i>%</i>
+                </b>
+                {/* The bar is the number again, so it is told to a screen
+                    reader once: the row says it in words, the bar is
+                    drawing. */}
+                <span className="at-deckbar" aria-hidden="true">
+                  <span style={{ width: `${d.pct}%` }} />
+                </span>
+                <p className="at-deckstatnote">
+                  {d.learnt} of {plural(d.n, "card")} learnt
+                </p>
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
 
       {items.length === 0 && (

@@ -25,6 +25,7 @@ import {
   cellsOf,
   citationOf,
   citedCell,
+  citedWord,
   colOf,
   framesOf,
   isCell,
@@ -375,4 +376,47 @@ test("the cited cell is open from the start, whatever row it sits in", () => {
      every cell of the past is mastered, the cited one included. */
   const done = new Set(["present"]);
   assert.deepEqual(openRows(toEat, arabic, (c) => done.has(rowOf(c))), ["present", "past"]);
+});
+
+/* --- the card's own word, off the cell that stands in for it ---
+
+   Where a language cites a cell, the editor stops asking for the card's
+   word a second time and reads it off the table. The card is still saved
+   with a word of its own — the face every list shows, what a search
+   matches — so where that word comes from is worth pinning down. */
+
+test("the cited cell becomes the card's own word", () => {
+  const own = { ar: "", en: "", lat: "", clips: [], slowClips: [], number: "singular" };
+  const word = citedWord(own, must(citedCell(toEat, arabic), "the cited cell"));
+  assert.equal(word.ar, "أكل");
+  assert.equal(word.en, "he ate");
+  /* Everything that is a fact about the card rather than about the cell
+     stays: a cell knows a word, not which deck it is in. */
+  assert.equal(word.number, "singular");
+});
+
+test("an empty cell leaves an empty word, not the last one typed", () => {
+  /* Which is what lets the editor refuse a verb whose dictionary form has
+     been left blank, rather than quietly saving a card labelled with a
+     word no cell holds. */
+  const own = { ar: "أكل", en: "to eat", lat: "akal", clips: [], slowClips: [] };
+  assert.deepEqual(
+    { ar: citedWord(own, null).ar, en: citedWord(own, null).en, lat: citedWord(own, null).lat },
+    { ar: "", en: "", lat: "" },
+  );
+});
+
+test("the recordings travel with the word, so the card's face can be heard", () => {
+  const heard = { row: "past", col: "he", ar: "أكل", en: "he ate", lat: "akal", clips: ["c1"], slowClips: ["c2"] };
+  const word = citedWord({ ar: "", en: "", lat: "", clips: [], slowClips: [] }, heard);
+  assert.deepEqual(word.clips, ["c1"]);
+  assert.deepEqual(word.slowClips, ["c2"]);
+});
+
+test("a language that cites nothing has no cell to take a word from", () => {
+  /* Huế cites the bare verb, which is a word and not a cell — so its card
+     keeps the block the other two no longer show, and citedWord is never
+     reached. The guard is citationOf, and this is what it answers. */
+  assert.equal(citationOf(viet), null);
+  assert.deepEqual(citationOf(arabic), { row: "past", col: "he" });
 });

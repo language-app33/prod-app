@@ -492,3 +492,123 @@ the grader, the quiet window — goes through `typeOf` first. That is a
 handful of call sites and one rule to remember when adding another. The
 alternative was the restructure, and the suffix is the cheaper of the two
 by a long way.
+
+---
+
+## The editor's three kinds are not the four stored kinds
+
+**14 September 2026** · `shapeOf`/`shapeChoices` in `src/spaces.tsx`,
+`isVerb` in `src/verbs.ts`
+
+There is no `verb` in `CARD_KINDS`, and there is a **Verb** button in the card
+editor. That is deliberate, and this entry is here because the reasoning for
+the opposite is on the record — the release before this one shipped the verb
+question as a tick beside the kind of card, arguing that "a verb is not a
+third kind of card: it is a word, with a table as well."
+
+**The storage claim is true and is not what changed.** A card is a verb
+exactly when one of its forms carries a `row` and a `col`; `isVerb` reads the
+cells and nothing stores a flag. That is still the whole of it. The entry
+above on verb tables is the reason, and none of it moved.
+
+**The claim built on top of it did not follow.** What a teacher picks in that
+block is not the stored kind and never was: `CARD_KINDS` has four and the
+selector offers two, because word, phrase and sentence are read off the text
+rather than chosen. So there was no correspondence for a third button to
+break. The question the block asks is *what are you writing*, and the answer
+to that is three things, not two and a footnote underneath.
+
+**What the tick bought had to be kept.** It outlived the choice above it — a
+verb is usually written as a plain word and given its tenses weeks later, when
+the course reaches them — and the selector beside it was read-only once a card
+existed. So the selector is now rendered on a saved card too, with the answers
+still open to it. `Segmented` has no per-option disable, only a whole-control
+one, so an answer that is closed is absent rather than greyed; `shapeChoices`
+is the one place that decides which, and is a plain function so the rule can
+be tested without rendering a form.
+
+**Which closed one hole.** A conversation has never been allowed to stop being
+one: the turns are the card. A verb's table is the card in exactly that way,
+and the tick let it be dropped anyway — untick, save, and `subs` went up
+without the cells, which the server writes wholesale. Twenty-one cells, their
+recordings and the students' progress on them, with nothing on screen having
+said so. A saved verb is not offered the change now. The way out is to empty
+the table, which is the same act said honestly, and the editor says so.
+
+The asymmetry is the point: a saved *word* can still be called a verb, because
+that direction loses nothing. A card still being written is not held to
+anything either — nothing is saved to lose, and locking someone into a verb
+because they filled one box to see what it did is the opposite of what this
+change is for. That case gets a line counting what is at stake instead.
+
+**What it costs.** The block no longer maps onto `card.kind` at all, and
+anybody adding a kind has to know that verb-ness is derived from `subs` and
+lives only in the editor's own vocabulary — two flags underneath, three
+answers on screen, `shapeOf` and `shapeMeans` the whole of the translation.
+That vocabulary is a second way of saying what a card is, which is the kind of
+thing this codebase usually spends releases removing. It is accepted here on
+the condition that it stays in one file and never reaches storage: the save
+path still knows nothing about verbs, and `isVerb` is still the only answer to
+whether a card is one.
+
+---
+
+## A value stands in a hole only as far up as it has climbed itself
+
+**14 September 2026** · `valuesAt`/`noteMet` in `src/variables.ts`,
+`reachedLevel` in `src/scheduler.ts`, `fillsAt`/`askableTypes` in
+`src/ArabicTrainer.tsx`
+
+The variables entry above says a frame met as Raphael, then Victor, then
+Sarah is a sentence somebody can say about anyone. It was filled from every
+card that could fill it, in the order they were written, and nothing asked
+whether the learner had met any of them. With `{{word}}` — the built-in hole
+that every word in the language fills — that is the whole vocabulary, and new
+cards arrive ten at a time. So *English → script* on a frame asked for a
+sentence containing a word that had never been dealt. There is no answer to
+that question, and the card it taught nothing about was the frame.
+
+**The rule is the ladder, read about somebody else's card.** A value may fill
+a hole in a question at level N only where it has itself reached level N.
+`reachedLevel` is `openTypes`' own test asked about one level instead of
+returned as a list — including that a level a form has no material for is
+passed straight through — with one addition `openTypes` has no use for: **a
+form nobody has answered has reached nothing.** Level one is open on every
+card from the day it arrives, which is a fact about the ladder rather than
+about the learner, and reading it as knowledge is exactly how an unmet word
+got into a sentence somebody was told to write.
+
+**The two kinds of value answer differently, because only one has a ladder.**
+A drilled word is read off its own progress. A value the teacher marked as
+not practised on its own — Raphael — is never dealt, so it can never climb
+anything, and gating it on a ladder would have removed the named-variable
+feature altogether. The frame remembers instead: `met` on the form maps
+`slot:value` to the highest level it has been asked at, and a value may stand
+one level above that. It enters at the bottom, where nothing is below it to
+have been seen at, and climbs with the card that teaches it.
+
+**Only for those.** A frame on `{{word}}` would otherwise write a line per
+word in the language; everything with a ladder is gated on that and needs
+nothing stored. It is a high-water mark, so sync merges it by taking the
+further of the two — the same answer whichever device arrives first, and
+again if it arrives twice, which is all `mergeData` asks of anything.
+
+**What it costs.** *Rotated, not drawn* is weakened: the list a turn counts
+against now grows as the learner does, so the same turn on the same card can
+be a different name a month apart. Within a question nothing moves — the
+count only changes on a right answer — and a card with three values it can
+reach still meets all three before any twice. It was the smaller loss: the
+alternative is the question with no answer.
+
+And a frame can wait. Where nothing clears the bar the key is withheld rather
+than asked with something unmet, which is why `askableTypes` exists beside
+`openTypes` — the ladder, the standing a screen shows and how mature a card
+counts as all still read `openTypes`, because a level withheld for want of a
+value is not a level the card has failed to reach. Only what a session may
+*deal* reads the narrower one. It is also read where a session picks its
+candidates, so a frame that can be asked nothing does not spend one of the
+places kept for new cards while it waits.
+
+**The teacher's trial is exempt**, and has to be: a teacher trying an
+exercise out is not somebody learning, their own material carries no progress
+to read, and gating it would show them `{{name}}` and call it a preview.

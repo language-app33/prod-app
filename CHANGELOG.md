@@ -8,6 +8,350 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.123 — 14 September 2026
+
+- **A verb can be given a name to be listed under.** Arabic and Hebrew have
+  no infinitive, so a verb card is saved as the form a dictionary lists it
+  under — the he-past — and that is what every list showed: the script of
+  one cell of its table, over that cell's own meaning, *he ate*. Nothing was
+  wrong with the card. It simply had no name of its own, so it was listed
+  under one of its twenty-one boxes.
+
+  **What to call it** is a field at the top of the verb editor, above the
+  first tense, and it says what it is for: how the card is listed and
+  searched, and that nobody is ever asked it — the table is what is
+  practised. Leave it blank and nothing changes; the card is listed as it
+  was, and the field names the box it would otherwise be listed under.
+
+  In a list a named card reads as its name, with the script it is built on
+  underneath and the pronunciation under that. The dictionary form's own
+  meaning goes, because *he ate* under *to eat* reads as a correction of it.
+  The name is drawn in the interface face rather than the taught script's: it
+  is whatever was typed, and every size in the app is tuned by eye against
+  the script, so Latin left at a script size reads as the louder of the two.
+
+  It is searched, too — a verb listed as *to eat* is found under that.
+
+  Only where the table stands in for the card's own word. Huế cites the bare
+  verb, which is a word and not a box, so there the card is named by it and
+  no field is offered.
+
+## 0.122 — 14 September 2026
+
+- **The kind of card ran off the side of the screen.** Adding *Verb* beside
+  *Word or phrase* and *Conversation* put three options on a track that
+  sizes every one of them to the longest label and never wraps — so it came
+  to three times the width of *Word or phrase*, which is wider than any
+  phone. Two of them fitted; the third is what pushed it over the edge.
+
+  It is on the full-width track now, the one the language picker in a course
+  already uses for exactly this reason: the options share the width there
+  is, the type steps down with them, and where even that will not fit the
+  last one keeps its label whole and takes the next line down, with the
+  track wrapping around both so it still reads as one control rather than
+  as buttons that came apart.
+
+## 0.121 — 14 September 2026
+
+- **A blank is now filled with a word you have got as far with as the
+  question is asking.** A card with a gap in it — *My name is ___*, *I like
+  ___* — was filled from every card that could fill it, in the order they
+  were written, whatever the learner had met. So *English → script* on a
+  frame could ask somebody to write a sentence containing a word they had
+  never been shown. That is not a hard question, it is one with no answer,
+  and the only thing it taught was that the card was impossible.
+
+  The rule is the plain one: to stand in a question, a word has to be as far
+  up its own ladder as the question is. To fill a gap in *what does this
+  mean*, it has to be a word that has been met at all; to fill one in *write
+  it from its meaning*, it has to be a word that can already be written from
+  its meaning. The same sentence twice, which is the point of it.
+
+- **A name that is never practised on its own is read off the card that
+  teaches it.** Raphael is in the deck to be borrowed, not to be asked
+  about, so it has no progress anywhere to look at and never will. For those
+  the card itself remembers: a name may stand one level above the highest it
+  has already been seen at, so it comes in at the bottom of the ladder and
+  climbs with the sentence that introduces it. Remembered on any answer,
+  right or wrong — the question is whether you have seen the word.
+
+- **And a question that cannot be filled is not asked at all.** A frame
+  whose every value is still ahead of you waits, rather than being asked
+  with something you have never seen. It comes back by itself the moment one
+  of them catches up, and it no longer takes up one of the places a session
+  keeps for new cards while it waits.
+
+- **A fix underneath it.** A session built by hand drilled the names that
+  fill a frame as though they were cards in their own right — pick the deck
+  a frame lives in and you were asked what Raphael means, which is the one
+  question "practised on its own" is switched off to prevent. A dealt
+  session has always known better; the hand-built one never asked.
+
+- **Nothing about the teacher's trial changes.** Trying an exercise out on
+  your own card fills it from everything, as it did: a teacher is not
+  somebody learning, and their material carries no progress to read.
+
+## 0.120 — 14 September 2026
+
+- **A card is a word or phrase, a verb, or a conversation — three answers to
+  one question.** *This is a verb* was a tick sitting under the kind of card,
+  so the one question about what a card is was asked in two controls stacked
+  on each other: pick a kind, then answer a footnote underneath it. It is the
+  third answer now.
+
+  The reasoning it replaces was that a verb is not a third kind of card but a
+  word with a table as well. That is true of what is stored, and it is still
+  true — nothing saved knows the word *verb*, and a card is one exactly when
+  its forms carry a table. It was never true of the question a teacher is
+  answering, which is what to write.
+
+- **And it is still asked of a card you wrote weeks ago.** What the tick had
+  over the selector above it was that it outlived the choice: a verb is
+  usually written as a plain word and given its tenses when the course
+  reaches them. So a written card is asked the same question and offered the
+  answers still open to it — *Word or phrase* and *Verb*, without the
+  *Conversation* it can no longer become. Calling a word a verb still moves
+  it into the box a dictionary lists it under, with its recordings, and a
+  form the card already had stays on screen either way.
+
+- **A verb with a table is now told what it is, rather than offered a change
+  that threw the table away.** Untick *This is a verb* on a saved verb, press
+  Save, and every box of it went — the words, their recordings, and whatever
+  your students had learnt of them — with nothing on screen having said so.
+  A conversation has never been allowed to stop being one, for the same
+  reason: the turns are the card. A verb's table is the card in just that
+  way, so it is not offered either, and the editor says what it is and how to
+  undo it — empty the table and it is a word again.
+
+  On a card you are still writing the table can be put aside, because nothing
+  has been saved to lose. There the editor counts what is at stake instead:
+  *Its table is put aside — 3 boxes filled in.*
+
+- **And a verb can no longer become a conversation with its table still on
+  it.** Choosing one answer now clears the other, so a scene can't be saved
+  carrying cells that nothing would ever show again.
+
+## 0.119 — 14 September 2026
+
+- **Three ladder tiles to a row, and never more.** They were sized to wrap
+  at whatever a screen allowed, which on a phone is two and on anything
+  wider spreads six back into one long line. Six tiles are two tidy rows of
+  three, so that is what they are, at the size three of them fit — two only
+  on a screen narrower than any phone worth designing for.
+
+- **A level's cards open on a screen of their own.** They used to appear as
+  a strip underneath the tiles, which put a list of any length between the
+  tiles and everything below them: reading it meant scrolling past the
+  tiles, and getting back meant scrolling up to find the one that was open
+  and pressing it again. The list is what you pressed the tile for, so it
+  gets the window, and Back is the way out — the same way out as every
+  other screen in the app.
+
+## 0.118 — 14 September 2026
+
+- **Progress has two sections now: the ladder, and your decks.** What was
+  there is the first of them; the second is new.
+
+- **The ladder's tiles say what a level asks, not what number it is.** Six
+  of them shared one row, which on a phone is three columns of eight-point
+  capitals — a row of numbers with captions too small to read, on the
+  screen whose whole job is saying where you are. They are twice the size,
+  they wrap rather than squeeze, and each one is named: **What it means**,
+  **Which word it is**, **Write it from a cue**, **Write it from its
+  meaning** — the same words a card's own screen uses — with the level
+  number underneath where it is still worth knowing.
+
+  Each carries a drawing of what it asks: a question mark for what a word
+  means, a magnifier for picking it out, a copy for writing what is already
+  in front of you, a pen for writing it with nothing to copy. **Learnt**
+  gets a badge, a larger mark and a tile of its own colour, because it is
+  the one the other five are climbing towards.
+
+- **And a Decks section, one tile per deck you are studying.** A large
+  percentage of how much of it is learnt outright — every card in it with
+  nothing left to open — with a bar beside it and the count it came from.
+  A deck of thirty and a deck of three hundred are not comparable by how
+  many cards are left, which is why it is a proportion.
+
+  The figure is rounded down and held at 99% until the last card is in: a
+  tile reading 100% over a card still to learn is the one number here
+  nobody would trust again. A finished deck reads in the same colour as
+  Learnt. What the language switch is showing decides which decks appear,
+  like everything else in Learning.
+
+## 0.117 — 14 September 2026
+
+**Variables are now Blanks, and you no longer type them.**
+
+- **A button writes the blank, into every field at once.** A card with a
+  gap in it — *My name is ___* — needed <code>{{name}}</code> typed by hand
+  into the script, the English and the pronunciation, and getting one of
+  them wrong was the error the section spent its longest sentence
+  explaining. **+ Blank** writes all three together, so they cannot
+  disagree. Everything else here follows from that.
+
+- **Blanks are chosen from a list, never spelled.** The old box was free
+  text, and it held the editor's only silent failure: typing *names* where
+  every other card says *name* was accepted, saved, and filled nothing for
+  ever, with nothing on screen to notice. The list shows the blanks this
+  language already uses and what each is worth — how many words fill it,
+  how many cards leave it — so a near miss is visible before it is made.
+  Naming a new one is still there, for the first of its kind.
+
+- **The section shows the sentences a student will actually be asked.**
+  Three of them, filled with the words that exist today. Two paragraphs
+  explaining what a variable is have gone: the sentences do it better, and
+  a blank with nothing to fill it shows as an empty preview and says so.
+
+- **One job at a time.** A card that leaves a blank and a card that fills
+  somebody else's are opposite jobs, and both were shown to everybody. Now
+  only the one that applies is on screen.
+
+- **<code>{{word}}</code> is a row in the list, not a paragraph.** It is
+  the blank every word in the language fills without being told to, which
+  is worth knowing exactly when you are choosing a blank and nowhere else.
+
+- **"Practised on its own" is a tick, under the blank it belongs to.** It
+  was a third field standing on its own, asked of every card; it is only
+  ever a question for a card that fills a blank.
+
+- **A fix underneath all of it.** The accepted-answer rows read the card
+  once when the editor opened and never again — invisible while typing was
+  the only thing that ever changed them. It is not any more, so they now
+  follow a change made anywhere else; without it the button would have
+  written to the card and changed nothing on screen.
+
+## 0.116 — 14 September 2026
+
+- **Which decks a card is in is now a button at the top of the editor.** It
+  was the last section on the screen — a heading, a paragraph and a tick
+  per deck — so the answer to "where does this card go?" sat several
+  hundred pixels below the question, under everything about the card's
+  words, and a teacher with twenty decks scrolled past twenty rows to reach
+  anything after it. It sits beside what kind of card this is now, because
+  both are facts about the card rather than about its words, and this one
+  decides whether a student ever sees it.
+
+  The button says where the card is — the deck's own name when it is in
+  one, how many when it is in several, **In no deck** when it is in none —
+  and opens the same list of ticks, the way the language switch in Learning
+  works. Nothing about what is saved changes.
+
+- **A verb's table no longer labels one of its boxes.** The box a
+  dictionary lists the verb under carried a gold *· the dictionary form*
+  beside its pronoun, which made one row a different width and colour from
+  the others and asked a teacher to hold a piece of grammar theory in mind
+  while typing. The table is a table. Where it matters — a verb cannot be
+  saved without that box — the editor now says **Fill in past · he, plus
+  its English**, and only while it is true.
+
+## 0.115 — 14 September 2026
+
+- **A verb is no longer offered a form outside its table.** The verb editor
+  carried a quietly-worded **Another way to say it** button where an
+  ordinary card is offered "Add a form" — on the grounds that a verb might
+  genuinely have a second spelling. Two things were wrong with it. A
+  spelling is an accepted answer, written beside the one it is an
+  alternative to, and never a form of its own; and a form added here is one
+  nothing knows the person or tense of, so it is never gated by its row and
+  never agrees with a sentence — exactly the mistake the quieter wording
+  was meant to head off. The button is gone. A verb's forms are its table.
+
+- **And pressing it did nothing.** It revealed a section rather than making
+  one, and it could only ever be on screen while there was nothing to
+  reveal — so the first press changed nothing at all and simply turned the
+  button into the "Add a form" it was standing in for.
+
+- **A form a card already has is no longer hidden when it is called a
+  verb.** Give a word a second form, then tick "This is a verb", and the
+  form vanished from the screen while still being saved with the card — so
+  the card carried something its own editor would not show. Everything the
+  card holds is on screen, whichever kind of card it is called.
+
+## 0.114 — 14 September 2026
+
+- **Writing an Arabic or Hebrew verb no longer asks for the same word
+  twice.** Neither language has an infinitive: a dictionary lists the
+  he-past, which is one of the boxes in the verb's own table. The app has
+  known that for a while — it is why that box is labelled *the dictionary
+  form*, and why the card's own word stops being drilled once the box is
+  filled — but the card editor went on showing a separate **The verb**
+  block above the table asking for the script, the pronunciation, the
+  English and the recordings all over again. Two places holding one word,
+  for the teacher to keep in step by hand. Worse, that block was headed
+  "Drilled in exercises", which by then was not true.
+
+  On those two languages the block is gone. The dictionary form's box is
+  the card: what every list shows, what a search matches, what a tile is
+  labelled, and what can be heard. The editor says so under the table, and
+  will not save a verb whose dictionary form is blank — naming the box it
+  is waiting for rather than leaving Save grey with no reason.
+
+- **A word you later call a verb moves into that box.** Tick "This is a
+  verb" on a card written weeks ago and its word lands under *he · past*,
+  with its recordings, rather than being left behind in a block that has
+  just disappeared — which is also the plainest way to learn what the
+  dictionary form is. Untick it and the word is still there. A verb
+  written before this opens the same way.
+
+- **Vietnamese is unchanged.** Huế cites the bare verb, which is a word and
+  not a box in the table, so there **The verb** is the verb and stays
+  exactly where it was.
+
+- **And every box in the table is named.** The English and the
+  pronunciation in each cell have always said which row and column they
+  belong to; the script box beside them never did, which left the field the
+  whole card is now identified by unnamed to a screen reader.
+
+## 0.113 — 14 September 2026
+
+- **A hole in a card no longer shouts over the card.** A card with a gap in
+  it — *ismi {{name}}* — is listed the way it was written, braces and all,
+  because that is what the card is. But the braces are Latin sitting in the
+  middle of the taught script, and every size in the app was set by eye
+  against Arabic, which leaves room above its letters for the marks and
+  below them for the tails. Latin fills far more of that space, so
+  `{{name}}` came out bigger and heavier than the Arabic word beside it. On
+  a card with two gaps it took both lines of the tile and pushed the Arabic
+  off the end.
+
+  A gap is now sized as the Latin it is — the same correction the meaning
+  and the pronunciation under it have always had — and set in the quieter
+  grey, because it is the shape of the card rather than a word to read. The
+  card's own words are untouched.
+
+  In a language whose script is Latin anyway, the gap is left exactly the
+  size of the words either side of it. Nothing about this changes what a
+  card says or how it is asked: a gap is still filled in before anybody is
+  asked the question.
+
+## 0.112 — 14 September 2026
+
+- **Writing الحمدلله as one word is no longer a mistake.** Where one word
+  ends and the next begins is a matter of convention in Arabic rather than
+  something you either know or don't: الحمد لله is written joined about as
+  often as it is written apart, and so are عبد الله and إن شاء الله. Typed
+  joined against a card stored apart, the answer came out one character
+  short, which was enough to land it in the near-miss band — "Very close",
+  marked wrong, and the word sent round again, with every letter of it
+  correct.
+
+  Arabic answers are now compared with the spaces taken out of both sides.
+  Nothing else about the marking changes: the same answer gets the same
+  verdict it would have got typed with its spaces in, a wrong vowel is
+  still a wrong vowel, and letters that are not the word's are still not
+  the word's. A near miss is now measured on the letters alone, so a gap
+  can neither hide a slip nor be counted as one.
+
+  The rule is one the app already applied to transliteration, where it has
+  always held that where the spaces fall is a matter of scheme and not of
+  knowing the word. It now says the same about the script that scheme
+  transliterates.
+
+- **Vietnamese is deliberately left alone.** Every syllable there is its
+  own word, so *cảm ơn* run together is not the same kind of slip and is
+  still marked as one.
+
 ## 0.111 — 14 September 2026
 
 - **"Restore this backup?" was being asked behind the screen that asked

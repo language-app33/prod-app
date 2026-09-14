@@ -194,6 +194,12 @@ One card tile for both the learner's and the teacher's lists.
 It replaced a `deckTitles` prop, which this file and the gallery both went
 on advertising for a while afterwards.
 
+A card carrying a `name` is listed under it: the name is the headline, drawn
+in the interface face rather than the taught script's, and it stands in for
+the meaning line rather than sitting above it. The script keeps its own line
+underneath. Nothing is passed for this — the tile reads it off the card —
+and only a verb whose own word is a cell of its table has one.
+
 ### `Tile` — 7 uses
 The generic deck/course tile. `title, meta, onOpen, actions, footer`
 

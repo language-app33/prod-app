@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
+import { splitSlots } from "./variables.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -743,6 +744,48 @@ export function LanguageTag({ languages, id }: {
   return <span className={`at-flag ${id ? "forms" : "flagged"}`}>{languageName(languages, id)}</span>;
 }
 
+/*
+ * A card's own words, with any holes in them drawn as holes.
+ *
+ * A frame is listed as it was written — ismi {{name}} — so the braces are
+ * on the screen, and they are Latin sitting in the middle of the taught
+ * script. Every size in the stylesheet was tuned by eye against Arabic,
+ * and Latin fills far more of its em box than Arabic does, so Latin left
+ * at a script-tuned size reads as the louder of the two. In a tile that is
+ * exactly what happened: {{name}} came out larger and heavier than the
+ * word it stood beside, and on a frame with two holes it took both lines
+ * of the tile and pushed the Arabic off the end.
+ *
+ * The correction the app already has for this is --lscale, and it is used
+ * here as a ratio rather than as a factor. --lscale applies to Latin sized
+ * from the base, as the meaning and the romanisation are; a slot is Latin
+ * sized from the *script's* em, which is already multiplied by --sscale.
+ * Dividing by --sscale takes that multiplication back out, which is what
+ * makes the rule right in a language whose script is itself Latin: in
+ * Vietnamese --lscale and --sscale are the same number, the ratio is one,
+ * and a slot stays exactly the size of the words either side of it.
+ *
+ * Not exported: it is how a card's words are drawn, not something a screen
+ * composes. Anything outside this file that needs it wants CardTile.
+ */
+function Written({ text }: { text?: string | null }) {
+  const runs = splitSlots(text);
+  if (runs.length === 1 && !runs[0].slot) return <>{runs[0].text}</>;
+  return (
+    <>
+      {runs.map((run, i) =>
+        run.slot ? (
+          <span className="at-slot" key={i}>
+            {run.text}
+          </span>
+        ) : (
+          <React.Fragment key={i}>{run.text}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
 /* --- CardTile -----------------------------------------------------
    The student's card list and the teacher's card list had their own
    tiles built from the same classes, showing different things and
@@ -803,10 +846,29 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
           sentence look like what they are, and a label on every tile is
           the small print this list was cleared of. */}
       {isDialog(card) ? <div className="at-minikind">{kindLabel(DIALOG_KIND)}</div> : null}
+      {/*
+        * A name, where the card has one, is what it is listed under.
+        *
+        * A verb in a language with no infinitive is saved as the form a
+        * dictionary lists, so a list read as "he ate" — which names one
+        * cell of its table rather than the verb. Where the teacher has said
+        * what to call it, that is the headline and the dictionary form's
+        * own meaning goes: the name is the card's meaning now, and "he ate"
+        * under "to eat" reads as a correction of it.
+        *
+        * Written in `dir="auto"` and without the script's font or sizing,
+        * because a name is whatever the teacher typed — "to eat" as often
+        * as the verbal noun in the taught script — and every size in this
+        * file is tuned by eye against it. Latin left at a script-tuned size is the bug 0.113
+        * fixed for a hole in a card; this is the same bug one field over.
+        * The script itself keeps its line underneath, so a card list does
+        * not stop showing the language.
+        */}
+      {card.name ? <div className="at-mininame" dir="auto">{card.name}</div> : null}
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
-        {face}
+        <Written text={face} />
       </div>
-      <div className="at-minien">{card.en}</div>
+      {card.name ? null : <div className="at-minien">{card.en}</div>}
       {showLat && card.lat ? <div className="at-minilat">{card.lat}</div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how
@@ -2827,6 +2889,12 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        teacher's decision and neither can be read off the words. */
     ...(card.fills ? { fills: String(card.fills) } : null),
     ...(card.drill === false ? { drill: false } : null),
+    /* And what the teacher calls it, where its own words do not name it —
+       a verb saved as the form a dictionary lists. Carried for the same
+       reason those two are: it is the teacher's words and nothing here
+       could work it out. Left off where there is none, so an ordinary card
+       does not start carrying an empty one. */
+    ...(card.name ? { name: String(card.name) } : null),
     tags: [deckTitle],
     locked: true,
     flags: [],

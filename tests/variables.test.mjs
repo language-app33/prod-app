@@ -18,10 +18,17 @@ import {
   slotTrouble,
   slotsIn,
   slotsOf,
+  splitSlots,
   valueOf,
   valuesFor,
   valuesForTurn,
   fillsOf,
+  valuesAt,
+  metKey,
+  metAt,
+  noteMet,
+  mergeMet,
+  refOf,
   WORD_SLOT,
 } from "../src/variables.ts";
 import { canAsk, unmetNeeds } from "../src/offers.ts";
@@ -283,4 +290,143 @@ test("a named hole and the built-in one fill from different cards", () => {
      about names. */
   assert.deepEqual(have.name.map((/** @type {any} */ v) => v.ar), ["Raphael"]);
   assert.deepEqual(have.word.map((/** @type {any} */ v) => v.ar), ["Raphael", "kitaab"]);
+});
+
+/* --- a frame, cut into words and holes ---
+
+   A card is listed as it was written, so the braces reach the screen and
+   something has to draw them differently from the words around them. */
+
+test("a frame comes apart into what is written and what is a hole", () => {
+  assert.deepEqual(splitSlots("اسمي {{name}}"), [
+    { text: "اسمي " },
+    { text: "{{name}}", slot: "name" },
+  ]);
+  /* Two holes, and the words between and around them. */
+  assert.deepEqual(splitSlots("{{name}} bḥibb {{food}}!"), [
+    { text: "{{name}}", slot: "name" },
+    { text: " bḥibb " },
+    { text: "{{food}}", slot: "food" },
+    { text: "!" },
+  ]);
+});
+
+test("the pieces put back together are the string that was cut", () => {
+  /* The point of the cut is how each piece is drawn, so losing or moving
+     a character would change what the card says. */
+  for (const line of [
+    "اسمي {{name}}",
+    "{{name}} bḥibb {{food}}!",
+    "no holes at all",
+    "{{ Name }} trimmed and folded",
+    "",
+    "{{a}}{{b}}",
+  ]) {
+    assert.equal(splitSlots(line).map((r) => r.text).join(""), line, line);
+  }
+});
+
+test("a card with nothing in it is one plain piece, or none", () => {
+  assert.deepEqual(splitSlots("kitaab"), [{ text: "kitaab" }]);
+  assert.deepEqual(splitSlots(""), []);
+  assert.deepEqual(splitSlots(null), []);
+  assert.deepEqual(splitSlots(undefined), []);
+});
+
+test("a hole is named the way every other reader of it names it", () => {
+  /* slotsIn folds the case and trims the spaces; a cut that disagreed
+     would mark a run as a hole the rest of the app has never heard of. */
+  const line = "{{ Name }} and {{NAME}}";
+  const cut = splitSlots(line).filter((r) => r.slot).map((r) => r.slot);
+  assert.deepEqual([...new Set(cut)], slotsIn(line));
+});
+
+/*
+ * How far along a value has to be to stand in a hole.
+ *
+ * The bug this is about: a hole was filled from every card that could fill
+ * it, whatever the learner had met, so "I like {{word}}" reached the whole
+ * vocabulary and *English → script* on it asked for a sentence containing a
+ * word nobody had ever seen. That is not a hard question, it is one with no
+ * answer, and the level it was asked at is what makes it so.
+ */
+const val = (/** @type {string} */ id) => ({ id, ar: id, en: id, lat: id });
+
+test("a value stands in a hole only as far up as it has climbed itself", () => {
+  const list = [val("new"), val("met"), val("known"), val("written")];
+  /** @type {Record<string, number>} */
+  const climbed = { new: 0, met: 1, known: 2, written: 4 };
+  const reach = (/** @type {any} */ v) => climbed[v.id];
+  const at = (/** @type {number} */ level) =>
+    valuesAt(list, "word", level, reach).map((/** @type {any} */ v) => v.id);
+
+  /* Level one asks what a word means, and a word nobody has answered is
+     not one to read a sentence off. */
+  assert.deepEqual(at(1), ["met", "known", "written"]);
+  assert.deepEqual(at(2), ["known", "written"]);
+  /* Writing it from its meaning, which is the top: only a word the learner
+     can already write from its meaning. */
+  assert.deepEqual(at(4), ["written"]);
+});
+
+test("and a value with no ladder is read off the frame that teaches it", () => {
+  /* Raphael is never drilled on its own — "what does Raphael mean" is not a
+     question — so it has no progress of its own, ever. reach comes back
+     null for those, and what is read instead is how far this frame has
+     already been asked with it. */
+  const list = [val("raphael"), val("sarah")];
+  const reach = () => null;
+  const at = (/** @type {number} */ level, /** @type {any} */ met = null) =>
+    valuesAt(list, "name", level, reach, met).map((/** @type {any} */ v) => v.id);
+
+  /* The bottom level is where they are introduced: nothing is below it to
+     have been seen at. */
+  assert.deepEqual(at(1), ["raphael", "sarah"]);
+  /* And one level above wherever each has got to, and no further. */
+  assert.deepEqual(at(2, { "name:raphael": 1 }), ["raphael"]);
+  assert.deepEqual(at(3, { "name:raphael": 1 }), []);
+  assert.deepEqual(at(3, { "name:raphael": 2, "name:sarah": 3 }), ["raphael", "sarah"]);
+});
+
+test("a hole records which of its values it has been asked with", () => {
+  assert.equal(metKey("name", val("raphael")), "name:raphael");
+  /* A value with no id is pointed at by its script, which is what fillForm
+     writes and therefore what comes back to be recorded. */
+  assert.equal(refOf({ ar: "رافاييل", en: "Raphael", lat: "rafa" }), "رافاييل");
+
+  const once = noteMet({}, { name: "raphael" }, 2);
+  assert.deepEqual(once, { "name:raphael": 2 });
+  assert.equal(metAt(once, "name", val("raphael")), 2);
+  assert.equal(metAt(once, "name", val("sarah")), 0);
+
+  /* A high-water mark: a lower level changes nothing, and nothing moved
+     comes back as null so a caller can tell there is nothing to write. */
+  assert.equal(noteMet(once, { name: "raphael" }, 1), null);
+  assert.deepEqual(noteMet(once, { name: "raphael" }, 4), { "name:raphael": 4 });
+
+  /* Null on a card that leaves no hole, which is nearly all of them —
+     returning a fresh empty record instead had every card in the document
+     start carrying one the first time it was answered. */
+  assert.equal(noteMet(undefined, undefined, 1), null);
+
+  /* Only the values the caller says are worth recording — the ones with no
+     ladder of their own. A frame drawing on the whole vocabulary would
+     otherwise write a line per word. */
+  assert.equal(noteMet({}, { word: "kitaab" }, 3, () => false), null);
+});
+
+test("and two devices' records merge by taking the further of the two", () => {
+  assert.deepEqual(
+    mergeMet({ "name:raphael": 1, "name:sarah": 3 }, { "name:raphael": 4 }),
+    { "name:raphael": 4, "name:sarah": 3 }
+  );
+  /* Idempotent and order-free, which is all sync asks of anything it
+     merges. */
+  const a = { "name:raphael": 2 };
+  const b = { "name:raphael": 3, "name:victor": 1 };
+  assert.deepEqual(mergeMet(a, b), mergeMet(b, a));
+  assert.deepEqual(mergeMet(mergeMet(a, b), b), mergeMet(a, b));
+  /* And a form with no record does not start carrying an empty one. */
+  assert.equal(mergeMet(null, null), undefined);
+  assert.equal(mergeMet({}, {}), undefined);
 });

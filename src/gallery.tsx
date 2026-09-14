@@ -141,6 +141,8 @@ const PLACES: Record<string, [string, string]> = {
   DeckEditor: [TEACH, "Deck settings"],
   DeckPicker: [TEACH, "Choosing which decks"],
   CardEditor: [TEACH, "Editing a card"],
+  DeckSwitch: [TEACH, "Editing a card · which decks it is in"],
+  BlankPicker: [TEACH, "Editing a card · choosing a blank"],
   VerbTable: [TEACH, "Filling in a verb's forms"],
   Alternatives: [TEACH, "Editing a card · several accepted answers"],
   ScriptAnswers: [TEACH, "Editing a card · each answer and how it is said"],
@@ -732,6 +734,19 @@ export function ComponentGallery() {
       <Row name="CardTile" what="One card tile, for the learner's list and the teacher's alike.">
         <V label="card + lang + meta" wide>
           <CardTile card={SAMPLE_CARD} lang={SAMPLE_LANG} meta="Lesson 1" showLat />
+        </V>
+        {/* A card the teacher has named — a verb, whose own word is the
+            form a dictionary lists and names one cell of its table rather
+            than the verb. The name is the headline, in the interface face
+            rather than the script's, and it stands in for the meaning
+            underneath rather than sitting above it. */}
+        <V label="card with a name of its own" wide>
+          <CardTile
+            card={{ ...SAMPLE_CARD, name: "to eat", ar: "أكل", en: "he ate", lat: "akal" }}
+            lang={SAMPLE_LANG}
+            meta="Lesson 1"
+            showLat
+          />
         </V>
       </Row>
 
