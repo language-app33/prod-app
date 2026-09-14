@@ -1145,6 +1145,29 @@ function openTypes(it: Form, settings: Settings): string[] {
    the sites that forgot it were only ever found by someone hitting them. */
 const statesOf = (unit: Form): Record<string, ExerciseState> => unit.s || {};
 
+/*
+ * One schedule off a form, by key, for the readers that walk keys.
+ *
+ * The record above guards the card that carries no schedule at all. This
+ * guards the other hole in the same wall: a card whose schedule is there
+ * but has nothing under this key. A key is per accepted answer — "ar2en"
+ * for the first, "ar2en@1" for the second — and the second answer's key is
+ * deliberately never written until it is answered, which is what let the
+ * change that introduced it leave every existing document untouched. So a
+ * card that accepts two words has keys with no state behind them from the
+ * moment it arrives, and `statesOf(unit)[key]` is undefined for them.
+ *
+ * Everything that reads a key through the ladder already treats that as
+ * "never asked" — openTypes hands the lookup in and takes undefined for an
+ * answer, familyMaturity reads it as new, and marking an answer starts
+ * from freshState(). The session builder read `.due` and `.phase` straight
+ * off it instead, and threw on the first card with a second spelling: the
+ * screen rendered, the count was right, and Start session did nothing at
+ * all, because the throw was inside the click. Read every key through
+ * here and there is one answer to what an unanswered key holds.
+ */
+const stateOf = (unit: Form, key: string): ExerciseState => statesOf(unit)[key] || freshState();
+
 function isDrillable(it: Item, settings: Settings) {
   /* A card the teacher says is not practised on its own. A value — the
      "Raphael" that fills {{name}} in somebody else's sentence — is there to
@@ -1339,13 +1362,13 @@ function buildSession({
        have every card in the deck due at once. */
     const dues: number[] = [];
     for (const { unit } of units) {
-      for (const t of openTypes(unit, settings)) dues.push(statesOf(unit)[t].due || 0);
+      for (const t of openTypes(unit, settings)) dues.push(stateOf(unit, t).due || 0);
     }
     const ready = units.some(({ unit }) =>
-      openTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
+      openTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
     );
     const isNew = units.every(({ unit }) =>
-      openTypes(unit, settings).every((t) => statesOf(unit)[t].phase === "new")
+      openTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
     return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew };
   });
@@ -1434,7 +1457,7 @@ function buildSession({
     const subs = inOrder(
       c.units.filter((u) => u.isSub),
       (u) =>
-        dueRank(Math.min(...openTypes(u.unit, settings).map((t) => statesOf(u.unit)[t].due || 0)))
+        dueRank(Math.min(...openTypes(u.unit, settings).map((t) => stateOf(u.unit, t).due || 0)))
     );
     /* A scene offers a line or two and not all of itself. Six lines would
        otherwise take a session over between them, and a conversation met
@@ -1644,9 +1667,9 @@ function sceneUnmet(card: Item) {
  */
 function pickableTypes(unit: Form, settings: Settings) {
   const types = openTypes(unit, settings);
-  const fresh = types.every((t) => statesOf(unit)[t].phase === "new");
+  const fresh = types.every((t) => stateOf(unit, t).phase === "new");
   return inOrder(types, (t) => {
-    const ready = stateReady(statesOf(unit)[t]) ? 0 : 2;
+    const ready = stateReady(stateOf(unit, t)) ? 0 : 2;
     const gentle = fresh && !specOf(t).gentle ? 1 : 0;
     return ready + gentle;
   });
@@ -4582,7 +4605,7 @@ export default function ArabicTrainer() {
     (pool) =>
       pool.filter((it) =>
         drillableUnits(it, settings).some(({ unit }) =>
-          openTypes(unit, settings).some((t) => stateReady(statesOf(unit)[t]))
+          openTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
         )
       ).length,
     [settings]

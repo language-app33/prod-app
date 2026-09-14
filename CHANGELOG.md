@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.102 — 14 September 2026
+
+- **Start session works again on a deck whose cards accept two spellings.**
+  Pressing it did nothing whatever: the screen was right, the count of what
+  was ready was right, and the button was dead. Which deck you were
+  studying decided it, so the same build was fine on one account and unusable
+  on another — and there was nothing on screen to say why.
+
+  A second accepted answer has been practised in its own right since 0.99,
+  under a schedule of its own that is written the first time it is answered
+  and not before. Everything that reads one already allowed for its not
+  being there yet; the part that builds a session did not, and stopped on
+  the first card that had one. Nothing was wrong with the cards, and nothing
+  about them has been changed to fix it.
+
 ## 0.101 — 13 September 2026
 
 - **A language with no infinitive now says which form a dictionary lists,
