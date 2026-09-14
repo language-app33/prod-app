@@ -482,6 +482,58 @@ test("the box you answer in is one height whatever you are typing", () => {
     "with the keyboard up the answer box has no height of its own");
 });
 
+test("no two components claim the same class name", () => {
+  /*
+   * Two components picking one name is silent and it is expensive. The
+   * later rule simply wins: a grid of tiles written as `.at-ladder` met
+   * the card screen's own `.at-ladder` sixty lines further down and came
+   * out as a single column, and a popover named `.at-pickmark` met the
+   * toolbar's, whose `width:16px` cut its label to three letters. Both
+   * looked like a layout bug in the new code, both were a name, and
+   * neither was visible to a test that reads the DOM — the markup was
+   * right in each case.
+   *
+   * What is checked is a class that is the whole of a selector, declared
+   * twice a long way apart. A group naming several classes at once is how
+   * the stylesheet deliberately gives one property to a family, and rules
+   * inside a media query are overrides by construction; both are left
+   * alone. Adjacent blocks are one author writing in two goes.
+   */
+  /** @type {[number, number][]} */
+  const skipped = [];
+  for (const m of css.matchAll(/@(?:media|supports)[^{]*\{/g)) {
+    let at = m.index + m[0].length;
+    let depth = 1;
+    while (at < css.length && depth) {
+      if (css[at] === "{") depth++;
+      else if (css[at] === "}") depth--;
+      at++;
+    }
+    skipped.push([m.index, at]);
+  }
+  const override = (/** @type {number} */ at) => skipped.some(([a, b]) => at >= a && at < b);
+
+  /** @type {Record<string, number[]>} */
+  const owned = {};
+  for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const at = m.index || 0;
+    if (override(at)) continue;
+    const selector = m[1].trim();
+    if (selector.includes(",")) continue;
+    if (!/^\.at-[a-zA-Z0-9-]+$/.test(selector)) continue;
+    (owned[selector] = owned[selector] || []).push(css.slice(0, at).split("\n").length);
+  }
+
+  /* The one place a class is deliberately declared twice and far apart:
+     every layer in the app is set in one block near the end, so that what
+     sits above what can be read in one place rather than hunted for. */
+  const agreed = [".at-modalback"];
+  const clashed = Object.entries(owned)
+    .filter(([name, lines]) => !agreed.includes(name) && Math.max(...lines) - Math.min(...lines) > 40)
+    .map(([name, lines]) => `${name} at lines ${lines.join(" and ")}`);
+  assert.deepEqual(clashed, [], `two owners for one class:\n  ${clashed.join("\n  ")}`);
+});
+
 test("every token the stylesheet uses is a token the stylesheet defines", () => {
   /* --ink was named in fifteen rules and defined in none. A colour that
      does not exist is not an error anywhere: the declaration is quietly

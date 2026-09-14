@@ -343,6 +343,31 @@ const LEVEL_NAME: Record<number, string> = {
   4: "Write it from its meaning",
 };
 
+/*
+ * The tiles at the top of Progress, in the order a card climbs them.
+ *
+ * Named rather than numbered. "Level 3" says where a card sits and
+ * nothing about what it is being asked to do, and six of those in a row
+ * are a bar chart with no labels — so each tile says what its level
+ * actually asks, in the same words the card's own screen uses, and wears
+ * the number underneath where it is still worth knowing.
+ *
+ * The icons are read off the exercises: a question mark for what a word
+ * means, a magnifier for picking it out of a few, a copy for writing what
+ * is already in front of you, a pen for writing it with nothing to copy.
+ * Learnt is the one that has to carry across a screen, so it gets the
+ * badge, the larger glyph and a tile of its own colour — it is what the
+ * rest of them are climbing towards.
+ */
+const LADDER_TILES: { key: string; label: string; icon: string }[] = [
+  { key: "all", label: "All cards", icon: "cards" },
+  { key: "l1", label: LEVEL_NAME[1], icon: "help" },
+  { key: "l2", label: LEVEL_NAME[2], icon: "search" },
+  { key: "l3", label: LEVEL_NAME[3], icon: "copy" },
+  { key: "l4", label: LEVEL_NAME[4], icon: "edit" },
+  { key: "done", label: "Learnt", icon: "verify" },
+];
+
 const STATUS_LABEL: Record<string, string> = {
   none: "Not started",
   learning: "Learning",
@@ -9322,8 +9347,8 @@ function ProgressTab({ items, myCourses = [], settings }: {
   /* One tile per level, and one for the cards with nothing above them left
      to open. A card counts under the level it is on — see `standing` — so
      the tiles are a picture of where the deck actually is, rather than of
-     how long its intervals happen to be. */
-  const buckets = ["l1", "l2", "l3", "l4", "done"];
+     how long its intervals happen to be. The tiles themselves, with what
+     each is called and drawn as, are LADDER_TILES. */
   /* The cards behind each number, worked out once with the numbers
      themselves: a tile opens to show them, and counting them twice — once
      to say four hundred and once to list them — is a walk of every card
@@ -9345,54 +9370,89 @@ function ProgressTab({ items, myCourses = [], settings }: {
      rather than read. */
   const [showing, setShowing] = useState<string>("");
 
+  /*
+   * How far each deck is from being learnt outright.
+   *
+   * A deck is a tag on a card, which is how a deck reaches this side of
+   * the app — so the decks being studied are simply the ones the cards in
+   * view belong to, and the language switch has already had its say by the
+   * time they get here. A card in two decks counts in both, which is the
+   * only honest answer to "how far along is this deck".
+   *
+   * Learnt, rather than any of the four levels, because that is the one
+   * that means finished: nothing left to open. It is the same set of cards
+   * the Learnt tile above counts, cut by deck.
+   */
+  const deckRows = useMemo(() => {
+    const held: Map<string, { n: number; learnt: number }> = new Map();
+    for (const it of items) {
+      const at = progressOf.get(it.id);
+      /* The same exclusion the tiles make: a card with nothing it can be
+         asked is on no level, so it is not progress to be short of. */
+      if (!at) continue;
+      for (const deck of it.tags || []) {
+        const row = held.get(deck) || { n: 0, learnt: 0 };
+        row.n++;
+        if (at.status === "done") row.learnt++;
+        held.set(deck, row);
+      }
+    }
+    return [...held.entries()]
+      .map(([name, { n, learnt }]) => ({
+        name,
+        n,
+        learnt,
+        /* Rounded down, and held at 99 until every card is in: 199 of 200
+           is not a finished deck, and a tile reading 100% over a card
+           still to learn is the one number here nobody could trust
+           again. */
+        pct: n === 0 ? 0 : learnt === n ? 100 : Math.min(99, Math.floor((learnt / n) * 100)),
+      }))
+      .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
+  }, [items, progressOf]);
+
   return (
     <>
-      <Help>
-        Where your cards are on the ladder. A card climbs four levels — what it means, which word
-        it is, writing it from a cue, then writing it from its meaning alone — and moves up when
-        everything under it is solid. Open a tile to see which cards are there.
-      </Help>
+      <Section
+        title="The ladder"
+        lede="Where your cards are. A card climbs four levels and moves up when everything under it is solid — open a tile to see which cards are there."
+      >
 
       {/* A number you want to see the cards behind is a number worth
           pressing. Buttons rather than divs with a click on them: there is
           nothing interactive inside a tile, so it can be the one thing you
-          press and the one thing a keyboard reaches. */}
-      <div className="at-stats tight">
-        {[
-          { key: "all", label: "Cards" },
-          ...buckets.map((b) => ({
-            key: b,
-            label: b === "done" ? "Learnt" : `Level ${b.slice(1)}`,
-          })),
-        ].map(
-          ({ key, label }) => (
+          press and the one thing a keyboard reaches.
+
+          Six of these used to share one row, which on a phone is three
+          columns of eight-point capitals — a row of numbers with their
+          captions too small to read, on the screen whose whole job is
+          saying where you are. They are the size of something worth
+          looking at now, and each says what its level actually asks rather
+          than what number it happens to be. */}
+      <div className="at-rungs">
+        {LADDER_TILES.map(({ key, label, icon }) => {
+          const count = byBucket[key].length;
+          const tone =
+            key === "all" ? "var(--text)" : key === "done" ? "var(--jade)" : LEVEL_COLOR[Number(key.slice(1))];
+          return (
             <button
               type="button"
-              className={`at-stat${showing === key ? " on" : ""}`}
+              className={`at-rung${key === "done" ? " learnt" : ""}${showing === key ? " on" : ""}`}
               key={key}
               aria-expanded={showing === key}
-              aria-label={`${byBucket[key].length} ${label} — ${
-                showing === key ? "hide them" : "show them"
-              }`}
-              disabled={!byBucket[key].length}
+              aria-label={`${count} ${label} — ${showing === key ? "hide them" : "show them"}`}
+              disabled={!count}
               onClick={() => setShowing((v) => (v === key ? "" : key))}
             >
-              <b
-                style={{
-                  color:
-                    key === "all"
-                      ? "var(--text)"
-                      : key === "done"
-                      ? "var(--jade)"
-                      : LEVEL_COLOR[Number(key.slice(1))],
-                }}
-              >
-                {byBucket[key].length}
-              </b>
-              <span>{label}</span>
+              <span className="at-rungicon" style={{ color: tone }}>
+                <Icon name={icon} size={key === "done" ? 26 : 22} />
+              </span>
+              <b style={{ color: tone }}>{count}</b>
+              <span className="at-rungname">{label}</span>
+              {/^l\d$/.test(key) && <span className="at-rungstep">Level {key.slice(1)}</span>}
             </button>
-          ),
-        )}
+          );
+        })}
       </div>
 
       {/* The cards behind the tile that is open, at the smallest size they
@@ -9441,6 +9501,40 @@ function ProgressTab({ items, myCourses = [], settings }: {
             />
           )}
         />
+      )}
+      </Section>
+
+      {/* ---- the decks, as how far each one is from finished ----
+
+          The ladder above says where the cards are; this says where the
+          decks are, which is the question somebody working through a
+          course actually has. A percentage rather than a count because a
+          deck of thirty and a deck of three hundred are not comparable by
+          how many are left, and a bar beside it because a number alone is
+          read and a bar is seen. */}
+      {deckRows.length > 0 && (
+        <Section title="Decks" lede="How much of each is learnt outright — every card in it with nothing left to open.">
+          <div className="at-deckprog">
+            {deckRows.map((d) => (
+              <div className={`at-deckstat${d.pct === 100 ? " done" : ""}`} key={d.name}>
+                <p className="at-deckstatname">{d.name}</p>
+                <b>
+                  {d.pct}
+                  <i>%</i>
+                </b>
+                {/* The bar is the number again, so it is told to a screen
+                    reader once: the row says it in words, the bar is
+                    drawing. */}
+                <span className="at-deckbar" aria-hidden="true">
+                  <span style={{ width: `${d.pct}%` }} />
+                </span>
+                <p className="at-deckstatnote">
+                  {d.learnt} of {plural(d.n, "card")} learnt
+                </p>
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
 
       {items.length === 0 && (

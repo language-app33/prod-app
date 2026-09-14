@@ -1868,6 +1868,66 @@ button.at-stat.on { border-color: var(--accent); }
 /* Nothing to show, so nothing to press. Dimmed rather than hidden: the
    number is still the answer to how many there are. */
 button.at-stat:disabled { cursor:default; opacity:.55; }
+/*
+ * The ladder, as six tiles.
+ *
+ * They were six across one row, which on a phone is three columns of
+ * eight-point capitals: a row of numbers whose captions could not be read
+ * on the screen whose whole job is saying where you are. They wrap
+ * instead — two on a phone, three once there is room — and each is big
+ * enough to carry an icon, a count and what its level asks in words.
+ */
+.at-rungs { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:10px; margin-bottom:18px; }
+.at-rung { display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+  width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer;
+  border:2px solid var(--line); border-radius: var(--r); background: var(--surface);
+  padding:14px 14px 13px; box-shadow: var(--shadow); }
+.at-rung b { display:block; font-family: var(--ui); font-size:32px; font-weight:800;
+  line-height:1.05; letter-spacing:-.02em; }
+.at-rungicon { display:inline-flex; margin-bottom:6px; }
+.at-rungname { font-family: var(--ui); font-size:13px; font-weight:700; color: var(--text-soft);
+  line-height:1.25; overflow-wrap:anywhere; }
+.at-rungstep { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; color: var(--faint); margin-top:1px; }
+/* The one the other five are climbing towards, so it is the one that has
+   to carry across the room: its own ground, its own edge, and the icon in
+   a badge rather than sitting on the tile like the rest. */
+.at-rung.learnt { background: var(--jade-bg); border-color: var(--jade-soft); }
+.at-rung.learnt .at-rungicon { background: var(--jade); color: var(--onjade);
+  width:40px; height:40px; border-radius:50%; align-items:center; justify-content:center;
+  margin-bottom:8px; }
+.at-rung.learnt .at-rungname { color: var(--text); }
+.at-rung.on { border-color: var(--accent); }
+.at-rung:disabled { cursor:default; opacity:.5; }
+@media (hover:hover) {
+  .at-rung { transition: border-color 140ms ease; }
+  .at-rung:hover:not(:disabled) { border-color: var(--ink); }
+  .at-rung.on:hover:not(:disabled) { border-color: var(--accent); }
+}
+.at-rung:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+/*
+ * A deck, as how far it is from finished.
+ *
+ * The percentage is the tile — a deck of thirty and a deck of three
+ * hundred are not comparable by how many cards are left — and the bar is
+ * the same number drawn, because a figure is read and a bar is seen.
+ */
+.at-deckprog { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; }
+.at-deckstat { border:2px solid var(--line); border-radius: var(--r); background: var(--surface);
+  padding:14px; box-shadow: var(--shadow); display:flex; flex-direction:column; gap:6px; min-width:0; }
+.at-deckstatname { margin:0; font-family: var(--ui); font-size:13px; font-weight:800;
+  color: var(--text); overflow-wrap:anywhere; line-height:1.3; }
+.at-deckstat b { font-family: var(--ui); font-size:38px; font-weight:800; line-height:1;
+  letter-spacing:-.03em; color: var(--brass); font-variant-numeric: tabular-nums; }
+.at-deckstat b i { font-style:normal; font-size:18px; font-weight:800; margin-inline-start:2px; }
+.at-deckbar { display:block; height:8px; border-radius:999px; background: var(--well); overflow:hidden; }
+.at-deckbar > span { display:block; height:100%; border-radius:999px; background: var(--brass); }
+.at-deckstatnote { margin:0; font-family: var(--ui); font-size:11px; color: var(--muted); }
+/* Finished reads as finished, in the colour Learnt already owns. */
+.at-deckstat.done { background: var(--jade-bg); border-color: var(--jade-soft); }
+.at-deckstat.done b { color: var(--jade); }
+.at-deckstat.done .at-deckbar > span { background: var(--jade); }
 .at-stats.tight { grid-template-columns:repeat(6,1fr); gap:6px; margin-bottom:16px; }
 .at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
 .at-stats.tight .at-stat b { font-size:19px; }

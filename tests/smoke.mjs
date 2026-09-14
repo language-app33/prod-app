@@ -1362,7 +1362,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   click(buttonNamed(/^Progress$/));
   await sleep(400);
   const opener = /** @type {HTMLButtonElement[]} */ ([
-    ...document.querySelectorAll("button.at-stat"),
+    ...document.querySelectorAll("button.at-rung"),
   ]).find((b) => !b.disabled);
   click(opener);
   await sleep(250);
@@ -1403,7 +1403,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      A number you want to see the cards behind is a number worth pressing.
      They were plain text, so the only way to find out which cards were
      still new was to read every deck. */
-  const counts = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll("button.at-stat")]);
+  const counts = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll("button.at-rung")]);
   /* Every card, then one per level of the ladder, then the ones with
      nothing left to open. They used to be the four maturities. */
   check("every count at the top is a button", counts.length === 6, `${counts.length} tiles`);
@@ -1427,14 +1427,80 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     document.querySelectorAll(".at-cardgrid .at-minicard").length === 0,
     `${document.querySelectorAll(".at-cardgrid .at-minicard").length} still up`);
 
+  /* ---- the tiles say what a level asks, not what number it is ----
+     Six of these used to share one row, which on a phone is three columns
+     of eight-point capitals: a row of numbers whose captions could not be
+     read, on the screen whose job is saying where you are. */
+  {
+    const named = counts.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+    check("every tile says what its level asks, in words",
+      counts.length === 6 && named.every((t) => /[A-Za-z]{3}/.test(t)) &&
+        !named.some((t) => /^\d+\s*Level \d+$/.test(t)),
+      named.join(" · "));
+    check("in the same words a card's own screen uses",
+      named.some((t) => /What it means/.test(t)) && named.some((t) => /Learnt/.test(t)),
+      named.join(" · "));
+    check("and each carries a drawing of what it asks",
+      counts.every((b) => !!b.querySelector("svg")),
+      `${counts.filter((b) => b.querySelector("svg")).length} of ${counts.length} drawn`);
+    /* Learnt is what the other five are climbing towards, so it is the one
+       that has to carry across a room. */
+    const learnt = counts.find((b) => /Learnt/.test(b.textContent || ""));
+    check("with Learnt marked out from the rest",
+      !!learnt && learnt.className.includes("learnt"),
+      learnt ? learnt.className : "no Learnt tile");
+  }
+
+  /* ---- and the decks, as how far each is from finished ----
+     The ladder says where the cards are; this says where the decks are,
+     which is the question somebody working through a course has. A
+     percentage rather than a count, because a deck of thirty and a deck of
+     three hundred are not comparable by how many cards are left. */
+  {
+    const decks = [...document.querySelectorAll(".at-deckstat")];
+    check("each deck being studied has a tile of its own", decks.length > 0,
+      `${decks.length} decks`);
+    const said = decks.map((d) => (d.textContent || "").replace(/\s+/g, " ").trim());
+    /* Read off the figure itself rather than the tile's text: a deck
+       called "Lesson 1" beside 42% reads as 142 when the two are run
+       together, which is how this check first passed while measuring
+       nothing. */
+    const pctOf = (/** @type {Element} */ d) =>
+      ((d.querySelector("b") || {}).textContent || "").trim();
+    check("saying how much of it is learnt, as a percentage",
+      decks.every((d) => /^\d+%$/.test(pctOf(d))),
+      decks.map(pctOf).join(" · "));
+    check("and drawn as a bar of the same width as the number",
+      decks.every((d) => {
+        const bar = /** @type {any} */ (d.querySelector(".at-deckbar > span"));
+        return !!bar && bar.style.width === pctOf(d);
+      }),
+      decks.map((d) => {
+        const bar = /** @type {any} */ (d.querySelector(".at-deckbar > span"));
+        return bar ? bar.style.width : "no bar";
+      }).join(" · "));
+    /* The bar is the number again, so a screen reader is told once. */
+    check("the bar is drawing, and not read out twice",
+      decks.every((d) => {
+        const bar = d.querySelector(".at-deckbar");
+        return !!bar && bar.getAttribute("aria-hidden") === "true";
+      }));
+    check("and it says the count the percentage came from",
+      decks.every((d) => /\d+ of \d+ cards? learnt/.test((d.textContent || "").replace(/\s+/g, " "))),
+      said.join(" · "));
+  }
+
   /* ---- and a level's cards come out grouped by how they are going ----
      Every card under a level tile is on that level, so what tells them
      apart is the status: paused first, because it is the one that means
      something slipped and the list is paged. "Cards" pressed above is the
      one tile that is not grouped — its cards are spread over every level,
      and a run would mean nothing. */
+  /* A level tile says what its level asks — "What it means" — and carries
+     the number underneath, so it is the number that names it here rather
+     than the whole of its text. */
   const levelTile = counts.find(
-    (b) => !b.disabled && /^\d+\s*Level \d/.test((b.textContent || "").replace(/\s+/g, " ")),
+    (b) => !b.disabled && /Level \d/.test((b.textContent || "").replace(/\s+/g, " ")),
   );
   check("a level has cards behind it", !!levelTile,
     counts.map((b) => (b.textContent || "").replace(/\s+/g, " ")).join(" · "));
@@ -1475,7 +1541,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   await sleep(400);
   /* The first tile is "Cards" — every card that is anywhere on the ladder. */
   const cardCount = () =>
-    Number(((document.querySelector("button.at-stat") || {}).textContent || "").trim().match(/^\d+/));
+    Number(((document.querySelector("button.at-rung") || {}).textContent || "").trim().match(/^\d+/));
   const both = cardCount();
   const swBtn = () => document.querySelector(".at-langbtn");
   const swSaid = () => {

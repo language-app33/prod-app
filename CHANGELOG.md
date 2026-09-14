@@ -8,6 +8,38 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.118 — 14 September 2026
+
+- **Progress has two sections now: the ladder, and your decks.** What was
+  there is the first of them; the second is new.
+
+- **The ladder's tiles say what a level asks, not what number it is.** Six
+  of them shared one row, which on a phone is three columns of eight-point
+  capitals — a row of numbers with captions too small to read, on the
+  screen whose whole job is saying where you are. They are twice the size,
+  they wrap rather than squeeze, and each one is named: **What it means**,
+  **Which word it is**, **Write it from a cue**, **Write it from its
+  meaning** — the same words a card's own screen uses — with the level
+  number underneath where it is still worth knowing.
+
+  Each carries a drawing of what it asks: a question mark for what a word
+  means, a magnifier for picking it out, a copy for writing what is already
+  in front of you, a pen for writing it with nothing to copy. **Learnt**
+  gets a badge, a larger mark and a tile of its own colour, because it is
+  the one the other five are climbing towards.
+
+- **And a Decks section, one tile per deck you are studying.** A large
+  percentage of how much of it is learnt outright — every card in it with
+  nothing left to open — with a bar beside it and the count it came from.
+  A deck of thirty and a deck of three hundred are not comparable by how
+  many cards are left, which is why it is a proportion.
+
+  The figure is rounded down and held at 99% until the last card is in: a
+  tile reading 100% over a card still to learn is the one number here
+  nobody would trust again. A finished deck reads in the same colour as
+  Learnt. What the language switch is showing decides which decks appear,
+  like everything else in Learning.
+
 ## 0.117 — 14 September 2026
 
 **Variables are now Blanks, and you no longer type them.**
