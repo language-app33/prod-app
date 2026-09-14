@@ -8,6 +8,48 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.117 — 14 September 2026
+
+**Variables are now Blanks, and you no longer type them.**
+
+- **A button writes the blank, into every field at once.** A card with a
+  gap in it — *My name is ___* — needed <code>{{name}}</code> typed by hand
+  into the script, the English and the pronunciation, and getting one of
+  them wrong was the error the section spent its longest sentence
+  explaining. **+ Blank** writes all three together, so they cannot
+  disagree. Everything else here follows from that.
+
+- **Blanks are chosen from a list, never spelled.** The old box was free
+  text, and it held the editor's only silent failure: typing *names* where
+  every other card says *name* was accepted, saved, and filled nothing for
+  ever, with nothing on screen to notice. The list shows the blanks this
+  language already uses and what each is worth — how many words fill it,
+  how many cards leave it — so a near miss is visible before it is made.
+  Naming a new one is still there, for the first of its kind.
+
+- **The section shows the sentences a student will actually be asked.**
+  Three of them, filled with the words that exist today. Two paragraphs
+  explaining what a variable is have gone: the sentences do it better, and
+  a blank with nothing to fill it shows as an empty preview and says so.
+
+- **One job at a time.** A card that leaves a blank and a card that fills
+  somebody else's are opposite jobs, and both were shown to everybody. Now
+  only the one that applies is on screen.
+
+- **<code>{{word}}</code> is a row in the list, not a paragraph.** It is
+  the blank every word in the language fills without being told to, which
+  is worth knowing exactly when you are choosing a blank and nowhere else.
+
+- **"Practised on its own" is a tick, under the blank it belongs to.** It
+  was a third field standing on its own, asked of every card; it is only
+  ever a question for a card that fills a blank.
+
+- **A fix underneath all of it.** The accepted-answer rows read the card
+  once when the editor opened and never again — invisible while typing was
+  the only thing that ever changed them. It is not any more, so they now
+  follow a change made anywhere else; without it the button would have
+  written to the card and changed nothing on screen.
+
 ## 0.116 — 14 September 2026
 
 - **Which decks a card is in is now a button at the top of the editor.** It

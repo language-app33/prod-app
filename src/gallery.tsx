@@ -142,6 +142,7 @@ const PLACES: Record<string, [string, string]> = {
   DeckPicker: [TEACH, "Choosing which decks"],
   CardEditor: [TEACH, "Editing a card"],
   DeckSwitch: [TEACH, "Editing a card · which decks it is in"],
+  BlankPicker: [TEACH, "Editing a card · choosing a blank"],
   VerbTable: [TEACH, "Filling in a verb's forms"],
   Alternatives: [TEACH, "Editing a card · several accepted answers"],
   ScriptAnswers: [TEACH, "Editing a card · each answer and how it is said"],

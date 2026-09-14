@@ -3025,17 +3025,17 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      top rather than the section of ticks that used to be several hundred
      pixels below, under everything about the words. */
   {
-    const deckBtn = () => /** @type {any} */ (document.querySelector(".at-deckbtn"));
+    const deckBtn = () => /** @type {any} */ (document.querySelector(".at-choosebtn"));
     check("a new card says where it goes, at the top", !!deckBtn(),
       deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
     check("and says it is in none yet",
       !!deckBtn() && /in no deck/i.test(deckBtn().getAttribute("aria-label") || ""),
       deckBtn() ? deckBtn().getAttribute("aria-label") : "no button");
-    check("the ticks are put away until asked for", !document.querySelector(".at-deckmenu"));
+    check("the ticks are put away until asked for", !document.querySelector(".at-choosemenu"));
 
     click(deckBtn());
     await sleep(200);
-    const menu = document.querySelector(".at-deckmenu");
+    const menu = document.querySelector(".at-choosemenu");
     const rows = menu ? [...menu.querySelectorAll(".at-tickrow")] : [];
     check("pressing it opens the decks as a list of ticks", rows.length > 0,
       `${rows.length} decks offered`);
@@ -3046,12 +3046,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         ((rows[0].querySelector("b") || {}).textContent || "").trim(),
       deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
     check("and the list stays open, because you are usually ticking more than one",
-      !!document.querySelector(".at-deckmenu"));
+      !!document.querySelector(".at-choosemenu"));
     /* A click anywhere else puts it away — the rule the language switch
        goes by, read off the click on the way down. */
     click(document.querySelector(".at-screenhead h2"));
     await sleep(200);
-    check("a click outside puts it away", !document.querySelector(".at-deckmenu"));
+    check("a click outside puts it away", !document.querySelector(".at-choosemenu"));
     check("and what was ticked is still ticked",
       !!deckBtn() && deckBtn().className.includes("on"),
       deckBtn() ? deckBtn().className : "no button");
@@ -3167,6 +3167,81 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and it can be saved once every field leaves the same hole",
     !!saveBtn() && !saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "still refused" : "offered"}`);
+
+  /* ---- blanks ----
+
+     The section was called Variables and did two opposite jobs at once,
+     under ninety words explaining a syntax the teacher typed by hand into
+     three fields that had to agree. What is checked here is the part that
+     makes the rest possible: the braces are written by a button, into
+     every field at once, so the fields cannot disagree. */
+  {
+    const blanks = () => [...document.querySelectorAll(".at-formblock")]
+      .find((b) => /^Blanks$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    const pickBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+      [...(blanks() || document).querySelectorAll(".at-choosebtn")]
+        .find((b) => re.test((b.textContent || "").trim())) || null);
+
+    check("the section is called Blanks, not Variables", !!blanks(),
+      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+    /* The sentences a student will be asked, filled from the cards that
+       exist — the explanation that replaced the paragraphs. */
+    const asked = () => [...((blanks() || document).querySelectorAll(".at-askedline span"))]
+      .map((s) => (s.textContent || "").trim());
+    check("and shows the sentences a student will actually be asked",
+      asked().length > 0 && asked().every((line) => !/\{\{/.test(line)),
+      asked().join(" / ") || "(none shown)");
+    check("each one a different word, so one card does not print three times",
+      new Set(asked()).size === asked().length, asked().join(" / "));
+    check("the blank is named as a fact about the card",
+      [...(blanks() || document).querySelectorAll(".at-blankchip")]
+        .map((c) => (c.textContent || "").trim()).includes("name"),
+      [...(blanks() || document).querySelectorAll(".at-blankchip")].map((c) => c.textContent).join(", ") || "(none)");
+
+    /* And the button that writes one. It goes into every field at once,
+       which is the whole reason the fields can no longer disagree — so
+       what is checked is all three, not the one that was focused. */
+    typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
+    await sleep(80);
+    typeInto(fieldNamed(/^English$/), "My name is");
+    await sleep(200);
+    check("a card with no blank is refused none of them", !!pickBtn(/\+ Blank/),
+      pickBtn(/\+ Blank/) ? "offered" : "no button");
+    click(pickBtn(/\+ Blank/));
+    await sleep(200);
+    const rows = [...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))];
+    check("pressing it lists the blanks this language already knows",
+      rows.length > 0 && rows.some((r) => /^name/.test(((r.querySelector("b") || {}).textContent || "").trim())),
+      rows.map((r) => ((r.querySelector("b") || {}).textContent || "").trim()).join(", ") || "(none)");
+    check("with the built-in one among them, where somebody is looking for it",
+      rows.some((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "word"),
+      rows.map((r) => ((r.querySelector("b") || {}).textContent || "").trim()).join(", "));
+    /* Each says what it is worth: whether a card using it can be practised
+       at all, and whether this is the name everybody else uses. */
+    check("and what each one is worth",
+      rows.every((r) => /\d/.test(((r.querySelector("i") || {}).textContent || ""))),
+      rows.map((r) => ((r.querySelector("i") || {}).textContent || "").trim()).join(" | "));
+
+    click(rows.find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "name"));
+    await sleep(250);
+    const ar = fieldNamed(/^Arabic script and transliteration$/i);
+    const en = fieldNamed(/^English$/);
+    check("choosing one writes it into every field at once",
+      !!ar && ar.value === "ismi {{name}}" && !!en && en.value === "My name is {{name}}",
+      `script "${ar ? ar.value : "—"}", English "${en ? en.value : "—"}"`);
+    check("so the fields cannot disagree, and the card saves",
+      !!saveBtn() && !saveBtn().disabled && !/is missing \{\{/.test(document.body.textContent || ""),
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+    /* Pressing it again is not a second copy of the same blank. */
+    click(pickBtn(/\+ Blank/));
+    await sleep(200);
+    click([...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
+      .find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "name"));
+    await sleep(250);
+    check("and choosing it twice does not write it twice",
+      !!en && en.value === "My name is {{name}}",
+      en ? `"${en.value}"` : "no field");
+  }
 
   /* ---- a verb, where the dictionary form is a cell of its own table ----
 

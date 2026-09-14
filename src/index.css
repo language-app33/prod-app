@@ -529,13 +529,13 @@ button {
    ticks under it. The button is the shape of the language switch's — a
    pill whose text is the state, outlined once it is doing something — at
    the size a control inside a form is rather than one in the chrome. */
-.at-decksw { position:relative; display:inline-block; max-width:100%; }
-.at-deckbtn { display:inline-flex; align-items:center; gap:7px; max-width:100%;
+.at-chooser { position:relative; display:inline-block; max-width:100%; }
+.at-choosebtn { display:inline-flex; align-items:center; gap:7px; max-width:100%;
   min-height:38px; padding:0 14px 0 12px; border-radius:999px; cursor:pointer;
   background: var(--surface); border:2px solid var(--line); color: var(--muted);
   font-family: var(--ui); font-size:13px; font-weight:700; text-align:start; }
-.at-deckbtn.on { border-color: var(--accent); color: var(--ink); }
-.at-deckmark { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.at-choosebtn.on { border-color: var(--accent); color: var(--ink); }
+.at-choosemark { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /*
  * Hung off the button, not pinned to the window.
  *
@@ -547,7 +547,7 @@ button {
  * reach the far gutter — the case that put the chrome's menu off the side
  * of a phone.
  */
-.at-deckmenu { position:absolute; top:calc(100% + 6px); inset-inline-start:0;
+.at-choosemenu { position:absolute; top:calc(100% + 6px); inset-inline-start:0;
   z-index: var(--z-over);
   width: max(260px, 100%); max-width: min(340px, calc(100vw - 32px));
   max-height: calc(100vh - 160px);
@@ -555,8 +555,39 @@ button {
   overflow-y:auto; background: var(--surface);
   border:2px solid var(--line); border-radius:18px; padding:12px;
   box-shadow: var(--nav-shadow); }
-.at-deckmenu .at-eyebrow { margin:0 0 8px; }
-.at-deckmenu .at-hint { margin:10px 0 0; }
+.at-choosemenu .at-eyebrow { margin:0 0 8px; }
+.at-choosemenu .at-hint { margin:10px 0 0; }
+.at-choosebtn.new { border-style:dashed; border-color: var(--jade); color: var(--jade); }
+.at-blanklist { display:flex; flex-direction:column; gap:7px; }
+/*
+ * The sentences a student will be asked, filled with the words that exist
+ * today. The section used to explain this in ninety words; three real
+ * sentences do it without any, so they are given the room a thing that is
+ * doing the explaining deserves.
+ */
+.at-asked { background: var(--jade-bg); border:1px solid var(--jade-soft);
+  border-radius: var(--r-sm); padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+.at-askedline { display:flex; gap:10px; align-items:baseline; margin:0; min-width:0;
+  font-size: var(--fs-sm); }
+.at-askedline b { flex:0 0 3.4em; font-size: var(--fs-xs); font-weight:800; color: var(--jade);
+  letter-spacing:.05em; text-transform:uppercase; }
+.at-askedline span { min-width:0; overflow-wrap:anywhere; color: var(--text); }
+/* A blank the card leaves, as a fact rather than a control: what it is
+   named, which is what another card has to say it fills. */
+.at-blankchip { display:inline-flex; align-items:center; min-height:38px; padding:0 13px;
+  border-radius:999px; background: var(--tag-bg); border:2px solid var(--tag-line);
+  color: var(--brass); font-family: var(--mono); font-size: var(--fs-sm); font-weight:700; }
+/* Not .at-row: that one hands every child an equal share of the line,
+   which is right for a row of buttons and wrong for a name beside the
+   button that adds another — it squashed both to a few letters. Here each
+   thing is the width of what it says, and the line wraps. */
+.at-blankrow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top: var(--s4); }
+.at-blankrow > * { flex:0 0 auto; max-width:100%; }
+/* The one place a blank is named by hand: the box takes the room, the
+   button takes what it needs. */
+.at-blanknew { display:flex; gap:8px; margin-top:10px; }
+.at-blanknew .at-input { flex:1 1 auto; min-width:0; }
+.at-blanknew .at-btn { flex:0 0 auto; }
 .at-cellrow { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .at-cellrow:last-child { margin-bottom:0; }
 .at-celllabel { flex:0 0 5.5em; min-width:0; font-size:12px; font-weight:800;
