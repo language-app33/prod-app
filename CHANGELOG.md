@@ -8,6 +8,42 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.103 — 14 September 2026
+
+- **Writing a word from a cue now opens as soon as you have recognised it,
+  not four days later.** Level 3 — {translit} → script, listen → script,
+  listen → tone, choose the reply, put a scene in order — asked that every
+  recognition exercise below it first reach a four-day interval. That is
+  four right answers each, on the app's fastest possible schedule three
+  days, and in practice a week or more per card of nothing but choosing
+  between four. New cards kept arriving at the bottom while none of them
+  climbed, so the deck grew sideways: a lot of words recognised, none of
+  them written.
+
+  It now opens on *graduated* — through the learning steps and in review,
+  at whatever interval — which is the bar the matching grid has always
+  asked. The reasoning is the grid's, too: level 3 is still cued. The
+  pronunciation is on the screen, or the word is in your ear. It asks you
+  to spell what you have just been given, which is not the same as
+  producing it from memory.
+
+- **Writing it from its meaning alone is unchanged.** Level 4 — English →
+  script, fill the gap, phrase heard → script — still waits for every
+  exercise below it to be mastered, four days of interval and in review. The
+  strict bar now stands in one place: where the screen stops telling you
+  what the word is.
+
+- **A slip still closes what is above it.** Graduated is false while a card
+  is being relearnt, so getting a word wrong takes the writing away until
+  the reading is back — as it always did.
+
+- **Every exercise on a level now names that level's bar.** The bar belongs
+  to the level, and the app takes the loosest one any exercise on it
+  declares — so the matching grid alone had been setting level 2's rule
+  while the two beside it said something stricter and were quietly ignored.
+  Nothing behaved differently; it simply read as though it did. A test now
+  holds every level to one answer.
+
 ## 0.102 — 14 September 2026
 
 - **Start session works again on a deck whose cards accept two spellings.**

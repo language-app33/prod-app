@@ -22,11 +22,14 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
   | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
 
-  The bar is *mastered* — in review, with an interval of at least four
-  days — except for level 2, which opens once level 1 is *graduated*:
-  through the learning steps and in review at all. A level a card has no
-  material for is passed straight through. A lapse below closes the levels
-  above until it is recovered. Each exercise declares its own level in
+  Levels 2 and 3 open on *graduated* — through the learning steps and in
+  review, at whatever interval. Both are still cued: the word is on the
+  screen to be told apart, or its pronunciation is, and neither asks for
+  recall from the meaning alone. Level 4 opens on *mastered* — in review,
+  with an interval of at least four days — so the strict bar stands where
+  writing from memory begins. A level a card has no material for is passed
+  straight through. A lapse below closes the levels above until it is
+  recovered. Each exercise declares its own level and bar in
   `src/languages.ts`; `openTypes` in the scheduler reads them.
 - **New cards are introduced only while there is room.** Beyond the
   per-session limit in the settings, nothing new is dealt while ten cards
