@@ -881,10 +881,35 @@ button {
 }
 .at-deckcard[data-open], .at-minicard { cursor: pointer; }
 /* Sat immediately left of the account button, same height, same rhythm. */
-.at-spaces { position:fixed; top:12px; right:60px; display:flex;
+/* The bar the language switch and the space tabs share. Either can be
+   absent — the tabs for somebody who only learns, the switch for somebody
+   learning one language — so they are laid out beside each other rather
+   than each pinned to a corner of its own. */
+.at-chromebar { position:fixed; top:12px; right:60px; display:flex;
+  align-items:center; gap:8px; }
+.at-spaces { display:flex;
   align-items:center; gap:2px; height:40px; padding:0 3px; border-radius:999px;
   background: var(--nav-bg); border:2px solid var(--line);
   -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+/* ---- which languages are in play ----
+   An icon and a mark: the mark is the state, so the button says which
+   language is on when only one is, how many when it is some, and "All"
+   when there is nothing to say. */
+.at-langsw { position:relative; }
+.at-langbtn { display:inline-flex; align-items:center; gap:5px; height:40px; padding:0 11px 0 9px;
+  border-radius:999px; cursor:pointer; background: var(--nav-bg); border:2px solid var(--line);
+  color: var(--muted); font-family: var(--ui); font-size:12px; font-weight:800;
+  letter-spacing:.04em; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+/* Narrowed to something is a state worth seeing from across the screen,
+   the way a filter that is doing something is anywhere else. */
+.at-langbtn.on { border-color: var(--accent); color: var(--ink); }
+.at-langmark { line-height:1; }
+.at-langmenu { position:absolute; top:50px; right:0; min-width:260px;
+  max-width: calc(100vw - 24px); background: var(--surface);
+  border:2px solid var(--line); border-radius:18px; padding:12px;
+  box-shadow: var(--nav-shadow); }
+.at-langmenu .at-eyebrow { margin:0 0 8px; }
+.at-langmenu .at-hint { margin-bottom:0; }
 .at-spacebtn { width:34px; height:32px; border:0; border-radius:999px; cursor:pointer;
   background:none; color: var(--muted); display:inline-flex; align-items:center;
   justify-content:center; }
@@ -2004,7 +2029,7 @@ button.at-stat { transition: border-color 140ms ease; }
    the wordmark behind — with no way back to the learning space but a
    reload. A screen opened on top (--z-over) is still above them, and
    .at-screening hides them there anyway. */
-.at-brand, .at-corner, .at-mode, .at-spaces { z-index: var(--z-chrome); }
+.at-brand, .at-corner, .at-mode, .at-chromebar { z-index: var(--z-chrome); }
 .at-modalback { z-index: var(--z-modal); }
 /* Everything the chrome hides while a screen is open, in one rule
    rather than one per overlay. */
@@ -2014,7 +2039,7 @@ button.at-stat { transition: border-color 140ms ease; }
 body.at-screening .at-brand,
 body.at-screening .at-corner,
 body.at-screening .at-mode,
-body.at-screening .at-spaces { display:none; }
+body.at-screening .at-chromebar { display:none; }
 /* ---- edge margins ------------------------------------------------
    at-hint, at-field and the paragraphs carry a margin so they space
    themselves in a run. At the start or end of a container that margin is

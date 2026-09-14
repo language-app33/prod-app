@@ -8,6 +8,39 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.108 — 14 September 2026
+
+- **Learning two languages? Say which you are working on.** A switch at the
+  top of Learning, next to the space tabs, lists the languages you have
+  cards in with a tick against each. Everything switched on is what the app
+  shows you: your cards, your progress, what is ready to practise, and what
+  a session is dealt from. Everything starts ticked.
+
+  It is only there if you are learning more than one. One language is not a
+  choice, and a switch offering it would be a question with a single
+  answer.
+
+  The button itself is an icon and one word, because it lives in the chrome
+  where there is room for nothing more — and that word is the state:
+  **All** when every language is on, the language's own mark (**AR**,
+  **VI**) when only one is, and how many when it is some of them. The rest
+  is in the tooltip.
+
+- **The last language on stays on.** An app with no languages in it is a
+  blank screen with no way of telling why, so the row holds and says "the
+  only one on" rather than refusing without a word.
+
+- **A language you join later is on from the start.** What is stored is
+  which languages are switched *off*, so a course in a third language
+  arrives in play rather than hidden by a setting written before it
+  existed.
+
+- **Starting a session no longer asks which language.** It used to put a
+  screen in the way every single time — this one, both, or not now — and
+  the answer held for that session only. The switch is the same question
+  asked once and kept, and it answers it for the card list and progress
+  as well.
+
 ## 0.107 — 14 September 2026
 
 - **Progress is the tiles and the cards behind them, and nothing else.**

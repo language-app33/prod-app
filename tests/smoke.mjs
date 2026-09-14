@@ -404,6 +404,18 @@ remoteDocs.set(realToken, {
       { id: "srvk111111111111", ar: "كتاب", en: "book", lat: "kitaab", kind: "word", tags: ["Lesson 1"],
         created: 1, updated: 5, s: climbed(),
         subs: [{ id: "srvk111111111111-f0", ar: "كتب", en: "books", lat: "kutub", s: climbed() }] },
+      /* One card in a second language, which is what makes this device a
+         two-language one: the switch at the top of Learning is there for
+         somebody learning more than one and nobody else, so without this
+         there would be nothing to press.
+
+         Climbed, and so not due — the walks below deal sessions out of
+         what is waiting, and a card that is never waiting cannot turn an
+         Arabic walk into a Vietnamese question. What it changes is the
+         count of cards and the list of languages, which is the whole of
+         what it is here for. */
+      { id: "vicard1", ar: "nhà", en: "house", lat: "nha", kind: "word", tags: ["Huế"],
+        lang: "vi-Hue", created: 1, updated: 5, s: climbed() },
     ],
   },
 });
@@ -481,7 +493,7 @@ check("stored document no longer carries an account", !("account" in stored));
    and the one on the wire — as the JSON they are. */
 /** @type {Record<string, any>} */
 const byId = Object.fromEntries(stored.items.map((/** @type {any} */ i) => [i.id, i]));
-check("both course cards and every old card landed in storage", stored.items.length === 11 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+check("both course cards and every old card landed in storage", stored.items.length === 12 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
 /* And the values the deck's phrases need, which are in no deck at all: they
    arrive because a phrase leaves a hole of their name, carrying what makes
    them values rather than cards to learn. */
@@ -1426,6 +1438,76 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     `runs ${inRuns}, tile ${onTile}`);
   click(levelTile);
   await sleep(200);
+
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+}
+
+/* ---- the language switch ----
+   This device has cards in two languages, so the switch is there. What it
+   decides is meant to hold over the whole of Learning, and the count at
+   the top of Progress is the cheapest place to watch it do that: switch a
+   language off and its cards leave, everywhere. */
+{
+  click(buttonNamed(/^Progress$/));
+  await sleep(400);
+  /* The first tile is "Cards" — every card that is anywhere on the ladder. */
+  const cardCount = () =>
+    Number(((document.querySelector("button.at-stat") || {}).textContent || "").trim().match(/^\d+/));
+  const both = cardCount();
+  const swBtn = () => document.querySelector(".at-langbtn");
+  const swSaid = () => {
+    const b = swBtn();
+    return b ? String(b.getAttribute("aria-label")) : "nothing in the chrome bar";
+  };
+  check("somebody learning two languages gets a switch for them", !!swBtn(), swSaid());
+  check("and it says every language is on, without naming any of them",
+    ((swBtn() || {}).textContent || "").trim() === "All", ((swBtn() || {}).textContent || "").trim());
+
+  click(swBtn());
+  await sleep(200);
+  const rows = () => [...document.querySelectorAll(".at-langmenu .at-ck")];
+  check("pressing it opens the languages being learnt", rows().length === 2,
+    rows().map((r) => (r.textContent || "").replace(/\s+/g, " ")).join(" · ") || "nothing opened");
+  check("with every one of them ticked to start with",
+    rows().length > 0 && rows().every((r) => r.getAttribute("aria-checked") === "true"),
+    rows().map((r) => r.getAttribute("aria-checked")).join(","));
+
+  /* Switch the second language off. */
+  const viRow = rows().find((r) => /Vietnamese/.test(r.textContent || ""));
+  check("the list names the languages", !!viRow,
+    rows().map((r) => (r.textContent || "").replace(/\s+/g, " ")).join(" · "));
+  click(viRow);
+  await sleep(300);
+  check("switching one off says which one is left, on the button itself",
+    ((swBtn() || {}).textContent || "").trim() === "AR", ((swBtn() || {}).textContent || "").trim());
+  check("and its cards go from the rest of Learning", cardCount() === both - 1,
+    `${both} with both, ${cardCount()} with one`);
+
+  /* The last one on stays on: an app with no languages in it is a blank
+     screen with nothing to say why. */
+  const arRow = rows().find((r) => /Arabic/.test(r.textContent || ""));
+  click(arRow);
+  await sleep(250);
+  check("the last language on cannot be switched off",
+    !!arRow && arRow.getAttribute("aria-checked") === "true" && cardCount() === both - 1,
+    `${arRow ? arRow.getAttribute("aria-checked") : "no row"}, ${cardCount()} cards`);
+  check("and the row says why rather than just refusing",
+    /the only one on/i.test((arRow || {}).textContent || ""),
+    ((arRow || {}).textContent || "").replace(/\s+/g, " "));
+
+  /* And back on again, which is the state everything else expects. */
+  click(rows().find((r) => /Vietnamese/.test(r.textContent || "")));
+  await sleep(300);
+  check("switching it back on brings its cards back",
+    cardCount() === both && ((swBtn() || {}).textContent || "").trim() === "All",
+    `${cardCount()} cards, button says ${((swBtn() || {}).textContent || "").trim()}`);
+  /* Anywhere outside it puts it away. */
+  click(document.querySelector(".at-brand"));
+  await sleep(200);
+  check("and pressing away from it closes it",
+    !document.querySelector(".at-langmenu"),
+    document.querySelector(".at-langmenu") ? "still open" : "put away");
 
   click(buttonNamed(/^Home$/));
   await sleep(300);

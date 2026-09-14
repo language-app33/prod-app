@@ -70,6 +70,14 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already
   carries. See `src/verbs.ts`.
+- **A learner studying more than one language says which are in play.** A
+  switch at the top of Learning, beside the space tabs, lists the languages
+  they have cards in and holds the ones switched off in
+  `settings.langsOff` — the ones *off*, so a language that arrives later is
+  in play by default. Everything the learner is shown reads the cards it
+  leaves: the card list, Progress, what is ready, and what a session is
+  dealt from. It appears only where there is a choice to make, and the last
+  language on cannot be switched off.
 - **A matching grid is five questions.** Every word in it is asked, marked
   and scheduled in its own right. Which words stand together is decided
   when the session is built: the grid is filled out from cards already

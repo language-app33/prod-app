@@ -297,6 +297,17 @@ const EMPTY: Doc = {
     types: defaultTypes(),
     kinds: { word: true, phrase: true, sentence: true, dialog: true },
     cohesion: "balanced", // off | balanced | strong
+    /*
+     * The languages switched *off*, rather than the ones switched on.
+     *
+     * Which way round matters. Somebody learning two languages who joins a
+     * course in a third should see it, and a list of what is on would have
+     * left the new one out of it — switched off by a setting written before
+     * it existed, with nothing on the screen to say so. Empty is every
+     * language, which is what a new device starts at and what this can
+     * always be put back to.
+     */
+    langsOff: [],
     ...defaultLanguageOptions(),
     showHint: false,
     keyboard: "auto",
@@ -4261,9 +4272,7 @@ export default function ArabicTrainer() {
      for all of them at once, or null for never asked — which is what keeps
      the picker from opening with an answer already marked. It stays on the
      last answer so "Keep going" means more of the same. */
-  const [sessionLang, setSessionLang] = useState<LangId | "" | null>(null);
   /* And whether the question is being put. */
-  const [picking, setPicking] = useState(false);
   /* The version of course material this device last received. Per device
      and per launch, so the first check after opening is always a full one. */
   const materialVersion = useRef("");
@@ -4711,7 +4720,11 @@ export default function ArabicTrainer() {
     [deck]
   );
 
-  const drillable = useMemo(
+  /* Everything this device could practise, before the language switch has
+     had its say. What the switch itself is built from: the list of
+     languages to choose between has to be the whole of them, or switching
+     one off would take it out of the list that switched it off. */
+  const drillableAll = useMemo(
     () => items.filter((it) => inDeck(it) && isDrillable(it, settings)),
     [items, settings, inDeck]
   );
@@ -4729,21 +4742,17 @@ export default function ArabicTrainer() {
     [settings]
   );
 
-  const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
-
   /*
    * The languages this person actually has cards in, with how much of each
-   * is ready. More than one and a session has to say which it is, because
-   * an app set to one language and a session drawn from both is what used
-   * to happen: Vietnamese cards marked by Arabic's rules, laid out
-   * right-to-left, and offered exercises Vietnamese does not have.
+   * is ready — which is what the switch at the top of the screen offers,
+   * and why it only appears for somebody learning more than one.
    *
    * Read off the cards rather than off the courses: a card kept after a
    * course ended is still a card in that language.
    */
   const langChoices = useMemo(() => {
     const byLang: Map<LangId, Item[]> = new Map();
-    for (const it of drillable) {
+    for (const it of drillableAll) {
       const id = langIdOf(it, settings);
       byLang.set(id, (byLang.get(id) || []).concat([it]));
     }
@@ -4758,7 +4767,47 @@ export default function ArabicTrainer() {
       .sort((a, b) =>
         a.id === settings.language ? -1 : b.id === settings.language ? 1 : b.ready - a.ready
       );
-  }, [drillable, settings, countReady]);
+  }, [drillableAll, settings, countReady]);
+
+  /*
+   * Which languages are switched off, as the rest of the app should read
+   * it rather than as it happens to be stored.
+   *
+   * Two things are cleaned up here so that nothing downstream has to think
+   * about them. A language switched off and since gone — the last card in
+   * it deleted, a course left — is dropped, so it cannot come back from
+   * the dead and hide a language that reuses its id. And switching off
+   * every language at once is not a state the app has: it would be a
+   * learner staring at an empty app with no clue why, so it reads as none
+   * of them switched off. The switch will not let you do it either; this
+   * is the belt to that pair of braces.
+   */
+  const langsOff: LangId[] = useMemo(() => {
+    const has = new Set(langChoices.map((c) => c.id));
+    const off = ((settings.langsOff as LangId[]) || []).filter((id) => has.has(id));
+    return off.length >= langChoices.length ? [] : off;
+  }, [settings.langsOff, langChoices]);
+
+  /* And the cards that leaves. Everything a learner is shown reads this
+     rather than the whole document: the card list, progress, what is ready
+     to practise, and what a session is dealt from. */
+  const inPlay = useCallback(
+    (it: Item) => !langsOff.includes(langIdOf(it, settings)),
+    [langsOff, settings]
+  );
+  const shown = useMemo(
+    () => (langsOff.length ? items.filter(inPlay) : items),
+    [items, langsOff, inPlay]
+  );
+  const drillable = useMemo(
+    () => (langsOff.length ? drillableAll.filter(inPlay) : drillableAll),
+    [drillableAll, langsOff, inPlay]
+  );
+
+  /* How much is waiting, in the languages that are switched on: the number
+     on the home screen, and what decides whether there is a session to
+     start at all. */
+  const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
 
   /* ---------------- session ---------------- */
 
@@ -5055,15 +5104,18 @@ export default function ArabicTrainer() {
     if (ids.length) warmClips(ids).catch(() => {});
   }
 
-  /**
-   * @param langId  One language, or "" for all of them
-   *   together. Kept for the next session started from here — "Keep going"
-   *   means more of what you were just doing.
+  /*
+   * A session, out of whatever the language switch has left in play.
+   *
+   * It used to ask. A learner with two languages pressing Start got a
+   * screen in the way — this one, both, or not now — every single time,
+   * and the answer held for that session only. The switch at the top of
+   * the screen is the same question asked once and kept, and it answers it
+   * for the card list and progress too, so there is nothing left for a
+   * session to decide.
    */
-  function begin(practice?: boolean, langId: LangId | "" | null = sessionLang) {
-    setSessionLang(langId || "");
-    const pool = langId ? items.filter((it) => langIdOf(it, settings) === langId) : items;
-    const built = buildSession({ items: pool, settings, inDeck, practice });
+  function begin(practice?: boolean) {
+    const built = buildSession({ items: shown, settings, inDeck, practice });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that
@@ -6081,11 +6133,8 @@ Cards ready to practice
                   </Help>
 
                   <div className="at-row">
-                    {/* One language and the button starts a session, as it
-                        always did. Two and it asks first: which pile this
-                        is, or both at once. */}
                     <Button variant="primary"
-                      onClick={() => (langChoices.length > 1 ? setPicking(true) : begin(false, ""))}
+                      onClick={() => begin(false)}
                       disabled={!readyCount}
                     >
                       Start session
@@ -6729,7 +6778,7 @@ Cards ready to practice
         {/* ============ ITEMS ============ */}
         {tab === "items" && (
           <ItemsTab
-            items={items}
+            items={shown}
             allTags={allTags}
             data={data}
             settings={settings}
@@ -6751,14 +6800,14 @@ Cards ready to practice
 
         {/* ============ PROGRESS ============ */}
         {tab === "progress" && (
-          <ProgressTab items={items} myCourses={myCourses} settings={settings} />
+          <ProgressTab items={shown} myCourses={myCourses} settings={settings} />
         )}
 
         {/* ============ SETTINGS ============ */}
 
         {building && (
           <ManualSessionSheet
-            items={items}
+            items={shown}
             allTags={allTags}
             settings={settings}
             onStart={beginManual}
@@ -6777,19 +6826,6 @@ Cards ready to practice
             }}
             onDelete={dropSession}
             onClose={() => setShowingSaved(false)}
-          />
-        )}
-
-        {picking && (
-          <SessionLanguages
-            choices={langChoices}
-            ready={readyCount}
-            chosen={sessionLang}
-            onPick={(id) => {
-              setPicking(false);
-              begin(false, id);
-            }}
-            onClose={() => setPicking(false)}
           />
         )}
 
@@ -6934,19 +6970,32 @@ Cards ready to practice
       {!inExercise && (
         <>
           <div className="at-brand">Taleb33</div>
-          <SpaceSwitch
-            space={space}
-            spaces={["learn"]
-              .concat(teaches || (account && account.admin) ? ["teach"] : [])
-              .concat(account && account.admin ? ["admin"] : [])}
-            /* Choosing a space is arriving at it, not resuming it: the
-               card a trial was asked about is reopened on the way back
-               from that one question and nowhere else. */
-            onSpace={(to: string) => {
-              setTrialBack(null);
-              setSpace(to);
-            }}
-          />
+          {/* The switch and the space tabs share a bar, so they sit beside
+              each other however many of either there are — the tabs are
+              not there at all for somebody who only learns, and the switch
+              is not there for somebody learning one language. */}
+          <div className="at-chromebar">
+            {space === "learn" && (
+              <LanguageSwitch
+                choices={langChoices}
+                off={langsOff}
+                onChange={(next) => setSetting("langsOff", next)}
+              />
+            )}
+            <SpaceSwitch
+              space={space}
+              spaces={["learn"]
+                .concat(teaches || (account && account.admin) ? ["teach"] : [])
+                .concat(account && account.admin ? ["admin"] : [])}
+              /* Choosing a space is arriving at it, not resuming it: the
+                 card a trial was asked about is reopened on the way back
+                 from that one question and nowhere else. */
+              onSpace={(to: string) => {
+                setTrialBack(null);
+                setSpace(to);
+              }}
+            />
+          </div>
           <CornerMenu
             account={account}
             /* The dot stands for the whole action, so it stays lit until
@@ -8439,49 +8488,6 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    languages together is a row like the others rather than a switch beside
    them: it is another way to practice, not a modifier on the choice above.
    ------------------------------------------------------------------ */
-function SessionLanguages({ choices, ready, chosen, onPick, onClose }: {
-  choices: { id: LangId, name: string, ready: number, total: number }[];
-  ready: number;
-  chosen: LangId | "" | null;
-  onPick: (id: LangId | "") => void;
-  onClose: () => void;
-}) {
-  const waiting = (n: number) => (n ? `${plural(n, "card")} ready` : "nothing ready just now");
-  return (
-    <Screen title="Which language?" onBack={onClose} rise backLabel="Not now">
-      <Help>
-        You're studying more than one. Pick the one to practice, or take them
-        all in one session.
-      </Help>
-      <div className="at-cklist">
-        {choices.map((c) => (
-          <button
-            key={c.id}
-            className={`at-ck${chosen === c.id ? " on" : ""}`}
-            disabled={!c.ready}
-            onClick={() => onPick(c.id)}
-          >
-            <span className="at-cktext">
-              <b>{c.name}</b>
-              <i>{waiting(c.ready)}</i>
-            </span>
-          </button>
-        ))}
-        <button
-          className={`at-ck${chosen === "" ? " on" : ""}`}
-          disabled={!ready}
-          onClick={() => onPick("")}
-        >
-          <span className="at-cktext">
-            <b>All languages</b>
-            <i>{waiting(ready)}, mixed together</i>
-          </span>
-        </button>
-      </div>
-    </Screen>
-  );
-}
-
 /* ------------------------------------------------------------------
    Full-screen: build a session by hand
    ------------------------------------------------------------------ */
@@ -9698,6 +9704,118 @@ const SPACE_ICON: Record<string, string> = { learn: "cards", teach: "school", ad
    A row rather than a dropdown: there are at most three, and moving this out
    of the menu was about reaching them in one tap. Shown only to people with
    somewhere to go — a student who only studies sees nothing. */
+/* The two letters a language is known by, off the front of its id, which
+   is where its ISO code is: ar-PS is AR, vi-Hue is VI. Enough to say which
+   one is on when only one is, in the room a button has. */
+const langTag = (id: LangId) => String(id || "").split("-")[0].toUpperCase();
+
+/*
+ * Which of the languages you are learning are in play.
+ *
+ * Only for somebody learning more than one — one language needs no switch,
+ * and an app that showed one anyway would be asking a question with a
+ * single answer. What it decides holds everywhere in the learning space:
+ * the cards you can list, what Progress counts, what is ready, and what a
+ * session is dealt from.
+ *
+ * The button is an icon and a mark, because it lives in the chrome beside
+ * the space switcher where there is room for nothing else — and the mark
+ * is the whole of the state rather than a decoration: which one, when it
+ * is one; how many, when it is some; that there is nothing to say, when it
+ * is all of them. The rest is in the label a screen reader and a tooltip
+ * both get.
+ *
+ * You cannot switch the last one off. An app with no languages in it is a
+ * blank screen with no way of telling why, and the row says so rather than
+ * just refusing.
+ */
+function LanguageSwitch({ choices, off, onChange }: {
+  choices: { id: LangId; name: string; ready: number; total: number }[];
+  off: LangId[];
+  onChange: (off: LangId[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, [open]);
+
+  /* After the hooks, which have to run on every render. */
+  if (!choices || choices.length < 2) return null;
+
+  const on = choices.filter((c) => !off.includes(c.id));
+  const all = on.length === choices.length;
+  const only = on.length === 1;
+  const mark = all ? "All" : only ? langTag(on[0].id) : String(on.length);
+  const said = all
+    ? `all ${choices.length}`
+    : only
+    ? `${on[0].name} only`
+    : `${on.length} of ${choices.length}`;
+
+  const toggle = (id: LangId) => {
+    const isOff = off.includes(id);
+    if (!isOff && only) return; // the last one on stays on
+    onChange(isOff ? off.filter((x) => x !== id) : off.concat([id]));
+  };
+
+  return (
+    <div className="at-langsw" onClick={(e) => e.stopPropagation()}>
+      <button
+        className={`at-langbtn${all ? "" : " on"}`}
+        aria-expanded={open}
+        aria-label={`Languages — ${said}. Choose which.`}
+        title={`Languages — ${said}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="language" size={18} />
+        <span className="at-langmark">{mark}</span>
+      </button>
+
+      {open && (
+        <div className="at-langmenu">
+          <p className="at-eyebrow">Languages</p>
+          <div className="at-cklist">
+            {choices.map((c) => {
+              const chosen = !off.includes(c.id);
+              const stuck = chosen && only;
+              return (
+                <button
+                  key={c.id}
+                  className={`at-ck${chosen ? " on" : ""}`}
+                  role="checkbox"
+                  aria-checked={chosen}
+                  /* Not disabled: a button that cannot be pressed says
+                     nothing about why. It is pressable, it holds, and the
+                     line under it says so. */
+                  onClick={() => toggle(c.id)}
+                >
+                  <span className="at-ckbox">{chosen ? "✓" : ""}</span>
+                  <span className="at-cktext">
+                    <b>{c.name}</b>
+                    <i>
+                      {stuck
+                        ? "the only one on"
+                        : `${plural(c.total, "card")}${c.ready ? `, ${c.ready} ready` : ""}`}
+                    </i>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Help>
+            What you switch off here is out of the whole of Learning — your cards, your progress
+            and anything you practise — until you switch it back on.
+          </Help>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SpaceSwitch({ space, spaces, onSpace }: {
   space: string;
   spaces: string[];

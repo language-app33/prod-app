@@ -47,7 +47,10 @@ for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
   for (const sel of selectors.split(",").map((x) => x.trim())) layer[sel] = value;
 }
 
-const CHROME = [".at-brand", ".at-corner", ".at-mode", ".at-spaces"];
+/* `.at-chromebar` holds the language switch and the space tabs, which used
+   to be `.at-spaces` pinned to a corner of its own. The bar is what is
+   positioned now, so the bar is what carries the layer. */
+const CHROME = [".at-brand", ".at-corner", ".at-mode", ".at-chromebar"];
 
 test("every layer token resolves to a number", () => {
   for (const [name, value] of Object.entries(tokens)) {
