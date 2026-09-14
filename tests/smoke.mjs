@@ -1319,17 +1319,28 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 /* ---- a progress tile opens the card ----
    Every other small card in the app opens when you tap it. These showed
    you how far along a card was and then had nothing to say when you
-   asked to see it, which is the moment you most want to. */
+   asked to see it, which is the moment you most want to.
+
+   The cards behind a count are the only list of them on this screen now:
+   the collapsible deck sections, which carried their own copy of every
+   card, are gone. */
 {
   click(buttonNamed(/^Progress$/));
   await sleep(400);
-  const opener = [...document.querySelectorAll("button")].find((b) => /^Show /.test(b.getAttribute("aria-label") || ""));
+  const opener = /** @type {HTMLButtonElement[]} */ ([
+    ...document.querySelectorAll("button.at-stat"),
+  ]).find((b) => !b.disabled);
   click(opener);
-  await sleep(200);
-  const tile = document.querySelector(".at-pgrid .at-pcard");
-  check("a progress tile is a button, so it can be tapped and tabbed to",
-    !!tile && tile.tagName === "BUTTON", tile ? tile.tagName : "no tile");
-  click(tile);
+  await sleep(250);
+  const tile = document.querySelector(".at-cardgrid .at-minicard");
+  /* Not a real button — two of these carry Edit and Delete inside them —
+     but a keyboard has to reach it and Enter has to open it. */
+  check("a progress tile can be tapped and tabbed to",
+    !!tile && tile.getAttribute("role") === "button" && tile.getAttribute("tabindex") === "0",
+    tile ? `role=${tile.getAttribute("role")} tabindex=${tile.getAttribute("tabindex")}` : "no tile");
+  /* Opened with the keyboard rather than the mouse, so the handler that
+     makes the role true is the one under test. */
+  if (tile) tile.dispatchEvent(new anyWindow.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   await sleep(300);
   const open = document.querySelector(".at-screen .at-readout, .at-readout");
   check("tapping one opens the whole card", !!open,
@@ -1349,6 +1360,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     readout.replace(/\s+/g, " ").slice(0, 120) || "(nothing open)");
   click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent || "") || b.getAttribute("aria-label") === "Back"));
   await sleep(250);
+  /* And put the list away again, so the walk below starts where it thinks
+     it does: pressing a count toggles it, and this one is already open. */
+  click(opener);
+  await sleep(200);
 
   /* ---- and the counts at the top open too ----
      A number you want to see the cards behind is a number worth pressing.

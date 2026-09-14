@@ -659,23 +659,6 @@ export function standing(all: Standing[]): Standing | null {
   return all.find((s) => s.status !== "done") || last;
 }
 
-/**
- * How far up the ladder, as a fraction, for the bars that show it.
- *
- * The levels already done, plus how far through the one being worked on —
- * which is what the count on that level says. It replaced a mean over
- * every exercise of its interval against three weeks: a number that moved
- * when nothing a learner had done changed, and that read a third for a
- * card the app had two levels up.
- */
-export function ladderProgress(all: Standing[]): number | null {
-  if (!all.length) return null;
-  const at = all.findIndex((s) => s.status !== "done");
-  if (at < 0) return 1;
-  const here = all[at];
-  return (at + (here.of ? here.done / here.of : 0)) / all.length;
-}
-
 /* ------------------------------------------------------------------
    Saying when, in words
    ------------------------------------------------------------------ */

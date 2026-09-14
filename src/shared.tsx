@@ -768,7 +768,34 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
      the tile with an empty face was the alternative. */
   const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : card.ar;
   return (
-    <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
+    <div
+      className={`at-minicard${className ? " " + className : ""}`}
+      onClick={onClick}
+      /*
+       * A tile that opens something is something to press, and a keyboard
+       * has to be able to reach it. Not a real <button>, because two of
+       * these carry Edit and Delete inside them and a button holding
+       * buttons is not a thing a browser can make sense of — so the role
+       * and the two keys that go with it, by hand.
+       *
+       * The Progress screen is what made this show: the one keyboard-
+       * reachable way into a card there was a tile in the deck sections,
+       * and those are gone.
+       */
+      {...(onClick
+        ? {
+            role: "button",
+            tabIndex: 0,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              /* Space scrolls the page otherwise, which is the one thing
+                 a person pressing it here did not ask for. */
+              e.preventDefault();
+              onClick();
+            },
+          }
+        : null)}
+    >
       {/* And it says so. A conversation's face is somebody else's opening
           line, which on its own reads as a phrase card written oddly —
           this is the word that makes it one of the kinds of card rather

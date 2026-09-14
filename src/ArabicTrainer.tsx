@@ -165,7 +165,6 @@ import {
   freshState,
   freshStates,
   itemDifficulty as itemDifficultyOf,
-  ladderProgress,
   mastered,
   maturity,
   openTypes as openTypesOf,
@@ -385,6 +384,15 @@ function standingLabel(at: Standing | null): string {
   if (!at) return "Can't practice yet";
   if (at.status === "done") return "Learnt";
   return `Level ${at.level} · ${STATUS_LABEL[at.status] || at.status}`;
+}
+
+/* The same thing said shorter, for the small print on a tile in a grid.
+   The line it sits on is one line and does not wrap — it holds a date in
+   every other list — and "Level 2 · Not started" came out as "Level 2 ·
+   Not…", which is a worse answer than the level on its own. */
+function standingShort(at: Standing | null): string {
+  if (!at) return "Can't practice yet";
+  return at.status === "done" ? "Learnt" : `Level ${at.level}`;
 }
 
 /* ------------------------------------------------------------------
@@ -6743,15 +6751,7 @@ Cards ready to practice
 
         {/* ============ PROGRESS ============ */}
         {tab === "progress" && (
-          <ProgressTab
-            data={data}
-            items={items}
-            myCourses={myCourses}
-            settings={settings}
-            onPractice={(ids, mode) =>
-              beginManual({ ids, mode, count: settings.sessionSize })
-            }
-          />
+          <ProgressTab items={items} myCourses={myCourses} settings={settings} />
         )}
 
         {/* ============ SETTINGS ============ */}
@@ -9281,179 +9281,30 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
    ================================================================== */
 
 /*
- * How far along a card is: which level it is on, how it is going there,
- * and the fraction the bar under it draws.
+ * How far along a card is: which level it is on and how it is going there.
  *
- * This used to be a mean over every exercise of its interval against three
- * weeks. It was a number nobody could act on — a card the app had two
- * levels up and was asking to be written read as a third learnt, because
- * eight of its eleven exercises had only just opened — and it moved when
- * nothing the learner had done changed. The level is the thing they are
- * actually climbing, so it is the thing shown.
+ * This used to be a fraction — the mean over every exercise of its interval
+ * against three weeks — drawn as a bar under each card and averaged again
+ * for each deck. It was a number nobody could act on: a card the app had
+ * two levels up and was asking to be written read as a third learnt,
+ * because eight of its eleven exercises had only just opened, and it moved
+ * when nothing the learner had done changed. The level is the thing they
+ * are climbing, so it is the thing shown, and the bars have gone with the
+ * deck sections that carried them.
  */
-interface CardProgress {
-  at: Standing | null;
-  levels: Standing[];
-  p: number | null;
-}
+const standingOf = (it: Item, settings: Settings): Standing | null =>
+  standing(cardStandings(it, settings));
 
-function itemProgress(it: Item, settings: Settings): CardProgress {
-  const levels = cardStandings(it, settings);
-  return { at: standing(levels), levels, p: ladderProgress(levels) };
-}
-
-/* A tile here shows how far along a card is, which is exactly the moment
-   you want to look at the card itself — so it opens, like every other
-   small card in the app. A real button rather than a div with a click on
-   it: it has nothing interactive inside it, so it can be the one thing
-   you press, and reach with a keyboard. */
-function ItemProgressCard({ item, progress, onOpen }: {
-  item: Item;
-  progress: CardProgress;
-  onOpen?: () => void;
-}) {
-  const { at, p } = progress;
-  const done = !!at && at.status === "done";
-
-  return (
-    <button
-      type="button"
-      className={`at-pcard${done ? " done" : ""}${p === null ? " idle" : ""}`}
-      onClick={onOpen}
-    >
-      <div className="at-pcardtop">
-        {item.ar && (
-          <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-            {item.ar}
-          </span>
-        )}
-        {item.en && <span className="en">{item.en}</span>}
-      </div>
-      <div className="at-pbar">
-        <i style={{ width: `${p === null ? 0 : Math.max(3, p * 100)}%` }} />
-      </div>
-      <div className="at-pcardfoot">
-        {/* The level, and how it is going there — which is what the app
-            itself is going on, rather than a percentage worked out of
-            intervals nobody sees. */}
-        <span style={at && !done ? { color: STATUS_COLOR[at.status] } : undefined}>
-          {standingLabel(at)}
-        </span>
-        {(item.subs || []).length > 0 && <span>⌥ {(item.subs || []).length + 1}</span>}
-      </div>
-    </button>
-  );
-}
-
-/* Progress per card is worked out once per change of the cards, in the tab,
-   and handed down — not once per section and again per tile on every
-   render. */
-const TagSection = React.memo(
-  function TagSection({
-    name,
-    items: group,
-    open,
-    onToggle,
-    onPractice,
-    progressOf,
-    onOpen,
-  }: {
-    name: string;
-    items: Item[];
-    open: boolean;
-    onToggle: () => void;
-    onPractice: (ids: string[], mode: string) => void;
-    progressOf: Map<string, CardProgress>;
-    onOpen: (it: Item) => void;
-  }) {
-    const [arming, setArming] = useState(false);
-    const here = group.map((it) => progressOf.get(it.id)).filter((x): x is CardProgress => !!x);
-    const scored = here.map((x) => x.p).filter((x): x is number => x != null);
-    const mean = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : 0;
-    const done = here.filter((x) => x.at && x.at.status === "done").length;
-
-    return (
-      <div className="at-tagsec">
-        <div className="at-tagsecbar">
-          <span className="nm">{name}</span>
-          <button
-            className={`at-btn sm${arming ? " primary" : " ghost"}`}
-            onClick={() => setArming((v) => !v)}
-          >
-            <Icon name={arming ? "close" : "cards"} size={16} />
-            {arming ? "Cancel" : "Practice"}
-          </button>
-          <span className="ct">
-            {done}/{group.length} learnt
-          </span>
-          <button
-            className="at-icon at-chev"
-            onClick={onToggle}
-            aria-expanded={open}
-            aria-label={open ? `Hide ${name}` : `Show ${name}`}
-            title={open ? "Hide cards" : "Show cards"}
-          >
-            <Icon name={open ? "chevronUp" : "chevronDown"} size={18} />
-          </button>
-        </div>
-
-        {arming && (
-          <div className="at-modepick">
-            <p className="at-miniq">
-              How should these {plural(group.length, "card")} be practiced?
-            </p>
-            {Object.entries(MODES).map(([key, m]) => (
-              <button
-                key={key}
-                className="at-modepickopt"
-                onClick={() => {
-                  setArming(false);
-                  onPractice(group.map((i) => i.id), key);
-                }}
-              >
-                <b>{m.label}</b>
-                <span>{m.blurb}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="at-pbar lg">
-          <i
-            className={done === group.length && group.length ? "full" : ""}
-            style={{ width: `${Math.max(2, mean * 100)}%` }}
-          />
-        </div>
-        {open && (
-          <div className="at-pgrid">
-            {group.map((it) => (
-              <ItemProgressCard
-                item={it}
-                key={it.id}
-                progress={progressOf.get(it.id) || { at: null, levels: [], p: null }}
-                onOpen={() => onOpen(it)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-);
-
-function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
-  data: any;
+function ProgressTab({ items, myCourses = [], settings }: {
   items: Item[];
   myCourses?: Course[];
   settings: Settings;
-  onPractice: (ids: string[], mode: string) => void;
 }) {
-  // Collapsed by default: the point of this screen is the overview.
-  const [open, setOpen] = useState(() => new Set());
   const [viewing, setViewing] = useState<any | null>(null);
 
   const progressOf = useMemo(() => {
-    const m: Map<string, CardProgress> = new Map();
-    for (const it of items) m.set(it.id, itemProgress(it, settings));
+    const m: Map<string, Standing | null> = new Map();
+    for (const it of items) m.set(it.id, standingOf(it, settings));
     return m;
   }, [items, settings]);
 
@@ -9469,7 +9320,7 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
   const byBucket = useMemo(() => {
     const out: Record<string, Item[]> = { all: items, l1: [], l2: [], l3: [], l4: [], done: [] };
     for (const it of items) {
-      const at = (progressOf.get(it.id) || { at: null }).at;
+      const at = progressOf.get(it.id);
       /* A card with nothing it can be asked yet — no meaning, or every
          exercise switched off — belongs to no level and is left out of
          all five, the way it always was left out of the four before. */
@@ -9478,39 +9329,10 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
     }
     return out;
   }, [items, progressOf]);
-  /* Which tile is open, or none. One at a time: they are five views of the
+  /* Which tile is open, or none. One at a time: they are six views of the
      same cards, and two open at once is a screen you have to scroll past
      rather than read. */
   const [showing, setShowing] = useState<string>("");
-
-  /* A card shows up under each of its decks, and once under "Not in a deck" if
-     it has none. */
-  const groups = useMemo(() => {
-    const byTag = new Map();
-    const untagged = [];
-    for (const it of items) {
-      if (!it.tags.length) {
-        untagged.push(it);
-        continue;
-      }
-      for (const t of it.tags) {
-        if (!byTag.has(t)) byTag.set(t, []);
-        byTag.get(t).push(it);
-      }
-    }
-    const out = [...byTag.entries()]
-      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-      .map(([name, group]) => ({ name, group }));
-    if (untagged.length) out.push({ name: "Not in a deck", group: untagged });
-    return out;
-  }, [items]);
-
-  const toggle = (name: string) =>
-    setOpen((prev) => {
-      const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
-      return next;
-    });
 
   return (
     <>
@@ -9564,7 +9386,14 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
 
       {/* The cards behind the tile that is open, at the smallest size they
           come in — the point is to see which words are in there, and the
-          list is as long as the number on the tile said it would be. */}
+          list is as long as the number on the tile said it would be.
+
+          This is the whole of the screen below the tiles now. It used to
+          be followed by every deck as a collapsible section, each with its
+          own bar and its own copy of every card in it, so a card appeared
+          once per deck it was in and again under whichever tile was open.
+          Three views of the same cards, and the tiles are the one that
+          answers the question this screen is for. */}
       {showing && byBucket[showing].length > 0 && (
         <ItemList
           noun="card"
@@ -9579,7 +9408,7 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
              notices for itself and draws without headings. */
           groups={/^l\d$/.test(showing) ? STATUS_RUNS : undefined}
           groupOf={(it: Item) => {
-            const at = (progressOf.get(it.id) || { at: null }).at;
+            const at = progressOf.get(it.id);
             return at ? at.status : "none";
           }}
           match={(it: Item, needle: string) =>
@@ -9591,27 +9420,20 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
             <CardTile
               card={it}
               lang={langOf(settingsFor(settings, it))}
+              /* Which level it is on, but only under "Cards". That is the
+                 one tile whose list is every card at once, so it is the
+                 one where a card's level is not already the answer to
+                 which tile you pressed — and under a level the headings
+                 say how it is going there as well. */
+              meta={showing === "all" ? standingShort(progressOf.get(it.id) || null) : undefined}
               onClick={() => setViewing(it)}
             />
           )}
         />
       )}
 
-      {items.length === 0 ? (
+      {items.length === 0 && (
         <Empty title="Nothing to show yet">{noCardsYet(myCourses.length)}</Empty>
-      ) : (
-        groups.map(({ name, group }) => (
-          <TagSection
-            key={name}
-            name={name}
-            items={group}
-            open={open.has(name)}
-            onToggle={() => toggle(name)}
-            onPractice={onPractice}
-            progressOf={progressOf}
-            onOpen={setViewing}
-          />
-        ))
       )}
 
       {viewing && (

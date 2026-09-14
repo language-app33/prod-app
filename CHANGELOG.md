@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.107 — 14 September 2026
+
+- **Progress is the tiles and the cards behind them, and nothing else.**
+  Under them stood every deck as a collapsible section, each with its own
+  bar, its own "n of m learnt" and its own copy of every card in it — so a
+  card appeared once for each deck it was in, and again under whichever
+  tile was open. Three views of the same cards on one screen, and the
+  tiles are the one that answers what the screen is for.
+
+  The deck sections are gone. What is left is the six tiles and, when you
+  press one, its cards grouped by how they are going.
+
+- **A card's tile says which level it is on** when the list is every card
+  at once. Under a level it does not: every card there is on that level,
+  and the headings say how each is going.
+
+- **The per-card bars have gone with them**, and so has the fraction they
+  drew. It was a mean over every exercise of its interval against three
+  weeks, which is not something a learner can act on.
+
+- **The Practice button each deck section carried is gone too.** Building
+  a session from chosen cards is what the session builder is for, and it
+  can pick a deck along with everything else.
+
+- **A card tile can be reached with a keyboard.** They open a card when
+  tapped and had no way in from a keyboard at all; the one tile on this
+  screen that did was in the deck sections. They now take focus and open
+  on Enter or Space, here and in the Cards tab and the teaching space.
+
 ## 0.106 — 14 September 2026
 
 - **Open a level in Progress and its cards come out grouped by how they are

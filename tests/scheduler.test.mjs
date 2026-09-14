@@ -42,7 +42,6 @@ import {
   openTypes,
   standings,
   standing,
-  ladderProgress,
   phaseCounts,
   roomForNew,
   formatGap,
@@ -829,15 +828,3 @@ test("a family is only as far up the ladder as its weakest form", () => {
   assert.deepEqual(rows.map((r) => r.status), ["learning", "none", "none", "none"]);
 });
 
-test("the bar under a card is how far up the ladder it is", () => {
-  const done = state({ phase: "review", interval: MASTERED_DAYS });
-  const p = (/** @type {Record<string, ExerciseState>} */ s) =>
-    must(ladderProgress(standings(climber(s), rungs)), "a fraction");
-  assert.equal(p({}), 0, "nothing answered is nothing done");
-  assert.equal(p({ ar2en: done, match: done, tr2ar: done, en2ar: done }), 1, "every level done is full");
-  assert.ok(p({ ar2en: done }) > 0 && p({ ar2en: done }) < 1);
-  /* It only ever goes up as a card climbs. */
-  assert.ok(p({ ar2en: done, match: done }) > p({ ar2en: done }));
-  assert.ok(p({ ar2en: done, match: done, tr2ar: done }) > p({ ar2en: done, match: done }));
-  assert.equal(ladderProgress([]), null, "a card with nothing to practise has no bar");
-});

@@ -419,6 +419,9 @@ button {
    work of separating them from each other rather than from the card. */
 .at-minicard { text-align:left; cursor:pointer; background: var(--surface); border:2px solid var(--line); border-radius: var(--r); padding:calc(8px * var(--tile, 1)) calc(10px * var(--tile, 1)); color: var(--text); min-width:0; overflow:hidden; position:relative; display:flex; flex-direction:column; gap:1px; height:100%; }
 .at-minicard.on { border-color: var(--jade); background: var(--tag-bg); }
+/* A tile that opens a card can be reached with a keyboard, so it has to
+   say when it has been — the same ring the buttons take. */
+.at-minicard[role="button"]:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
 /* Two lines at most, then an ellipsis — not one. A tile a third of a
    phone wide cuts nearly every phrase off after a word or two, and "افتح
    الباب من…" is not something you can pick out of a list. Two lines grows
@@ -762,13 +765,6 @@ button {
 /* Progress summary: the figures carry the screen, so they are read at size. */
 .at-stat b { font-size:30px; line-height:1.1; }
 .at-stat span { font-size:13px; }
-/* A deck row: name, practice, score, then the chevron hard right. */
-.at-tagsecbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:8px; min-width:0; }
-.at-tagsecbar .nm { font-size:16px; font-weight:800; flex:1 1 auto; min-width:0;
-  overflow-wrap:anywhere; }
-.at-tagsecbar .ct { font-size:12px; color: var(--muted); margin-left:auto;
-  white-space:nowrap; }
-.at-chev { width:36px; height:34px; flex:0 0 auto; }
 .at-keyfield { letter-spacing:.02em; }
 /* Whether a deck is reaching anyone, at a glance. */
 .at-reach { display:flex; align-items:center; gap:8px; margin-top:10px;
@@ -1749,83 +1745,24 @@ button.at-flag:hover { color: var(--text); border-color: var(--muted); }
 .at-stat span { font-family: var(--ui); font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
 /* The compact row used on the Progress screen. */
 /* A tile that opens the cards behind its number. The declarations up to
-   `background` undo a button's own chrome, exactly as .at-pcard does below
-   — the rest is the tile it has always been. */
+   `background` undo a button's own chrome; the rest is the tile it has
+   always been. */
 button.at-stat { display:block; width:100%; font:inherit; color:inherit; text-align:inherit;
   cursor:pointer; -webkit-appearance:none; appearance:none; }
 button.at-stat.on { border-color: var(--accent); }
 /* Nothing to show, so nothing to press. Dimmed rather than hidden: the
    number is still the answer to how many there are. */
 button.at-stat:disabled { cursor:default; opacity:.55; }
-.at-stats.tight { grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:16px; }
+.at-stats.tight { grid-template-columns:repeat(6,1fr); gap:6px; margin-bottom:16px; }
 .at-stats.tight .at-stat { padding:9px 5px; border-width:2px; border-radius: var(--r-sm); text-align:center; }
 .at-stats.tight .at-stat b { font-size:19px; }
 .at-stats.tight .at-stat span { font-size:8px; letter-spacing:.04em; }
-.at-tagsec { margin-bottom:20px; }
-.at-tagsecbar > .at-btn { flex-shrink:0; }
-.at-modepick { border:2px solid var(--line); border-radius: var(--r); padding:12px;
-  margin:10px 0; background: var(--surface); }
-.at-modepick .at-miniq { font-family: var(--ui); font-size:13px; font-weight:700;
-  color: var(--muted); margin:0 0 10px; }
-.at-modepickopt { display:block; width:100%; text-align:left; cursor:pointer; margin-bottom:8px;
-  background: var(--raised); border:2px solid var(--line); border-radius: var(--r-sm);
-  padding:11px 12px; color: var(--text); }
-.at-modepickopt:last-child { margin-bottom:0; }
-.at-modepickopt:hover { border-color: var(--jade); background: var(--tag-bg); }
-.at-modepickopt b { display:block; font-size:15px; font-weight:800; }
-.at-modepickopt span { display:block; font-size:12px; font-weight:500; color: var(--muted);
-  margin-top:3px; line-height:1.45; }
-.at-pbar { height:6px; background: var(--well); border:1px solid var(--line);
-  border-radius:999px; overflow:hidden; }
-.at-pbar i { display:block; height:100%; background: var(--brass); border-radius:999px;
-  transition:width 300ms; }
-.at-pbar.lg { height:10px; border-width:2px; }
-.at-pbar i.full { background: var(--jade); }
-/* 165 rather than 150: the foot now names the level and how it is going,
-   and the narrower tile cut that off mid-word. */
-.at-pgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
-  gap:8px; margin-top:12px; min-width:0; }
-/* A button, because it opens the card. The declarations up to `background`
-   are the ones that undo a button's own chrome — the rest is the tile it
-   has always been. */
-.at-pcard { display:block; width:100%; font:inherit; color:inherit; text-align:left;
-  cursor:pointer; -webkit-appearance:none; appearance:none;
-  min-width:0; border:2px solid var(--line); border-radius: var(--r-sm); padding:10px; background: var(--surface); }
-.at-pcard.done { border-color: var(--jade); background: var(--tag-bg); }
-.at-pcard.done .at-pbar i { background: var(--jade); }
-.at-pcard.idle { opacity:.55; }
-/* Same lift as the card tiles. It sits here rather than up with theirs
-   because `.done` sets a border colour of its own further up the file and
-   would otherwise outrank the hover. */
-.at-pcard { transition: border-color 140ms ease, transform 140ms ease; }
+/* The lift a tile takes when the pointer is over it. */
 button.at-stat { transition: border-color 140ms ease; }
 @media (hover: hover) {
-  .at-pcard:hover { border-color: var(--ink); transform: translateY(-1px); }
   button.at-stat:hover:not(:disabled) { border-color: var(--ink); }
   button.at-stat.on:hover:not(:disabled) { border-color: var(--accent); }
 }
-.at-pcardtop { display:flex; flex-direction:column; gap:2px; margin-bottom:8px; min-height:44px; }
-.at-pcardtop .ar { font-family: var(--sfont); font-size:calc(20px * var(--sscale, 1)); font-weight:700; direction: var(--sdir);
-  unicode-bidi:isolate; line-height:calc(1.35 * var(--sleading, 1)); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-pcardtop .en { font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.at-pcardfoot { display:flex; justify-content:space-between; gap:6px; margin-top:6px;
-  font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.04em;
-  text-transform:uppercase; color: var(--muted); }
-.at-pcard.done .at-pcardfoot { color: var(--jade); }
-/* "Level 4 · Not started" is a good deal longer than the "42%" that used
-   to stand here, and at 10px uppercase with letter-spacing it did not fit
-   a tile. Said in sentence case instead, which buys the room: the foot is
-   a quiet line either way, and this is the one thing on the tile a learner
-   is reading rather than glancing at. It still gives way rather than
-   pushing the count of a card's forms off the end. */
-.at-pcardfoot > span:first-child { text-transform:none; letter-spacing:0; font-size:10.5px;
-  font-weight:700; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-/* The count of a card's forms gives way first: it is the smaller fact of
-   the two, and "Level 4 · Not started" is the longest thing the foot has
-   to hold. */
-.at-pcardfoot > span + span { flex:none; font-size:9.5px; }
-.at-pcardfoot { gap:4px; }
 
 /* ---- the ladder, on a card's own screen ----
    One row per level the card has material on: which level, what it asks,
@@ -1922,17 +1859,9 @@ button.at-stat { transition: border-color 140ms ease; }
   .at-arabic.word{font-size:calc(44px * var(--sscale, 1));} .at-arabic.phrase{font-size:calc(33px * var(--sscale, 1));} .at-arabic.sentence{font-size:calc(25px * var(--sscale, 1));} .at-key{min-width:31px; font-size:calc(19px * var(--sscale, 1));}
   .at-btn{font-size:15px; padding:13px 16px;}
   .at-stats{ grid-template-columns:repeat(2,1fr); }
-  .at-stats.tight{ grid-template-columns:repeat(5,1fr); }
-  .at-pgrid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
-  .at-pcard { padding:8px 7px; }
-  .at-pcardtop { min-height:38px; }
-  .at-pcardtop .ar { font-size:calc(17px * var(--sscale, 1)); }
-  .at-pcardtop .en { font-size:11px; }
-  .at-pcardfoot { font-size:9px; }
-  .at-modepickopt span { font-size:11px; }
+  /* Two rows of three rather than five and a lonely sixth. */
+  .at-stats.tight{ grid-template-columns:repeat(3,1fr); }
   .at-previewrow { flex-wrap:wrap; gap:4px 10px; } .at-previewrow .cell { flex:1 1 45%; }}
-@media (max-width:360px){
-  .at-pgrid { grid-template-columns:repeat(2,minmax(0,1fr)); }}
 @media (prefers-reduced-motion: reduce){ .at * { transition:none !important; }}
 /* The script's direction and typeface, set on the root from the language
    pack. Every rule that renders the target language reads these, so a
