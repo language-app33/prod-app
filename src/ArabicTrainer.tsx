@@ -356,6 +356,27 @@ const STATUS_COLOR: Record<string, string> = {
   paused: "var(--rose)",
 };
 
+/*
+ * The runs a level's cards are shown in, when one of the tiles at the top
+ * of Progress is opened.
+ *
+ * Every card under a level tile is on that level, so what tells them apart
+ * is how they are going there. Paused leads: it is the one that means
+ * something went wrong, it is usually the shortest run, and a list is
+ * paged — put it last and a learner with a hundred cards waiting on a
+ * level would never reach the two that had slipped.
+ *
+ * "Done" is not among them. A card whose level is done has moved up and is
+ * under the next tile along; the ones with nothing left to open are under
+ * "Learnt", where they are all in the same state and the list is drawn
+ * without headings.
+ */
+const STATUS_RUNS = [
+  { key: "paused", label: STATUS_LABEL.paused },
+  { key: "learning", label: STATUS_LABEL.learning },
+  { key: "none", label: STATUS_LABEL.none },
+];
+
 /* What a card's tile and its readout say, from the one standing. "Done"
    names the whole card rather than a level: there is nothing above it
    left to open, which is the only sense in which this app finishes a
@@ -9551,6 +9572,16 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
           itemKey={(it: Item) => it.id}
           size="small"
           empty="No cards match."
+          /* Under a level, the cards are told apart by how they are going
+             on it — see STATUS_RUNS. Under "Cards" they are spread over
+             every level and there is nothing one run would mean, and
+             under "Learnt" they are all in the one state, which the list
+             notices for itself and draws without headings. */
+          groups={/^l\d$/.test(showing) ? STATUS_RUNS : undefined}
+          groupOf={(it: Item) => {
+            const at = (progressOf.get(it.id) || { at: null }).at;
+            return at ? at.status : "none";
+          }}
           match={(it: Item, needle: string) =>
             (it.ar || "").includes(needle) ||
             (it.lat || "").toLowerCase().includes(needle) ||

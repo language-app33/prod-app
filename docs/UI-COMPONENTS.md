@@ -148,9 +148,9 @@ A proper radio list of languages. `languages, value, onChange, label, name`
 The standard list frame: two rows of controls, bulk-action tray, empty state,
 and paging at 120 items.
 
-`noun, plural, items, itemKey, match, size="large"|"small", resizable, onNew,
-renderItem, selected, onSelectedChange, bulkActions, tools, menus, filters,
-count, empty, busy`
+`noun, plural, items, itemKey, match, groups, groupOf, size="large"|"small",
+resizable, onNew, renderItem, selected, onSelectedChange, bulkActions, tools,
+menus, filters, count, empty, busy`
 
 The controls are **two rows**: New, the search box, `tools` and the size
 button on the first; Select and the `menus` on the second. Whichever menu is
@@ -173,6 +173,17 @@ every caller reaches for `.includes` or `.length`.
 
 `itemKey` defaults to reading `.id`, so items need one unless you pass your
 own.
+
+`groups` is `[{ key, label }]` and `groupOf` is `(item) => key`. Together they
+split the list into labelled runs, each headed with how many are in it
+altogether rather than how many the page has reached. **The list is sorted
+into the order `groups` gives before it is paged**, so a run is never left
+half off the end of a page — which is why the order is the one somebody needs
+to read, not the one with the most in it. A run whose key nothing answers with
+is not drawn, and where only one run turns out to have anything in it the
+headings are left off, because a heading that names the whole list says
+nothing. The Progress tab uses it to sort a level's cards into paused,
+learning and not started.
 
 ### `CardTile` — 2 uses
 One card tile for both the learner's and the teacher's lists.

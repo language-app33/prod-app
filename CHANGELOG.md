@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.106 — 14 September 2026
+
+- **Open a level in Progress and its cards come out grouped by how they are
+  going.** Every card under a level tile is on that level, so what tells
+  them apart is the status: **Paused**, then **Learning**, then **Not
+  started**, each headed with how many are in it.
+
+  Paused leads because it is the one that means something slipped, and it
+  is usually the shortest run — put it last and a learner with a hundred
+  cards waiting on a level would never scroll to the two that had gone
+  backwards. The list is sorted into that order before it is paged, so a
+  run is never half off the end of a page.
+
+  "Cards" is left ungrouped: those are spread over every level, and a run
+  of them would mean nothing. "Learnt" is too, because they are all in the
+  same state — a heading naming the whole list says nothing.
+
 ## 0.105 — 14 September 2026
 
 - **Progress is the ladder now, and says so in words.** A card climbs four

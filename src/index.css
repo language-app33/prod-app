@@ -814,6 +814,17 @@ button {
   align-items:stretch; }
 .at-cardgrid > * { display:flex; }
 .at-cardgrid > * > .at-minicard { flex:1; }
+/* The line that names a run of a grouped list. Spans the grid, so the run
+   under it reads as belonging to it rather than starting mid-row, and
+   carries its count — how many are in the run altogether, not how many of
+   them the page has got to. */
+.at-cardgrid > .at-grouphead, .at-decklist2 > .at-grouphead { grid-column: 1 / -1; display:flex;
+  align-items:baseline; gap:8px; margin:10px 0 2px; font-family: var(--ui); font-size:11px;
+  font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); }
+.at-grouphead:first-child { margin-top:2px; }
+.at-grouphead > span { font-size:11px; font-weight:700; letter-spacing:0; color: var(--faint); }
+/* A rule to the end of the row, so the eye finds where one run stops. */
+.at-grouphead::after { content:""; flex:1; height:1px; background: var(--line); }
 /* The word and its meaning get fixed room, so tiles in a row line up however
    long or short their contents are. */
 /* No reserved heights any more. They were holding room for a deck list and

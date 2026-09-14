@@ -1321,6 +1321,8 @@ export function ItemList<T>({
   items,
   itemKey = (it) => (it as any).id,
   match,
+  groups,
+  groupOf,
   size = "large",
   resizable,
   onNew,
@@ -1352,6 +1354,21 @@ export function ItemList<T>({
   items: T[];
   itemKey?: (item: T) => string;
   match?: (item: T, lowercasedQuery: string) => boolean;
+  /**
+   * Split the list into labelled runs, in the order given here.
+   *
+   * The list is sorted into that order before it is paged, so a run is
+   * never half off the end of the page while the one after it is on it —
+   * which is why the order matters: put the run somebody needs to see
+   * first, not the biggest one. A heading naming the whole list says
+   * nothing, so where only one run turns out to have anything in it the
+   * headings are left off and the list is drawn as any other.
+   *
+   * `groupOf` says which run an item belongs to; anything answering with
+   * a key not listed falls to the end.
+   */
+  groups?: { key: string; label: string }[];
+  groupOf?: (item: T) => string;
   size?: "large" | "small";
   /** Whether the tiles can be drawn bigger. Only a grid of them can. */
   resizable?: boolean;
@@ -1385,10 +1402,46 @@ export function ItemList<T>({
     return items.filter((it) => m(it, q));
   }, [items, query]);
 
+  /* Grouped, if the caller asked for it: the runs in the order they were
+     given, and each run in the order the list already had. Sorted before
+     paging so "show more" fills a run at a time rather than scattering
+     one. Held by ref like `match` above, because both are inline arrows
+     at nearly every call site and depending on them directly would throw
+     the work away on every render of the parent. */
+  const groupRef = useRef(groupOf);
+  groupRef.current = groupOf;
+  const runs = (groups || []).map((g) => g.key).join("|");
+  const ordered = useMemo(() => {
+    const of = groupRef.current;
+    if (!runs || !of) return shown;
+    const rank = new Map(runs.split("|").map((key, i) => [key, i]));
+    const at = (it: T) => {
+      const r = rank.get(of(it));
+      return r === undefined ? rank.size : r;
+    };
+    return shown
+      .map((it, i) => ({ it, i }))
+      .sort((a, b) => at(a.it) - at(b.it) || a.i - b.i)
+      .map((x) => x.it);
+  }, [shown, runs]);
+
+  /* How many are in each run, over the whole list rather than the page: a
+     heading that said "3" when there were forty behind a "show more"
+     would be a count of the wrong thing. Only the runs with anything in
+     them, and only where there is more than one — otherwise the heading
+     names the list itself and is left off. */
+  const counted = useMemo(() => {
+    const of = groupRef.current;
+    if (!runs || !of) return null;
+    const n: Map<string, number> = new Map();
+    for (const it of ordered) n.set(of(it), (n.get(of(it)) || 0) + 1);
+    return n.size > 1 ? n : null;
+  }, [ordered, runs]);
+
   useEffect(() => {
     setLimit(PAGE_SIZE);
   }, [query]);
-  const page = shown.length > limit ? shown.slice(0, limit) : shown;
+  const page = ordered.length > limit ? ordered.slice(0, limit) : ordered;
 
   const picked = selected || new Set();
   /* Nothing to select means no toggle: an empty list should not offer a mode
@@ -1565,10 +1618,17 @@ export function ItemList<T>({
         className={size === "small" ? "at-cardgrid" : "at-decklist2"}
         style={resizable && at.scale !== 1 ? ({ "--tile": String(at.scale) } as React.CSSProperties) : undefined}
       >
-        {page.map((it) => {
+        {page.map((it, i) => {
           const id = itemKey(it);
           const on = picked.has(id);
-          return (
+          const of = groupRef.current;
+          /* The run this one is in, and whether it is the first of it —
+             which is where the heading goes. Read off the page rather
+             than kept in a variable across the map, so this stays a
+             function of the list it is drawing. */
+          const run = counted && of ? of(it) : null;
+          const opens = run !== null && of && (i === 0 || of(page[i - 1]) !== run);
+          const tile = (
             <div
               className={`at-tilewrap${on ? " picked" : ""}`}
               key={id}
@@ -1593,6 +1653,17 @@ export function ItemList<T>({
               )}
               {renderItem(it, { selecting, selected: on })}
             </div>
+          );
+          if (!opens) return tile;
+          const named = (groups || []).find((g) => g.key === run);
+          return (
+            <React.Fragment key={`run-${run}`}>
+              <p className="at-grouphead">
+                {named ? named.label : run}
+                <span>{(counted && counted.get(run as string)) || 0}</span>
+              </p>
+              {tile}
+            </React.Fragment>
           );
         })}
       </div>

@@ -1378,6 +1378,40 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     document.querySelectorAll(".at-cardgrid .at-minicard").length === 0,
     `${document.querySelectorAll(".at-cardgrid .at-minicard").length} still up`);
 
+  /* ---- and a level's cards come out grouped by how they are going ----
+     Every card under a level tile is on that level, so what tells them
+     apart is the status: paused first, because it is the one that means
+     something slipped and the list is paged. "Cards" pressed above is the
+     one tile that is not grouped — its cards are spread over every level,
+     and a run would mean nothing. */
+  const levelTile = counts.find(
+    (b) => !b.disabled && /^\d+\s*Level \d/.test((b.textContent || "").replace(/\s+/g, " ")),
+  );
+  check("a level has cards behind it", !!levelTile,
+    counts.map((b) => (b.textContent || "").replace(/\s+/g, " ")).join(" · "));
+  click(levelTile);
+  await sleep(300);
+  const heads = [...document.querySelectorAll(".at-cardgrid .at-grouphead")];
+  const headed = heads.map((h) => (h.textContent || "").replace(/\s+/g, " ").trim());
+  check("the cards under it are grouped by how they are going", heads.length > 1,
+    headed.join(" · ") || "no headings");
+  /* Named in the order the runs are declared in, and never one the cards
+     are not in: a heading over nothing is a run that should not be drawn. */
+  /* The count sits against the label with a gap laid on by the styles
+     rather than a space in the markup, so there is nothing between them
+     to match. */
+  check("and each heading is a status, with how many are in it",
+    heads.length > 0 && headed.every((h) => /^(Paused|Learning|Not started)\s*\d+$/.test(h)),
+    headed.join(" · ") || "no headings");
+  /* The counts are of the whole run, so they add up to the number on the
+     tile whichever page the list is showing. */
+  const inRuns = headed.reduce((n, h) => n + Number(h.match(/\d+$/)), 0);
+  const onTile = Number(((levelTile || {}).textContent || "").trim().match(/^\d+/));
+  check("and the runs together are the number on the tile", inRuns === onTile,
+    `runs ${inRuns}, tile ${onTile}`);
+  click(levelTile);
+  await sleep(200);
+
   click(buttonNamed(/^Home$/));
   await sleep(300);
 }
