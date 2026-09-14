@@ -8,6 +8,19 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.126 — 14 September 2026
+
+- **"It takes a pronoun on the end" is just "Attached pronouns".** The long
+  way round was a sentence where the other two answers are a phrase, and it
+  read as the odd one out; the grammar's own name for them is shorter and
+  no harder. The table's own heading says the same thing, so a box in it is
+  now *English for attached pronouns · me* rather than a line of prose.
+
+- **And a table of one row no longer says it is "taught first".** That line
+  says which row opens when, which is worth saying where a verb has three
+  of them and names an order a single row is not in. What that one waits on
+  is the word itself, and the line under it already says so.
+
 ## 0.125 — 14 September 2026
 
 - **A word can carry the pronouns its language attaches to it.** Arabic and

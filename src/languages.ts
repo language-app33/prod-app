@@ -1152,7 +1152,7 @@ const ATTACHED_PERSONS: VerbPerson[] = [
    is in wherever it turns up, and no other table may use the name. */
 const ATTACHED_TABLE: VerbSpec = {
   persons: ATTACHED_PERSONS,
-  tenses: [{ id: "attached", label: "with a pronoun on the end" }],
+  tenses: [{ id: "attached", label: "attached pronouns" }],
 };
 
 /** The rows and columns a language lays its verbs out on, where it has any. */

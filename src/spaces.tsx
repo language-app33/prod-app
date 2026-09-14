@@ -3932,11 +3932,18 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
         <div className="at-formblock at-mt5" key={tense.id}>
           <div className="at-formhead">
             <span className="at-formnum">{tense.label}</span>
-            <span className="at-formrole">
-              {at_ === 0
-                ? "taught first"
-                : `opens once the ${tensesOf(spec)[at_ - 1].label} is known`}
-            </span>
+            {/* Which row opens when, which is only worth saying where there
+                is more than one of them: "taught first" over the single row
+                of an attached-pronoun table names an order it is not in.
+                What that one waits on is the word itself, and the line
+                under the table says so. */}
+            {tensesOf(spec).length > 1 && (
+              <span className="at-formrole">
+                {at_ === 0
+                  ? "taught first"
+                  : `opens once the ${tensesOf(spec)[at_ - 1].label} is known`}
+              </span>
+            )}
           </div>
 
           {persons.map((person) => {
@@ -4240,7 +4247,7 @@ export const formsOffered = (
   if (teaches.attached) {
     out.push({
       value: "attached",
-      label: "It takes a pronoun on the end",
+      label: "Attached pronouns",
       note: "my, your, his — each one a box of its own, once the word itself is known.",
     });
   }
@@ -4821,7 +4828,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               <Help className="at-mt3">
                 {storedForms === "verb"
                   ? "A verb: its forms are its table, each practised in its own right. Empty the table and it is a word again."
-                  : "A word that takes a pronoun on its end: each one is a form of it, practised in its own right. Empty the table and it is an ordinary word again."}
+                  : "Attached pronouns: each one is a form of the word, practised in its own right. Empty the table and it is an ordinary word again."}
               </Help>
             )}
 

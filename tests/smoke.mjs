@@ -3278,7 +3278,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and what its forms are, as a question of its own",
     formRows().length === 3 &&
       /A verb/.test(formRows()[1].textContent || "") &&
-      /pronoun on the end/.test(formRows()[2].textContent || ""),
+      /Attached pronouns/.test(formRows()[2].textContent || ""),
     formRows().map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(no forms radio)");
   /* Each answer says what it gets you, which is what a row of ticks is for
      and what a track of segments cannot hold. */
@@ -3768,10 +3768,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      never who it is about. One row, the same component, and cells told
      apart from a verb's by the row they sit in. */
   const attachedHere = () => {
-    const row = saved().find((r) => /pronoun on the end/.test(r.textContent || ""));
+    const row = saved().find((r) => /Attached pronouns/.test(r.textContent || ""));
     return /** @type {any} */ (row ? row.querySelector("input") : null);
   };
-  check("a word can be said to take a pronoun on its end", !!attachedHere(),
+  check("a word can be said to take attached pronouns", !!attachedHere(),
     saved().map((r) => (r.textContent || "").slice(0, 24)).join(" | "));
   click(attachedHere());
   await sleep(350);
@@ -3780,8 +3780,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
   check("which opens a row with a box per pronoun",
-    !!attachedCell("Arabic script for with a pronoun on the end · me") &&
-      !!attachedCell("Arabic script for with a pronoun on the end · them"),
+    !!attachedCell("Arabic script for attached pronouns · me") &&
+      !!attachedCell("Arabic script for attached pronouns · them"),
     [...document.querySelectorAll(".at-celllabel")].map((n) => n.textContent).join(" | ") || "(no table)");
   /* And the verb's table is not also up: a card lays out one or the
      other, and the radio is what says which. */
@@ -3789,7 +3789,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !attachedCell("Arabic script for past · he"),
     attachedCell("Arabic script for past · he") ? "both tables are up" : "one table at a time");
   /* The word's own block stays. A verb whose dictionary form is a cell
-     replaces it; a pronoun on the end is a form of the word, not a
+     replaces it; an attached pronoun is a form of the word, not a
      stand-in for it. */
   const blockOrder = () =>
     [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
@@ -3799,7 +3799,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      word is met first and the row waits on it. A verb's table replaces the
      block and stands where it did; this one is built on it. */
   check("and the row sits after it, the way it is learnt",
-    blockOrder().indexOf("with a pronoun on the end") > blockOrder().indexOf("Form 1"),
+    blockOrder().indexOf("attached pronouns") > blockOrder().indexOf("Form 1"),
     blockOrder().join(" | "));
 
   const plainHere = () => {
