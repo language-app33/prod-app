@@ -1,4 +1,5 @@
-import type { Doc, ExerciseState, Item, WireDoc } from "./types.ts";
+import type { Doc, ExerciseState, Form, Item, WireDoc } from "./types.ts";
+import { mergeMet } from "./variables.ts";
 /*
  * Sync client.
  *
@@ -88,7 +89,7 @@ function mergeItem(a: Item, b: Item): Item {
      one side threw away the other device's work on any form it had drilled. */
   const subs = (base.subs || []).map((sb) => {
     const twin = (other.subs || []).find((x) => x.id === sb.id);
-    return twin ? { ...sb, s: mergeStates(sb.s, twin.s) } : sb;
+    return twin ? { ...sb, s: mergeStates(sb.s, twin.s), ...metOf(sb, twin) } : sb;
   });
 
   /* The lines of a dialog, for the same reason: each carries its own
@@ -97,16 +98,30 @@ function mergeItem(a: Item, b: Item): Item {
      as everything else on the card does. */
   const lines = (base.lines || []).map((ln) => {
     const twin = (other.lines || []).find((x) => x.id === ln.id);
-    return twin ? { ...ln, s: mergeStates(ln.s, twin.s) } : ln;
+    return twin ? { ...ln, s: mergeStates(ln.s, twin.s), ...metOf(ln, twin) } : ln;
   });
 
   return {
     ...base,
     s: mergeStates(a.s, b.s),
+    ...metOf(a, b),
     subs,
     ...(lines.length ? { lines } : null),
   };
 }
+
+/*
+ * Which of a frame's values each device has met, merged.
+ *
+ * A record of how far a hole has been filled with each value, and a
+ * high-water mark per key — so the merge is a max, which is the same
+ * answer whichever device arrives first and the same answer again if it
+ * arrives twice. Spread rather than assigned, so a form that has no such
+ * record does not start carrying an empty one. */
+const metOf = (a: Form, b: Form): { met?: Record<string, number> } => {
+  const met = mergeMet(a && a.met, b && b.met);
+  return met ? { met } : {};
+};
 
 /**
  * @param remote  Whatever came back, which may be from an older build.

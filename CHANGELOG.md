@@ -8,6 +8,46 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.121 — 14 September 2026
+
+- **A blank is now filled with a word you have got as far with as the
+  question is asking.** A card with a gap in it — *My name is ___*, *I like
+  ___* — was filled from every card that could fill it, in the order they
+  were written, whatever the learner had met. So *English → script* on a
+  frame could ask somebody to write a sentence containing a word they had
+  never been shown. That is not a hard question, it is one with no answer,
+  and the only thing it taught was that the card was impossible.
+
+  The rule is the plain one: to stand in a question, a word has to be as far
+  up its own ladder as the question is. To fill a gap in *what does this
+  mean*, it has to be a word that has been met at all; to fill one in *write
+  it from its meaning*, it has to be a word that can already be written from
+  its meaning. The same sentence twice, which is the point of it.
+
+- **A name that is never practised on its own is read off the card that
+  teaches it.** Raphael is in the deck to be borrowed, not to be asked
+  about, so it has no progress anywhere to look at and never will. For those
+  the card itself remembers: a name may stand one level above the highest it
+  has already been seen at, so it comes in at the bottom of the ladder and
+  climbs with the sentence that introduces it. Remembered on any answer,
+  right or wrong — the question is whether you have seen the word.
+
+- **And a question that cannot be filled is not asked at all.** A frame
+  whose every value is still ahead of you waits, rather than being asked
+  with something you have never seen. It comes back by itself the moment one
+  of them catches up, and it no longer takes up one of the places a session
+  keeps for new cards while it waits.
+
+- **A fix underneath it.** A session built by hand drilled the names that
+  fill a frame as though they were cards in their own right — pick the deck
+  a frame lives in and you were asked what Raphael means, which is the one
+  question "practised on its own" is switched off to prevent. A dealt
+  session has always known better; the hand-built one never asked.
+
+- **Nothing about the teacher's trial changes.** Trying an exercise out on
+  your own card fills it from everything, as it did: a teacher is not
+  somebody learning, and their material carries no progress to read.
+
 ## 0.120 — 14 September 2026
 
 - **A card is a word or phrase, a verb, or a conversation — three answers to

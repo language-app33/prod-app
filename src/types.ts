@@ -594,6 +594,12 @@ export type Form = Record<string, any> & {
   clips?: string[];
   slowClips?: string[];
   s?: Record<string, ExerciseState>;
+  /* How far this form has been asked with each of the values that fill its
+     holes — "slot:valueId" to the highest level it was met at. Only for a
+     value with no ladder of its own to be read instead; see valuesAt in
+     variables.ts. Absent on every form that leaves no hole, which is nearly
+     all of them. */
+  met?: Record<string, number>;
   created?: Millis;
   updated?: Millis;
 };

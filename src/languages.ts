@@ -2280,6 +2280,10 @@ export function keysFor(form: WithAnswers | null | undefined, type: string): str
  * completeness; nothing stands below it, so it opens from the first
  * session whatever it says.
  */
+/* The top of the ladder, read off the bars rather than written down twice:
+   a fifth level would be a line in the table below and nothing else. */
+export const TOP_LEVEL = 4;
+
 export const LEVEL_BARS: Record<number, "graduated" | "mastered"> = {
   1: "graduated",
   2: "graduated",

@@ -40,6 +40,7 @@ import {
   graduated,
   mastered,
   openTypes,
+  reachedLevel,
   standings,
   standing,
   turnOf,
@@ -861,4 +862,43 @@ test("what a card shows next turns on getting it right, not on being asked", () 
      asked carries no record of it. */
   assert.equal(turnOf(null), 0);
   assert.equal(turnOf(undefined), 0);
+});
+
+test("how far a form has climbed, for a card standing in somebody else's sentence", () => {
+  /* openTypes answers "what may this be asked". This answers "how much of
+     it does the learner know", which is what a value filling a hole in a
+     phrase has to answer: the name in "My name is ___" is read, or written,
+     by whoever is answering the phrase. */
+  const ladder = ["ar2en", "tr2ar", "en2ar"];
+  const grad = state({ phase: "review", interval: 1 });
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
+
+  /* The addition openTypes has no use for: level one is open on every card
+     from the day it arrives, which is a fact about the ladder and not about
+     the learner. A form nobody has answered has reached nothing — which is
+     the whole bug, since that is the word that ended up inside a sentence
+     somebody was asked to write. */
+  assert.equal(reachedLevel(ladder, table({}), 1), false,
+    "a card nobody has answered has got nowhere, whatever its levels say");
+  assert.equal(
+    reachedLevel(ladder, table({ ar2en: state({ phase: "learning", step: 1 }) }), 1),
+    true,
+    "one answer is enough to have met it");
+
+  /* And above that it is openTypes' own test, level by level. */
+  const met = { ar2en: state({ phase: "learning", step: 1 }) };
+  assert.equal(reachedLevel(ladder, table(met), 2), false, "met is not yet graduated");
+  assert.equal(reachedLevel(ladder, table({ ar2en: grad }), 2), true);
+  assert.equal(reachedLevel(ladder, table({ ar2en: grad }), 3), true,
+    "writing from a cue asks the same bar of the level below it");
+  assert.equal(reachedLevel(ladder, table({ ar2en: grad, tr2ar: grad }), 4), false,
+    "writing from the meaning keeps the four-day bar");
+  assert.equal(reachedLevel(ladder, table({ ar2en: done, tr2ar: done }), 4), true);
+
+  /* A level the form has no material for is passed straight through, as in
+     openTypes — so a word with no recording is not held back from a level
+     it has nothing standing on. */
+  assert.equal(reachedLevel(["ar2en"], table({ ar2en: done }), 4), true,
+    "nothing below to be waiting on");
 });

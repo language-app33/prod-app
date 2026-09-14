@@ -550,3 +550,65 @@ thing this codebase usually spends releases removing. It is accepted here on
 the condition that it stays in one file and never reaches storage: the save
 path still knows nothing about verbs, and `isVerb` is still the only answer to
 whether a card is one.
+
+---
+
+## A value stands in a hole only as far up as it has climbed itself
+
+**14 September 2026** · `valuesAt`/`noteMet` in `src/variables.ts`,
+`reachedLevel` in `src/scheduler.ts`, `fillsAt`/`askableTypes` in
+`src/ArabicTrainer.tsx`
+
+The variables entry above says a frame met as Raphael, then Victor, then
+Sarah is a sentence somebody can say about anyone. It was filled from every
+card that could fill it, in the order they were written, and nothing asked
+whether the learner had met any of them. With `{{word}}` — the built-in hole
+that every word in the language fills — that is the whole vocabulary, and new
+cards arrive ten at a time. So *English → script* on a frame asked for a
+sentence containing a word that had never been dealt. There is no answer to
+that question, and the card it taught nothing about was the frame.
+
+**The rule is the ladder, read about somebody else's card.** A value may fill
+a hole in a question at level N only where it has itself reached level N.
+`reachedLevel` is `openTypes`' own test asked about one level instead of
+returned as a list — including that a level a form has no material for is
+passed straight through — with one addition `openTypes` has no use for: **a
+form nobody has answered has reached nothing.** Level one is open on every
+card from the day it arrives, which is a fact about the ladder rather than
+about the learner, and reading it as knowledge is exactly how an unmet word
+got into a sentence somebody was told to write.
+
+**The two kinds of value answer differently, because only one has a ladder.**
+A drilled word is read off its own progress. A value the teacher marked as
+not practised on its own — Raphael — is never dealt, so it can never climb
+anything, and gating it on a ladder would have removed the named-variable
+feature altogether. The frame remembers instead: `met` on the form maps
+`slot:value` to the highest level it has been asked at, and a value may stand
+one level above that. It enters at the bottom, where nothing is below it to
+have been seen at, and climbs with the card that teaches it.
+
+**Only for those.** A frame on `{{word}}` would otherwise write a line per
+word in the language; everything with a ladder is gated on that and needs
+nothing stored. It is a high-water mark, so sync merges it by taking the
+further of the two — the same answer whichever device arrives first, and
+again if it arrives twice, which is all `mergeData` asks of anything.
+
+**What it costs.** *Rotated, not drawn* is weakened: the list a turn counts
+against now grows as the learner does, so the same turn on the same card can
+be a different name a month apart. Within a question nothing moves — the
+count only changes on a right answer — and a card with three values it can
+reach still meets all three before any twice. It was the smaller loss: the
+alternative is the question with no answer.
+
+And a frame can wait. Where nothing clears the bar the key is withheld rather
+than asked with something unmet, which is why `askableTypes` exists beside
+`openTypes` — the ladder, the standing a screen shows and how mature a card
+counts as all still read `openTypes`, because a level withheld for want of a
+value is not a level the card has failed to reach. Only what a session may
+*deal* reads the narrower one. It is also read where a session picks its
+candidates, so a frame that can be asked nothing does not spend one of the
+places kept for new cards while it waits.
+
+**The teacher's trial is exempt**, and has to be: a teacher trying an
+exercise out is not somebody learning, their own material carries no progress
+to read, and gating it would show them `{{name}}` and call it a preview.

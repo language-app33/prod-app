@@ -353,3 +353,44 @@ test("clipIdsIn walks cards and their forms", () => {
   };
   assert.deepEqual(clipIdsIn(data), ["a", "b"]);
 });
+
+test("which of a frame's values each device has met merges by taking the further", () => {
+  /* A frame — "My name is {{name}}" — records how far it has been asked
+     with each of the names that fill it, because a name that is never
+     drilled on its own has no progress anywhere else to read. Two devices
+     each learn some of it, and neither may lose the other's work. */
+  const mine = /** @type {Doc} */ ({
+    version: 3,
+    items: [item("k1", {
+      met: { "name:raphael": 3, "name:sarah": 1 },
+      subs: [{ id: "k1-f0", ar: "كتب", en: "books", lat: "", s: states(), met: { "name:victor": 2 } }],
+    })],
+    tombstones: {}, log: {}, settings: {},
+  });
+  const theirs = /** @type {WireDoc} */ ({
+    version: 3,
+    items: [item("k1", {
+      met: { "name:raphael": 1, "name:sarah": 4 },
+      subs: [{ id: "k1-f0", ar: "كتب", en: "books", lat: "", s: states(), met: { "name:victor": 1 } }],
+    })],
+    tombstones: {}, log: {},
+  });
+
+  const merged = mergeData(mine, theirs).items[0];
+  assert.deepEqual(merged.met, { "name:raphael": 3, "name:sarah": 4 },
+    "the further of the two, key by key, so neither device loses a level");
+  assert.deepEqual(formsOf(merged)[0].met, { "name:victor": 2 },
+    "and the other forms carry their own record, as they carry their own progress");
+
+  /* The one thing sync asks of anything it merges. */
+  const twice = mergeData(mergeData(mine, theirs), theirs).items[0];
+  assert.deepEqual(twice.met, merged.met, "merging is idempotent");
+
+  /* And a card that has no such record does not start carrying an empty
+     one: an ordinary word leaves no hole and has nothing to remember. */
+  const plain = mergeData(
+    /** @type {Doc} */ ({ version: 3, items: [item("k2")], tombstones: {}, log: {}, settings: {} }),
+    /** @type {WireDoc} */ ({ version: 3, items: [item("k2")], tombstones: {}, log: {} })
+  ).items[0];
+  assert.equal("met" in plain, false);
+});

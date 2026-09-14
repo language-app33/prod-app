@@ -301,6 +301,129 @@ export function valuesForTurn(
   return out;
 }
 
+/*
+ * Which values a learner is far enough along to meet in a hole.
+ *
+ * A hole was filled from every card that could fill it, in the order they
+ * were written, whatever the learner had met. So "I like {{word}}" walked
+ * the whole vocabulary — including the nine words in ten that have not been
+ * dealt yet, because new cards arrive ten at a time — and *English → script*
+ * on it asked somebody to write a sentence containing a word they had never
+ * seen. There is no answer to that question. It is not a hard question, it
+ * is an unanswerable one, and the card it was really about was the frame.
+ *
+ * So a value has to be as far along as the question is asking. The two
+ * kinds of value answer that differently, because only one of them has a
+ * ladder of its own:
+ *
+ *   * **A value that is drilled** — an ordinary word, which is what fills
+ *     `{{word}}` — is read through `reach`: how far up its own ladder it
+ *     has climbed. To stand in a question that asks the word to be written
+ *     from its meaning, it must be a word the learner can write from its
+ *     meaning. That is the same sentence twice, which is the point.
+ *
+ *   * **A value that is not drilled** — Raphael, which is in the deck to be
+ *     borrowed and is never dealt on its own — has no ladder and never
+ *     will. The frame is the only place it is ever met, so what is read
+ *     instead is the frame's own record of having met it: a value may stand
+ *     one level above the highest it has already been seen at, and no
+ *     higher. It enters on the bottom level, where nothing is below it to
+ *     have been seen at, and climbs with the card that teaches it.
+ *
+ * `reach` comes back null for the second kind, which is how they are told
+ * apart — the caller knows what is drilled and this module knows what the
+ * rule is.
+ */
+export function valuesAt(
+  list: Value[],
+  slot: string,
+  level: number,
+  reach: (value: Value) => number | null,
+  met?: Record<string, number> | null,
+): Value[] {
+  return (list || []).filter((value) => {
+    const climbed = reach(value);
+    if (climbed === null || climbed === undefined) return metAt(met, slot, value) >= level - 1;
+    return climbed >= level;
+  });
+}
+
+/*
+ * Where a frame records having met one of its values.
+ *
+ * By the value's id, falling back to its script for a value carrying none —
+ * the words are what the learner saw, and a value with no id is one nothing
+ * else can point at either. Slot-first so the same card standing in two
+ * different holes of one sentence is two records, which it is: meeting
+ * Raphael as the speaker is not meeting him as the person spoken to.
+ */
+export const metKeyOf = (slot: string, ref: string): string => `${slot}:${ref || ""}`;
+
+/* A value as the thing that points at it — its id, or its script where it
+   carries none. The same string fillForm writes into `filled`, which is
+   what lets a question be recorded from what it was asked with rather than
+   by working the values out a second time. */
+export const refOf = (value: Value): string => (value && (value.id || value.ar)) || "";
+
+export const metKey = (slot: string, value: Value): string => metKeyOf(slot, refOf(value));
+
+/** The highest level this frame has been asked at with a value. */
+export const metAt = (
+  met: Record<string, number> | null | undefined,
+  slot: string,
+  value: Value,
+): number => Math.max(0, Math.round(Number((met || {})[metKey(slot, value)]) || 0));
+
+/*
+ * The record, with one asking written into it.
+ *
+ * A high-water mark, never a log: the only question asked of it is "how far
+ * has this value been seen", so a level below one already recorded changes
+ * nothing. That is also what makes it safe on two devices — max is the same
+ * answer whichever order the two arrive in, which is the one thing sync
+ * asks of anything it merges.
+ *
+ * Comes back **null** where nothing moved, which is the answer on every
+ * card that leaves no hole — the overwhelming majority. Null rather than
+ * the record it was given, because a form with no record has none to give
+ * back, and returning a fresh empty object for it had every card in the
+ * document start carrying an empty one the first time it was answered.
+ */
+export function noteMet(
+  met: Record<string, number> | null | undefined,
+  filled: Record<string, string> | null | undefined,
+  level: number,
+  keep: (ref: string) => boolean = () => true,
+): Record<string, number> | null {
+  const had = met || {};
+  const at = Math.max(0, Math.round(Number(level) || 0));
+  let out: Record<string, number> | null = null;
+  for (const [slot, ref] of Object.entries(filled || {})) {
+    if (!ref || !keep(ref)) continue;
+    const key = metKeyOf(slot, ref);
+    if ((Number(had[key]) || 0) >= at) continue;
+    if (!out) out = { ...had };
+    out[key] = at;
+  }
+  return out;
+}
+
+/* Two records of the same thing, from two devices. Max per key, for the
+   reason noteMet is a high-water mark: it is the same answer whichever
+   order they arrive in, and running it twice changes nothing. */
+export function mergeMet(
+  a: Record<string, number> | null | undefined,
+  b: Record<string, number> | null | undefined,
+): Record<string, number> | undefined {
+  if (!a && !b) return undefined;
+  const out: Record<string, number> = { ...(a || {}) };
+  for (const [key, level] of Object.entries(b || {})) {
+    const n = Math.max(0, Math.round(Number(level) || 0));
+    if (n > (out[key] || 0)) out[key] = n;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 /* One string, with its holes filled. A slot nobody offered a value for is
    left standing rather than blanked: the caller is meant to have checked,
    and a visible {{name}} is a bug report where a silent gap is a mystery. */

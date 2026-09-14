@@ -2543,6 +2543,11 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      Ultimate asks every exercise a card has open, and two of these cards
      have the writing open, so one comes up here without being hunted. */
   let sawKeys = false;
+  /* Whether the frame came up. Not one of the things this walk waits for —
+     it is one card among several and a session has a budget, so hunting it
+     here only exhausts the turns — but worth knowing, because what is
+     checked about it below is worth nothing if it never came up. */
+  let sawFrame = false;
 
   /* Walk until this block has met everything it asserts, rather than for a
      fixed number of turns.
@@ -2566,6 +2571,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
     const scriptField = document.querySelector(".at-answerbox .at-input.ar");
     if (scriptField && !sawKeys) sawKeys = await checkKeys(scriptField);
+    /* The frame, recognised by its own words rather than by the name that
+       fills it — which one that is is the very thing under test. */
+    if (/اسمي|My name is/.test(prompt() + " " + document.body.textContent)) sawFrame = true;
 
     if (choices && gapped) {
       /* Move one: the gentle half of the gap-fill. The word is chosen out
@@ -2622,7 +2630,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      question it gave up on. */
   check("the walk met every question this block is about, without running out of turns",
     metEverything(),
-    `${asked_} answered, last on "${instruction()}" — picker:${sawPicker} grid:${!!grid} context:${sawWhereItTurnedUp} plain:${sawOnAPlainQuestion} keys:${sawKeys}`
+    `${asked_} answered, last on "${instruction()}" — picker:${sawPicker} grid:${!!grid} context:${sawWhereItTurnedUp} plain:${sawOnAPlainQuestion} keys:${sawKeys} frame:${sawFrame}`
       .replace(/\s+/g, " "));
   check("a question asking for the script was reached, so the keys were looked at",
     sawKeys, "no card in this deck has the writing open");
@@ -2681,6 +2689,112 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     sawOnAPlainQuestion
       ? "which is the thing that changed: the link pays out everywhere now"
       : "it only paid out on the questions built from it");
+}
+
+/* ---- a frame remembers which of its names it has been met with ----
+
+   A name like Raphael is never drilled on its own — "what does Raphael
+   mean" is not a question — so it has no progress anywhere to read, and the
+   frame is the only place it is ever met. That is what this record is for:
+   a value with no ladder of its own may stand one level above the highest
+   it has already been seen at, so nobody is asked to write a sentence
+   containing a word they have never been shown. Written on any answer,
+   right or wrong, because the question is whether they have seen it.
+
+   A session of its own, on the deck the frame is actually in. The walk
+   above is dealt from Lesson 1, which the frame is not in — hunting it
+   there only ran the turns out, and a check that fires on some runs and not
+   others is one that will stop firing without saying so.
+
+   The rule itself is checked in tests/variables.test.mjs, over every
+   combination rather than the one a session happens to deal. What is
+   checked here is the wiring: that a real question, answered in the real
+   app, leaves the record the rule reads. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+  click(buttonNamed(/Build a session|Choose what to practice|Pick cards/));
+  await sleep(300);
+  click([...document.querySelectorAll(".at-modecard")].find((b) => /Ultimate/.test(b.textContent || "")));
+  await sleep(80);
+  clickNamed(/^(Next|Choose a mode|Choose at least one card)$/);
+  await sleep(150);
+  const intro = [...document.querySelectorAll(".at-tagpickmain")]
+    .find((b) => /Introductions/.test(b.textContent || ""));
+  check("the deck the frame is in can be practised on its own", !!intro,
+    [...document.querySelectorAll(".at-tagpickmain")].map((b) => (b.textContent || "").slice(0, 20)).join(" | "));
+  click(intro);
+  await sleep(80);
+  clickNamed(/^(Next|Choose at least one card|Start|Choose a length)$/);
+  await sleep(200);
+  clickNamed(/^(Start|Choose a length)$/);
+  await sleep(500);
+
+  /* The question comes up filled: the hole is filled before anybody sees
+     it, and a visible {{name}} is the bug this whole gate could have
+     introduced. */
+  const shown = (document.body.textContent || "").replace(/\s+/g, " ");
+  check("a frame is asked with its hole filled, and never with the braces showing",
+    /\u0627\u0633\u0645\u064a|My name is/.test(shown) && !/\{\{/.test(shown),
+    shown.slice(0, 120));
+  /* And the deck's three cards are one question's worth, not three: the two
+     names in it are values, and a hand-built session used to drill them as
+     cards in their own right — which a dealt one has never done, and which
+     is the one thing "practised on its own" is switched off to prevent. */
+  const counter = (shown.match(/\d+ \/ \d+/) || ["(no counter)"])[0];
+  check("and the names that fill it are not themselves asked",
+    counter === "1 / 1", `${counter} — the deck holds a frame and the two names that fill it`);
+
+  /* Answer it, however it was asked. */
+  const choices = document.querySelector('[data-el="answer-choices"]');
+  if (choices) {
+    click([...choices.querySelectorAll("button")][0]);
+    await sleep(60);
+  } else if (document.querySelector('[data-el="answer-input"]')) {
+    click(buttonNamed(/^I don't know$/));
+    await sleep(200);
+  }
+  if (!document.querySelector('[data-el="verdict"]')) {
+    click(document.querySelector('[data-el="check-button"]'));
+    await sleep(250);
+  }
+  click(buttonNamed(/^Continue$/));
+  await sleep(300);
+
+  const raw = w.localStorage.getItem("arabic-trainer:arabic-trainer-v3");
+  const doc = raw ? JSON.parse(raw) : { items: [] };
+  const frame = (doc.items || []).find((/** @type {any} */ i) => /k444444444444/.test(i.id || ""));
+  const met = (frame && frame.met) || {};
+  const keys = Object.keys(met);
+  check("answering it records which name it was asked with",
+    keys.length > 0 && keys.every((k) => /^name:srvk[56]/.test(k)),
+    JSON.stringify(met));
+  check("at the level the question stood on",
+    keys.every((k) => Number.isInteger(met[k]) && met[k] >= 1 && met[k] <= 4),
+    JSON.stringify(met));
+
+  /* And no card without a hole keeps one: the first cut of this wrote an
+     empty record onto every card in the document the moment it was
+     answered. */
+  const forms = (doc.items || []).flatMap((/** @type {any} */ i) =>
+    [i].concat(i.subs || []).concat(i.lines || []));
+  check("while a card with no hole in it keeps no such record",
+    forms.every((/** @type {any} */ f) => !f.met || Object.keys(f.met).length > 0) &&
+      forms.some((/** @type {any} */ f) => /k111111111111/.test(f.id || "") && !f.met),
+    `${forms.filter((/** @type {any} */ f) => f.met).length} of ${forms.length} forms carry one`);
+
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
 }
 
 /* ---- every exercise a card could be asked, on the teacher's card ----
