@@ -766,3 +766,66 @@ test("a listening question starts where a written one does", () => {
      half-leading the text gets. */
   assert.match(rule(".at .at-exercise .at-ask .at-playbig"), /margin-top:\s*calc\(var\(--ask\)/);
 });
+
+/* ------------------------------------------------------------------
+   And the panels that hang off the chrome stay inside the window
+
+   The same blind spot as the stacking order, and it cost the same kind of
+   bug: jsdom lays nothing out, so a menu can render perfectly in a test
+   and hang off the side of a phone. The language switch did. It sat left
+   of the space tabs, which sit left of the corner menu, and its panel grew
+   leftward from the switch — so the tabs and the corner took about 184px
+   off the right-hand side, a 260px panel needed 444px of window before it
+   fitted, and every phone in portrait is narrower than that. Somebody
+   learning two languages and also teaching had it worst, the third tab
+   pushing the anchor further left again.
+
+   What makes a panel safe is not a number, so none is asserted: it is
+   that the window is what the panel is measured against, in both
+   directions. Pinned to the window rather than to whatever it hangs off,
+   held a gutter in from the edge, and never wider than the window less
+   that gutter.
+   ------------------------------------------------------------------ */
+
+/** Every declaration of a rule, by selector, last one winning.
+ * @type {Record<string, Record<string, string>>} */
+const declared = {};
+for (const [, selectors, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  for (const sel of selectors.split(",").map((x) => x.trim())) {
+    declared[sel] = { ...(declared[sel] || {}) };
+    for (const [, prop, value] of body.matchAll(/([a-z-]+)\s*:\s*([^;]+)/g)) {
+      declared[sel][prop.trim()] = value.trim();
+    }
+  }
+}
+
+test("the language menu cannot leave the window", () => {
+  const rule = declared[".at-langmenu"];
+  assert.ok(rule, ".at-langmenu has no rule at all");
+  /* Fixed is measured against the window. Absolute is measured against
+     whatever it is nested in, which is how this came to be measured
+     against a button near the middle of the screen. */
+  assert.equal(rule.position, "fixed",
+    `it is ${rule.position}: it would be placed by whatever it sits in`);
+  assert.ok(rule.right !== undefined, "it sets no right inset, so its edge is wherever it lands");
+  /* And a width that gives way before the gutter does: a share of the
+     window to fall back on, and no floor a narrow window cannot talk it
+     out of. */
+  assert.match(rule.width || "", /%/,
+    `it is ${rule.width || "unbounded"} wide with no share of the window to fall back on`);
+  assert.ok(!rule["min-width"],
+    `it sets min-width ${rule["min-width"]}, which a narrow window cannot argue with`);
+  /* Tall is the other way out of the window, and there are as many rows
+     here as the learner has languages. */
+  assert.ok(rule["max-height"], "a long list would run off the bottom with nothing to stop it");
+  assert.equal(rule["overflow-y"], "auto", "and it has to scroll inside itself rather than spill");
+});
+
+/* The corner menu beside it reaches the same place by another route — it
+   is absolute inside .at-corner, which is itself pinned to the corner — so
+   it is not held to the rule above. This is the one thing about it that
+   has to stay true for that to work. */
+test("the corner it hangs off is pinned to the window", () => {
+  assert.equal((declared[".at-corner"] || {}).position, "fixed");
+  assert.equal((declared[".at-cmenu"] || {}).position, "absolute");
+});

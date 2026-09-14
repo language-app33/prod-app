@@ -904,8 +904,31 @@ button {
    the way a filter that is doing something is anywhere else. */
 .at-langbtn.on { border-color: var(--accent); color: var(--ink); }
 .at-langmark { line-height:1; }
-.at-langmenu { position:absolute; top:50px; right:0; min-width:260px;
-  max-width: calc(100vw - 24px); background: var(--surface);
+/*
+ * Pinned to the window rather than hung off the button.
+ *
+ * It used to be `absolute; right:0` inside the switch, so it grew leftward
+ * from wherever the switch happened to sit — and the switch sits left of
+ * the space tabs, which sit left of the corner menu. On a phone that put
+ * its left edge off the screen: the tabs and the corner take about 184px
+ * of the right-hand side, so a 260px menu needed 444px of window before it
+ * fitted, and every phone in portrait is narrower than that. Somebody
+ * learning two languages and also teaching saw it worst, because the third
+ * tab pushed the anchor further left again.
+ *
+ * So it hangs off the right of the window, like the corner menu's own
+ * panel, and the two now line up. The width gives way before the gutter
+ * does, and a tall one scrolls inside itself rather than running off the
+ * bottom.
+ */
+.at-langmenu { position:fixed; top:60px; right:12px;
+  /* Per cent rather than vw: for a fixed box the percentage is of the
+     window as laid out, where 100vw counts a desktop scrollbar as well and
+     would push it that far past the gutter. */
+  width: min(300px, calc(100% - 24px));
+  max-height: calc(100vh - 72px);
+  max-height: calc(100dvh - 72px);
+  overflow-y:auto; background: var(--surface);
   border:2px solid var(--line); border-radius:18px; padding:12px;
   box-shadow: var(--nav-shadow); }
 .at-langmenu .at-eyebrow { margin:0 0 8px; }

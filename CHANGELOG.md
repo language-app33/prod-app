@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.110 — 14 September 2026
+
+- **The language menu opened off the side of the screen on a phone.** It
+  hung off the switch that opens it, growing leftwards — and the switch
+  sits left of the space tabs, which sit left of the menu button in the
+  corner. Between them those take about 184 points off the right-hand side,
+  so the menu needed a window 444 points wide before it fitted, and every
+  phone in portrait is narrower than that. Somebody learning two languages
+  who also teaches had it worst, the third tab pushing it further left
+  again.
+
+  It now hangs off the right of the window, where the menu in the corner
+  already does, so the two line up. It narrows on a small screen rather
+  than running off it, and a long list of languages scrolls inside the
+  menu rather than off the bottom.
+
+- **And it closes when you open the menu next to it.** The two sat over
+  each other in the corner, because each was waiting for a click to reach
+  the window and the other was stopping it.
+
 ## 0.109 — 14 September 2026
 
 - **Get a card wrong and you get that same card again, not a different

@@ -9740,12 +9740,29 @@ function LanguageSwitch({ choices, off, onChange }: {
   onChange: (off: LangId[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const mine: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
 
+  /*
+   * Anywhere outside puts it away, and "outside" is asked of the click
+   * rather than of who saw it.
+   *
+   * On the way down rather than on the way up, and reading the target
+   * rather than relying on the event reaching the window at all: the
+   * corner menu beside this one stops clicks inside itself from
+   * travelling, so a menu that waited for one to arrive stayed open behind
+   * it and the two sat over each other in the corner. Ticking a language
+   * keeps this open, which is what the check on `mine` is for — you are
+   * usually ticking more than one.
+   */
   useEffect(() => {
     if (!open) return;
-    const close = () => setOpen(false);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
+    const close = (e: MouseEvent) => {
+      const at = e.target;
+      if (mine.current && at instanceof Node && mine.current.contains(at)) return;
+      setOpen(false);
+    };
+    document.addEventListener("click", close, true);
+    return () => document.removeEventListener("click", close, true);
   }, [open]);
 
   /* After the hooks, which have to run on every render. */
@@ -9768,7 +9785,7 @@ function LanguageSwitch({ choices, off, onChange }: {
   };
 
   return (
-    <div className="at-langsw" onClick={(e) => e.stopPropagation()}>
+    <div className="at-langsw" ref={mine}>
       <button
         className={`at-langbtn${all ? "" : " on"}`}
         aria-expanded={open}
