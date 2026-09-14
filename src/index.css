@@ -888,6 +888,17 @@ button {
 .at-minien { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2;
   line-clamp:2; font-size:calc(12px * var(--tile, 1)); font-weight:600; color: var(--muted);
   overflow:hidden; word-break:break-word; }
+/* What the teacher calls the card, where its own words do not name it — a
+   verb saved as the form a dictionary lists. The headline, above the script,
+   because it is what the card is; the script keeps its line underneath so a
+   card list does not stop showing the language.
+
+   In the interface face at a fixed size, not the taught script's. A name is
+   whatever was typed — "to eat" as often as أكْل — and every size here is
+   tuned by eye against the script, so Latin left at a script size reads as
+   the louder of the two. The same correction a hole in a card gets. */
+.at-mininame { font-family: var(--ui); font-size:calc(15px * var(--tile, 1));
+  font-weight:800; line-height:1.3; color: var(--text); word-break:break-word; }
 /* What kind of card it is, where that is not obvious from the face. Above
    the words rather than below them: it is how to read what follows, not a
    note about it. */

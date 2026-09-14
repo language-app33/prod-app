@@ -735,6 +735,19 @@ export function ComponentGallery() {
         <V label="card + lang + meta" wide>
           <CardTile card={SAMPLE_CARD} lang={SAMPLE_LANG} meta="Lesson 1" showLat />
         </V>
+        {/* A card the teacher has named — a verb, whose own word is the
+            form a dictionary lists and names one cell of its table rather
+            than the verb. The name is the headline, in the interface face
+            rather than the script's, and it stands in for the meaning
+            underneath rather than sitting above it. */}
+        <V label="card with a name of its own" wide>
+          <CardTile
+            card={{ ...SAMPLE_CARD, name: "to eat", ar: "أكل", en: "he ate", lat: "akal" }}
+            lang={SAMPLE_LANG}
+            meta="Lesson 1"
+            showLat
+          />
+        </V>
       </Row>
 
       <Row name="CardReadout" what="A card and its forms, read-only. Falls back to the default language pack when lang is left off.">

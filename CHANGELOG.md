@@ -8,6 +8,34 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.123 — 14 September 2026
+
+- **A verb can be given a name to be listed under.** Arabic and Hebrew have
+  no infinitive, so a verb card is saved as the form a dictionary lists it
+  under — the he-past — and that is what every list showed: the script of
+  one cell of its table, over that cell's own meaning, *he ate*. Nothing was
+  wrong with the card. It simply had no name of its own, so it was listed
+  under one of its twenty-one boxes.
+
+  **What to call it** is a field at the top of the verb editor, above the
+  first tense, and it says what it is for: how the card is listed and
+  searched, and that nobody is ever asked it — the table is what is
+  practised. Leave it blank and nothing changes; the card is listed as it
+  was, and the field names the box it would otherwise be listed under.
+
+  In a list a named card reads as its name, with the script it is built on
+  underneath and the pronunciation under that. The dictionary form's own
+  meaning goes, because *he ate* under *to eat* reads as a correction of it.
+  The name is drawn in the interface face rather than the taught script's: it
+  is whatever was typed, and every size in the app is tuned by eye against
+  the script, so Latin left at a script size reads as the louder of the two.
+
+  It is searched, too — a verb listed as *to eat* is found under that.
+
+  Only where the table stands in for the card's own word. Huế cites the bare
+  verb, which is a word and not a box, so there the card is named by it and
+  no field is offered.
+
 ## 0.122 — 14 September 2026
 
 - **The kind of card ran off the side of the screen.** Adding *Verb* beside

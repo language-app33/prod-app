@@ -1708,6 +1708,25 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   ].filter((n) => !shown.includes(n));
   check("every component in the library has a row", missing.length === 0, `missing: ${missing.join(", ")}`);
 
+  /* A card the teacher has named is listed under that name rather than
+     under its own words — a verb whose word is the form a dictionary lists
+     names one cell of its table, not the verb. The name is the headline,
+     and it stands in for the meaning line rather than sitting above it, so
+     "to eat" is not followed by "he ate" correcting it. Drawn in the
+     interface face rather than the taught script's: a name is whatever was
+     typed, and every size in the stylesheet is tuned against the script. */
+  const named = host.querySelector(".at-mininame");
+  check("a card with a name of its own is listed under it",
+    !!named && /to eat/.test(named.textContent || ""),
+    named ? (named.textContent || "").trim() : "(no named tile)");
+  const namedTile = named ? named.closest(".at-minicard") : null;
+  check("and the script it is built on is still shown underneath",
+    !!namedTile && /\u0623\u0643\u0644/.test((namedTile.querySelector(".ar") || {}).textContent || ""),
+    namedTile ? (namedTile.textContent || "").replace(/\s+/g, " ").trim() : "(no tile)");
+  check("while the dictionary form's own meaning is not",
+    !!namedTile && !/he ate/.test(namedTile.textContent || ""),
+    namedTile ? (namedTile.textContent || "").replace(/\s+/g, " ").trim() : "(no tile)");
+
   /* The specimens have to actually render something, not just be listed. */
   check("specimens rendered, not just names", host.querySelectorAll(".at-galvbody").length >= 30,
     `${host.querySelectorAll(".at-galvbody").length} specimens`);
@@ -3509,6 +3528,31 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        dictionary form" label made one row a different width and colour
        from the rest and asked for a piece of grammar theory to be held in
        mind while typing; where it matters, the editor says so below. */
+    /* And it can be given a name. A verb in a language with no infinitive
+       is saved as the form a dictionary lists, so a list read "أكل · he
+       ate" — one cell of the table rather than the verb the card is
+       about. */
+    const nameBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
+      /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    check("a verb can be given a name to be listed under", !!nameBlock,
+      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+    /* Above the table, which is where it is decided rather than where it is
+       remembered — and the first thing on the screen after what kind of
+       card this is. */
+    const heads = [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
+    check("and it is asked above the first tense, not under the whole table",
+      heads.indexOf("What to call it") > -1 &&
+        heads.indexOf("What to call it") < heads.indexOf("present"),
+      heads.join(" | "));
+    /* And it says what it is for, and that nothing is asked about it. */
+    check("and says it is a label rather than something practised",
+      !!nameBlock && /listed and searched/.test(nameBlock.textContent || "") &&
+        /Nobody is ever asked this/.test(nameBlock.textContent || ""),
+      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
+    check("naming the box it would otherwise be listed under",
+      !!nameBlock && /past · he/.test(nameBlock.textContent || ""),
+      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
+
     check("without the table labelling the cell it went into",
       !/the dictionary form/i.test(document.body.textContent || ""),
       /the dictionary form/i.test(document.body.textContent || "") ? "still labelled" : "the table is plain");

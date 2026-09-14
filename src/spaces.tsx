@@ -4302,7 +4302,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, decks: string[], uses: string[], fills: string, drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, decks: string[], uses: string[], fills: string, drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;
@@ -4432,6 +4432,9 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     ? cells.find((c) => c.row === recordingCell.row && c.col === recordingCell.col) || null
     : null;
   const [note] = useState((card && card.note) || "");
+  /* What to call the card in a list. Only asked of a verb whose own word is
+     a cell of its table — see the block that asks for it. */
+  const [name, setName] = useState(((card && card.name) || "") as string);
   const [chosen, setChosen] = useState(inDecks || []);
   /* Which variable this card fills, where it is a value rather than
      something to learn: "Raphael" fills `name`, and every phrase with a
@@ -4659,6 +4662,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                    one. */
                 forms: asVerb ? ownForms.concat(cells as typeof forms) : ownForms,
                 note,
+                /* Only where it was asked for: a card that is not a verb of
+                   this shape is named by its own word, and a name left
+                   behind from a card that briefly was one would go on
+                   labelling it. */
+                name: standsIn ? name.trim() : "",
                 decks: chosen,
                 uses,
                 fills: fills.trim(),
@@ -4779,6 +4787,46 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               open first are read off the table itself — an empty box is
               plainly an empty box, and the rows are labelled in the order
               they are taught. */}
+          {/* ---- what to call it ----
+
+              A verb in a language with no infinitive is saved as the form a
+              dictionary lists — Arabic's he-past — so a list read as "he
+              ate", which names one cell of the table rather than the verb
+              the card is about. Nothing was wrong with the card; it simply
+              had no name of its own to be listed under.
+
+              Not the block 0.114 took away. That one asked for the script,
+              the pronunciation, the English and the recordings a second
+              time, and the two copies had to be kept in step by hand. This
+              asks for one thing the table cannot supply, and nothing is
+              drilled on it: it is a label, and the microcopy says so.
+
+              Only where the table stands in for the card's own word. Where
+              a language cites nothing — Huế cites the bare verb — the card
+              has a word of its own and is named by it. */}
+          {verbMode && verbSpec && standsIn && (
+            <div className="at-formblock at-mt5">
+              <div className="at-formhead">
+                <span className="at-formnum">What to call it</span>
+                <span className="at-formrole">how it is listed</span>
+              </div>
+              <Field label="Name">
+                <input
+                  className="at-input"
+                  value={name}
+                  placeholder="to eat"
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Field>
+              <Help>
+                How this card is listed and searched. Without one it is
+                listed as {citedLabel(verbSpec)} — the box a dictionary lists
+                the verb under — which names that form rather than the verb.
+                Nobody is ever asked this: the table is what is practised.
+              </Help>
+            </div>
+          )}
+
           {verbMode && verbSpec && (
             <>
               <VerbTable
@@ -6533,7 +6581,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, decks: inDecks, uses, fills, drill, scene: written }) =>
+        onSave={({ forms, note, name, decks: inDecks, uses, fills, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -6577,6 +6625,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                         clips: main.clips || [],
                         slowClips: main.slowClips || [],
                         note: note.trim(),
+                        /* What to call it in a list, where its own words do
+                           not name it — a verb saved as the form a
+                           dictionary lists. Empty on every other card. */
+                        name,
                         uses,
                         /* Which variable it fills, and whether it is a
                            question of its own. A conversation is neither:
@@ -6708,6 +6760,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               match={(c, q) =>
                 (c.ar || "").toLowerCase().includes(q) ||
                 (c.en || "").toLowerCase().includes(q) ||
+                /* And what it is called, where it has a name of its own:
+                   a verb listed as "to eat" is looked for under that. */
+                (c.name || "").toLowerCase().includes(q) ||
                 linesOf(c).some(
                   (l: any) =>
                     (l.ar || "").toLowerCase().includes(q) ||
@@ -7303,6 +7358,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   (c.ar || "").toLowerCase().includes(q) ||
                   (c.en || "").toLowerCase().includes(q) ||
                   (c.lat || "").toLowerCase().includes(q) ||
+                  /* And what it is called, where it has a name of its own:
+                     a verb listed as "to eat" is looked for under that. */
+                  (c.name || "").toLowerCase().includes(q) ||
                   linesOf(c).some(
                     (l: any) =>
                       (l.ar || "").toLowerCase().includes(q) ||

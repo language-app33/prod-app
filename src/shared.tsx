@@ -846,10 +846,29 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
           sentence look like what they are, and a label on every tile is
           the small print this list was cleared of. */}
       {isDialog(card) ? <div className="at-minikind">{kindLabel(DIALOG_KIND)}</div> : null}
+      {/*
+        * A name, where the card has one, is what it is listed under.
+        *
+        * A verb in a language with no infinitive is saved as the form a
+        * dictionary lists, so a list read as "he ate" — which names one
+        * cell of its table rather than the verb. Where the teacher has said
+        * what to call it, that is the headline and the dictionary form's
+        * own meaning goes: the name is the card's meaning now, and "he ate"
+        * under "to eat" reads as a correction of it.
+        *
+        * Written in `dir="auto"` and without the script's font or sizing,
+        * because a name is whatever the teacher typed — "to eat" as often
+        * as the verbal noun in the taught script — and every size in this
+        * file is tuned by eye against it. Latin left at a script-tuned size is the bug 0.113
+        * fixed for a hole in a card; this is the same bug one field over.
+        * The script itself keeps its line underneath, so a card list does
+        * not stop showing the language.
+        */}
+      {card.name ? <div className="at-mininame" dir="auto">{card.name}</div> : null}
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         <Written text={face} />
       </div>
-      <div className="at-minien">{card.en}</div>
+      {card.name ? null : <div className="at-minien">{card.en}</div>}
       {showLat && card.lat ? <div className="at-minilat">{card.lat}</div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how
@@ -2870,6 +2889,12 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        teacher's decision and neither can be read off the words. */
     ...(card.fills ? { fills: String(card.fills) } : null),
     ...(card.drill === false ? { drill: false } : null),
+    /* And what the teacher calls it, where its own words do not name it —
+       a verb saved as the form a dictionary lists. Carried for the same
+       reason those two are: it is the teacher's words and nothing here
+       could work it out. Left off where there is none, so an ordinary card
+       does not start carrying an empty one. */
+    ...(card.name ? { name: String(card.name) } : null),
     tags: [deckTitle],
     locked: true,
     flags: [],

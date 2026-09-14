@@ -798,6 +798,12 @@ export default async (req) => {
         ...Object.fromEntries(
           grammarFields().map((f) => [f, String(card[f] || "").slice(0, 40)])
         ),
+        /* What to call the card in a list, where its own words do not name
+           it — a verb saved as the form a dictionary lists. Stored as given
+           and capped like every other line of text here: the server does
+           not know one language from another, and a name is the teacher's
+           words rather than anything it can check. */
+        name: String(card.name || "").slice(0, 120),
         note: String(card.note || "").slice(0, 500),
         lang: String(card.lang || "").slice(0, 12),
         /* Which variable this card fills, where it is a value rather than

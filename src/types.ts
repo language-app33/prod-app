@@ -426,6 +426,16 @@ export type Card = CardForm & {
    */
   fills?: string;
   /**
+   * What to call the card in a list, where its own words do not name it.
+   *
+   * A verb in a language with no infinitive is saved as the form a
+   * dictionary lists — Arabic's he-past — so a list read "أكل · he ate",
+   * which names one cell of its table rather than the verb. A name is the
+   * teacher's answer to that. Absent on every other card, which is named
+   * by the word it teaches.
+   */
+  name?: string;
+  /**
    * Whether the card is practised in its own right. Absent means yes, which
    * is what every card written before variables existed meant. A value —
    * "Raphael" — is turned off: it is there to fill a hole in somebody
@@ -638,6 +648,8 @@ export type Item = Form & {
   tags: string[];
   /** The variable this card stands in for, where it is a value. See Card. */
   fills?: string;
+  /** What to call it in a list, where its own words do not name it. See Card. */
+  name?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
   flags?: any[];
