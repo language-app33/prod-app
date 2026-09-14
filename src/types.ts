@@ -72,7 +72,13 @@ export interface ExerciseSpec {
   /**
    * The bar the levels below must reach for this one to open. Mastered —
    * four days of interval, in review — unless said otherwise; "graduated"
-   * asks only that they be through the learning steps.
+   * asks only that they be through the learning steps and in review.
+   *
+   * It belongs to the level rather than to the exercise: openTypes takes
+   * the loosest any exercise on a level declares and applies it to
+   * everything below, so every exercise on one level must name the same
+   * bar or the odd one out is read wrongly by every human who meets it. A
+   * test in the scheduler's suite holds them to it.
    */
   opensOn?: "graduated" | "mastered";
   /** Still defined so stored states can be read. */

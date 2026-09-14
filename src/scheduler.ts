@@ -297,12 +297,20 @@ export function graduated(s: ExerciseState): boolean {
    level — recognising the word alone, telling it apart from others,
    production from a cue, production from the meaning — and a level is open
    for a form only once every exercise on the levels below it that the form
-   supports has reached the level's bar. The bar is mastered, except where
-   the level says graduated is enough: the grid asks only that a word has
-   been through the learning steps alone before it is met among others. A
-   form with no recording has nothing on level three but its
-   transliteration, and that alone is what it must master to reach level
-   four; a form with nothing at all on a level passes straight through it.
+   supports has reached the level's bar.
+
+   The bar is graduated — through the learning steps and in review, at
+   whatever interval — for the two levels that are still cued: telling a
+   word apart from others, and writing it from a pronunciation or a
+   recording that carries it. Both show the learner the word, neither is
+   recall from the meaning alone, and asking a four-day interval of every
+   recognition exercise first held a card on multiple choice for a week or
+   more before it was ever asked for the word.
+
+   Level four — writing it from its meaning, with nothing on the screen to
+   go on — keeps the four-day bar, so the strict gate stands where
+   production from memory actually begins. A form with nothing at all on a
+   level passes straight through it.
 
    Whether the bar is met is read afresh every time, so a lapse on the
    bottom level closes the ones above it until it is recovered: somebody who

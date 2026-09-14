@@ -140,6 +140,11 @@ export const EX: Record<string, ExerciseSpec> = {
      reference to the type must still resolve to a label rather than crash. */
   ar2tr: {
     level: 3,
+    /* Level three's bar, carried here too so the level speaks with one
+       voice — see tr2ar. Retired, so nothing reads it today; an entry that
+       disagreed with its own level is what would be read wrongly on the
+       day somebody brought it back. */
+    opensOn: "graduated",
     retired: true,
     instruction: "Write in {translit}",
     label: "{Script} → {translit}",
@@ -155,7 +160,31 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "tr",
   },
   tr2ar: {
+    /* Production, but from a cue that carries the word: the pronunciation
+       is on the screen and what is asked is how it is spelt. */
     level: 3,
+    /*
+     * And so it opens on graduated, the way the grid does, rather than on
+     * the four-day bar.
+     *
+     * Mastered on every exercise below meant every recognition exercise a
+     * card supports reaching a four-day interval on its own — four right
+     * answers each, three days at the very fastest, and in practice a week
+     * or more of a card being asked nothing but which of four. New cards
+     * went on arriving at the bottom while nothing climbed, which is the
+     * passive-vocabulary plateau written into the schedule.
+     *
+     * The grid's reasoning applies here unchanged: a cued question is not
+     * recall from the meaning alone, and a first fortnight that never asks
+     * for the word is the wrong fortnight. Through the learning steps and
+     * in review is enough to have earned it.
+     *
+     * Level four keeps the four-day bar, so the strict gate still stands
+     * exactly where production from the meaning alone begins — and a lapse
+     * anywhere below still closes this level, because graduated is false in
+     * relearning.
+     */
+    opensOn: "graduated",
     instruction: "Write in {script}",
     label: "{Translit} → {script}",
     short: "T→{S}",
@@ -187,6 +216,8 @@ export const EX: Record<string, ExerciseSpec> = {
   },
   rec2ar: {
     level: 3,
+    /* Level three's bar — see tr2ar. */
+    opensOn: "graduated",
     instruction: "Listen, then write it in {script}",
     label: "Listen → {script}",
     short: "L→{S}",
@@ -232,6 +263,11 @@ export const EX: Record<string, ExerciseSpec> = {
      what it means is known. */
   ctx2pick: {
     level: 2,
+    /* Level two's bar — see match, which has always set it. Said here too
+       because the bar belongs to the level rather than to one exercise on
+       it, and an entry that named a stricter one than its own level keeps
+       was read as the level's rule by everybody but the code. */
+    opensOn: "graduated",
     instruction: "Which word is missing?",
     label: "In a phrase → choose",
     short: "P→C",
@@ -255,6 +291,8 @@ export const EX: Record<string, ExerciseSpec> = {
      recognise the spelling of until then. */
   en2pick: {
     level: 2,
+    /* Level two's bar — see match. */
+    opensOn: "graduated",
     instruction: "Choose the word",
     label: "English → choose",
     short: "E→?",
@@ -299,6 +337,8 @@ export const EX: Record<string, ExerciseSpec> = {
   },
   rec2attr: {
     level: 3,
+    /* Level three's bar — see tr2ar. */
+    opensOn: "graduated",
     instruction: "Listen, then choose the {attr}",
     label: "Listen → {attr}",
     short: "L→{A}",
@@ -397,6 +437,8 @@ export const EX: Record<string, ExerciseSpec> = {
   },
   dlgpick: {
     level: 3,
+    /* Level three's bar — see tr2ar. */
+    opensOn: "graduated",
     instruction: "Choose what you say next",
     label: "Choose the reply",
     short: "Pick",
@@ -436,6 +478,8 @@ export const EX: Record<string, ExerciseSpec> = {
      level above reading the scene, and beside choosing the reply. */
   dlgorder: {
     level: 3,
+    /* Level three's bar — see tr2ar. */
+    opensOn: "graduated",
     instruction: "Put the scene back in order",
     label: "Put a scene in order",
     short: "Order",
