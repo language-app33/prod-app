@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.124 — 14 September 2026
+
+- **A card in two decks is in both of them again.** The deck tiles in
+  Progress counted every card under whichever deck happened to carry it
+  first, and reported the rest as short of it — so a card you had filed in
+  Lesson 1 and again in Review showed up in one of them and was missing from
+  the other, with the percentages drawn off the wrong totals.
+
+  A deck reaches the learner's side of the app as a tag on a card, and the
+  material arrives deck by deck, so the same card comes down more than once.
+  It is built from the first deck that carries it, as it was; what was
+  thrown away was every deck after that. They are added now, so a card
+  carries every deck that lists it — which the deck tiles, the tag picker
+  and what a hand-built session is drawn from all read.
+
+- **And a name borrowed by a deck is no longer counted as one of its
+  cards.** A card that fills a blank is in no deck: the server sends it with
+  whichever deck's phrase leaves a hole of its name, which is not the same
+  as being filed there. Those arrived carrying the borrowing deck's name, so
+  a deck of one phrase read as a deck of three. A deck's own list is what
+  decides now.
+
 ## 0.123 — 14 September 2026
 
 - **A verb can be given a name to be listed under.** Arabic and Hebrew have
