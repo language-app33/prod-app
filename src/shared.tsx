@@ -2988,18 +2988,44 @@ export async function pullCourses(
     (r.cards || []).map((x: { deckId: string; cards?: Card[] }) => [x.deckId, x.cards || []]),
   );
 
-  /* One card, once. A card can sit in two of the decks a student holds —
-     and a value card is sent with every deck whose phrases need it — so
-     without this the same card arrived twice under one id, and which of the
-     two won was whichever map happened to be read last. The first deck that
-     carries it names it, which is also the order the decks are shown in. */
+  /*
+   * One card, once — carrying every deck that lists it.
+   *
+   * A card can sit in two of the decks a student holds, and a value card is
+   * sent with every deck whose phrases need it, so the same card arrives
+   * more than once under one id. It is built from the first deck that
+   * carries it, which is where its `source` comes from and the order the
+   * decks are shown in.
+   *
+   * What the rest of them add is the tag. A deck reaches this side of the
+   * app as a tag on a card, so a card kept under the first deck alone was a
+   * card that had left every other deck it is in: the Progress screen's
+   * deck tiles counted it once and reported the rest as short of it, and
+   * picking a deck to practise did not offer it.
+   *
+   * Only where the deck actually lists it. A deck's payload is its own
+   * cards plus the values its phrases borrow, and a value is in no deck —
+   * filing "Raphael" under Lesson 3 to make "My name is {{name}}" work
+   * would file it where nobody would look for it, which is the server's own
+   * reason for sending it separately. `cardIds` is the deck's own list, so
+   * it is what says which of the two a card is here as.
+   */
   const incoming: Item[] = [];
-  const already = new Set<string>();
+  const at: Map<string, Item> = new Map();
   for (const deck of decks) {
+    const lists = new Set(deck.cardIds || []);
     for (const card of cardsByDeck.get(deck.id) || []) {
+      const tag = lists.has(card.id) ? String(deck.title || "") : "";
+      const had = at.get(localIdFor(card.id));
+      if (had) {
+        if (tag && !had.tags.includes(tag)) had.tags = had.tags.concat([tag]);
+        continue;
+      }
       const item = cardToItem(card, deck.title, deck.courseId, deck.id, freshStates);
-      if (already.has(item.id)) continue;
-      already.add(item.id);
+      /* cardToItem names it after the deck it was built from; a value
+         borrowed by that deck is not in it and carries no tag from it. */
+      item.tags = tag ? [tag] : [];
+      at.set(item.id, item);
       incoming.push(item);
     }
   }

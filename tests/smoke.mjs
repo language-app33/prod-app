@@ -210,12 +210,21 @@ const fakeFetch = async (input, opts = {}) => {
              asked — and so the values below are seen arriving with the deck
              that needs them rather than with any deck at all. */
           { id: "d2", title: "Introductions", owner: "t-1", cardIds: [frameCard.id], cardCount: 1, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 2 }], version: 1 },
+          /* A third deck, holding a card that is already in the first. A
+             card in two decks is in both, and nothing here had one — so
+             the screens that count a deck's cards were counting each card
+             under whichever deck happened to carry it first, and nothing
+             said so. */
+          { id: "d3", title: "Review", owner: "t-1", cardIds: [card.id], cardCount: 1, courseId: "c1", courseTitle: "Arabic 101", courseLanguage: "ar-PS", courses: [{ courseId: "c1", addedAt: 3 }], version: 1 },
         ],
         /* Each deck's own cards, and — as the server bundles them — the
-           values its phrases leave holes for. */
+           values its phrases leave holes for. The book is sent twice,
+           because it is in two decks; the two names are sent with the deck
+           whose phrase needs them and are in no deck at all. */
         cards: [
           { deckId: "d1", cards: [card, phrase] },
           { deckId: "d2", cards: [frameCard, rafa, viktor] },
+          { deckId: "d3", cards: [card] },
         ],
       });
     }
@@ -1478,6 +1487,33 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("each deck being studied has a tile of its own", decks.length > 0,
       `${decks.length} decks`);
     const said = decks.map((d) => (d.textContent || "").replace(/\s+/g, " ").trim());
+    /* A card in two decks is in both, and a deck reaches this side of the
+       app as a tag on a card — so a card kept under the first deck that
+       carried it had left every other deck it is in. The book is in Lesson
+       1 and in Review; without both tiles here, one of them is counting a
+       card it holds as somebody else's. */
+    const named = (/** @type {string} */ name) =>
+      decks.find((d) => new RegExp(`^${name}`).test((d.textContent || "").trim()));
+    check("a deck holding a card that is also in another deck still counts it",
+      !!named("Review"), said.join(" · ") || "(no deck tiles)");
+    check("and the deck it was already in counts it too",
+      !!named("Lesson 1"), said.join(" · ") || "(no deck tiles)");
+    const countOf = (/** @type {any} */ d) =>
+      d ? ((d.querySelector(".at-deckstatnote") || {}).textContent || "").trim() : "";
+    /* Review holds the book and nothing else. Lesson 1 is unchanged by the
+       book also being in Review — a card in two decks is in both, not moved
+       from one to the other. */
+    check("each counting the cards it actually holds",
+      /of 1 card learnt$/.test(countOf(named("Review"))) &&
+        /of 7 cards learnt$/.test(countOf(named("Lesson 1"))),
+      `Review: ${countOf(named("Review"))} · Lesson 1: ${countOf(named("Lesson 1"))}`);
+    /* And a value is in no deck. "Raphael" is sent with whichever deck's
+       phrase leaves a hole of its name, which is not the same as being
+       filed in it — so Introductions holds its one phrase and not the two
+       names borrowed to fill it. */
+    check("while a value borrowed by a deck is not counted as one of its cards",
+      !named("Introductions") || /of 1 card learnt/.test(countOf(named("Introductions"))),
+      countOf(named("Introductions")) || "(no Introductions tile)");
     /* Read off the figure itself rather than the tile's text: a deck
        called "Lesson 1" beside 42% reads as 142 when the two are run
        together, which is how this check first passed while measuring
