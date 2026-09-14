@@ -98,6 +98,7 @@ export function freshState(): ExerciseState {
     wrong: 0,
     skips: 0,
     near: 0,
+    hints: 0,
     hist: [],
     updated: 0,
   };
@@ -257,7 +258,25 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
     mult = s.ease;
   }
   const base = Math.max(1, s.interval || 1);
-  s.interval = Math.min(MAX_DAYS, Math.max(1, Math.round(base * mult * fuzz(clock))));
+  let next = Math.round(base * mult * fuzz(clock));
+  /*
+   * A near miss still moves.
+   *
+   * 1.2 times a one-day interval rounds back to one day, and so does 1.2
+   * times two; only from three does the multiplier carry the interval past
+   * where it started. A near miss is the mistake a learner makes over and
+   * over while they are learning — the right letters with the wrong tone,
+   * the wrong haraka, one letter out — so somebody whose fault is always
+   * that one sat at a one-day interval for ever: never mastered, therefore
+   * never past the level it stands on, and nothing on the screen to say
+   * why the writing never arrived.
+   *
+   * So the floor: nearly right is worth at least a day more than last
+   * time. The ease still falls, so the card is still treated as a hard
+   * one; what it cannot do any more is stand still.
+   */
+  if (rating === "hard") next = Math.max(next, base + 1);
+  s.interval = Math.min(MAX_DAYS, Math.max(1, next));
   s.due = inDays(s.interval);
   return s;
 }
@@ -297,10 +316,16 @@ export function graduated(s: ExerciseState): boolean {
    level — recognising the word alone, telling it apart from others,
    production from a cue, production from the meaning — and a level is open
    for a form only once every exercise on the levels below it that the form
-   supports has reached the level's bar. The bar is mastered, except where
-   the level says graduated is enough: the grid asks only that a word has
-   been through the learning steps alone before it is met among others. A
-   form with no recording has nothing on level three but its
+   supports has reached the level's bar.
+
+   The bar is graduated — through the learning steps and in review — up to
+   the writing, and mastered for the writing itself: four days of interval,
+   in review. So a word is told apart from others once it has been met
+   alone, and written from a cue once it is known both ways, but it is not
+   asked to be written from its meaning until everything under it has held
+   for four days. The bar a level asks is in LEVEL_BARS in languages.ts.
+
+   A form with no recording has nothing on level three but its
    transliteration, and that alone is what it must master to reach level
    four; a form with nothing at all on a level passes straight through it.
 
@@ -322,10 +347,12 @@ export function openTypes(types: string[], stateOf: (type: string) => ExerciseSt
   const levels = [...new Set(types.map(levelOf))].sort((a, b) => a - b);
   for (const level of levels) {
     const here = types.filter((t) => levelOf(t) === level);
-    /* The level's bar is the loosest any exercise on it declares — one
-       exercise to a level in practice, and a level that has a gentle way
-       up should not be shut by a stricter neighbour. */
-    const bar = here.some((t) => barOf(t) === "graduated") ? graduated : mastered;
+    /* The bar belongs to the level rather than to the exercise, so every
+       card reaches a level the same way whichever of its exercises happen
+       to stand there — see LEVEL_BARS in languages.ts. Asked of the first
+       here because they all answer alike; `here` is never empty, being the
+       exercises the level was read off. */
+    const bar = barOf(here[0]) === "graduated" ? graduated : mastered;
     const lower = types.filter((t) => levelOf(t) < level);
     const reached = lower.every((t) => {
       const s = stateOf(t);
@@ -457,6 +484,23 @@ export function familyMaturity(it: Item, typesOf: (unit: Form) => string[]): str
  * How many cards stand in each phase, for the room-for-new sums. Counted
  * the way the progress screen counts them, so the two never disagree
  * about how full a learner's hands are.
+ *
+ * An exercise on a level that has just opened and has never been answered
+ * holds its card at *learning* here, which reads like an accident — the
+ * card's reading may be weeks old — and it was very nearly changed on
+ * that basis: pass the unanswered ones over, the argument went, and the
+ * ten-card cap would stop filling up in the first week and a learner
+ * would meet more than a card every three days.
+ *
+ * It was measured first, and it was the wrong change. Over a hundred and
+ * twenty simulated days of one session a day, passing them over admitted
+ * about five more cards and mastered three fewer, because the session
+ * budget is what it always was and the extra cards simply spread it
+ * thinner: a card took fifty-two days to reach writing rather than
+ * thirty-seven. Those unanswered exercises are work that has arrived,
+ * whether or not it has been touched, and counting them is the cap doing
+ * its job. What actually buys a learner more new cards is a longer
+ * session, not a laxer cap.
  */
 export function phaseCounts(
   items: Item[],

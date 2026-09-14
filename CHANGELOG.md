@@ -8,6 +8,77 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.103 — 14 September 2026
+
+Four changes to how hard the app makes things, three of them loosening a
+rule that was holding learners back and one closing a way round the
+ladder. They came out of an audit of the levels; the numbers quoted are
+from simulations run against the app's own scheduler, one session a day
+with three exercises per form.
+
+- **A near miss always moves the interval now.** Nearly right — the right
+  letters with the wrong tone, the wrong haraka, one letter out — stretched
+  the gap before the next review by a fifth, and a fifth of one day rounds
+  back to one day. So did a fifth of two. A learner whose mistake was
+  always that same small one answered the same word that way every day for
+  ever: the interval never grew, so the exercise was never mastered, so the
+  level above it never opened, and nothing on the screen said why the
+  writing never arrived. A near miss is now worth at least a day more than
+  last time. It still costs the card its ease and is still counted as
+  wrong; what it cannot do any more is stand still.
+
+- **Everything below writing-from-meaning now opens sooner.** A level used
+  to wait for every exercise under it to be *mastered* — in review with
+  four days of interval — which cost four or five days of calendar time at
+  every rung however well you answered. Now telling a word apart from
+  others, and writing it from a cue, open once what is under them is
+  *graduated*: through the learning steps and in review. Writing a word
+  from its meaning alone still waits for mastery, because that is the one
+  place where being asked early means being asked something you have not
+  been taught.
+
+  A plain word answered perfectly is asked to be written from its meaning
+  on day 9 rather than day 13, and is fully mastered on day 13 rather than
+  day 17. A card with a recording and a phrase on it: day 12 rather than
+  day 16, mastered on day 18 rather than day 22. In a deck with a full day's
+  reviews behind it the gap between meeting a card and first writing it
+  falls from about 56 days to about 37.
+
+- **The bar is the level's, not the exercise's.** It used to be read off
+  whichever exercises a card happened to carry, so a card whose only
+  second-level exercise was the gap-fill — a card in a deck too small for a
+  matching grid — climbed by a stricter rule than the card beside it.
+
+- **New cards keep the places they are given.** Everything due ranks
+  together and is shuffled, so a new card admitted by "New cards per
+  session" was left to take its chance against every card waiting for
+  review, and on any day with a queue behind it fell off the end of the
+  session. It now goes to the front. Which cards join it, and the order
+  they are asked in, are unchanged.
+
+- **A hint no longer counts as knowing the word.** *English → script* and
+  *fill the gap* offer the transliteration as a nudge, which on those two
+  questions is the answer spelled out another way: reading it turns the
+  hardest question in the app into the one a level below. With Hints set to
+  On it was opened on every question by itself, and nothing recorded that
+  it had been — so a learner with hints on could climb to the top of the
+  ladder having never once written a word from its meaning alone.
+
+  On those two questions the nudge now stays closed until you ask for it,
+  and an answer written with it open is marked as a near miss and comes
+  round again before the session ends. The screen says so rather than
+  doing it quietly. Every other hint is unchanged, and how often each
+  exercise was answered with its hint up is now kept.
+
+- **What was measured and not changed.** A card counts as *learning* while
+  any exercise open to it is unanswered, which includes a level that opened
+  this morning — and that is what keeps the ten-card limit full and holds a
+  learner to about a card every three days. Passing those over was tried
+  and measured: it admitted about five more cards over a hundred and twenty
+  days and mastered three fewer, because the session budget does not grow
+  with them. The limit is doing its job; a longer session is what buys more
+  new cards.
+
 ## 0.102 — 14 September 2026
 
 - **Start session works again on a deck whose cards accept two spellings.**

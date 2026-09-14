@@ -22,12 +22,22 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
   | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
 
-  The bar is *mastered* — in review, with an interval of at least four
-  days — except for level 2, which opens once level 1 is *graduated*:
-  through the learning steps and in review at all. A level a card has no
-  material for is passed straight through. A lapse below closes the levels
-  above until it is recovered. Each exercise declares its own level in
-  `src/languages.ts`; `openTypes` in the scheduler reads them.
+  The bar is *graduated* — through the learning steps and in review at
+  all — up to level 3, and *mastered* — in review, with an interval of at
+  least four days — for level 4. So a word is told apart from others once
+  it has been met alone, and written from a cue once it is known both
+  ways, but it is not written from its meaning alone until everything
+  under it has held for four days. A level a card has no material for is
+  passed straight through. A lapse below closes the levels above until it
+  is recovered. Each exercise declares its own level in `src/languages.ts`
+  and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
+  the scheduler reads both.
+
+  Two questions ask for the word in the script and offer its
+  transliteration as a nudge — *English → script* and *fill the gap*. On
+  those the nudge is the answer said another way, so it is never opened by
+  itself and an answer written with it up is marked as a near miss:
+  `hintTells` in `src/languages.ts`.
 - **New cards are introduced only while there is room.** Beyond the
   per-session limit in the settings, nothing new is dealt while ten cards
   are already being learnt or forty are young and still coming back for

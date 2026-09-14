@@ -48,7 +48,7 @@ import {
   inOrder,
   dueRank,
 } from "../src/scheduler.ts";
-import { EX, TYPES, levelOf } from "../src/languages.ts";
+import { EX, LEVEL_BARS, TYPES, barOf, levelOf } from "../src/languages.ts";
 /** @import { ExerciseState, Item } from "../src/types.ts" */
 
 /* A Tuesday, so nothing depends on it being midnight or a month boundary. */
@@ -150,6 +150,37 @@ test("a near miss stretches the interval only slightly, and costs ease", () => {
   const out = reschedule(reviewing(), "hard", still);
   assert.equal(out.ease, 2.35);
   assert.equal(out.interval, 12, "10 days times the fixed 1.2");
+});
+
+test("a near miss always moves the interval, however short it is", () => {
+  /* 1.2 times one day rounds back to one day, and so does 1.2 times two.
+     A learner whose fault is always the same small one — the right letters
+     with the wrong tone, the wrong haraka — was answering every review of
+     a word that way and staying at a one-day interval for ever: never
+     mastered, so never past the level that exercise stands on, and nothing
+     on the screen to say why the writing never arrived. */
+  assert.equal(reschedule(reviewing({ interval: 1 }), "hard", still).interval, 2);
+  assert.equal(reschedule(reviewing({ interval: 2 }), "hard", still).interval, 3);
+  assert.equal(reschedule(reviewing({ interval: 3 }), "hard", still).interval, 4);
+  /* Far enough along and the multiplier is already worth more than the
+     floor, which is where it stays in charge. */
+  assert.equal(reschedule(reviewing({ interval: 10 }), "hard", still).interval, 12);
+  /* Nearly right over and over does reach the bar, rather than standing
+     still short of it — four near misses from a standing start. */
+  let s = reviewing({ interval: 1 });
+  const path = [];
+  for (let i = 0; i < 4; i += 1) {
+    s = reschedule(s, "hard", still);
+    path.push(s.interval);
+  }
+  assert.deepEqual(path, [2, 3, 4, 5]);
+  assert.equal(mastered(s), true, `nearly right four times reaches the bar: ${path.join(" → ")}`);
+  /* And it is still a hard answer: the ease falls every time, so the card
+     goes on being treated as a difficult one. */
+  assert.ok(s.ease < 2.5, `${s.ease}`);
+  assert.equal(s.wrong, 4, "and it is still counted as wrong, four times");
+  /* The ceiling still holds. */
+  assert.equal(reschedule(reviewing({ interval: MAX_DAYS }), "hard", still).interval, MAX_DAYS);
 });
 
 test("Easy pays more than good, and buys ease", () => {
@@ -327,6 +358,22 @@ test("phaseCounts is the progress screen's four numbers", () => {
   assert.deepEqual(phaseCounts([], twoTypes), { new: 0, learning: 0, young: 0, mature: 0 });
 });
 
+test("a level that has opened and not been answered still fills the learner's hands", () => {
+  /* The reading in review for a week, the writing open since this morning
+     and never asked: learning, because the writing is work that has
+     arrived. It looks like an accident of the counting and it was nearly
+     changed on that basis — pass the unanswered ones over and the ten-card
+     cap stops filling up in the first week. Simulated over a hundred and
+     twenty days it admitted about five more cards and mastered three
+     fewer, because the session budget did not grow with them. Written down
+     here so the next reader measures before changing it. */
+  const climbing = card({
+    s: { ar2en: state({ phase: "review", interval: 6 }), en2ar: freshState() },
+  });
+  assert.equal(familyMaturity(climbing, twoTypes), "learning");
+  assert.deepEqual(phaseCounts([climbing], twoTypes), { new: 0, learning: 1, young: 0, mature: 0 });
+});
+
 /* ---- the ladder ---- */
 
 test("mastered is four days of interval in review, and nothing less", () => {
@@ -344,22 +391,56 @@ test("mastered is four days of interval in review, and nothing less", () => {
     "graduating the steps is two right answers ten minutes apart, which is not knowing a word");
 });
 
-test("a level opens only once every exercise below it is mastered", () => {
+test("a level opens once what is under it is graduated, and the writing once it is mastered", () => {
   /* Recognition, production from a cue, production from the meaning: one
      of each, so the three levels are each one exercise wide. */
   const ladder = ["ar2en", "tr2ar", "en2ar"];
+  const grad = state({ phase: "review", interval: 2 });
   const done = state({ phase: "review", interval: MASTERED_DAYS });
   const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
   assert.deepEqual(openTypes(ladder, table({})), ["ar2en"], "a fresh form is asked to recognise, nothing else");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "review", interval: 2 }) })), ["ar2en"],
-    "graduated is not mastered");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: done })), ["ar2en", "tr2ar"]);
+  /* Through the learning steps and in review is the whole of what the
+     levels under the writing ask. The four-day bar used to stand here too,
+     and it cost four or five days of calendar time at every rung. */
+  assert.deepEqual(openTypes(ladder, table({ ar2en: grad })), ["ar2en", "tr2ar"],
+    "graduated is enough to be asked to write it from a cue");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "learning", step: 1 }) })), ["ar2en"],
+    "but the learning steps are not through yet");
+  /* The writing is the exception, and the reason the bar exists at all: a
+     word is not written from its meaning alone until what is under it has
+     held for four days. */
+  assert.deepEqual(openTypes(ladder, table({ ar2en: grad, tr2ar: grad })), ["ar2en", "tr2ar"],
+    "graduated is not mastered, and the writing asks mastery");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: grad })), ["ar2en", "tr2ar"],
+    "every exercise under it, not just the bottom one");
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done })), ["ar2en", "tr2ar", "en2ar"]);
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done, en2ar: done })), ladder, "and stays open");
   assert.deepEqual(
     openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), tr2ar: done, en2ar: done })),
     ["ar2en"],
     "a lapse at the bottom closes everything above it until it is recovered"
+  );
+});
+
+test("the bar belongs to the level, not to whichever exercises a card happens to carry", () => {
+  /* Two cards, each with one exercise on the second level: the grid on one
+     and the gap-fill on the other, which is what a card in a deck too
+     small for a grid is left with. They used to climb by different rules —
+     the bar was the loosest any exercise on the level declared, and only
+     the grid declared one — so the same word in a small deck waited for
+     mastery where in a large one it waited for graduation. */
+  const grad = state({ phase: "review", interval: 1 });
+  const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
+  assert.deepEqual(openTypes(["ar2en", "match", "en2ar"], table({ ar2en: grad })), ["ar2en", "match"]);
+  assert.deepEqual(openTypes(["ar2en", "ctx2pick", "en2ar"], table({ ar2en: grad })), ["ar2en", "ctx2pick"]);
+  /* And the table says it in one place, rather than exercise by exercise. */
+  for (const t of TYPES) {
+    assert.equal(barOf(t), LEVEL_BARS[levelOf(t)], `${t}: the bar is its level's`);
+  }
+  assert.deepEqual(
+    [1, 2, 3, 4].map((l) => LEVEL_BARS[l]),
+    ["graduated", "graduated", "graduated", "mastered"],
+    "everything under the writing opens on graduation; the writing asks four days"
   );
 });
 
@@ -380,7 +461,7 @@ test("a level with nothing on it is passed straight through", () => {
     ["ar2en", "match", "en2ar"]);
 });
 
-test("the grid opens once a word is through the learning steps alone, and writing once the grid is mastered", () => {
+test("the grid opens once a word is through the learning steps alone, and the writing once it is all mastered", () => {
   const ladder = ["ar2en", "match", "tr2ar", "en2ar"];
   const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
   const grad = state({ phase: "review", interval: 1 });
@@ -390,9 +471,13 @@ test("the grid opens once a word is through the learning steps alone, and writin
     "one right answer is still on the steps");
   assert.deepEqual(openTypes(ladder, table({ ar2en: grad })), ["ar2en", "match"],
     "graduated is enough for the grid — it is still recognition");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: grad })), ["ar2en", "match"],
-    "but not for the level above: the grid has to be mastered too");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done })), ["ar2en", "match", "tr2ar"]);
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: grad })), ["ar2en", "match", "tr2ar"],
+    "and enough for writing from a cue: the grid need only be through the steps");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done })), ["ar2en", "match", "tr2ar"],
+    "the writing from the meaning still waits, with nothing answered on the level under it");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done, tr2ar: done })), ladder);
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done, tr2ar: grad })), ["ar2en", "match", "tr2ar"],
+    "and it is mastery it waits for, not graduation");
   assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), match: done })), ["ar2en"],
     "and a lapse on the reading takes the grid away again until it is back in review");
   assert.equal(graduated(state({ phase: "review", interval: 1 })), true);

@@ -1409,6 +1409,23 @@ function buildSession({
       newSeen += 1;
       return newSeen <= room;
     });
+    /*
+     * And a place admitted is a place kept.
+     *
+     * Everything already due ranks together, so the new cards the rule
+     * above just let in were left to take their chance in the shuffle
+     * with every card waiting for review — and the shortlist below is
+     * only as long as the session has room for, so on any day with a
+     * queue behind it they fell off the end. "New cards per session — 3"
+     * then meant three on the days nothing else was waiting, which is
+     * not what a person reading it would think it meant.
+     *
+     * They go to the front instead. Which cards join them is still the
+     * grouping's business, and the order they are asked in is still the
+     * warm-up's: this decides only that they are in the session at all.
+     */
+    const admitted = candidates.filter((c) => c.isNew);
+    if (admitted.length) candidates = admitted.concat(candidates.filter((c) => !c.isNew));
   }
 
   if (!candidates.length) return { exercises: [], reason: "nothing-due" };
@@ -4202,7 +4219,25 @@ export default function ArabicTrainer() {
   const [skipped, setSkipped] = useState(false);
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
-  const [hintOpen, setHintOpen] = useState(false);
+  /*
+   * The hint, and whether it was leant on.
+   *
+   * Three states rather than two: null is "the learner has not said", and
+   * the setting decides — but only once the exercise is known, because a
+   * hint that is the answer said another way is never opened by itself.
+   * Writing the setting in here when the question was set up could not
+   * make that distinction: resetExercise runs alongside the move to the
+   * next question and does not know what that question will be.
+   */
+  const [hintOpen, setHintOpen] = useState<boolean | null>(null);
+  /* And whether it was ever on the screen for this question, which
+     pressing the button says either way: opening puts it up, closing means
+     it was up. Kept apart from hintOpen so that taking a look and then
+     putting it away is still taking a look. */
+  const [hintUsed, setHintUsed] = useState(false);
+  /* And whether it was up at the moment the answer went in, which is the
+     only moment that bears on the mark. */
+  const [hintAtAnswer, setHintAtAnswer] = useState(false);
   /* What the reader has asked to see of a scene they are reading through.
      Two, because they are two different admissions — needing to hear it
      and needing to be told what it means — and a reader often wants one
@@ -4990,7 +5025,9 @@ export default function ArabicTrainer() {
     setAlsoOpen(false);
     setShowSaid(false);
     setShowMeaning(false);
-    setHintOpen(settings.showHint);
+    setHintOpen(null);
+    setHintUsed(false);
+    setHintAtAnswer(false);
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
@@ -5024,6 +5061,30 @@ export default function ArabicTrainer() {
   const qLang = langOf(qSettings);
   setActiveLang(qLang.id);
   const spec = exercise ? exOf(exercise.type, qLang) : null;
+  /*
+   * Whether the pronunciation or the meaning is beside the question.
+   *
+   * The setting opens it by itself, except where the hint is the answer by
+   * another route: English → {script} with the transliteration up is
+   * {translit} → {script}, which is the level below, and the setting used
+   * to put it there on every question without anything recording that it
+   * had — so a learner with hints on graduated the top of the ladder
+   * having never once written the word from its meaning alone.
+   */
+  const hintAt = spec && spec.hintField && item ? String(item[spec.hintField] || "") : "";
+  const hintShown =
+    !!hintAt && (hintOpen === null ? !!settings.showHint && !spec.hintTells : hintOpen);
+  /* On the screen now, or on it at some point. */
+  const hintTaken = hintShown || hintUsed;
+  /* Whether the answer as marked stands as a right one, before the hint is
+     taken into account. */
+  const answerStands = !!(overridden || (checked && checked.ok && !skipped));
+  /* And the case that costs an answer its good mark: right, but written
+     off a hint that spelt it out. Read off what was on the screen when the
+     answer went in, not what is on it now — the nudge can still be opened
+     afterwards to look at the pronunciation, and looking at it once the
+     question is answered is not leaning on it. */
+  const toldAnswer = !!(spec && spec.hintTells && hintAtAnswer && answerStands);
   /* The phrase this question shows the word in, if it is that sort of
      question. Chosen when the queue was built and named on the exercise, so
      it stays put; looked up again here because only the id travels. */
@@ -5218,7 +5279,9 @@ export default function ArabicTrainer() {
     /* Nor under a grid: every word paired wrong shows its meaning where
        it stands, and the first word's alone would say less. */
     !(spec && spec.picks === "pair");
-  const verdictAlone = answerRight && !answerRepeated;
+  /* A right answer written off the hint has a line under it saying so, so
+     the praise is not the whole of what came back. */
+  const verdictAlone = answerRight && !answerRepeated && !toldAnswer;
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -5243,6 +5306,9 @@ export default function ArabicTrainer() {
         : checkAnswer(typed, item, exercise.type, qSettings);
     sfx(result.ok ? "correct" : "wrong");
     setPairs(relatedWords(asking, qLang, item.ar));
+    /* Pinned before the verdict, so what the mark reads is what was on the
+       screen while the answer was being written. */
+    setHintAtAnswer(hintTaken);
     setChecked(result);
     // Drop the phone keyboard so the answer and grades are visible.
     if (inputRef.current) inputRef.current.blur();
@@ -5295,6 +5361,7 @@ export default function ArabicTrainer() {
   function giveUp() {
     sfx("warn");
     setPairs(relatedWords(asking, qLang, item ? item.ar : ""));
+    setHintAtAnswer(hintTaken);
     setSkipped(true);
     setChecked({ ok: false, reason: "skipped" });
     if (inputRef.current) inputRef.current.blur();
@@ -5393,7 +5460,18 @@ export default function ArabicTrainer() {
     reportLearning(account);
     // Nothing to grade by hand: the check decides, and a shown answer counts
     // as a miss. "Too strict" is the one way to overturn it.
-    const correct = overridden || (checked && checked.ok && !skipped);
+    /*
+     * Right, but written with the answer on the screen.
+     *
+     * English → {script} with the transliteration up is the question one
+     * level down, so it is marked as that question was nearly answered:
+     * the schedule moves gently, the card is asked again before the
+     * session ends, and the ladder is not climbed on it. The alternative
+     * was what the app did before — count it as knowing the word, and let
+     * a learner with hints switched on graduate writing from the meaning
+     * without ever having done it.
+     */
+    const correct = !toldAnswer && (overridden || (checked && checked.ok && !skipped));
     /* A near miss — right letters, wrong tone; right word, marks missing;
        one letter out — is not the same as drawing a blank, and the schedule
        should not treat it as one. "hard" keeps the card in review with a
@@ -5404,7 +5482,7 @@ export default function ArabicTrainer() {
       !skipped &&
       checked &&
       ["near", "harakat", "missing"].includes(checked.reason);
-    const rating = correct ? "good" : near ? "hard" : "again";
+    const rating = correct ? "good" : near || toldAnswer ? "hard" : "again";
     /*
      * What is marked, and how. One question marks one form — except the
      * grid, where every word up is a question of its own and is marked on
@@ -5469,6 +5547,11 @@ export default function ArabicTrainer() {
           s.reps += 1;
         }
         if (skipped) s.skips = (s.skips || 0) + 1;
+        /* Counted wherever a hint is offered, not only where taking it
+           costs the mark: "answered right" and "answered right with the
+           pronunciation on the screen" are two different numbers, and only
+           one of them was being kept. */
+        if (hintAtAnswer) s.hints = (s.hints || 0) + 1;
         if (checked && !checked.ok && checked.reason === "near") s.near = (s.near || 0) + 1;
         if (checked && !checked.ok && (checked.reason === "harakat" || checked.reason === "missing")) {
           s.near = (s.near || 0) + 1;
@@ -6154,7 +6237,7 @@ Cards ready to practice
                     )}
                   </div>
 
-                  {hintOpen && item[spec.hintField] && (
+                  {hintShown && item[spec.hintField] && (
                     <div className="at-hintvalue" data-el="hint-value">
                       <Field
                         value={item[spec.hintField]}
@@ -6306,6 +6389,18 @@ Cards ready to practice
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
+                      )}
+                      {/* Said rather than done quietly: the answer was
+                          right and the spelling is theirs, but the word
+                          was on the screen in another alphabet while they
+                          wrote it, so it is marked the way a near miss is
+                          and comes round again. A learner who is told that
+                          can close the nudge next time. */}
+                      {toldAnswer && (
+                        <Help data-el="verdict-hinted">
+                          Right — but the {String(qLang.translitLabel || "hint").toLowerCase()} was on
+                          screen, so this one counts as a near miss and comes round again.
+                        </Help>
                       )}
                       {/* A right answer is already on screen in the box above,
                           so repeating it says nothing. It is shown when the
@@ -6482,11 +6577,17 @@ Cards ready to practice
                                answering yet — and a filled button next to a
                                ghost one read as the louder of the pair. */
                             ghost
-                            label={hintOpen ? spec.hintHideLabel : spec.hintLabel}
-                            className={`at-hintbtn${hintOpen ? " on" : ""}`}
+                            label={hintShown ? spec.hintHideLabel : spec.hintLabel}
+                            className={`at-hintbtn${hintShown ? " on" : ""}`}
                             data-el="hint-button"
-                            aria-pressed={hintOpen}
-                            onClick={() => setHintOpen((v) => !v)}
+                            aria-pressed={hintShown}
+                            /* Either way round, the hint has been on the
+                               screen: opening puts it there, closing means
+                               it was there. */
+                            onClick={() => {
+                              setHintUsed(true);
+                              setHintOpen(!hintShown);
+                            }}
                           />
                         )}
                         {!spec.intro && (
@@ -10215,6 +10316,11 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
             value={!!settings.showHint}
             onChange={(v) => setSetting("showHint", v)}
           />
+          <Help>
+            On the two questions that ask you to write the word from its meaning, the nudge is
+            that word spelled out another way — so it stays closed until you ask for it, and an
+            answer written with it open counts as a near miss.
+          </Help>
         </FormField>
       </Section>
 
@@ -10279,9 +10385,11 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
               <>
                 A→E is recognition, T→A production from sound, E→A production from meaning, and
                 the L→ types drill the same things by ear. A card climbs them: it is read on its
-                own first, joins a matching grid once it is through the learning steps, and the
-                harder types open only once everything below them is mastered — four days of
-                interval, in review. Turning types off can drop items below the two-type minimum.
+                own first, then told apart from other words, then written from a cue — each of
+                those opening once what is under it is through the learning steps and in review.
+                Writing it from its meaning alone waits longer: everything under that has to be
+                mastered, which is four days of interval, in review. Turning types off can drop
+                items below the two-type minimum.
               </>
             )}
           </Help>

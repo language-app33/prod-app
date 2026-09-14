@@ -59,6 +59,16 @@ export interface ExerciseSpec {
   hintField?: string;
   hintLabel?: string;
   hintHideLabel?: string;
+  /**
+   * Whether the hint is the answer by another route — the transliteration
+   * of the very word being asked for, rather than a nudge towards it. Such
+   * a hint is never opened by itself, however the setting reads, and an
+   * answer written with it up is marked as a near miss: it is the question
+   * one level down, and counting it as the question asked was how writing
+   * from the meaning came to be graduated by people who had only ever read
+   * the word off the screen.
+   */
+  hintTells?: boolean;
   /** Recognition rather than production. */
   gentle?: boolean;
   /**
@@ -69,12 +79,6 @@ export interface ExerciseSpec {
    * see openTypes in the scheduler.
    */
   level: 1 | 2 | 3 | 4;
-  /**
-   * The bar the levels below must reach for this one to open. Mastered —
-   * four days of interval, in review — unless said otherwise; "graduated"
-   * asks only that they be through the learning steps.
-   */
-  opensOn?: "graduated" | "mastered";
   /** Still defined so stored states can be read. */
   retired?: boolean;
   /** Asks a derived property rather than the word. */
@@ -500,6 +504,14 @@ export interface ExerciseState {
   wrong: number;
   skips: number;
   near: number;
+  /**
+   * How often it was answered with the hint up. Counted on every exercise
+   * that offers one, so that "answered right" and "answered right while
+   * looking at the pronunciation" are not the same number; on the ones
+   * whose hint is the answer by another route it also costs the answer its
+   * good mark — see hintTells.
+   */
+  hints: number;
   /**
    * The last six outings, 1 right and 0 wrong. Numbers rather than booleans
    * because they are what the stored documents already hold.

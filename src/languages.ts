@@ -71,11 +71,11 @@ export const EX: Record<string, ExerciseSpec> = {
   match: {
     /* Its own level, above reading a word on its own: a word is told apart
        from others only once it has been met alone. Through the learning
-       steps is enough to get there — the grid is still recognition, and
-       the four-day bar the rest of the ladder asks would keep a learner's
-       first week without a grid at all. */
+       steps is enough to get there — the grid is still recognition, and a
+       four-day bar in front of it would keep a learner's first week
+       without a grid at all. What every level below the writing asks now;
+       see LEVEL_BARS. */
     level: 2,
-    opensOn: "graduated",
     instruction: "Match each word to its meaning",
     label: "Match the pairs",
     short: "Pairs",
@@ -210,6 +210,11 @@ export const EX: Record<string, ExerciseSpec> = {
     hintField: "lat",
     hintLabel: "Show {translit}",
     hintHideLabel: "Hide {translit}",
+    /* The transliteration of the word being asked for, which is the word:
+       read it and all that is left is to spell out what it says, which is
+       the level below this one. So it is not opened for you, and taking it
+       costs the answer its good mark. */
+    hintTells: true,
     answerMode: "ar",
   },
   /* Identify a derived property of the word from its recording. Which
@@ -280,6 +285,9 @@ export const EX: Record<string, ExerciseSpec> = {
     hintField: "lat",
     hintLabel: "Show {translit}",
     hintHideLabel: "Hide {translit}",
+    /* As in English → {script}: the hint is the word itself, said another
+       way. */
+    hintTells: true,
     answerMode: "ar",
   },
   /* And the same again by ear. Harder than hearing the word alone, which is
@@ -2210,12 +2218,42 @@ export function keysFor(form: WithAnswers | null | undefined, type: string): str
   return Array.from({ length: many }, (_, at) => keyFor(typeOf(type), at));
 }
 
-/* And what the levels below must reach for it to open: mastered unless the
-   exercise says graduated is enough. */
-export const barOf = (key: string): "graduated" | "mastered" => {
-  const spec = EX[typeOf(key)];
-  return (spec && spec.opensOn) || "mastered";
+/*
+ * What a level asks of the levels below it before it opens.
+ *
+ * *Graduated* is through the learning steps and in review at all;
+ * *mastered* is in review with four days of interval or more, which is a
+ * further two right answers a day and then several days apart.
+ *
+ * Recognition asks the gentler one of what stands under it, and production
+ * from the meaning alone asks the stricter. The four-day bar used to stand
+ * in front of every level above the first, and the cost of that was most
+ * of a month: each level held the one above it for four or five days of
+ * calendar time whatever the learner did, so a word with a recording and a
+ * phrase on it could not be written from its meaning for two and a half
+ * weeks of perfect answers — and, in a deck with anything else due, for
+ * nearer two months. Kept for the writing, which is the one place where
+ * being asked too early means being asked something you have not yet been
+ * taught, and dropped below it, where the next level is itself the
+ * practice.
+ *
+ * A property of the level and not of an exercise: the bar used to be
+ * declared by the exercises themselves and read as the loosest on the
+ * level, so a card whose only level-two exercise was the gap-fill — a card
+ * in a deck too small for a matching grid — climbed by a stricter rule
+ * than the card beside it. Level 1 is here for completeness; nothing
+ * stands below it, so it is open from the first session whatever it says.
+ */
+export const LEVEL_BARS: Record<number, "graduated" | "mastered"> = {
+  1: "graduated",
+  2: "graduated",
+  3: "graduated",
+  4: "mastered",
 };
+
+/* And what the levels below an exercise must reach for it to open, which
+   is the bar of the level it stands on. */
+export const barOf = (key: string): "graduated" | "mastered" => LEVEL_BARS[levelOf(key)] || "mastered";
 
 export function defaultTypes(): Record<string, boolean> {
   const out: Record<string, boolean> = {};

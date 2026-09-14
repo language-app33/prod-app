@@ -6,7 +6,7 @@ import { TYPES } from "../src/languages.ts";
 
 const fresh = () => ({
   phase: "new", step: 0, ease: 2.5, interval: 0, due: 0, reps: 0, lapses: 0,
-  right: 0, wrong: 0, skips: 0, near: 0, hist: [], updated: 0,
+  right: 0, wrong: 0, skips: 0, near: 0, hints: 0, hist: [], updated: 0,
 });
 /* Imported, not copied. This list was written out by hand with a comment
    saying it must track the real one, and then it didn't: the two context

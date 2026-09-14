@@ -581,3 +581,27 @@ test("what arSkeleton did, and why it could never have grouped anything", () => 
   assert.notEqual(arSkeleton("كتاب"), arSkeleton("كاتب"));
   assert.equal(must(LANGUAGES["ar-PS"].derived.find((d) => d.groups), "Arabic's grouping").compute, arRootKey);
 });
+
+test("a hint that gives the answer away is declared as one, and nothing else is", () => {
+  /* The two questions that ask for the word in the script and offer its
+     transliteration: read the nudge and all that is left is to spell out
+     what it says, which is the question one level down. Marked so the
+     trainer can keep it shut and mark an answer written under it as the
+     near miss it is. */
+  assert.deepEqual(TYPES.filter((t) => EX[t].hintTells), ["en2ar", "ctx2ar"]);
+  for (const t of TYPES) {
+    const spec = EX[t];
+    if (!spec.hintTells) continue;
+    assert.ok(spec.hintField, `${t}: a hint that tells has to be a hint in the first place`);
+    assert.equal(spec.level, 4, `${t}: it is the writing that a transliteration undoes`);
+  }
+  /* And the other way round, which is the one that matters: a new exercise
+     that types the script and offers the transliteration beside it has the
+     same hole in it, and saying so here is cheaper than finding out from a
+     learner's schedule. */
+  for (const t of TYPES) {
+    const spec = EX[t];
+    const tells = spec.hintField === "lat" && spec.answerField === "ar" && spec.answerMode === "ar";
+    if (tells) assert.ok(spec.hintTells, `${t}: its hint is the word it asks for — say so with hintTells`);
+  }
+});
