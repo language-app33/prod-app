@@ -37,6 +37,39 @@ test("Arabic: bare letters accepted, wrong harakat rejected, missing harakat dep
   assert.equal(checkAr("كُتَاب", "كِتَاب", { tashkeel: "either" }).reason, "harakat");
 });
 
+test("Arabic: where the words are split is convention, not spelling", () => {
+  /* الحمد لله is written joined at least as often as it is written apart,
+     and the joined form was one character short of the stored one — inside
+     the near-miss band, so "Very close" and marked wrong over a space. */
+  assert.equal(checkAr("الحمدلله", "الحمدُ لله", { tashkeel: "either" }).ok, true);
+  /* Exactly what the spaced answer gets, rather than a tier of its own. */
+  assert.equal(
+    checkAr("الحمدلله", "الحمدُ لله", { tashkeel: "either" }).reason,
+    checkAr("الحمد لله", "الحمدُ لله", { tashkeel: "either" }).reason,
+  );
+  /* And the same at the tier above: harakat right, space missing, is not a
+     mistake in the vowelling. */
+  assert.equal(checkAr("الحمدُلله", "الحمدُ لله", { tashkeel: "either" }).reason, "exact");
+  /* The other way round too — stored joined, typed apart. */
+  assert.equal(checkAr("عبد الله", "عبدالله", { tashkeel: "either" }).ok, true);
+
+  /* What the space is forgiven for, and what it is not. A wrong vowel is
+     still wrong with the space gone, and letters that are not the word's
+     are not rescued by closing a gap. */
+  assert.equal(checkAr("الحمدَلله", "الحمدُ لله", { tashkeel: "either" }).reason, "harakat");
+  assert.equal(checkAr("الحمد", "الحمدُ لله", { tashkeel: "either" }).ok, false);
+  assert.equal(checkAr("   ", "الحمدُ لله", { tashkeel: "either" }).reason, "wrong");
+  /* A near miss is now measured on the letters alone, so the gaps neither
+     mask a slip nor count as one. */
+  assert.equal(checkAr("كتب", "كتاب", { tashkeel: "either" }).reason, "near");
+});
+
+test("Vietnamese keeps its spaces, where they carry the meaning", () => {
+  /* Every syllable is its own word, so running them together is not a
+     matter of convention the way it is in Arabic. */
+  assert.equal(checkViet("cảmơn", "cảm ơn", { tones: "either" }).ok, false);
+});
+
 test("Hebrew: bare letters accepted, wrong niqqud rejected, missing niqqud depends on setting", () => {
   assert.equal(checkHe("ספר", "סֵפֶר", { niqqud: "either" }).ok, true);
   assert.equal(checkHe("ספר", "סֵפֶר", { niqqud: "required" }).reason, "missing");

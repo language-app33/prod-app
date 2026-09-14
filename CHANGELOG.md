@@ -8,6 +8,33 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.112 — 14 September 2026
+
+- **Writing الحمدلله as one word is no longer a mistake.** Where one word
+  ends and the next begins is a matter of convention in Arabic rather than
+  something you either know or don't: الحمد لله is written joined about as
+  often as it is written apart, and so are عبد الله and إن شاء الله. Typed
+  joined against a card stored apart, the answer came out one character
+  short, which was enough to land it in the near-miss band — "Very close",
+  marked wrong, and the word sent round again, with every letter of it
+  correct.
+
+  Arabic answers are now compared with the spaces taken out of both sides.
+  Nothing else about the marking changes: the same answer gets the same
+  verdict it would have got typed with its spaces in, a wrong vowel is
+  still a wrong vowel, and letters that are not the word's are still not
+  the word's. A near miss is now measured on the letters alone, so a gap
+  can neither hide a slip nor be counted as one.
+
+  The rule is one the app already applied to transliteration, where it has
+  always held that where the spaces fall is a matter of scheme and not of
+  knowing the word. It now says the same about the script that scheme
+  transliterates.
+
+- **Vietnamese is deliberately left alone.** Every syllable there is its
+  own word, so *cảm ơn* run together is not the same kind of slip and is
+  still marked as one.
+
 ## 0.111 — 14 September 2026
 
 - **"Restore this backup?" was being asked behind the screen that asked

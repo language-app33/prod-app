@@ -1992,11 +1992,38 @@ export function checkTr(given: string, expected: string) {
 
 export const HAS_TASHKEEL = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/;
 
+/*
+ * Compared with the spaces taken out of both sides.
+ *
+ * Where a word ends and the next begins is a matter of convention in
+ * Arabic, not of knowing the word. الحمد لله is written joined as often as
+ * it is written apart, and so are عبد الله and إن شاء الله; a learner who
+ * types الحمدلله has spelt every letter of it correctly. Compared as
+ * written, that answer was one character short of the stored one, which
+ * put it inside the near-miss band: "Very close", marked wrong, and the
+ * exercise sent round again over a space.
+ *
+ * The rule is already the app's own, one script over. Transliteration has
+ * said since it was written that where the spaces and hyphens fall is a
+ * matter of scheme rather than knowledge, and folds them away before
+ * deciding. This is that same sentence, applied to the script the scheme
+ * is a transliteration of.
+ *
+ * Both comparisons lose their spaces, not just the first: an answer with
+ * the harakat right and the space missing is not a mistake in the
+ * vowelling, and marking it as one would be the same bug a tier up. The
+ * edit distance is measured on the tightened forms too, so a genuine slip
+ * is judged by its letters and never by the gaps between them.
+ *
+ * Vietnamese is deliberately not given this: there every syllable is its
+ * own word and the spaces carry the meaning. Hebrew is built like Arabic
+ * and could take the same rule, but nothing has asked for it yet.
+ */
 export function compareAr(given: string, expected: string, settings: Settings) {
   const mode = settings.tashkeel || "either";
   const hamza = settings.ignoreHamza;
-  const skelG = normAr(given, { stripTashkeel: true, ignoreHamza: hamza });
-  const skelE = normAr(expected, { stripTashkeel: true, ignoreHamza: hamza });
+  const skelG = tight(normAr(given, { stripTashkeel: true, ignoreHamza: hamza }));
+  const skelE = tight(normAr(expected, { stripTashkeel: true, ignoreHamza: hamza }));
 
   if (!skelG) return { ok: false, reason: "wrong" };
   if (skelG !== skelE) {
@@ -2012,8 +2039,8 @@ export function compareAr(given: string, expected: string, settings: Settings) {
     return mode === "required" ? { ok: false, reason: "missing" } : { ok: true, reason: "bare" };
   }
 
-  const fullG = normAr(given, { stripTashkeel: false, ignoreHamza: hamza });
-  const fullE = normAr(expected, { stripTashkeel: false, ignoreHamza: hamza });
+  const fullG = tight(normAr(given, { stripTashkeel: false, ignoreHamza: hamza }));
+  const fullE = tight(normAr(expected, { stripTashkeel: false, ignoreHamza: hamza }));
   return fullG === fullE ? { ok: true, reason: "exact" } : { ok: false, reason: "harakat" };
 }
 
