@@ -1464,6 +1464,10 @@ export const LANGUAGES: Record<LangId, Lang> = {
         { id: "past", label: "past" },
         { id: "command", label: "command" },
       ],
+      /* There is no infinitive. A dictionary lists أكل — he ate — and that
+         is a cell of this table, so the card's own word and that cell are
+         one word, not two things to learn. */
+      citation: { row: "past", col: "he" },
     },
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
@@ -1691,6 +1695,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
         { id: "future", label: "future" },
         { id: "command", label: "command" },
       ],
+      /* Cited the same way and for the same reason as Arabic: the he-past
+         is the form a dictionary lists, and it is a cell of this table. */
+      citation: { row: "past", col: "he" },
     },
     verdicts: {
       partial: "Right letters, wrong niqqud",

@@ -41,7 +41,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   scheduled in its own right by the exercises every other form gets. The
   rows open in the order the language teaches them, one waiting on the one
   above it being mastered, so the past of a verb is not asked until its
-  present is known and a lapse closes the rows above. A verb card may also
+  present is known and a lapse closes the rows above. Where a language has
+  no infinitive it names the cell a dictionary would list instead — Arabic
+  cites the he-past — and that cell stands in for the card's own word
+  rather than the two being drilled as one word twice. A verb card may also
   carry a sentence with its own place marked in it — `{{name}} {{verb}}
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already

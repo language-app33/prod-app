@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { isCell, personsOf, tensesOf } from "./verbs.ts";
+import { isCell, isCitation, personsOf, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -3897,9 +3897,21 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
             const which = [tense.label, person.label].filter(Boolean).join(" · ");
             const written = !!(cell && String(cell.ar || "").trim());
             const heard = cell ? clipsOf(cell).length : 0;
+            /* The cell a dictionary would list this verb under, where the
+               language has no infinitive and cites one of these instead.
+               It holds the same word as the card itself, so the card's own
+               word stands in the box as the thing to type — which is also
+               how a teacher learns the two are one rather than wondering
+               why they are asked for it twice. */
+            const cites = isCitation(spec, { row: tense.id, col: person.id });
             return (
               <div className="at-cellrow" key={person.id}>
-                {named && <span className="at-celllabel">{person.label}</span>}
+                {named && (
+                  <span className={`at-celllabel${cites ? " cited" : ""}`}>
+                    {person.label}
+                    {cites && <i> · the dictionary form</i>}
+                  </span>
+                )}
                 <div className="at-cellfields">
                   <ScriptInput
                     compact

@@ -138,6 +138,23 @@ export interface VerbTense {
 export interface VerbSpec {
   persons: VerbPerson[];
   tenses: VerbTense[];
+  /**
+   * Which cell of the table is the verb as a dictionary names it.
+   *
+   * Arabic has no infinitive: *to eat* is listed under أكل, which is the
+   * he-past form and so a cell of this very table. Without saying so, a
+   * card's own word and that cell are the same word drilled twice —
+   * asked, marked and scheduled as if they were two things to learn.
+   *
+   * Naming it says they are one. The card's word keeps its face and its
+   * dictionary meaning, and the cell is what is practised.
+   *
+   * Absent where the language has a form of its own for the purpose: Huế
+   * cites the bare verb, which is a card's word and not a cell, and
+   * English would cite an infinitive. There is nothing to reconcile in
+   * either, and nothing changes for them.
+   */
+  citation?: { row: string; col: string };
 }
 
 /** A grammatical axis a word varies along — number, gender, addressee. */
