@@ -3217,6 +3217,16 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       /^Verb$/.test((kinds[1].textContent || "").trim()) &&
       /Conversation/.test(kinds[2].textContent || ""),
     kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
+  /* And it is the wrapping variant, not the compact one. The compact track
+     sizes every option to the longest label and never wraps, so three of
+     them is three times "Word or phrase" — wider than any phone, which is
+     how it came to run off the side of the screen. jsdom does no layout, so
+     what is checked is which of the two tracks it is; that the wrapped one
+     fits is measured in a browser. */
+  const kindTrack = document.querySelector('[role="group"][aria-label="The kind of card"]');
+  check("and the answers are on a track that wraps rather than one that overflows",
+    !!kindTrack && !kindTrack.classList.contains("sm"),
+    kindTrack ? kindTrack.className : "(no kind picker)");
   check("and starts on the ordinary kind",
     !!kinds[0] && kinds[0].getAttribute("aria-pressed") === "true",
     kinds.map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));

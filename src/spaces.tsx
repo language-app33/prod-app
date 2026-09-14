@@ -4705,7 +4705,16 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
             {choices.length ? (
               <>
+                {/* Full-width, for the reason the language picker above is:
+                    the compact variant sizes every option to the longest
+                    label and never wraps, so three of them is three times
+                    "Word or phrase" — wider than a phone, and it ran off
+                    the side of the screen the moment a third answer was
+                    added. Full width lets the last one take a second row,
+                    with the track wrapping around both so it still reads as
+                    one control. */}
                 <Segmented
+                  size={null}
                   label="The kind of card"
                   options={choices}
                   value={shape}

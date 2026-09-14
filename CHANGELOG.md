@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.122 — 14 September 2026
+
+- **The kind of card ran off the side of the screen.** Adding *Verb* beside
+  *Word or phrase* and *Conversation* put three options on a track that
+  sizes every one of them to the longest label and never wraps — so it came
+  to three times the width of *Word or phrase*, which is wider than any
+  phone. Two of them fitted; the third is what pushed it over the edge.
+
+  It is on the full-width track now, the one the language picker in a course
+  already uses for exactly this reason: the options share the width there
+  is, the type steps down with them, and where even that will not fit the
+  last one keeps its label whole and takes the next line down, with the
+  track wrapping around both so it still reads as one control rather than
+  as buttons that came apart.
+
 ## 0.121 — 14 September 2026
 
 - **A blank is now filled with a word you have got as far with as the
