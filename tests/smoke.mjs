@@ -1324,6 +1324,28 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("and nothing about decks, forms, recordings or the language",
     !!tile && !tile.querySelector(".at-minidecks, .at-flag") && !/form|♪|Arabic/i.test(shown),
     shown.replace(/\s+/g, " ").trim() || "(no tile)");
+
+  /* A frame is listed as it was written, holes and all — so the braces are
+     on screen, in Latin, inside a line sized for the taught script. Left
+     plain they came out larger and heavier than the Arabic beside them and
+     a two-hole frame pushed the words off the tile. The hole is marked so
+     the stylesheet can size it as the Latin it is; what it is marked with
+     is checked here, and what that costs in size in layers.test.mjs. */
+  {
+    const frameTile = tiles.find((t) =>
+      ((t.querySelector(".ar") || {}).textContent || "").includes("{{"));
+    const face = frameTile && frameTile.querySelector(".ar");
+    const holes = face ? [...face.querySelectorAll(".at-slot")] : [];
+    check("a frame's tile marks the hole in it",
+      holes.length === 1 && holes[0].textContent === "{{name}}",
+      face ? `${holes.length} marked in "${face.textContent}"` : "no frame tile");
+    /* The words around it are left alone: marking the whole line would
+       shrink the card's own script to the size of its braces. */
+    check("and marks only the hole",
+      !!face && face.textContent.replace("{{name}}", "").trim() === "اسمي",
+      face ? face.textContent : "no frame tile");
+  }
+
   click(buttonNamed(/^Home$/));
   await sleep(300);
 }

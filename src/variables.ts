@@ -135,6 +135,36 @@ export function slotsIn(value: string | null | undefined): string[] {
   return out;
 }
 
+/*
+ * One string, cut into what is written and what is a hole.
+ *
+ * Everywhere a card is *asked*, the holes are filled before anyone sees
+ * them. Everywhere a card is *listed*, they are not: a tile shows the
+ * frame as the teacher wrote it, braces and all, because that is what the
+ * card is. The braces then have to be drawn, and a screen that draws them
+ * has to be able to tell them from the words around them — which is a
+ * question about pieces of the string, not about the string.
+ *
+ * So the cutting is here, with the pattern it depends on, and what to do
+ * with each piece is the screen's business. Runs come back in order and
+ * joining their text gives the original back, empty pieces and all
+ * dropped; `slot` is the variable's name, lower-cased as everywhere else,
+ * and absent on the plain runs.
+ */
+export function splitSlots(value: string | null | undefined): { text: string; slot?: string }[] {
+  const whole = String(value || "");
+  const out: { text: string; slot?: string }[] = [];
+  let at = 0;
+  for (const m of whole.matchAll(SLOT)) {
+    const start = m.index || 0;
+    if (start > at) out.push({ text: whole.slice(at, start) });
+    out.push({ text: m[0], slot: m[1].toLowerCase() });
+    at = start + m[0].length;
+  }
+  if (at < whole.length) out.push({ text: whole.slice(at) });
+  return out;
+}
+
 /** Every variable a form names, across the fields it is written in. */
 export function slotsOf(form: WithSlots | null | undefined): string[] {
   const out: string[] = [];

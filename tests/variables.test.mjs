@@ -18,6 +18,7 @@ import {
   slotTrouble,
   slotsIn,
   slotsOf,
+  splitSlots,
   valueOf,
   valuesFor,
   valuesForTurn,
@@ -283,4 +284,53 @@ test("a named hole and the built-in one fill from different cards", () => {
      about names. */
   assert.deepEqual(have.name.map((/** @type {any} */ v) => v.ar), ["Raphael"]);
   assert.deepEqual(have.word.map((/** @type {any} */ v) => v.ar), ["Raphael", "kitaab"]);
+});
+
+/* --- a frame, cut into words and holes ---
+
+   A card is listed as it was written, so the braces reach the screen and
+   something has to draw them differently from the words around them. */
+
+test("a frame comes apart into what is written and what is a hole", () => {
+  assert.deepEqual(splitSlots("اسمي {{name}}"), [
+    { text: "اسمي " },
+    { text: "{{name}}", slot: "name" },
+  ]);
+  /* Two holes, and the words between and around them. */
+  assert.deepEqual(splitSlots("{{name}} bḥibb {{food}}!"), [
+    { text: "{{name}}", slot: "name" },
+    { text: " bḥibb " },
+    { text: "{{food}}", slot: "food" },
+    { text: "!" },
+  ]);
+});
+
+test("the pieces put back together are the string that was cut", () => {
+  /* The point of the cut is how each piece is drawn, so losing or moving
+     a character would change what the card says. */
+  for (const line of [
+    "اسمي {{name}}",
+    "{{name}} bḥibb {{food}}!",
+    "no holes at all",
+    "{{ Name }} trimmed and folded",
+    "",
+    "{{a}}{{b}}",
+  ]) {
+    assert.equal(splitSlots(line).map((r) => r.text).join(""), line, line);
+  }
+});
+
+test("a card with nothing in it is one plain piece, or none", () => {
+  assert.deepEqual(splitSlots("kitaab"), [{ text: "kitaab" }]);
+  assert.deepEqual(splitSlots(""), []);
+  assert.deepEqual(splitSlots(null), []);
+  assert.deepEqual(splitSlots(undefined), []);
+});
+
+test("a hole is named the way every other reader of it names it", () => {
+  /* slotsIn folds the case and trims the spaces; a cut that disagreed
+     would mark a run as a hole the rest of the app has never heard of. */
+  const line = "{{ Name }} and {{NAME}}";
+  const cut = splitSlots(line).filter((r) => r.slot).map((r) => r.slot);
+  assert.deepEqual([...new Set(cut)], slotsIn(line));
 });

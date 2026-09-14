@@ -766,6 +766,19 @@ test("Latin in an exercise is sized as Latin, not as the script", () => {
   assert.deepEqual(raw, [], `Latin sized as though it were the script:\n  ${raw.join("\n  ")}`);
 });
 
+test("a hole in a frame is sized as Latin, by the ratio and not the factor", () => {
+  /* {{name}} is Latin standing inside the taught script, so it takes the
+     same correction the meaning does — but it inherits an em that --sscale
+     has already multiplied, which the fields beside the script do not.
+     Applying --lscale on its own would be right in Arabic and wrong in
+     Vietnamese, where the script is Latin too: 0.78 of an em that is
+     already 0.78 leaves a hole smaller than the words around it. Dividing
+     by --sscale is what makes one rule serve both. */
+  const slot = rule(".at-slot");
+  assert.match(slot, /font-size:\s*calc\(1em \* var\(--lscale, 1\) \/ var\(--sscale, 1\)\)/,
+    `.at-slot is sized ${slot.trim() || "not at all"}`);
+});
+
 test("a listening question starts where a written one does", () => {
   /* The play button has no leading above it, so left alone it sits higher
      than a word does under the same instruction. It is pushed down by the

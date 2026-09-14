@@ -841,6 +841,15 @@ button {
 .at-minidecks .at-flag { font-size:11px; }
 .at-minicard.picked { border-color: var(--accent); }
 .at-minicard .ar { font-size:calc(18px * var(--sscale, 1) * var(--tile, 1)); line-height:calc(1.35 * var(--sleading, 1)); }
+/* A hole in a frame — the {{name}} a value is poured into — shown where the
+   card is listed rather than asked. It is Latin standing in the taught
+   script, so it takes the same correction the meaning and the romanisation
+   take, as a ratio: the em it inherits is already multiplied by --sscale,
+   and dividing that back out leaves --lscale doing the work. In a language
+   whose script is Latin the two are equal, the ratio is one, and a slot is
+   left the size of the words beside it. Muted for the same reason it is
+   shrunk — it is the shape of the card, not a word to read. */
+.at-slot { font-size:calc(1em * var(--lscale, 1) / var(--sscale, 1)); color: var(--muted); }
 /* Room for the descenders the clamp would otherwise shave off an Arabic
    line — the box crops to the line height, which sits above the tail of a
    ب or a ج. */

@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.113 — 14 September 2026
+
+- **A hole in a card no longer shouts over the card.** A card with a gap in
+  it — *ismi {{name}}* — is listed the way it was written, braces and all,
+  because that is what the card is. But the braces are Latin sitting in the
+  middle of the taught script, and every size in the app was set by eye
+  against Arabic, which leaves room above its letters for the marks and
+  below them for the tails. Latin fills far more of that space, so
+  `{{name}}` came out bigger and heavier than the Arabic word beside it. On
+  a card with two gaps it took both lines of the tile and pushed the Arabic
+  off the end.
+
+  A gap is now sized as the Latin it is — the same correction the meaning
+  and the pronunciation under it have always had — and set in the quieter
+  grey, because it is the shape of the card rather than a word to read. The
+  card's own words are untouched.
+
+  In a language whose script is Latin anyway, the gap is left exactly the
+  size of the words either side of it. Nothing about this changes what a
+  card says or how it is asked: a gap is still filled in before anybody is
+  asked the question.
+
 ## 0.112 — 14 September 2026
 
 - **Writing الحمدلله as one word is no longer a mistake.** Where one word
