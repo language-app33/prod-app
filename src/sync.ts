@@ -218,6 +218,7 @@ export function isFreshState(s: ExerciseState | null | undefined) {
       !s.lapses &&
       !s.skips &&
       !s.near &&
+      !s.hints &&
       !s.updated &&
       !(s.hist && s.hist.length))
   );

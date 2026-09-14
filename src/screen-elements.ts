@@ -61,6 +61,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
   [ANSWER, [
     ["verdict", "What happened. Rotating praise when right; one fixed line when not. Larger when the praise is all the screen has to show.", "Nicely done! · Incorrect. The correct answer is: · The answer is:"],
     ["verdict-reason", "Why it was marked that way, when there is something worth saying.", "Right letters, wrong harakat"],
+    ["verdict-hinted", "Says so when a right answer was written with the nudge up, on the questions whose nudge is the answer said another way.", "Right — but the transliteration was on screen, so this one counts as a near miss and comes round again."],
     ["answer-value", "The right answer. Shown only when you got it wrong or asked to see it.", ""],
     ["answer-value-text", "The right answer itself, in whichever language was asked for.", "كِتاب"],
     ["also-toggle", "The invitation to open everything else worth knowing.", "Learn more ⌄"],

@@ -404,6 +404,18 @@ remoteDocs.set(realToken, {
       { id: "srvk111111111111", ar: "كتاب", en: "book", lat: "kitaab", kind: "word", tags: ["Lesson 1"],
         created: 1, updated: 5, s: climbed(),
         subs: [{ id: "srvk111111111111-f0", ar: "كتب", en: "books", lat: "kutub", s: climbed() }] },
+      /* One card in a second language, which is what makes this device a
+         two-language one: the switch at the top of Learning is there for
+         somebody learning more than one and nobody else, so without this
+         there would be nothing to press.
+
+         Climbed, and so not due — the walks below deal sessions out of
+         what is waiting, and a card that is never waiting cannot turn an
+         Arabic walk into a Vietnamese question. What it changes is the
+         count of cards and the list of languages, which is the whole of
+         what it is here for. */
+      { id: "vicard1", ar: "nhà", en: "house", lat: "nha", kind: "word", tags: ["Huế"],
+        lang: "vi-Hue", created: 1, updated: 5, s: climbed() },
     ],
   },
 });
@@ -481,7 +493,7 @@ check("stored document no longer carries an account", !("account" in stored));
    and the one on the wire — as the JSON they are. */
 /** @type {Record<string, any>} */
 const byId = Object.fromEntries(stored.items.map((/** @type {any} */ i) => [i.id, i]));
-check("both course cards and every old card landed in storage", stored.items.length === 11 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
+check("both course cards and every old card landed in storage", stored.items.length === 12 && byId["srv" + card.id] && byId["srv" + phrase.id] && byId.oldclient1 && byId.v2card, `items=${stored.items.map((/** @type {any} */ i) => i.id).join(",")}`);
 /* And the values the deck's phrases need, which are in no deck at all: they
    arrive because a phrase leaves a hole of their name, carrying what makes
    them values rather than cards to learn. */
@@ -1319,17 +1331,28 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 /* ---- a progress tile opens the card ----
    Every other small card in the app opens when you tap it. These showed
    you how far along a card was and then had nothing to say when you
-   asked to see it, which is the moment you most want to. */
+   asked to see it, which is the moment you most want to.
+
+   The cards behind a count are the only list of them on this screen now:
+   the collapsible deck sections, which carried their own copy of every
+   card, are gone. */
 {
   click(buttonNamed(/^Progress$/));
   await sleep(400);
-  const opener = [...document.querySelectorAll("button")].find((b) => /^Show /.test(b.getAttribute("aria-label") || ""));
+  const opener = /** @type {HTMLButtonElement[]} */ ([
+    ...document.querySelectorAll("button.at-stat"),
+  ]).find((b) => !b.disabled);
   click(opener);
-  await sleep(200);
-  const tile = document.querySelector(".at-pgrid .at-pcard");
-  check("a progress tile is a button, so it can be tapped and tabbed to",
-    !!tile && tile.tagName === "BUTTON", tile ? tile.tagName : "no tile");
-  click(tile);
+  await sleep(250);
+  const tile = document.querySelector(".at-cardgrid .at-minicard");
+  /* Not a real button — two of these carry Edit and Delete inside them —
+     but a keyboard has to reach it and Enter has to open it. */
+  check("a progress tile can be tapped and tabbed to",
+    !!tile && tile.getAttribute("role") === "button" && tile.getAttribute("tabindex") === "0",
+    tile ? `role=${tile.getAttribute("role")} tabindex=${tile.getAttribute("tabindex")}` : "no tile");
+  /* Opened with the keyboard rather than the mouse, so the handler that
+     makes the role true is the one under test. */
+  if (tile) tile.dispatchEvent(new anyWindow.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   await sleep(300);
   const open = document.querySelector(".at-screen .at-readout, .at-readout");
   check("tapping one opens the whole card", !!open,
@@ -1349,13 +1372,19 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     readout.replace(/\s+/g, " ").slice(0, 120) || "(nothing open)");
   click([...document.querySelectorAll("button")].find((b) => /^(Back|Done|Close)$/i.test(b.textContent || "") || b.getAttribute("aria-label") === "Back"));
   await sleep(250);
+  /* And put the list away again, so the walk below starts where it thinks
+     it does: pressing a count toggles it, and this one is already open. */
+  click(opener);
+  await sleep(200);
 
   /* ---- and the counts at the top open too ----
      A number you want to see the cards behind is a number worth pressing.
      They were plain text, so the only way to find out which cards were
      still new was to read every deck. */
   const counts = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll("button.at-stat")]);
-  check("every count at the top is a button", counts.length === 5, `${counts.length} tiles`);
+  /* Every card, then one per level of the ladder, then the ones with
+     nothing left to open. They used to be the four maturities. */
+  check("every count at the top is a button", counts.length === 6, `${counts.length} tiles`);
   const live = counts.find((b) => !b.disabled);
   check("a count with cards behind it can be pressed", !!live,
     counts.map((b) => `${(b.textContent || "").replace(/\s+/g, " ")}${b.disabled ? " (off)" : ""}`).join(" · "));
@@ -1375,6 +1404,110 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("pressing it again puts them away",
     document.querySelectorAll(".at-cardgrid .at-minicard").length === 0,
     `${document.querySelectorAll(".at-cardgrid .at-minicard").length} still up`);
+
+  /* ---- and a level's cards come out grouped by how they are going ----
+     Every card under a level tile is on that level, so what tells them
+     apart is the status: paused first, because it is the one that means
+     something slipped and the list is paged. "Cards" pressed above is the
+     one tile that is not grouped — its cards are spread over every level,
+     and a run would mean nothing. */
+  const levelTile = counts.find(
+    (b) => !b.disabled && /^\d+\s*Level \d/.test((b.textContent || "").replace(/\s+/g, " ")),
+  );
+  check("a level has cards behind it", !!levelTile,
+    counts.map((b) => (b.textContent || "").replace(/\s+/g, " ")).join(" · "));
+  click(levelTile);
+  await sleep(300);
+  const heads = [...document.querySelectorAll(".at-cardgrid .at-grouphead")];
+  const headed = heads.map((h) => (h.textContent || "").replace(/\s+/g, " ").trim());
+  check("the cards under it are grouped by how they are going", heads.length > 1,
+    headed.join(" · ") || "no headings");
+  /* Named in the order the runs are declared in, and never one the cards
+     are not in: a heading over nothing is a run that should not be drawn. */
+  /* The count sits against the label with a gap laid on by the styles
+     rather than a space in the markup, so there is nothing between them
+     to match. */
+  check("and each heading is a status, with how many are in it",
+    heads.length > 0 && headed.every((h) => /^(Paused|Learning|Not started)\s*\d+$/.test(h)),
+    headed.join(" · ") || "no headings");
+  /* The counts are of the whole run, so they add up to the number on the
+     tile whichever page the list is showing. */
+  const inRuns = headed.reduce((n, h) => n + Number(h.match(/\d+$/)), 0);
+  const onTile = Number(((levelTile || {}).textContent || "").trim().match(/^\d+/));
+  check("and the runs together are the number on the tile", inRuns === onTile,
+    `runs ${inRuns}, tile ${onTile}`);
+  click(levelTile);
+  await sleep(200);
+
+  click(buttonNamed(/^Home$/));
+  await sleep(300);
+}
+
+/* ---- the language switch ----
+   This device has cards in two languages, so the switch is there. What it
+   decides is meant to hold over the whole of Learning, and the count at
+   the top of Progress is the cheapest place to watch it do that: switch a
+   language off and its cards leave, everywhere. */
+{
+  click(buttonNamed(/^Progress$/));
+  await sleep(400);
+  /* The first tile is "Cards" — every card that is anywhere on the ladder. */
+  const cardCount = () =>
+    Number(((document.querySelector("button.at-stat") || {}).textContent || "").trim().match(/^\d+/));
+  const both = cardCount();
+  const swBtn = () => document.querySelector(".at-langbtn");
+  const swSaid = () => {
+    const b = swBtn();
+    return b ? String(b.getAttribute("aria-label")) : "nothing in the chrome bar";
+  };
+  check("somebody learning two languages gets a switch for them", !!swBtn(), swSaid());
+  check("and it says every language is on, without naming any of them",
+    ((swBtn() || {}).textContent || "").trim() === "All", ((swBtn() || {}).textContent || "").trim());
+
+  click(swBtn());
+  await sleep(200);
+  const rows = () => [...document.querySelectorAll(".at-langmenu .at-ck")];
+  check("pressing it opens the languages being learnt", rows().length === 2,
+    rows().map((r) => (r.textContent || "").replace(/\s+/g, " ")).join(" · ") || "nothing opened");
+  check("with every one of them ticked to start with",
+    rows().length > 0 && rows().every((r) => r.getAttribute("aria-checked") === "true"),
+    rows().map((r) => r.getAttribute("aria-checked")).join(","));
+
+  /* Switch the second language off. */
+  const viRow = rows().find((r) => /Vietnamese/.test(r.textContent || ""));
+  check("the list names the languages", !!viRow,
+    rows().map((r) => (r.textContent || "").replace(/\s+/g, " ")).join(" · "));
+  click(viRow);
+  await sleep(300);
+  check("switching one off says which one is left, on the button itself",
+    ((swBtn() || {}).textContent || "").trim() === "AR", ((swBtn() || {}).textContent || "").trim());
+  check("and its cards go from the rest of Learning", cardCount() === both - 1,
+    `${both} with both, ${cardCount()} with one`);
+
+  /* The last one on stays on: an app with no languages in it is a blank
+     screen with nothing to say why. */
+  const arRow = rows().find((r) => /Arabic/.test(r.textContent || ""));
+  click(arRow);
+  await sleep(250);
+  check("the last language on cannot be switched off",
+    !!arRow && arRow.getAttribute("aria-checked") === "true" && cardCount() === both - 1,
+    `${arRow ? arRow.getAttribute("aria-checked") : "no row"}, ${cardCount()} cards`);
+  check("and the row says why rather than just refusing",
+    /the only one on/i.test((arRow || {}).textContent || ""),
+    ((arRow || {}).textContent || "").replace(/\s+/g, " "));
+
+  /* And back on again, which is the state everything else expects. */
+  click(rows().find((r) => /Vietnamese/.test(r.textContent || "")));
+  await sleep(300);
+  check("switching it back on brings its cards back",
+    cardCount() === both && ((swBtn() || {}).textContent || "").trim() === "All",
+    `${cardCount()} cards, button says ${((swBtn() || {}).textContent || "").trim()}`);
+  /* Anywhere outside it puts it away. */
+  click(document.querySelector(".at-brand"));
+  await sleep(200);
+  check("and pressing away from it closes it",
+    !document.querySelector(".at-langmenu"),
+    document.querySelector(".at-langmenu") ? "still open" : "put away");
 
   click(buttonNamed(/^Home$/));
   await sleep(300);
@@ -1539,6 +1672,37 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("a second message replaces the first rather than stacking",
       document.querySelectorAll(".at-snack").length === 1,
       `${document.querySelectorAll(".at-snack").length} on screen`);
+  }
+
+  /* The confirmation, for the same contract as the snackbar and one more.
+     `--z-modal` is the highest layer in the app, but a z-index only ranks an
+     element against its siblings: a confirmation left where it was written —
+     inside a space frame, which is itself a layer — was sealed into that
+     frame and a screen opened over the frame covered it, however high the
+     modal's own number went. That was the restore-backup bug: the question
+     appeared only once you left the screen that asked it. So what is checked
+     is where it lands, not what it is numbered. */
+  {
+    const modalRow = [...host.querySelectorAll(".at-galrow")]
+      .find((r) => /^\d*\s*ConfirmModal/.test(r.textContent));
+    const open = modalRow && [...modalRow.querySelectorAll("button")]
+      .find((b) => b.textContent === "Show the modal");
+    click(open);
+    await sleep(60);
+
+    const back = document.querySelector(".at-modalback");
+    check("a confirmation appears when one is asked", !!back && /A confirm modal/.test(back.textContent),
+      (back && back.textContent.slice(0, 40)) || "nothing showed");
+    check("it leaves the layer it was written in",
+      !!back && !host.contains(back), back ? "still inside its parent" : "no modal");
+    check("and lands in the app root, where the theme and the screens are",
+      !!back && back.parentElement === (document.querySelector(".at") || document.body),
+      back ? `parent: ${(back.parentElement || {}).className}` : "no modal");
+
+    const cancel = back && [...back.querySelectorAll("button")].find((b) => b.textContent === "Cancel");
+    click(cancel);
+    await sleep(60);
+    check("and goes when it is answered", !document.querySelector(".at-modalback"));
   }
 
   galleryRoot.unmount();

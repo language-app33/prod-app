@@ -8,6 +8,242 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.111 — 14 September 2026
+
+- **"Restore this backup?" was being asked behind the screen that asked
+  it.** Upload a backup file, press Restore, and nothing appeared to
+  happen: the question was there, underneath the backup screen, and only
+  came into view once you had left that screen — by which point it was a
+  question about nothing you could still see. Anyone who pressed Restore
+  twice, thinking the first press had missed, met it twice.
+
+  The app draws things in layers, and a confirmation is meant to be the
+  top one. It was, within the panel it was drawn in — but that panel is
+  itself a layer, and the backup screen opens above the whole panel, so
+  the confirmation could never climb past it. The confirmation is now
+  drawn at the top of the app rather than inside whichever panel asked,
+  which is where the screens themselves are drawn. It sits above
+  everything, from every part of the app, as it was always meant to.
+
+- **And Escape now answers the confirmation without also closing the
+  screen underneath.** One key used to do both.
+
+## 0.110 — 14 September 2026
+
+- **The language menu opened off the side of the screen on a phone.** It
+  hung off the switch that opens it, growing leftwards — and the switch
+  sits left of the space tabs, which sit left of the menu button in the
+  corner. Between them those take about 184 points off the right-hand side,
+  so the menu needed a window 444 points wide before it fitted, and every
+  phone in portrait is narrower than that. Somebody learning two languages
+  who also teaches had it worst, the third tab pushing it further left
+  again.
+
+  It now hangs off the right of the window, where the menu in the corner
+  already does, so the two line up. It narrows on a small screen rather
+  than running off it, and a long list of languages scrolls inside the
+  menu rather than off the bottom.
+
+- **And it closes when you open the menu next to it.** The two sat over
+  each other in the corner, because each was waiting for a click to reach
+  the window and the other was stopping it.
+
+## 0.109 — 14 September 2026
+
+- **Get a card wrong and you get that same card again, not a different
+  one.** A card with a hole in it — *My name is {{name}}* — shows a
+  different name each time it comes round, so that all of them are met.
+  Which name it showed was decided by how many times the card had been
+  asked, and a wrong answer counts as an asking. So missing *My name is
+  Sarah* got you *My name is Youssef* a moment later: a sentence nobody
+  had taught you, turned up by your own mistake. Miss that and the next
+  was a third name. You could learn the word on the card long before you
+  could ever finish the card.
+
+  It now turns on getting it right. Miss a question and the same question
+  comes back until you answer it, which is what asking again is for.
+  Answer them all right and you see exactly the variety you did before.
+
+- **The same fix reaches everything that varies between askings**: which
+  phrase a word is shown in, which of a card's accepted spellings it asks
+  for, and which of its meanings. All of them moved on when you got the
+  card wrong, and none of them does now.
+
+## 0.108 — 14 September 2026
+
+- **Learning two languages? Say which you are working on.** A switch at the
+  top of Learning, next to the space tabs, lists the languages you have
+  cards in with a tick against each. Everything switched on is what the app
+  shows you: your cards, your progress, what is ready to practise, and what
+  a session is dealt from. Everything starts ticked.
+
+  It is only there if you are learning more than one. One language is not a
+  choice, and a switch offering it would be a question with a single
+  answer.
+
+  The button itself is an icon and one word, because it lives in the chrome
+  where there is room for nothing more — and that word is the state:
+  **All** when every language is on, the language's own mark (**AR**,
+  **VI**) when only one is, and how many when it is some of them. The rest
+  is in the tooltip.
+
+- **The last language on stays on.** An app with no languages in it is a
+  blank screen with no way of telling why, so the row holds and says "the
+  only one on" rather than refusing without a word.
+
+- **A language you join later is on from the start.** What is stored is
+  which languages are switched *off*, so a course in a third language
+  arrives in play rather than hidden by a setting written before it
+  existed.
+
+- **Starting a session no longer asks which language.** It used to put a
+  screen in the way every single time — this one, both, or not now — and
+  the answer held for that session only. The switch is the same question
+  asked once and kept, and it answers it for the card list and progress
+  as well.
+
+## 0.107 — 14 September 2026
+
+- **Progress is the tiles and the cards behind them, and nothing else.**
+  Under them stood every deck as a collapsible section, each with its own
+  bar, its own "n of m learnt" and its own copy of every card in it — so a
+  card appeared once for each deck it was in, and again under whichever
+  tile was open. Three views of the same cards on one screen, and the
+  tiles are the one that answers what the screen is for.
+
+  The deck sections are gone. What is left is the six tiles and, when you
+  press one, its cards grouped by how they are going.
+
+- **A card's tile says which level it is on** when the list is every card
+  at once. Under a level it does not: every card there is on that level,
+  and the headings say how each is going.
+
+- **The per-card bars have gone with them**, and so has the fraction they
+  drew. It was a mean over every exercise of its interval against three
+  weeks, which is not something a learner can act on.
+
+- **The Practice button each deck section carried is gone too.** Building
+  a session from chosen cards is what the session builder is for, and it
+  can pick a deck along with everything else.
+
+- **A card tile can be reached with a keyboard.** They open a card when
+  tapped and had no way in from a keyboard at all; the one tile on this
+  screen that did was in the deck sections. They now take focus and open
+  on Enter or Space, here and in the Cards tab and the teaching space.
+
+## 0.106 — 14 September 2026
+
+- **Open a level in Progress and its cards come out grouped by how they are
+  going.** Every card under a level tile is on that level, so what tells
+  them apart is the status: **Paused**, then **Learning**, then **Not
+  started**, each headed with how many are in it.
+
+  Paused leads because it is the one that means something slipped, and it
+  is usually the shortest run — put it last and a learner with a hundred
+  cards waiting on a level would never scroll to the two that had gone
+  backwards. The list is sorted into that order before it is paged, so a
+  run is never half off the end of a page.
+
+  "Cards" is left ungrouped: those are spread over every level, and a run
+  of them would mean nothing. "Learnt" is too, because they are all in the
+  same state — a heading naming the whole list says nothing.
+
+## 0.105 — 14 September 2026
+
+- **Progress is the ladder now, and says so in words.** A card climbs four
+  levels — what it means, which word it is, writing it from a cue, then
+  writing it from its meaning alone — and until now no screen showed that
+  anywhere. The Progress tab counted cards as New, Learning, Young and
+  Mature, which are facts about how long their intervals happen to be, and
+  each card carried a percentage that was the average of those intervals
+  against three weeks. A card the app had two levels up and was asking to
+  be written could read as a third learnt, because eight of its eleven
+  exercises had only just opened.
+
+  Both are gone. The tiles at the top of Progress are now one per level,
+  plus the cards with nothing left to open, and each card says which level
+  it is on and how it is going there:
+
+  - **Not started** — the level has opened and nothing on it has been
+    answered yet.
+  - **Learning** — some of it has, and not all of it is solid.
+  - **Done** — everything under the next level is solid enough to open it.
+  - **Paused** — the level had opened and a slip further down has shut it
+    again. Nothing is lost, and the card says what has to come back.
+
+- **A card's own screen lists its levels.** Open a card from Progress or
+  from Cards and there is a row per level, with the one being worked on
+  marked and a count of how much of what has to hold for the next level
+  does. It is the answer to "why am I not being asked to write this yet?",
+  which the app had never given anywhere.
+
+- **A level a card has no material for is not shown at all.** A
+  conversation has nothing on the second or fourth level; a word with no
+  recording and no phrase may have nothing on the third. The ladder passes
+  those straight through, so listing them would be pointing at work that
+  does not exist.
+
+- **One vocabulary, checked against itself.** A level reads *done* exactly
+  when the scheduler opens the one above it — the same test, asked once —
+  so what a learner is told and what the app deals from are the same
+  answer rather than two that can drift. The young-and-mature counting
+  stays where it always was, out of sight, because the limit on new cards
+  needs a finer distinction than a person does.
+
+## 0.104 — 14 September 2026
+
+Three more changes to how hard the app makes things, from the same audit
+of the levels that 0.103 came out of. The numbers quoted are from
+simulations run against the app's own scheduler, one session a day with
+three exercises per form.
+
+- **A near miss always moves the interval now.** Nearly right — the right
+  letters with the wrong tone, the wrong haraka, one letter out —
+  stretched the gap before the next review by a fifth, and a fifth of one
+  day rounds back to one day. So did a fifth of two. A learner whose
+  mistake was always that same small one answered the same word that way
+  every day for ever: the interval never grew, so the exercise was never
+  mastered, so the level above it never opened, and nothing on the screen
+  said why the writing never arrived. A near miss is now worth at least a
+  day more than last time. It still costs the card its ease and is still
+  counted as wrong; what it cannot do any more is stand still.
+
+- **New cards keep the places they are given.** Everything due ranks
+  together and is shuffled, so a new card admitted by "New cards per
+  session" was left to take its chance against every card waiting for
+  review, and on any day with a queue behind it fell off the end of the
+  session. It now goes to the front. Which cards join it, and the order
+  they are asked in, are unchanged.
+
+- **A hint no longer counts as knowing the word.** *English → script* and
+  *fill the gap* offer the transliteration as a nudge, which on those two
+  questions is the answer spelled out another way: reading it turns the
+  hardest question in the app into the one a level below. With Hints set
+  to On it was opened on every question by itself, and nothing recorded
+  that it had been — so a learner with hints on could climb to the top of
+  the ladder having never once written a word from its meaning alone.
+
+  On those two questions the nudge now stays closed until you ask for it,
+  and an answer written with it open is marked as a near miss and comes
+  round again before the session ends. The screen says so rather than
+  doing it quietly. Every other hint is unchanged, and how often each
+  exercise was answered with its hint up is now kept.
+
+- **The bar each level asks is written down once.** 0.103 put it on every
+  exercise — nine copies of one fact, held in step by a test — and it is
+  now a four-line table beside them, read off the level an exercise stands
+  on. Nothing behaves differently, and there is no longer anything for two
+  exercises on a level to disagree about.
+
+- **What was measured and not changed.** A card counts as *learning* while
+  any exercise open to it is unanswered, which includes a level that
+  opened this morning — and that is what keeps the ten-card limit full and
+  holds a learner to about a card every three days. Passing those over was
+  tried and measured: it admitted about five more cards over a hundred and
+  twenty days and mastered three fewer, because the session budget does
+  not grow with them. The limit is doing its job; a longer session is what
+  buys more new cards.
+
 ## 0.103 — 14 September 2026
 
 - **Writing a word from a cue now opens as soon as you have recognised it,

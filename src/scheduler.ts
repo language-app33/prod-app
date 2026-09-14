@@ -22,7 +22,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { TYPES, barOf, levelOf } from "./languages.ts";
+import { TYPES, barAfterLevel, barOf, levelOf } from "./languages.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;
@@ -98,6 +98,7 @@ export function freshState(): ExerciseState {
     wrong: 0,
     skips: 0,
     near: 0,
+    hints: 0,
     hist: [],
     updated: 0,
   };
@@ -257,7 +258,25 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
     mult = s.ease;
   }
   const base = Math.max(1, s.interval || 1);
-  s.interval = Math.min(MAX_DAYS, Math.max(1, Math.round(base * mult * fuzz(clock))));
+  let next = Math.round(base * mult * fuzz(clock));
+  /*
+   * A near miss still moves.
+   *
+   * 1.2 times a one-day interval rounds back to one day, and so does 1.2
+   * times two; only from three does the multiplier carry the interval past
+   * where it started. A near miss is the mistake a learner makes over and
+   * over while they are learning — the right letters with the wrong tone,
+   * the wrong haraka, one letter out — so somebody whose fault is always
+   * that one sat at a one-day interval for ever: never mastered, therefore
+   * never past the level it stands on, and nothing on the screen to say
+   * why the writing never arrived.
+   *
+   * So the floor: nearly right is worth at least a day more than last
+   * time. The ease still falls, so the card is still treated as a hard
+   * one; what it cannot do any more is stand still.
+   */
+  if (rating === "hard") next = Math.max(next, base + 1);
+  s.interval = Math.min(MAX_DAYS, Math.max(1, next));
   s.due = inDays(s.interval);
   return s;
 }
@@ -278,6 +297,34 @@ export function maturity(s: ExerciseState): string {
 }
 
 export const MATURITY_ORDER = ["new", "learning", "young", "mature"];
+
+/**
+ * Which turn of a card's variations this asking is.
+ *
+ * Several things about a question vary between askings and are rotated
+ * rather than drawn, so that a card with three of something is met as all
+ * three before it is met as any of them twice: which values fill its
+ * holes, which phrase it is shown in, which of its accepted spellings is
+ * put up, and which of its meanings is asked about.
+ *
+ * The turn is how often the exercise has been answered *right*, and it
+ * used to be how often it had been asked at all. That was the bug a
+ * learner felt as never getting anywhere on a card with a variable in it:
+ * miss "My name is Sarah" and the re-ask a moment later was "My name is
+ * Youssef" — a sentence they had not been taught yet, keyed on a count
+ * their miss had just moved on. Miss that and the next was a third name.
+ * The card's own word was learnt long before the card could be, because
+ * every attempt was a fresh question and none of them was ever the one
+ * just failed.
+ *
+ * So it turns on a success. Get it wrong, or nearly right, and the same
+ * question comes back until it is answered — which is the whole of what a
+ * re-ask is for. Answer them all right and the variety is exactly what it
+ * was.
+ */
+export function turnOf(s: ExerciseState | null | undefined): number {
+  return (s && s.right) || 0;
+}
 
 /* Read on entry with no guard, unlike stateReady. */
 export function mastered(s: ExerciseState): boolean {
@@ -309,8 +356,13 @@ export function graduated(s: ExerciseState): boolean {
 
    Level four — writing it from its meaning, with nothing on the screen to
    go on — keeps the four-day bar, so the strict gate stands where
-   production from memory actually begins. A form with nothing at all on a
-   level passes straight through it.
+   production from memory actually begins.
+
+   Which bar a level asks is the level's own business, and is written down
+   once each in LEVEL_BARS in languages.ts. A form with no recording has
+   nothing on level three but its transliteration, and that alone is what
+   it must reach to open level four; a form with nothing at all on a level
+   passes straight through it.
 
    Whether the bar is met is read afresh every time, so a lapse on the
    bottom level closes the ones above it until it is recovered: somebody who
@@ -330,10 +382,12 @@ export function openTypes(types: string[], stateOf: (type: string) => ExerciseSt
   const levels = [...new Set(types.map(levelOf))].sort((a, b) => a - b);
   for (const level of levels) {
     const here = types.filter((t) => levelOf(t) === level);
-    /* The level's bar is the loosest any exercise on it declares — one
-       exercise to a level in practice, and a level that has a gentle way
-       up should not be shut by a stricter neighbour. */
-    const bar = here.some((t) => barOf(t) === "graduated") ? graduated : mastered;
+    /* The bar belongs to the level rather than to the exercise, so every
+       card reaches a level the same way whichever of its exercises happen
+       to stand there — see LEVEL_BARS in languages.ts. Asked of the first
+       here because they all answer alike; `here` is never empty, being the
+       exercises the level was read off. */
+    const bar = barOf(here[0]) === "graduated" ? graduated : mastered;
     const lower = types.filter((t) => levelOf(t) < level);
     const reached = lower.every((t) => {
       const s = stateOf(t);
@@ -465,6 +519,23 @@ export function familyMaturity(it: Item, typesOf: (unit: Form) => string[]): str
  * How many cards stand in each phase, for the room-for-new sums. Counted
  * the way the progress screen counts them, so the two never disagree
  * about how full a learner's hands are.
+ *
+ * An exercise on a level that has just opened and has never been answered
+ * holds its card at *learning* here, which reads like an accident — the
+ * card's reading may be weeks old — and it was very nearly changed on
+ * that basis: pass the unanswered ones over, the argument went, and the
+ * ten-card cap would stop filling up in the first week and a learner
+ * would meet more than a card every three days.
+ *
+ * It was measured first, and it was the wrong change. Over a hundred and
+ * twenty simulated days of one session a day, passing them over admitted
+ * about five more cards and mastered three fewer, because the session
+ * budget is what it always was and the extra cards simply spread it
+ * thinner: a card took fifty-two days to reach writing rather than
+ * thirty-seven. Those unanswered exercises are work that has arrived,
+ * whether or not it has been touched, and counting them is the cap doing
+ * its job. What actually buys a learner more new cards is a longer
+ * session, not a laxer cap.
  */
 export function phaseCounts(
   items: Item[],
@@ -490,6 +561,130 @@ export function itemDifficulty(it: Item, typesOf: (unit: Form) => string[]): str
   if (rated.includes("hard")) return "hard";
   if (rated.includes("steady")) return "steady";
   return "easy";
+}
+
+/* ------------------------------------------------------------------
+   Where a card stands on the ladder
+
+   The same four levels openTypes gates on, read as something a person can
+   be told: which level a card is on, and how it is going there. One
+   vocabulary for the scheduler and the screen, so the two cannot come to
+   disagree about how far along a word is — which they had, the progress
+   screen saying a card was a third learnt while the app had it two levels
+   up and asking it to be written.
+
+   A level a card has no material for does not appear at all. A scene has
+   nothing on the second or fourth level, a word with no recording and no
+   phrase may have nothing on the third, and openTypes passes those
+   straight through — so showing them as "not started" would set a learner
+   looking for work that does not exist.
+   ------------------------------------------------------------------ */
+
+export interface Standing {
+  /** Which level, as the exercise table numbers them. */
+  level: number;
+  /**
+   * "none" — open, and nothing on it answered yet.
+   * "learning" — open, something answered, not all of it solid.
+   * "done" — solid enough that the level above it opens.
+   * "paused" — it had opened, and a slip further down has shut it again.
+   */
+  status: string;
+  /**
+   * How many of the exercises that must hold for the next level to open
+   * are there yet, and how many there are. That is everything on this
+   * level *and under it*, because that is what openTypes asks: the
+   * writing wants four days from the reading too, not just from the
+   * level below it. So `done === of` is exactly "this level is done",
+   * and the two can never drift apart.
+   */
+  done: number;
+  of: number;
+}
+
+/**
+ * Every level this card has material on, lowest first.
+ *
+ * `typesOf` gives the schedule keys a form climbs with, as openTypes is
+ * given them — the caller decides whether that means everything the card
+ * supports or only what the learner has switched on.
+ *
+ * A family is only as far up as its weakest form, the way familyMaturity
+ * is: a plural nobody has met holds its card on the level that plural is
+ * on. That is also what the scheduler does, so the screen agrees with it.
+ */
+export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing[] {
+  /* Every key the card climbs with, filed under its level. */
+  const at: Map<number, (ExerciseState | null | undefined)[]> = new Map();
+  for (const { unit } of unitsOf(it)) {
+    for (const t of typesOf(unit)) {
+      const level = levelOf(t);
+      at.set(level, (at.get(level) || []).concat([unit.s && unit.s[t]]));
+    }
+  }
+  const levels = [...at.keys()].sort((a, b) => a - b);
+  const out: Standing[] = [];
+  /* The bottom level is open from the first session; each one after it
+     opens when the one below is done. Exactly openTypes' own loop. */
+  let open = true;
+  /* And whether everything under this level has been answered at least
+     once, which is what tells a level shut by a slip from one that was
+     never reached. A card whose plural has not been met holds its whole
+     family on the bottom level — the levels above it are not paused,
+     they have not been got to. */
+  let allMetBelow = true;
+  const answered = (s: ExerciseState | null | undefined) => !!s && s.phase !== "new";
+  for (const level of levels) {
+    const here = at.get(level) || [];
+    const bar = barAfterLevel(level) === "graduated" ? graduated : mastered;
+    /* Counted over this level and everything under it — see `done` above. */
+    const under = levels.filter((l) => l <= level).flatMap((l) => at.get(l) || []);
+    const done = under.filter((s) => !!s && bar(s)).length;
+    const met = here.some(answered);
+    const finished = done === under.length;
+    out.push({
+      level,
+      status: finished
+        ? "done"
+        : !open
+        ? met && allMetBelow
+          ? "paused"
+          : "none"
+        : met
+        ? "learning"
+        : "none",
+      done,
+      of: under.length,
+    });
+    open = finished;
+    allMetBelow = allMetBelow && here.every(answered);
+  }
+  return out;
+}
+
+/**
+ * The one of them to put on a card: where the work is.
+ *
+ * Every level below the card's own is done and every level above it is
+ * shut, so one level and one word is the whole of it — until a slip
+ * further down shuts a level that had been opened, which is the one thing
+ * a learner cannot otherwise make sense of. Then it is the highest level
+ * they had got to, said to be paused, rather than the rung they have been
+ * dropped to: "level four, paused" is the sentence that explains where the
+ * writing went.
+ *
+ * Takes the list rather than the card, so a screen that shows both the
+ * headline and the levels under it walks the card once.
+ *
+ * Null where the card has nothing to practise at all.
+ */
+export function standing(all: Standing[]): Standing | null {
+  if (!all.length) return null;
+  const last = all[all.length - 1];
+  if (last.status === "done") return last;
+  const paused = all.filter((s) => s.status === "paused");
+  if (paused.length) return paused[paused.length - 1];
+  return all.find((s) => s.status !== "done") || last;
 }
 
 /* ------------------------------------------------------------------

@@ -768,7 +768,34 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
      the tile with an empty face was the alternative. */
   const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : card.ar;
   return (
-    <div className={`at-minicard${className ? " " + className : ""}`} onClick={onClick}>
+    <div
+      className={`at-minicard${className ? " " + className : ""}`}
+      onClick={onClick}
+      /*
+       * A tile that opens something is something to press, and a keyboard
+       * has to be able to reach it. Not a real <button>, because two of
+       * these carry Edit and Delete inside them and a button holding
+       * buttons is not a thing a browser can make sense of — so the role
+       * and the two keys that go with it, by hand.
+       *
+       * The Progress screen is what made this show: the one keyboard-
+       * reachable way into a card there was a tile in the deck sections,
+       * and those are gone.
+       */
+      {...(onClick
+        ? {
+            role: "button",
+            tabIndex: 0,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key !== "Enter" && e.key !== " ") return;
+              /* Space scrolls the page otherwise, which is the one thing
+                 a person pressing it here did not ask for. */
+              e.preventDefault();
+              onClick();
+            },
+          }
+        : null)}
+    >
       {/* And it says so. A conversation's face is somebody else's opening
           line, which on its own reads as a phrase card written oddly —
           this is the word that makes it one of the kinds of card rather
@@ -1321,6 +1348,8 @@ export function ItemList<T>({
   items,
   itemKey = (it) => (it as any).id,
   match,
+  groups,
+  groupOf,
   size = "large",
   resizable,
   onNew,
@@ -1352,6 +1381,21 @@ export function ItemList<T>({
   items: T[];
   itemKey?: (item: T) => string;
   match?: (item: T, lowercasedQuery: string) => boolean;
+  /**
+   * Split the list into labelled runs, in the order given here.
+   *
+   * The list is sorted into that order before it is paged, so a run is
+   * never half off the end of the page while the one after it is on it —
+   * which is why the order matters: put the run somebody needs to see
+   * first, not the biggest one. A heading naming the whole list says
+   * nothing, so where only one run turns out to have anything in it the
+   * headings are left off and the list is drawn as any other.
+   *
+   * `groupOf` says which run an item belongs to; anything answering with
+   * a key not listed falls to the end.
+   */
+  groups?: { key: string; label: string }[];
+  groupOf?: (item: T) => string;
   size?: "large" | "small";
   /** Whether the tiles can be drawn bigger. Only a grid of them can. */
   resizable?: boolean;
@@ -1385,10 +1429,46 @@ export function ItemList<T>({
     return items.filter((it) => m(it, q));
   }, [items, query]);
 
+  /* Grouped, if the caller asked for it: the runs in the order they were
+     given, and each run in the order the list already had. Sorted before
+     paging so "show more" fills a run at a time rather than scattering
+     one. Held by ref like `match` above, because both are inline arrows
+     at nearly every call site and depending on them directly would throw
+     the work away on every render of the parent. */
+  const groupRef = useRef(groupOf);
+  groupRef.current = groupOf;
+  const runs = (groups || []).map((g) => g.key).join("|");
+  const ordered = useMemo(() => {
+    const of = groupRef.current;
+    if (!runs || !of) return shown;
+    const rank = new Map(runs.split("|").map((key, i) => [key, i]));
+    const at = (it: T) => {
+      const r = rank.get(of(it));
+      return r === undefined ? rank.size : r;
+    };
+    return shown
+      .map((it, i) => ({ it, i }))
+      .sort((a, b) => at(a.it) - at(b.it) || a.i - b.i)
+      .map((x) => x.it);
+  }, [shown, runs]);
+
+  /* How many are in each run, over the whole list rather than the page: a
+     heading that said "3" when there were forty behind a "show more"
+     would be a count of the wrong thing. Only the runs with anything in
+     them, and only where there is more than one — otherwise the heading
+     names the list itself and is left off. */
+  const counted = useMemo(() => {
+    const of = groupRef.current;
+    if (!runs || !of) return null;
+    const n: Map<string, number> = new Map();
+    for (const it of ordered) n.set(of(it), (n.get(of(it)) || 0) + 1);
+    return n.size > 1 ? n : null;
+  }, [ordered, runs]);
+
   useEffect(() => {
     setLimit(PAGE_SIZE);
   }, [query]);
-  const page = shown.length > limit ? shown.slice(0, limit) : shown;
+  const page = ordered.length > limit ? ordered.slice(0, limit) : ordered;
 
   const picked = selected || new Set();
   /* Nothing to select means no toggle: an empty list should not offer a mode
@@ -1565,10 +1645,17 @@ export function ItemList<T>({
         className={size === "small" ? "at-cardgrid" : "at-decklist2"}
         style={resizable && at.scale !== 1 ? ({ "--tile": String(at.scale) } as React.CSSProperties) : undefined}
       >
-        {page.map((it) => {
+        {page.map((it, i) => {
           const id = itemKey(it);
           const on = picked.has(id);
-          return (
+          const of = groupRef.current;
+          /* The run this one is in, and whether it is the first of it —
+             which is where the heading goes. Read off the page rather
+             than kept in a variable across the map, so this stays a
+             function of the list it is drawing. */
+          const run = counted && of ? of(it) : null;
+          const opens = run !== null && of && (i === 0 || of(page[i - 1]) !== run);
+          const tile = (
             <div
               className={`at-tilewrap${on ? " picked" : ""}`}
               key={id}
@@ -1593,6 +1680,17 @@ export function ItemList<T>({
               )}
               {renderItem(it, { selecting, selected: on })}
             </div>
+          );
+          if (!opens) return tile;
+          const named = (groups || []).find((g) => g.key === run);
+          return (
+            <React.Fragment key={`run-${run}`}>
+              <p className="at-grouphead">
+                {named ? named.label : run}
+                <span>{(counted && counted.get(run as string)) || 0}</span>
+              </p>
+              {tile}
+            </React.Fragment>
           );
         })}
       </div>
@@ -2086,6 +2184,16 @@ export function useSnackbar() {
    screen opened on top of another doesn't take both down with one key. */
 const SCREEN_STACK: any[] = [];
 
+/* Open confirmations. A modal is above every screen by construction, so
+   while one is up Escape belongs to it and a screen must not also answer —
+   otherwise one key cancels the question and walks out of the screen that
+   asked it. Counted rather than flagged for the same reason the screens are:
+   a confirmation can be raised from inside another one. */
+let MODALS_OPEN = 0;
+export function modalIsOpen() {
+  return MODALS_OPEN > 0;
+}
+
 /*
  * The class hides the app chrome, and it used to come off only when the
  * stack emptied. That made one entry outliving its component permanent: the
@@ -2204,6 +2312,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (modalIsOpen()) return;
       /* Same reason as the class: a stale entry on top would otherwise
          swallow Escape for every screen underneath it. */
       reconcileScreens();
@@ -2344,6 +2453,7 @@ export function ConfirmModal({
   onConfirm: () => void;
 }) {
   const [typed, setTyped] = useState("");
+  const host = useAppHost();
   /* Case and stray spaces aren't the point — the point is that you had to
      type the name rather than tap through. */
   const ready =
@@ -2352,15 +2462,30 @@ export function ConfirmModal({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
     window.addEventListener("keydown", onKey);
+    MODALS_OPEN++;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey);
+      MODALS_OPEN = Math.max(0, MODALS_OPEN - 1);
       document.body.style.overflow = prev;
     };
   }, [onCancel]);
 
-  return (
+  /* Rendered at the app root, for the same reason a Screen is.
+
+     A confirmation is the most important thing on the page when it is up:
+     nothing else may be tapped until it is answered. `--z-modal` says so,
+     but a z-index is only compared against siblings. A question asked from
+     inside a space frame — "restore this backup?" — was competing from
+     inside that frame's layer, and a screen opened over the frame (a
+     portalled sibling, higher) covered it completely: the modal only
+     appeared once the screen above it was closed, by which point the
+     question had lost its subject.
+
+     Portalling puts the modal in the same context as those screens, where
+     400 beats 300 and the top layer is the one that asked. */
+  const view = (
     <div className="at-modalback" onClick={onCancel}>
       <div
         className={`at-modal${danger ? " danger" : ""}`}
@@ -2403,6 +2528,9 @@ export function ConfirmModal({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined" || !host) return view;
+  return createPortal(view, host);
 }
 
 /* A wait worth mentioning.

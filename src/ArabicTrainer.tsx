@@ -159,10 +159,8 @@ import {
 import {
   MIN,
   LEARNING_CAP,
-  MATURE_DAYS,
   YOUNG_CAP,
   difficulty,
-  familyMaturity as familyMaturityOf,
   formatGap,
   freshState,
   freshStates,
@@ -173,13 +171,17 @@ import {
   phaseCounts,
   reschedule,
   roomForNew,
+  standing,
+  standings as standingsOf,
   stateReady,
+  turnOf,
   unitsOf,
   dayKey,
   dueRank,
   inOrder,
   shuffled,
 } from "./scheduler.ts";
+import type { Standing } from "./scheduler.ts";
 import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk } from "./offers.ts";
@@ -220,18 +222,14 @@ import type { Value } from "./variables.ts";
  * a word in use, neither of which belongs in the scheduler — so it is
  * handed in here, at the one place that has both.
  */
-/* Judged on the levels a form has reached, not on everything it could one
-   day be asked: a card whose reading is mature and whose writing has not
-   opened yet is young, not new. The progress screen and the room-for-new
-   sums both read this, so they agree about how full a learner's hands are. */
-const familyMaturity: (it: Item) => string = (it) =>
-  familyMaturityOf(it, (u) =>
-    openTypesOf(
-      availableTypes(u).flatMap((t) => keysFor(u, t)),
-      (k) => statesOf(u)[k],
-    ),
-  );
 const itemDifficulty: (it: Item) => string = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
+
+/* Where a card stands on the ladder, over the same keys the ladder itself
+   climbs — see `laddered`. Everything that puts progress on a screen reads
+   this, so what a learner is told and what the scheduler does are the one
+   answer said twice rather than two answers that can drift. */
+const cardStandings = (it: Item, settings: Settings): Standing[] =>
+  standingsOf(it, (u) => laddered(u, settings));
 
 import { applyUpdate, holdUpdates } from "./updates.ts";
 import {
@@ -300,6 +298,17 @@ const EMPTY: Doc = {
     types: defaultTypes(),
     kinds: { word: true, phrase: true, sentence: true, dialog: true },
     cohesion: "balanced", // off | balanced | strong
+    /*
+     * The languages switched *off*, rather than the ones switched on.
+     *
+     * Which way round matters. Somebody learning two languages who joins a
+     * course in a third should see it, and a list of what is on would have
+     * left the new one out of it — switched off by a setting written before
+     * it existed, with nothing on the screen to say so. Empty is every
+     * language, which is what a new device starts at and what this can
+     * always be put back to.
+     */
+    langsOff: [],
     ...defaultLanguageOptions(),
     showHint: false,
     keyboard: "auto",
@@ -317,13 +326,86 @@ const now = () => Date.now();
 
 
 
-const MATURITY_LABEL: Record<string, string> = { new: "New", learning: "Learning", young: "Young", mature: "Mature" };
-const MATURITY_COLOR: Record<string, string> = {
-  new: "var(--raised)",
-  learning: "var(--rose)",
-  young: "var(--brass)",
-  mature: "var(--jade)",
+/* ------------------------------------------------------------------
+   The ladder, in the words a learner is shown
+
+   One vocabulary for the whole app: a card is on a level, and it is either
+   not started there, learning it, done with it, or paused because a slip
+   further down has shut it. The four levels are the exercise table's own —
+   see `level` on each definition in languages.ts — and these are their
+   names, said once here rather than in each screen that shows one.
+   ------------------------------------------------------------------ */
+
+const LEVEL_NAME: Record<number, string> = {
+  1: "What it means",
+  2: "Which word it is",
+  3: "Write it from a cue",
+  4: "Write it from its meaning",
 };
+
+const STATUS_LABEL: Record<string, string> = {
+  none: "Not started",
+  learning: "Learning",
+  done: "Done",
+  paused: "Paused",
+};
+
+/* A level further up is a warmer colour, and a card with everything done
+   is the one that stands out. Paused borrows the colour of a miss, because
+   that is what it is: something slipped. */
+const LEVEL_COLOR: Record<number, string> = {
+  1: "var(--text)",
+  2: "var(--rose)",
+  3: "var(--brass)",
+  4: "var(--jade)",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  none: "var(--muted)",
+  learning: "var(--brass)",
+  done: "var(--jade)",
+  paused: "var(--rose)",
+};
+
+/*
+ * The runs a level's cards are shown in, when one of the tiles at the top
+ * of Progress is opened.
+ *
+ * Every card under a level tile is on that level, so what tells them apart
+ * is how they are going there. Paused leads: it is the one that means
+ * something went wrong, it is usually the shortest run, and a list is
+ * paged — put it last and a learner with a hundred cards waiting on a
+ * level would never reach the two that had slipped.
+ *
+ * "Done" is not among them. A card whose level is done has moved up and is
+ * under the next tile along; the ones with nothing left to open are under
+ * "Learnt", where they are all in the same state and the list is drawn
+ * without headings.
+ */
+const STATUS_RUNS = [
+  { key: "paused", label: STATUS_LABEL.paused },
+  { key: "learning", label: STATUS_LABEL.learning },
+  { key: "none", label: STATUS_LABEL.none },
+];
+
+/* What a card's tile and its readout say, from the one standing. "Done"
+   names the whole card rather than a level: there is nothing above it
+   left to open, which is the only sense in which this app finishes a
+   word. */
+function standingLabel(at: Standing | null): string {
+  if (!at) return "Can't practice yet";
+  if (at.status === "done") return "Learnt";
+  return `Level ${at.level} · ${STATUS_LABEL[at.status] || at.status}`;
+}
+
+/* The same thing said shorter, for the small print on a tile in a grid.
+   The line it sits on is one line and does not wrap — it holds a date in
+   every other list — and "Level 2 · Not started" came out as "Level 2 ·
+   Not…", which is a worse answer than the level on its own. */
+function standingShort(at: Standing | null): string {
+  if (!at) return "Can't practice yet";
+  return at.status === "done" ? "Learnt" : `Level ${at.level}`;
+}
 
 /* ------------------------------------------------------------------
    Automatic difficulty
@@ -749,16 +831,17 @@ function contextsFor(unitId: string): any[] {
  * Which phrase to show this time.
  *
  * Rotated rather than picked at random, and keyed on how many times the
- * form has been answered, so a word that has three contexts meets all three
- * before it meets any of them twice. Random choice would leave one context
- * unseen for a surprisingly long time.
+ * form has been answered *right* — see turnOf — so a word that has three
+ * contexts meets all three before it meets any of them twice, and a phrase
+ * that was missed is the one asked again rather than a new one. Random
+ * choice would leave one context unseen for a surprisingly long time.
  */
 function pickContext(unit: Form, type: string) {
   const list = contextsFor(unit.id).filter((c) =>
     specOf(type) && specOf(type).needs.includes("contextAudio") ? (c.recs || []).length > 0 : true
   );
   if (!list.length) return null;
-  const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
+  const seen = turnOf(unit.s && unit.s[type]);
   return list[seen % list.length];
 }
 
@@ -776,10 +859,12 @@ function pickContext(unit: Form, type: string) {
  *
  * One value per variable, in every field at once — the prompt, the marking
  * and the answer screen are looking at the same person — and rotated by how
- * often this exercise has been asked of this form, like everything else
- * that varies between askings. Nothing is drawn: a card with three names is
- * met as all three before it is met as any of them twice, and a re-render
- * cannot swap the name under somebody halfway through typing.
+ * often this exercise has been answered right, like everything else that
+ * varies between askings: see turnOf, which is where the reason lives.
+ * Nothing is drawn: a card with three names is met as all three before it
+ * is met as any of them twice, the name stays put until the sentence it is
+ * in has been got right, and a re-render cannot swap it under somebody
+ * halfway through typing.
  *
  * Comes back untouched where a variable has nothing to fill it. That is not
  * a question — canAsk refuses it, so it should never reach here — and
@@ -789,7 +874,7 @@ function castFill(resolved: { unit: Form, parent: Item, isSub: boolean } | null,
   if (!resolved) return resolved;
   const slots = slotsOf(resolved.unit);
   if (!slots.length) return resolved;
-  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
   /* The verb's own place is not filled from the cards: it is filled from
      the card's own table, by whatever fills the subject. So it is left out
      of the draw and put back below. */
@@ -880,7 +965,7 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
      rather than inferred from here. */
   if (!showsOneAnswer(type)) return resolved;
   const bySound = spec.needs.includes("lat");
-  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
   /* Which answer this question is about is the key's to say, not the
      count's: a card accepting two words carries a schedule for each, and
      the one being asked is named in the key that was dealt. Only where
@@ -930,7 +1015,7 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
   if (spec.promptField !== "en" && spec.picks !== "meaning" && spec.picks !== "pair") {
     return resolved;
   }
-  const seen = (resolved.unit.s && resolved.unit.s[type] && resolved.unit.s[type].reps) || 0;
+  const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
   const one = meaningForTurn(resolved.unit, seen);
   /* Nothing to narrow: one meaning, or none written at all — in which case
      this exercise was never offered, and the card is left exactly as it is
@@ -955,10 +1040,11 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
  *
  * Each on its own count, so a word shown in two grids running is not shown
  * the same spelling both times, and the same word narrows the same way
- * wherever it turns up in one asking.
+ * wherever it turns up in one asking. The count is of right answers, as
+ * everywhere else that rotates — see turnOf.
  */
 function oneOf(unit: Form, type: string): Form {
-  const seen = (unit.s && unit.s[type] && unit.s[type].reps) || 0;
+  const seen = turnOf(unit.s && unit.s[type]);
   const answer = answerAt(unit, seen, answerFields());
   const meaning = meaningForTurn(unit, seen);
   const out = answer ? (oneAnswer(unit, answer) as Form) : unit;
@@ -1118,23 +1204,36 @@ const specOf = (key: string) => EX[typeOf(key)];
    Keys rather than types, so a card accepting two words is dealt both and
    counted as having both still to learn. The ladder itself is unchanged:
    it reads a level off a key the same way it read one off a type. */
+/*
+ * Every schedule key this form climbs the ladder with.
+ *
+ * What the card can be asked and the learner has switched on, before the
+ * ladder decides which of it is open. Both openTypes below and the
+ * standing a screen shows are read off this one list, so the levels a
+ * learner is told about are the levels the session is dealt from.
+ *
+ * A cell of a verb's table whose row has not opened is asked nothing at
+ * all. Said here rather than in the scheduler because it is the same kind
+ * of answer the ladder gives, and because everything that matters reads it
+ * through here: what a session may deal, what counts towards how mature a
+ * card is, and therefore how much room there is for anything new. A row
+ * still to come is the card's to reach, not a hole in it.
+ */
+function laddered(it: Form, settings: Settings): string[] {
+  if (isQuiet(it)) return [];
+  return availableTypes(it, langOf(settingsFor(settings, it)))
+    .filter((t) => settings.types[t])
+    .flatMap((t) => keysFor(it, t));
+}
+
 function openTypes(it: Form, settings: Settings): string[] {
   /* The levels are read over everything the card supports and the learner
      has switched on, and only then is the quiet window applied: a
      listening exercise silenced for a quarter of an hour is still a level
      to be climbed, not a gap that lets the one above it open early. */
-  /* A cell of a verb's table whose row has not opened is asked nothing at
-     all. Said here rather than in the scheduler because it is the same
-     kind of answer the ladder gives — which of this unit's exercises are
-     open — and because everything that matters reads it through this one
-     function: what a session may deal, what counts towards how mature a
-     card is, and therefore how much room there is for anything new. A row
-     still to come is the card's to reach, not a hole in it. */
-  if (isQuiet(it)) return [];
-  const supported = availableTypes(it, langOf(settingsFor(settings, it)))
-    .filter((t) => settings.types[t])
-    .flatMap((t) => keysFor(it, t));
-  return openTypesOf(supported, (k) => statesOf(it)[k]).filter((k) => typeAllowedNow(k));
+  return openTypesOf(laddered(it, settings), (k) => statesOf(it)[k]).filter((k) =>
+    typeAllowedNow(k)
+  );
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -1409,6 +1508,23 @@ function buildSession({
       newSeen += 1;
       return newSeen <= room;
     });
+    /*
+     * And a place admitted is a place kept.
+     *
+     * Everything already due ranks together, so the new cards the rule
+     * above just let in were left to take their chance in the shuffle
+     * with every card waiting for review — and the shortlist below is
+     * only as long as the session has room for, so on any day with a
+     * queue behind it they fell off the end. "New cards per session — 3"
+     * then meant three on the days nothing else was waiting, which is
+     * not what a person reading it would think it meant.
+     *
+     * They go to the front instead. Which cards join them is still the
+     * grouping's business, and the order they are asked in is still the
+     * warm-up's: this decides only that they are in the session at all.
+     */
+    const admitted = candidates.filter((c) => c.isNew);
+    if (admitted.length) candidates = admitted.concat(candidates.filter((c) => !c.isNew));
   }
 
   if (!candidates.length) return { exercises: [], reason: "nothing-due" };
@@ -4161,9 +4277,7 @@ export default function ArabicTrainer() {
      for all of them at once, or null for never asked — which is what keeps
      the picker from opening with an answer already marked. It stays on the
      last answer so "Keep going" means more of the same. */
-  const [sessionLang, setSessionLang] = useState<LangId | "" | null>(null);
   /* And whether the question is being put. */
-  const [picking, setPicking] = useState(false);
   /* The version of course material this device last received. Per device
      and per launch, so the first check after opening is always a full one. */
   const materialVersion = useRef("");
@@ -4202,7 +4316,25 @@ export default function ArabicTrainer() {
   const [skipped, setSkipped] = useState(false);
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
-  const [hintOpen, setHintOpen] = useState(false);
+  /*
+   * The hint, and whether it was leant on.
+   *
+   * Three states rather than two: null is "the learner has not said", and
+   * the setting decides — but only once the exercise is known, because a
+   * hint that is the answer said another way is never opened by itself.
+   * Writing the setting in here when the question was set up could not
+   * make that distinction: resetExercise runs alongside the move to the
+   * next question and does not know what that question will be.
+   */
+  const [hintOpen, setHintOpen] = useState<boolean | null>(null);
+  /* And whether it was ever on the screen for this question, which
+     pressing the button says either way: opening puts it up, closing means
+     it was up. Kept apart from hintOpen so that taking a look and then
+     putting it away is still taking a look. */
+  const [hintUsed, setHintUsed] = useState(false);
+  /* And whether it was up at the moment the answer went in, which is the
+     only moment that bears on the mark. */
+  const [hintAtAnswer, setHintAtAnswer] = useState(false);
   /* What the reader has asked to see of a scene they are reading through.
      Two, because they are two different admissions — needing to hear it
      and needing to be told what it means — and a reader often wants one
@@ -4593,7 +4725,11 @@ export default function ArabicTrainer() {
     [deck]
   );
 
-  const drillable = useMemo(
+  /* Everything this device could practise, before the language switch has
+     had its say. What the switch itself is built from: the list of
+     languages to choose between has to be the whole of them, or switching
+     one off would take it out of the list that switched it off. */
+  const drillableAll = useMemo(
     () => items.filter((it) => inDeck(it) && isDrillable(it, settings)),
     [items, settings, inDeck]
   );
@@ -4611,21 +4747,17 @@ export default function ArabicTrainer() {
     [settings]
   );
 
-  const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
-
   /*
    * The languages this person actually has cards in, with how much of each
-   * is ready. More than one and a session has to say which it is, because
-   * an app set to one language and a session drawn from both is what used
-   * to happen: Vietnamese cards marked by Arabic's rules, laid out
-   * right-to-left, and offered exercises Vietnamese does not have.
+   * is ready — which is what the switch at the top of the screen offers,
+   * and why it only appears for somebody learning more than one.
    *
    * Read off the cards rather than off the courses: a card kept after a
    * course ended is still a card in that language.
    */
   const langChoices = useMemo(() => {
     const byLang: Map<LangId, Item[]> = new Map();
-    for (const it of drillable) {
+    for (const it of drillableAll) {
       const id = langIdOf(it, settings);
       byLang.set(id, (byLang.get(id) || []).concat([it]));
     }
@@ -4640,7 +4772,47 @@ export default function ArabicTrainer() {
       .sort((a, b) =>
         a.id === settings.language ? -1 : b.id === settings.language ? 1 : b.ready - a.ready
       );
-  }, [drillable, settings, countReady]);
+  }, [drillableAll, settings, countReady]);
+
+  /*
+   * Which languages are switched off, as the rest of the app should read
+   * it rather than as it happens to be stored.
+   *
+   * Two things are cleaned up here so that nothing downstream has to think
+   * about them. A language switched off and since gone — the last card in
+   * it deleted, a course left — is dropped, so it cannot come back from
+   * the dead and hide a language that reuses its id. And switching off
+   * every language at once is not a state the app has: it would be a
+   * learner staring at an empty app with no clue why, so it reads as none
+   * of them switched off. The switch will not let you do it either; this
+   * is the belt to that pair of braces.
+   */
+  const langsOff: LangId[] = useMemo(() => {
+    const has = new Set(langChoices.map((c) => c.id));
+    const off = ((settings.langsOff as LangId[]) || []).filter((id) => has.has(id));
+    return off.length >= langChoices.length ? [] : off;
+  }, [settings.langsOff, langChoices]);
+
+  /* And the cards that leaves. Everything a learner is shown reads this
+     rather than the whole document: the card list, progress, what is ready
+     to practise, and what a session is dealt from. */
+  const inPlay = useCallback(
+    (it: Item) => !langsOff.includes(langIdOf(it, settings)),
+    [langsOff, settings]
+  );
+  const shown = useMemo(
+    () => (langsOff.length ? items.filter(inPlay) : items),
+    [items, langsOff, inPlay]
+  );
+  const drillable = useMemo(
+    () => (langsOff.length ? drillableAll.filter(inPlay) : drillableAll),
+    [drillableAll, langsOff, inPlay]
+  );
+
+  /* How much is waiting, in the languages that are switched on: the number
+     on the home screen, and what decides whether there is a session to
+     start at all. */
+  const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
 
   /* ---------------- session ---------------- */
 
@@ -4937,15 +5109,18 @@ export default function ArabicTrainer() {
     if (ids.length) warmClips(ids).catch(() => {});
   }
 
-  /**
-   * @param langId  One language, or "" for all of them
-   *   together. Kept for the next session started from here — "Keep going"
-   *   means more of what you were just doing.
+  /*
+   * A session, out of whatever the language switch has left in play.
+   *
+   * It used to ask. A learner with two languages pressing Start got a
+   * screen in the way — this one, both, or not now — every single time,
+   * and the answer held for that session only. The switch at the top of
+   * the screen is the same question asked once and kept, and it answers it
+   * for the card list and progress too, so there is nothing left for a
+   * session to decide.
    */
-  function begin(practice?: boolean, langId: LangId | "" | null = sessionLang) {
-    setSessionLang(langId || "");
-    const pool = langId ? items.filter((it) => langIdOf(it, settings) === langId) : items;
-    const built = buildSession({ items: pool, settings, inDeck, practice });
+  function begin(practice?: boolean) {
+    const built = buildSession({ items: shown, settings, inDeck, practice });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that
@@ -4990,7 +5165,9 @@ export default function ArabicTrainer() {
     setAlsoOpen(false);
     setShowSaid(false);
     setShowMeaning(false);
-    setHintOpen(settings.showHint);
+    setHintOpen(null);
+    setHintUsed(false);
+    setHintAtAnswer(false);
   }
 
   const exercise = session && qi < session.exercises.length ? session.exercises[qi] : null;
@@ -5024,6 +5201,30 @@ export default function ArabicTrainer() {
   const qLang = langOf(qSettings);
   setActiveLang(qLang.id);
   const spec = exercise ? exOf(exercise.type, qLang) : null;
+  /*
+   * Whether the pronunciation or the meaning is beside the question.
+   *
+   * The setting opens it by itself, except where the hint is the answer by
+   * another route: English → {script} with the transliteration up is
+   * {translit} → {script}, which is the level below, and the setting used
+   * to put it there on every question without anything recording that it
+   * had — so a learner with hints on graduated the top of the ladder
+   * having never once written the word from its meaning alone.
+   */
+  const hintAt = spec && spec.hintField && item ? String(item[spec.hintField] || "") : "";
+  const hintShown =
+    !!hintAt && (hintOpen === null ? !!settings.showHint && !spec.hintTells : hintOpen);
+  /* On the screen now, or on it at some point. */
+  const hintTaken = hintShown || hintUsed;
+  /* Whether the answer as marked stands as a right one, before the hint is
+     taken into account. */
+  const answerStands = !!(overridden || (checked && checked.ok && !skipped));
+  /* And the case that costs an answer its good mark: right, but written
+     off a hint that spelt it out. Read off what was on the screen when the
+     answer went in, not what is on it now — the nudge can still be opened
+     afterwards to look at the pronunciation, and looking at it once the
+     question is answered is not leaning on it. */
+  const toldAnswer = !!(spec && spec.hintTells && hintAtAnswer && answerStands);
   /* The phrase this question shows the word in, if it is that sort of
      question. Chosen when the queue was built and named on the exercise, so
      it stays put; looked up again here because only the id travels. */
@@ -5218,7 +5419,9 @@ export default function ArabicTrainer() {
     /* Nor under a grid: every word paired wrong shows its meaning where
        it stands, and the first word's alone would say less. */
     !(spec && spec.picks === "pair");
-  const verdictAlone = answerRight && !answerRepeated;
+  /* A right answer written off the hint has a line under it saying so, so
+     the praise is not the whole of what came back. */
+  const verdictAlone = answerRight && !answerRepeated && !toldAnswer;
 
   useEffect(() => {
     if (exercise && inputRef.current && !checked) inputRef.current.focus();
@@ -5243,6 +5446,9 @@ export default function ArabicTrainer() {
         : checkAnswer(typed, item, exercise.type, qSettings);
     sfx(result.ok ? "correct" : "wrong");
     setPairs(relatedWords(asking, qLang, item.ar));
+    /* Pinned before the verdict, so what the mark reads is what was on the
+       screen while the answer was being written. */
+    setHintAtAnswer(hintTaken);
     setChecked(result);
     // Drop the phone keyboard so the answer and grades are visible.
     if (inputRef.current) inputRef.current.blur();
@@ -5295,6 +5501,7 @@ export default function ArabicTrainer() {
   function giveUp() {
     sfx("warn");
     setPairs(relatedWords(asking, qLang, item ? item.ar : ""));
+    setHintAtAnswer(hintTaken);
     setSkipped(true);
     setChecked({ ok: false, reason: "skipped" });
     if (inputRef.current) inputRef.current.blur();
@@ -5393,7 +5600,18 @@ export default function ArabicTrainer() {
     reportLearning(account);
     // Nothing to grade by hand: the check decides, and a shown answer counts
     // as a miss. "Too strict" is the one way to overturn it.
-    const correct = overridden || (checked && checked.ok && !skipped);
+    /*
+     * Right, but written with the answer on the screen.
+     *
+     * English → {script} with the transliteration up is the question one
+     * level down, so it is marked as that question was nearly answered:
+     * the schedule moves gently, the card is asked again before the
+     * session ends, and the ladder is not climbed on it. The alternative
+     * was what the app did before — count it as knowing the word, and let
+     * a learner with hints switched on graduate writing from the meaning
+     * without ever having done it.
+     */
+    const correct = !toldAnswer && (overridden || (checked && checked.ok && !skipped));
     /* A near miss — right letters, wrong tone; right word, marks missing;
        one letter out — is not the same as drawing a blank, and the schedule
        should not treat it as one. "hard" keeps the card in review with a
@@ -5404,7 +5622,7 @@ export default function ArabicTrainer() {
       !skipped &&
       checked &&
       ["near", "harakat", "missing"].includes(checked.reason);
-    const rating = correct ? "good" : near ? "hard" : "again";
+    const rating = correct ? "good" : near || toldAnswer ? "hard" : "again";
     /*
      * What is marked, and how. One question marks one form — except the
      * grid, where every word up is a question of its own and is marked on
@@ -5469,6 +5687,11 @@ export default function ArabicTrainer() {
           s.reps += 1;
         }
         if (skipped) s.skips = (s.skips || 0) + 1;
+        /* Counted wherever a hint is offered, not only where taking it
+           costs the mark: "answered right" and "answered right with the
+           pronunciation on the screen" are two different numbers, and only
+           one of them was being kept. */
+        if (hintAtAnswer) s.hints = (s.hints || 0) + 1;
         if (checked && !checked.ok && checked.reason === "near") s.near = (s.near || 0) + 1;
         if (checked && !checked.ok && (checked.reason === "harakat" || checked.reason === "missing")) {
           s.near = (s.near || 0) + 1;
@@ -5915,11 +6138,8 @@ Cards ready to practice
                   </Help>
 
                   <div className="at-row">
-                    {/* One language and the button starts a session, as it
-                        always did. Two and it asks first: which pile this
-                        is, or both at once. */}
                     <Button variant="primary"
-                      onClick={() => (langChoices.length > 1 ? setPicking(true) : begin(false, ""))}
+                      onClick={() => begin(false)}
                       disabled={!readyCount}
                     >
                       Start session
@@ -6154,7 +6374,7 @@ Cards ready to practice
                     )}
                   </div>
 
-                  {hintOpen && item[spec.hintField] && (
+                  {hintShown && item[spec.hintField] && (
                     <div className="at-hintvalue" data-el="hint-value">
                       <Field
                         value={item[spec.hintField]}
@@ -6306,6 +6526,18 @@ Cards ready to practice
                       </p>
                       {!skipped && !checked.ok && checked.reason !== "wrong" && (
                         <Help data-el="verdict-reason">{verdictText(checked, qLang)}</Help>
+                      )}
+                      {/* Said rather than done quietly: the answer was
+                          right and the spelling is theirs, but the word
+                          was on the screen in another alphabet while they
+                          wrote it, so it is marked the way a near miss is
+                          and comes round again. A learner who is told that
+                          can close the nudge next time. */}
+                      {toldAnswer && (
+                        <Help data-el="verdict-hinted">
+                          Right — but the {String(qLang.translitLabel || "hint").toLowerCase()} was on
+                          screen, so this one counts as a near miss and comes round again.
+                        </Help>
                       )}
                       {/* A right answer is already on screen in the box above,
                           so repeating it says nothing. It is shown when the
@@ -6482,11 +6714,17 @@ Cards ready to practice
                                answering yet — and a filled button next to a
                                ghost one read as the louder of the pair. */
                             ghost
-                            label={hintOpen ? spec.hintHideLabel : spec.hintLabel}
-                            className={`at-hintbtn${hintOpen ? " on" : ""}`}
+                            label={hintShown ? spec.hintHideLabel : spec.hintLabel}
+                            className={`at-hintbtn${hintShown ? " on" : ""}`}
                             data-el="hint-button"
-                            aria-pressed={hintOpen}
-                            onClick={() => setHintOpen((v) => !v)}
+                            aria-pressed={hintShown}
+                            /* Either way round, the hint has been on the
+                               screen: opening puts it there, closing means
+                               it was there. */
+                            onClick={() => {
+                              setHintUsed(true);
+                              setHintOpen(!hintShown);
+                            }}
                           />
                         )}
                         {!spec.intro && (
@@ -6545,7 +6783,7 @@ Cards ready to practice
         {/* ============ ITEMS ============ */}
         {tab === "items" && (
           <ItemsTab
-            items={items}
+            items={shown}
             allTags={allTags}
             data={data}
             settings={settings}
@@ -6567,22 +6805,14 @@ Cards ready to practice
 
         {/* ============ PROGRESS ============ */}
         {tab === "progress" && (
-          <ProgressTab
-            data={data}
-            items={items}
-            myCourses={myCourses}
-            settings={settings}
-            onPractice={(ids, mode) =>
-              beginManual({ ids, mode, count: settings.sessionSize })
-            }
-          />
+          <ProgressTab items={shown} myCourses={myCourses} settings={settings} />
         )}
 
         {/* ============ SETTINGS ============ */}
 
         {building && (
           <ManualSessionSheet
-            items={items}
+            items={shown}
             allTags={allTags}
             settings={settings}
             onStart={beginManual}
@@ -6601,19 +6831,6 @@ Cards ready to practice
             }}
             onDelete={dropSession}
             onClose={() => setShowingSaved(false)}
-          />
-        )}
-
-        {picking && (
-          <SessionLanguages
-            choices={langChoices}
-            ready={readyCount}
-            chosen={sessionLang}
-            onPick={(id) => {
-              setPicking(false);
-              begin(false, id);
-            }}
-            onClose={() => setPicking(false)}
           />
         )}
 
@@ -6758,19 +6975,32 @@ Cards ready to practice
       {!inExercise && (
         <>
           <div className="at-brand">Taleb33</div>
-          <SpaceSwitch
-            space={space}
-            spaces={["learn"]
-              .concat(teaches || (account && account.admin) ? ["teach"] : [])
-              .concat(account && account.admin ? ["admin"] : [])}
-            /* Choosing a space is arriving at it, not resuming it: the
-               card a trial was asked about is reopened on the way back
-               from that one question and nowhere else. */
-            onSpace={(to: string) => {
-              setTrialBack(null);
-              setSpace(to);
-            }}
-          />
+          {/* The switch and the space tabs share a bar, so they sit beside
+              each other however many of either there are — the tabs are
+              not there at all for somebody who only learns, and the switch
+              is not there for somebody learning one language. */}
+          <div className="at-chromebar">
+            {space === "learn" && (
+              <LanguageSwitch
+                choices={langChoices}
+                off={langsOff}
+                onChange={(next) => setSetting("langsOff", next)}
+              />
+            )}
+            <SpaceSwitch
+              space={space}
+              spaces={["learn"]
+                .concat(teaches || (account && account.admin) ? ["teach"] : [])
+                .concat(account && account.admin ? ["admin"] : [])}
+              /* Choosing a space is arriving at it, not resuming it: the
+                 card a trial was asked about is reopened on the way back
+                 from that one question and nowhere else. */
+              onSpace={(to: string) => {
+                setTrialBack(null);
+                setSpace(to);
+              }}
+            />
+          </div>
           <CornerMenu
             account={account}
             /* The dot stands for the whole action, so it stays lit until
@@ -6802,9 +7032,58 @@ Cards ready to practice
    one per tab. The card is looked up again by id, so a screen left open
    shows what was last synced rather than the copy its tile was drawn
    from. */
-function CardScreen({ card, items, onBack, action }: {
+/*
+ * The ladder, for one card.
+ *
+ * The one screen that answers "why am I not being asked to write this
+ * yet?" — which the app had never answered anywhere, so a learner whose
+ * writing had quietly closed after a slip had nothing to read at all.
+ *
+ * A level the card has no material for is not a row: a scene has nothing
+ * on the second or the fourth, and a word with no recording and no phrase
+ * may have nothing on the third. The ladder passes those straight through,
+ * so listing them would be listing work that does not exist.
+ */
+function CardLadder({ card, settings }: { card: Item; settings: Settings }) {
+  const levels = cardStandings(card, settings);
+  const at = standing(levels);
+  if (!levels.length || !at) return null;
+  return (
+    <Section title="Progress" lede={standingLabel(at)}>
+      <div className="at-ladder">
+        {levels.map((row) => (
+          <div className={`at-ladderrow${row.level === at.level ? " on" : ""}`} key={row.level}>
+            <span className="num" style={{ color: LEVEL_COLOR[row.level] }}>
+              {row.level}
+            </span>
+            <span className="nm">{LEVEL_NAME[row.level] || `Level ${row.level}`}</span>
+            <span className="st" style={{ color: STATUS_COLOR[row.status] }}>
+              {STATUS_LABEL[row.status] || row.status}
+            </span>
+            {/* The count only where it means something: on the level being
+                worked on, where it says how much of what has to hold for
+                the next one to open does. */}
+            <span className="ct">
+              {row.level === at.level && row.status !== "done" ? `${row.done} of ${row.of}` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+      <Help>
+        {at.status === "paused"
+          ? "A word you have slipped on closes the levels above it. Nothing is lost — this opens again as soon as the level under it is back."
+          : at.status === "done"
+          ? "Every level is done. The card still comes back, just further and further apart."
+          : "A level opens once everything under it is through the learning steps and back in review. The last one waits longer: everything under it has to hold for four days."}
+      </Help>
+    </Section>
+  );
+}
+
+function CardScreen({ card, items, settings, onBack, action }: {
   card: Item;
   items: Item[];
+  settings: Settings;
   onBack: () => void;
   action?: Node;
 }) {
@@ -6832,6 +7111,7 @@ function CardScreen({ card, items, onBack, action }: {
         whereItLives={false}
       />
 
+      <CardLadder card={live} settings={settings} />
     </Screen>
   );
 }
@@ -7041,6 +7321,7 @@ function ItemsTab({
         <CardScreen
           card={sheet.view}
           items={items}
+          settings={settings}
           onBack={() => setSheet(null)}
           action={
             OWN && !sheet.view.locked ? (
@@ -8212,49 +8493,6 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    languages together is a row like the others rather than a switch beside
    them: it is another way to practice, not a modifier on the choice above.
    ------------------------------------------------------------------ */
-function SessionLanguages({ choices, ready, chosen, onPick, onClose }: {
-  choices: { id: LangId, name: string, ready: number, total: number }[];
-  ready: number;
-  chosen: LangId | "" | null;
-  onPick: (id: LangId | "") => void;
-  onClose: () => void;
-}) {
-  const waiting = (n: number) => (n ? `${plural(n, "card")} ready` : "nothing ready just now");
-  return (
-    <Screen title="Which language?" onBack={onClose} rise backLabel="Not now">
-      <Help>
-        You're studying more than one. Pick the one to practice, or take them
-        all in one session.
-      </Help>
-      <div className="at-cklist">
-        {choices.map((c) => (
-          <button
-            key={c.id}
-            className={`at-ck${chosen === c.id ? " on" : ""}`}
-            disabled={!c.ready}
-            onClick={() => onPick(c.id)}
-          >
-            <span className="at-cktext">
-              <b>{c.name}</b>
-              <i>{waiting(c.ready)}</i>
-            </span>
-          </button>
-        ))}
-        <button
-          className={`at-ck${chosen === "" ? " on" : ""}`}
-          disabled={!ready}
-          onClick={() => onPick("")}
-        >
-          <span className="at-cktext">
-            <b>All languages</b>
-            <i>{waiting(ready)}, mixed together</i>
-          </span>
-        </button>
-      </div>
-    </Screen>
-  );
-}
-
 /* ------------------------------------------------------------------
    Full-screen: build a session by hand
    ------------------------------------------------------------------ */
@@ -9053,218 +9291,66 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
    Progress tab
    ================================================================== */
 
-/* How far along a whole family is: the mean across every form and every
-   exercise type it supports. 1 means every one of them is mature. */
-function itemProgress(it: Item) {
-  const vals: number[] = [];
-  for (const { unit } of unitsOf(it)) {
-    for (const t of availableTypes(unit)) {
-      const st = statesOf(unit)[t];
-      if (st.phase === "new") vals.push(0);
-      else if (st.phase === "review") vals.push(Math.min(1, (st.interval || 0) / MATURE_DAYS));
-      else vals.push(0.15);
-    }
-  }
-  if (!vals.length) return null; // nothing drillable yet
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
-}
+/*
+ * How far along a card is: which level it is on and how it is going there.
+ *
+ * This used to be a fraction — the mean over every exercise of its interval
+ * against three weeks — drawn as a bar under each card and averaged again
+ * for each deck. It was a number nobody could act on: a card the app had
+ * two levels up and was asking to be written read as a third learnt,
+ * because eight of its eleven exercises had only just opened, and it moved
+ * when nothing the learner had done changed. The level is the thing they
+ * are climbing, so it is the thing shown, and the bars have gone with the
+ * deck sections that carried them.
+ */
+const standingOf = (it: Item, settings: Settings): Standing | null =>
+  standing(cardStandings(it, settings));
 
-/* A tile here shows how far along a card is, which is exactly the moment
-   you want to look at the card itself — so it opens, like every other
-   small card in the app. A real button rather than a div with a click on
-   it: it has nothing interactive inside it, so it can be the one thing
-   you press, and reach with a keyboard. */
-function ItemProgressCard({ item, progress, onOpen }: { item: Item; progress?: any; onOpen?: () => void }) {
-  const p = progress === undefined ? itemProgress(item) : progress;
-  const done = p !== null && p >= 1;
-  const pctLabel = p === null ? "—" : `${Math.round(p * 100)}%`;
-
-  return (
-    <button
-      type="button"
-      className={`at-pcard${done ? " done" : ""}${p === null ? " idle" : ""}`}
-      onClick={onOpen}
-    >
-      <div className="at-pcardtop">
-        {item.ar && (
-          <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-            {item.ar}
-          </span>
-        )}
-        {item.en && <span className="en">{item.en}</span>}
-      </div>
-      <div className="at-pbar">
-        <i style={{ width: `${p === null ? 0 : Math.max(3, p * 100)}%` }} />
-      </div>
-      <div className="at-pcardfoot">
-        <span>{p === null ? "Can't practice yet" : done ? "Learnt" : pctLabel}</span>
-        {(item.subs || []).length > 0 && <span>⌥ {(item.subs || []).length + 1}</span>}
-      </div>
-    </button>
-  );
-}
-
-/* Progress per card is worked out once per change of the cards, in the tab,
-   and handed down — not once per section and again per tile on every
-   render. */
-const TagSection = React.memo(
-  function TagSection({
-    name,
-    items: group,
-    open,
-    onToggle,
-    onPractice,
-    progressOf,
-    onOpen,
-  }: {
-    name: string;
-    items: Item[];
-    open: boolean;
-    onToggle: () => void;
-    onPractice: (ids: string[], mode: string) => void;
-    progressOf: Map<string, number | null>;
-    onOpen: (it: Item) => void;
-  }) {
-    const [arming, setArming] = useState(false);
-    const scored = group
-      .map((it) => progressOf.get(it.id))
-      .filter((x): x is number => x != null);
-    const mean = scored.length ? scored.reduce((a, b) => a + b, 0) / scored.length : 0;
-    const done = scored.filter((x) => x >= 1).length;
-
-    return (
-      <div className="at-tagsec">
-        <div className="at-tagsecbar">
-          <span className="nm">{name}</span>
-          <button
-            className={`at-btn sm${arming ? " primary" : " ghost"}`}
-            onClick={() => setArming((v) => !v)}
-          >
-            <Icon name={arming ? "close" : "cards"} size={16} />
-            {arming ? "Cancel" : "Practice"}
-          </button>
-          <span className="ct">
-            {done}/{group.length} learnt
-          </span>
-          <button
-            className="at-icon at-chev"
-            onClick={onToggle}
-            aria-expanded={open}
-            aria-label={open ? `Hide ${name}` : `Show ${name}`}
-            title={open ? "Hide cards" : "Show cards"}
-          >
-            <Icon name={open ? "chevronUp" : "chevronDown"} size={18} />
-          </button>
-        </div>
-
-        {arming && (
-          <div className="at-modepick">
-            <p className="at-miniq">
-              How should these {plural(group.length, "card")} be practiced?
-            </p>
-            {Object.entries(MODES).map(([key, m]) => (
-              <button
-                key={key}
-                className="at-modepickopt"
-                onClick={() => {
-                  setArming(false);
-                  onPractice(group.map((i) => i.id), key);
-                }}
-              >
-                <b>{m.label}</b>
-                <span>{m.blurb}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="at-pbar lg">
-          <i
-            className={done === group.length && group.length ? "full" : ""}
-            style={{ width: `${Math.max(2, mean * 100)}%` }}
-          />
-        </div>
-        {open && (
-          <div className="at-pgrid">
-            {group.map((it) => (
-              <ItemProgressCard
-                item={it}
-                key={it.id}
-                progress={progressOf.get(it.id)}
-                onOpen={() => onOpen(it)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
-);
-
-function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
-  data: any;
+function ProgressTab({ items, myCourses = [], settings }: {
   items: Item[];
   myCourses?: Course[];
   settings: Settings;
-  onPractice: (ids: string[], mode: string) => void;
 }) {
-  // Collapsed by default: the point of this screen is the overview.
-  const [open, setOpen] = useState(() => new Set());
   const [viewing, setViewing] = useState<any | null>(null);
 
   const progressOf = useMemo(() => {
-    const m: Map<string, number | null> = new Map();
-    for (const it of items) m.set(it.id, itemProgress(it));
+    const m: Map<string, Standing | null> = new Map();
+    for (const it of items) m.set(it.id, standingOf(it, settings));
     return m;
-  }, [items]);
+  }, [items, settings]);
 
-  const buckets = ["new", "learning", "young", "mature"];
+  /* One tile per level, and one for the cards with nothing above them left
+     to open. A card counts under the level it is on — see `standing` — so
+     the tiles are a picture of where the deck actually is, rather than of
+     how long its intervals happen to be. */
+  const buckets = ["l1", "l2", "l3", "l4", "done"];
   /* The cards behind each number, worked out once with the numbers
      themselves: a tile opens to show them, and counting them twice — once
      to say four hundred and once to list them — is a walk of every card
      for nothing. */
   const byBucket = useMemo(() => {
-    const out: Record<string, Item[]> = { all: items, new: [], learning: [], young: [], mature: [] };
-    for (const it of items) (out[familyMaturity(it)] || []).push(it);
+    const out: Record<string, Item[]> = { all: items, l1: [], l2: [], l3: [], l4: [], done: [] };
+    for (const it of items) {
+      const at = progressOf.get(it.id);
+      /* A card with nothing it can be asked yet — no meaning, or every
+         exercise switched off — belongs to no level and is left out of
+         all five, the way it always was left out of the four before. */
+      if (!at) continue;
+      (out[at.status === "done" ? "done" : `l${at.level}`] || []).push(it);
+    }
     return out;
-  }, [items]);
-  /* Which tile is open, or none. One at a time: they are five views of the
+  }, [items, progressOf]);
+  /* Which tile is open, or none. One at a time: they are six views of the
      same cards, and two open at once is a screen you have to scroll past
      rather than read. */
   const [showing, setShowing] = useState<string>("");
 
-  /* A card shows up under each of its decks, and once under "Not in a deck" if
-     it has none. */
-  const groups = useMemo(() => {
-    const byTag = new Map();
-    const untagged = [];
-    for (const it of items) {
-      if (!it.tags.length) {
-        untagged.push(it);
-        continue;
-      }
-      for (const t of it.tags) {
-        if (!byTag.has(t)) byTag.set(t, []);
-        byTag.get(t).push(it);
-      }
-    }
-    const out = [...byTag.entries()]
-      .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
-      .map(([name, group]) => ({ name, group }));
-    if (untagged.length) out.push({ name: "Not in a deck", group: untagged });
-    return out;
-  }, [items]);
-
-  const toggle = (name: string) =>
-    setOpen((prev) => {
-      const next = new Set(prev);
-      next.has(name) ? next.delete(name) : next.add(name);
-      return next;
-    });
-
   return (
     <>
       <Help>
-        How well you know each deck. Open one to see its cards.
+        Where your cards are on the ladder. A card climbs four levels — what it means, which word
+        it is, writing it from a cue, then writing it from its meaning alone — and moves up when
+        everything under it is solid. Open a tile to see which cards are there.
       </Help>
 
       {/* A number you want to see the cards behind is a number worth
@@ -9272,7 +9358,13 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
           nothing interactive inside a tile, so it can be the one thing you
           press and the one thing a keyboard reaches. */}
       <div className="at-stats tight">
-        {[{ key: "all", label: "Cards" }, ...buckets.map((b) => ({ key: b, label: MATURITY_LABEL[b] }))].map(
+        {[
+          { key: "all", label: "Cards" },
+          ...buckets.map((b) => ({
+            key: b,
+            label: b === "done" ? "Learnt" : `Level ${b.slice(1)}`,
+          })),
+        ].map(
           ({ key, label }) => (
             <button
               type="button"
@@ -9285,7 +9377,16 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
               disabled={!byBucket[key].length}
               onClick={() => setShowing((v) => (v === key ? "" : key))}
             >
-              <b style={{ color: key === "all" || key === "new" ? "var(--text)" : MATURITY_COLOR[key] }}>
+              <b
+                style={{
+                  color:
+                    key === "all"
+                      ? "var(--text)"
+                      : key === "done"
+                      ? "var(--jade)"
+                      : LEVEL_COLOR[Number(key.slice(1))],
+                }}
+              >
                 {byBucket[key].length}
               </b>
               <span>{label}</span>
@@ -9296,7 +9397,14 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
 
       {/* The cards behind the tile that is open, at the smallest size they
           come in — the point is to see which words are in there, and the
-          list is as long as the number on the tile said it would be. */}
+          list is as long as the number on the tile said it would be.
+
+          This is the whole of the screen below the tiles now. It used to
+          be followed by every deck as a collapsible section, each with its
+          own bar and its own copy of every card in it, so a card appeared
+          once per deck it was in and again under whichever tile was open.
+          Three views of the same cards, and the tiles are the one that
+          answers the question this screen is for. */}
       {showing && byBucket[showing].length > 0 && (
         <ItemList
           noun="card"
@@ -9304,6 +9412,16 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
           itemKey={(it: Item) => it.id}
           size="small"
           empty="No cards match."
+          /* Under a level, the cards are told apart by how they are going
+             on it — see STATUS_RUNS. Under "Cards" they are spread over
+             every level and there is nothing one run would mean, and
+             under "Learnt" they are all in the one state, which the list
+             notices for itself and draws without headings. */
+          groups={/^l\d$/.test(showing) ? STATUS_RUNS : undefined}
+          groupOf={(it: Item) => {
+            const at = progressOf.get(it.id);
+            return at ? at.status : "none";
+          }}
           match={(it: Item, needle: string) =>
             (it.ar || "").includes(needle) ||
             (it.lat || "").toLowerCase().includes(needle) ||
@@ -9313,31 +9431,29 @@ function ProgressTab({ data, items, myCourses = [], settings, onPractice }: {
             <CardTile
               card={it}
               lang={langOf(settingsFor(settings, it))}
+              /* Which level it is on, but only under "Cards". That is the
+                 one tile whose list is every card at once, so it is the
+                 one where a card's level is not already the answer to
+                 which tile you pressed — and under a level the headings
+                 say how it is going there as well. */
+              meta={showing === "all" ? standingShort(progressOf.get(it.id) || null) : undefined}
               onClick={() => setViewing(it)}
             />
           )}
         />
       )}
 
-      {items.length === 0 ? (
+      {items.length === 0 && (
         <Empty title="Nothing to show yet">{noCardsYet(myCourses.length)}</Empty>
-      ) : (
-        groups.map(({ name, group }) => (
-          <TagSection
-            key={name}
-            name={name}
-            items={group}
-            open={open.has(name)}
-            onToggle={() => toggle(name)}
-            onPractice={onPractice}
-            progressOf={progressOf}
-            onOpen={setViewing}
-          />
-        ))
       )}
 
       {viewing && (
-        <CardScreen card={viewing} items={items} onBack={() => setViewing(null)} />
+        <CardScreen
+          card={viewing}
+          items={items}
+          settings={settings}
+          onBack={() => setViewing(null)}
+        />
       )}
     </>
   );
@@ -9593,6 +9709,135 @@ const SPACE_ICON: Record<string, string> = { learn: "cards", teach: "school", ad
    A row rather than a dropdown: there are at most three, and moving this out
    of the menu was about reaching them in one tap. Shown only to people with
    somewhere to go — a student who only studies sees nothing. */
+/* The two letters a language is known by, off the front of its id, which
+   is where its ISO code is: ar-PS is AR, vi-Hue is VI. Enough to say which
+   one is on when only one is, in the room a button has. */
+const langTag = (id: LangId) => String(id || "").split("-")[0].toUpperCase();
+
+/*
+ * Which of the languages you are learning are in play.
+ *
+ * Only for somebody learning more than one — one language needs no switch,
+ * and an app that showed one anyway would be asking a question with a
+ * single answer. What it decides holds everywhere in the learning space:
+ * the cards you can list, what Progress counts, what is ready, and what a
+ * session is dealt from.
+ *
+ * The button is an icon and a mark, because it lives in the chrome beside
+ * the space switcher where there is room for nothing else — and the mark
+ * is the whole of the state rather than a decoration: which one, when it
+ * is one; how many, when it is some; that there is nothing to say, when it
+ * is all of them. The rest is in the label a screen reader and a tooltip
+ * both get.
+ *
+ * You cannot switch the last one off. An app with no languages in it is a
+ * blank screen with no way of telling why, and the row says so rather than
+ * just refusing.
+ */
+function LanguageSwitch({ choices, off, onChange }: {
+  choices: { id: LangId; name: string; ready: number; total: number }[];
+  off: LangId[];
+  onChange: (off: LangId[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const mine: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
+
+  /*
+   * Anywhere outside puts it away, and "outside" is asked of the click
+   * rather than of who saw it.
+   *
+   * On the way down rather than on the way up, and reading the target
+   * rather than relying on the event reaching the window at all: the
+   * corner menu beside this one stops clicks inside itself from
+   * travelling, so a menu that waited for one to arrive stayed open behind
+   * it and the two sat over each other in the corner. Ticking a language
+   * keeps this open, which is what the check on `mine` is for — you are
+   * usually ticking more than one.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      const at = e.target;
+      if (mine.current && at instanceof Node && mine.current.contains(at)) return;
+      setOpen(false);
+    };
+    document.addEventListener("click", close, true);
+    return () => document.removeEventListener("click", close, true);
+  }, [open]);
+
+  /* After the hooks, which have to run on every render. */
+  if (!choices || choices.length < 2) return null;
+
+  const on = choices.filter((c) => !off.includes(c.id));
+  const all = on.length === choices.length;
+  const only = on.length === 1;
+  const mark = all ? "All" : only ? langTag(on[0].id) : String(on.length);
+  const said = all
+    ? `all ${choices.length}`
+    : only
+    ? `${on[0].name} only`
+    : `${on.length} of ${choices.length}`;
+
+  const toggle = (id: LangId) => {
+    const isOff = off.includes(id);
+    if (!isOff && only) return; // the last one on stays on
+    onChange(isOff ? off.filter((x) => x !== id) : off.concat([id]));
+  };
+
+  return (
+    <div className="at-langsw" ref={mine}>
+      <button
+        className={`at-langbtn${all ? "" : " on"}`}
+        aria-expanded={open}
+        aria-label={`Languages — ${said}. Choose which.`}
+        title={`Languages — ${said}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="language" size={18} />
+        <span className="at-langmark">{mark}</span>
+      </button>
+
+      {open && (
+        <div className="at-langmenu">
+          <p className="at-eyebrow">Languages</p>
+          <div className="at-cklist">
+            {choices.map((c) => {
+              const chosen = !off.includes(c.id);
+              const stuck = chosen && only;
+              return (
+                <button
+                  key={c.id}
+                  className={`at-ck${chosen ? " on" : ""}`}
+                  role="checkbox"
+                  aria-checked={chosen}
+                  /* Not disabled: a button that cannot be pressed says
+                     nothing about why. It is pressable, it holds, and the
+                     line under it says so. */
+                  onClick={() => toggle(c.id)}
+                >
+                  <span className="at-ckbox">{chosen ? "✓" : ""}</span>
+                  <span className="at-cktext">
+                    <b>{c.name}</b>
+                    <i>
+                      {stuck
+                        ? "the only one on"
+                        : `${plural(c.total, "card")}${c.ready ? `, ${c.ready} ready` : ""}`}
+                    </i>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Help>
+            What you switch off here is out of the whole of Learning — your cards, your progress
+            and anything you practise — until you switch it back on.
+          </Help>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SpaceSwitch({ space, spaces, onSpace }: {
   space: string;
   spaces: string[];
@@ -10215,6 +10460,11 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
             value={!!settings.showHint}
             onChange={(v) => setSetting("showHint", v)}
           />
+          <Help>
+            On the two questions that ask you to write the word from its meaning, the nudge is
+            that word spelled out another way — so it stays closed until you ask for it, and an
+            answer written with it open counts as a near miss.
+          </Help>
         </FormField>
       </Section>
 
@@ -10279,9 +10529,11 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
               <>
                 A→E is recognition, T→A production from sound, E→A production from meaning, and
                 the L→ types drill the same things by ear. A card climbs them: it is read on its
-                own first, joins a matching grid once it is through the learning steps, and the
-                harder types open only once everything below them is mastered — four days of
-                interval, in review. Turning types off can drop items below the two-type minimum.
+                own first, then told apart from other words, then written from a cue — each of
+                those opening once what is under it is through the learning steps and in review.
+                Writing it from its meaning alone waits longer: everything under that has to be
+                mastered, which is four days of interval, in review. Turning types off can drop
+                items below the two-type minimum.
               </>
             )}
           </Help>

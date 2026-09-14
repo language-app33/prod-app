@@ -29,8 +29,26 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   with an interval of at least four days — so the strict bar stands where
   writing from memory begins. A level a card has no material for is passed
   straight through. A lapse below closes the levels above until it is
-  recovered. Each exercise declares its own level and bar in
-  `src/languages.ts`; `openTypes` in the scheduler reads them.
+  recovered. Each exercise declares its own level in `src/languages.ts`
+  and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
+  the scheduler reads both.
+
+  Two questions ask for the word in the script and offer its
+  transliteration as a nudge — *English → script* and *fill the gap*. On
+  those the nudge is the answer said another way, so it is never opened by
+  itself and an answer written with it up is marked as a near miss:
+  `hintTells` in `src/languages.ts`.
+
+  **The same ladder is what a learner is shown.** `standings` in the
+  scheduler reads a card as one row per level it has material on, each
+  *not started*, *learning*, *done* or *paused* — paused being a level
+  that had opened and has been shut again by a slip further down, which is
+  the one thing about the ladder nobody could otherwise make sense of. A
+  level is *done* exactly when `openTypes` opens the one above it, so the
+  screen and the scheduler cannot come to disagree; a test walks every
+  combination to hold them together. `standing` picks the one row to put
+  on a card. The Progress tab counts cards by level, and a card's own
+  screen lists them.
 - **New cards are introduced only while there is room.** Beyond the
   per-session limit in the settings, nothing new is dealt while ten cards
   are already being learnt or forty are young and still coming back for
@@ -52,6 +70,22 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already
   carries. See `src/verbs.ts`.
+- **A learner studying more than one language says which are in play.** A
+  switch at the top of Learning, beside the space tabs, lists the languages
+  they have cards in and holds the ones switched off in
+  `settings.langsOff` — the ones *off*, so a language that arrives later is
+  in play by default. Everything the learner is shown reads the cards it
+  leaves: the card list, Progress, what is ready, and what a session is
+  dealt from. It appears only where there is a choice to make, and the last
+  language on cannot be switched off.
+- **What varies between askings turns on a right answer.** Which values
+  fill a card's holes, which phrase it is shown in, which of its accepted
+  spellings is put up and which of its meanings is asked about are all
+  rotated rather than drawn, so a card with three of something is met as
+  all three before any of them twice. The count is of right answers —
+  `turnOf` in the scheduler — so a question that was missed is the one
+  asked again, rather than the miss itself turning up a sentence nobody
+  has been taught.
 - **A matching grid is five questions.** Every word in it is asked, marked
   and scheduled in its own right. Which words stand together is decided
   when the session is built: the grid is filled out from cards already
