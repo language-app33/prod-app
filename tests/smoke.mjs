@@ -3189,6 +3189,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       ([...document.querySelectorAll(".at-formneed.unmet")]
         .map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
 
+    /* A verb is not offered a form outside its table. The offer used to be
+       a quieter-worded button that revealed a block which was not there —
+       it could only ever show while there was nothing to show — and then
+       turned into the "Add a form" it stood in for. */
+    const addForm = () => /** @type {any} */ ([...document.querySelectorAll("button")]
+      .find((b) => /^Another way to say it$|^Add a form$/.test((b.textContent || "").trim())) || null);
+    check("a verb is offered no form outside its table", !addForm(),
+      addForm() ? `still offered: "${(addForm().textContent || "").trim()}"` : "no such button");
+
     /* Untick, and the word the block was holding is still there — putting
        the table away must not read as having thrown the card away. */
     click(tick && tick.querySelector("input"));
@@ -3197,6 +3206,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("unticking brings the block back with the word still in it",
       !!block(/^Form 1$|^The verb$/) && !!back && back.value === "akal",
       back ? `"${back.value}"` : "no field");
+    check("and an ordinary card is still offered another form", !!addForm(),
+      addForm() ? (addForm().textContent || "").trim() : "no button");
+
+    /* A form the card already carries is shown whatever kind of card it is
+       called: it is saved either way, so hiding it would read as having
+       lost it. This is what the reveal got wrong — a card given a second
+       form as a word, then called a verb, had that form disappear. */
+    click(addForm());
+    await sleep(250);
+    check("a second form can be added to the word", !!block(/^Form 2$/),
+      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+    click(tick && tick.querySelector("input"));
+    await sleep(300);
+    check("and calling it a verb does not hide the form it already has",
+      !!block(/^Form 2$/),
+      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
   }
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));

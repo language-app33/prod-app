@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.115 — 14 September 2026
+
+- **A verb is no longer offered a form outside its table.** The verb editor
+  carried a quietly-worded **Another way to say it** button where an
+  ordinary card is offered "Add a form" — on the grounds that a verb might
+  genuinely have a second spelling. Two things were wrong with it. A
+  spelling is an accepted answer, written beside the one it is an
+  alternative to, and never a form of its own; and a form added here is one
+  nothing knows the person or tense of, so it is never gated by its row and
+  never agrees with a sentence — exactly the mistake the quieter wording
+  was meant to head off. The button is gone. A verb's forms are its table.
+
+- **And pressing it did nothing.** It revealed a section rather than making
+  one, and it could only ever be on screen while there was nothing to
+  reveal — so the first press changed nothing at all and simply turned the
+  button into the "Add a form" it was standing in for.
+
+- **A form a card already has is no longer hidden when it is called a
+  verb.** Give a word a second form, then tick "This is a verb", and the
+  form vanished from the screen while still being saved with the card — so
+  the card carried something its own editor would not show. Everything the
+  card holds is on screen, whichever kind of card it is called.
+
 ## 0.114 — 14 September 2026
 
 - **Writing an Arabic or Hebrew verb no longer asks for the same word

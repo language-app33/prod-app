@@ -4112,12 +4112,6 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   const cite = verbMode ? citationOf(verbSpec) : null;
   const citedAt = cite ? cells.find((c) => c.row === cite.row && c.col === cite.col) || null : null;
   const standsIn = !!cite;
-  /* Whether this card's other forms are on show. Put away on a verb,
-     where the table is what a teacher came to fill in — but only where
-     there is nothing to put away: a card that already carries a second
-     spelling opens showing it, because a form that vanished when the card
-     was called a verb would read as one that had been thrown away. */
-  const [moreForms, setMoreForms] = useState(() => forms.length > 1);
   /* Which cell of the table has the recording screen open, by where it
      sits rather than by its place in the list: the list is rewritten
      whenever a cell is typed into, so an index would point at a different
@@ -4559,18 +4553,20 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </>
           )}
 
-          {/* The extra forms, on a verb, are put away rather than removed.
-              A verb may genuinely have a second spelling, so the door has
-              to stay open — but a teacher who wants the past tense and
-              sees "Add a form" will use it, and a conjugated form written
-              there sits outside the table: nothing knows which person or
-              tense it is, so it is never gated by its row and never
-              agrees with a sentence. Hiding the invitation is the whole
-              fix; a card that already carries extra forms shows them, or
-              putting them away would read as having lost them. */}
+          {/* On a verb, a form outside the table is a form nothing knows
+              the person or tense of: it is never gated by its row and
+              never agrees with a sentence, and a teacher who wants the
+              past tense and is offered "Add a form" will use it for one.
+              So a verb is not offered one — see the button below.
+
+              Shown, though, wherever one exists. This used to be put away
+              behind a reveal, which made the button a teacher pressed do
+              nothing at all: it could only ever be showing while there was
+              nothing to show, because a card that already had extra forms
+              opened with them out. Hiding a form the card carries would
+              also read as having lost it, and it is still saved. */}
           {!scene && forms.map((f, i) => (
             i === 0 && standsIn ? null :
-            i > 0 && verbMode && !moreForms ? null :
             <div className={`at-formblock${i === 0 ? " main" : ""}`} key={i}>
               <div className="at-formhead">
                 <span className="at-formnum">
@@ -4594,18 +4590,14 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       be wrong for it, and a wrong recording is worse than a
                       missing one. */}
                   <Button variant="ghost" size="sm"
-                    onClick={() => {
-                      /* And show them, where they were put away: a copy
-                         made into a section that is not on screen is a
-                         button that does nothing. */
-                      setMoreForms(true);
+                    onClick={() =>
                       setForms((x) =>
                         x
                           .slice(0, i + 1)
                           .concat([{ ...x[i], clips: [], slowClips: [] }])
                           .concat(x.slice(i + 1))
-                      );
-                    }}
+                      )
+                    }
                   >
                     Duplicate
                   </Button>
@@ -4686,20 +4678,31 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           ))}
 
-          {!scene && (verbMode && !moreForms ? (
-            <Button variant="ghost" size="sm" onClick={() => setMoreForms(true)} icon="add">
-              Another way to say it
+          {/* Not on a verb. A verb's forms are the table — and where the
+              language cites one of its cells, the card's own word is the
+              table too — so the only thing left to add here is a form
+              outside it, which is the one thing a verb card should not
+              have. This was a quieter-worded button rather than none, on
+              the grounds that a verb may genuinely have a second spelling;
+              but a spelling is an accepted answer, written beside the one
+              it is an alternative to, and never a form of its own. What
+              the button actually did was reveal a block that was not
+              there, and then turn into the "Add a form" it was standing in
+              for.
+
+              Duplicate, on a block already on screen, is left alone: it is
+              a way out for somebody who has one, rather than an invitation
+              to everybody who has not. */}
+          {!scene && !verbMode && (
+            <Button variant="ghost" size="sm"
+              /* No number override: blankForm takes the language's declared
+                 default, so what a new form starts as is settled in one place. */
+              onClick={() => setForms((f) => f.concat([blankForm()]))}
+              icon="add"
+            >
+              Add a form
             </Button>
-          ) : (
-          <Button variant="ghost" size="sm"
-            /* No number override: blankForm takes the language's declared
-               default, so what a new form starts as is settled in one place. */
-            onClick={() => setForms((f) => f.concat([blankForm()]))}
-          icon="add"
-        >
-          Add a form
-        </Button>
-          ))}
+          )}
 
           {/* ---- variables ----
               A hole in a phrase, and the cards that fill it. Written here
