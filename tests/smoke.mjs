@@ -3019,6 +3019,44 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!kinds[0] && kinds[0].getAttribute("aria-pressed") === "true",
     kinds.map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
 
+  /* ---- where the card goes, beside what kind of card it is ----
+     Both are facts about the card rather than about its words, and this
+     one decides whether a student ever sees it — so it is a button at the
+     top rather than the section of ticks that used to be several hundred
+     pixels below, under everything about the words. */
+  {
+    const deckBtn = () => /** @type {any} */ (document.querySelector(".at-deckbtn"));
+    check("a new card says where it goes, at the top", !!deckBtn(),
+      deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
+    check("and says it is in none yet",
+      !!deckBtn() && /in no deck/i.test(deckBtn().getAttribute("aria-label") || ""),
+      deckBtn() ? deckBtn().getAttribute("aria-label") : "no button");
+    check("the ticks are put away until asked for", !document.querySelector(".at-deckmenu"));
+
+    click(deckBtn());
+    await sleep(200);
+    const menu = document.querySelector(".at-deckmenu");
+    const rows = menu ? [...menu.querySelectorAll(".at-tickrow")] : [];
+    check("pressing it opens the decks as a list of ticks", rows.length > 0,
+      `${rows.length} decks offered`);
+    click(rows[0] && rows[0].querySelector("input"));
+    await sleep(200);
+    check("ticking one names it on the button",
+      !!deckBtn() && (deckBtn().textContent || "").trim() ===
+        ((rows[0].querySelector("b") || {}).textContent || "").trim(),
+      deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
+    check("and the list stays open, because you are usually ticking more than one",
+      !!document.querySelector(".at-deckmenu"));
+    /* A click anywhere else puts it away — the rule the language switch
+       goes by, read off the click on the way down. */
+    click(document.querySelector(".at-screenhead h2"));
+    await sleep(200);
+    check("a click outside puts it away", !document.querySelector(".at-deckmenu"));
+    check("and what was ticked is still ticked",
+      !!deckBtn() && deckBtn().className.includes("on"),
+      deckBtn() ? deckBtn().className : "no button");
+  }
+
   click(kinds[1]);
   await sleep(250);
   const editor = [...document.querySelectorAll(".at-screen.over")].pop();
@@ -3170,8 +3208,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("the word moves into the dictionary form's own cell",
       !!script && script.value === "akal" && !!meaning && meaning.value === "to eat",
       script ? `script "${script.value}", English "${meaning ? meaning.value : "—"}"` : "no such cell");
-    check("which the table says is the dictionary form",
-      /the dictionary form/.test(document.body.textContent || ""));
+    /* And the table says nothing about which cell that is. A gold "· the
+       dictionary form" label made one row a different width and colour
+       from the rest and asked for a piece of grammar theory to be held in
+       mind while typing; where it matters, the editor says so below. */
+    check("without the table labelling the cell it went into",
+      !/the dictionary form/i.test(document.body.textContent || ""),
+      /the dictionary form/i.test(document.body.textContent || "") ? "still labelled" : "the table is plain");
     check("and the card can be saved on the strength of it",
       !!saveBtn() && !saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
@@ -3185,7 +3228,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       !!saveBtn() && saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "still offered"}`);
     check("and the editor names the cell it is waiting for",
-      /The dictionary form — past · he/.test(document.body.textContent || ""),
+      /Fill in past · he/.test(document.body.textContent || ""),
       ([...document.querySelectorAll(".at-formneed.unmet")]
         .map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
 

@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.116 — 14 September 2026
+
+- **Which decks a card is in is now a button at the top of the editor.** It
+  was the last section on the screen — a heading, a paragraph and a tick
+  per deck — so the answer to "where does this card go?" sat several
+  hundred pixels below the question, under everything about the card's
+  words, and a teacher with twenty decks scrolled past twenty rows to reach
+  anything after it. It sits beside what kind of card this is now, because
+  both are facts about the card rather than about its words, and this one
+  decides whether a student ever sees it.
+
+  The button says where the card is — the deck's own name when it is in
+  one, how many when it is in several, **In no deck** when it is in none —
+  and opens the same list of ticks, the way the language switch in Learning
+  works. Nothing about what is saved changes.
+
+- **A verb's table no longer labels one of its boxes.** The box a
+  dictionary lists the verb under carried a gold *· the dictionary form*
+  beside its pronoun, which made one row a different width and colour from
+  the others and asked a teacher to hold a piece of grammar theory in mind
+  while typing. The table is a table. Where it matters — a verb cannot be
+  saved without that box — the editor now says **Fill in past · he, plus
+  its English**, and only while it is true.
+
 ## 0.115 — 14 September 2026
 
 - **A verb is no longer offered a form outside its table.** The verb editor

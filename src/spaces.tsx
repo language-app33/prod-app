@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { citationOf, citedWord, isCell, isCitation, personsOf, tensesOf } from "./verbs.ts";
+import { citationOf, citedWord, isCell, personsOf, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -3907,21 +3907,17 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
             const which = [tense.label, person.label].filter(Boolean).join(" · ");
             const written = !!(cell && String(cell.ar || "").trim());
             const heard = cell ? clipsOf(cell).length : 0;
-            /* The cell a dictionary would list this verb under, where the
-               language has no infinitive and cites one of these instead.
-               It holds the same word as the card itself, so the card's own
-               word stands in the box as the thing to type — which is also
-               how a teacher learns the two are one rather than wondering
-               why they are asked for it twice. */
-            const cites = isCitation(spec, { row: tense.id, col: person.id });
+            /* Nothing marks the cell a dictionary would list this verb
+               under. It used to carry a gold label reading "· the
+               dictionary form", which made one row of the table a
+               different width and a different colour from the rest and
+               asked the teacher to hold a piece of grammar theory in mind
+               while typing. The cell is a cell. Where it matters — a verb
+               cannot be saved without it — the editor says so at the
+               moment it matters, and not before. */
             return (
               <div className="at-cellrow" key={person.id}>
-                {named && (
-                  <span className={`at-celllabel${cites ? " cited" : ""}`}>
-                    {person.label}
-                    {cites && <i> · the dictionary form</i>}
-                  </span>
-                )}
+                {named && <span className="at-celllabel">{person.label}</span>}
                 <div className="at-cellfields">
                   <ScriptInput
                     compact
@@ -3970,6 +3966,94 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
         </div>
       ))}
     </>
+  );
+}
+
+/*
+ * Which decks a card is in, as a button and a menu.
+ *
+ * It was the last block on the editor, a full section with a heading, a
+ * paragraph and a tick per deck — so the answer to "where does this card
+ * go?" was several hundred pixels below the question, and a teacher with
+ * twenty decks scrolled past twenty rows to reach Variables. The decision
+ * is one line long and belongs near the top, beside what kind of card this
+ * is: both are facts about the card rather than about its words.
+ *
+ * Built the way the learning space's language switch is, for the same
+ * reason it was: a button whose label is the state, opening a list of
+ * ticks. What differs is where the menu hangs. The language switch is
+ * pinned to the window because it lives in the chrome, which does not
+ * scroll; this one is a control inside a form, so it hangs off the button
+ * and travels with it.
+ */
+function DeckSwitch({ decks, chosen, onToggle }: {
+  decks: Deck[];
+  chosen: string[];
+  onToggle: (id: string, wasOn: boolean) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const mine: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
+
+  /* Anywhere outside puts it away, read off the click on the way down —
+     the same rule and the same reason as the language switch: ticking a
+     deck keeps the menu open, because you are usually ticking more than
+     one. */
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      const at = e.target;
+      if (mine.current && at instanceof Node && mine.current.contains(at)) return;
+      setOpen(false);
+    };
+    document.addEventListener("click", close, true);
+    return () => document.removeEventListener("click", close, true);
+  }, [open]);
+
+  const all = decks || [];
+  const inThese = all.filter((d) => chosen.includes(d.id));
+  /* The state in the room a button has: the deck itself when there is one,
+     how many when there are several, and the plain fact when there are
+     none — which is a card no student will ever see, and worth reading as
+     a state rather than as an empty space. */
+  const said = !all.length
+    ? "No decks yet"
+    : !inThese.length
+      ? "In no deck"
+      : inThese.length === 1
+        ? inThese[0].title
+        : `${inThese.length} decks`;
+
+  return (
+    <div className="at-decksw" ref={mine}>
+      <button
+        className={`at-deckbtn${inThese.length ? " on" : ""}`}
+        aria-expanded={open}
+        aria-label={`Decks — ${said.toLowerCase()}. Choose which.`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="folder" size={16} />
+        <span className="at-deckmark">{said}</span>
+      </button>
+
+      {open && (
+        <div className="at-deckmenu">
+          <p className="at-eyebrow">Decks</p>
+          <CheckList
+            options={all.map((d) => ({
+              id: d.id,
+              title: d.title,
+              note: plural(d.cardCount || 0, "card"),
+            }))}
+            chosen={chosen}
+            onToggle={onToggle}
+            empty="You have no decks yet. Make one under Decks, then this card can go in it."
+          />
+          {all.length > 0 && (
+            <Help>A student sees this card only where it is in a deck their course uses.</Help>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -4331,6 +4415,19 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 </span>
               </label>
             )}
+
+            {/* And where it goes, which is the other fact about the card
+                rather than about its words — and the one that decides
+                whether anybody ever sees it. */}
+            <div className="at-mt3">
+              <DeckSwitch
+                decks={decks || []}
+                chosen={chosen}
+                onToggle={(id, on) =>
+                  setChosen((x) => (on ? x.filter((y) => y !== id) : x.concat([id])))
+                }
+              />
+            </div>
           </div>
 
           {/* ---- the verb's table ----
@@ -4349,16 +4446,16 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 onChange={setCells}
                 onRecord={(row, col) => setRecordingCell({ row, col })}
               />
-              {/* What the card cannot be saved without, where the table is
-                  the whole of it. It used to sit under the block below,
-                  which is not on screen on these languages — and a Save
-                  that stays grey with nothing saying why is the worst way
-                  to learn that the dictionary form is not optional. */}
-              {standsIn && (
-                <p className={`at-formneed${canSave ? "" : " unmet"}`}>
-                  The dictionary form — {citedLabel(verbSpec)} — plus its English.
-                  It is the card itself, so it is what the card is listed and
-                  searched by.
+              {/* Only when it is in the way. A line explaining which box a
+                  dictionary lists the verb under, standing there whether or
+                  not anything was wrong with the card, was a paragraph of
+                  theory between the teacher and the table. A Save that
+                  stays grey with nothing saying why is worse, so what is
+                  left is the one sentence that unblocks it, at the moment
+                  it is true and not before. */}
+              {standsIn && !canSave && (
+                <p className="at-formneed unmet">
+                  Fill in {citedLabel(verbSpec)}, plus its English.
                 </p>
               )}
             </>
@@ -4804,33 +4901,6 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               </Field>
             </div>
           )}
-
-          <div className="at-formblock at-mt5">
-            <div className="at-formhead">
-              <span className="at-formnum">Decks</span>
-            </div>
-            {/* The note is hidden rather than removed: cards that already
-                carry one keep it, and it still saves, so nothing is lost if
-                the field comes back. */}
-            <div className="at-field">
-              <Help>
-                {(decks || []).length
-                  ? "Tick every deck this card should belong in. Students only see the card if it's in a deck used in their course."
-                  : "You have no decks yet. Make one under Decks, then this card can go in it."}
-              </Help>
-              <CheckList
-                options={(decks || []).map((d) => ({
-                  id: d.id,
-                  title: d.title,
-                  note: plural(d.cardCount || 0, "card"),
-                }))}
-                chosen={chosen}
-                onToggle={(id, on) =>
-                  setChosen((x) => (on ? x.filter((y) => y !== id) : x.concat([id])))
-                }
-              />
-            </div>
-          </div>
 
           {!scene && (
             <WordsUsed
