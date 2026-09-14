@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { citationOf, citedWord, isCell, personsOf, tensesOf } from "./verbs.ts";
+import { citationOf, citedWord, isCell, personsOf, tableCount, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -4191,6 +4191,64 @@ function BlankPicker({ label, tone, blanks, current, title, onPick }: {
 }
 
 /*
+ * What a card is, as one question with three answers.
+ *
+ * Underneath there are still two flags and no such thing as a verb: a verb
+ * card is a word card whose subs carry a table, which is all isVerb has ever
+ * read. The selector is derived from the flags rather than replacing them,
+ * so nothing below this line — the table, the cited cell, the form blocks,
+ * what is saved — learns that the question was asked differently.
+ */
+export type CardShape = "word" | "verb" | "scene";
+
+export const shapeOf = (scene: boolean, asVerb: boolean): CardShape =>
+  scene ? "scene" : asVerb ? "verb" : "word";
+
+/* A conversation is never a verb: it has turns where a word has forms, and
+   there is nothing for a table to lay out. */
+export const shapeMeans = (shape: CardShape): { scene: boolean; asVerb: boolean } => ({
+  scene: shape === "scene",
+  asVerb: shape === "verb",
+});
+
+/*
+ * Which answers are still open, which is a different question on a card that
+ * exists.
+ *
+ * A written card does not change into a conversation, and a conversation
+ * does not stop being one — a scene with four turns on it would have nowhere
+ * to put them. A verb with a table does not stop being one either, and for
+ * the same reason: the table is the content, so offering the change would be
+ * offering to throw it away, which until now it quietly did.
+ *
+ * What stays open is the direction that loses nothing. A saved word has no
+ * table yet, and a verb is usually written as a plain word and given its
+ * tenses weeks later, when the course reaches them — so that one is asked of
+ * a card for as long as the card lasts.
+ *
+ * Empty where nothing is left to choose, and the block says what the card is
+ * instead. A pack that declares no rows and columns offers no verb.
+ */
+export const shapeChoices = ({
+  saved,
+  scene,
+  verbs,
+  hasTable,
+}: {
+  saved: boolean;
+  scene: boolean;
+  verbs: boolean;
+  hasTable: boolean;
+}): { value: CardShape; label: string }[] => {
+  const word = { value: "word" as const, label: "Word or phrase" };
+  const verb = { value: "verb" as const, label: "Verb" };
+  const talk = { value: "scene" as const, label: "Conversation" };
+  if (!saved) return verbs ? [word, verb, talk] : [word, talk];
+  if (scene || hasTable || !verbs) return [];
+  return [word, verb];
+};
+
+/*
  * The card's own word, put into the cell that stands in for it.
  *
  * On a language that cites a cell the block asking for the word is not
@@ -4296,20 +4354,56 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   const [cells, setCells] = useState<Record<string, any>[]>(() => {
     const had = ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s }));
     /* Only a card that is already a verb: a plain word has no table, and
-       seeding one would be answering the tick below on the teacher's
+       seeding one would be answering the selector above on the teacher's
        behalf. */
     return had.length ? seedCited(had, card, verbSpec) : had;
   });
   /* Whether this card is a verb at all. A card that already has cells
      plainly is; anything else is the teacher's to say, because "is this a
      verb" is a question about the word and not one the app can read off
-     its spelling. */
+     its spelling. It is answered in the selector above rather than stored:
+     nothing saved knows the word "verb". */
   const [asVerb, setAsVerb] = useState(() => cells.length > 0);
   /* Whether the table is standing in for the forms below. Read in four
      places, so it is named once here rather than spelled out at each. A
      conversation is never a verb: it has turns where a word has forms,
      and there is nothing for a table to lay out. */
   const verbMode = !scene && !!verbSpec && asVerb;
+  /*
+   * The one question about what a card is, and the answers still open to it.
+   *
+   * `hasTable` asks the stored card rather than the editor, on purpose: a
+   * table typed into a card that has never been saved is not yet anybody's
+   * work, and locking a teacher into a verb because they filled one box to
+   * see what it did would be the opposite of the point.
+   */
+  const hasTable = ((card && card.subs) || []).some((s) => isCell(s));
+  /* And whether it reads as one on screen, which also wants the language to
+     still lay verbs out: a pack that has dropped its rows and columns leaves
+     a card whose cells nothing can show, and telling a teacher to empty a
+     table they cannot see would be worse than saying nothing. */
+  const readsAsVerb = hasTable && !!verbSpec;
+  const shape = shapeOf(scene, asVerb);
+  const choices = shapeChoices({ saved: !!card, scene, verbs: !!verbSpec, hasTable });
+  /* How much of the table is being held aside — nothing, on every card that
+     is not one. What the line under the selector counts. */
+  const aside = verbSpec && !asVerb ? tableCount({ subs: cells }, verbSpec).filled : 0;
+  /*
+   * Choosing an answer sets both flags at once, so the two can never say a
+   * card is a conversation with a table — which they could, and a scene
+   * saved that way carried cells nothing would ever show again.
+   *
+   * On the way in to verb the card's own word moves into the cell about to
+   * hold it, rather than being left behind in a block that has just
+   * disappeared; and only into an empty cell, because a card that already
+   * has a table knows better than the block does.
+   */
+  const choose = (next: CardShape) => {
+    const flags = shapeMeans(next);
+    setScene(flags.scene);
+    setAsVerb(flags.asVerb);
+    if (flags.asVerb && !asVerb) setCells((x) => seedCited(x, forms[0], verbSpec));
+  };
   /*
    * Whether the table holds the card's own word as well as its forms.
    *
@@ -4583,77 +4677,76 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           {/* What kind of card this is — the first thing about it, and for
               a new one the first decision. Word, phrase and sentence are
               not offered because they are not chosen: the language reads
-              them off the text. Whether somebody answers it is the one
-              thing no amount of reading the script will tell you. */}
+              them off the text. Whether somebody answers it, and whether it
+              has a table, are the two it cannot read.
+
+              Verb is an answer here rather than a tick beside the selector.
+              Underneath it is still a word card with cells on its subs —
+              nothing stored knows the word, and isVerb reads the cells — but
+              a teacher deciding what to write is choosing between three
+              things, not between two and a footnote.
+
+              What the tick had over a selector is that it outlived the
+              choice, so the question is asked of a saved card too, with the
+              answers still open to it. A conversation has turns and a verb
+              has a table, and neither can be offered a kind that would throw
+              its own content away. A saved word has neither yet, so it can
+              still be called a verb, which is the way round that loses
+              nothing. */}
           <div className="at-formblock">
             <div className="at-formhead">
               <span className="at-formnum">The kind of card</span>
-              {card && <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>}
+              {/* What the stored card is, which for a verb would read
+                  "Word" — true of the kind, and a flat contradiction of the
+                  line underneath saying it is a verb. */}
+              {card && !readsAsVerb && (
+                <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>
+              )}
             </div>
-            {card ? (
-              <Help>
-                {isDialog(card)
-                  ? "A conversation: turns, in order, each practised in its own right."
-                  : "Read off what the card says. A card does not change kind once it is written."}
-              </Help>
-            ) : (
+            {choices.length ? (
               <>
                 <Segmented
                   label="The kind of card"
-                  options={[
-                    { value: false, label: "Word or phrase" },
-                    { value: true, label: "Conversation" },
-                  ]}
-                  value={scene}
-                  onChange={(v) => setScene(!!v)}
+                  options={choices}
+                  value={shape}
+                  onChange={choose}
                 />
                 <Help>
-                  {scene
+                  {shape === "scene"
                     ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
-                    : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
+                    : shape === "verb"
+                      ? "A word with a table as well: every person and tense a box of its own, each practised in its own right, and the rows opening in the order they are taught."
+                      : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
                 </Help>
+                {/* Why a written card is asked the same question and offered
+                    fewer answers. Without it, a teacher who remembers three
+                    is left to wonder where the third went. */}
+                {card && (
+                  <Help>
+                    A card does not change kind once it is written. Calling a
+                    word a verb is the one thing that still can — the tenses
+                    usually come weeks later.
+                  </Help>
+                )}
+                {/* The one place a table can still be dropped: a card that
+                    has never been saved, typed into and then called a word.
+                    Said while it is true and not before. */}
+                {aside > 0 && (
+                  <p className="at-formneed unmet">
+                    Its table is put aside — {plural(aside, "box", "boxes")} filled
+                    in. Saving it as a word or phrase drops them. Choose Verb to
+                    keep it.
+                  </p>
+                )}
               </>
-            )}
-
-            {/* And whether it is a verb, which is the same question about
-                what a card is and so belongs in the same block.
-
-                A tick rather than a third option beside "Word or phrase"
-                and "Conversation", because it is not a third kind: a verb
-                is a word, with a table as well. It also outlives the
-                choice above, which is read-only once a card exists — a
-                verb is often written as a plain word and given its table
-                weeks later, when the course reaches tenses — so it stays
-                offered on a card that is already saved.
-
-                Only where the language lays verbs out. A pack that
-                declares no rows and columns shows no tick. */}
-            {!scene && verbSpec && (
-              <label className="at-tickrow at-mt3">
-                <input
-                  type="checkbox"
-                  checked={asVerb}
-                  onChange={() => {
-                    const on = !asVerb;
-                    setAsVerb(on);
-                    /* Where the table is about to stand in for the card's
-                       own word, the word moves into the cell that is going
-                       to hold it rather than being left behind in a block
-                       that has just disappeared. A teacher who wrote the
-                       word as a plain card weeks ago and has now reached
-                       tenses sees it land under he · past, which is also
-                       the clearest way to be told what the dictionary
-                       form is.
-
-                       Only into an empty cell: a card that already has a
-                       table knows better than the block does. */
-                    if (on) setCells((x) => seedCited(x, forms[0], verbSpec));
-                  }}
-                />
-                <span className="at-tickbody">
-                  <b>This is a verb</b>
-                </span>
-              </label>
+            ) : (
+              <Help>
+                {isDialog(card)
+                  ? "A conversation: turns, in order, each practised in its own right."
+                  : readsAsVerb
+                    ? "A verb: its forms are its table, each practised in its own right. Empty the table and it is a word again."
+                    : "Read off what the card says. A card does not change kind once it is written."}
+              </Help>
             )}
 
             {/* And where it goes, which is the other fact about the card
@@ -4671,7 +4764,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           </div>
 
           {/* ---- the verb's table ----
-              The question that opens this is the tick in the block above,
+              The question that opens this is the selector in the block above,
               where the other question about what a card is lives. Nothing
               here but the table: what a blank cell means and which rows
               open first are read off the table itself — an empty box is

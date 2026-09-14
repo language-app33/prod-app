@@ -8,6 +8,46 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.119 — 14 September 2026
+
+- **A card is a word or phrase, a verb, or a conversation — three answers to
+  one question.** *This is a verb* was a tick sitting under the kind of card,
+  so the one question about what a card is was asked in two controls stacked
+  on each other: pick a kind, then answer a footnote underneath it. It is the
+  third answer now.
+
+  The reasoning it replaces was that a verb is not a third kind of card but a
+  word with a table as well. That is true of what is stored, and it is still
+  true — nothing saved knows the word *verb*, and a card is one exactly when
+  its forms carry a table. It was never true of the question a teacher is
+  answering, which is what to write.
+
+- **And it is still asked of a card you wrote weeks ago.** What the tick had
+  over the selector above it was that it outlived the choice: a verb is
+  usually written as a plain word and given its tenses when the course
+  reaches them. So a written card is asked the same question and offered the
+  answers still open to it — *Word or phrase* and *Verb*, without the
+  *Conversation* it can no longer become. Calling a word a verb still moves
+  it into the box a dictionary lists it under, with its recordings, and a
+  form the card already had stays on screen either way.
+
+- **A verb with a table is now told what it is, rather than offered a change
+  that threw the table away.** Untick *This is a verb* on a saved verb, press
+  Save, and every box of it went — the words, their recordings, and whatever
+  your students had learnt of them — with nothing on screen having said so.
+  A conversation has never been allowed to stop being one, for the same
+  reason: the turns are the card. A verb's table is the card in just that
+  way, so it is not offered either, and the editor says what it is and how to
+  undo it — empty the table and it is a word again.
+
+  On a card you are still writing the table can be put aside, because nothing
+  has been saved to lose. There the editor counts what is at stake instead:
+  *Its table is put aside — 3 boxes filled in.*
+
+- **And a verb can no longer become a conversation with its table still on
+  it.** Choosing one answer now clears the other, so a scene can't be saved
+  carrying cells that nothing would ever show again.
+
 ## 0.118 — 14 September 2026
 
 - **Progress has two sections now: the ladder, and your decks.** What was

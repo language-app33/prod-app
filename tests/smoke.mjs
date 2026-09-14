@@ -3077,9 +3077,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   click([...inFrame.querySelectorAll("button")].find((b) => /^New card$/.test((b.textContent || "").trim())));
   await sleep(450);
 
+  /* Three answers, not two and a footnote. "This is a verb" was a tick
+     under this selector, which asked one question about what a card is in
+     two controls stacked on each other. */
   const kinds = [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')];
-  check("a new card asks what kind of card it is",
-    kinds.length === 2 && /Conversation/.test(kinds[1].textContent || ""),
+  check("a new card asks what kind of card it is, in three answers",
+    kinds.length === 3 &&
+      /^Verb$/.test((kinds[1].textContent || "").trim()) &&
+      /Conversation/.test(kinds[2].textContent || ""),
     kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
   check("and starts on the ordinary kind",
     !!kinds[0] && kinds[0].getAttribute("aria-pressed") === "true",
@@ -3123,7 +3128,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       deckBtn() ? deckBtn().className : "no button");
   }
 
-  click(kinds[1]);
+  click(kinds.find((b) => /Conversation/.test(b.textContent || "")));
   await sleep(250);
   const editor = [...document.querySelectorAll(".at-screen.over")].pop();
   const editorText = editor ? (editor.textContent || "").replace(/\s+/g, " ") : "";
@@ -3326,16 +3331,26 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     const block = (/** @type {RegExp} */ re) =>
       [...document.querySelectorAll(".at-formblock")].find((b) =>
         re.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-    const tick = [...document.querySelectorAll(".at-tickrow")]
-      .find((r) => /This is a verb/.test(r.textContent || ""));
-    check("a word can be called a verb", !!tick, tick ? "the tick is offered" : "no tick");
+    /* Re-queried each time rather than held: the selector re-renders
+       between clicks, so a button kept in a variable is a button that is no
+       longer on the screen. */
+    const kindBtn = (/** @type {RegExp} */ re) =>
+      /** @type {any} */ ([...document.querySelectorAll(
+        '[role="group"][aria-label="The kind of card"] .at-seg')]
+        .find((b) => re.test((b.textContent || "").trim())) || null);
+    check("a word can be called a verb", !!kindBtn(/^Verb$/),
+      kindBtn(/^Verb$/) ? "the selector offers it" : "no such answer");
     check("and until it is, the card's own word is where it always was", !!block(/^The verb$|^Form 1$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
 
-    click(tick && tick.querySelector("input"));
+    click(kindBtn(/^Verb$/));
     await sleep(300);
 
-    check("ticking it takes the block away rather than asking for the word twice",
+    check("and the selector says that is what it is",
+      !!kindBtn(/^Verb$/) && kindBtn(/^Verb$/).getAttribute("aria-pressed") === "true",
+      [...document.querySelectorAll('[aria-label="The kind of card"] .at-seg')]
+        .map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
+    check("choosing it takes the block away rather than asking for the word twice",
       !block(/^The verb$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
     /* And the word is not left behind in a block that has just gone: it
@@ -3382,12 +3397,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("a verb is offered no form outside its table", !addForm(),
       addForm() ? `still offered: "${(addForm().textContent || "").trim()}"` : "no such button");
 
-    /* Untick, and the word the block was holding is still there — putting
-       the table away must not read as having thrown the card away. */
-    click(tick && tick.querySelector("input"));
+    /* Back to a word, and the one the block was holding is still there —
+       putting the table away must not read as having thrown the card away.
+       Still offered here because this card has never been saved: a stored
+       verb is not asked, because the answer would drop its table. */
+    click(kindBtn(/^Word/));
     await sleep(300);
     const back = fieldNamed(/^Arabic script and transliteration$/i);
-    check("unticking brings the block back with the word still in it",
+    check("choosing Word or phrase again brings the block back with the word still in it",
       !!block(/^Form 1$|^The verb$/) && !!back && back.value === "akal",
       back ? `"${back.value}"` : "no field");
     check("and an ordinary card is still offered another form", !!addForm(),
@@ -3401,13 +3418,108 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(250);
     check("a second form can be added to the word", !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
-    click(tick && tick.querySelector("input"));
+    click(kindBtn(/^Verb$/));
     await sleep(300);
     check("and calling it a verb does not hide the form it already has",
       !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+
+    /* The cited cell was emptied above to see Save refuse; fill it again,
+       so what follows is about a table with something in it. */
+    typeInto(cellNamed("Arabic script for past · he"), "akal");
+    await sleep(200);
+
+    /* A card that has never been saved is not locked into being a verb, so
+       it is the one place a typed table can still be dropped. It says so,
+       and counts what is at stake rather than warning in the abstract. */
+    click(kindBtn(/^Word/));
+    await sleep(300);
+    check("a table typed into a new card says what dropping it would cost",
+      /Its table is put aside/.test(document.body.textContent || "") &&
+        /1 box filled in/.test((document.body.textContent || "").replace(/\s+/g, " ")),
+      ([...document.querySelectorAll(".at-formneed.unmet")]
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /put aside/.test(t))) || "(nothing said)");
+
+    /* And the third answer is reachable from the other two, which the tick
+       never was: a card ticked verb and then switched to a conversation
+       kept its cells and saved a scene carrying a table nothing would show
+       again. Choosing one answer now clears the other. */
+    click(kindBtn(/Conversation/));
+    await sleep(300);
+    check("a verb can be made a conversation, and the table goes with the forms",
+      !cellNamed("Arabic script for past · he") && !block(/^Form 1$|^The verb$/) &&
+        /What it is called/.test(document.body.textContent || ""),
+      block(/^Form 1$|^The verb$/) ? "the form blocks are still up" : "the scene is up");
+    click(kindBtn(/^Verb$/));
+    await sleep(300);
+    check("and coming back brings the table with its cells still in it",
+      !!cellNamed("Arabic script for past · he") &&
+        cellNamed("Arabic script for past · he").value === "akal",
+      cellNamed("Arabic script for past · he")
+        ? `"${cellNamed("Arabic script for past · he").value}"` : "no such cell");
   }
 
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a word written weeks ago can still be called a verb ----
+   This is what the tick had over the selector it sat under, and the reason
+   the question is asked of a saved card at all: a verb is usually written
+   as a plain word and given its tenses when the course reaches them. What
+   a saved card is not offered is the kind it cannot become — a conversation
+   has turns, and there would be nowhere to put them. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+
+  const savedTile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("كتاب"));
+  click(savedTile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  const saved = () => [...document.querySelectorAll(
+    '[role="group"][aria-label="The kind of card"] .at-seg')];
+  check("a card written weeks ago is still asked whether it is a verb",
+    saved().length === 2 && /^Verb$/.test((saved()[1].textContent || "").trim()),
+    saved().map((b) => b.textContent).join(" | ") || "(nothing offered)");
+  check("but it is not offered the kind it can no longer become",
+    !saved().some((b) => /Conversation/.test(b.textContent || "")),
+    saved().map((b) => b.textContent).join(" | ") || "(nothing offered)");
+
+  const verbHere = () => /** @type {any} */ (saved()
+    .find((b) => /^Verb$/.test((b.textContent || "").trim())) || null);
+  click(verbHere());
+  await sleep(350);
+  const cited = /** @type {any} */ ([...document.querySelectorAll("input")]
+    .find((i) => (i.getAttribute("aria-label") || "") === "Arabic script for past · he") || null);
+  check("calling it one moves its word into the box a dictionary lists it under",
+    !!cited && cited.value === "كتاب", cited ? `"${cited.value}"` : "no such cell");
+  /* And the plural it already carried is still on screen: it is saved
+     either way, so hiding it would read as having lost it. */
+  check("and the form it already had is still there",
+    [...document.querySelectorAll(".at-formnum")].some((n) => /^Form 2$/.test((n.textContent || "").trim())),
+    [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+
+  /* Back to a word, which is still offered because the stored card has no
+     table — only a saved verb is held to what it is. Left without saving,
+     so nothing later counts a card differently. */
+  click(/** @type {any} */ (saved().find((b) => /^Word/.test((b.textContent || "").trim())) || null));
+  await sleep(350);
+  const mainField = /** @type {any} */ ([...document.querySelectorAll(".at-formblock.main .at-field")]
+    .find((f) => /^Arabic script and transliteration$/i.test(
+      ((f.querySelector(".at-label") || {}).textContent || "").trim())) || null);
+  const own = mainField ? mainField.querySelector("input") : null;
+  check("and calling it a word again leaves the word where it was",
+    !!own && own.value === "كتاب", own ? `"${own.value}"` : "no field");
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
 }

@@ -492,3 +492,61 @@ the grader, the quiet window — goes through `typeOf` first. That is a
 handful of call sites and one rule to remember when adding another. The
 alternative was the restructure, and the suffix is the cheaper of the two
 by a long way.
+
+---
+
+## The editor's three kinds are not the four stored kinds
+
+**14 September 2026** · `shapeOf`/`shapeChoices` in `src/spaces.tsx`,
+`isVerb` in `src/verbs.ts`
+
+There is no `verb` in `CARD_KINDS`, and there is a **Verb** button in the card
+editor. That is deliberate, and this entry is here because the reasoning for
+the opposite is on the record — the release before this one shipped the verb
+question as a tick beside the kind of card, arguing that "a verb is not a
+third kind of card: it is a word, with a table as well."
+
+**The storage claim is true and is not what changed.** A card is a verb
+exactly when one of its forms carries a `row` and a `col`; `isVerb` reads the
+cells and nothing stores a flag. That is still the whole of it. The entry
+above on verb tables is the reason, and none of it moved.
+
+**The claim built on top of it did not follow.** What a teacher picks in that
+block is not the stored kind and never was: `CARD_KINDS` has four and the
+selector offers two, because word, phrase and sentence are read off the text
+rather than chosen. So there was no correspondence for a third button to
+break. The question the block asks is *what are you writing*, and the answer
+to that is three things, not two and a footnote underneath.
+
+**What the tick bought had to be kept.** It outlived the choice above it — a
+verb is usually written as a plain word and given its tenses weeks later, when
+the course reaches them — and the selector beside it was read-only once a card
+existed. So the selector is now rendered on a saved card too, with the answers
+still open to it. `Segmented` has no per-option disable, only a whole-control
+one, so an answer that is closed is absent rather than greyed; `shapeChoices`
+is the one place that decides which, and is a plain function so the rule can
+be tested without rendering a form.
+
+**Which closed one hole.** A conversation has never been allowed to stop being
+one: the turns are the card. A verb's table is the card in exactly that way,
+and the tick let it be dropped anyway — untick, save, and `subs` went up
+without the cells, which the server writes wholesale. Twenty-one cells, their
+recordings and the students' progress on them, with nothing on screen having
+said so. A saved verb is not offered the change now. The way out is to empty
+the table, which is the same act said honestly, and the editor says so.
+
+The asymmetry is the point: a saved *word* can still be called a verb, because
+that direction loses nothing. A card still being written is not held to
+anything either — nothing is saved to lose, and locking someone into a verb
+because they filled one box to see what it did is the opposite of what this
+change is for. That case gets a line counting what is at stake instead.
+
+**What it costs.** The block no longer maps onto `card.kind` at all, and
+anybody adding a kind has to know that verb-ness is derived from `subs` and
+lives only in the editor's own vocabulary — two flags underneath, three
+answers on screen, `shapeOf` and `shapeMeans` the whole of the translation.
+That vocabulary is a second way of saying what a card is, which is the kind of
+thing this codebase usually spends releases removing. It is accepted here on
+the condition that it stays in one file and never reaches storage: the save
+path still knows nothing about verbs, and `isVerb` is still the only answer to
+whether a card is one.
