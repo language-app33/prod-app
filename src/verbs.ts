@@ -85,8 +85,35 @@ export function cellsOf(card: unknown): Form[] {
   return (subs as Form[]).filter((sub) => isCell(sub));
 }
 
-/** Whether the card is a verb card: it has at least one form in a table. */
-export const isVerb = (card: unknown): boolean => cellsOf(card).length > 0;
+/**
+ * The row ids one table declares.
+ *
+ * A card may carry more than one table now — a verb's persons and tenses,
+ * and the pronouns a word takes on its end — and they are told apart by the
+ * row a cell sits in, because the rows of one table are names no other
+ * declares. So this is the whole of "which table is this cell in": every
+ * function below that is about one table takes the spec and asks it.
+ */
+export const rowIdsOf = (spec: VerbSpec | null | undefined): Set<string> =>
+  new Set(tensesOf(spec).map((t) => t.id));
+
+/** The cells of a card that belong to one table, in no particular order. */
+export function cellsIn(card: unknown, spec: VerbSpec | null | undefined): Form[] {
+  const rows = rowIdsOf(spec);
+  return cellsOf(card).filter((cell) => rows.has(rowOf(cell)));
+}
+
+/**
+ * Whether the card carries this table at all.
+ *
+ * Was `isVerb`, and read "has any cell", which was the same question while
+ * a verb table was the only table there was. It is not any more: a word
+ * with an attached-pronoun table has cells and is not a verb, and a
+ * question that could not tell the two apart gated one by the other's rows
+ * and closed it for ever.
+ */
+export const hasCells = (card: unknown, spec: VerbSpec | null | undefined): boolean =>
+  cellsIn(card, spec).length > 0;
 
 /**
  * The hole a verb card leaves for itself in its own sentence.
@@ -358,7 +385,7 @@ export function openRows(
   const open: string[] = [];
   for (const tense of tensesOf(spec)) {
     open.push(tense.id);
-    const cells = cellsOf(card).filter((c) => rowOf(c) === tense.id);
+    const cells = cellsIn(card, spec).filter((c) => rowOf(c) === tense.id);
     /* Nothing to master here, so the next row is not kept waiting on it. */
     if (!cells.length) continue;
     if (!cells.every((cell) => mastered(cell))) break;

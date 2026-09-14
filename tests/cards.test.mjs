@@ -29,7 +29,7 @@ await build({
   logLevel: "silent",
 });
 const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, fillsInUse, CARD_SORTS,
-  shapeOf, shapeMeans, shapeChoices } =
+  shapeOf, shapeChoices, formsOffered } =
   await import(path.join(out, "spaces.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -66,7 +66,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed } = await import(path.join(out, "trainer.js"));
+const { leadSpeed, deckPercent } = await import(path.join(out, "trainer.js"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -401,63 +401,82 @@ test("and an item that was never a course card has only the one name", () => {
 });
 
 /*
- * What kind of card the editor asks about, and which answers are open.
+ * What kind of card the editor asks about, and what a word lays out.
  *
- * Three answers on screen over two flags underneath: nothing stored knows
- * the word "verb", and isVerb reads the cells on a card's forms. These are
- * the whole of that translation, kept as plain functions so the rules can
- * be checked without rendering a form.
+ * Two questions, not one. A verb was a third answer to the first for a
+ * release, and it stopped working the moment there was a second table to
+ * offer — so the kind is a word or a conversation, and which table a word
+ * lays its forms out in is asked underneath. Neither is stored: a card has
+ * a table when its forms carry cells in that table's rows, which is all
+ * hasCells has ever read.
  */
-test("the two flags read as one answer", () => {
-  assert.equal(shapeOf(false, false), "word");
-  assert.equal(shapeOf(false, true), "verb");
-  assert.equal(shapeOf(true, false), "scene");
-  /* A conversation is never a verb: it has turns where a word has forms,
-     and there is nothing for a table to lay out. Whichever way a card came
-     to carry both flags, the answer is the conversation. */
-  assert.equal(shapeOf(true, true), "scene");
+test("a card is a word or a conversation, and nothing else", () => {
+  assert.equal(shapeOf(false), "word");
+  assert.equal(shapeOf(true), "scene");
 });
 
-test("and every answer sets both flags, so the two cannot disagree", () => {
-  assert.deepEqual(shapeMeans("word"), { scene: false, asVerb: false });
-  assert.deepEqual(shapeMeans("verb"), { scene: false, asVerb: true });
-  assert.deepEqual(shapeMeans("scene"), { scene: true, asVerb: false });
-  for (const shape of ["word", "verb", "scene"]) {
-    const { scene, asVerb } = shapeMeans(shape);
-    assert.equal(shapeOf(scene, asVerb), shape);
-  }
-});
-
-test("a new card is offered every kind its language has", () => {
+test("a new card may be either, and a written one stays what it is", () => {
   const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  assert.deepEqual(
-    values({ saved: false, scene: false, verbs: true, hasTable: false }),
-    ["word", "verb", "scene"]
-  );
-  /* A pack that declares no rows and columns has no verbs to offer. None
-     of the three shipped packs is like that, so it is only ever checked
-     here — the smoke harness cannot reach it. */
-  assert.deepEqual(
-    values({ saved: false, scene: false, verbs: false, hasTable: false }),
-    ["word", "scene"]
-  );
+  assert.deepEqual(values({ saved: false, scene: false }), ["word", "scene"]);
+  /* A written word is not offered the kind it cannot become — a scene with
+     four turns on it would have nowhere to put them — and a written
+     conversation is offered nothing at all, so the block says what it is
+     instead. */
+  assert.deepEqual(values({ saved: true, scene: false }), ["word"]);
+  assert.deepEqual(values({ saved: true, scene: true }), []);
 });
 
-test("a written card is offered only what it can still become", () => {
-  const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  /* A word has no table to lose, so the one direction that costs nothing
-     stays open for as long as the card does: the tenses usually come
-     weeks after the word. */
-  assert.deepEqual(
-    values({ saved: true, scene: false, verbs: true, hasTable: false }),
-    ["word", "verb"]
-  );
-  /* A verb with a table is not asked. The table is the card's content, so
-     offering the change would be offering to throw it away — which, until
-     the question moved into the selector, it quietly did on the next save. */
-  assert.deepEqual(values({ saved: true, scene: false, verbs: true, hasTable: true }), []);
-  /* And a conversation is not asked either, for the same reason it never
-     was: a scene with four turns on it would have nowhere to put them. */
-  assert.deepEqual(values({ saved: true, scene: true, verbs: true, hasTable: false }), []);
-  assert.deepEqual(values({ saved: true, scene: false, verbs: false, hasTable: false }), []);
+test("and a word is offered the tables its language actually lays out", () => {
+  const values = (/** @type {any} */ t) =>
+    formsOffered(null, t).map((/** @type {any} */ c) => c.value);
+  /* Arabic lays out both, so there are three answers: neither, and one
+     each. */
+  assert.deepEqual(values({ verb: true, attached: true }), ["", "verb", "attached"]);
+  /* Huế lays out verbs and attaches nothing. */
+  assert.deepEqual(values({ verb: true, attached: false }), ["", "verb"]);
+  /* And a pack that lays out neither asks nothing: one answer is no
+     question, so the radio is not drawn at all. */
+  assert.deepEqual(values({ verb: false, attached: false }), []);
+  /* Every answer carries a line saying what it gets you, which is why this
+     is a list of rows and not a track of segments. */
+  assert.ok(formsOffered(null, { verb: true, attached: true }).every((/** @type {any} */ o) => o.note));
+});
+
+/*
+ * How far a deck has got.
+ *
+ * It was the cards with nothing left to open over all of them, so a deck
+ * whose every card was three levels up and being asked to be written read
+ * as nought per cent — and stayed there for weeks while the work went on.
+ * A card now contributes its own share of itself: the levels it has
+ * finished over the levels it has material for.
+ *
+ * Checked here rather than in the smoke harness because the seeded deck
+ * has no card stopped partway, which is the only case where the old
+ * measure and this one differ at all.
+ */
+test("a deck counts the levels its cards have finished, not only its finished cards", () => {
+  /* Four cards, none of them finished, each halfway up its own ladder.
+     The old measure called this nought. */
+  assert.equal(deckPercent({ n: 4, learnt: 0, got: 2 }), 50);
+  /* And one card of four finished, the rest untouched, is the number the
+     old measure gave — the two agree wherever nothing is partway. */
+  assert.equal(deckPercent({ n: 4, learnt: 1, got: 1 }), 25);
+  /* A deck nobody has started is still nought. */
+  assert.equal(deckPercent({ n: 9, learnt: 0, got: 0 }), 0);
+});
+
+test("and is held at 99 until the last card is in", () => {
+  /* The rule the figure has always had: 199 of 200 is not a finished deck,
+     and a tile reading 100% over a card still to learn is the one number
+     here nobody would trust again. Read off the finished count rather than
+     the sum, so a rounding cannot reach the hundred early. */
+  assert.equal(deckPercent({ n: 200, learnt: 199, got: 199.6 }), 99);
+  assert.equal(deckPercent({ n: 4, learnt: 3, got: 3.999 }), 99);
+  /* And only every card finishing gets there. */
+  assert.equal(deckPercent({ n: 4, learnt: 4, got: 4 }), 100);
+  /* Rounded down the rest of the way: two thirds is 66, never 67. */
+  assert.equal(deckPercent({ n: 3, learnt: 0, got: 2 }), 66);
+  /* An empty deck is nought rather than a division by nothing. */
+  assert.equal(deckPercent({ n: 0, learnt: 0, got: 0 }), 0);
 });
