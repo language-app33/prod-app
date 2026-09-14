@@ -8,6 +8,22 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.119 — 14 September 2026
+
+- **Three ladder tiles to a row, and never more.** They were sized to wrap
+  at whatever a screen allowed, which on a phone is two and on anything
+  wider spreads six back into one long line. Six tiles are two tidy rows of
+  three, so that is what they are, at the size three of them fit — two only
+  on a screen narrower than any phone worth designing for.
+
+- **A level's cards open on a screen of their own.** They used to appear as
+  a strip underneath the tiles, which put a list of any length between the
+  tiles and everything below them: reading it meant scrolling past the
+  tiles, and getting back meant scrolling up to find the one that was open
+  and pressing it again. The list is what you pressed the tile for, so it
+  gets the window, and Back is the way out — the same way out as every
+  other screen in the app.
+
 ## 0.118 — 14 September 2026
 
 - **Progress has two sections now: the ladder, and your decks.** What was

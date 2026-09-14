@@ -1416,16 +1416,33 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   const shown = document.querySelectorAll(".at-cardgrid .at-minicard");
   check("pressing it shows that many cards, at the size they come smallest",
     shown.length === said, `said ${said}, showed ${shown.length}`);
-  check("and the tile says it is the one open",
-    !!live && live.getAttribute("aria-expanded") === "true",
-    live ? `aria-expanded=${live.getAttribute("aria-expanded")}` : "no tile");
-  /* Tapping the same one again puts them away, so the overview comes back
-     without having to find another way out of it. */
-  click(live);
+  /* On a screen of its own, titled by the tile that opened it. They used
+     to open as a strip under the grid, which put a list of any length
+     between the tiles and everything below them — reading it meant
+     scrolling past the tiles, and getting back meant scrolling up to find
+     the one that was open and pressing it again. */
+  const openHead = () =>
+    (([...document.querySelectorAll(".at-screen.over .at-screenhead h2")].pop() || {}).textContent || "").trim();
+  const pressed = /** @type {any} */ (live || null);
+  check("and they open on a screen of their own, named after the tile",
+    !!openHead() && !!pressed && (pressed.textContent || "").includes(openHead()),
+    `screen "${openHead()}", tile "${pressed ? (pressed.textContent || "").replace(/\s+/g, " ").trim() : "none"}"`);
+  check("the tile says it opens one, rather than claiming to expand",
+    !!pressed && pressed.getAttribute("aria-haspopup") === "dialog" && !pressed.getAttribute("aria-expanded"),
+    pressed ? `haspopup=${pressed.getAttribute("aria-haspopup")} expanded=${pressed.getAttribute("aria-expanded")}` : "no tile");
+  /* And Back is the way out, the same as every other screen in the app.
+     The topmost screen's Back, not the first one found: a walk above this
+     left its own screen open underneath, and screens stack. */
+  const topScreen = [...document.querySelectorAll(".at-screen.over")].pop();
+  click([...(topScreen ? topScreen.querySelectorAll("button") : [])]
+    .find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(250);
-  check("pressing it again puts them away",
+  check("and Back is the way out of them",
     document.querySelectorAll(".at-cardgrid .at-minicard").length === 0,
     `${document.querySelectorAll(".at-cardgrid .at-minicard").length} still up`);
+  check("which brings the tiles back",
+    document.querySelectorAll("button.at-rung").length === 6,
+    `${document.querySelectorAll("button.at-rung").length} tiles`);
 
   /* ---- the tiles say what a level asks, not what number it is ----
      Six of these used to share one row, which on a phone is three columns
