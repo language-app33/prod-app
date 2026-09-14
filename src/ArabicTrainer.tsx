@@ -5608,6 +5608,29 @@ export default function ArabicTrainer() {
    * is a grid. Both are already worked out above; this only asks whether
    * one of them is kin.
    */
+  /*
+   * Which field the answer screen has left to show.
+   *
+   * An exercise that offers a hint during the question shows that field
+   * afterwards, which is what it always did. One that offers none used to
+   * show nothing — so "Choose the meaning" and "Choose the word", which put
+   * up two of a card's three fields between the question and the answer,
+   * ended with no Learn more at all. The third field is the one thing
+   * nobody had said, and it is what is shown now.
+   *
+   * The script is not among them: it has a block of its own below, which
+   * knows when the question was heard rather than read.
+   */
+  const alsoField = useMemo(() => {
+    if (!spec || !item) return "";
+    if (spec.hintField) return spec.hintField;
+    return (
+      ["lat", "en"].find(
+        (f) => f !== spec.promptField && f !== spec.answerField && item[f],
+      ) || ""
+    );
+  }, [spec, item]);
+
   const tellForm = useMemo(() => {
     if (!item || !parentItem || !spec) return false;
     const kin = unitsOf(parentItem)
@@ -6907,18 +6930,31 @@ Cards ready to practice
                             <Field value={item.ar} field="ar" kind={item.kind} name="also-script-text" />
                           </div>
                         )}
-                        {item[spec.hintField] && (
+                        {/* The field the question never showed.
+                            
+                            It was whatever the exercise offers as a hint
+                            *during* the question, which is a different
+                            thing and left the ones that offer none with
+                            nothing to learn more about: "Choose the
+                            meaning" put up the word and its meaning, and
+                            then had no box at all — though how it is
+                            pronounced was exactly the thing nobody had
+                            said. Where an exercise names a hint that is
+                            still what is shown; where it names none, the
+                            field neither the prompt nor the answer used
+                            is the one worth having. */}
+                        {alsoField && item[alsoField] && (
                           <div className="at-answeralso" data-el="also-hint">
                             <p className="at-alsolabel" data-el="also-hint-label">
-                              {spec.hintField === "lat"
+                              {alsoField === "lat"
                                 ? "This is how it's pronounced"
-                                : spec.hintField === "ar"
+                                : alsoField === "ar"
                                 ? "This is how it's written"
                                 : "This is what it means"}
                             </p>
                             <Field
-                              value={item[spec.hintField]}
-                              field={spec.hintField}
+                              value={item[alsoField]}
+                              field={alsoField}
                               kind={item.kind}
                               name="also-hint-text"
                             />
@@ -9770,7 +9806,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
     <>
       <Section
         title="The ladder"
-        lede="Where your cards are. A card climbs four levels and moves up when everything under it is solid — open a tile to see which cards are there."
+        lede="Where your cards are on the learning ladder. A card moves up a level when the previous level is mastered."
       >
 
       {/* A number you want to see the cards behind is a number worth
@@ -9877,7 +9913,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
           how many are left, and a bar beside it because a number alone is
           read and a bar is seen. */}
       {deckRows.length > 0 && (
-        <Section title="Decks" lede="How far each one has got — counted over every level of every card in it, not only the cards that are finished.">
+        <Section title="Decks" lede="How you're doing on each deck you're studying.">
           <div className="at-deckprog">
             {deckRows.map((d) => (
               <div className={`at-deckstat${d.pct === 100 ? " done" : ""}`} key={d.name}>

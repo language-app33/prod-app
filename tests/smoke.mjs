@@ -2623,6 +2623,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      here only exhausts the turns — but worth knowing, because what is
      checked about it below is worth nothing if it never came up. */
   let sawFrame = false;
+  /* Whether "Choose the meaning" left anything behind. It puts up the word
+     and its meaning between the question and the answer, and used to end
+     with no Learn more at all — the box showed whatever the exercise offers
+     as a hint *during* the question, and that one offers none. */
+  /** @type {{ box: boolean, said: string } | null} */
+  let alsoOnMeaning = null;
 
   /* Walk until this block has met everything it asserts, rather than for a
      fixed number of turns.
@@ -2687,6 +2693,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        Behind "Learn more", which is where everything that is not the
        answer lives. */
     const more = document.querySelector('[data-el="also-toggle"]');
+    if (/Choose the meaning/.test(asked) && !alsoOnMeaning) {
+      if (more) click(more);
+      await sleep(120);
+      alsoOnMeaning = {
+        box: !!more,
+        said: ((document.querySelector('[data-el="also-hint"]') || {}).textContent || "")
+          .replace(/\s+/g, " ").trim(),
+      };
+    }
     if (more) {
       click(more);
       await sleep(120);
@@ -2713,6 +2728,20 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   /* The gentlest question there is: the word, and four meanings to choose
      between. It is where a card starts, so every card in the deck is asked
      it. */
+  /* The third field. The question showed the word and the answer showed
+     its meaning, so how it is pronounced is the one thing nobody said —
+     and where the box had nothing at all, it is now what is in it. */
+  check("choosing what a word means still leaves something worth knowing behind",
+    !!alsoOnMeaning && alsoOnMeaning.box,
+    !alsoOnMeaning
+      ? "that question never came up"
+      : alsoOnMeaning.box
+        ? "the box was there"
+        : "the question was asked and left nothing behind");
+  check("which is the field the question never showed",
+    !!alsoOnMeaning && /pronounced/.test(alsoOnMeaning.said),
+    (alsoOnMeaning && alsoOnMeaning.said) || "(nothing in the box)");
+
   check("a word can be met by choosing what it means, out of a few",
     !!meaningTiles && meaningTiles.options > 1,
     meaningTiles ? `${meaningTiles.options} meanings offered` : "never asked");
@@ -3900,6 +3929,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     click(document.querySelector('[data-el="check-button"]'));
     await sleep(250);
   }
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+
   click(buttonNamed(/^Continue$/));
   await sleep(700);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));

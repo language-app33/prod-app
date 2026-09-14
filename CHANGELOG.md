@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.129 — 14 September 2026
+
+- **"Learn more" now has something in it whatever was asked.** The box
+  showed whichever field the exercise offers as a hint *during* the
+  question — a different thing, and the exercises that offer none were left
+  with no box at all. **Choose the meaning** is the plainest case: it puts
+  up the word and then its meaning, and ended with nothing to add, though
+  how it is pronounced was exactly the thing nobody had said.
+
+  Where an exercise names a hint, that is still what is shown. Where it
+  names none, the box shows the field neither the question nor the answer
+  used — which is the one thing left worth knowing. **Choose the word**,
+  **Which word is missing?**, **Match each word to its meaning** and the
+  listening questions all gain one the same way.
+
+- **Two lines in Progress say what they mean more plainly.** The ladder is
+  *"Where your cards are on the learning ladder. A card moves up a level
+  when the previous level is mastered."*, and the decks are *"How you're
+  doing on each deck you're studying."*
+
 ## 0.128 — 14 September 2026
 
 - **A question two forms of one card could answer now says which it
