@@ -391,28 +391,27 @@ test("mastered is four days of interval in review, and nothing less", () => {
     "graduating the steps is two right answers ten minutes apart, which is not knowing a word");
 });
 
-test("a level opens once what is under it is graduated, and the writing once it is mastered", () => {
+test("a cued level opens on graduated, and writing from the meaning on mastered", () => {
   /* Recognition, production from a cue, production from the meaning: one
      of each, so the three levels are each one exercise wide. */
   const ladder = ["ar2en", "tr2ar", "en2ar"];
-  const grad = state({ phase: "review", interval: 2 });
+  const grad = state({ phase: "review", interval: 1 });
   const done = state({ phase: "review", interval: MASTERED_DAYS });
   const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
   assert.deepEqual(openTypes(ladder, table({})), ["ar2en"], "a fresh form is asked to recognise, nothing else");
-  /* Through the learning steps and in review is the whole of what the
-     levels under the writing ask. The four-day bar used to stand here too,
-     and it cost four or five days of calendar time at every rung. */
-  assert.deepEqual(openTypes(ladder, table({ ar2en: grad })), ["ar2en", "tr2ar"],
-    "graduated is enough to be asked to write it from a cue");
   assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "learning", step: 1 }) })), ["ar2en"],
-    "but the learning steps are not through yet");
-  /* The writing is the exception, and the reason the bar exists at all: a
-     word is not written from its meaning alone until what is under it has
-     held for four days. */
+    "one right answer is still on the steps, and the steps are the bar");
+  /* Writing from a cue is still cued — the pronunciation is on the screen —
+     so through the learning steps and in review is what earns it. Asking
+     four days here held a card on recognition alone for a week or more. */
+  assert.deepEqual(openTypes(ladder, table({ ar2en: grad })), ["ar2en", "tr2ar"],
+    "graduated on the reading opens writing from a cue");
+  /* But not the level above it: with nothing on the screen to go on, the
+     four-day bar still stands. */
   assert.deepEqual(openTypes(ladder, table({ ar2en: grad, tr2ar: grad })), ["ar2en", "tr2ar"],
-    "graduated is not mastered, and the writing asks mastery");
+    "graduated is not enough for writing from the meaning alone");
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: grad })), ["ar2en", "tr2ar"],
-    "every exercise under it, not just the bottom one");
+    "every exercise below it has to be mastered, not just the bottom one");
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done })), ["ar2en", "tr2ar", "en2ar"]);
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done, en2ar: done })), ladder, "and stays open");
   assert.deepEqual(
@@ -433,10 +432,18 @@ test("the bar belongs to the level, not to whichever exercises a card happens to
   const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
   assert.deepEqual(openTypes(["ar2en", "match", "en2ar"], table({ ar2en: grad })), ["ar2en", "match"]);
   assert.deepEqual(openTypes(["ar2en", "ctx2pick", "en2ar"], table({ ar2en: grad })), ["ar2en", "ctx2pick"]);
-  /* And the table says it in one place, rather than exercise by exercise. */
+  /* And the table says it once per level rather than once per exercise, so
+     there is nothing for two exercises to disagree about. This replaced an
+     invariant test that held every exercise on a level to the same answer
+     and named the offender: worth having while the fact was written out
+     nine times, and nothing to check now that it is written once. */
   for (const t of TYPES) {
     assert.equal(barOf(t), LEVEL_BARS[levelOf(t)], `${t}: the bar is its level's`);
   }
+  /* The bars themselves, which are the rule the app teaches by: every cued
+     level on graduated, and writing from the meaning alone on mastered.
+     Levels 2 and 3 show the learner the word or its sound; level 4 gives
+     them nothing but what it means. */
   assert.deepEqual(
     [1, 2, 3, 4].map((l) => LEVEL_BARS[l]),
     ["graduated", "graduated", "graduated", "mastered"],
@@ -461,7 +468,7 @@ test("a level with nothing on it is passed straight through", () => {
     ["ar2en", "match", "en2ar"]);
 });
 
-test("the grid opens once a word is through the learning steps alone, and the writing once it is all mastered", () => {
+test("the whole cued half of the ladder is climbed on graduated", () => {
   const ladder = ["ar2en", "match", "tr2ar", "en2ar"];
   const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
   const grad = state({ phase: "review", interval: 1 });
@@ -471,13 +478,17 @@ test("the grid opens once a word is through the learning steps alone, and the wr
     "one right answer is still on the steps");
   assert.deepEqual(openTypes(ladder, table({ ar2en: grad })), ["ar2en", "match"],
     "graduated is enough for the grid — it is still recognition");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: grad })), ["ar2en", "match", "tr2ar"],
-    "and enough for writing from a cue: the grid need only be through the steps");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done })), ["ar2en", "match", "tr2ar"],
-    "the writing from the meaning still waits, with nothing answered on the level under it");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done, tr2ar: done })), ladder);
-  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done, tr2ar: grad })), ["ar2en", "match", "tr2ar"],
-    "and it is mastery it waits for, not graduation");
+  /* And on up: the grid graduated opens writing from a cue, so a word read
+     and told apart is asked for within days rather than within a fortnight.
+     This is the whole of the change — it used to stop here. */
+  assert.deepEqual(openTypes(ladder, table({ ar2en: grad, match: grad })), ["ar2en", "match", "tr2ar"],
+    "and the grid graduated opens writing it from a cue");
+  /* Writing from the meaning alone is the one level that still waits for
+     four days on everything below it. */
+  assert.deepEqual(openTypes(ladder, table({ ar2en: grad, match: grad, tr2ar: grad })), ["ar2en", "match", "tr2ar"],
+    "three graduated levels still do not open writing from the meaning");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done, tr2ar: done })), ladder,
+    "mastering all three does");
   assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), match: done })), ["ar2en"],
     "and a lapse on the reading takes the grid away again until it is back in review");
   assert.equal(graduated(state({ phase: "review", interval: 1 })), true);

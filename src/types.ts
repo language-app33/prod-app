@@ -79,6 +79,14 @@ export interface ExerciseSpec {
    * see openTypes in the scheduler.
    */
   level: 1 | 2 | 3 | 4;
+  /*
+   * There is no bar here. It belongs to the level rather than to the
+   * exercise — 0.103 said so in a comment and still wrote it out on each
+   * of the nine exercises that share one, with a test to hold them in
+   * step — so it is now declared once per level, in LEVEL_BARS in
+   * languages.ts, and `barOf` reads it off the level an exercise stands
+   * on. Nothing can disagree with anything.
+   */
   /** Still defined so stored states can be read. */
   retired?: boolean;
   /** Asks a derived property rather than the word. */

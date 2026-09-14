@@ -318,16 +318,23 @@ export function graduated(s: ExerciseState): boolean {
    for a form only once every exercise on the levels below it that the form
    supports has reached the level's bar.
 
-   The bar is graduated — through the learning steps and in review — up to
-   the writing, and mastered for the writing itself: four days of interval,
-   in review. So a word is told apart from others once it has been met
-   alone, and written from a cue once it is known both ways, but it is not
-   asked to be written from its meaning until everything under it has held
-   for four days. The bar a level asks is in LEVEL_BARS in languages.ts.
+   The bar is graduated — through the learning steps and in review, at
+   whatever interval — for the two levels that are still cued: telling a
+   word apart from others, and writing it from a pronunciation or a
+   recording that carries it. Both show the learner the word, neither is
+   recall from the meaning alone, and asking a four-day interval of every
+   recognition exercise first held a card on multiple choice for a week or
+   more before it was ever asked for the word.
 
-   A form with no recording has nothing on level three but its
-   transliteration, and that alone is what it must master to reach level
-   four; a form with nothing at all on a level passes straight through it.
+   Level four — writing it from its meaning, with nothing on the screen to
+   go on — keeps the four-day bar, so the strict gate stands where
+   production from memory actually begins.
+
+   Which bar a level asks is the level's own business, and is written down
+   once each in LEVEL_BARS in languages.ts. A form with no recording has
+   nothing on level three but its transliteration, and that alone is what
+   it must reach to open level four; a form with nothing at all on a level
+   passes straight through it.
 
    Whether the bar is met is read afresh every time, so a lapse on the
    bottom level closes the ones above it until it is recovered: somebody who

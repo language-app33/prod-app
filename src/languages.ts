@@ -155,6 +155,8 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "tr",
   },
   tr2ar: {
+    /* Production, but from a cue that carries the word: the pronunciation
+       is on the screen and what is asked is how it is spelt. */
     level: 3,
     instruction: "Write in {script}",
     label: "{Translit} → {script}",
@@ -2223,26 +2225,33 @@ export function keysFor(form: WithAnswers | null | undefined, type: string): str
  *
  * *Graduated* is through the learning steps and in review at all;
  * *mastered* is in review with four days of interval or more, which is a
- * further two right answers a day and then several days apart.
+ * further right answer the next day and another a few days after that.
  *
- * Recognition asks the gentler one of what stands under it, and production
- * from the meaning alone asks the stricter. The four-day bar used to stand
- * in front of every level above the first, and the cost of that was most
- * of a month: each level held the one above it for four or five days of
- * calendar time whatever the learner did, so a word with a recording and a
- * phrase on it could not be written from its meaning for two and a half
- * weeks of perfect answers — and, in a deck with anything else due, for
- * nearer two months. Kept for the writing, which is the one place where
- * being asked too early means being asked something you have not yet been
- * taught, and dropped below it, where the next level is itself the
- * practice.
+ * The two cued levels — telling a word apart from others, and writing it
+ * from a pronunciation or a recording that carries it — open on
+ * graduated, the way the matching grid has since 0.85 and for the same
+ * reason. Asking a four-day interval of every recognition exercise first
+ * meant four right answers each, three days at the very fastest, and in
+ * practice a week or more of a card being asked nothing but which of
+ * four: new cards went on arriving at the bottom while nothing climbed,
+ * which is the passive-vocabulary plateau written into the schedule. A
+ * cued question is not recall from the meaning alone, and a first
+ * fortnight that never asks for the word is the wrong fortnight.
  *
- * A property of the level and not of an exercise: the bar used to be
- * declared by the exercises themselves and read as the loosest on the
- * level, so a card whose only level-two exercise was the gap-fill — a card
- * in a deck too small for a matching grid — climbed by a stricter rule
- * than the card beside it. Level 1 is here for completeness; nothing
- * stands below it, so it is open from the first session whatever it says.
+ * Level four keeps the four-day bar, so the strict gate stands exactly
+ * where production from the meaning alone begins — the one place where
+ * opening early means asking for something that has not been taught yet.
+ * A lapse anywhere below still closes the levels above, because graduated
+ * is false in relearning.
+ *
+ * Written once per level rather than on each exercise. It was on each of
+ * them for a day: nine declarations of one fact, kept in step by a test,
+ * with the level-one entries saying "mastered" for a bar nothing reads and
+ * `openTypes` quietly taking the loosest of whatever a card happened to
+ * carry — so a card whose only level-two exercise was the gap-fill could
+ * climb by a stricter rule than the card beside it. Level 1 is here for
+ * completeness; nothing stands below it, so it opens from the first
+ * session whatever it says.
  */
 export const LEVEL_BARS: Record<number, "graduated" | "mastered"> = {
   1: "graduated",
