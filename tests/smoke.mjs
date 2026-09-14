@@ -1504,15 +1504,15 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
        book also being in Review — a card in two decks is in both, not moved
        from one to the other. */
     check("each counting the cards it actually holds",
-      /of 1 card learnt$/.test(countOf(named("Review"))) &&
-        /of 7 cards learnt$/.test(countOf(named("Lesson 1"))),
+      /of 1 card fully learnt$/.test(countOf(named("Review"))) &&
+        /of 7 cards fully learnt$/.test(countOf(named("Lesson 1"))),
       `Review: ${countOf(named("Review"))} · Lesson 1: ${countOf(named("Lesson 1"))}`);
     /* And a value is in no deck. "Raphael" is sent with whichever deck's
        phrase leaves a hole of its name, which is not the same as being
        filed in it — so Introductions holds its one phrase and not the two
        names borrowed to fill it. */
     check("while a value borrowed by a deck is not counted as one of its cards",
-      !named("Introductions") || /of 1 card learnt/.test(countOf(named("Introductions"))),
+      !named("Introductions") || /of 1 card fully learnt/.test(countOf(named("Introductions"))),
       countOf(named("Introductions")) || "(no Introductions tile)");
     /* Read off the figure itself rather than the tile's text: a deck
        called "Lesson 1" beside 42% reads as 142 when the two are run
@@ -1538,8 +1538,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
         const bar = d.querySelector(".at-deckbar");
         return !!bar && bar.getAttribute("aria-hidden") === "true";
       }));
-    check("and it says the count the percentage came from",
-      decks.every((d) => /\d+ of \d+ cards? learnt/.test((d.textContent || "").replace(/\s+/g, " "))),
+    /* And how many are finished outright, which is a different fact from
+       the figure above it now that the figure counts the levels in
+       between: one says how far the deck has got, the other how much of it
+       is behind you for good. It said "learnt" while the two were the same
+       number. */
+    check("and beside it, how many of its cards are finished outright",
+      decks.every((d) => /\d+ of \d+ cards? fully learnt/.test((d.textContent || "").replace(/\s+/g, " "))),
       said.join(" · "));
   }
 

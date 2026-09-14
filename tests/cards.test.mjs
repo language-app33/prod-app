@@ -66,7 +66,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed } = await import(path.join(out, "trainer.js"));
+const { leadSpeed, deckPercent } = await import(path.join(out, "trainer.js"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -440,4 +440,43 @@ test("and a word is offered the tables its language actually lays out", () => {
   /* Every answer carries a line saying what it gets you, which is why this
      is a list of rows and not a track of segments. */
   assert.ok(formsOffered(null, { verb: true, attached: true }).every((/** @type {any} */ o) => o.note));
+});
+
+/*
+ * How far a deck has got.
+ *
+ * It was the cards with nothing left to open over all of them, so a deck
+ * whose every card was three levels up and being asked to be written read
+ * as nought per cent — and stayed there for weeks while the work went on.
+ * A card now contributes its own share of itself: the levels it has
+ * finished over the levels it has material for.
+ *
+ * Checked here rather than in the smoke harness because the seeded deck
+ * has no card stopped partway, which is the only case where the old
+ * measure and this one differ at all.
+ */
+test("a deck counts the levels its cards have finished, not only its finished cards", () => {
+  /* Four cards, none of them finished, each halfway up its own ladder.
+     The old measure called this nought. */
+  assert.equal(deckPercent({ n: 4, learnt: 0, got: 2 }), 50);
+  /* And one card of four finished, the rest untouched, is the number the
+     old measure gave — the two agree wherever nothing is partway. */
+  assert.equal(deckPercent({ n: 4, learnt: 1, got: 1 }), 25);
+  /* A deck nobody has started is still nought. */
+  assert.equal(deckPercent({ n: 9, learnt: 0, got: 0 }), 0);
+});
+
+test("and is held at 99 until the last card is in", () => {
+  /* The rule the figure has always had: 199 of 200 is not a finished deck,
+     and a tile reading 100% over a card still to learn is the one number
+     here nobody would trust again. Read off the finished count rather than
+     the sum, so a rounding cannot reach the hundred early. */
+  assert.equal(deckPercent({ n: 200, learnt: 199, got: 199.6 }), 99);
+  assert.equal(deckPercent({ n: 4, learnt: 3, got: 3.999 }), 99);
+  /* And only every card finishing gets there. */
+  assert.equal(deckPercent({ n: 4, learnt: 4, got: 4 }), 100);
+  /* Rounded down the rest of the way: two thirds is 66, never 67. */
+  assert.equal(deckPercent({ n: 3, learnt: 0, got: 2 }), 66);
+  /* An empty deck is nought rather than a division by nothing. */
+  assert.equal(deckPercent({ n: 0, learnt: 0, got: 0 }), 0);
 });

@@ -8,6 +8,31 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.127 — 14 September 2026
+
+- **A deck's figure counts the levels you have finished, not just the cards
+  you have finished.** It was the cards with nothing left to open over all
+  of them — so a deck whose every card was three levels up and being asked
+  to be written read as **0%**, and stayed there for weeks while the work
+  went on. That is the one number on the screen somebody watches to see
+  themselves moving, and it was the one that moved last.
+
+  A card contributes its own share of itself now: the levels it has
+  finished, over the levels it has material for. A level a card has nothing
+  on is not a level it is short of — the ladder passes those straight
+  through, so the figure does too. Every card counts the same whatever it
+  carries, because a deck of thirty cards is thirty things to learn however
+  much each happens to hold.
+
+  What has not changed: it is still rounded down and still held at 99 until
+  the last card is in, because a tile reading 100% over a card still to
+  learn is the one number here nobody would trust again.
+
+- **And the line under it says "fully learnt".** How many of a deck's cards
+  are finished outright is a different fact from how far the deck has got,
+  and worth both — but the two were the same number until now, and the word
+  that told them apart was missing.
+
 ## 0.126 — 14 September 2026
 
 - **"It takes a pronoun on the end" is just "Attached pronouns".** The long

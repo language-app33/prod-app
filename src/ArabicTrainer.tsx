@@ -9543,6 +9543,36 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
    Progress tab
    ================================================================== */
 
+/**
+ * How far a deck has got, as a percentage.
+ *
+ * `got` is the sum of its cards' own shares — the levels each has finished
+ * over the levels each has material for — and `learnt` is how many have
+ * finished all of theirs.
+ *
+ * It used to be `learnt / n` alone, so a deck whose every card was three
+ * levels up and being asked to be written read as nought per cent and
+ * stayed there for weeks while the work went on. That is the one number on
+ * the screen somebody watches to see themselves moving, and it was the one
+ * that moved last.
+ *
+ * Every card counts the same, whatever its levels: a card with material on
+ * two of them contributes a whole card's worth of itself, not half of one,
+ * because a deck of thirty cards is thirty things to learn however much
+ * each happens to carry.
+ *
+ * Rounded down, and held at 99 until every card is in — 199 of 200 is not a
+ * finished deck, and a tile reading 100% over a card still to learn is the
+ * one number here nobody would trust again. Which is why the hundred is
+ * read off `learnt` rather than off the sum: a rounding that reached it
+ * early would be exactly that tile.
+ */
+export function deckPercent({ n, learnt, got }: { n: number; learnt: number; got: number }): number {
+  if (!n) return 0;
+  if (learnt >= n) return 100;
+  return Math.max(0, Math.min(99, Math.floor((got / n) * 100)));
+}
+
 /*
  * How far along a card is: which level it is on and how it is going there.
  *
@@ -9555,9 +9585,6 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
  * are climbing, so it is the thing shown, and the bars have gone with the
  * deck sections that carried them.
  */
-const standingOf = (it: Item, settings: Settings): Standing | null =>
-  standing(cardStandings(it, settings));
-
 function ProgressTab({ items, myCourses = [], settings }: {
   items: Item[];
   myCourses?: Course[];
@@ -9565,11 +9592,32 @@ function ProgressTab({ items, myCourses = [], settings }: {
 }) {
   const [viewing, setViewing] = useState<any | null>(null);
 
-  const progressOf = useMemo(() => {
-    const m: Map<string, Standing | null> = new Map();
-    for (const it of items) m.set(it.id, standingOf(it, settings));
-    return m;
+  /*
+   * Where each card stands, and how far up it has got.
+   *
+   * Two answers off one walk. The first is the level to put on a card, and
+   * the second is how much of the card is behind it — the levels it has
+   * finished over the levels it has material for, which is a number between
+   * nothing and all of it rather than a yes or a no.
+   *
+   * Together rather than in two memos, for the reason the buckets below are
+   * worked out with their counts: both read the same list of standings, and
+   * building it twice is a walk of every card for nothing.
+   */
+  const progress = useMemo(() => {
+    const at: Map<string, Standing | null> = new Map();
+    const share: Map<string, number> = new Map();
+    for (const it of items) {
+      const rows = cardStandings(it, settings);
+      at.set(it.id, standing(rows));
+      /* A level a card has no material for is not a level it is short of —
+         openTypes passes those straight through, and standings leaves them
+         out — so the denominator is the levels it actually has. */
+      share.set(it.id, rows.length ? rows.filter((r) => r.status === "done").length / rows.length : 0);
+    }
+    return { at, share };
   }, [items, settings]);
+  const progressOf = progress.at;
 
   /* One tile per level, and one for the cards with nothing above them left
      to open. A card counts under the level it is on — see `standing` — so
@@ -9611,32 +9659,29 @@ function ProgressTab({ items, myCourses = [], settings }: {
    * the Learnt tile above counts, cut by deck.
    */
   const deckRows = useMemo(() => {
-    const held: Map<string, { n: number; learnt: number }> = new Map();
+    const held: Map<string, { n: number; learnt: number; got: number }> = new Map();
     for (const it of items) {
       const at = progressOf.get(it.id);
       /* The same exclusion the tiles make: a card with nothing it can be
          asked is on no level, so it is not progress to be short of. */
       if (!at) continue;
       for (const deck of it.tags || []) {
-        const row = held.get(deck) || { n: 0, learnt: 0 };
+        const row = held.get(deck) || { n: 0, learnt: 0, got: 0 };
         row.n++;
+        row.got += progress.share.get(it.id) || 0;
         if (at.status === "done") row.learnt++;
         held.set(deck, row);
       }
     }
     return [...held.entries()]
-      .map(([name, { n, learnt }]) => ({
+      .map(([name, { n, learnt, got }]) => ({
         name,
         n,
         learnt,
-        /* Rounded down, and held at 99 until every card is in: 199 of 200
-           is not a finished deck, and a tile reading 100% over a card
-           still to learn is the one number here nobody could trust
-           again. */
-        pct: n === 0 ? 0 : learnt === n ? 100 : Math.min(99, Math.floor((learnt / n) * 100)),
+        pct: deckPercent({ n, learnt, got }),
       }))
       .sort((a, b) => b.pct - a.pct || a.name.localeCompare(b.name));
-  }, [items, progressOf]);
+  }, [items, progressOf, progress]);
 
   return (
     <>
@@ -9749,7 +9794,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
           how many are left, and a bar beside it because a number alone is
           read and a bar is seen. */}
       {deckRows.length > 0 && (
-        <Section title="Decks" lede="How much of each is learnt outright — every card in it with nothing left to open.">
+        <Section title="Decks" lede="How far each one has got — counted over every level of every card in it, not only the cards that are finished.">
           <div className="at-deckprog">
             {deckRows.map((d) => (
               <div className={`at-deckstat${d.pct === 100 ? " done" : ""}`} key={d.name}>
@@ -9764,8 +9809,13 @@ function ProgressTab({ items, myCourses = [], settings }: {
                 <span className="at-deckbar" aria-hidden="true">
                   <span style={{ width: `${d.pct}%` }} />
                 </span>
+                {/* And the finished cards, which is a different fact from
+                    the figure above it and worth both: one says how far the
+                    deck has got, the other how much of it is behind you for
+                    good. "Fully" because they were the same number until
+                    the figure learnt to count the levels in between. */}
                 <p className="at-deckstatnote">
-                  {d.learnt} of {plural(d.n, "card")} learnt
+                  {d.learnt} of {plural(d.n, "card")} fully learnt
                 </p>
               </div>
             ))}
