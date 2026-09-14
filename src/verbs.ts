@@ -235,6 +235,35 @@ export function citedCell(
   return cell && str(cell.ar) ? cell : null;
 }
 
+/**
+ * The card's own word, taken off the cell that stands in for it.
+ *
+ * Where a language cites a cell, that cell holds everything the card's own
+ * word does — the script, the pronunciation, the English, the recordings —
+ * so the editor stops asking for them a second time and reads them off the
+ * table instead. The card is still saved with a word of its own: the face
+ * every list shows, what a search matches, what a tile is labelled. This
+ * is where that word comes from.
+ *
+ * Everything else about the form is kept. The word is what the cell knows;
+ * whether the card is drilled, which variable it fills, what deck it is in
+ * are facts about the card and are none of the cell's business.
+ *
+ * An empty cell gives an empty word rather than the last one typed, which
+ * is what lets the editor refuse to save a verb whose dictionary form has
+ * been left blank instead of quietly keeping a word nothing points at.
+ */
+export function citedWord<T extends Record<string, unknown>>(own: T, cell: unknown): T {
+  return {
+    ...own,
+    ar: str(field(cell, "ar")),
+    en: str(field(cell, "en")),
+    lat: str(field(cell, "lat")),
+    clips: field(cell, "clips") || [],
+    slowClips: field(cell, "slowClips") || [],
+  };
+}
+
 /* ---- agreement: which cell a subject calls for ---- */
 
 /**

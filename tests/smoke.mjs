@@ -3130,6 +3130,75 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!saveBtn() && !saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "still refused" : "offered"}`);
 
+  /* ---- a verb, where the dictionary form is a cell of its own table ----
+
+     Arabic has no infinitive: a dictionary lists the he-past, which is a
+     cell of the table. So on this language the cell carries everything the
+     card's own word does, and the block asking for it again was asking for
+     the same word twice and then for the two to be kept in step by hand.
+     The block is not shown; the cell is the card. */
+  {
+    /* Back to a plain word, out of the frame the walk above left behind. */
+    typeInto(fieldNamed(/^Arabic script and transliteration$/i), "akal");
+    await sleep(80);
+    typeInto(fieldNamed(/^English$/), "to eat");
+    await sleep(200);
+
+    const block = (/** @type {RegExp} */ re) =>
+      [...document.querySelectorAll(".at-formblock")].find((b) =>
+        re.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    const tick = [...document.querySelectorAll(".at-tickrow")]
+      .find((r) => /This is a verb/.test(r.textContent || ""));
+    check("a word can be called a verb", !!tick, tick ? "the tick is offered" : "no tick");
+    check("and until it is, the card's own word is where it always was", !!block(/^The verb$|^Form 1$/),
+      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+
+    click(tick && tick.querySelector("input"));
+    await sleep(300);
+
+    check("ticking it takes the block away rather than asking for the word twice",
+      !block(/^The verb$/),
+      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+    /* And the word is not left behind in a block that has just gone: it
+       moves into the cell that is about to hold it, which is also the
+       clearest way to be told which cell that is. */
+    const cellNamed = (/** @type {string} */ label) =>
+      /** @type {any} */ ([...document.querySelectorAll("input")]
+        .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+    const script = cellNamed("Arabic script for past · he");
+    const meaning = cellNamed("English for past · he");
+    check("the word moves into the dictionary form's own cell",
+      !!script && script.value === "akal" && !!meaning && meaning.value === "to eat",
+      script ? `script "${script.value}", English "${meaning ? meaning.value : "—"}"` : "no such cell");
+    check("which the table says is the dictionary form",
+      /the dictionary form/.test(document.body.textContent || ""));
+    check("and the card can be saved on the strength of it",
+      !!saveBtn() && !saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+
+    /* Empty that cell and there is no card: it is the face, the meaning
+       and what the card is searched by, so the editor refuses and says
+       which cell it wants rather than greying Save with no reason. */
+    typeInto(script, "");
+    await sleep(200);
+    check("emptying it is refused, because it is the card itself",
+      !!saveBtn() && saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "still offered"}`);
+    check("and the editor names the cell it is waiting for",
+      /The dictionary form — past · he/.test(document.body.textContent || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")]
+        .map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+
+    /* Untick, and the word the block was holding is still there — putting
+       the table away must not read as having thrown the card away. */
+    click(tick && tick.querySelector("input"));
+    await sleep(300);
+    const back = fieldNamed(/^Arabic script and transliteration$/i);
+    check("unticking brings the block back with the word still in it",
+      !!block(/^Form 1$|^The verb$/) && !!back && back.value === "akal",
+      back ? `"${back.value}"` : "no field");
+  }
+
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
 }

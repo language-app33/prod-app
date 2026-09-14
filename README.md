@@ -65,7 +65,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   present is known and a lapse closes the rows above. Where a language has
   no infinitive it names the cell a dictionary would list instead — Arabic
   cites the he-past — and that cell stands in for the card's own word
-  rather than the two being drilled as one word twice. A verb card may also
+  rather than the two being drilled as one word twice. On those languages
+  it stands in for it in the editor as well: the block asking for the
+  card's own word is not shown, the cell is what the card is saved as, and
+  a word first called a verb moves into that cell rather than being asked
+  for twice. Where a language cites nothing — Huế cites the bare verb,
+  which is a word and not a cell — the block is the verb and stays. A verb card may also
   carry a sentence with its own place marked in it — `{{name}} {{verb}}
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { isCell, isCitation, personsOf, tensesOf } from "./verbs.ts";
+import { citationOf, citedWord, isCell, isCitation, personsOf, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -2900,10 +2900,19 @@ function ScriptAnswers({ lang, form, onChange }: {
   );
 }
 
-function ScriptInput({ lang, value, onChange, compact = false }: {
+function ScriptInput({ lang, value, onChange, compact = false, label }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
+  /**
+   * What to call this box where the label above it does not say — in a
+   * table, where one heading stands over twenty-one boxes and only the row
+   * and column say which is which. The two boxes beside it in a cell have
+   * carried their own names since the table was written; this one had
+   * none, which on the languages whose dictionary form is a cell now
+   * leaves the field the whole card is identified by unnamed.
+   */
+  label?: string;
   /**
    * A shorter box, for where there are many of them. A verb's table is
    * twenty-one of these on one screen, and at the size a single field is
@@ -2927,6 +2936,7 @@ function ScriptInput({ lang, value, onChange, compact = false }: {
           ref={ref}
           className="at-input"
           lang={lang.id}
+          aria-label={label}
           /* The text decides, once there is any: dir="auto" lays the field out
              by its own first strong character, so a pasted Arabic phrase reads
              right-to-left even if the deck is labelled with another language.
@@ -3916,6 +3926,7 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
                   <ScriptInput
                     compact
                     lang={lang}
+                    label={`${lang.scriptLabel} for ${which}`}
                     value={(cell && cell.ar) || ""}
                     onChange={(v) => write(tense.id, person.id, { ar: v })}
                   />
@@ -3961,6 +3972,54 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
     </>
   );
 }
+
+/*
+ * The card's own word, put into the cell that stands in for it.
+ *
+ * On a language that cites a cell the block asking for the word is not
+ * shown, so the word has to be somewhere the teacher can see and edit it,
+ * and the cell a dictionary would list it under is that place. Run when a
+ * plain word is first called a verb, and when a card written before this
+ * is opened — a table whose cited cell nobody ever filled would otherwise
+ * hide the card's word behind a block that is no longer on screen.
+ *
+ * Never over a cell that already says something: a table the teacher has
+ * filled in knows better than a word field they have not looked at in
+ * weeks. Never from an empty word either, which is every new card.
+ */
+const seedCited = (
+  cells: Record<string, any>[],
+  word: Record<string, any> | null | undefined,
+  spec: VerbSpec | null | undefined,
+): Record<string, any>[] => {
+  const to = citationOf(spec);
+  if (!to || !word || !String(word.ar || "").trim()) return cells;
+  if (cells.some((c) => c.row === to.row && c.col === to.col && String(c.ar || "").trim())) return cells;
+  return cells
+    .filter((c) => !(c.row === to.row && c.col === to.col))
+    .concat([{
+      ...blankForm(),
+      ar: word.ar || "",
+      en: word.en || "",
+      lat: word.lat || "",
+      clips: word.clips || [],
+      slowClips: word.slowClips || [],
+      row: to.row,
+      col: to.col,
+    }]);
+};
+
+/* What to call the cell a dictionary lists the verb under, in the pack's
+   own words for its rows and columns — "past · he". A pack whose columns
+   are unlabelled leaves the row standing on its own, for the same reason
+   the table does not print "any" over a language with one person. */
+const citedLabel = (spec: VerbSpec | null | undefined): string => {
+  const cite = citationOf(spec);
+  if (!cite) return "";
+  const tense = tensesOf(spec).find((t) => t.id === cite.row);
+  const person = personsOf(spec).find((p) => p.id === cite.col);
+  return [tense && tense.label, person && person.label].filter(Boolean).join(" · ");
+};
 
 function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }: {
   card: Card | null;
@@ -4017,9 +4076,13 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      edited in different shapes — a list of blocks, and a table — and
      joined again at save. */
   const verbSpec = teachesVerbs(lang) ? verbOf(lang) : null;
-  const [cells, setCells] = useState<Record<string, any>[]>(() =>
-    ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s })),
-  );
+  const [cells, setCells] = useState<Record<string, any>[]>(() => {
+    const had = ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s }));
+    /* Only a card that is already a verb: a plain word has no table, and
+       seeding one would be answering the tick below on the teacher's
+       behalf. */
+    return had.length ? seedCited(had, card, verbSpec) : had;
+  });
   /* Whether this card is a verb at all. A card that already has cells
      plainly is; anything else is the teacher's to say, because "is this a
      verb" is a question about the word and not one the app can read off
@@ -4030,6 +4093,25 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      conversation is never a verb: it has turns where a word has forms,
      and there is nothing for a table to lay out. */
   const verbMode = !scene && !!verbSpec && asVerb;
+  /*
+   * Whether the table holds the card's own word as well as its forms.
+   *
+   * Arabic and Hebrew have no infinitive: a dictionary lists the he-past,
+   * which is a cell of this very table, and the pack says so. So on those
+   * two the cell carries everything the card's own word does — the script,
+   * the pronunciation, the English and the recordings — and a block asking
+   * for them again was asking the teacher to type the same word twice and
+   * then keep the two in step by hand. It is not shown. Huế cites the bare
+   * verb, which is a word and not a cell, so there the block is the verb
+   * and stays.
+   *
+   * What the card is saved as comes off the cell, which is what makes the
+   * block safe to take away: the face in every list, the meaning, the
+   * recordings. Everything that reads a card goes on reading a card.
+   */
+  const cite = verbMode ? citationOf(verbSpec) : null;
+  const citedAt = cite ? cells.find((c) => c.row === cite.row && c.col === cite.col) || null : null;
+  const standsIn = !!cite;
   /* Whether this card's other forms are on show. Put away on a verb,
      where the table is what a teacher came to fill in — but only where
      there is nothing to put away: a card that already carries a second
@@ -4108,7 +4190,17 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     return side === null ? "" : ` side${side}`;
   };
 
-  const main = forms[0];
+  /*
+   * The card's own word — off the cited cell where the table stands in for
+   * it, and the block's own fields everywhere else.
+   *
+   * Derived rather than written into `forms` as the teacher types: a copy
+   * kept in step by an effect is a copy that can fall out of step, and
+   * everything below this line — what can be saved, which holes the card
+   * leaves, what is sent — then reads one value whichever kind of card it
+   * is. The clips travel with it so the card's face can still be heard.
+   */
+  const main = standsIn ? citedWord(forms[0], citedAt) : forms[0];
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
@@ -4120,7 +4212,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      question that asks for a name and marks an answer that never contained
      one, so it is not a card that can be saved. */
   const holes = scene ? [] : slotsOf(main);
-  const trouble = scene ? null : forms.map((f) => slotTrouble(f)).find(Boolean) || null;
+  /* The card's word as it will be saved, then whatever else it carries —
+     so a hole the cited cell leaves is checked against the fields beside
+     it rather than against a block nobody is filling in. */
+  const ownForms = [main].concat(forms.slice(1));
+  const trouble = scene ? null : ownForms.map((f) => slotTrouble(f)).find(Boolean) || null;
   const canSave = scene
     ? !!title.trim() && written.length >= 2
     : main.ar.trim() && main.en.trim() && !trouble;
@@ -4149,7 +4245,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                    only while the card says it is a verb, so turning that
                    off puts the table away rather than saving a hidden
                    one. */
-                forms: asVerb ? forms.concat(cells as typeof forms) : forms,
+                forms: asVerb ? ownForms.concat(cells as typeof forms) : ownForms,
                 note,
                 decks: chosen,
                 uses,
@@ -4219,7 +4315,22 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 <input
                   type="checkbox"
                   checked={asVerb}
-                  onChange={() => setAsVerb((v) => !v)}
+                  onChange={() => {
+                    const on = !asVerb;
+                    setAsVerb(on);
+                    /* Where the table is about to stand in for the card's
+                       own word, the word moves into the cell that is going
+                       to hold it rather than being left behind in a block
+                       that has just disappeared. A teacher who wrote the
+                       word as a plain card weeks ago and has now reached
+                       tenses sees it land under he · past, which is also
+                       the clearest way to be told what the dictionary
+                       form is.
+
+                       Only into an empty cell: a card that already has a
+                       table knows better than the block does. */
+                    if (on) setCells((x) => seedCited(x, forms[0], verbSpec));
+                  }}
                 />
                 <span className="at-tickbody">
                   <b>This is a verb</b>
@@ -4236,13 +4347,27 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               plainly an empty box, and the rows are labelled in the order
               they are taught. */}
           {verbMode && verbSpec && (
-            <VerbTable
-              lang={lang}
-              spec={verbSpec}
-              cells={cells}
-              onChange={setCells}
-              onRecord={(row, col) => setRecordingCell({ row, col })}
-            />
+            <>
+              <VerbTable
+                lang={lang}
+                spec={verbSpec}
+                cells={cells}
+                onChange={setCells}
+                onRecord={(row, col) => setRecordingCell({ row, col })}
+              />
+              {/* What the card cannot be saved without, where the table is
+                  the whole of it. It used to sit under the block below,
+                  which is not on screen on these languages — and a Save
+                  that stays grey with nothing saying why is the worst way
+                  to learn that the dictionary form is not optional. */}
+              {standsIn && (
+                <p className={`at-formneed${canSave ? "" : " unmet"}`}>
+                  The dictionary form — {citedLabel(verbSpec)} — plus its English.
+                  It is the card itself, so it is what the card is listed and
+                  searched by.
+                </p>
+              )}
+            </>
           )}
 
           {scene && (
@@ -4444,6 +4569,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               fix; a card that already carries extra forms shows them, or
               putting them away would read as having lost them. */}
           {!scene && forms.map((f, i) => (
+            i === 0 && standsIn ? null :
             i > 0 && verbMode && !moreForms ? null :
             <div className={`at-formblock${i === 0 ? " main" : ""}`} key={i}>
               <div className="at-formhead">

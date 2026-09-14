@@ -8,6 +8,41 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.114 — 14 September 2026
+
+- **Writing an Arabic or Hebrew verb no longer asks for the same word
+  twice.** Neither language has an infinitive: a dictionary lists the
+  he-past, which is one of the boxes in the verb's own table. The app has
+  known that for a while — it is why that box is labelled *the dictionary
+  form*, and why the card's own word stops being drilled once the box is
+  filled — but the card editor went on showing a separate **The verb**
+  block above the table asking for the script, the pronunciation, the
+  English and the recordings all over again. Two places holding one word,
+  for the teacher to keep in step by hand. Worse, that block was headed
+  "Drilled in exercises", which by then was not true.
+
+  On those two languages the block is gone. The dictionary form's box is
+  the card: what every list shows, what a search matches, what a tile is
+  labelled, and what can be heard. The editor says so under the table, and
+  will not save a verb whose dictionary form is blank — naming the box it
+  is waiting for rather than leaving Save grey with no reason.
+
+- **A word you later call a verb moves into that box.** Tick "This is a
+  verb" on a card written weeks ago and its word lands under *he · past*,
+  with its recordings, rather than being left behind in a block that has
+  just disappeared — which is also the plainest way to learn what the
+  dictionary form is. Untick it and the word is still there. A verb
+  written before this opens the same way.
+
+- **Vietnamese is unchanged.** Huế cites the bare verb, which is a word and
+  not a box in the table, so there **The verb** is the verb and stays
+  exactly where it was.
+
+- **And every box in the table is named.** The English and the
+  pronunciation in each cell have always said which row and column they
+  belong to; the script box beside them never did, which left the field the
+  whole card is now identified by unnamed to a screen reader.
+
 ## 0.113 — 14 September 2026
 
 - **A hole in a card no longer shouts over the card.** A card with a gap in
