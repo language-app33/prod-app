@@ -1877,26 +1877,30 @@ button.at-stat:disabled { cursor:default; opacity:.55; }
  * instead — two on a phone, three once there is room — and each is big
  * enough to carry an icon, a count and what its level asks in words.
  */
-.at-rungs { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
-  gap:10px; margin-bottom:18px; }
-.at-rung { display:flex; flex-direction:column; align-items:flex-start; gap:2px;
+/* Three to a row, and never more: six of these are two tidy rows, and a
+   wider screen spreading them back into one long line is the row of
+   unreadable captions this replaced. Two only where three will not fit —
+   the same 320px exception the card grid makes. */
+.at-rungs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:8px; margin-bottom:18px; }
+.at-rung { display:flex; flex-direction:column; align-items:flex-start; gap:1px;
   width:100%; font:inherit; color:inherit; text-align:start; cursor:pointer;
-  border:2px solid var(--line); border-radius: var(--r); background: var(--surface);
-  padding:14px 14px 13px; box-shadow: var(--shadow); }
-.at-rung b { display:block; font-family: var(--ui); font-size:32px; font-weight:800;
+  border:2px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+  padding:11px 11px 10px; box-shadow: var(--shadow); }
+.at-rung b { display:block; font-family: var(--ui); font-size:25px; font-weight:800;
   line-height:1.05; letter-spacing:-.02em; }
-.at-rungicon { display:inline-flex; margin-bottom:6px; }
-.at-rungname { font-family: var(--ui); font-size:13px; font-weight:700; color: var(--text-soft);
+.at-rungicon { display:inline-flex; margin-bottom:5px; }
+.at-rungname { font-family: var(--ui); font-size:12px; font-weight:700; color: var(--text-soft);
   line-height:1.25; overflow-wrap:anywhere; }
-.at-rungstep { font-family: var(--ui); font-size:10px; font-weight:800; letter-spacing:.08em;
-  text-transform:uppercase; color: var(--faint); margin-top:1px; }
+.at-rungstep { font-family: var(--ui); font-size:9px; font-weight:800; letter-spacing:.07em;
+  text-transform:uppercase; color: var(--faint); margin-top:2px; }
 /* The one the other five are climbing towards, so it is the one that has
    to carry across the room: its own ground, its own edge, and the icon in
    a badge rather than sitting on the tile like the rest. */
 .at-rung.learnt { background: var(--jade-bg); border-color: var(--jade-soft); }
 .at-rung.learnt .at-rungicon { background: var(--jade); color: var(--onjade);
-  width:40px; height:40px; border-radius:50%; align-items:center; justify-content:center;
-  margin-bottom:8px; }
+  width:32px; height:32px; border-radius:50%; align-items:center; justify-content:center;
+  margin-bottom:6px; }
 .at-rung.learnt .at-rungname { color: var(--text); }
 .at-rung.on { border-color: var(--accent); }
 .at-rung:disabled { cursor:default; opacity:.5; }
@@ -1906,6 +1910,7 @@ button.at-stat:disabled { cursor:default; opacity:.55; }
   .at-rung.on:hover:not(:disabled) { border-color: var(--accent); }
 }
 .at-rung:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+@media (max-width: 340px) { .at-rungs { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
 /*
  * A deck, as how far it is from finished.
  *

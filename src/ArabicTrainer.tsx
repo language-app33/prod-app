@@ -9437,15 +9437,19 @@ function ProgressTab({ items, myCourses = [], settings }: {
           return (
             <button
               type="button"
-              className={`at-rung${key === "done" ? " learnt" : ""}${showing === key ? " on" : ""}`}
+              className={`at-rung${key === "done" ? " learnt" : ""}`}
               key={key}
-              aria-expanded={showing === key}
-              aria-label={`${count} ${label} — ${showing === key ? "hide them" : "show them"}`}
+              /* A screen, not a section opening underneath: the list of
+                 cards is the thing you came for, and it is worth the whole
+                 window rather than a strip under a grid you then have to
+                 scroll back up past. */
+              aria-haspopup="dialog"
+              aria-label={`${count} ${label} — see them`}
               disabled={!count}
-              onClick={() => setShowing((v) => (v === key ? "" : key))}
+              onClick={() => setShowing(key)}
             >
               <span className="at-rungicon" style={{ color: tone }}>
-                <Icon name={icon} size={key === "done" ? 26 : 22} />
+                <Icon name={icon} size={key === "done" ? 20 : 18} />
               </span>
               <b style={{ color: tone }}>{count}</b>
               <span className="at-rungname">{label}</span>
@@ -9455,17 +9459,21 @@ function ProgressTab({ items, myCourses = [], settings }: {
         })}
       </div>
 
-      {/* The cards behind the tile that is open, at the smallest size they
-          come in — the point is to see which words are in there, and the
-          list is as long as the number on the tile said it would be.
+      {/* The cards behind the tile that was pressed, on a screen of their
+          own.
 
-          This is the whole of the screen below the tiles now. It used to
-          be followed by every deck as a collapsible section, each with its
-          own bar and its own copy of every card in it, so a card appeared
-          once per deck it was in and again under whichever tile was open.
-          Three views of the same cards, and the tiles are the one that
-          answers the question this screen is for. */}
+          They used to open as a strip underneath the grid, which put a
+          list of any length between the tiles and everything below them:
+          reading it meant scrolling past the tiles, and getting back meant
+          scrolling up to find the one that was open and pressing it again.
+          A list of cards is what you came for, so it gets the window — and
+          leaving it is Back, which is the same way out as every other
+          screen in the app. */}
       {showing && byBucket[showing].length > 0 && (
+        <Screen
+          title={LADDER_TILES.find((t) => t.key === showing)?.label || "Cards"}
+          onBack={() => setShowing("")}
+        >
         <ItemList
           noun="card"
           items={byBucket[showing]}
@@ -9501,6 +9509,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
             />
           )}
         />
+        </Screen>
       )}
       </Section>
 
