@@ -3225,6 +3225,66 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     `${scale() || "(no scale)"} · stored ${localStorage.getItem("arabic-trainer-tile-size")}`);
 }
 
+/* ---- a deck whose cards accept two spellings ----
+   The bug: Start session did nothing at all. The screen rendered, the
+   count of what was ready was right, and pressing the button was a no-op
+   — because the press threw, and a throw inside a click handler leaves
+   the page exactly as it was.
+
+   A second accepted answer is scheduled in its own right under its own key
+   ("ar2en@1"), and that key is deliberately not written to the document
+   until it is answered — which is what let the change introducing it leave
+   every existing document untouched. So the key exists and the state
+   behind it does not, and the session builder read `.due` straight off it.
+
+   Every walk above runs on cards that accept one spelling, which is why
+   none of them saw this, and why one deployment could be dead on the one
+   button that matters while another, on the same build, was fine: it is
+   the material that differs, not the code.
+
+   Mounted on its own document, at the end, so that nothing above it has to
+   be re-counted to make room for a card the rest of the fixture never had. */
+{
+  root.unmount();
+  await sleep(200);
+  const before = errors.length;
+  /* Two spellings for one meaning, in the convention a teacher types: the
+     alternatives separated, positionally paired with their pronunciations.
+     No schedule at all on either card, which is the ordinary state of a
+     deck that has just arrived — and the state in which both the record
+     and the key behind it are missing. */
+  const twoWays = (/** @type {string} */ id, /** @type {string} */ ar, /** @type {string} */ en, /** @type {string} */ lat) =>
+    ({ id, ar, en, lat, kind: "word", tags: ["Lesson 1"], created: 1, updated: Date.now() });
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {},
+    settings: { language: "ar-PS" },
+    account,
+    items: [
+      twoWays("twoways1", "سفر / رحلة", "journey", "safar / riHla"),
+      twoWays("twoways2", "بيت / دار", "house", "beit / daar"),
+    ],
+  }));
+  const host2 = document.createElement("div");
+  document.body.appendChild(host2);
+  const root2 = createRoot(host2);
+  root2.render(React.createElement(App));
+  await sleep(1500);
+
+  const startBtn = [...host2.querySelectorAll("button")]
+    .find((b) => /^Start session$/.test((b.textContent || "").trim()));
+  check("a deck of two-spelling cards offers a session to start", !!startBtn && !startBtn.disabled,
+    startBtn ? "the button is there but dimmed"
+      : (host2.textContent || "").slice(0, 90).replace(/\s+/g, " ") || "nothing rendered");
+  click(startBtn);
+  await sleep(600);
+  /* The whole of the report: the button did something. */
+  const asked = host2.querySelector(".at-instruction");
+  check("pressing Start session on them starts a session rather than doing nothing",
+    !!asked, (host2.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  check("and nothing threw while the session was built",
+    errors.length === before, errors.slice(before, before + 2).join(" | "));
+}
+
 report();
 console.log("\nrequests:", calls.join("\n          "));
 process.exit(results.some((r) => r.startsWith("FAIL")) ? 1 : 0);
