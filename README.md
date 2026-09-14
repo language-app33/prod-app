@@ -75,6 +75,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already
   carries. See `src/verbs.ts`.
+- **A word carries the pronouns its language attaches to it.** Arabic and
+  Hebrew write *my book* as one word, and the same endings carry a
+  preposition — عند is *at*, عندي is *I have*. Those are forms of the word,
+  so they are cells of a table like a verb's: one row, a column per pronoun,
+  each drilled and scheduled in its own right. A language declares the
+  columns or declares none and no such table exists. The row waits on the
+  word itself — it opens once the card's own word has climbed past level
+  one, which is the ladder's *recognised before produced* turned sideways,
+  because meeting كتابي before كتاب is meeting a word you have not learnt in
+  a shape you cannot read. Which table a cell belongs to is read off the row
+  it sits in, so one card never lays out both.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in
@@ -185,7 +196,9 @@ src/
                    app, so it can be read and tested on its own.
   variables.ts     a hole in a card — "My name is {{name}}" — and the cards
                    that fill it. Pure, like the two above.
-  verbs.ts         a verb's forms as a table over the card's own sub-forms:
+  verbs.ts         a word's forms as a table over the card's own sub-forms —
+                   a verb's persons and tenses, or the pronouns a language
+                   attaches to the end of a word:
                    where the rows and columns come from, what a cell means,
                    which cell a subject calls for, and which rows are open
                    yet. Pure, and imports nothing.

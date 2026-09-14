@@ -145,13 +145,14 @@ import {
   levelOf,
   TOP_LEVEL,
   typeOf,
+  attachedOf,
   verbOf,
 } from "./languages.ts";
 import {
   VERB_SLOT,
   agreedCell,
-  cellsOf,
-  isVerb,
+  cellsIn,
+  hasCells,
   citedCell,
   isCitation,
   openRows,
@@ -810,8 +811,31 @@ function quietUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
+    /*
+     * A word's attached pronouns, which wait on the word itself.
+     *
+     * "my book" is a form of "book", and meeting the two together is
+     * meeting a word you have not learnt in a shape you cannot read. So
+     * the row is
+     * shut until the card's own word has climbed past level one — the same
+     * "recognised before it is produced" the ladder makes, turned sideways,
+     * and the same test openTypes makes when it opens level two.
+     *
+     * Read off the card's own form rather than off the cells: the cells are
+     * what is waiting, and asking them would be asking the gate to open
+     * itself. Through availableTypes rather than laddered, for the same
+     * reason the row gate below is: laddered asks this very set, and a gate
+     * that reads the answer it is in the middle of writing reads whatever
+     * the last render left behind.
+     */
+    const attached = attachedOf(lang);
+    if (attached && hasCells(card, attached)) {
+      const supported = availableTypes(card, lang).filter((t) => settings.types[t]);
+      const known = reachedLevel(supported, (t) => statesOf(card)[t], 2);
+      if (!known) for (const cell of cellsIn(card, attached)) out.add(cell.id);
+    }
     const spec = verbOf(lang);
-    if (!spec || !isVerb(card)) continue;
+    if (!spec || !hasCells(card, spec)) continue;
     const open = openRows(card, spec, (cell) => {
       /* The ladder as it stands for this cell alone, and deliberately not
          through openTypes: that one asks this very gate, and a gate that
@@ -831,7 +855,7 @@ function quietUnits(items: Item[], settings: Settings): Set<string> {
         return !!s && mastered(s);
       });
     });
-    for (const cell of cellsOf(card)) {
+    for (const cell of cellsIn(card, spec)) {
       /* The cited cell is the word on the front of the card and is met the
          day the card is, whichever row it happens to sit in. */
       if (isCitation(spec, cell)) continue;

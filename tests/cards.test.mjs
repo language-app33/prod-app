@@ -29,7 +29,7 @@ await build({
   logLevel: "silent",
 });
 const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, fillsInUse, CARD_SORTS,
-  shapeOf, shapeMeans, shapeChoices } =
+  shapeOf, shapeChoices, formsOffered } =
   await import(path.join(out, "spaces.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -401,63 +401,43 @@ test("and an item that was never a course card has only the one name", () => {
 });
 
 /*
- * What kind of card the editor asks about, and which answers are open.
+ * What kind of card the editor asks about, and what a word lays out.
  *
- * Three answers on screen over two flags underneath: nothing stored knows
- * the word "verb", and isVerb reads the cells on a card's forms. These are
- * the whole of that translation, kept as plain functions so the rules can
- * be checked without rendering a form.
+ * Two questions, not one. A verb was a third answer to the first for a
+ * release, and it stopped working the moment there was a second table to
+ * offer — so the kind is a word or a conversation, and which table a word
+ * lays its forms out in is asked underneath. Neither is stored: a card has
+ * a table when its forms carry cells in that table's rows, which is all
+ * hasCells has ever read.
  */
-test("the two flags read as one answer", () => {
-  assert.equal(shapeOf(false, false), "word");
-  assert.equal(shapeOf(false, true), "verb");
-  assert.equal(shapeOf(true, false), "scene");
-  /* A conversation is never a verb: it has turns where a word has forms,
-     and there is nothing for a table to lay out. Whichever way a card came
-     to carry both flags, the answer is the conversation. */
-  assert.equal(shapeOf(true, true), "scene");
+test("a card is a word or a conversation, and nothing else", () => {
+  assert.equal(shapeOf(false), "word");
+  assert.equal(shapeOf(true), "scene");
 });
 
-test("and every answer sets both flags, so the two cannot disagree", () => {
-  assert.deepEqual(shapeMeans("word"), { scene: false, asVerb: false });
-  assert.deepEqual(shapeMeans("verb"), { scene: false, asVerb: true });
-  assert.deepEqual(shapeMeans("scene"), { scene: true, asVerb: false });
-  for (const shape of ["word", "verb", "scene"]) {
-    const { scene, asVerb } = shapeMeans(shape);
-    assert.equal(shapeOf(scene, asVerb), shape);
-  }
-});
-
-test("a new card is offered every kind its language has", () => {
+test("a new card may be either, and a written one stays what it is", () => {
   const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  assert.deepEqual(
-    values({ saved: false, scene: false, verbs: true, hasTable: false }),
-    ["word", "verb", "scene"]
-  );
-  /* A pack that declares no rows and columns has no verbs to offer. None
-     of the three shipped packs is like that, so it is only ever checked
-     here — the smoke harness cannot reach it. */
-  assert.deepEqual(
-    values({ saved: false, scene: false, verbs: false, hasTable: false }),
-    ["word", "scene"]
-  );
+  assert.deepEqual(values({ saved: false, scene: false }), ["word", "scene"]);
+  /* A written word is not offered the kind it cannot become — a scene with
+     four turns on it would have nowhere to put them — and a written
+     conversation is offered nothing at all, so the block says what it is
+     instead. */
+  assert.deepEqual(values({ saved: true, scene: false }), ["word"]);
+  assert.deepEqual(values({ saved: true, scene: true }), []);
 });
 
-test("a written card is offered only what it can still become", () => {
-  const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  /* A word has no table to lose, so the one direction that costs nothing
-     stays open for as long as the card does: the tenses usually come
-     weeks after the word. */
-  assert.deepEqual(
-    values({ saved: true, scene: false, verbs: true, hasTable: false }),
-    ["word", "verb"]
-  );
-  /* A verb with a table is not asked. The table is the card's content, so
-     offering the change would be offering to throw it away — which, until
-     the question moved into the selector, it quietly did on the next save. */
-  assert.deepEqual(values({ saved: true, scene: false, verbs: true, hasTable: true }), []);
-  /* And a conversation is not asked either, for the same reason it never
-     was: a scene with four turns on it would have nowhere to put them. */
-  assert.deepEqual(values({ saved: true, scene: true, verbs: true, hasTable: false }), []);
-  assert.deepEqual(values({ saved: true, scene: false, verbs: false, hasTable: false }), []);
+test("and a word is offered the tables its language actually lays out", () => {
+  const values = (/** @type {any} */ t) =>
+    formsOffered(null, t).map((/** @type {any} */ c) => c.value);
+  /* Arabic lays out both, so there are three answers: neither, and one
+     each. */
+  assert.deepEqual(values({ verb: true, attached: true }), ["", "verb", "attached"]);
+  /* Huế lays out verbs and attaches nothing. */
+  assert.deepEqual(values({ verb: true, attached: false }), ["", "verb"]);
+  /* And a pack that lays out neither asks nothing: one answer is no
+     question, so the radio is not drawn at all. */
+  assert.deepEqual(values({ verb: false, attached: false }), []);
+  /* Every answer carries a line saying what it gets you, which is why this
+     is a list of rows and not a track of segments. */
+  assert.ok(formsOffered(null, { verb: true, attached: true }).every((/** @type {any} */ o) => o.note));
 });

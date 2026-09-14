@@ -8,6 +8,49 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.125 — 14 September 2026
+
+- **A word can carry the pronouns its language attaches to it.** Arabic and
+  Hebrew write *my book* as one word, and the same endings carry a
+  preposition — عند is *at*, عندي is *I have*. Those are forms of the word
+  and things to learn, and there was nowhere to put them: a verb's table
+  says who is doing it and when, never who it is about.
+
+  They get a table of their own now — one row, a box per pronoun, each
+  practised and scheduled in its own right by the exercises every other form
+  gets. It is the same table a verb has, one row deep, which is why nothing
+  else had to change to hold it.
+
+- **And the row waits on the word it is built on.** A verb's rows open one
+  at a time because the tenses are not as hard as each other. This one opens
+  once the card's own word is past the first level, because meeting *my
+  book* before *book* is meeting a word you have not learnt in a shape you
+  cannot read.
+
+- **What a word lays out is now its own question.** *Verb* was a third
+  answer beside *Word or phrase* and *Conversation* for a release, and it
+  stopped working the moment there was a second table to offer: four answers
+  on a row that already ran off a phone at three, in a list mixing "a
+  different shape of card" with "a word with more said about it".
+
+  So the kind of card is a word or a conversation, and underneath it a word
+  is asked what its forms are — **just this word**, **a verb**, or **it
+  takes a pronoun on the end** — with a line under each saying what it gets
+  you. Only where the language lays those out: Huế lays out verbs and
+  attaches nothing, and a pack that lays out neither is asked nothing at
+  all.
+
+  Nothing about a stored card changed, and nothing new is stored. Which
+  table a card has is still read off the boxes it carries, and a saved card
+  whose table has anything in it is still told what it is rather than
+  offered a change that would throw the table away.
+
+- **A verb's object pronouns are deliberately left out.** *He saw me*, *I
+  love you* — those are a third axis, and seven persons across three tenses
+  across eight objects is not a table anybody fills in. They belong in a
+  phrase that teaches the verb, which is what ticking **Words this teaches**
+  is for.
+
 ## 0.124 — 14 September 2026
 
 - **A card in two decks is in both of them again.** The deck tiles in

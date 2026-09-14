@@ -306,6 +306,9 @@ export interface Lang {
    * before this existed.
    */
   verb?: VerbSpec;
+  /** The pronouns this language attaches to the end of a word, where it
+      attaches any. One row, and a column per pronoun — see ATTACHED_TABLE. */
+  attached?: VerbSpec;
   /**
    * A pack's own rule for word/phrase/sentence. None has one yet;
    * guessKind() reads it.

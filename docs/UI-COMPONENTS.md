@@ -137,8 +137,19 @@ gives it a line of its own.
 It is only the panel: the button, and keeping one panel open at a time,
 belong to `ItemList`'s `menus`.
 
+### `RadioGroup` — 2 uses
+One of a few, as a list of rows rather than a track of segments.
+
+`options, value, onChange, label, name`
+
+Each option is `{ value, label, note? }`, and the note is the line under the
+label saying what the answer gets you. Reach for this over `Segmented` the
+moment an option needs explaining — a segment holds two or three words and
+nothing else. Built from the same `at-tickrow` furniture as `CheckList`, with
+`type="radio"` doing the exclusivity, so it needs no styling of its own.
+
 ### `LanguageRadio` — 4 uses
-A proper radio list of languages. `languages, value, onChange, label, name`
+The languages, through `RadioGroup`. `languages, value, onChange, label, name`
 
 ---
 

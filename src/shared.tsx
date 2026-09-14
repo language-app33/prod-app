@@ -2427,6 +2427,52 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
 
 /* Choosing one language: a radio list, one row per option, the same
    wherever a language is asked for. */
+/*
+ * One of a few, as a list of rows rather than a track of segments.
+ *
+ * Segmented is the right control while the options are short and of a
+ * kind — two or three words that fit side by side. It is the wrong one the
+ * moment an option needs a line explaining what it is, which is what a
+ * choice between shapes of card needs: the label names it and the note
+ * says what it gets you.
+ *
+ * Built from the tick rows the rest of the app uses, with `type="radio"`
+ * doing the exclusivity, so a group of these reads as the same furniture
+ * as a group of ticks and needs no styling of its own.
+ */
+export function RadioGroup<T extends string>({ options, value, onChange, label, name }: {
+  options: { value: T; label: Node; note?: Node }[];
+  value?: T | null;
+  onChange: (value: T) => void;
+  label: string;
+  /** What makes the group exclusive to the browser. Unique on the screen. */
+  name: string;
+}) {
+  return (
+    <div className="at-field" role="radiogroup" aria-label={label}>
+      <label className="at-label">{label}</label>
+      <div className="at-ticklist">
+        {options.map((o) => (
+          <label className="at-tickrow" key={String(o.value)}>
+            <input
+              type="radio"
+              name={name}
+              checked={value === o.value}
+              onChange={() => onChange(o.value)}
+            />
+            <span className="at-tickbody">
+              <b>{o.label}</b>
+              {o.note ? <i>{o.note}</i> : null}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* The languages, through the one above. Two radio groups written out side
+   by side is how they came to disagree about their own markup. */
 export function LanguageRadio({ languages, value, onChange, label = "Language", name = "lang" }: {
   languages: Record<string, { id: LangId, name: string }>;
   value?: LangId;
@@ -2435,24 +2481,13 @@ export function LanguageRadio({ languages, value, onChange, label = "Language", 
   name?: string;
 }) {
   return (
-    <div className="at-field" role="radiogroup" aria-label={label}>
-      <label className="at-label">{label}</label>
-      <div className="at-ticklist">
-        {Object.values(languages).map((L) => (
-          <label className="at-tickrow" key={L.id}>
-            <input
-              type="radio"
-              name={name}
-              checked={value === L.id}
-              onChange={() => onChange(L.id)}
-            />
-            <span className="at-tickbody">
-              <b>{L.name}</b>
-            </span>
-          </label>
-        ))}
-      </div>
-    </div>
+    <RadioGroup
+      label={label}
+      name={name}
+      value={value}
+      onChange={onChange}
+      options={Object.values(languages).map((L) => ({ value: L.id, label: L.name }))}
+    />
   );
 }
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { citationOf, citedWord, isCell, personsOf, tableCount, tensesOf } from "./verbs.ts";
+import { cellsIn, citationOf, citedWord, isCell, personsOf, rowIdsOf, tableCount, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -47,6 +47,8 @@ import {
   dimsOf,
   dimValues,
   teachesVerbs,
+  takesAttached,
+  attachedOf,
   verbOf,
   exOf,
   findWordSlot,
@@ -92,6 +94,7 @@ import {
   ItemList,
   KeysButton,
   LanguageRadio,
+  RadioGroup,
   Lede,
   Notice,
   Screen,
@@ -4191,61 +4194,83 @@ function BlankPicker({ label, tone, blanks, current, title, onPick }: {
 }
 
 /*
- * What a card is, as one question with three answers.
+ * What a card is, in two questions.
  *
- * Underneath there are still two flags and no such thing as a verb: a verb
- * card is a word card whose subs carry a table, which is all isVerb has ever
- * read. The selector is derived from the flags rather than replacing them,
- * so nothing below this line — the table, the cited cell, the form blocks,
- * what is saved — learns that the question was asked differently.
+ * The kind — a word or phrase, or a conversation — and then, for a word,
+ * whether the language lays some set of its forms out in a table. Those are
+ * two questions and not one, which is what 0.120 got wrong by making Verb a
+ * third answer to the first: as soon as there was a second table to offer
+ * there were four answers, on a track that already ran off a phone at
+ * three, and "verb" and "conversation" were never alternatives in the same
+ * sense anyway. A conversation is a different shape of card; a verb is a
+ * word with more said about it.
+ *
+ * Underneath there are still no such things. A verb card is a word card
+ * whose forms carry cells in the verb's rows, and a word with attached
+ * pronouns is one whose forms carry cells in that table's row — which is
+ * all hasCells has ever read. Both are derived here rather than stored, so
+ * nothing saved knows either word.
  */
-export type CardShape = "word" | "verb" | "scene";
+export type CardShape = "word" | "scene";
 
-export const shapeOf = (scene: boolean, asVerb: boolean): CardShape =>
-  scene ? "scene" : asVerb ? "verb" : "word";
+/** Which table a word's forms are laid out in, where any are. */
+export type CardForms = "" | "verb" | "attached";
 
-/* A conversation is never a verb: it has turns where a word has forms, and
-   there is nothing for a table to lay out. */
-export const shapeMeans = (shape: CardShape): { scene: boolean; asVerb: boolean } => ({
-  scene: shape === "scene",
-  asVerb: shape === "verb",
-});
+export const shapeOf = (scene: boolean): CardShape => (scene ? "scene" : "word");
 
 /*
- * Which answers are still open, which is a different question on a card that
- * exists.
- *
- * A written card does not change into a conversation, and a conversation
- * does not stop being one — a scene with four turns on it would have nowhere
- * to put them. A verb with a table does not stop being one either, and for
- * the same reason: the table is the content, so offering the change would be
- * offering to throw it away, which until now it quietly did.
- *
- * What stays open is the direction that loses nothing. A saved word has no
- * table yet, and a verb is usually written as a plain word and given its
- * tenses weeks later, when the course reaches them — so that one is asked of
- * a card for as long as the card lasts.
- *
- * Empty where nothing is left to choose, and the block says what the card is
- * instead. A pack that declares no rows and columns offers no verb.
+ * Which tables this language offers a word, in the order they are asked
+ * about. Empty for a language that lays out neither, and the radio is not
+ * drawn at all.
  */
-export const shapeChoices = ({
-  saved,
-  scene,
-  verbs,
-  hasTable,
-}: {
-  saved: boolean;
-  scene: boolean;
-  verbs: boolean;
-  hasTable: boolean;
-}): { value: CardShape; label: string }[] => {
+export const formsOffered = (
+  lang: { verb?: unknown; attached?: unknown } | null | undefined,
+  teaches: { verb: boolean; attached: boolean },
+): { value: CardForms; label: string; note: string }[] => {
+  const out: { value: CardForms; label: string; note: string }[] = [
+    { value: "", label: "Just this word", note: "And any other forms you add below." },
+  ];
+  if (teaches.verb) {
+    out.push({
+      value: "verb",
+      label: "A verb",
+      note: "Every person and tense of it in a box of its own, opened a row at a time.",
+    });
+  }
+  if (teaches.attached) {
+    out.push({
+      value: "attached",
+      label: "It takes a pronoun on the end",
+      note: "my, your, his — each one a box of its own, once the word itself is known.",
+    });
+  }
+  /* One answer is no question. A language that lays out neither offers
+     nothing, and one that lays out only verbs still has two. */
+  return out.length > 1 ? out : [];
+};
+
+/*
+ * Which answers are still open, which is a different question on a card
+ * that exists.
+ *
+ * A written card does not change into a conversation and a conversation
+ * does not stop being one — a scene with four turns on it would have
+ * nowhere to put them. A word whose table has anything in it does not stop
+ * having one either, and for the same reason: the table is the content, so
+ * offering the change would be offering to throw it away, which until 0.120
+ * it quietly did.
+ *
+ * What stays open is the direction that loses nothing — a saved word with
+ * an empty table can still be given one, and a verb is usually written as a
+ * plain word and given its tenses weeks later.
+ */
+export const shapeChoices = (
+  { saved, scene }: { saved: boolean; scene: boolean },
+): { value: CardShape; label: string }[] => {
   const word = { value: "word" as const, label: "Word or phrase" };
-  const verb = { value: "verb" as const, label: "Verb" };
   const talk = { value: "scene" as const, label: "Conversation" };
-  if (!saved) return verbs ? [word, verb, talk] : [word, talk];
-  if (scene || hasTable || !verbs) return [];
-  return [word, verb];
+  if (!saved) return [word, talk];
+  return scene ? [] : [word];
 };
 
 /*
@@ -4358,51 +4383,78 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
        behalf. */
     return had.length ? seedCited(had, card, verbSpec) : had;
   });
-  /* Whether this card is a verb at all. A card that already has cells
-     plainly is; anything else is the teacher's to say, because "is this a
-     verb" is a question about the word and not one the app can read off
-     its spelling. It is answered in the selector above rather than stored:
-     nothing saved knows the word "verb". */
-  const [asVerb, setAsVerb] = useState(() => cells.length > 0);
+  /* And the pronouns it attaches, where it attaches any. */
+  const attachedSpec = takesAttached(lang) ? attachedOf(lang) : null;
+  /* Which table this card lays its forms out in, if either. A card that
+     already has cells plainly has one, and which is read off the rows they
+     sit in; anything else is the teacher's to say, because nothing about a
+     word's spelling says whether it is a verb. Answered in the radio rather
+     than stored: nothing saved knows either word. */
+  const [forms_, setForms_] = useState<CardForms>(() =>
+    cellsIn({ subs: cells }, verbSpec).length
+      ? "verb"
+      : cellsIn({ subs: cells }, takesAttached(lang) ? attachedOf(lang) : null).length
+        ? "attached"
+        : ""
+  );
   /* Whether the table is standing in for the forms below. Read in four
      places, so it is named once here rather than spelled out at each. A
      conversation is never a verb: it has turns where a word has forms,
      and there is nothing for a table to lay out. */
-  const verbMode = !scene && !!verbSpec && asVerb;
+  const verbMode = !scene && !!verbSpec && forms_ === "verb";
+  /* And the table for a word that takes pronouns on its end, which is the
+     other thing a language may lay out. One row, and otherwise a table like
+     any other — see ATTACHED_TABLE in languages.ts. */
+  const attachedMode = !scene && !!attachedSpec && forms_ === "attached";
+  /* Whichever table the card is showing, or none. Named once because five
+     things below read "the table on screen" rather than which one it is. */
+  const shownSpec = verbMode ? verbSpec : attachedMode ? attachedSpec : null;
   /*
-   * The one question about what a card is, and the answers still open to it.
+   * What the stored card already carries, which is what the radio may no
+   * longer take away.
    *
-   * `hasTable` asks the stored card rather than the editor, on purpose: a
-   * table typed into a card that has never been saved is not yet anybody's
-   * work, and locking a teacher into a verb because they filled one box to
-   * see what it did would be the opposite of the point.
+   * Asked of the saved card rather than of the editor, on purpose: a table
+   * typed into a card that has never been saved is not yet anybody's work,
+   * and locking a teacher into a shape because they filled one box to see
+   * what it did would be the opposite of the point.
    */
-  const hasTable = ((card && card.subs) || []).some((s) => isCell(s));
-  /* And whether it reads as one on screen, which also wants the language to
-     still lay verbs out: a pack that has dropped its rows and columns leaves
-     a card whose cells nothing can show, and telling a teacher to empty a
-     table they cannot see would be worse than saying nothing. */
-  const readsAsVerb = hasTable && !!verbSpec;
-  const shape = shapeOf(scene, asVerb);
-  const choices = shapeChoices({ saved: !!card, scene, verbs: !!verbSpec, hasTable });
-  /* How much of the table is being held aside — nothing, on every card that
-     is not one. What the line under the selector counts. */
-  const aside = verbSpec && !asVerb ? tableCount({ subs: cells }, verbSpec).filled : 0;
+  const storedIn = (spec: VerbSpec | null): boolean =>
+    !!spec && ((card && card.subs) || []).some((f) => rowIdsOf(spec).has(String(f.row || "")));
+  const storedForms: CardForms = storedIn(verbSpec) ? "verb" : storedIn(attachedSpec) ? "attached" : "";
+  const shape = shapeOf(scene);
+  const choices = shapeChoices({ saved: !!card, scene });
+  /* Which tables this language offers a word at all. A saved card whose
+     table has something in it is told what it is instead — the table is the
+     content, and the radio would be offering to throw it away. */
+  const formChoices = scene || storedForms
+    ? []
+    : formsOffered(lang, { verb: !!verbSpec, attached: !!attachedSpec });
+  /* How much of a table is being held aside — nothing, on every card that
+     has none. What the line under the radio counts. */
+  const aside = [verbSpec, attachedSpec]
+    .filter((spec): spec is VerbSpec => !!spec && spec !== shownSpec)
+    .reduce((n, spec) => n + tableCount({ subs: cells }, spec).filled, 0);
   /*
-   * Choosing an answer sets both flags at once, so the two can never say a
-   * card is a conversation with a table — which they could, and a scene
-   * saved that way carried cells nothing would ever show again.
-   *
-   * On the way in to verb the card's own word moves into the cell about to
+   * Choosing a kind, and choosing what a word lays out, are two questions
+   * and each sets its own flag — so the two can never say a card is a
+   * conversation with a table, which they could, and a scene saved that way
+   * carried cells nothing would ever show again.
+   */
+  const chooseShape = (next: CardShape) => {
+    setScene(next === "scene");
+    if (next === "scene") setForms_("");
+  };
+  /*
+   * On the way in to a verb the card's own word moves into the cell about to
    * hold it, rather than being left behind in a block that has just
    * disappeared; and only into an empty cell, because a card that already
-   * has a table knows better than the block does.
+   * has a table knows better than the block does. Nothing of the sort for
+   * attached pronouns: the word stays the word, and the cells are forms of
+   * it rather than a stand-in for it.
    */
-  const choose = (next: CardShape) => {
-    const flags = shapeMeans(next);
-    setScene(flags.scene);
-    setAsVerb(flags.asVerb);
-    if (flags.asVerb && !asVerb) setCells((x) => seedCited(x, forms[0], verbSpec));
+  const chooseForms = (next: CardForms) => {
+    setForms_(next);
+    if (next === "verb") setCells((x) => seedCited(x, forms[0], verbSpec));
   };
   /*
    * Whether the table holds the card's own word as well as its forms.
@@ -4654,13 +4706,16 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             disabled={!canSave || busy}
             onClick={() =>
               onSave({
-                /* The table's cells go back into the one list of forms
-                   they came out of: a cell is a sub-form, and the save
-                   path has no idea there is such a thing as a verb. Kept
-                   only while the card says it is a verb, so turning that
-                   off puts the table away rather than saving a hidden
-                   one. */
-                forms: asVerb ? ownForms.concat(cells as typeof forms) : ownForms,
+                /* The table's cells go back into the one list of forms they
+                   came out of: a cell is a sub-form, and the save path has
+                   no idea there is such a thing as a verb or a pronoun on
+                   the end of a word. Only the table on screen, so changing
+                   which one the card lays out puts the other away rather
+                   than saving a hidden one — and a card can never be saved
+                   carrying both. */
+                forms: shownSpec
+                  ? ownForms.concat(cellsIn({ subs: cells }, shownSpec) as typeof forms)
+                  : ownForms,
                 note,
                 /* Only where it was asked for: a card that is not a verb of
                    this shape is named by its own word, and a name left
@@ -4685,84 +4740,88 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
           {/* What kind of card this is — the first thing about it, and for
               a new one the first decision. Word, phrase and sentence are
               not offered because they are not chosen: the language reads
-              them off the text. Whether somebody answers it, and whether it
-              has a table, are the two it cannot read.
+              them off the text. Whether somebody answers it is the one
+              thing no amount of reading the script will tell you.
 
-              Verb is an answer here rather than a tick beside the selector.
-              Underneath it is still a word card with cells on its subs —
-              nothing stored knows the word, and isVerb reads the cells — but
-              a teacher deciding what to write is choosing between three
-              things, not between two and a footnote.
-
-              What the tick had over a selector is that it outlived the
-              choice, so the question is asked of a saved card too, with the
-              answers still open to it. A conversation has turns and a verb
-              has a table, and neither can be offered a kind that would throw
-              its own content away. A saved word has neither yet, so it can
-              still be called a verb, which is the way round that loses
-              nothing. */}
+              Two questions, not one. A verb was a third answer here for a
+              release, and it stopped working the moment there was a second
+              table to offer: four answers on a track that already ran off a
+              phone at three, and a list mixing "a different shape of card"
+              with "a word with more said about it". What a word lays out is
+              asked underneath, where the answers are alternatives to each
+              other. */}
           <div className="at-formblock">
             <div className="at-formhead">
               <span className="at-formnum">The kind of card</span>
-              {/* What the stored card is, which for a verb would read
-                  "Word" — true of the kind, and a flat contradiction of the
-                  line underneath saying it is a verb. */}
-              {card && !readsAsVerb && (
-                <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>
-              )}
+              {card && <span className="at-formrole">{kindLabel(kindOf(card, lang))}</span>}
             </div>
-            {choices.length ? (
+            {choices.length > 1 ? (
               <>
                 {/* Full-width, for the reason the language picker above is:
                     the compact variant sizes every option to the longest
-                    label and never wraps, so three of them is three times
-                    "Word or phrase" — wider than a phone, and it ran off
-                    the side of the screen the moment a third answer was
-                    added. Full width lets the last one take a second row,
-                    with the track wrapping around both so it still reads as
-                    one control. */}
+                    label and never wraps. */}
                 <Segmented
                   size={null}
                   label="The kind of card"
                   options={choices}
                   value={shape}
-                  onChange={choose}
+                  onChange={chooseShape}
                 />
                 <Help>
                   {shape === "scene"
                     ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
-                    : shape === "verb"
-                      ? "A word with a table as well: every person and tense a box of its own, each practised in its own right, and the rows opening in the order they are taught."
-                      : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
+                    : "One thing to learn, with its meaning. Whether it counts as a word, a phrase or a sentence is read off what you write."}
                 </Help>
-                {/* Why a written card is asked the same question and offered
-                    fewer answers. Without it, a teacher who remembers three
-                    is left to wonder where the third went. */}
-                {card && (
-                  <Help>
-                    A card does not change kind once it is written. Calling a
-                    word a verb is the one thing that still can — the tenses
-                    usually come weeks later.
-                  </Help>
-                )}
-                {/* The one place a table can still be dropped: a card that
-                    has never been saved, typed into and then called a word.
-                    Said while it is true and not before. */}
-                {aside > 0 && (
-                  <p className="at-formneed unmet">
-                    Its table is put aside — {plural(aside, "box", "boxes")} filled
-                    in. Saving it as a word or phrase drops them. Choose Verb to
-                    keep it.
-                  </p>
-                )}
               </>
             ) : (
               <Help>
                 {isDialog(card)
                   ? "A conversation: turns, in order, each practised in its own right."
-                  : readsAsVerb
-                    ? "A verb: its forms are its table, each practised in its own right. Empty the table and it is a word again."
-                    : "Read off what the card says. A card does not change kind once it is written."}
+                  : "Read off what the card says. A card does not change kind once it is written."}
+              </Help>
+            )}
+
+            {/* ---- and what its forms are, where the language lays any out ----
+
+                A verb's persons and tenses, or the pronouns a word takes on
+                its end. Both are tables of the card's own sub-forms and
+                neither is stored as a label: which one a card has is read
+                off the rows its cells sit in.
+
+                A radio rather than more segments, because these are not
+                two-word labels of a kind — each needs a line saying what it
+                gets you, which is what a row of ticks is for and what a
+                track of segments cannot hold.
+
+                Asked only of a word: a conversation has turns where a word
+                has forms, and there is nothing for a table to lay out. */}
+            {formChoices.length > 0 && (
+              <div className="at-mt3">
+                <RadioGroup
+                  label="Its forms"
+                  name="card-forms"
+                  options={formChoices}
+                  value={forms_}
+                  onChange={chooseForms}
+                />
+                {/* A table put aside is not thrown away until the card is
+                    saved, and saying so is the only warning there is. */}
+                {aside > 0 && (
+                  <p className="at-formneed unmet">
+                    Its other table is put aside — {plural(aside, "box", "boxes")}{" "}
+                    filled in. Saving it this way drops them.
+                  </p>
+                )}
+              </div>
+            )}
+            {/* And where it cannot be asked, because the card already has
+                one: the table is the content, so offering the change would
+                be offering to throw it away. */}
+            {!scene && storedForms && (
+              <Help className="at-mt3">
+                {storedForms === "verb"
+                  ? "A verb: its forms are its table, each practised in its own right. Empty the table and it is a word again."
+                  : "A word that takes a pronoun on its end: each one is a form of it, practised in its own right. Empty the table and it is an ordinary word again."}
               </Help>
             )}
 
@@ -5189,6 +5248,28 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             >
               Add a form
             </Button>
+          )}
+
+          {/* ---- the pronouns a word takes on its end ----
+
+              The same component, because it is the same thing: one row of a
+              table over the card's own sub-forms. It sits below the word's
+              own blocks rather than above them, which is the order they are
+              learnt in — the word is met first and the row waits on it. */}
+          {attachedMode && attachedSpec && (
+            <>
+              <VerbTable
+                lang={lang}
+                spec={attachedSpec}
+                cells={cells}
+                onChange={setCells}
+                onRecord={(row, col) => setRecordingCell({ row, col })}
+              />
+              <p className="at-formneed">
+                Each of these is practised in its own right, once the word
+                itself is known. Leave out the ones you do not teach.
+              </p>
+            </>
           )}
 
           {/* ---- blanks ----

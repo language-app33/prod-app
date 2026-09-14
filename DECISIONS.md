@@ -612,3 +612,63 @@ places kept for new cards while it waits.
 **The teacher's trial is exempt**, and has to be: a teacher trying an
 exercise out is not somebody learning, their own material carries no progress
 to read, and gating it would show them `{{name}}` and call it a preview.
+
+---
+
+## A table is a table, and a card has at most one
+
+**14 September 2026** · `cellsIn`/`hasCells`/`rowIdsOf` in `src/verbs.ts`,
+`ATTACHED_TABLE` in `src/languages.ts`, `formsOffered` in `src/spaces.tsx`
+
+Arabic and Hebrew attach a pronoun to the end of a word: كتابي is *my book*,
+and the same endings carry a preposition — عند is *at*, عندي is *I have*.
+Those are forms of the word and things to learn, and there was nowhere to put
+them. The verb table has an axis for who is doing it and one for when, and
+none for who it is about.
+
+**They are a table, and the table already existed.** The entry above says a
+verb's table is its sub-forms seen through two axes, and that everything
+downstream was already right because a cell is a sub-form. That holds a
+second time: an attached-pronoun table is one row, a column per pronoun, and
+`VerbTable`, `unitsOf`, `applyGrade`, sync, the recordings screen and the
+exercises took it without being told. What it cost was one honest
+generalisation — a cell belongs to whichever table declares its row — and
+`isVerb`, which read "has any cell", becoming `hasCells(card, spec)`. That
+question was the same question while there was one table; with two it gated
+each by the other's rows and would have closed one for ever.
+
+**Columns name the pronoun, not what it does.** -ي on كتاب is *my* and on عند
+is *I*. Each cell's English is typed, as every cell's is since the composing
+was reverted, and that is where the difference is said. No `picks` either:
+agreement is a rule about the subject of a sentence, and nothing here is a
+subject — a frame does not choose between كتابي and كتابك by looking at who
+is in it.
+
+**The row waits on the word.** Rows of a verb open one at a time because the
+tenses are not as hard as each other. This one waits on something else: the
+card's own word, past level one. Meeting كتابي before كتاب is meeting a word
+you have not learnt in a shape you cannot read — *recognised before produced*
+turned sideways. It is the one rule here that is not the verb table's.
+
+**And the selector went back to two.** 0.120 made Verb a third answer beside
+*Word or phrase* and *Conversation*, and that entry is above. The reasoning
+was that a teacher deciding what to write is choosing between three things —
+true then, and it stopped being true the moment there was a second table: a
+fourth answer, on a track that already ran off a phone at three, in a list
+mixing *a different shape of card* with *a word with more said about it*.
+
+So it is two questions. The kind is a word or a conversation; what a word
+lays its forms out in is a radio underneath, offered only where the language
+lays out anything and only while the card's table is empty. A radio because
+each answer needs a line saying what it gets you, which a segment cannot
+hold — `RadioGroup` is that control, and `LanguageRadio` now goes through it
+rather than being a second copy of the same markup.
+
+What survives from 0.120 unchanged: neither is stored, both are read off the
+cells, and a saved card whose table has anything in it is told what it is
+rather than offered a change that would throw the table away.
+
+**What is left out.** A verb's *object* pronouns — شافني, بحبك — are a third
+axis, and 7 × 3 × 8 is not a table anybody fills in. Those belong in a phrase
+that teaches the verb, which is what `AR_ENCLITICS` and *Words this teaches*
+are already for.

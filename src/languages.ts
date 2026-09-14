@@ -1115,9 +1115,59 @@ const SUBJECT_PERSONS: VerbPerson[] = [
   { id: "they", label: "they", picks: { number: "plural" } },
 ];
 
+/*
+ * The pronouns a word takes on its end, for a language that attaches them.
+ *
+ * Arabic and Hebrew write "my book" as one word, and the same endings carry
+ * a preposition: عند is *at*, عندي is *I have*. Those are forms of the word
+ * and things to learn, and until now there was nowhere to put them — the
+ * verb table has an axis for who is doing it and none for who it is about.
+ *
+ * One row, because there is only one thing varying. Everything else about
+ * it is a table like any other, which is what lets it be declared this way
+ * and read by the functions the verb table already uses.
+ *
+ * The columns name the pronoun that attaches rather than what it does to
+ * the word, because what it does differs: -ي on كتاب is *my* and on عند is
+ * *I*. Each cell's English is typed, as every cell's is, and that is where
+ * the difference is said.
+ *
+ * No `picks`. Agreement is a rule about the subject of a sentence, and
+ * nothing here is a subject: a frame does not choose between كتابي and
+ * كتابك by looking at who is in it.
+ */
+const ATTACHED_PERSONS: VerbPerson[] = [
+  { id: "me", label: "me" },
+  { id: "you-m", label: "you (m)" },
+  { id: "you-f", label: "you (f)" },
+  { id: "him", label: "him" },
+  { id: "her", label: "her" },
+  { id: "us", label: "us" },
+  { id: "you-pl", label: "you (pl)" },
+  { id: "them", label: "them" },
+];
+
+/* Declared once and spread into both packs, the way the persons above are:
+   the row is named rather than numbered so that a cell says which table it
+   is in wherever it turns up, and no other table may use the name. */
+const ATTACHED_TABLE: VerbSpec = {
+  persons: ATTACHED_PERSONS,
+  tenses: [{ id: "attached", label: "with a pronoun on the end" }],
+};
+
 /** The rows and columns a language lays its verbs out on, where it has any. */
 export const verbOf = (lang: Lang | null | undefined): VerbSpec | null =>
   (lang && lang.verb) || null;
+
+/** And the pronouns it attaches to a word, where it attaches any. */
+export const attachedOf = (lang: Lang | null | undefined): VerbSpec | null =>
+  (lang && lang.attached) || null;
+
+/** Whether this language attaches pronouns to a word at all. */
+export const takesAttached = (lang: Lang | null | undefined): boolean => {
+  const spec = attachedOf(lang);
+  return !!spec && spec.tenses.length > 0 && spec.persons.length > 0;
+};
 
 /** Whether this language lays verbs out in a table at all. */
 export const teachesVerbs = (lang: Lang | null | undefined): boolean => {
@@ -1479,6 +1529,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
          one word, not two things to learn. */
       citation: { row: "past", col: "he" },
     },
+    /* And the pronouns that attach to the end of a word — كتابي is my book,
+       عندي is I have. See ATTACHED_TABLE. */
+    attached: ATTACHED_TABLE,
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -1709,6 +1762,8 @@ export const LANGUAGES: Record<LangId, Lang> = {
          is the form a dictionary lists, and it is a cell of this table. */
       citation: { row: "past", col: "he" },
     },
+    /* The same endings, and the same reason: ספרי is my book. */
+    attached: ATTACHED_TABLE,
     verdicts: {
       partial: "Right letters, wrong niqqud",
       missing: "Letters right — add the niqqud",

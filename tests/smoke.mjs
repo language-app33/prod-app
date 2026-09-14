@@ -3267,11 +3267,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      under this selector, which asked one question about what a card is in
      two controls stacked on each other. */
   const kinds = [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')];
-  check("a new card asks what kind of card it is, in three answers",
-    kinds.length === 3 &&
-      /^Verb$/.test((kinds[1].textContent || "").trim()) &&
-      /Conversation/.test(kinds[2].textContent || ""),
+  check("a new card asks what kind of card it is",
+    kinds.length === 2 && /Conversation/.test(kinds[1].textContent || ""),
     kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
+  /* And, underneath, what a word lays its forms out in — which is a second
+     question and not a third answer to the first. Arabic lays out both a
+     verb's table and the pronouns a word takes on its end, so there are
+     three rows: neither, and one each. */
+  const formRows = () => [...document.querySelectorAll('[role="radiogroup"][aria-label="Its forms"] .at-tickrow')];
+  check("and what its forms are, as a question of its own",
+    formRows().length === 3 &&
+      /A verb/.test(formRows()[1].textContent || "") &&
+      /pronoun on the end/.test(formRows()[2].textContent || ""),
+    formRows().map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(no forms radio)");
+  /* Each answer says what it gets you, which is what a row of ticks is for
+     and what a track of segments cannot hold. */
+  check("each of them saying what it gets you",
+    formRows().every((r) => !!r.querySelector("i")),
+    formRows().map((r) => ((r.querySelector("i") || {}).textContent || "—")).join(" | "));
   /* And it is the wrapping variant, not the compact one. The compact track
      sizes every option to the longest label and never wraps, so three of
      them is three times "Word or phrase" — wider than any phone, which is
@@ -3527,25 +3540,29 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     const block = (/** @type {RegExp} */ re) =>
       [...document.querySelectorAll(".at-formblock")].find((b) =>
         re.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-    /* Re-queried each time rather than held: the selector re-renders
-       between clicks, so a button kept in a variable is a button that is no
-       longer on the screen. */
-    const kindBtn = (/** @type {RegExp} */ re) =>
+    /* Re-queried each time rather than held: the radio re-renders between
+       clicks, so a row kept in a variable is a row that is no longer on the
+       screen. */
+    const formsRow = (/** @type {RegExp} */ re) =>
       /** @type {any} */ ([...document.querySelectorAll(
-        '[role="group"][aria-label="The kind of card"] .at-seg')]
-        .find((b) => re.test((b.textContent || "").trim())) || null);
-    check("a word can be called a verb", !!kindBtn(/^Verb$/),
-      kindBtn(/^Verb$/) ? "the selector offers it" : "no such answer");
+        '[role="radiogroup"][aria-label="Its forms"] .at-tickrow')]
+        .find((r) => re.test((r.textContent || "").trim())) || null);
+    const kindBtn = (/** @type {RegExp} */ re) => {
+      const row = formsRow(re);
+      return row ? row.querySelector("input") : null;
+    };
+    check("a word can be called a verb", !!kindBtn(/^A verb/),
+      kindBtn(/^A verb/) ? "the radio offers it" : "no such answer");
     check("and until it is, the card's own word is where it always was", !!block(/^The verb$|^Form 1$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
 
-    click(kindBtn(/^Verb$/));
+    click(kindBtn(/^A verb/));
     await sleep(300);
 
-    check("and the selector says that is what it is",
-      !!kindBtn(/^Verb$/) && kindBtn(/^Verb$/).getAttribute("aria-pressed") === "true",
-      [...document.querySelectorAll('[aria-label="The kind of card"] .at-seg')]
-        .map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
+    check("and the radio says that is what it is",
+      !!kindBtn(/^A verb/) && kindBtn(/^A verb/).checked,
+      [...document.querySelectorAll('[aria-label="Its forms"] .at-tickrow input')]
+        .map((/** @type {any} */ b) => b.checked).join(" "));
     check("choosing it takes the block away rather than asking for the word twice",
       !block(/^The verb$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
@@ -3622,7 +3639,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        putting the table away must not read as having thrown the card away.
        Still offered here because this card has never been saved: a stored
        verb is not asked, because the answer would drop its table. */
-    click(kindBtn(/^Word/));
+    click(kindBtn(/^Just this word/));
     await sleep(300);
     const back = fieldNamed(/^Arabic script and transliteration$/i);
     check("choosing Word or phrase again brings the block back with the word still in it",
@@ -3639,7 +3656,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(250);
     check("a second form can be added to the word", !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
-    click(kindBtn(/^Verb$/));
+    click(kindBtn(/^A verb/));
     await sleep(300);
     check("and calling it a verb does not hide the form it already has",
       !!block(/^Form 2$/),
@@ -3653,10 +3670,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     /* A card that has never been saved is not locked into being a verb, so
        it is the one place a typed table can still be dropped. It says so,
        and counts what is at stake rather than warning in the abstract. */
-    click(kindBtn(/^Word/));
+    click(kindBtn(/^Just this word/));
     await sleep(300);
     check("a table typed into a new card says what dropping it would cost",
-      /Its table is put aside/.test(document.body.textContent || "") &&
+      /table is put aside/.test(document.body.textContent || "") &&
         /1 box filled in/.test((document.body.textContent || "").replace(/\s+/g, " ")),
       ([...document.querySelectorAll(".at-formneed.unmet")]
         .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
@@ -3666,13 +3683,20 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        never was: a card ticked verb and then switched to a conversation
        kept its cells and saved a scene carrying a table nothing would show
        again. Choosing one answer now clears the other. */
-    click(kindBtn(/Conversation/));
+    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+      .find((b) => /Conversation/.test(b.textContent || "")));
     await sleep(300);
     check("a verb can be made a conversation, and the table goes with the forms",
       !cellNamed("Arabic script for past · he") && !block(/^Form 1$|^The verb$/) &&
         /What it is called/.test(document.body.textContent || ""),
       block(/^Form 1$|^The verb$/) ? "the form blocks are still up" : "the scene is up");
-    click(kindBtn(/^Verb$/));
+    /* Back to a word, and then to a verb: the kind and what its forms are
+       are two questions, so coming back from a conversation is answering
+       the first one again before the second is even asked. */
+    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+      .find((b) => /^Word or phrase$/.test((b.textContent || "").trim())));
+    await sleep(300);
+    click(kindBtn(/^A verb/));
     await sleep(300);
     check("and coming back brings the table with its cells still in it",
       !!cellNamed("Arabic script for past · he") &&
@@ -3705,16 +3729,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(450);
 
   const saved = () => [...document.querySelectorAll(
+    '[role="radiogroup"][aria-label="Its forms"] .at-tickrow')];
+  check("a card written weeks ago is still asked what its forms are",
+    saved().length === 3 && /A verb/.test(saved()[1].textContent || ""),
+    saved().map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(nothing offered)");
+  /* The kind itself is settled: a written word does not become a
+     conversation, and there would be nowhere to put the turns. */
+  const kindSegs = [...document.querySelectorAll(
     '[role="group"][aria-label="The kind of card"] .at-seg')];
-  check("a card written weeks ago is still asked whether it is a verb",
-    saved().length === 2 && /^Verb$/.test((saved()[1].textContent || "").trim()),
-    saved().map((b) => b.textContent).join(" | ") || "(nothing offered)");
   check("but it is not offered the kind it can no longer become",
-    !saved().some((b) => /Conversation/.test(b.textContent || "")),
-    saved().map((b) => b.textContent).join(" | ") || "(nothing offered)");
+    !kindSegs.some((b) => /Conversation/.test(b.textContent || "")),
+    kindSegs.map((b) => b.textContent).join(" | ") || "(the kind is settled, and says so)");
 
-  const verbHere = () => /** @type {any} */ (saved()
-    .find((b) => /^Verb$/.test((b.textContent || "").trim())) || null);
+  const verbHere = () => {
+    const row = saved().find((r) => /A verb/.test(r.textContent || ""));
+    return /** @type {any} */ (row ? row.querySelector("input") : null);
+  };
   click(verbHere());
   await sleep(350);
   const cited = /** @type {any} */ ([...document.querySelectorAll("input")]
@@ -3730,7 +3760,53 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   /* Back to a word, which is still offered because the stored card has no
      table — only a saved verb is held to what it is. Left without saving,
      so nothing later counts a card differently. */
-  click(/** @type {any} */ (saved().find((b) => /^Word/.test((b.textContent || "").trim())) || null));
+  /* ---- and the other table a word may lay out ----
+
+     Arabic writes "my book" as one word, and the same endings carry a
+     preposition. Those are forms of the word and things to learn, and the
+     verb table has no axis for them: it says who is doing it and when,
+     never who it is about. One row, the same component, and cells told
+     apart from a verb's by the row they sit in. */
+  const attachedHere = () => {
+    const row = saved().find((r) => /pronoun on the end/.test(r.textContent || ""));
+    return /** @type {any} */ (row ? row.querySelector("input") : null);
+  };
+  check("a word can be said to take a pronoun on its end", !!attachedHere(),
+    saved().map((r) => (r.textContent || "").slice(0, 24)).join(" | "));
+  click(attachedHere());
+  await sleep(350);
+
+  const attachedCell = (/** @type {string} */ label) =>
+    /** @type {any} */ ([...document.querySelectorAll("input")]
+      .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+  check("which opens a row with a box per pronoun",
+    !!attachedCell("Arabic script for with a pronoun on the end · me") &&
+      !!attachedCell("Arabic script for with a pronoun on the end · them"),
+    [...document.querySelectorAll(".at-celllabel")].map((n) => n.textContent).join(" | ") || "(no table)");
+  /* And the verb's table is not also up: a card lays out one or the
+     other, and the radio is what says which. */
+  check("and not the verb's table as well",
+    !attachedCell("Arabic script for past · he"),
+    attachedCell("Arabic script for past · he") ? "both tables are up" : "one table at a time");
+  /* The word's own block stays. A verb whose dictionary form is a cell
+     replaces it; a pronoun on the end is a form of the word, not a
+     stand-in for it. */
+  const blockOrder = () =>
+    [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
+  check("while the word itself keeps its own block, being what these are forms of",
+    blockOrder().includes("Form 1"), blockOrder().join(" | "));
+  /* And the row comes after it, which is the order they are learnt in: the
+     word is met first and the row waits on it. A verb's table replaces the
+     block and stands where it did; this one is built on it. */
+  check("and the row sits after it, the way it is learnt",
+    blockOrder().indexOf("with a pronoun on the end") > blockOrder().indexOf("Form 1"),
+    blockOrder().join(" | "));
+
+  const plainHere = () => {
+    const row = saved().find((r) => /Just this word/.test(r.textContent || ""));
+    return /** @type {any} */ (row ? row.querySelector("input") : null);
+  };
+  click(plainHere());
   await sleep(350);
   const mainField = /** @type {any} */ ([...document.querySelectorAll(".at-formblock.main .at-field")]
     .find((f) => /^Arabic script and transliteration$/i.test(

@@ -31,7 +31,8 @@ import {
   isCell,
   isCitation,
   isFrame,
-  isVerb,
+  hasCells,
+  cellsIn,
   openRows,
   personFor,
   personsOf,
@@ -41,7 +42,7 @@ import {
   tableOf,
   tensesOf,
 } from "../src/verbs.ts";
-import { LANGUAGES, teachesVerbs, verbOf } from "../src/languages.ts";
+import { LANGUAGES, attachedOf, takesAttached, teachesVerbs, verbOf } from "../src/languages.ts";
 import { slotsOf } from "../src/variables.ts";
 import { must } from "./helpers.mjs";
 
@@ -101,12 +102,12 @@ test("a cell is a sub-form carrying where it sits, and nothing more", () => {
 
 test("an ordinary card has no table, and nothing here throws on one", () => {
   const book = { id: "b", ar: "كِتاب", en: "book", subs: [{ id: "s1", ar: "كُتُب", en: "books" }] };
-  assert.equal(isVerb(book), false);
+  assert.equal(hasCells(book, arabic), false);
   assert.deepEqual(cellsOf(book), []);
   assert.equal(cellAt(book, "past", "she"), null);
 
   /* And on nothing at all, which is what a half-written draft is. */
-  assert.equal(isVerb(null), false);
+  assert.equal(hasCells(null, arabic), false);
   assert.deepEqual(cellsOf(undefined), []);
   assert.equal(rowOf(null), "");
   assert.equal(cellAt(null, "past", "she"), null);
@@ -419,4 +420,60 @@ test("a language that cites nothing has no cell to take a word from", () => {
      reached. The guard is citationOf, and this is what it answers. */
   assert.equal(citationOf(viet), null);
   assert.deepEqual(citationOf(arabic), { row: "past", col: "he" });
+});
+
+/*
+ * Two tables on one card, told apart by the row a cell sits in.
+ *
+ * A verb's persons and tenses, and the pronouns a word takes on its end,
+ * are both tables of sub-forms — so "has a cell" stopped being the same
+ * question as "is a verb" the moment there were two. A cell belongs to
+ * whichever table declares its row, and the rows of one are names no other
+ * uses.
+ */
+test("a card's cells belong to the table that declares their row", () => {
+  const attached = must(attachedOf(LANGUAGES["ar-PS"]), "the Arabic attached-pronoun table");
+  const book = {
+    id: "book",
+    ar: "كِتاب",
+    en: "book",
+    subs: [
+      { id: "a-me", row: "attached", col: "me", ar: "كتابي", en: "my book", lat: "" },
+      { id: "a-you", row: "attached", col: "you-m", ar: "كتابك", en: "your book", lat: "" },
+    ],
+  };
+
+  /* A word with pronouns on it is not a verb, which is the whole reason
+     this question takes a table. Read the other way round, a verb is not a
+     word that takes pronouns. */
+  assert.equal(hasCells(book, attached), true);
+  assert.equal(hasCells(book, arabic), false);
+  assert.equal(hasCells(toEat, arabic), true);
+  assert.equal(hasCells(toEat, attached), false);
+
+  assert.deepEqual(cellsIn(book, attached).map((c) => c.col), ["me", "you-m"]);
+  assert.deepEqual(cellsIn(book, arabic), []);
+
+  /* One row, so the table is a line of it. Its cells are read by the same
+     functions a verb's are, which is what made it cheap. */
+  assert.equal(tensesOf(attached).length, 1);
+  assert.equal(personsOf(attached).length, 8);
+  assert.equal(tableOf(book, attached).length, 8);
+  assert.deepEqual(tableCount(book, attached), { filled: 2, blank: 6 });
+  assert.equal(must(cellAt(book, "attached", "me"), "the me cell").ar, "كتابي");
+
+  /* And nothing about agreement: a sentence does not choose between my
+     book and your book by looking at who is in it. */
+  assert.equal(personFor(attached, { number: "singular", gender: "feminine" }), null);
+});
+
+test("and a language that attaches none has no such table", () => {
+  assert.equal(attachedOf(LANGUAGES["vi-Hue"]), null);
+  assert.equal(takesAttached(LANGUAGES["vi-Hue"]), false);
+  assert.equal(takesAttached(LANGUAGES["ar-PS"]), true);
+  assert.equal(takesAttached(LANGUAGES["he-IL"]), true);
+  /* Asked of nothing, it comes back empty rather than throwing — the same
+     answer every function here gives a half-written draft. */
+  assert.deepEqual(cellsIn(null, attachedOf(LANGUAGES["vi-Hue"])), []);
+  assert.equal(hasCells({ subs: [] }, null), false);
 });
