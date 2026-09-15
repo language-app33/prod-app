@@ -205,6 +205,8 @@ src/
   ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
   spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
+  card-editor.tsx  editing a card: the editor and the pieces it is built
+                   from, apart from the spaces so each reads as itself
   shared.tsx       the component library both sides use
   sync.ts          merging two devices' documents, and clip sync
   index.css        one stylesheet, with the design tokens at the top

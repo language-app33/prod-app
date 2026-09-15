@@ -25,7 +25,7 @@ const OUT = path.join(ROOT, "src", "component-uses.js");
    these three are being converted from .jsx to .tsx a file at a time and a
    list pinned to ".jsx" would stop counting the day one moved — silently,
    since a component with no uses reads as a component nobody uses. */
-const APP_FILES = ["shared", "ArabicTrainer", "spaces"];
+const APP_FILES = ["shared", "ArabicTrainer", "spaces", "card-editor"];
 
 /** @param {string} stem */
 function sourceOf(stem) {

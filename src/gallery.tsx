@@ -187,6 +187,7 @@ const PLACES: Record<string, [string, string]> = {
 const FILE_PART: Record<string, string> = {
   "ArabicTrainer.tsx": LEARN,
   "spaces.tsx": TEACH,
+  "card-editor.tsx": TEACH,
   "shared.tsx": PARTS,
   "gallery.tsx": ADMIN,
 };
