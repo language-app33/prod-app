@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.130 — 15 September 2026
+
+- **A word that takes a pronoun on its end is no longer offered a loose
+  form beside its table**, the way a verb already was not.
+
+  The plural looked like the reason to keep it — *book*, *books* — but the
+  plural takes the same endings, *my books*, *your books*. So it is not one
+  more form: it is a second table, and dropping it in here would have given
+  you a plural stripped of the endings that made the card worth having.
+  There was nothing else a loose form could have been.
+
+  That also takes the redundancy with it. Every loose form asks for its own
+  gender and number, which is how one is told from another — but the boxes
+  in the table are told apart by the column they sit in, and already say so.
+  With nothing loose left, there is nothing left asking twice.
+
+  A form the card already carries stays on screen, because it is saved
+  either way and hiding it would read as having lost it. **Duplicate**, on a
+  block already there, is untouched: it is a way out for somebody who has
+  one rather than an invitation to everybody who has not.
+
 ## 0.129 — 14 September 2026
 
 - **"Learn more" now has something in it whatever was asked.** The box

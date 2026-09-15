@@ -3850,6 +3850,19 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and the row sits after it, the way it is learnt",
     blockOrder().indexOf("attached pronouns") > blockOrder().indexOf("Form 1"),
     blockOrder().join(" | "));
+  /* And nothing loose can be added beside the table, as nothing can beside
+     a verb's. The plural looked like a real thing to add — book, books —
+     but the plural takes the same endings, so it is a second table rather
+     than one more form, and a plural stripped of them is not what the card
+     is for. */
+  const addForm = () => [...document.querySelectorAll("button")]
+    .find((b) => /^Add a form$/.test((b.textContent || "").trim()));
+  check("and no loose form can be added beside the table", !addForm(),
+    addForm() ? "still offered" : "no such button");
+  /* The forms it already carries stay: they are saved either way, and
+     hiding one would read as having lost it. */
+  check("while a form the card already had is still on screen",
+    blockOrder().includes("Form 2"), blockOrder().join(" | "));
 
   const plainHere = () => {
     const row = saved().find((r) => /Just this word/.test(r.textContent || ""));

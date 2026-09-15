@@ -5231,22 +5231,31 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
             </div>
           ))}
 
-          {/* Not on a verb. A verb's forms are the table — and where the
-              language cites one of its cells, the card's own word is the
-              table too — so the only thing left to add here is a form
-              outside it, which is the one thing a verb card should not
-              have. This was a quieter-worded button rather than none, on
-              the grounds that a verb may genuinely have a second spelling;
-              but a spelling is an accepted answer, written beside the one
-              it is an alternative to, and never a form of its own. What
-              the button actually did was reveal a block that was not
-              there, and then turn into the "Add a form" it was standing in
-              for.
+          {/* Not on a card whose forms are laid out in a table.
+
+              A verb's forms are the table — and where the language cites
+              one of its cells, the card's own word is the table too — so
+              the only thing left to add is a form outside it, which is the
+              one thing a verb card should not have. This was a
+              quieter-worded button rather than none, on the grounds that a
+              verb may genuinely have a second spelling; but a spelling is
+              an accepted answer, written beside the one it is an
+              alternative to, and never a form of its own.
+
+              The same now holds for a word that takes a pronoun on its
+              end, and it took a moment to see why. The plural looked like a
+              real thing to add — book, books — but the plural takes the
+              same pronouns, so it is not one more form: it is a second
+              table, and dropping it in here gives you a plural stripped of
+              the endings that made the card worth having. There is nothing
+              else a loose form could be.
 
               Duplicate, on a block already on screen, is left alone: it is
               a way out for somebody who has one, rather than an invitation
-              to everybody who has not. */}
-          {!scene && !verbMode && (
+              to everybody who has not. And a form the card already carries
+              stays on screen, because it is saved either way and hiding it
+              would read as having lost it. */}
+          {!scene && !verbMode && !attachedMode && (
             <Button variant="ghost" size="sm"
               /* No number override: blankForm takes the language's declared
                  default, so what a new form starts as is settled in one place. */
