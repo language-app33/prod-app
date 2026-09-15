@@ -805,6 +805,13 @@ export default async (req) => {
            not know one language from another, and a name is the teacher's
            words rather than anything it can check. */
         name: String(card.name || "").slice(0, 120),
+        /* What the teacher says the word is — a noun, a verb, a name.
+           Narrowed to the shape an id can take, like every other id on
+           this document: which categories exist is the language pack's
+           business, and the server does not know one language from
+           another. Stored as "" where nobody has said, which is what
+           every card written before the question existed carries. */
+        category: idish(card.category),
         note: String(card.note || "").slice(0, 500),
         lang: String(card.lang || "").slice(0, 12),
         /* Which variable this card fills, where it is a value rather than

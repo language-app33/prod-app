@@ -24,6 +24,7 @@ import type {
   Verdicts,
   VerbPerson,
   VerbSpec,
+  WordCategory,
 } from "./types.ts";
 /* The one import here, and it goes the way every import in this file has
    to: dialogs.ts knows nothing about languages, so there is no cycle. It
@@ -1155,6 +1156,71 @@ const ATTACHED_TABLE: VerbSpec = {
   tenses: [{ id: "attached", label: "attached pronouns" }],
 };
 
+/* ---- what a word can be ----
+
+   The list a teacher picks from, declared once and spread into every pack
+   the way the tables above are. Parts of speech are not the same
+   everywhere, so this is a language's answer and not the app's — no pack
+   differs today, and the day one does it says so here rather than
+   anywhere else.
+
+   Two of them name a table. That is the whole of what the answer decides
+   for now: a verb is offered its persons and tenses, a noun and a
+   preposition the pronouns that go on their end, and everything else is
+   the word and whatever forms the teacher writes. A category naming a
+   table the pack has not got — a noun in Huế, which attaches nothing —
+   simply has none. */
+const WORD_CATEGORIES: WordCategory[] = [
+  {
+    id: "noun",
+    label: "Noun",
+    note: "A thing: a book, a house, a morning.",
+    table: "attached",
+  },
+  {
+    id: "verb",
+    label: "Verb",
+    note: "Something done, with its persons and tenses laid out in a table.",
+    table: "verb",
+  },
+  { id: "adjective", label: "Adjective", note: "A description: big, red, tired." },
+  {
+    id: "preposition",
+    label: "Preposition",
+    note: "at, with, for — and in some languages they take the same endings a noun does.",
+    table: "attached",
+  },
+  { id: "pronoun", label: "Pronoun", note: "I, you, she — the word itself, not an ending." },
+  { id: "name", label: "Name", note: "A particular person or place: Sarah, Nablus." },
+  { id: "number", label: "Number", note: "One, two, three, and the words built on them." },
+  {
+    id: "other",
+    label: "Something else",
+    note: "A greeting, a particle, a phrase — anything the list above does not cover.",
+  },
+];
+
+/** What a word can be in this language, in the order it is asked. */
+export const categoriesOf = (lang: Lang | null | undefined): WordCategory[] =>
+  (lang && lang.categories) || [];
+
+/** One of them by its id, or null — including for a card written before the
+    question was asked, and for an id no pack declares. */
+export const categoryOf = (
+  lang: Lang | null | undefined,
+  id: string | null | undefined,
+): WordCategory | null =>
+  categoriesOf(lang).find((c) => c.id === String(id || "")) || null;
+
+/**
+ * What the teacher is shown for it — "Noun" — and "" where the card has
+ * not been asked or says something this pack does not declare.
+ */
+export const categoryLabel = (
+  lang: Lang | null | undefined,
+  id: string | null | undefined,
+): string => (categoryOf(lang, id) || { label: "" }).label;
+
 /** The rows and columns a language lays its verbs out on, where it has any. */
 export const verbOf = (lang: Lang | null | undefined): VerbSpec | null =>
   (lang && lang.verb) || null;
@@ -1532,6 +1598,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* And the pronouns that attach to the end of a word — كتابي is my book,
        عندي is I have. See ATTACHED_TABLE. */
     attached: ATTACHED_TABLE,
+    /* And what a teacher says a word is. The shared list: nothing about
+       Arabic asks for a category of its own. */
+    categories: WORD_CATEGORIES,
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -1652,6 +1721,10 @@ export const LANGUAGES: Record<LangId, Lang> = {
         { id: "future", label: "future (sẽ)" },
       ],
     },
+    /* The same list, and it attaches no pronouns — so a noun here is a
+       noun with nothing laid out under it, which is what a category
+       naming a table the pack has not got means. */
+    categories: WORD_CATEGORIES,
     verdicts: {
       partial: "Right letters, wrong tone",
       missing: "Letters right — add the tone marks",
@@ -1764,6 +1837,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     },
     /* The same endings, and the same reason: ספרי is my book. */
     attached: ATTACHED_TABLE,
+    categories: WORD_CATEGORIES,
     verdicts: {
       partial: "Right letters, wrong niqqud",
       missing: "Letters right — add the niqqud",

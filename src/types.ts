@@ -169,6 +169,29 @@ export interface VerbSpec {
   citation?: { row: string; col: string };
 }
 
+/**
+ * One thing a word can be: a noun, a verb, a name.
+ *
+ * What a card is was guessed until 0.137 — a verb if its table had
+ * anything in it, a word if its text was short — and the guessing is what
+ * let a saved card open as something it was not. The teacher says it now,
+ * once, and the editor follows: which table it is offered, and (later)
+ * which blank in somebody else's sentence it can stand in.
+ *
+ * Which categories exist is the language pack's answer, like everything
+ * else about a language. `table` names one the pack declares — a noun
+ * takes the pronouns on its end, a verb has its persons and tenses — and
+ * a category naming a table the pack has not got simply has none.
+ */
+export interface WordCategory {
+  id: string;
+  /** What the teacher is shown — "Noun". */
+  label: string;
+  /** The line under it saying what it means. */
+  note: string;
+  table?: "verb" | "attached";
+}
+
 /** A grammatical axis a word varies along — number, gender, addressee. */
 export interface GrammarDim {
   label: string;
@@ -309,6 +332,12 @@ export interface Lang {
   /** The pronouns this language attaches to the end of a word, where it
       attaches any. One row, and a column per pronoun — see ATTACHED_TABLE. */
   attached?: VerbSpec;
+  /**
+   * What a word can be in this language, in the order the teacher is asked.
+   * A pack without a list is asked nothing, and its cards say what they are
+   * the way every card did before this — by what they hold.
+   */
+  categories?: WordCategory[];
   /**
    * A pack's own rule for word/phrase/sentence. None has one yet;
    * guessKind() reads it.
@@ -460,6 +489,15 @@ export type Card = CardForm & {
   owner?: string;
   lang: LangId;
   note?: string;
+  /**
+   * What the teacher says this word is — a noun, a verb, a name. One of
+   * the ids the language pack declares; see WordCategory.
+   *
+   * Absent on every card written before it was asked, and on any the
+   * teacher has not answered for. What follows from it is the editor's
+   * business: nothing about how a card is drilled reads this.
+   */
+  category?: string;
   /**
    * The variable this card can stand in for, where it is a value rather
    * than something to learn: a card saying `name` fills every {{name}} in
@@ -696,6 +734,8 @@ export type Item = Form & {
   fills?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
+  /** What the teacher says the word is — a noun, a verb, a name. See Card. */
+  category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
   flags?: any[];

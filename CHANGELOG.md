@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.137 — 15 September 2026
+
+- **A card now says what kind of word it is, and the teacher is the one who
+  says it.** Noun, verb, adjective, preposition, pronoun, name, number, or
+  something else — asked once, in the block at the top of the editor, from a
+  list the language itself declares.
+
+  It replaces a question about the app's own machinery. The editor used to
+  ask which *table* a word laid its forms out in — *Just this word*, *A
+  verb*, *Attached pronouns* — and then work out what the card was by
+  looking at which table happened to have something in it. That guess is
+  what let a saved word with pronouns on its end open as a verb and lose
+  them on the next save.
+
+  What follows from the answer is the table: a verb is offered its persons
+  and tenses, a noun and a preposition the pronouns that go on their end,
+  and everything else is the word and whatever forms you write. A card
+  written before this is shown what it looks like — a card with a verb's
+  table reads as a verb — and you can say otherwise before saving.
+
+  Nothing about how a card is drilled changes. This is the first of three
+  steps: sentence cards come next, and after them blanks that can be filled
+  by any form of a word.
+
 ## 0.136 — 15 September 2026
 
 - **Housekeeping: there is now one way to ask what forms a card has.**

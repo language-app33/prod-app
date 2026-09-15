@@ -865,3 +865,68 @@ exercises a form is asked is answered twice already — by the ladder, which
 opens them in order, and by the learner's own settings — and a third
 answer on the card would be somewhere for the three to disagree. The
 parts are forms, which is what the card is made of.
+
+---
+
+## What a word is, the teacher says
+
+**15 September 2026** · `WORD_CATEGORIES` and `categoriesOf` in
+`src/languages.ts`, `categoryChoices`/`tableFor`/`initialCategory` in
+`src/card-editor.tsx`, `category` on the card
+
+Two entries above rest on the same claim: nothing stored says "verb". *The
+editor's three kinds are not the four stored kinds* and *A table is a table*
+both say a card's shape is derived — a verb card is one whose forms carry
+cells in the verb's rows, and the editor reads that off the rows rather than
+off a label.
+
+Deriving it was right about the table and wrong about the card. The rows a
+cell sits in say which table it is; they do not say what the word is, and
+the editor needed that second answer to know what to offer. So it guessed,
+and the guess was "has it got cells, and in whose rows" — which is how a
+saved word with pronouns on its end opened as a verb, had its pronouns put
+aside, and lost them on the next save (0.132). A card carrying nothing yet
+could not be guessed at all, so the teacher was asked a question in the
+app's own vocabulary instead: *Just this word · A verb · Attached
+pronouns*, which is a question about machinery.
+
+**So a card says what kind of word it is, and the table follows.** Noun,
+verb, adjective, preposition, pronoun, name, number, or something else —
+the language pack's own list, because parts of speech are a language's
+answer and not this app's. A noun and a preposition take the pronouns on
+their end; a verb has its persons and tenses; the rest are the word and
+whatever forms the teacher writes.
+
+**What is still derived, and deliberately.** The table. `verbs.ts` is
+untouched: a cell belongs to whichever table declares its row, `hasCells`
+reads that, and nothing in the scheduler, the session or the server has
+learnt a new word. The category decides only what the *editor* offers. That
+line matters — it is what keeps this one field from becoming a second
+source of truth about content that already says what it is.
+
+**And nothing about drilling reads it.** It would have been easy to make a
+name un-drilled by category, or to let the category pick which blank a card
+fills. Both are real and both are later: `drill` and `fills` are the
+teacher's answers today, and changing what they mean in the same release
+that introduces the field would be two changes wearing one coat.
+
+**Why one noun rather than two.** "A noun with pronouns" and "a noun
+without" is one part of speech asked as two, and the difference is already
+visible: the table is either filled in or it is not. A noun in a language
+that attaches nothing — Huế — is a noun with no table under it, which is
+what a category naming a table its pack has not got means.
+
+**It sits beside `kind`, which is a different question.** Word, phrase and
+sentence are read off the text and always were: how long a card's words
+are is not something a teacher should have to declare, and it decides
+things about exercises that a part of speech does not. The category is the
+one thing about a card no amount of reading the script will tell you.
+
+**What it costs.** A card written before the question carries no answer.
+The editor works one out from what the card holds — a verb's table makes it
+a verb, pronouns make it a noun — and shows it *selected* rather than
+storing it quietly, so a teacher opening an old card sees what it looks
+like and can say otherwise. Nothing is written until they save. A card
+whose table already has something in it is still told what it is rather
+than offered the change, which is 0.120's rule unchanged: the table is the
+content, and offering to swap it is offering to throw it away.

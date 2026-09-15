@@ -44,8 +44,8 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { shapeOf, shapeChoices, formsOffered,
-  initialForms, initialCells, initialLayout, storedFormsOf, asideOf, tableCellsOf,
+const { shapeOf, shapeChoices, categoryChoices, tableFor,
+  initialForms, initialCells, initialCategory, storedFormsOf, asideOf, tableCellsOf,
   canSaveWord, canSaveScene, writtenLines, ownerLabel, askParts, partAsked } =
   await import(path.join(out, "card-editor.js"));
 
@@ -474,20 +474,38 @@ test("a new card may be either, and a written one stays what it is", () => {
   assert.deepEqual(values({ saved: true, scene: true }), []);
 });
 
-test("and a word is offered the tables its language actually lays out", () => {
-  const values = (/** @type {any} */ t) =>
-    formsOffered(null, t).map((/** @type {any} */ c) => c.value);
-  /* Arabic lays out both, so there are three answers: neither, and one
-     each. */
-  assert.deepEqual(values({ verb: true, attached: true }), ["", "verb", "attached"]);
-  /* Huế lays out verbs and attaches nothing. */
-  assert.deepEqual(values({ verb: true, attached: false }), ["", "verb"]);
-  /* And a pack that lays out neither asks nothing: one answer is no
-     question, so the radio is not drawn at all. */
-  assert.deepEqual(values({ verb: false, attached: false }), []);
-  /* Every answer carries a line saying what it gets you, which is why this
+test("and a word is asked what kind of word it is, in the language's own list", () => {
+  const ids = (/** @type {any} */ lang) =>
+    categoryChoices(lang).map((/** @type {any} */ c) => c.value);
+  assert.ok(ids(LANGUAGES["ar-PS"]).includes("noun"));
+  assert.ok(ids(LANGUAGES["ar-PS"]).includes("verb"));
+  /* A pack that declares none is asked nothing, and its cards go on
+     saying what they are by what they hold. */
+  assert.deepEqual(ids(null), []);
+  /* Every answer carries a line saying what it means, which is why this
      is a list of rows and not a track of segments. */
-  assert.ok(formsOffered(null, { verb: true, attached: true }).every((/** @type {any} */ o) => o.note));
+  assert.ok(categoryChoices(LANGUAGES["ar-PS"]).every((/** @type {any} */ o) => o.note));
+});
+
+test("what a word is decides which table it is offered", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const viet = LANGUAGES["vi-Hue"];
+  /* A verb has its persons and tenses; a noun and a preposition take the
+     pronouns on their end. */
+  assert.equal(tableFor(ar, "verb"), "verb");
+  assert.equal(tableFor(ar, "noun"), "attached");
+  assert.equal(tableFor(ar, "preposition"), "attached");
+  /* And everything else is the word and whatever forms the teacher
+     writes — including a word nobody has said anything about. */
+  assert.equal(tableFor(ar, "adjective"), "");
+  assert.equal(tableFor(ar, "name"), "");
+  assert.equal(tableFor(ar, ""), "");
+  assert.equal(tableFor(ar, "nonsense"), "");
+  /* Huế attaches nothing, so a noun there has no table — which is what a
+     category naming a table its pack has not got means. Its verbs still
+     have theirs. */
+  assert.equal(tableFor(viet, "noun"), "");
+  assert.equal(tableFor(viet, "verb"), "verb");
 });
 
 /*
@@ -845,17 +863,39 @@ test("only a verb has its dictionary form seeded", () => {
   const pen = /** @type {any} */ ({ id: "p", ar: "قلم", en: "pen", subs: [cellOf("attached", "me", { ar: "قلمي" })] });
   const cells = initialCells(pen, arVerb);
   assert.deepEqual(cells.map((/** @type {any} */ c) => [c.row, c.col]), [["attached", "me"]]);
-  assert.equal(initialLayout(cells, arVerb, arAttached), "attached");
+  assert.equal(initialCategory(pen, LANGUAGES["ar-PS"], cells), "noun");
 
   /* A verb whose cited cell nobody filled gets its word put there. */
   const eat = /** @type {any} */ ({ id: "e", ar: "أكل", en: "to eat", subs: [cellOf("present", "he", { ar: "بياكل" })] });
   const seeded = initialCells(eat, arVerb);
   assert.ok(seeded.some((/** @type {any} */ c) => c.row === "past" && c.col === "he" && c.ar === "أكل"));
-  assert.equal(initialLayout(seeded, arVerb, arAttached), "verb");
+  assert.equal(initialCategory(eat, LANGUAGES["ar-PS"], seeded), "verb");
 
   /* And a plain word has no table at all. */
   assert.deepEqual(initialCells(/** @type {any} */ ({ id: "w", ar: "شمس", en: "sun", subs: [] }), arVerb), []);
-  assert.equal(initialLayout([], arVerb, arAttached), "");
+  assert.equal(initialCategory(/** @type {any} */ ({ id: "w" }), LANGUAGES["ar-PS"], []), "");
+});
+
+/*
+ * What a card says it is when it is opened: the teacher's answer where
+ * there is one, and what the card holds where there is not.
+ */
+test("a card opens as what the teacher said, or as what it looks like", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const said = /** @type {any} */ ({ id: "a", category: "adjective" });
+  assert.equal(initialCategory(said, ar, []), "adjective", "the teacher's answer wins");
+  /* Even against the table: a card is what it says it is, and the cells
+     are only read where nobody has said. */
+  const both = /** @type {any} */ ({ id: "b", category: "preposition" });
+  assert.equal(initialCategory(both, ar, [cellOf("attached", "me")]), "preposition");
+  /* A category this pack does not declare is no answer at all — the card
+     falls back to what it holds. */
+  const odd = /** @type {any} */ ({ id: "c", category: "particle" });
+  assert.equal(initialCategory(odd, ar, [cellOf("past", "he")]), "verb");
+  assert.equal(initialCategory(odd, ar, []), "");
+  /* And a language that declares no categories asks nothing, so nothing
+     is ever said. */
+  assert.equal(initialCategory(said, null, []), "");
 });
 
 test("a saved card is told what it lays out, and a new one is asked", () => {

@@ -2969,6 +2969,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        could work it out. Left off where there is none, so an ordinary card
        does not start carrying an empty one. */
     ...(card.name ? { name: String(card.name) } : null),
+    /* And what the teacher says it is — a noun, a verb, a name. Carried
+       for the same reason the name is: it is the teacher's answer and
+       nothing here could work it out. Left off where nobody has said. */
+    ...(card.category ? { category: String(card.category) } : null),
     tags: [deckTitle],
     locked: true,
     flags: [],

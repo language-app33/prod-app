@@ -4453,7 +4453,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, decks: inDecks, uses, fills, drill, scene: written }) =>
+        onSave={({ forms, note, name, category, decks: inDecks, uses, fills, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -4501,6 +4501,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            not name it — a verb saved as the form a
                            dictionary lists. Empty on every other card. */
                         name,
+                        /* And what the teacher says the word is — a noun, a
+                           verb, a name. Which table the editor offers
+                           follows from it; nothing about how the card is
+                           drilled reads it. */
+                        category,
                         uses,
                         /* Which variable it fills, and whether it is a
                            question of its own. A conversation is neither:

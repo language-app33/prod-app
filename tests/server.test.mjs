@@ -343,6 +343,40 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
 });
 
 /*
+ * What the teacher says a word is.
+ *
+ * Stored as given and narrowed to the shape an id can take: which
+ * categories exist is the language pack's business, and the server does
+ * not know one language from another. A card written before the question
+ * existed carries none, and passes through unchanged.
+ */
+test("a card keeps what the teacher says it is", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dina" } });
+  const key = made.json.key;
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "كِتاب", en: "book", lang: "ar-PS", category: "noun" }, decks: [] },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.category, "noun", "it came back");
+
+  /* And it is the card's to change: a noun written as one can be corrected. */
+  const again = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: saved.json.card.id, ar: "كِتاب", en: "book", lang: "ar-PS", category: "PREPOSITION!" }, decks: [] },
+  });
+  assert.equal(again.json.card.category, "preposition", "narrowed to the shape an id can take");
+
+  /* A card that says nothing says nothing — not "word", not a guess. */
+  const quiet = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [] },
+  });
+  assert.equal(quiet.json.card.category, "", "nobody has said what it is");
+});
+
+/*
  * A form's name, and whose table a cell is in.
  *
  * Both are what makes the pronouns on the end of a word a property of the
