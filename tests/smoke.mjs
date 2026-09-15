@@ -182,6 +182,21 @@ const penWithPronouns = {
     row: "attached", col: "me",
   }],
 };
+/* An adjective as a teacher saved it: the word, and one cell of the table
+   it agrees out of. Here to be reopened — a card carrying a table should
+   open on that table, whichever it is, and this is the first table that is
+   neither a verb's nor the pronouns. */
+const bigWithForms = {
+  id: "k999999999999", owner: "t-1", ar: "كبير", en: "big", lat: "kbiir",
+  note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  category: "adjective",
+  clips: [], uses: [], rev: 1, updated: 1, created: 6,
+  subs: [{
+    ar: "كبيرة", en: "big (f)", lat: "kbiire",
+    number: "singular", gender: "feminine", classifier: "", clips: [],
+    row: "agreement", col: "feminine",
+  }],
+};
 const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
 const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
@@ -294,6 +309,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...viktor, decks: [] },
           { ...twoGenders, decks: [] },
           { ...penWithPronouns, decks: [] },
+          { ...bigWithForms, decks: [] },
         ],
       });
     }
@@ -3120,7 +3136,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(450);
 
   const toScript = [...document.querySelectorAll(".at-try")]
-    .find((b) => /^Try English →/.test(b.getAttribute("aria-label") || ""));
+    .find((b) => /^Try English → Arabic script$/.test(b.getAttribute("aria-label") || ""));
   check("writing it from its meaning is one of the exercises offered", !!toScript,
     [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
   click(toScript);
@@ -3842,6 +3858,86 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     typeInto(cellNamed("Arabic script for past · he"), "akal");
     await sleep(200);
 
+    /* ---- each kind of word gets the editor its grammar wants ----
+
+       Eight answers, and until 0.140 only three of them changed anything
+       on screen. What each shows now, read off the language's own
+       declaration: which table, and which grammar axes. Nothing is typed
+       here, so the table already filled in above is what the warning
+       below still counts. */
+    {
+      const grammarBtn = () => /** @type {any} */ ([...document.querySelectorAll("button")]
+        .find((b) => /^Grammar of /.test(b.getAttribute("aria-label") || "")) || null);
+      const boxes = (/** @type {RegExp} */ re) => [...document.querySelectorAll("input")]
+        .map((i) => i.getAttribute("aria-label") || "").filter((l) => re.test(l));
+      const tables = () => boxes(/attached pronouns|agreement|counted|for (present|past|command) · /);
+      const dimGroups = () => [...document.querySelectorAll('[role="group"]')]
+        .map((g) => g.getAttribute("aria-label") || "").filter((l) => / of accepted answer| of this answer/.test(l));
+      const askAxes = async () => {
+        click(grammarBtn());
+        await sleep(200);
+        const seen = dimGroups().map((l) => l.replace(/ of (accepted answer \d+|this answer)$/, ""));
+        click(grammarBtn());
+        await sleep(100);
+        return seen;
+      };
+
+      click(kindBtn(/^Preposition/));
+      await sleep(320);
+      check("a preposition takes the pronouns on its end, and is asked no number or gender",
+        boxes(/attached pronouns · me$/).length > 0 && !grammarBtn() && !boxes(/for past · he$/).length,
+        `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
+
+      click(kindBtn(/^Name/));
+      await sleep(320);
+      check("a name has no table and is asked its number and gender — the verb beside it reads both",
+        !tables().length && !!grammarBtn(), `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
+      const nameAxes = grammarBtn() ? await askAxes() : [];
+      check("and not whether it is a person or a thing",
+        nameAxes.includes("Number") && nameAxes.includes("Gender") && !nameAxes.includes("Person or thing"),
+        nameAxes.join(" | ") || "(no axes)");
+
+      click(kindBtn(/^Noun/));
+      await sleep(320);
+      const nounAxes = grammarBtn() ? await askAxes() : [];
+      check("a noun is asked whether it is a person or a thing, which is what an adjective beside a plural reads",
+        nounAxes.includes("Person or thing") && boxes(/attached pronouns · me$/).length > 0,
+        nounAxes.join(" | ") || "(no axes)");
+
+      click(kindBtn(/^Adjective/));
+      await sleep(320);
+      check("an adjective lays out its feminine and plural, and nothing else",
+        !!boxes(/for agreement · feminine$/).length && !!boxes(/for agreement · plural$/).length &&
+          !boxes(/attached pronouns|for (present|past|command) · /).length,
+        tables().join(" | ") || "(no table)");
+      check("with no number or gender on the word, because the table is its number and gender",
+        !grammarBtn(), grammarBtn() ? "grammar asked" : "not asked");
+      const blocksUp = () => [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
+      check("and no second form offered, because a spelling is an accepted answer",
+        !addForm() && blocksUp().includes("Form 1"),
+        addForm() ? "a form is offered" : blocksUp().join(" | "));
+
+      click(kindBtn(/^Number/));
+      await sleep(320);
+      check("a number lays out the form a feminine noun takes, and only that",
+        boxes(/^Arabic script for counted · feminine$/).length === 1 &&
+          !boxes(/^Arabic script for (agreement|the word · attached|present|past|command)/).length,
+        boxes(/^Arabic script for /).join(" | ") || "(no table)");
+
+      click(kindBtn(/^Pronoun/));
+      await sleep(320);
+      check("a pronoun has no table and is asked its number and gender",
+        !tables().length && !!grammarBtn(), `${tables().length} table boxes`);
+
+      click(kindBtn(/^Something else/));
+      await sleep(320);
+      check("something else is the word alone: no table, no grammar",
+        !tables().length && !grammarBtn(), `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
+
+      click(kindBtn(/^Verb/));
+      await sleep(320);
+    }
+
     /* A card that has never been saved is not locked into being a verb, so
        it is the one place a typed table can still be dropped. It says so,
        and counts what is at stake rather than warning in the abstract. */
@@ -4069,6 +4165,42 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(300);
 }
 
+/* ---- a saved adjective opens on the table it agrees out of ----
+
+   The first table that is neither a verb's nor the pronouns, so the first
+   time the editor has had to open a card on a table it was never told
+   about by name. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  /* The word itself, not the phrase that happens to contain it. */
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كبير");
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+  const box = (/** @type {string} */ label) =>
+    /** @type {any} */ ([...document.querySelectorAll("input")]
+      .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+  const fem = box("Arabic script for agreement · feminine");
+  check("a saved adjective opens on its feminine and plural",
+    !!fem && fem.value === "كبيرة", fem ? `"${fem.value}"` : "no such box");
+  check("and on no other table",
+    !box("Arabic script for past · he") && !box("Arabic script for the word · attached pronouns · me"),
+    "one table");
+  check("and says which it is",
+    /Feminine and plural: the word/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-hint, .at-help, p")]
+      .map((n) => (n.textContent || "").trim()).find((t) => /^Feminine and plural:/.test(t)) || "(nothing said)"));
+  check("with the word keeping its own block, being what these are forms of",
+    [...document.querySelectorAll(".at-formnum")].some((n) => (n.textContent || "").trim() === "Form 1"),
+    [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
 /* ---- a saved word with pronouns on its end opens as what it is ----
 
    The editor seeded a verb's dictionary form into any card that had a cell,
@@ -4115,7 +4247,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("one line for the word and one for the pronouns on its end",
       rows.length === 2 &&
         /The main form/.test(rows[0].textContent || "") &&
-        /The pronouns on its end/.test(rows[1].textContent || ""),
+        /Its attached pronouns/.test(rows[1].textContent || ""),
       rows.map((r) => (r.querySelector("b") || {}).textContent).join(" | ") || "(no lines)");
     const ticks = rows.map((r) => /** @type {any} */ (r.querySelector("input")));
     check("all of it is drilled until somebody says otherwise",

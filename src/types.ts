@@ -146,10 +146,42 @@ export interface VerbTense {
   label: string;
 }
 
-/** A language's verb table: its columns, and its rows in teaching order. */
+/**
+ * A table of a word's forms: its columns, and its rows in teaching order.
+ *
+ * Named for the verb's, which was the first, and the shape has stayed the
+ * verb's: rows and columns, and a cell is one thing to learn. A language
+ * declares as many as it lays out — see `tables` on the pack — and every
+ * reader takes the table it is handed rather than asking which one it is.
+ * Three facts a table carries about itself beyond its axes are below.
+ */
 export interface VerbSpec {
   persons: VerbPerson[];
   tenses: VerbTense[];
+  /**
+   * What its cells wait on before they are asked.
+   *
+   * `rows`: one row is ever new at a time, the next opening when the one
+   * above it is mastered — a verb's tenses, which are not as hard as each
+   * other. `word`: every cell waits on the word it is a form of being
+   * known, and once that word is learnt each cell is asked one exercise a
+   * level rather than all of them — the pronouns on the end of a word, the
+   * feminine of an adjective. Absent reads as `word`, which is the rule
+   * every one-row table has followed since there was one.
+   */
+  gate?: "rows" | "word";
+  /**
+   * Whether every form of the card carries one, or the card does.
+   *
+   * The plural takes the same pronouns the singular does and has eight of
+   * its own, so that table hangs off each form. A verb's table, and an
+   * adjective's feminine and plural, belong to the card: there is one of
+   * them, and the card is the word. Absent means the card's.
+   */
+  perForm?: boolean;
+  /** What to call it to a teacher — "attached pronouns", "feminine and
+      plural". Absent on the verb's, which is called by its rows. */
+  label?: string;
   /**
    * Which cell of the table is the verb as a dictionary names it.
    *
@@ -189,7 +221,17 @@ export interface WordCategory {
   label: string;
   /** The line under it saying what it means. */
   note: string;
-  table?: "verb" | "attached";
+  /** The table it lays out, by the name the pack declares it under. */
+  table?: string;
+  /**
+   * Which grammar axes a word of this kind is asked about, of the ones
+   * the pack declares — a preposition has neither number nor gender, a
+   * name has both because the verb beside it reads them. Absent means
+   * every axis the pack has, which is what every kind was asked until
+   * 0.140. Display and editing only: what is stored is never narrowed by
+   * this, so a value written before it existed is kept.
+   */
+  grammar?: string[];
 }
 
 /** A grammatical axis a word varies along — number, gender, addressee. */
@@ -199,6 +241,14 @@ export interface GrammarDim {
   required: boolean;
   /** [stored value, what to show]. */
   options: [string, string][];
+  /**
+   * How a value reads on a form's tag — "sg.", "f." — where it reads at
+   * all. A value mapped to "" is deliberately silent: N/A names nothing,
+   * and whether a noun is a person or a thing decides what agrees with it
+   * without being a way of telling its forms apart. Absent means the
+   * option's own label.
+   */
+  short?: Record<string, string>;
   /** What a new or unreadable value becomes. */
   default?: string;
   retired?: boolean;
@@ -324,14 +374,17 @@ export interface Lang {
   /** Only where the language has one. */
   lexical?: { key: string; label: string; help: string };
   /**
-   * How this language lays a verb out, where it lays one out at all. A
-   * pack without it teaches verbs as ordinary cards, which is every pack
-   * before this existed.
+   * The tables this language lays a word's forms out in, by name.
+   *
+   * `verb` is the persons and tenses, where verbs vary; `attached` the
+   * pronouns on the end of a word; `agreement` an adjective's feminine and
+   * plural; `counted` a number's feminine. A pack declares the ones it
+   * has and none of the rest — a noun in Huế is a noun with nothing laid
+   * out under it. Two of them used to be named fields here, and a third
+   * table would have been a third field, a third accessor and a third
+   * branch wherever the two were told apart.
    */
-  verb?: VerbSpec;
-  /** The pronouns this language attaches to the end of a word, where it
-      attaches any. One row, and a column per pronoun — see ATTACHED_TABLE. */
-  attached?: VerbSpec;
+  tables?: Record<string, VerbSpec>;
   /**
    * What a word can be in this language, in the order the teacher is asked.
    * A pack without a list is asked nothing, and its cards say what they are

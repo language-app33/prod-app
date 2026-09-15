@@ -8,6 +8,57 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.140 — 16 September 2026
+
+- **Each kind of word gets the editor its grammar wants.** The editor asks
+  what kind of word a card is, and until now only three answers changed
+  anything. In Palestinian Arabic every answer now does something:
+
+  - **Noun** — as before, plus one new question: **a person or a thing**
+    (animals count as things). It is there because the next release needs
+    it: a plural of things takes the feminine singular adjective, a plural
+    of people the plural.
+  - **Verb** — as before. Any extra form the card carries is no longer
+    asked its number and gender.
+  - **Adjective** — a one-row table of its own: **feminine** and
+    **plural**, each practised in its own right once the word is known. No
+    number or gender on the word, because the table is its number and
+    gender. No *Add a form*: a second spelling is an accepted answer, as
+    on a verb.
+  - **Preposition** — the pronouns on its end, as before, minus number and
+    gender.
+  - **Pronoun** — the word with number and gender. No table.
+  - **Name** — the word with gender **and number**. Number stays because
+    the verb beside it in a sentence reads both to choose between *he* and
+    *she*.
+  - **Number** — the word (the masculine form), then one cell:
+    **feminine**. You type whichever form the noun's gender calls for —
+    ثلاثة in the word, ثلاث in the cell — and the app only ever picks by
+    the noun's gender, so the reversed agreement of three to ten is your
+    typing, not a rule it has to know.
+  - **Something else** — the word only. No grammar, no table.
+
+  Hebrew gets the same, except an adjective's table has three cells
+  (feminine, masculine plural, feminine plural). Huế changes nothing: it
+  lays out neither table, so an adjective there stays a plain word, as a
+  noun does.
+
+  A card written before this keeps everything it has. Hiding a field does
+  not erase what was typed into it; a preposition saved earlier with a
+  gender still shows it in lists. A saved card with a table opens on that
+  table, whichever it is.
+
+- **Housekeeping underneath: a language declares its tables by name.** Two
+  tables used to be built into the app by name, and a third would have been
+  a third special case everywhere the two were told apart. A language now
+  declares as many as it has, and each table says what its cells wait on
+  (the row above, as a verb's do; or the word itself, as pronouns do) and
+  whether every form carries one or the card does. The drilling rules did
+  not change — which rule applies is read off the table.
+
+  One small wording change on the way: in *What is drilled*, the line for a
+  word's pronouns is now "Its attached pronouns".
+
 ## 0.139 — 15 September 2026
 
 - **A sentence is now a kind of card you can make, and the words you have

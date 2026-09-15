@@ -86,6 +86,20 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   because meeting كتابي before كتاب is meeting a word you have not learnt in
   a shape you cannot read. Which table a cell belongs to is read off the row
   it sits in, so one card never lays out both.
+- **A language declares the tables it lays a word out in, by name.** A
+  verb's persons and tenses, the pronouns on the end of a word, an
+  adjective's feminine and plural, a number's feminine — each a table of
+  cells over the card's own sub-forms, told apart by the row a cell sits
+  in. A table says what its cells wait on (the row above, as a verb's do,
+  or the word itself, as pronouns do — which also means one exercise a
+  level once the word is known) and whether every form carries one or the
+  card does; the trainer reads those two facts and knows no table by name
+  except the verb's, which its own sentence and the dictionary form ask for.
+  What kind of word a card is decides which table it is offered and which
+  grammar axes it is asked about — a preposition has neither number nor
+  gender, a noun is asked whether it is a person or a thing — and nothing
+  stored is narrowed by that: `dimsFor` is display and editing, `dimValues`
+  is storage. See `tablesOf` and `WORD_CATEGORIES` in `src/languages.ts`.
 - **A form can be kept without being asked about.** A card is a word and a
   pile of forms of it — other spellings, the pronouns on its end, every
   person and tense of a verb — and a teacher may want some of that written

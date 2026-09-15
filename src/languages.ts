@@ -669,6 +669,7 @@ export function labelFor(unit: Record<string, any>, lang: Lang = activeLang()) {
        the fallback. */
     if (dim.field === "number") bits.push(NUMBER_SHORT[value] ?? value);
     else if (dim.field === "gender") bits.push(GENDER_SHORT[value] ?? value);
+    else if (dim.short) bits.push(dim.short[value] ?? value);
     else {
       const opt = dim.options.find(([v]) => v === value);
       bits.push(opt ? opt[1] : value);
@@ -1074,6 +1075,23 @@ export const GRAMMAR: Record<string, GrammarDim> = {
       ["neutral", "neutral"],
     ],
   },
+  /* Whether a noun is a person or a thing. Not a way of telling its forms
+     apart — nothing is ever asked "the person one" — but the fact that
+     decides what agrees with it: in Arabic a plural of things takes the
+     feminine singular adjective (كتب كبيرة) and a plural of people the
+     plural (معلمين كبار). Animals count as things. Silent on every tag,
+     which `short` says; starts as a thing, because most nouns are. */
+  human: {
+    label: "Person or thing",
+    field: "human",
+    required: true,
+    options: [
+      ["thing", "a thing"],
+      ["person", "a person"],
+    ],
+    default: "thing",
+    short: { thing: "", person: "" },
+  },
   /* Retired. Addressee turned out not to be a property of a word — chó is
      chó whoever is listening — but of an utterance containing an address
      term, and those are better held as plain forms of one card. No language
@@ -1095,6 +1113,22 @@ export const GRAMMAR: Record<string, GrammarDim> = {
 
 export const dimsOf = (lang: Lang): GrammarDim[] =>
   (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
+
+/**
+ * The axes a word of one kind is asked about: the kind's own list where
+ * it has one, and the pack's otherwise — always within the pack's, so the
+ * shared category list can name an axis and a language without it is
+ * untouched. What is *stored* is never narrowed by this; see dimValues.
+ */
+export const dimsFor = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): GrammarDim[] => {
+  if (!lang) return [];
+  const kind = categoryOf(lang, category);
+  const own = kind && kind.grammar;
+  return own ? dimsOf(lang).filter((d) => own.includes(d.field)) : dimsOf(lang);
+};
 
 /*
  * The persons a language with subject agreement declares, ready to be
@@ -1162,6 +1196,64 @@ const ATTACHED_PERSONS: VerbPerson[] = [
 const ATTACHED_TABLE: VerbSpec = {
   persons: ATTACHED_PERSONS,
   tenses: [{ id: "attached", label: "attached pronouns" }],
+  label: "attached pronouns",
+  /* Every cell waits on the word it is on the end of, and every form of
+     the word carries a table of its own: the plural takes the same
+     endings and has eight of its own. */
+  gate: "word",
+  perForm: true,
+};
+
+/*
+ * The forms an adjective takes to agree with its noun.
+ *
+ * The card's own word is the masculine singular and is not a cell; the
+ * cells are the other forms. One row, like the pronouns, and for the same
+ * reason: one thing varies. Unlike the pronouns, the columns carry
+ * `picks`, because these *are* chosen by looking at what is beside them —
+ * سيارة wants كبيرة — which is the whole point of laying them out. A
+ * plural of people takes the plural; a plural of things takes the
+ * feminine singular, which is what the person-or-thing axis on a noun is
+ * for, and what 0.141 reads.
+ */
+const AR_AGREEMENT: VerbSpec = {
+  persons: [
+    { id: "feminine", label: "feminine", picks: { number: "singular", gender: "feminine" } },
+    { id: "plural", label: "plural", picks: { number: "plural", human: "person" } },
+  ],
+  tenses: [{ id: "agreement", label: "agreement" }],
+  label: "feminine and plural",
+  gate: "word",
+};
+
+/* Hebrew agrees in both at once, so the plural is two cells. */
+const HE_AGREEMENT: VerbSpec = {
+  persons: [
+    { id: "feminine", label: "feminine", picks: { number: "singular", gender: "feminine" } },
+    { id: "masc-plural", label: "masculine plural", picks: { number: "plural", gender: "masculine" } },
+    { id: "fem-plural", label: "feminine plural", picks: { number: "plural", gender: "feminine" } },
+  ],
+  tenses: [{ id: "agreement", label: "agreement" }],
+  label: "feminine, masculine plural and feminine plural",
+  gate: "word",
+};
+
+/*
+ * The form a number takes with a feminine noun.
+ *
+ * Its own table rather than the adjective's with a cell left blank, and
+ * the reason is the picks: the noun a number counts is plural, so an
+ * agreement table's plural column would fire on every one of them and
+ * select a cell nobody fills. A number's column picks on gender alone.
+ * Which form goes in which box is the teacher's typing — ثلاثة in the
+ * word, ثلاث here — so the reversed agreement of three to ten is written
+ * down rather than known.
+ */
+const COUNTED_TABLE: VerbSpec = {
+  persons: [{ id: "feminine", label: "feminine", picks: { gender: "feminine" } }],
+  tenses: [{ id: "counted", label: "counted" }],
+  label: "feminine",
+  gate: "word",
 };
 
 /* ---- what a word can be ----
@@ -1172,39 +1264,70 @@ const ATTACHED_TABLE: VerbSpec = {
    differs today, and the day one does it says so here rather than
    anywhere else.
 
-   Two of them name a table. That is the whole of what the answer decides
-   for now: a verb is offered its persons and tenses, a noun and a
-   preposition the pronouns that go on their end, and everything else is
-   the word and whatever forms the teacher writes. A category naming a
-   table the pack has not got — a noun in Huế, which attaches nothing —
-   simply has none. */
+   Four of them name a table, and each says which grammar axes a word of
+   its kind is asked about. A verb is offered its persons and tenses, a
+   noun and a preposition the pronouns that go on their end, an adjective
+   its feminine and plural, a number its feminine; the rest are the word
+   and whatever forms the teacher writes. A category naming a table the
+   pack has not got — a noun in Huế, which attaches nothing — simply has
+   none, and an axis the pack has not got is not asked either. */
 const WORD_CATEGORIES: WordCategory[] = [
   {
     id: "noun",
     label: "Noun",
     note: "A thing: a book, a house, a morning.",
     table: "attached",
+    grammar: ["number", "gender", "human"],
   },
   {
     id: "verb",
     label: "Verb",
     note: "Something done, with its persons and tenses laid out in a table.",
     table: "verb",
+    grammar: [],
   },
-  { id: "adjective", label: "Adjective", note: "A description: big, red, tired." },
+  {
+    id: "adjective",
+    label: "Adjective",
+    note: "A description: big, red, tired — with the forms it takes beside a noun.",
+    table: "agreement",
+    /* Its number and gender are its table. */
+    grammar: [],
+  },
   {
     id: "preposition",
     label: "Preposition",
     note: "at, with, for — and in some languages they take the same endings a noun does.",
     table: "attached",
+    grammar: [],
   },
-  { id: "pronoun", label: "Pronoun", note: "I, you, she — the word itself, not an ending." },
-  { id: "name", label: "Name", note: "A particular person or place: Sarah, Nablus." },
-  { id: "number", label: "Number", note: "One, two, three, and the words built on them." },
+  {
+    id: "pronoun",
+    label: "Pronoun",
+    note: "I, you, she — the word itself, not an ending.",
+    grammar: ["number", "gender"],
+  },
+  {
+    id: "name",
+    label: "Name",
+    note: "A particular person or place: Sarah, Nablus.",
+    /* Both, though a name is nearly always singular: the verb beside it in
+       a sentence reads number and gender together to choose between he
+       and she, and a name with no number would silently stop agreeing. */
+    grammar: ["number", "gender"],
+  },
+  {
+    id: "number",
+    label: "Number",
+    note: "One, two, three, and the words built on them — with the form a feminine noun takes.",
+    table: "counted",
+    grammar: [],
+  },
   {
     id: "other",
     label: "Something else",
     note: "A greeting, a particle, a phrase — anything the list above does not cover.",
+    grammar: [],
   },
 ];
 
@@ -1229,24 +1352,53 @@ export const categoryLabel = (
   id: string | null | undefined,
 ): string => (categoryOf(lang, id) || { label: "" }).label;
 
-/** The rows and columns a language lays its verbs out on, where it has any. */
-export const verbOf = (lang: Lang | null | undefined): VerbSpec | null =>
-  (lang && lang.verb) || null;
-
-/** And the pronouns it attaches to a word, where it attaches any. */
-export const attachedOf = (lang: Lang | null | undefined): VerbSpec | null =>
-  (lang && lang.attached) || null;
-
-/** Whether this language attaches pronouns to a word at all. */
-export const takesAttached = (lang: Lang | null | undefined): boolean => {
-  const spec = attachedOf(lang);
-  return !!spec && spec.tenses.length > 0 && spec.persons.length > 0;
+/**
+ * The tables this language lays a word's forms out in, by name, in the
+ * order the pack declares them — which is the order a card carrying more
+ * than one is read in. Only the ones with rows and columns: a table with
+ * nothing on either axis lays out nothing, and nobody should have to ask.
+ */
+export const tablesOf = (lang: Lang | null | undefined): Record<string, VerbSpec> => {
+  const out: Record<string, VerbSpec> = {};
+  for (const [name, spec] of Object.entries((lang && lang.tables) || {})) {
+    if (spec && spec.tenses.length > 0 && spec.persons.length > 0) out[name] = spec;
+  }
+  return out;
 };
 
+/** One of them by name, or null where the pack has no such table. */
+export const specOf = (lang: Lang | null | undefined, name: string | null | undefined): VerbSpec | null =>
+  (name && tablesOf(lang)[name]) || null;
+
+/** The rows and columns a language lays its verbs out on, where it has any.
+    Kept by name: a verb's own sentence and the dictionary form both want
+    the verb table in particular, not whichever table a card happens to
+    carry. */
+export const verbOf = (lang: Lang | null | undefined): VerbSpec | null => specOf(lang, "verb");
+
+/** And the pronouns it attaches to a word, where it attaches any. */
+export const attachedOf = (lang: Lang | null | undefined): VerbSpec | null => specOf(lang, "attached");
+
+/** Whether this language attaches pronouns to a word at all. */
+export const takesAttached = (lang: Lang | null | undefined): boolean => !!attachedOf(lang);
+
 /** Whether this language lays verbs out in a table at all. */
-export const teachesVerbs = (lang: Lang | null | undefined): boolean => {
-  const spec = verbOf(lang);
-  return !!spec && spec.tenses.length > 0 && spec.persons.length > 0;
+export const teachesVerbs = (lang: Lang | null | undefined): boolean => !!verbOf(lang);
+
+/**
+ * The table a word of this kind agrees out of, where it has one: one row,
+ * and a column that picks. That is what a sentence reads to put كبيرة
+ * beside سيارة — the pronouns on the end of a word pick nothing, and a
+ * verb's three rows need a sentence to say which, so neither is one.
+ */
+export const agreementOf = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): VerbSpec | null => {
+  const kind = categoryOf(lang, category);
+  const spec = kind ? specOf(lang, kind.table) : null;
+  if (!spec || spec.tenses.length !== 1) return null;
+  return spec.persons.some((p) => p.picks && Object.keys(p.picks).length) ? spec : null;
 };
 
 /* Every value any dimension can hold, for validating stored cards without
@@ -1585,27 +1737,36 @@ export const LANGUAGES: Record<LangId, Lang> = {
       { ar: "واحِد", en: "one", lat: "" },
     ],
     translitLabel: "Transliteration",
-    grammar: ["number", "gender"],
+    /* And whether a noun is a person or a thing, which is what an
+       adjective beside a plural reads — see GRAMMAR.human. */
+    grammar: ["number", "gender", "human"],
     /* A verb is marked for who is doing it and when, so its forms are laid
        out on those two axes. The tenses are in the order they are taught,
        which is the order they open in: what you do before what you did,
        and the command last — it is the one a beginner hears more than they
        say. */
-    verb: {
-      persons: SUBJECT_PERSONS,
-      tenses: [
-        { id: "present", label: "present" },
-        { id: "past", label: "past" },
-        { id: "command", label: "command" },
-      ],
-      /* There is no infinitive. A dictionary lists أكل — he ate — and that
-         is a cell of this table, so the card's own word and that cell are
-         one word, not two things to learn. */
-      citation: { row: "past", col: "he" },
+    tables: {
+      verb: {
+        persons: SUBJECT_PERSONS,
+        tenses: [
+          { id: "present", label: "present" },
+          { id: "past", label: "past" },
+          { id: "command", label: "command" },
+        ],
+        /* There is no infinitive. A dictionary lists أكل — he ate — and
+           that is a cell of this table, so the card's own word and that
+           cell are one word, not two things to learn. */
+        citation: { row: "past", col: "he" },
+        gate: "rows",
+      },
+      /* And the pronouns that attach to the end of a word — كتابي is my
+         book, عندي is I have. See ATTACHED_TABLE. */
+      attached: ATTACHED_TABLE,
+      /* What an adjective becomes beside a feminine or a plural noun, and
+         what a number becomes beside a feminine one. */
+      agreement: AR_AGREEMENT,
+      counted: COUNTED_TABLE,
     },
-    /* And the pronouns that attach to the end of a word — كتابي is my book,
-       عندي is I have. See ATTACHED_TABLE. */
-    attached: ATTACHED_TABLE,
     /* And what a teacher says a word is. The shared list: nothing about
        Arabic asks for a category of its own. */
     categories: WORD_CATEGORIES,
@@ -1720,18 +1881,22 @@ export const LANGUAGES: Record<LangId, Lang> = {
 
        This is the whole language-agnostic claim in one pack: the same
        editor and the same exercises, over a table one column wide. */
-    verb: {
-      persons: [{ id: "any", label: "" }],
-      tenses: [
-        { id: "plain", label: "plain" },
-        { id: "past", label: "past (đã)" },
-        { id: "ongoing", label: "ongoing (đang)" },
-        { id: "future", label: "future (sẽ)" },
-      ],
+    tables: {
+      verb: {
+        persons: [{ id: "any", label: "" }],
+        tenses: [
+          { id: "plain", label: "plain" },
+          { id: "past", label: "past (đã)" },
+          { id: "ongoing", label: "ongoing (đang)" },
+          { id: "future", label: "future (sẽ)" },
+        ],
+        gate: "rows",
+      },
     },
-    /* The same list, and it attaches no pronouns — so a noun here is a
-       noun with nothing laid out under it, which is what a category
-       naming a table the pack has not got means. */
+    /* The same list, and it attaches no pronouns and nothing agrees — so
+       a noun here is a noun with nothing laid out under it, and so is an
+       adjective, which is what a category naming a table the pack has not
+       got means. */
     categories: WORD_CATEGORIES,
     verdicts: {
       partial: "Right letters, wrong tone",
@@ -1831,20 +1996,28 @@ export const LANGUAGES: Record<LangId, Lang> = {
        — so the same columns, declared once above. The rows are its own:
        Hebrew's future is a form of the verb rather than a word in front of
        it, and is taught after the past. */
-    verb: {
-      persons: SUBJECT_PERSONS,
-      tenses: [
-        { id: "present", label: "present" },
-        { id: "past", label: "past" },
-        { id: "future", label: "future" },
-        { id: "command", label: "command" },
-      ],
-      /* Cited the same way and for the same reason as Arabic: the he-past
-         is the form a dictionary lists, and it is a cell of this table. */
-      citation: { row: "past", col: "he" },
+    tables: {
+      verb: {
+        persons: SUBJECT_PERSONS,
+        tenses: [
+          { id: "present", label: "present" },
+          { id: "past", label: "past" },
+          { id: "future", label: "future" },
+          { id: "command", label: "command" },
+        ],
+        /* Cited the same way and for the same reason as Arabic: the
+           he-past is the form a dictionary lists, and it is a cell of
+           this table. */
+        citation: { row: "past", col: "he" },
+        gate: "rows",
+      },
+      /* The same endings, and the same reason: ספרי is my book. */
+      attached: ATTACHED_TABLE,
+      /* An adjective agrees in number and gender at once, so the plural is
+         two cells; a number takes a feminine form as in Arabic. */
+      agreement: HE_AGREEMENT,
+      counted: COUNTED_TABLE,
     },
-    /* The same endings, and the same reason: ספרי is my book. */
-    attached: ATTACHED_TABLE,
     categories: WORD_CATEGORIES,
     verdicts: {
       partial: "Right letters, wrong niqqud",

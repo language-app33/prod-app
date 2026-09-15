@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import type {
   Course, Deck, Doc, ExerciseState, FlagKind, Form, Item,
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
-} from "./types.ts";
+ VerbSpec, } from "./types.ts";
 import type { Node } from "./shared.tsx";
 import {
   Button,
@@ -145,7 +145,7 @@ import {
   levelOf,
   TOP_LEVEL,
   typeOf,
-  attachedOf,
+  tablesOf,
   verbOf,
 } from "./languages.ts";
 import {
@@ -905,19 +905,27 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
-    const attached = attachedOf(lang);
-    if (!attached || !hasCells(card, attached)) continue;
-    for (const { unit } of unitsOf(card)) {
-      const of = unit.id === card.id ? "" : unit.id;
-      const mine = cellsIn(card, attached, of);
-      if (!mine.length) continue;
-      const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
-      if (!reachedLevel(supported, (t) => statesOf(unit)[t], TOP_LEVEL)) continue;
-      for (const cell of mine) out.add(cell.id);
+    /* Every table whose cells wait on the word — read off the table, so an
+       adjective's feminine eases the way the pronouns do without this
+       being told there is such a table. */
+    for (const spec of Object.values(tablesOf(lang))) {
+      if (!waitsOnWord(spec) || !hasCells(card, spec)) continue;
+      for (const { unit } of unitsOf(card)) {
+        const of = unit.id === card.id ? "" : unit.id;
+        const mine = cellsIn(card, spec, of);
+        if (!mine.length) continue;
+        const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
+        if (!reachedLevel(supported, (t) => statesOf(unit)[t], TOP_LEVEL)) continue;
+        for (const cell of mine) out.add(cell.id);
+      }
     }
   }
   return out;
 }
+
+/* What a table's cells wait on, where it says nothing: the word, which is
+   the rule every one-row table has followed since there was one. */
+const waitsOnWord = (spec: VerbSpec): boolean => (spec.gate || "word") === "word";
 
 /*
  * Working them out, across every card in hand.
@@ -931,50 +939,74 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
-    /*
-     * A word's attached pronouns, which wait on the word they are on the
-     * end of.
-     *
-     * "my book" is a form of "book", and meeting the two together is
-     * meeting a word you have not learnt in a shape you cannot read. So the
-     * row is shut until that word has climbed past level one — the same
-     * "recognised before it is produced" the ladder makes, turned sideways,
-     * and the same test openTypes makes when it opens level two.
-     *
-     * Its own word, which is the whole of what changed here: every form
-     * carries a table now, so the plural's pronouns wait on the plural and
-     * the singular's on the singular. A single gate on the card held the
-     * plural's eight open the moment the singular was read.
-     *
-     * Read off the form rather than off its cells: the cells are what is
-     * waiting, and asking them would be asking the gate to open itself.
-     * Through availableTypes rather than laddered, for the same reason the
-     * row gate below is: laddered asks this very set, and a gate that reads
-     * the answer it is in the middle of writing reads whatever the last
-     * render left behind.
-     */
-    const attached = attachedOf(lang);
-    if (attached && hasCells(card, attached)) {
-      for (const { unit } of unitsOf(card)) {
-        /* The card's own word owns the table its cells leave unnamed. */
-        const of = unit.id === card.id ? "" : unit.id;
-        const mine = cellsIn(card, attached, of);
-        if (!mine.length) continue;
-        const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
-        const known = reachedLevel(supported, (t) => statesOf(unit)[t], 2);
-        if (!known) for (const cell of mine) out.add(cell.id);
+    /* Every table the language declares, each gated by the rule it names
+       for itself. Two rules, and which applies used to be decided by which
+       accessor a table came from; a third table would have been a third
+       branch. */
+    for (const spec of Object.values(tablesOf(lang))) {
+      if (!hasCells(card, spec)) continue;
+      if (waitsOnWord(spec)) {
+        /*
+         * Cells that wait on the word they are forms of — a word's
+         * attached pronouns, an adjective's feminine and plural.
+         *
+         * "my book" is a form of "book", and meeting the two together is
+         * meeting a word you have not learnt in a shape you cannot read.
+         * So the row is shut until that word has climbed past level one —
+         * the same "recognised before it is produced" the ladder makes,
+         * turned sideways, and the same test openTypes makes when it
+         * opens level two.
+         *
+         * Per form where the table is: every form of a word carries its
+         * own pronouns, so the plural's wait on the plural and the
+         * singular's on the singular. A single gate on the card held the
+         * plural's eight open the moment the singular was read. A table
+         * the card carries has its cells on the card's own word, which
+         * the same loop reaches first.
+         *
+         * Read off the form rather than off its cells: the cells are what
+         * is waiting, and asking them would be asking the gate to open
+         * itself. Through availableTypes rather than laddered, for the
+         * same reason the row gate below is: laddered asks this very set,
+         * and a gate that reads the answer it is in the middle of writing
+         * reads whatever the last render left behind.
+         */
+        for (const { unit } of unitsOf(card)) {
+          /* The card's own word owns the table its cells leave unnamed. */
+          const of = unit.id === card.id ? "" : unit.id;
+          const mine = cellsIn(card, spec, of);
+          if (!mine.length) continue;
+          const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
+          const known = reachedLevel(supported, (t) => statesOf(unit)[t], 2);
+          if (!known) for (const cell of mine) out.add(cell.id);
+        }
+        /* And a cell hanging off a form the card no longer carries, which
+           is a word with a pronoun on the end of nothing. The editor drops
+           these as it saves; one that reaches a device anyway is never
+           asked, and the loop above has already passed it over. */
+        for (const cell of cellsIn(card, spec)) {
+          const of = ownerOf(cell);
+          if (of && !subFormsOf(card).some((f) => f.id === of)) out.add(cell.id);
+        }
+        continue;
       }
-      /* And a cell hanging off a form the card no longer carries, which is
-         a word with a pronoun on the end of nothing. The editor drops these
-         as it saves; one that reaches a device anyway is never asked, and
-         the loop above has already passed it over. */
-      for (const cell of cellsIn(card, attached)) {
-        const of = ownerOf(cell);
-        if (of && !subFormsOf(card).some((f) => f.id === of)) out.add(cell.id);
-      }
+      /* Rows that open one at a time: a verb's tenses. */
+      quietRows(card, spec, lang, settings, out);
     }
-    const spec = verbOf(lang);
-    if (!spec || !hasCells(card, spec)) continue;
+  }
+  return out;
+}
+
+/*
+ * One tense of a verb is ever new at a time.
+ *
+ * A row counts as mastered when every cell in it is mastered at everything
+ * it is asked — read off the same open types the rest of the app uses, so
+ * a cell the learner has switched every exercise off for cannot hold the
+ * rows below it shut for ever.
+ */
+function quietRows(card: Item, spec: VerbSpec, lang: Lang, settings: Settings, out: Set<string>) {
+  {
     const open = openRows(card, spec, (cell) => {
       /* The ladder as it stands for this cell alone, and deliberately not
          through openTypes: that one asks this very gate, and a gate that
@@ -1005,7 +1037,6 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
        on being practised as itself. */
     if (citedCell(card, spec)) out.add(card.id);
   }
-  return out;
 }
 
 /* ------------------------------------------------------------------

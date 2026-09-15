@@ -1072,3 +1072,64 @@ offering to fill a hole.
 - **A card with a blank fills nothing at all now,** where before a frame
   carrying `fills` still stood in other cards' holes. That was the
   documented intent and the undocumented exception; the exception is gone.
+
+---
+
+## A language declares its tables by name
+
+**16 September 2026** · `tables` on the pack and `gate`/`perForm`/`label`
+on `VerbSpec` in `src/types.ts`; `tablesOf`/`specOf`/`dimsFor`/`agreementOf`
+in `src/languages.ts`; `quietUnits`/`easedUnits` in `src/ArabicTrainer.tsx`;
+`tableFor`/`storedFormsOf`/`initialCategory`/`askParts` and `TableEditor`
+in `src/card-editor.tsx`; `GRAMMAR.human`
+
+*A table is a table* said a verb's table is sub-forms seen through two
+axes, and everything downstream took a second table without being told.
+What stayed named was the **registry**: two fields on the pack, a closed
+union on the category, two accessors, and fourteen places in the editor
+that asked *which accessor* a spec came from. A third table would have been
+a third field, a third accessor and a third branch at each — and the owner
+had just pointed out that six of the eight kinds of word bought nothing.
+
+**So the pack declares its tables by name**, and a table says the two
+things about itself that are not its rows and columns: what its cells wait
+on (the row above, or the word) and whether every form carries one or the
+card does. The gating rules did not change a line; which rule applies is
+read off the table, and the loop over them is one loop. `verbOf` and
+`attachedOf` stay, because two callers genuinely want *the verb table by
+name* — a verb's own sentence, and the dictionary form — and a name is what
+they were asking for all along.
+
+**Editors stay separate.** The fourth is a list of blocks like the other
+three, chosen by two facts on the spec, and the choice still lives in the
+shell. `VerbBlock` became `TableBlock` because it draws any table the card
+carries; the verb's editor differs from the new one by a name to list it
+under, which is the citation's business and nobody else's.
+
+**Number's table is not the adjective's with a cell left blank.** The
+reason is the picks, not the blank: the noun a number counts is plural, so
+an agreement table's plural column would fire on every counted noun and
+select a cell nobody fills. A number's column picks on gender alone. And
+Hebrew's agreement table is not Arabic's — feminine, masculine plural and
+feminine plural — which is itself the argument for a registry where each
+pack declares its own columns.
+
+**Fields per kind are display only.** Each category lists the axes it is
+asked about, within the pack's own list, so the shared category list can
+name an axis and Huế, which has none, is untouched. Storage stays wide:
+`dimValues`, `grammarFields` and the server whitelist walk every axis, so
+nothing saved changes meaning and a value written before the kinds narrowed
+is kept. A name keeps its number as well as its gender because the verb
+beside it reads both to choose *he* or *she*; a name with no number would
+silently stop agreeing.
+
+**Person or thing is an axis that never labels anything.** It exists for
+one rule — a plural of things takes the feminine singular adjective — and
+is asked only of nouns. It would have printed "thing" on every noun's tag,
+so an axis may now carry its own short forms, and this one's are empty.
+
+**What it costs.** One more question on every noun card. One checklist
+label reworded ("Its attached pronouns"). And the reason the next release
+exists: an adjective's cells now lend themselves into `{{adjective}}` by
+turn like any other form, so a sentence can put كبيرة beside كتاب until
+agreement is built on the table this release declared.

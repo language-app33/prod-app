@@ -10,7 +10,7 @@ import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, Lan
 import { formsOf, leadOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
-import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
+import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { splitSlots } from "./variables.ts";
 
@@ -1844,7 +1844,11 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
   whereItLives?: boolean;
 }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
-  const dims = dimsOf(L);
+  /* The axes this kind of word is asked about, so a preposition's
+     read-out does not list a gender it was never asked. A value written
+     before the kinds narrowed is still on the card; it is simply not a
+     row here. */
+  const dims = dimsFor(L, card.category);
   const forms: Record<string, any>[] = formsOf(card);
   const titles = (card.decks || [])
     .map((id: string) => decks.find((d) => d.id === id))
