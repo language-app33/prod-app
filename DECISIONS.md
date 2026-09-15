@@ -792,3 +792,76 @@ points. Cutting it exposed that any card with a cell was being seeded with
 a verb's dictionary form, which opened a saved attached-pronoun card on the
 verb table and dropped its pronouns on save; that shipped as 0.132 on its
 own, before the split.
+
+---
+
+## A form kept without being asked about
+
+**15 September 2026** · `ask` in `src/types.ts`, `isAsked` in
+`src/scheduler.ts`, `askParts`/`AskBlock` in `src/card-editor.tsx`
+
+A card is a word and a pile of forms of it, and every one of them was
+drilled. The only way to stop any of it being drilled was to delete it —
+which took its recordings, and every student's progress on it, with it. The
+entry on verb tables above says as much in passing: a saved verb is not
+offered the change that would drop its table, and "the way out is to empty
+the table, which is the same act said honestly". It is honest, and it is
+also the only way out of a want that has nothing to do with deleting
+anything. A teacher writing a conjugation table out for a class to read is
+not asking for twenty-one more questions a day.
+
+**So a form says whether it is asked about, and absent means yes.** One
+boolean, on the forms themselves — where a cell is a form, so a table is
+covered by writing it on the cells. Nothing had to be rewritten: a card
+saved before this carries none, and anything added to a card after it
+carries none, so both are asked. It is what `langsOff` does one floor up —
+store what is switched *off*, and a thing that arrives later is in play.
+
+**Read in one place, and that place is the ladder.** `laddered` already
+says which keys a form climbs with, and already returns nothing for a cell
+of a row nobody has reached. A form switched off returns nothing there for
+the same reason, which buys the whole of the rest for free: no question
+dealt, no level outstanding on the progress screen, nothing counted
+towards how mature the card is, and every state it had still sitting there
+for the day it is switched back on. The alternative — a second gate inside
+the session builder — would have had the screen and the scheduler
+disagreeing about what was left to do, which is the bug that ladder was
+built to make impossible.
+
+**The teacher is asked about parts, and the parts are not stored.** What
+the section lists is the card's word, each further form, the pronouns on
+the end of each of them, the conjugations — which is what a teacher can
+see on screen, and is a grouping of forms and nothing more. Storing the
+grouping as well would be a second answer to what a card is made of, which
+is the thing this codebase keeps having to remove. So `askParts` derives
+the lines from the draft and `setAskPart` writes the answer onto the forms
+each line covers.
+
+Two of them cover more than they look like. Where a language cites a cell
+as the dictionary form, the card's own word *is* that cell — one word in
+two places — so the line about the word writes both and they cannot come
+apart. And a form's table of pronouns follows the form off: those wait on
+the word they are on the end of being known, so under a form nobody is
+asked about they could never open, and a tick that does nothing is worse
+than no tick. Not back on with it, though. What is asked about is the
+teacher's to say, and a table that switched itself on would be the app
+answering for them.
+
+**What it cost.** A field on the wire, and a third thing in the
+neighbourhood of `drill` — which is about the whole card being a value
+rather than something to learn, and stays exactly what it was. The line
+between them is that `drill` is a fact about the card and `ask` is a fact
+about one form of it; a card with every form switched off is not a value,
+it is a card with nothing to ask, and the section says so in those words
+rather than pretending the two are the same. And `isDrillable` had to stop
+asking the card's own word alone — a verb whose table is the lesson and
+whose dictionary form is there to be read would otherwise have vanished
+from the list of what can be practised while its forms were being
+practised. It qualifies through its units now, the way a conversation
+always has.
+
+**What is left out.** Switching an *exercise* off on a card. Which
+exercises a form is asked is answered twice already — by the ladder, which
+opens them in order, and by the learner's own settings — and a third
+answer on the card would be somewhere for the three to disagree. The
+parts are forms, which is what the card is made of.

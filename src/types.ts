@@ -428,6 +428,23 @@ export interface CardForm {
    * Minted by the editor, stored, and never shown.
    */
   id?: string;
+  /**
+   * Whether this form is asked about. Absent means yes, which is what
+   * every form written before this meant and what anything added to a card
+   * later means.
+   *
+   * A teacher may want a form on the card without it being drilled — a
+   * table of conjugations written out for a student to read, a rare plural
+   * worth recording and not worth asking for. Until this, the only way to
+   * stop a form being asked was to delete it, which took its recordings
+   * and every student's progress on it with it.
+   *
+   * Not to be confused with a card's `drill`, which is about the whole
+   * card: a value that fills somebody else's blank and is never a question
+   * of its own. This is one form of one card, and a card whose every form
+   * is switched off is simply a card with nothing to ask.
+   */
+  ask?: boolean;
 }
 
 /**
@@ -628,6 +645,11 @@ export type Form = Record<string, any> & {
   clips?: string[];
   slowClips?: string[];
   s?: Record<string, ExerciseState>;
+  /* Whether this form is asked about at all. Absent means yes — see
+     CardForm, where the teacher sets it. A form switched off keeps its
+     wording, its recordings and whatever schedule it had; it is simply
+     never dealt. */
+  ask?: boolean;
   /* How far this form has been asked with each of the values that fill its
      holes — "slot:valueId" to the highest level it was met at. Only for a
      value with no ladder of its own to be read instead; see valuesAt in

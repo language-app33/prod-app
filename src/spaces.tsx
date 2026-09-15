@@ -4507,6 +4507,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            offer either field on one. */
                         fills,
                         drill,
+                        /* And whether the card's own word is asked about,
+                           as against the forms under it — the one field of
+                           this sort that is about the word rather than
+                           about the whole card. The forms carry their own;
+                           they travel in `subs` as they are. */
+                        ask: main.ask !== false,
                         subs: subs.filter((f: any) => f.ar.trim() || f.en.trim()),
                       }),
                 },
