@@ -160,6 +160,7 @@ import {
   rowOf,
   subjectSlot,
 } from "./verbs.ts";
+import { subFormsOf } from "./cards.ts";
 import {
   MIN,
   LEARNING_CAP,
@@ -940,7 +941,7 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
          the loop above has already passed it over. */
       for (const cell of cellsIn(card, attached)) {
         const of = ownerOf(cell);
-        if (of && !(card.subs || []).some((f) => f.id === of)) out.add(cell.id);
+        if (of && !subFormsOf(card).some((f) => f.id === of)) out.add(cell.id);
       }
     }
     const spec = verbOf(lang);
@@ -2227,7 +2228,7 @@ function resolveUnit(items: Item[], ex: Question | null | undefined) {
   const parent = items.find((i) => i.id === ex.id);
   if (!parent) return null;
   if (!ex.subId) return { parent, unit: parent, isSub: false };
-  const sb = (parent.subs || []).find((x) => x.id === ex.subId);
+  const sb = subFormsOf(parent).find((x) => x.id === ex.subId);
   if (sb) return { parent, unit: sb, isSub: true };
   /* Or a line of the conversation, which travels in the queue the same
      way a form does: the card's id and the line's. */
@@ -2727,7 +2728,7 @@ function liftItem(it: Record<string, any>) {
     flags: it.flags || [],
     recs: it.recs || [],
     ...liftAnswers(it),
-    subs: (it.subs || []).map((sb: Record<string, any>) => ({
+    subs: subFormsOf(it).map((sb: Record<string, any>) => ({
       ...sb,
       ...liftAnswers(sb),
       recs: sb.recs || [],
@@ -5493,7 +5494,7 @@ export default function ArabicTrainer() {
     const cleared: Item[] = items.map((it) => ({
       ...it,
       s: freshStates(),
-      subs: (it.subs || []).map((sb) => ({ ...sb, s: freshStates() })),
+      subs: subFormsOf(it).map((sb) => ({ ...sb, s: freshStates() })),
       updated: now(),
     }));
     persist({ ...data, items: cleared, log: {} });
@@ -6071,7 +6072,7 @@ export default function ArabicTrainer() {
         if (idx < 0) continue; // withdrawn while it was on screen
         const it = { ...next.items[idx] };
         const target = mark.subId
-          ? (it.subs || []).find((x) => x.id === mark.subId) ||
+          ? subFormsOf(it).find((x) => x.id === mark.subId) ||
             linesOf(it).find((x) => x.id === mark.subId)
           : it;
         if (!target) continue;
@@ -6117,8 +6118,8 @@ export default function ArabicTrainer() {
         const met = noteMet(target.met, filledWith, levelOf(exercise.type), needsMetRecord);
         const alsoMet = met ? { met } : null;
 
-        if (mark.subId && (it.subs || []).some((x) => x.id === mark.subId)) {
-          it.subs = (it.subs || []).map((x) =>
+        if (mark.subId && subFormsOf(it).some((x) => x.id === mark.subId)) {
+          it.subs = subFormsOf(it).map((x) =>
             x.id === mark.subId
               ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
               : x
@@ -6188,7 +6189,7 @@ export default function ArabicTrainer() {
           else next[k] = typeof v === "string" ? v.trim() : v;
         }
         if (patch.subs) {
-          const old = new Map((i.subs || []).map((x) => [x.id, x]));
+          const old = new Map(subFormsOf(i).map((x) => [x.id, x]));
           next.subs = patch.subs.map((draft: Record<string, any>) => {
             const prev = draft.id && old.get(draft.id);
             return prev
@@ -7648,7 +7649,7 @@ function ItemsTab({
             i.lat.toLowerCase().includes(s) ||
             i.en.toLowerCase().includes(s) ||
             i.tags.some((t) => t.toLowerCase().includes(s)) ||
-            (i.subs || []).some(
+            subFormsOf(i).some(
               (x) => x.ar.includes(q.trim()) || x.en.toLowerCase().includes(s)
             )
           : true
@@ -7715,7 +7716,7 @@ function ItemsTab({
               it.lat.toLowerCase().includes(needle) ||
               it.en.toLowerCase().includes(needle) ||
               it.tags.some((t) => t.toLowerCase().includes(needle)) ||
-              (it.subs || []).some(
+              subFormsOf(it).some(
                 (x) => x.ar.includes(needle) || x.en.toLowerCase().includes(needle)
               )
             }
@@ -8198,7 +8199,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
           kind: initial.kind || "",
           note: initial.note || "",
           tags: (initial.tags || []).join(", "),
-          subs: (initial.subs || []).map((x: Record<string, any>) => ({ ...x })),
+          subs: subFormsOf(initial).map((x: Record<string, any>) => ({ ...x })),
           ...(scene
             ? {
                 speakers: speakersOf(initial),
@@ -9076,7 +9077,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
   }, [onClose]);
 
   const eligible = useMemo(
-    () => items.filter((i) => availableTypes(i).length >= 2 || (i.subs || []).length),
+    () => items.filter((i) => availableTypes(i).length >= 2 || subFormsOf(i).length),
     [items]
   );
 

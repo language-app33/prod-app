@@ -3,6 +3,7 @@ import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 import { CardEditor } from "./card-editor.tsx";
+import { formsOf } from "./cards.ts";
 
 /*
  * Whatever is waiting on a yes: the confirmation to show, and what to do
@@ -3787,10 +3788,10 @@ function ContextReport({ cards, lang }: { cards: Card[]; lang: Partial<Lang> }) 
 /* Recordings live on each form, not on the card, so a card counts as having
    one if any of its forms does. */
 export const cardHasAudio: (c: Card) => boolean = (c) =>
-  formHasAudio(c) || (c.subs || []).some(formHasAudio);
+  formsOf(c).some(formHasAudio);
 
 /* The main form is a form. A card with two subs has three. */
-export const cardFormCount: (c: Card) => number = (c) => 1 + (c.subs || []).length;
+export const cardFormCount: (c: Card) => number = (c) => formsOf(c).length;
 
 /*
  * When a card was added.

@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.134 — 15 September 2026
+
+- **Housekeeping: there is now one way to ask what forms a card has.**
+  Nothing looks or behaves differently. A card is its own word plus the
+  alternates it carries — a plural, a feminine, a cell of a verb's table —
+  and until now the code joined those two together by hand in around thirty
+  places, each written slightly differently. They are all one question now,
+  asked in one place.
+
+  This is the groundwork for the work planned next: teachers naming what a
+  card is, sentence cards, and blanks that can be filled by any form of a
+  word. Each of those has to walk a card's forms, and it is far safer to do
+  that through one door than thirty.
+
 ## 0.133 — 15 September 2026
 
 - **The card editor is four editors underneath — word, verb, attached

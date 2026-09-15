@@ -11,6 +11,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
 import { slotsOf } from "../../src/variables.ts";
+import { formsOf, subFormsOf } from "../../src/cards.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -828,33 +829,33 @@ export default async (req) => {
            thrown away the end of every table saved. It is a guard against a
            runaway client rather than a limit anybody should meet, so it is
            raised to where a table fits with room over. */
-        subs: Array.isArray(card.subs)
-          ? card.subs.slice(0, 64).map((/** @type {Record<string, any>} */ sb) => ({
-              /* What this form is called, for as long as anything points at
-                 it — a cell of the table it carries, and a student's
-                 schedule for it. Stored where the client sends one and
-                 absent where it does not, so a card saved by an older build
-                 is unchanged by passing through here. Narrowed to the shape
-                 an id can take, like every other id on this document. */
-              ...(idish(sb.id) ? { id: idish(sb.id) } : {}),
-              ar: String(sb.ar || "").slice(0, 400),
-              en: String(sb.en || "").slice(0, 400),
-              lat: String(sb.lat || "").slice(0, 400),
-              ...Object.fromEntries(
-                grammarFields().map((f) => [f, String(sb[f] || "").slice(0, 40)])
-              ),
-              /* Where this form sits in the card's verb table, when it is a
-                 cell of one. Stored as given, like the grammar values above
-                 and for the same reason: which rows and columns a language
-                 has is the language's business, and the server does not
-                 know one language from another. Narrowed to the shape an
-                 id can take so what comes back is what a pack can name. */
-              ...cellAt(sb),
-              answers: storedAnswers(sb),
-              clips: Array.isArray(sb.clips) ? sb.clips.slice(0, 12) : [],
-              slowClips: Array.isArray(sb.slowClips) ? sb.slowClips.slice(0, 12) : [],
-            }))
-          : [],
+        subs: subFormsOf(card)
+          .slice(0, 64)
+          .map((/** @type {Record<string, any>} */ sb) => ({
+            /* What this form is called, for as long as anything points at
+               it — a cell of the table it carries, and a student's
+               schedule for it. Stored where the client sends one and
+               absent where it does not, so a card saved by an older build
+               is unchanged by passing through here. Narrowed to the shape
+               an id can take, like every other id on this document. */
+            ...(idish(sb.id) ? { id: idish(sb.id) } : {}),
+            ar: String(sb.ar || "").slice(0, 400),
+            en: String(sb.en || "").slice(0, 400),
+            lat: String(sb.lat || "").slice(0, 400),
+            ...Object.fromEntries(
+              grammarFields().map((f) => [f, String(sb[f] || "").slice(0, 40)])
+            ),
+            /* Where this form sits in the card's verb table, when it is a
+               cell of one. Stored as given, like the grammar values above
+               and for the same reason: which rows and columns a language
+               has is the language's business, and the server does not
+               know one language from another. Narrowed to the shape an
+               id can take so what comes back is what a pack can name. */
+            ...cellAt(sb),
+            answers: storedAnswers(sb),
+            clips: Array.isArray(sb.clips) ? sb.clips.slice(0, 12) : [],
+            slowClips: Array.isArray(sb.slowClips) ? sb.slowClips.slice(0, 12) : [],
+          })),
         clips: Array.isArray(card.clips) ? card.clips.slice(0, 12) : [],
         /* The same word said slowly, kept as its own list — see CLIP_KINDS
            in the app. Stored the same way and capped the same way: the
@@ -1618,14 +1619,12 @@ export default async (req) => {
         const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
         const clipHashes = [
           ...new Set(
-            cards.filter(Boolean).flatMap((c) => [
-              ...(c.clips || []),
-              ...(c.slowClips || []),
-              ...(c.subs || []).flatMap((/** @type {Record<string, any>} */ sb) => [
-                ...(sb.clips || []),
-                ...(sb.slowClips || []),
-              ]),
-            ])
+            cards.filter(Boolean).flatMap((c) =>
+              formsOf(c).flatMap((/** @type {Record<string, any>} */ f) => [
+                ...(f.clips || []),
+                ...(f.slowClips || []),
+              ])
+            )
           ),
         ];
 
@@ -1773,14 +1772,12 @@ export default async (req) => {
           const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
           const hashes = [
             ...new Set(
-              cards.filter(Boolean).flatMap((c) => [
-                ...(c.clips || []),
-                ...(c.slowClips || []),
-                ...(c.subs || []).flatMap((/** @type {Record<string, any>} */ sb) => [
-                  ...(sb.clips || []),
-                  ...(sb.slowClips || []),
-                ]),
-              ])
+              cards.filter(Boolean).flatMap((c) =>
+                formsOf(c).flatMap((/** @type {Record<string, any>} */ f) => [
+                  ...(f.clips || []),
+                  ...(f.slowClips || []),
+                ])
+              )
             ),
           ];
           for (const h of hashes) {

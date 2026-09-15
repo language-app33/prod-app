@@ -1,5 +1,6 @@
 import type { Doc, ExerciseState, Form, Item, WireDoc } from "./types.ts";
 import { mergeMet } from "./variables.ts";
+import { formsOf, subFormsOf } from "./cards.ts";
 /*
  * Sync client.
  *
@@ -87,8 +88,8 @@ function mergeItem(a: Item, b: Item): Item {
   /* The other forms of the card carry their own progress, and it merges the
      same way — by form, then by exercise type. Taking the whole list from
      one side threw away the other device's work on any form it had drilled. */
-  const subs = (base.subs || []).map((sb) => {
-    const twin = (other.subs || []).find((x) => x.id === sb.id);
+  const subs = subFormsOf(base).map((sb) => {
+    const twin = subFormsOf(other).find((x) => x.id === sb.id);
     return twin ? { ...sb, s: mergeStates(sb.s, twin.s), ...metOf(sb, twin) } : sb;
   });
 
@@ -250,7 +251,7 @@ export function compactItem(it: Item): Item {
   return {
     ...it,
     s: compactStates(it.s),
-    subs: (it.subs || []).map((sb) => ({ ...sb, s: compactStates(sb.s) })),
+    subs: subFormsOf(it).map((sb) => ({ ...sb, s: compactStates(sb.s) })),
     /* A scene's lines carry states the same way, and a scene is several
        forms' worth of them. Left out where there are none, so an ordinary
        card does not start travelling with an empty list. */
@@ -329,8 +330,9 @@ export async function pushClip(token: string, id: string, dataUrl: string) {
 export function clipIdsIn(data: WireDoc) {
   const ids = [];
   for (const it of data.items || []) {
-    for (const r of it.recs || []) ids.push(r.id);
-    for (const sb of it.subs || []) for (const r of sb.recs || []) ids.push(r.id);
+    /* The card's own word and each of its forms, which is what formsOf
+       hands out in one list. */
+    for (const f of formsOf(it)) for (const r of f.recs || []) ids.push(r.id);
     for (const ln of it.lines || []) {
       for (const r of ln.recs || []) ids.push(r.id);
     }

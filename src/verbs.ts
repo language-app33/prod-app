@@ -34,6 +34,7 @@
  * a test can reach and somewhere nothing can reach back into.
  */
 import type { Form, VerbPerson, VerbSpec, VerbTense } from "./types.ts";
+import { subFormsOf } from "./cards.ts";
 
 /*
  * Everything below takes `unknown` and narrows it here.
@@ -95,9 +96,7 @@ export const isCell = (form: unknown): boolean => !!rowOf(form) && !!colOf(form)
  * is every card written before this existed, and comes back empty.
  */
 export function cellsOf(card: unknown): Form[] {
-  const subs = field(card, "subs");
-  if (!Array.isArray(subs)) return [];
-  return (subs as Form[]).filter((sub) => isCell(sub));
+  return subFormsOf(card).filter((sub) => isCell(sub));
 }
 
 /**
@@ -179,9 +178,7 @@ export const isFrame = (form: unknown): boolean => !!rowOf(form) && !colOf(form)
 
 /** The sentences a card asks itself in. */
 export function framesOf(card: unknown): Form[] {
-  const subs = field(card, "subs");
-  if (!Array.isArray(subs)) return [];
-  return (subs as Form[]).filter((sub) => isFrame(sub));
+  return subFormsOf(card).filter((sub) => isFrame(sub));
 }
 
 /**

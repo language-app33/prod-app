@@ -196,6 +196,9 @@ src/
                    app, so it can be read and tested on its own.
   variables.ts     a hole in a card — "My name is {{name}}" — and the cards
                    that fill it. Pure, like the two above.
+  cards.ts         what a card is made of: its own word and the forms it
+                   carries, as one list. The single door everything that
+                   walks a card's forms goes through. Pure, imports nothing.
   verbs.ts         a word's forms as a table over the card's own sub-forms —
                    a verb's persons and tenses, or the pronouns a language
                    attaches to the end of a word:

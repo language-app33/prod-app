@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.ts";
+import { formsOf, subFormsOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
@@ -997,7 +998,7 @@ export function clipHashes(card: {
   subs?: { clips?: string[], slowClips?: string[] }[];
 }) {
   const on = (form: { clips?: string[]; slowClips?: string[] }) => CLIP_KINDS.flatMap((k) => form[k.key] || []);
-  return [...on(card || {}), ...((card && card.subs) || []).flatMap(on)];
+  return formsOf(card).flatMap(on);
 }
 
 /* --- shortDate ----------------------------------------------------
@@ -1840,7 +1841,7 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
 }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
   const dims = dimsOf(L);
-  const forms: Record<string, any>[] = [card, ...(card.subs || [])];
+  const forms: Record<string, any>[] = formsOf(card);
   const titles = (card.decks || [])
     .map((id: string) => decks.find((d) => d.id === id))
     .map((d) => d && d.title)
@@ -2853,7 +2854,7 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
    */
   const formId = (name: string, i: number) =>
     `${localIdFor(card.id)}-f${name ? `~${name}` : i}`;
-  const forms = (card.subs || []).map((sb, i) => ({
+  const forms = subFormsOf(card).map((sb, i) => ({
     id: formId(String(sb.id || ""), i),
     ar: sb.ar || "",
     lat: sb.lat || "",
@@ -3153,7 +3154,7 @@ export function foldCourses(items: Item[], incoming: Item[]) {
       kept.push({
         ...fresh,
         s: existing.s,
-        subs: foldForms(existing.subs || [], fresh.subs || []),
+        subs: foldForms(subFormsOf(existing), subFormsOf(fresh)),
       });
     } else {
       kept.push(fresh);

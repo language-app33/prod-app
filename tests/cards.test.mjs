@@ -8,6 +8,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import { formsOf, subFormsOf } from "../src/cards.ts";
 import { build } from "esbuild";
 import path from "node:path";
 
@@ -872,4 +874,76 @@ test("a form's table is named only where there is more than one on screen", () =
   assert.equal(ownerLabel(0, 2), "the word");
   assert.equal(ownerLabel(1, 2), "form 2");
   assert.equal(ownerLabel(2, 3), "form 3");
+});
+
+/*
+ * What a card's forms are, asked in one place.
+ *
+ * A card is its own word plus the alternates it carries, and until this
+ * module the join between the two was written out by hand wherever
+ * anybody wanted the list — which is how three readers ended up meaning
+ * the same thing in three shapes. These pin what the one door answers.
+ */
+test("a card's forms are its own word first, then the rest", () => {
+  const card = { id: "k", ar: "كتاب", en: "book", subs: [{ id: "a" }, { id: "b" }] };
+  assert.deepEqual(formsOf(card).map((f) => f.id), ["k", "a", "b"]);
+  assert.deepEqual(subFormsOf(card).map((f) => f.id), ["a", "b"]);
+  /* The lead is the card itself, not a copy of its words: a reader walking
+     forms holds the same object the caller passed, so the card's own
+     recordings and schedule are the lead form's. */
+  assert.equal(formsOf(card)[0], card);
+});
+
+test("a card with no alternates is one form, and nothing at all is none", () => {
+  const alone = { id: "k", ar: "شمس", en: "sun" };
+  assert.deepEqual(formsOf(alone).map((f) => f.id), ["k"]);
+  assert.deepEqual(subFormsOf(alone), []);
+  /* A card withdrawn while somebody was looking at it, and the junk a
+     half-written draft or an older document can hold: an empty list
+     rather than a crash, which is what every reader wants of it. */
+  assert.deepEqual(formsOf(null), []);
+  assert.deepEqual(formsOf(undefined), []);
+  assert.deepEqual(subFormsOf(null), []);
+  assert.deepEqual(formsOf({ id: "k", subs: "not a list" }).map((f) => f.id), ["k"]);
+  assert.deepEqual(subFormsOf({ id: "k", subs: 7 }), []);
+});
+
+/*
+ * And that the door stays the only one.
+ *
+ * The point of the accessor is that the day a card is stored as one list
+ * of forms rather than a word plus a `subs` array, one file changes. A
+ * reader that reaches into `subs` itself would go on compiling and
+ * silently find nothing, so the rule is checked here rather than
+ * remembered.
+ *
+ * What may still name it: the door itself, an assignment (writing the
+ * field is not reading the list, and the stored shape is still `subs`
+ * until it changes), and the handful of objects that are not cards — the
+ * trainer's own draft while a card is being written, the patch it hands
+ * back, and the counts on a tile.
+ */
+test("nothing but the door reads a card's forms out of subs", () => {
+  /** @type {[string, (f: string) => boolean][]} */
+  const roots = [
+    ["src", (/** @type {string} */ f) => /\.tsx?$/.test(f) && f !== "cards.ts"],
+    ["server/api", (/** @type {string} */ f) => f.endsWith(".js")],
+  ];
+  /* A receiver that is not a card. Named rather than counted, so adding
+     one is a decision somebody writes down. */
+  const notCards = ["patch", "d", "draft", "counts"];
+  /* `something.subs`, where something is a name — so `...subs` and a bare
+     `subs:` key are not it — and not `something.subs = …`, which writes. */
+  const reads = /(?<![.\w])([A-Za-z_$][\w$]*)\.subs\b(?!\s*=[^=])/g;
+  /** @type {string[]} */
+  const found = [];
+  for (const [dir, keep] of roots) {
+    for (const file of readdirSync(new URL(`../${dir}`, import.meta.url)).filter(keep)) {
+      const source = readFileSync(new URL(`../${dir}/${file}`, import.meta.url), "utf8");
+      for (const [, who] of source.matchAll(reads)) {
+        if (!notCards.includes(who)) found.push(`${dir}/${file}: ${who}.subs`);
+      }
+    }
+  }
+  assert.deepEqual(found, [], `these read a card's forms directly — ask formsOf or subFormsOf instead:\n${found.join("\n")}`);
 });

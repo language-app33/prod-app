@@ -23,6 +23,7 @@
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
 import { TYPES, barAfterLevel, barOf, levelOf } from "./languages.ts";
+import { subFormsOf } from "./cards.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;
@@ -513,7 +514,7 @@ export interface Unit {
  */
 export function unitsOf(item: Item | null | undefined): Unit[] {
   const units: Unit[] = [{ unit: item as unknown as Form, isSub: false }];
-  for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
+  for (const sb of subFormsOf(item)) units.push({ unit: sb, isSub: true });
   /* The lines of a dialog, which are drilled in their own right exactly as
      the other forms of a word are: same three fields, same progress, same
      place in a session. They come through here rather than through a
