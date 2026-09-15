@@ -28,9 +28,24 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, fillsInUse, CARD_SORTS,
-  shapeOf, shapeChoices, formsOffered } =
+const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, fillsInUse, CARD_SORTS } =
   await import(path.join(out, "spaces.js"));
+
+/* The editor's own rules live in card-editor.tsx now, bundled the same way:
+   what a card opens as, which table it lays out, what a save carries. */
+await build({
+  entryPoints: [path.join(here, "..", "src", "card-editor.tsx")],
+  outfile: path.join(out, "card-editor.js"),
+  bundle: true,
+  format: "esm",
+  external: ["react", "react-dom", "react-dom/client"],
+  loader: { ".jsx": "jsx" },
+  logLevel: "silent",
+});
+const { shapeOf, shapeChoices, formsOffered,
+  initialForms, initialCells, initialLayout, storedFormsOf, asideOf, tableCellsOf,
+  canSaveWord, canSaveScene, writtenLines, ownerLabel } =
+  await import(path.join(out, "card-editor.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
    same way. They are one subject with the sorting above: what a card is
@@ -68,7 +83,7 @@ await build({
 });
 const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits } =
   await import(path.join(out, "trainer.js"));
-const { defaultTypes } = await import(path.join(here, "..", "src", "languages.ts"));
+const { defaultTypes, LANGUAGES, verbOf, attachedOf } = await import(path.join(here, "..", "src", "languages.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -763,4 +778,98 @@ test("a known word's cells are eased, and only those", () => {
   assert.ok(known.has("s-me"), "the word's own cells are eased once it is mastered");
   assert.equal(known.has("p-me"), false, "the plural's are not, the plural not being there yet");
   assert.equal(known.has("pl"), false, "and a form that is not a cell is never eased");
+});
+
+/*
+ * What a card opens as in the editor, and what a save carries — the rules
+ * the four editors stand on, asked without a screen.
+ */
+const arVerb = verbOf(LANGUAGES["ar-PS"]);
+const arAttached = attachedOf(LANGUAGES["ar-PS"]);
+/** @param {string} row @param {string} col @param {Record<string, any>} [over] */
+const cellOf = (row, col, over = {}) => ({ ar: "x", en: "y", lat: "", clips: [], row, col, ...over });
+
+test("a card opens with its own word first, then its forms, each with a name", () => {
+  const fresh = initialForms(null, { ar: "كتاب", en: "book" });
+  assert.equal(fresh.length, 1);
+  assert.equal(fresh[0].ar, "كتاب", "a suggestion arrives with its word written");
+  assert.equal(fresh[0].id, undefined, "the card's own word is not a named form");
+
+  const saved = initialForms(
+    /** @type {any} */ ({ id: "k", ar: "كتاب", en: "book", lat: "kitaab", subs: [
+      { ar: "كتب", en: "books" },
+      { id: "fkeep", ar: "كتيب", en: "booklet" },
+      cellOf("attached", "me"),
+    ] }),
+    null,
+  );
+  assert.deepEqual(saved.map((/** @type {any} */ f) => f.ar), ["كتاب", "كتب", "كتيب"], "cells are held apart");
+  assert.match(saved[1].id, /^f[a-z0-9]+$/, "a form written before forms had names is given one");
+  assert.equal(saved[2].id, "fkeep", "and one that has a name keeps it");
+});
+
+test("only a verb has its dictionary form seeded", () => {
+  /* A word with pronouns on its end has cells, and is not a verb. Seeding
+     it opened the card on the verb table and dropped the pronouns on save. */
+  const pen = /** @type {any} */ ({ id: "p", ar: "قلم", en: "pen", subs: [cellOf("attached", "me", { ar: "قلمي" })] });
+  const cells = initialCells(pen, arVerb);
+  assert.deepEqual(cells.map((/** @type {any} */ c) => [c.row, c.col]), [["attached", "me"]]);
+  assert.equal(initialLayout(cells, arVerb, arAttached), "attached");
+
+  /* A verb whose cited cell nobody filled gets its word put there. */
+  const eat = /** @type {any} */ ({ id: "e", ar: "أكل", en: "to eat", subs: [cellOf("present", "he", { ar: "بياكل" })] });
+  const seeded = initialCells(eat, arVerb);
+  assert.ok(seeded.some((/** @type {any} */ c) => c.row === "past" && c.col === "he" && c.ar === "أكل"));
+  assert.equal(initialLayout(seeded, arVerb, arAttached), "verb");
+
+  /* And a plain word has no table at all. */
+  assert.deepEqual(initialCells(/** @type {any} */ ({ id: "w", ar: "شمس", en: "sun", subs: [] }), arVerb), []);
+  assert.equal(initialLayout([], arVerb, arAttached), "");
+});
+
+test("a saved card is told what it lays out, and a new one is asked", () => {
+  assert.equal(storedFormsOf(null, arVerb, arAttached), "");
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("past", "he")] }), arVerb, arAttached), "verb");
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("attached", "me")] }), arVerb, arAttached), "attached");
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [{ ar: "a", en: "b" }] }), arVerb, arAttached), "");
+});
+
+test("the table put aside is counted, filled boxes only, and never the one on screen", () => {
+  const cells = [cellOf("past", "he", { ar: "أكل" }), cellOf("past", "she", { ar: "" }), cellOf("attached", "me", { ar: "كتابي" })];
+  assert.equal(asideOf(cells, [arVerb, arAttached], arVerb), 1, "the pronoun is what showing the verb puts aside");
+  assert.equal(asideOf(cells, [arVerb, arAttached], arAttached), 1, "the filled verb cell, not the empty one");
+  assert.equal(asideOf(cells, [arVerb, arAttached], null), 2, "with neither on screen, both are aside");
+  assert.equal(asideOf([], [arVerb, arAttached], null), 0);
+});
+
+test("a save carries the table on screen, minus cells whose form is gone or blank", () => {
+  const forms = [{ ar: "كتاب", en: "book" }, { id: "pl", ar: "كتب", en: "books" }, { id: "empty", ar: "", en: "" }];
+  const cells = [
+    cellOf("attached", "me", { ar: "كتابي" }),
+    cellOf("attached", "me", { ar: "كتبي", of: "pl" }),
+    cellOf("attached", "me", { ar: "?", of: "empty" }),
+    cellOf("attached", "me", { ar: "?", of: "gone" }),
+    cellOf("past", "he", { ar: "أكل" }),
+  ];
+  assert.deepEqual(tableCellsOf(cells, arAttached, forms).map((/** @type {any} */ c) => c.ar), ["كتابي", "كتبي"]);
+  assert.deepEqual(tableCellsOf(cells, arVerb, forms).map((/** @type {any} */ c) => c.ar), ["أكل"]);
+  assert.deepEqual(tableCellsOf(cells, null, forms), [], "no table on screen, nothing carried");
+});
+
+test("what can be saved: a word needs its script and its English, a scene a name and two turns", () => {
+  assert.equal(canSaveWord({ ar: "كتاب", en: "book" }, null), true);
+  assert.equal(canSaveWord({ ar: "كتاب", en: "  " }, null), false);
+  assert.equal(canSaveWord({ ar: "", en: "book" }, null), false);
+  assert.equal(canSaveWord({ ar: "كتاب", en: "book" }, { field: "en", missing: ["name"] }), false, "a field disagreeing about a blank");
+  assert.equal(canSaveScene("At the door", [{}, {}]), true);
+  assert.equal(canSaveScene("  ", [{}, {}]), false);
+  assert.equal(canSaveScene("At the door", [{}]), false);
+  assert.deepEqual(writtenLines([{ ar: "سلام" }, { ar: " " }, { ar: "" }]).map((/** @type {any} */ l) => l.ar), ["سلام"]);
+});
+
+test("a form's table is named only where there is more than one on screen", () => {
+  assert.equal(ownerLabel(0, 1), "");
+  assert.equal(ownerLabel(0, 2), "the word");
+  assert.equal(ownerLabel(1, 2), "form 2");
+  assert.equal(ownerLabel(2, 3), "form 3");
 });

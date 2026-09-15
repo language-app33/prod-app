@@ -3,7 +3,6 @@ import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 import { CardEditor } from "./card-editor.tsx";
-export { shapeOf, shapeChoices, formsOffered } from "./card-editor.tsx";
 
 /*
  * Whatever is waiting on a yes: the confirmation to show, and what to do
