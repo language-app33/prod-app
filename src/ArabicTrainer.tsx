@@ -160,7 +160,7 @@ import {
   rowOf,
   subjectSlot,
 } from "./verbs.ts";
-import { subFormsOf } from "./cards.ts";
+import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
 import {
   MIN,
   LEARNING_CAP,
@@ -199,6 +199,7 @@ import {
   ORDER_SEP,
   SELF_ALL,
   SELF_SOME,
+  WHOLE_SCENE,
   buildDialogIndex,
   isDialog,
   isTwoSided,
@@ -521,11 +522,26 @@ function makeItem(src: Record<string, any> = {}) {
   const text = ar || en || lat;
   const s = freshStates();
   const scene = (lines || []).filter((l: any) => l && (l.ar || l.en || l.lat));
+  const id = `${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
   return {
-    id: `${now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
-    ar: ar.trim(),
-    lat: lat.trim(),
-    en: en.trim(),
+    id,
+    /* The card's own word first, then whatever other forms it was given —
+       one list, and the word answers to the card's own id. */
+    forms: [
+      {
+        id,
+        ar: ar.trim(),
+        lat: lat.trim(),
+        en: en.trim(),
+        lang: activeLang().id,
+        recs: recs || [],
+        ...dimValues(src),
+        created: now(),
+        updated: now(),
+        s,
+      },
+      ...(subs || []).map((x: Record<string, any>) => (x.id ? x : makeSub(x))),
+    ],
     /* A card with a conversation on it is a dialog whatever else was
        said: the kind follows the content rather than a picker somebody
        has to remember to set. */
@@ -544,12 +560,8 @@ function makeItem(src: Record<string, any> = {}) {
     tags: cleanTags(tags),
     locked: false,
     flags: [],
-    recs: recs || [],
-    ...dimValues(src),
-    subs: (subs || []).map((x: Record<string, any>) => (x.id ? x : makeSub(x))),
     created: now(),
     updated: now(),
-    s,
   };
 }
 
@@ -569,10 +581,19 @@ function makeItem(src: Record<string, any> = {}) {
    which is why this is two small functions rather than a new argument on
    forty.
    ------------------------------------------------------------------ */
-const langIdOf = (unit: Form | null | undefined, settings: Settings): LangId =>
+/* Which of a card's fields belong to a form rather than to the card: the
+   three words, its recordings, and whatever grammar the languages declare.
+   Asked where a patch from the editor is taken apart. */
+const FORM_FIELDS = new Set(["ar", "lat", "en", "recs", ...Object.keys(dimValues({}))]);
+
+/* A card or one of its forms — both carry the language, and both are
+   asked. */
+type Spoken = { lang?: LangId } | null | undefined;
+
+const langIdOf = (unit: Spoken, settings: Settings): LangId =>
   ((unit && unit.lang) || settings.language || DEFAULT_LANGUAGE);
 
-function settingsFor(settings: Settings, unit: Form | null | undefined): Settings {
+function settingsFor(settings: Settings, unit: Spoken): Settings {
   const id = langIdOf(unit, settings);
   /* The same object when the card is in the app's own language, which is
      the ordinary case: a new object on every call would defeat every memo
@@ -1158,7 +1179,7 @@ function castFill(
   return {
     ...resolved,
     unit,
-    parent: resolved.parent === resolved.unit ? unit : resolved.parent,
+    parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
   };
 }
 
@@ -1243,7 +1264,7 @@ function castAnswer(resolved: { unit: Form, parent: Item, isSub: boolean } | nul
   return {
     ...resolved,
     unit,
-    parent: resolved.parent === resolved.unit ? unit : resolved.parent,
+    parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
   };
 }
 
@@ -1289,7 +1310,7 @@ function castMeaning(resolved: { unit: Form, parent: Item, isSub: boolean } | nu
   return {
     ...resolved,
     unit,
-    parent: resolved.parent === resolved.unit ? unit : resolved.parent,
+    parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
   };
 }
 
@@ -1583,8 +1604,8 @@ function isDrillable(it: Item, settings: Settings) {
      read is the ordinary case of this; so is the other way round. Asking
      the card alone would hide every one of them from the list of what can
      be practised while its forms were being practised. */
-  if (isDialog(it) || !isAsked(it)) return drillableUnits(it, settings).length > 0;
-  return enabledTypes(it, settings).length >= 2;
+  if (isDialog(it) || !isAsked(leadOf(it))) return drillableUnits(it, settings).length > 0;
+  return enabledTypes(leadOf(it), settings).length >= 2;
 }
 
 /* One shuffle in the app, and it lives in the scheduler with the rest of
@@ -1641,7 +1662,7 @@ function similarity(a: Item, b: Item) {
   const sharedTags = (b.tags || []).filter((t) => tagsA.has(t)).length;
   score += sharedTags * 3;
 
-  score += wordLikeness(a.ar, b.ar, activeLang());
+  score += wordLikeness(leadOf(a).ar, leadOf(b).ar, activeLang());
 
   if (a.kind === b.kind) score += 0.5;
   // Added in the same sitting — usually the same lesson.
@@ -2247,7 +2268,7 @@ function resolveUnit(items: Item[], ex: Question | null | undefined) {
   if (!ex) return null;
   const parent = items.find((i) => i.id === ex.id);
   if (!parent) return null;
-  if (!ex.subId) return { parent, unit: parent, isSub: false };
+  if (!ex.subId) return { parent, unit: leadOf(parent), isSub: false };
   const sb = subFormsOf(parent).find((x) => x.id === ex.subId);
   if (sb) return { parent, unit: sb, isSub: true };
   /* Or a line of the conversation, which travels in the queue the same
@@ -2329,7 +2350,7 @@ function relatedWords(items: Item[], lang: Lang, text: string) {
       if (apart && derivedValue(apart, other) === mine) continue;
       if (seen.has(other)) continue;
       seen.add(other);
-      out.push({ text: other, en: unit.en || it.en || "", id: it.id });
+      out.push({ text: other, en: unit.en || leadOf(it).en || "", id: it.id });
     }
   }
   return out.slice(0, 6);
@@ -2740,20 +2761,58 @@ function liftAnswers(form: Record<string, any>): Record<string, any> {
   };
 }
 
+/*
+ * Which of an old card's fields belonged to the card rather than to its
+ * own word.
+ *
+ * Until 0.138 a card *was* its first form, with the others in `subs`
+ * beside it — so a stored card holds the word's fields and the card's
+ * mixed together, and lifting it means telling them apart. Named from the
+ * card's side because that list is the short one and the closed one: a
+ * form may carry whatever a language declares, and every one of those
+ * belongs to the word.
+ */
+const CARD_ONLY = new Set([
+  "kind", "tags", "locked", "flags", "source", "fills", "name", "category",
+  "drill", "uses", "note", "lines", "speakers", "you", "subs", "forms",
+]);
+
+/* One of a stored card's forms, with nothing of the card left on it. */
+const formPart = (f: Record<string, any>): Record<string, any> =>
+  Object.fromEntries(Object.entries(f).filter(([k]) => !CARD_ONLY.has(k)));
+
 function liftItem(it: Record<string, any>) {
   return {
     ...it,
     tags: Array.isArray(it.tags) ? it.tags : [],
     locked: !!it.locked,
     flags: it.flags || [],
-    recs: it.recs || [],
-    ...liftAnswers(it),
-    subs: subFormsOf(it).map((sb: Record<string, any>) => ({
-      ...sb,
-      ...liftAnswers(sb),
-      recs: sb.recs || [],
-      s: liftStates(sb.s),
+    /*
+     * One list of forms, whichever shape the document was written in.
+     *
+     * formsOf reads a card stored the old way — the word on the card, the
+     * rest in `subs` — as the list it always meant, and the fields that
+     * belonged to the card are left where they are rather than copied onto
+     * its first form.
+     */
+    forms: formsOf(it).map((f: Record<string, any>) => ({
+      ...formPart(f),
+      ...liftAnswers(f),
+      recs: f.recs || [],
+      s: liftStates(f.s),
     })),
+    /* And the old shape goes, so nothing is stored twice and no reader can
+       pick the stale half. */
+    ar: undefined,
+    en: undefined,
+    lat: undefined,
+    clips: undefined,
+    slowClips: undefined,
+    answers: undefined,
+    met: undefined,
+    ask: undefined,
+    recs: undefined,
+    subs: undefined,
     /* A dialog's lines are lifted the same way, so a scene stored before
        an exercise existed comes back carrying a state for it. Left off
        entirely where there is no conversation, rather than storing an
@@ -2769,7 +2828,7 @@ function liftItem(it: Record<string, any>) {
           })),
         }
       : null),
-    s: liftStates(it.s),
+    s: undefined,
   };
 }
 
@@ -5041,8 +5100,8 @@ export default function ArabicTrainer() {
       /* Read off the card's own form, which is the word a hole borrows.
          Highest first, so the answer is the furthest it has got rather
          than the first level that happens to be clear. */
-      const keys = laddered(it, settings);
-      const stateAt = (key: string) => statesOf(it)[key];
+      const keys = laddered(leadOf(it), settings);
+      const stateAt = (key: string) => statesOf(leadOf(it))[key];
       let climbed = 0;
       for (let level = TOP_LEVEL; level >= 1; level--) {
         if (reachedLevel(keys, stateAt, level)) {
@@ -5636,7 +5695,7 @@ export default function ArabicTrainer() {
      `at` being null means. */
   const dialog = isDialog(parentItem) ? parentItem : null;
   const scene = dialog && item ? sceneOf(item.id) : null;
-  const at = scene ? scene.at : null;
+  const at = scene && scene.at !== WHOLE_SCENE ? scene.at : null;
   /* Everything said before this line: the question, in a dialog. What
      comes after would be the answer to a different one. */
   const soFar = dialog && at !== null ? sceneBefore(dialog, at).concat([linesOf(dialog)[at]]) : [];
@@ -5981,8 +6040,8 @@ export default function ArabicTrainer() {
       /* A copy of the question, not a pointer to it: the card can be
          edited or withdrawn between the flag and somebody reading it, and
          a report that says only "card k3f2" is then unreadable. */
-      prompt: parentItem.ar || "",
-      meaning: parentItem.en || "",
+      prompt: leadOf(parentItem).ar || "",
+      meaning: leadOf(parentItem).en || "",
     })
       .then(() => flash("Thank you for the feedback 🫶", "good"))
       .catch(() => flash("Noted on this device. We couldn't reach the server.", "warn"));
@@ -6091,10 +6150,12 @@ export default function ArabicTrainer() {
         const idx = next.items.findIndex((i) => i.id === mark.id);
         if (idx < 0) continue; // withdrawn while it was on screen
         const it = { ...next.items[idx] };
+        /* Which form was asked: one of the card's — its own word is the
+           first of them — or a turn of a conversation. */
         const target = mark.subId
-          ? subFormsOf(it).find((x) => x.id === mark.subId) ||
+          ? formsOf(it).find((x) => x.id === mark.subId) ||
             linesOf(it).find((x) => x.id === mark.subId)
-          : it;
+          : leadOf(it);
         if (!target) continue;
 
         const before = statesOf(target)[exercise.type] || freshState();
@@ -6138,21 +6199,23 @@ export default function ArabicTrainer() {
         const met = noteMet(target.met, filledWith, levelOf(exercise.type), needsMetRecord);
         const alsoMet = met ? { met } : null;
 
-        if (mark.subId && subFormsOf(it).some((x) => x.id === mark.subId)) {
-          it.subs = subFormsOf(it).map((x) =>
-            x.id === mark.subId
-              ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
-              : x
-          );
-        } else if (mark.subId) {
+        /* Written back onto whichever form it was. A turn of a
+           conversation is its own list; everything else is a form of the
+           card, and the card's own word is the first of those — which is
+           why this is one path where it used to be two. */
+        if (mark.subId && linesOf(it).some((x) => x.id === mark.subId)) {
           it.lines = linesOf(it).map((x) =>
             x.id === mark.subId
               ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
               : x
           );
         } else {
-          it.s = { ...it.s, [exercise.type]: s };
-          if (alsoMet) it.met = alsoMet.met;
+          const asked = mark.subId || leadOf(it).id;
+          it.forms = formsOf(it).map((x) =>
+            x.id === asked
+              ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
+              : x
+          );
         }
         it.updated = now();
         next.items[idx] = it;
@@ -6203,14 +6266,20 @@ export default function ArabicTrainer() {
       items: items.map((i) => {
         if (i.id !== id) return i;
         const next: Item = { ...i, updated: now() };
+        /* A patch is a card the editor has handed back, so its words belong
+           to the card's own form and the rest of it to the card. Which is
+           which is asked of the fields a form has — the three words, its
+           recordings and whatever grammar the languages declare. */
+        const lead: Record<string, any> = { ...leadOf(i), updated: now() };
         for (const [k, v] of Object.entries(patch)) {
-          if (k === "subs" || k === "s") continue;
+          if (k === "subs" || k === "s" || k === "forms") continue;
           if (k === "tags") next.tags = cleanTags(v);
-          else next[k] = typeof v === "string" ? v.trim() : v;
+          else if (FORM_FIELDS.has(k)) lead[k] = typeof v === "string" ? v.trim() : v;
+          else (next as Record<string, any>)[k] = typeof v === "string" ? v.trim() : v;
         }
-        if (patch.subs) {
+        {
           const old = new Map(subFormsOf(i).map((x) => [x.id, x]));
-          next.subs = patch.subs.map((draft: Record<string, any>) => {
+          const rest = (patch.subs || subFormsOf(i)).map((draft: Record<string, any>) => {
             const prev = draft.id && old.get(draft.id);
             return prev
               ? {
@@ -6229,6 +6298,7 @@ export default function ArabicTrainer() {
                 }
               : makeSub(draft);
           });
+          next.forms = [lead as Form, ...rest];
         }
         return next;
       }),
@@ -6642,7 +6712,7 @@ Cards ready to practice
             {session && session.learnt && session.learnt.length > 0 && qi === 0 && (
               <Help className="at-learntnote">
                 Already learnt, so not in this session:{" "}
-                {session.learnt.map((x: Item) => x.en || x.ar || x.lat).join(", ")}
+                {session.learnt.map((x: Item) => leadOf(x).en || leadOf(x).ar || leadOf(x).lat).join(", ")}
               </Help>
             )}
 
@@ -7426,7 +7496,7 @@ Cards ready to practice
         <div className="at-undo">
           <span className="what">
             {lastDeleted.length === 1
-              ? `Deleted “${lastDeleted[0].en || lastDeleted[0].ar || lastDeleted[0].lat}”`
+              ? `Deleted “${leadOf(lastDeleted[0]).en || leadOf(lastDeleted[0]).ar || leadOf(lastDeleted[0]).lat}”`
               : `Deleted ${lastDeleted.length} items`}
           </span>
           <Button size="sm" onClick={undoDelete}>
@@ -7555,11 +7625,11 @@ function CardScreen({ card, items, settings, onBack, action }: {
 }) {
   const live = items.find((i) => i.id === card.id) || card;
   return (
-    <Screen title={live.en || live.ar} onBack={onBack} action={action}>
+    <Screen title={leadOf(live).en || leadOf(live).ar} onBack={onBack} action={action}>
       <CardReadout
         card={{
           ...live,
-          clips: (live.recs || []).map((r) => r.id),
+          clips: (leadOf(live).recs || []).map((r: { id: string }) => r.id),
           /* A line's recordings, named the way the readout names them.
              The learner's copy of a card keeps recordings under `recs`
              and the teacher's under `clips`; this is the one place the
@@ -7665,9 +7735,9 @@ function ItemsTab({
       .filter((i) => (filterTags.length ? i.tags.some((t) => filterTags.includes(t)) : true))
       .filter((i) =>
         s
-          ? i.ar.includes(q.trim()) ||
-            i.lat.toLowerCase().includes(s) ||
-            i.en.toLowerCase().includes(s) ||
+          ? leadOf(i).ar.includes(q.trim()) ||
+            leadOf(i).lat.toLowerCase().includes(s) ||
+            leadOf(i).en.toLowerCase().includes(s) ||
             i.tags.some((t) => t.toLowerCase().includes(s)) ||
             subFormsOf(i).some(
               (x) => x.ar.includes(q.trim()) || x.en.toLowerCase().includes(s)
@@ -7732,9 +7802,9 @@ function ItemsTab({
             }
             empty="No cards match."
             match={(it, needle) =>
-              it.ar.includes(needle) ||
-              it.lat.toLowerCase().includes(needle) ||
-              it.en.toLowerCase().includes(needle) ||
+              leadOf(it).ar.includes(needle) ||
+              leadOf(it).lat.toLowerCase().includes(needle) ||
+              leadOf(it).en.toLowerCase().includes(needle) ||
               it.tags.some((t) => t.toLowerCase().includes(needle)) ||
               subFormsOf(it).some(
                 (x) => x.ar.includes(needle) || x.en.toLowerCase().includes(needle)
@@ -8248,7 +8318,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
   /* The words this learner already has, for the links below. Dialogs are
      left out: a scene is not a word that turns up inside another one. */
   const wordCards = useMemo(
-    () => items.filter((i: Item) => !isDialog(i) && i.ar),
+    () => items.filter((i: Item) => !isDialog(i) && leadOf(i).ar),
     [items]
   );
   /*
@@ -8261,7 +8331,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
    * conversation, so it can be seen to be right.
    */
   const usesIn = (text: string) =>
-    wordCards.filter((w: Item) => !!findWordSpan(text, w.ar, lang));
+    wordCards.filter((w: Item) => !!findWordSpan(text, leadOf(w).ar, lang));
 
   const linked = (lines: any[]) =>
     lines
@@ -8278,8 +8348,8 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
      every line's, gathered, because a dialog's exercises are spread across
      its units rather than sitting on the card. */
   const previewTypes = useMemo(() => {
-    if (!scene) return availableTypes(previewItem);
-    const found = new Set(availableTypes(previewItem, lang, null));
+    if (!scene) return availableTypes(leadOf(previewItem));
+    const found = new Set(availableTypes(leadOf(previewItem), lang, null));
     linesOf(previewItem).forEach((ln, at) => {
       for (const t of availableTypes(ln, lang, { card: previewItem, at })) found.add(t);
     });
@@ -8594,7 +8664,7 @@ function ItemSheet({ mode, initial, allTags, settings, onSave, onClose, scene = 
                             <span className="at-useslabel">Uses</span>
                             {usesIn(ln.ar).map((w: Item) => (
                               <span className="at-tag" key={w.id}>
-                                {w.ar}
+                                {leadOf(w).ar}
                               </span>
                             ))}
                           </>
@@ -9097,7 +9167,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
   }, [onClose]);
 
   const eligible = useMemo(
-    () => items.filter((i) => availableTypes(i).length >= 2 || subFormsOf(i).length),
+    () => items.filter((i) => availableTypes(leadOf(i)).length >= 2 || subFormsOf(i).length),
     [items]
   );
 
@@ -9116,9 +9186,9 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
     if (!n) return [];
     return eligible.filter(
       (i) =>
-        i.ar.includes(q.trim()) ||
-        i.en.toLowerCase().includes(n) ||
-        i.lat.toLowerCase().includes(n)
+        leadOf(i).ar.includes(q.trim()) ||
+        leadOf(i).en.toLowerCase().includes(n) ||
+        leadOf(i).lat.toLowerCase().includes(n)
     );
   }, [eligible, q]);
 
@@ -9311,12 +9381,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                           className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
                           onClick={() => toggleOne(it.id)}
                         >
-                          {it.ar && (
+                          {leadOf(it).ar && (
                             <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-                              {it.ar}
+                              {leadOf(it).ar}
                             </span>
                           )}
-                          <span className="en">{it.en}</span>
+                          <span className="en">{leadOf(it).en}</span>
                         </button>
                       ))}
                     </div>
@@ -9366,12 +9436,12 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
                   className={`at-minicard${picked.has(it.id) ? " on" : ""}`}
                   onClick={() => toggleOne(it.id)}
                 >
-                  {it.ar && (
+                  {leadOf(it).ar && (
                     <span className="ar" lang={activeLang().id} dir={activeLang().direction}>
-                      {it.ar}
+                      {leadOf(it).ar}
                     </span>
                   )}
-                  <span className="en">{it.en}</span>
+                  <span className="en">{leadOf(it).en}</span>
                 </button>
               ))}
               {!searched.length && <Help>Nothing matches that.</Help>}
@@ -9611,7 +9681,7 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
   const [step, setStep] = useState("paste");
   const parsed = useMemo(() => parseLines(bulk, allTags), [bulk, allTags]);
   const prepared = useMemo(() => parsed.map((p) => makeItem(p)), [parsed]);
-  const weak = prepared.filter((p) => availableTypes(p).length < 2).length;
+  const weak = prepared.filter((p) => availableTypes(leadOf(p)).length < 2).length;
 
   return (
     <Screen
@@ -9735,14 +9805,14 @@ function BulkAddSheet({ allTags, onAdd, onImport, onClose }: {
             </div>
             {prepared.map((p, i) => (
               <div
-                className={`at-previewrow${availableTypes(p).length < 2 ? " weak" : ""}`}
+                className={`at-previewrow${availableTypes(leadOf(p)).length < 2 ? " weak" : ""}`}
                 key={i}
               >
-                <span className="cell en">{p.en || "—"}</span>
+                <span className="cell en">{leadOf(p).en || "—"}</span>
                 <span className="cell ar" lang={activeLang().id} dir={activeLang().direction}>
-                  {p.ar || "—"}
+                  {leadOf(p).ar || "—"}
                 </span>
-                <span className="cell lat">{p.lat || "—"}</span>
+                <span className="cell lat">{leadOf(p).lat || "—"}</span>
                 <span className="cell tag">{p.tags.join(", ") || "—"}</span>
               </div>
             ))}
@@ -10029,9 +10099,9 @@ function ProgressTab({ items, myCourses = [], settings }: {
             return at ? at.status : "none";
           }}
           match={(it: Item, needle: string) =>
-            (it.ar || "").includes(needle) ||
-            (it.lat || "").toLowerCase().includes(needle) ||
-            (it.en || "").toLowerCase().includes(needle)
+            (leadOf(it).ar || "").includes(needle) ||
+            (leadOf(it).lat || "").toLowerCase().includes(needle) ||
+            (leadOf(it).en || "").toLowerCase().includes(needle)
           }
           renderItem={(it: Item) => (
             <CardTile

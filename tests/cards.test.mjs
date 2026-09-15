@@ -340,7 +340,8 @@ test("a course card arrives saying which language it is in, on every form", () =
     "Lesson 1", "c1", "d1", () => ({}),
   );
   assert.equal(item.lang, "vi-Hue");
-  assert.equal(item.subs[0].lang, "vi-Hue");
+  assert.equal(item.forms[0].lang, "vi-Hue", "its own word");
+  assert.equal(item.forms[1].lang, "vi-Hue", "and every other form of it");
 });
 
 test("a conversation reaches the learner as a scene, with its turns drillable", () => {
@@ -363,7 +364,7 @@ test("a conversation reaches the learner as a scene, with its turns drillable", 
   );
 
   assert.equal(item.kind, "dialog", "a card with a conversation on it is a dialog");
-  assert.equal(item.en, "At the door", "the scene's name is the card's English");
+  assert.equal(item.forms[0].en, "At the door", "the scene's name is the card's English");
   assert.deepEqual(item.speakers, ["Layla", "Karim"]);
   assert.equal(item.you, 1);
   assert.equal(item.lines.length, 2);
@@ -395,9 +396,9 @@ test("what the teacher does not ask about reaches the student that way too", () 
     },
     "Lesson 1", "c1", "d1", () => ({}),
   );
-  assert.equal(item.ask, false, "the card's own word");
-  assert.equal(item.subs[0].ask, false, "and the cell");
-  assert.equal("ask" in item.subs[1], false, "while an ordinary form gains nothing");
+  assert.equal(item.forms[0].ask, false, "the card's own word");
+  assert.equal(item.forms[1].ask, false, "and the cell");
+  assert.equal("ask" in item.forms[2], false, "while an ordinary form gains nothing");
 
   /* And a card nobody has said anything about arrives asked, which is
      every card written before this. */
@@ -405,8 +406,8 @@ test("what the teacher does not ask about reaches the student that way too", () 
     { id: "k10", ar: "شمس", en: "sun", lang: "ar-PS", subs: [{ ar: "شموس", en: "suns" }] },
     "Lesson 1", "c1", "d1", () => ({}),
   );
-  assert.equal("ask" in plain, false);
-  assert.equal("ask" in plain.subs[0], false);
+  assert.equal("ask" in plain.forms[0], false);
+  assert.equal("ask" in plain.forms[1], false);
 });
 
 test("and an ordinary card is not turned into a scene on the way", () => {
@@ -430,14 +431,14 @@ test("a card recorded at both speeds reaches the learner as both, named", () => 
     },
     "Lesson 1", "c1", "d1", () => ({}),
   );
-  assert.deepEqual(item.recs.map((/** @type {any} */ r) => [r.id, r.label]),
+  assert.deepEqual(item.forms[0].recs.map((/** @type {any} */ r) => [r.id, r.label]),
     [["fast", ""], ["slow", "Slow"]]);
-  assert.deepEqual(item.subs[0].recs.map((/** @type {any} */ r) => [r.id, r.label]),
+  assert.deepEqual(item.forms[1].recs.map((/** @type {any} */ r) => [r.id, r.label]),
     [["subslow", "Slow"]], "a form recorded only slowly still arrives with it");
   /* And each says its speed as a field rather than only inside its name:
      the player shows one of each and picks by this, and picking by reading
      a label back is guessing. */
-  assert.deepEqual(item.recs.map((/** @type {any} */ r) => r.speed), ["regular", "slow"]);
+  assert.deepEqual(item.forms[0].recs.map((/** @type {any} */ r) => r.speed), ["regular", "slow"]);
 });
 
 test("and an item that was never a course card has only the one name", () => {
@@ -654,7 +655,7 @@ test("a cell arrives knowing where it sits and whose table it is in", () => {
     },
     "Lesson 1", "c1", "d1", () => ({}),
   );
-  const [plural, mine, ours] = item.subs;
+  const [, plural, mine, ours] = item.forms;
   assert.equal(plural.row, undefined, "a form that is not a cell gains no coordinates");
   assert.equal(mine.row, "attached");
   assert.equal(mine.col, "me");
@@ -672,10 +673,10 @@ test("a form is named after itself where it has a name, and after its place wher
     "Lesson 1", "c1", "d1", () => ({}),
   );
   /* The old shape, for every form written before forms had names. */
-  assert.equal(item.subs[0].id, `${localIdFor("k3")}-f0`);
+  assert.equal(item.forms[1].id, `${localIdFor("k3")}-f0`);
   /* And the new one, which cannot collide with it: a name is never a bare
      number, because of the tilde. */
-  assert.equal(item.subs[1].id, `${localIdFor("k3")}-f~x7`);
+  assert.equal(item.forms[2].id, `${localIdFor("k3")}-f~x7`);
 });
 
 /*
@@ -689,24 +690,26 @@ test("a form's progress follows the form, not its place in the list", () => {
   /** @param {string} id @param {number} reps */
   const form = (id, reps) => ({ id, ar: id, en: id, s: { ar2en: { phase: "review", reps } } });
   const had = [
-    { id: "srvk4", ar: "a", en: "a", s: {}, source: { cardId: "k4" },
-      subs: [form("srvk4-f~one", 3), form("srvk4-f~two", 9)] },
+    { id: "srvk4", source: { cardId: "k4" },
+      forms: [form("srvk4", 1), form("srvk4-f~one", 3), form("srvk4-f~two", 9)] },
   ];
   /* The teacher inserts a form above the two that were there. */
   const fresh = [
-    { id: "srvk4", ar: "a", en: "a", s: {}, source: { cardId: "k4" },
-      subs: [
+    { id: "srvk4", source: { cardId: "k4" },
+      forms: [
+        { id: "srvk4", ar: "a", en: "a", s: {} },
         { id: "srvk4-f~new", ar: "n", en: "n", s: {} },
         { id: "srvk4-f~one", ar: "a", en: "a", s: {} },
         { id: "srvk4-f~two", ar: "b", en: "b", s: {} },
       ] },
   ];
   const out = foldCourses(had, fresh).items[0];
-  assert.deepEqual(out.subs.map((/** @type {any} */ f) => f.id),
-    ["srvk4-f~new", "srvk4-f~one", "srvk4-f~two"]);
-  assert.equal(out.subs[0].s.ar2en, undefined, "the new form starts fresh");
-  assert.equal(out.subs[1].s.ar2en.reps, 3, "and each of the others keeps its own work");
-  assert.equal(out.subs[2].s.ar2en.reps, 9);
+  assert.deepEqual(out.forms.map((/** @type {any} */ f) => f.id),
+    ["srvk4", "srvk4-f~new", "srvk4-f~one", "srvk4-f~two"]);
+  assert.equal(out.forms[0].s.ar2en.reps, 1, "the card's own word keeps its work");
+  assert.equal(out.forms[1].s.ar2en, undefined, "the new form starts fresh");
+  assert.equal(out.forms[2].s.ar2en.reps, 3, "and each of the others keeps its own");
+  assert.equal(out.forms[3].s.ar2en.reps, 9);
 });
 
 test("and forms that gain names all at once keep the progress they had", () => {
@@ -717,19 +720,20 @@ test("and forms that gain names all at once keep the progress they had", () => {
   /** @param {string} id @param {number} reps */
   const form = (id, reps) => ({ id, ar: id, en: id, s: { ar2en: { phase: "review", reps } } });
   const had = [
-    { id: "srvk5", ar: "a", en: "a", s: {}, source: { cardId: "k5" },
-      subs: [form("srvk5-f0", 3), form("srvk5-f1", 9)] },
+    { id: "srvk5", source: { cardId: "k5" },
+      forms: [form("srvk5", 1), form("srvk5-f0", 3), form("srvk5-f1", 9)] },
   ];
   const fresh = [
-    { id: "srvk5", ar: "a", en: "a", s: {}, source: { cardId: "k5" },
-      subs: [
+    { id: "srvk5", source: { cardId: "k5" },
+      forms: [
+        { id: "srvk5", ar: "a", en: "a", s: {} },
         { id: "srvk5-f~one", ar: "a", en: "a", s: {} },
         { id: "srvk5-f~two", ar: "b", en: "b", s: {} },
       ] },
   ];
   const out = foldCourses(had, fresh).items[0];
-  assert.equal(out.subs[0].s.ar2en.reps, 3);
-  assert.equal(out.subs[1].s.ar2en.reps, 9);
+  assert.equal(out.forms[1].s.ar2en.reps, 3);
+  assert.equal(out.forms[2].s.ar2en.reps, 9);
 });
 
 /*

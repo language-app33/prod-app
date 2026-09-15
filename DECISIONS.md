@@ -930,3 +930,64 @@ like and can say otherwise. Nothing is written until they save. A card
 whose table already has something in it is still told what it is rather
 than offered the change, which is 0.120's rule unchanged: the table is the
 content, and offering to swap it is offering to throw it away.
+
+---
+
+## A card is its forms
+
+**15 September 2026** · `src/cards.ts`, `Item`/`Card` in `src/types.ts`,
+`liftItem` in `src/ArabicTrainer.tsx`, `forms` on the stored card and on the
+wire
+
+A card was a form with a list of other forms beside it: its own word lived
+on the card, and its alternates in `subs`. Two shapes for one kind of
+thing, and the seam between them was written out by hand wherever anybody
+wanted the whole list — `[card, ...subs]` in one place, a push then a loop
+in another, a filter over `subs` in a third. 0.136 put one door in front of
+that (`formsOf`); this moves the stored shape to what every reader already
+believed.
+
+**Why it was worth moving rather than leaving the door in place.** The
+duplication was not in the walking, it was in the *describing*. Every fact
+that belongs to a form had to be declared twice — once as a field of the
+card, once inside `subs` — and the two drifted every time: a sub-form had
+no id until 0.131, `ask` needed a card-level answer beside the per-form
+one, and a cell of a pronoun table had to invent `of` to say "I belong to
+the card's own word". One list means one description, so the next per-form
+field is written once.
+
+**Lift on read, not a migration.** `formsOf` reads a card written the old
+way as the list it always meant, and `liftItem` writes the new shape back
+the first time a document is loaded. A card from a course, a card synced
+from a device on an older build and a card in an exported file all come
+through the same door. Nothing is rewritten on the server: the whitelist
+stores one `forms` list, and a client too old to read it is not supported —
+the app updates itself, and holding a second shape on disk for builds
+nobody is running is the cost this whole change exists to remove.
+
+**What had to be decided rather than translated.** Three questions used to
+be answered by the card and the form being the same object:
+
+- *Which language is this form in?* The card carries it. Every builder of
+  an item — the course reader, the editor, the document lift — stamps it
+  onto each form, which is what `Form.lang` always said and was only true
+  of the lead one by accident. A sub-form of a Vietnamese card used to be
+  read in whichever language the app happened to be set to.
+- *Is this card a conversation?* `isDialog` reads the turns, and a form
+  carries none. The whole-scene questions — read it through, put it back in
+  order — are asked of the scene's own word, and the dialog index says so:
+  it places that word at `WHOLE_SCENE`, beside the turns it places at their
+  own numbers. One question ("where does this unit stand in its scene"),
+  one answer shape.
+- *Has this card a hole in it?* `slotsOf` and `valueOf` read the card's own
+  word, so "is this a frame" and "what does this card lend a blank" are
+  answered the same whether a card or a form is handed in. A plain form is
+  its own lead, which is what makes that work.
+
+**What it costs.** `leadOf` allocates on a card written the old way, and
+`slotsOf` and `valueOf` now ask it on every call — measured against the
+smoke harness and lost in the noise, and the alternative was a second
+argument on a dozen functions. The bigger cost is the one above: three
+facts that used to be free now have to be carried deliberately, and a
+fourth of its kind will too. That is the honest price of the card and the
+form being different things, which they are.

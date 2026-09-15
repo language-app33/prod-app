@@ -322,13 +322,26 @@ const twoTypes = () => ["ar2en", "en2ar"];
    actually hold. Only `s` and `subs` are ever varied here — the rest is
    what every card carries and what the family readers walk past. */
 /**
- * @param {Partial<Item>} [over]
+ * @param {Record<string, any>} [over]
  * @returns {Item}
  */
-const card = (over = {}) => ({
-  id: "a", ar: "كتاب", en: "book", lat: "kitaab", tags: [], created: 0, updated: 0,
-  s: freshStates(), subs: [], ...over,
-});
+const card = (over = {}) => {
+  const { s, subs, ar, en, lat, id, ...rest } = over;
+  return /** @type {Item} */ ({
+    id: id || "a", tags: [], created: 0, updated: 0,
+    forms: [
+      {
+        id: id || "a",
+        ar: ar || "كتاب", en: en || "book", lat: lat || "kitaab",
+        s: s || freshStates(),
+      },
+      /* A form written as a card, for the fixtures that build one that
+         way: what is wanted from it is its forms, not its wrapper. */
+      ...(subs || []).flatMap((/** @type {any} */ sub) => sub.forms || [sub]),
+    ],
+    ...rest,
+  });
+};
 
 test("a family is only as grown-up as its weakest form", () => {
   const grown = { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) };
@@ -554,7 +567,8 @@ test("unitsOf lists the card first, then each of its forms", () => {
   assert.deepEqual(unitsOf(item).map((u) => [u.unit.id, u.isSub]),
     [["a", false], ["b", true], ["c", true]]);
   assert.deepEqual(unitsOf(card()).map((u) => u.unit.id), ["a"], "a card with no forms");
-  assert.deepEqual(unitsOf(undefined).map((u) => u.unit), [undefined], "and no crash on nothing");
+  assert.deepEqual(unitsOf(undefined).map((u) => u.unit.id), [""],
+    "and no crash on nothing: one blank form, which is what a card with no words has");
 });
 
 test("a fresh card carries one state per exercise type", () => {

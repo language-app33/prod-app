@@ -484,10 +484,12 @@ export interface CardForm {
  * why this is indexable: the server takes whatever grammarFields() lists
  * without knowing which language uses which.
  */
-export type Card = CardForm & {
+export type Card = {
   id: string;
   owner?: string;
   lang: LangId;
+  /** The card's own word first, then the alternates it carries. */
+  forms: CardForm[];
   note?: string;
   /**
    * What the teacher says this word is — a noun, a verb, a name. One of
@@ -521,7 +523,6 @@ export type Card = CardForm & {
    * else's sentence, and asking what it means is not a question.
    */
   drill?: boolean;
-  subs?: CardForm[];
   uses?: string[];
   lines?: (CardForm & { who?: number; uses?: string[] })[];
   speakers?: string[];
@@ -727,9 +728,32 @@ export type Line = Form & { who?: number; uses?: string[] };
  * names who is in it, and `you` says which of them the learner plays — or
  * is null, where the card leaves that to the question.
  */
-export type Item = Form & {
+/**
+ * A card on a device: the forms it is made of, and the facts that belong
+ * to the card as a whole.
+ *
+ * It *was* a form with a list of other forms beside it — the card's own
+ * word lived on the card, and its alternates in `subs`, which is two
+ * shapes for one kind of thing. Every per-form fact then had to be
+ * declared twice and handled twice, and the two drifted: a sub-form had no
+ * name of its own until 0.131, a cell of a pronoun table had to invent a
+ * way of saying "I belong to the card's own word", and each new per-form
+ * field was written once for the lead and once for the rest.
+ *
+ * One list now, the card's own word first. `forms[0]` is what a list
+ * shows, what a search matches and what a sentence borrows — see leadOf in
+ * cards.ts, which is how every reader asks for it.
+ */
+export type Item = {
+  id: string;
+  /** Which language it is in. A device holds more than one. */
+  lang?: LangId;
   kind?: string;
   tags: string[];
+  /** The card's own word first, then the alternates it carries. */
+  forms: Form[];
+  /** What the card as a whole is about, where the teacher wrote one. */
+  note?: string;
   /** The variable this card stands in for, where it is a value. See Card. */
   fills?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
@@ -738,14 +762,16 @@ export type Item = Form & {
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /** Which of the teacher's other cards this one teaches by containing them. */
+  uses?: string[];
   flags?: any[];
-  subs?: Form[];
   lines?: Line[];
   speakers?: string[];
   you?: number | null;
   source?: { courseId: string; deckId: string; cardId: string; rev: number };
   locked?: boolean;
   created: Millis;
+  updated?: Millis;
 };
 
 /**

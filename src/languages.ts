@@ -32,6 +32,7 @@ import type {
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
 import { answersOf } from "./answers.ts";
+import { leadOf } from "./cards.ts";
 import type { AnswerField, WithAnswers } from "./answers.ts";
 
 
@@ -593,8 +594,15 @@ export const kindLabel = (kind?: string): string =>
 export const kindOf = (
   card: Record<string, any>,
   lang: { guessKind?: (text: string) => string } | null = null,
-): string =>
-  isDialog(card) ? DIALOG_KIND : (card && card.kind) || guessKind(card && (card.ar || card.en || card.lat), lang);
+): string => {
+  if (isDialog(card)) return DIALOG_KIND;
+  if (card && card.kind) return card.kind;
+  /* Guessed from the card's own word, which since 0.138 is the first of
+     its forms rather than the card itself. A plain form is its own lead,
+     so a caller holding one reads the same answer. */
+  const word = leadOf(card);
+  return guessKind(word.ar || word.en || word.lat, lang);
+};
 
 /**
  * @param text  Whatever the card holds, which for an empty field is nothing at all.

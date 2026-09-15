@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.ts";
-import { formsOf, subFormsOf } from "./cards.ts";
+import { formsOf, leadOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
@@ -797,7 +797,10 @@ function Written({ text }: { text?: string | null }) {
  * sides show these: only the wording is read, and that is all a form is.
  */
 export function CardTile({ card, lang, showLat, meta, actions, onClick, className }: {
-  card: Form;
+  /* A card, not one of its forms: the tile shows the card's own word —
+     the first of them — and says what the card is called, which is a fact
+     about the card. */
+  card: Record<string, any>;
   lang?: Lang;
   showLat?: boolean;
   meta?: Node;
@@ -810,7 +813,8 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
      one, which is what a person recognises it by. Here rather than at each
      list, so every place cards are shown says the same thing about them —
      the tile with an empty face was the alternative. */
-  const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : card.ar;
+  const lead = leadOf(card);
+  const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : lead.ar;
   return (
     <div
       className={`at-minicard${className ? " " + className : ""}`}
@@ -869,8 +873,8 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         <Written text={face} />
       </div>
-      {card.name ? null : <div className="at-minien">{card.en}</div>}
-      {showLat && card.lat ? <div className="at-minilat">{card.lat}</div> : null}
+      {card.name ? null : <div className="at-minien">{lead.en}</div>}
+      {showLat && lead.lat ? <div className="at-minilat">{lead.lat}</div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how
           many forms it had and how many recordings — four facts in a
@@ -2854,12 +2858,21 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
    */
   const formId = (name: string, i: number) =>
     `${localIdFor(card.id)}-f${name ? `~${name}` : i}`;
-  const forms = subFormsOf(card).map((sb, i) => ({
-    id: formId(String(sb.id || ""), i),
-    ar: sb.ar || "",
-    lat: sb.lat || "",
-    en: sb.en || "",
-    ...dimValues(sb),
+  /*
+   * One form, whichever of them it is.
+   *
+   * Written once and used for the card's own word as well as for its
+   * alternates, which is the whole of what the one list bought: a field
+   * that belongs to a form — where it sits in a table, whether it is asked
+   * about, what its answers are grammatically — is carried here, once,
+   * rather than here and again on the card.
+   */
+  const formOf = (f: Record<string, any>, id: string) => ({
+    id,
+    ar: f.ar || "",
+    lat: f.lat || "",
+    en: f.en || "",
+    ...dimValues(f),
     /*
      * Where it sits, if it sits in a table.
      *
@@ -2874,19 +2887,19 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
      * this device's, so a cell points at the form beside it rather than at
      * a name from another machine.
      */
-    ...(sb.row ? { row: String(sb.row) } : null),
-    ...(sb.col ? { col: String(sb.col) } : null),
-    ...(sb.of ? { of: formId(String(sb.of), -1) } : null),
+    ...(f.row ? { row: String(f.row) } : null),
+    ...(f.col ? { col: String(f.col) } : null),
+    ...(f.of ? { of: formId(String(f.of), -1) } : null),
     /* And whether the teacher asks about it at all — a table written out
        for a student to read rather than to be drilled on. Carried only
        where it is off, so an ordinary form gains nothing; absent means
        asked, here as everywhere. */
-    ...(sb.ask === false ? { ask: false } : null),
+    ...(f.ask === false ? { ask: false } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers
        carrying them, which is what they meant when there was one set. */
-    answers: keptAnswers(sb),
+    answers: keptAnswers(f),
     note: "",
     /* Which language this is in, carried onto every form rather than onto
        the card alone: a form is what an exercise is about, and what marks
@@ -2894,11 +2907,18 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        language the app happens to be set to, which for somebody studying
        two is right half the time. */
     lang: card.lang,
-    recs: recsOf(sb),
+    recs: recsOf(f),
     created: Date.now(),
     updated: Date.now(),
     s: freshStates(),
-  }));
+  });
+
+  /* The card's own word first, then its alternates — one list, and the
+     card's own word answers to the card's own id, which is what every
+     question about it has always carried. */
+  const forms = formsOf(card).map((f, i) =>
+    formOf(f, i === 0 ? localIdFor(card.id) : formId(String(f.id || ""), i - 1)),
+  );
 
   /* A conversation's turns, which are forms with a speaker on them. Named
      the way the other forms are, so a line keeps its progress across a
@@ -2920,9 +2940,6 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
 
   return {
     id: localIdFor(card.id),
-    ar: card.ar || "",
-    lat: card.lat || "",
-    en: card.en || "",
     /* Every course card used to arrive labelled a word, whatever it held.
        That made the practice filter useless on course material, told the
        session builder that any two cards were more alike than they are, and
@@ -2934,6 +2951,7 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        holds. Asked through kindOf, which is the one answer to "what is
        this card" that every screen reads. */
     kind: kindOf({ ...card, lines }, LANGUAGES[card.lang]),
+    forms,
     ...(lines.length
       ? {
           lines,
@@ -2958,11 +2976,6 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        teacher's decision and neither can be read off the words. */
     ...(card.fills ? { fills: String(card.fills) } : null),
     ...(card.drill === false ? { drill: false } : null),
-    /* And whether its own word is asked about, as against the forms under
-       it: a verb whose table is the lesson and whose dictionary form is
-       there to be read. A third thing only the teacher can decide, carried
-       for the same reason the two above are. */
-    ...(card.ask === false ? { ask: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same
        reason those two are: it is the teacher's words and nothing here
@@ -2976,10 +2989,6 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     tags: [deckTitle],
     locked: true,
     flags: [],
-    recs: recsOf(card),
-    ...dimValues(card),
-    answers: keptAnswers(card),
-    subs: forms,
     source: { courseId, deckId, cardId: card.id, rev: card.rev || 1 },
     /* When the card was made, not when it reached this device — so "added"
        means the same thing to the student as it does to the teacher who
@@ -2987,7 +2996,6 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        date. */
     created: card.created || Date.now(),
     updated: Date.now(),
-    s: freshStates(),
   };
 }
 
@@ -3164,12 +3172,11 @@ export function foldCourses(items: Item[], incoming: Item[]) {
   for (const fresh of incoming) {
     const existing = byId.get(fresh.id);
     if (existing) {
-      /* Keep what the student has earned; take the teacher's wording. */
-      kept.push({
-        ...fresh,
-        s: existing.s,
-        subs: foldForms(subFormsOf(existing), subFormsOf(fresh)),
-      });
+      /* Keep what the student has earned; take the teacher's wording.
+         One call, where it used to be the card's own progress and then its
+         forms': the card's word is the first of its forms and matches by
+         name like any other. */
+      kept.push({ ...fresh, forms: foldForms(formsOf(existing), formsOf(fresh)) });
     } else {
       kept.push(fresh);
     }

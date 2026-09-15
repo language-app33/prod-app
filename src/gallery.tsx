@@ -69,11 +69,26 @@ const ICON_NAMES = [
   "language", "lock",
 ];
 
+/* One list of forms, the card's own word first — a card as the app has
+   held one since 0.138. Whatever a language declares about a word sits on
+   the form that word is, not on the card. */
 const SAMPLE_CARD = {
-  id: "sample", ar: "كِتَاب", en: "book", lat: "kitaab", note: "",
-  lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
-  tags: ["Lesson 1"], clips: [], subs: [{ ar: "كُتُب", en: "books", lat: "kutub", clips: [] }],
+  id: "sample", note: "", lang: "ar-PS", tags: ["Lesson 1"],
+  forms: [
+    {
+      id: "g1", ar: "كِتَاب", en: "book", lat: "kitaab", clips: [],
+      number: "singular", gender: "masculine", classifier: "",
+    },
+    { id: "g2", ar: "كُتُب", en: "books", lat: "kutub", clips: [] },
+  ],
 };
+
+/* The same card with a different word in front, for the specimens that
+   want one. */
+const sampleWord = (word: Record<string, unknown>) => ({
+  ...SAMPLE_CARD,
+  forms: [{ ...SAMPLE_CARD.forms[0], ...word }, ...SAMPLE_CARD.forms.slice(1)],
+});
 /* The real pack, not a hand-written stand-in. A specimen with no font
    stack used to inherit an Arabic one from the stylesheet; nothing
    does now, so a specimen that wants the script has to name a
@@ -758,7 +773,7 @@ export function ComponentGallery() {
             underneath rather than sitting above it. */}
         <V label="card with a name of its own" wide>
           <CardTile
-            card={{ ...SAMPLE_CARD, name: "to eat", ar: "أكل", en: "he ate", lat: "akal" }}
+            card={{ ...sampleWord({ ar: "أكل", en: "he ate", lat: "akal" }), name: "to eat" }}
             lang={SAMPLE_LANG}
             meta="Lesson 1"
             showLat

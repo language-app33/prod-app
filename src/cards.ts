@@ -42,33 +42,73 @@ import type { Form } from "./types.ts";
  * throwing, because a card is somebody's work and half of it read is worth
  * more to them than an exception.
  */
-const subsOf = (card: unknown): Form[] => {
-  const subs =
-    card && typeof card === "object" ? (card as Record<string, unknown>).subs : undefined;
-  return Array.isArray(subs) ? (subs as Form[]) : [];
+const listOf = (card: unknown, field: string): Form[] => {
+  const list =
+    card && typeof card === "object" ? (card as Record<string, unknown>)[field] : undefined;
+  return Array.isArray(list) ? (list as Form[]) : [];
 };
 
 /**
  * Every form of a card, the card's own word first.
  *
- * The lead is the card itself: it carries the wording, the recordings and
- * the schedule a form carries, plus the facts that belong to the card as a
- * whole — which decks it is in, where it came from — and a reader walking
- * forms simply does not ask about those. Nothing at all comes back for
- * nothing at all, so a card withdrawn while somebody was looking at it is
- * an empty list rather than a crash.
+ * One list, and the card's own word is the first entry of it. A card
+ * written before that — every card stored until 0.138 — is a word with its
+ * alternates in `subs` beside it, and is read here as the list it always
+ * meant: the card, then those. Nothing else in the app knows there were
+ * ever two shapes.
+ *
+ * Nothing at all comes back for nothing at all, so a card withdrawn while
+ * somebody was looking at it is an empty list rather than a crash.
  */
 export function formsOf(card: unknown): Form[] {
   if (!card || typeof card !== "object") return [];
-  return [card as Form, ...subsOf(card)];
+  const forms = listOf(card, "forms");
+  if (forms.length) return forms;
+  /* The old shape, lifted where it is met: on a stored document, on a
+     card from a course, on anything a device synced from a build that
+     had not caught up yet. */
+  return [card as Form, ...listOf(card, "subs")];
 }
+
+/**
+ * The card's own word — the first of its forms.
+ *
+ * What a list shows, what a search matches, what a sentence borrows, and
+ * what the card is saved as. Every reader that wants *the card as a word*
+ * rather than the card as a whole asks this, which is what let the answer
+ * move: while a card was stored as a word with a list of alternates beside
+ * it, the lead was the card itself; it is the first entry of one list now,
+ * and nothing that reads it had to be told.
+ *
+ * A blank form for a card that has none, so a reader can take its word
+ * without a guard. There is no such card in practice — a card with no
+ * words is a card with nothing on it — but a half-written draft and a
+ * withdrawn card both reach here.
+ */
+export function leadOf(card: unknown): Form {
+  return formsOf(card)[0] || ({ id: "", ar: "", en: "", lat: "" } as Form);
+}
+
+/**
+ * The same card, with a different word in front.
+ *
+ * A question is asked of a form, and the form is cast before it is shown —
+ * a hole filled with a name, one meaning picked out of two, one spelling
+ * narrowed to. Where the question is about the card's own word, whatever
+ * reads the card afterwards has to see the word as it was asked, not as it
+ * is stored. This is that card.
+ *
+ * The alternates come along unchanged: casting one word is not a change to
+ * the others.
+ */
+export const withLead = <T>(card: T, lead: Form): T =>
+  ({ ...(card as object), forms: [lead, ...subFormsOf(card)] }) as T;
 
 /**
  * The forms after the lead — the alternates a card carries.
  *
  * The question the editor asks (these get a block each, the card's own
- * word has the one above), and the one the save path and the merge ask
- * (these travel as `subs`). Where a caller means *all* of them, it wants
- * formsOf.
+ * word has the one above) and the one the merge asks. Where a caller means
+ * *all* of them, it wants formsOf.
  */
-export const subFormsOf = (card: unknown): Form[] => subsOf(card);
+export const subFormsOf = (card: unknown): Form[] => formsOf(card).slice(1);

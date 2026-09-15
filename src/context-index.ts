@@ -20,6 +20,7 @@
 import type { Item, Lang } from "./types.ts";
 import { findWordSpan, supportsContext } from "./languages.ts";
 import { unitsOf } from "./scheduler.ts";
+import { leadOf } from "./cards.ts";
 import { dialogPhrases } from "./dialogs.ts";
 
 /*
@@ -48,7 +49,10 @@ export interface Context {
    these and so does a turn of a conversation, once dialogPhrases has handed
    it over in the same shape — and that is the whole reason a line can stand
    in for a phrase here without this knowing what a dialog is. */
-type Source = Pick<Item, "id" | "ar" | "en"> & {
+type Source = {
+  id: string;
+  ar: string;
+  en: string;
   uses?: string[];
   recs?: { id: string }[];
   lang?: string;
@@ -66,7 +70,13 @@ export function buildContextIndex(items: Item[], lang: Lang): Map<string, Contex
      what makes a scene worth writing on the first day — every word
      already being learnt gains a real exchange to be gapped inside of,
      with nothing new marked. */
-  const sources: Source[] = [...items, ...dialogPhrases(items)];
+  /* A card stands here as its own word — the first of its forms — with
+     the card's own id and the words it teaches, which is what a phrase is
+     to this index. */
+  const sources: Source[] = [
+    ...items.map((it) => ({ ...leadOf(it), id: it.id, uses: it.uses || [], lang: it.lang })),
+    ...dialogPhrases(items),
+  ];
   for (const phrase of sources) {
     const uses = phrase.uses || [];
     if (!uses.length || !phrase.ar) continue;

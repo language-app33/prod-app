@@ -23,7 +23,7 @@
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
 import { TYPES, barAfterLevel, barOf, levelOf } from "./languages.ts";
-import { subFormsOf } from "./cards.ts";
+import { leadOf, subFormsOf } from "./cards.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;
@@ -503,17 +503,18 @@ export interface Unit {
 /**
  * A card and its other forms, each drilled in its own right.
  *
- * What comes back are forms, not cards: the card is the first of them, and
- * the rest carry no tags, no lock and no deck. Everything downstream reads
- * the wording and the schedule, which is all a form has and all it needs.
+ * What comes back are forms, not cards: the card's own word is the first
+ * of them, and none of them carries the tags, the lock or the deck those
+ * belong to the card. Everything downstream reads the wording and the
+ * schedule, which is all a form has and all it needs.
  *
  * Takes nothing as well as a card: callers walk whatever they were handed
  * — a card looked up by an id that has since been withdrawn, most often —
- * and the guard below is what makes that a one-entry list rather than a
+ * and a blank lead form is what makes that a one-entry list rather than a
  * crash. The tests cover it, so the signature says it.
  */
 export function unitsOf(item: Item | null | undefined): Unit[] {
-  const units: Unit[] = [{ unit: item as unknown as Form, isSub: false }];
+  const units: Unit[] = [{ unit: leadOf(item), isSub: false }];
   for (const sb of subFormsOf(item)) units.push({ unit: sb, isSub: true });
   /* The lines of a dialog, which are drilled in their own right exactly as
      the other forms of a word are: same three fields, same progress, same

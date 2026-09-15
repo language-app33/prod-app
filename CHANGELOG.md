@@ -8,6 +8,37 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.138 — 15 September 2026
+
+- **Housekeeping: a card is now simply the list of forms it holds.** Nothing
+  looks or behaves differently, and nothing you have written changes.
+
+  A card has always been one word together with the alternates it carries —
+  a plural, a feminine, a cell of a verb's table, a word with a pronoun on
+  its end — and every one of those is a thing to learn in its own right,
+  with its own recordings, its own pronunciation and its own place on the
+  ladder. Until now the card's own word was kept apart from the rest: the
+  word was the card, and the alternates sat in a list beside it. That is two
+  shapes for one kind of thing, so every fact about a form had to be
+  written twice, and the two kept drifting apart. An alternate had no name
+  of its own for three releases. A form kept without being asked about
+  needed a second, separate answer for the card's own word. A cell of a
+  pronoun table had to invent a way of saying "I belong to the card's own
+  word".
+
+  One list now, the card's own word first. Every form is the same kind of
+  thing, so anything added to forms from here on is added once. Your cards
+  are read into the new shape the moment the app opens them, and each keeps
+  its recordings, its progress and everything the teacher wrote.
+
+  This is the last of the groundwork. Sentence cards come next, and after
+  them blanks that can be filled by any form of a word.
+
+- **A conversation's read-through and put-it-in-order questions are asked of
+  the scene's own title.** Part of the same change, and worth saying because
+  it is the one place where the new shape had to answer a question the old
+  one answered by accident. Nothing about practising a conversation changes.
+
 ## 0.137 — 15 September 2026
 
 - **A card now says what kind of word it is, and the teacher is the one who

@@ -34,6 +34,7 @@
  * can reach and somewhere nothing can reach back into.
  */
 import { splitAlternatives } from "./answers.ts";
+import { leadOf } from "./cards.ts";
 
 /*
  * What a slot looks like: {{name}}, and nothing cleverer.
@@ -165,11 +166,20 @@ export function splitSlots(value: string | null | undefined): { text: string; sl
   return out;
 }
 
-/** Every variable a form names, across the fields it is written in. */
+/**
+ * Every variable a form names, across the fields it is written in.
+ *
+ * Asked of a whole card as well as of a form — "has this card a hole in
+ * it" is what keeps a frame out of a matching grid and out of the words
+ * offered as wrong answers — so it reads the card's own word, which since
+ * 0.138 is the first of its forms rather than the card itself. A plain
+ * form is its own lead, so both kinds of caller read the same.
+ */
 export function slotsOf(form: WithSlots | null | undefined): string[] {
+  const word = leadOf(form) as WithSlots;
   const out: string[] = [];
   for (const field of FILLED_FIELDS) {
-    for (const name of slotsIn(text(form, field))) if (!out.includes(name)) out.push(name);
+    for (const name of slotsIn(text(word, field))) if (!out.includes(name)) out.push(name);
   }
   return out;
 }
@@ -247,7 +257,14 @@ export function valuesFor(
  * is not a sentence. The first is the one the teacher wrote first.
  */
 export function valueOf(card: WithSlots | null | undefined, fields: string[] = []): Value {
-  const first = (field: string) => (splitAlternatives(text(card, field))[0] || "").trim();
+  /* The words come off the card's own word, which since 0.138 is the first
+     of its forms rather than the card itself. A plain form handed in here
+     — a line of a dialog, a unit the scheduler is holding — is its own
+     lead, so both kinds of caller read the same. The id stays the card's:
+     what a hole is filled with is *this card*, and the ladder a value is
+     gated on is looked up by it. */
+  const word = leadOf(card) as WithSlots;
+  const first = (field: string) => (splitAlternatives(text(word, field))[0] || "").trim();
   /* Which fields hold a grammatical value is the language table's answer
      and not this module's, so the names are passed in, exactly as
      answers.ts is handed the fields it may narrow against. Read off the
@@ -256,7 +273,7 @@ export function valueOf(card: WithSlots | null | undefined, fields: string[] = [
      the editor, an import, the server — actually sets. */
   const grammar: Record<string, string> = {};
   for (const field of fields) {
-    const value = text(card, field).trim();
+    const value = text(word, field).trim();
     if (value) grammar[field] = value;
   }
   return {

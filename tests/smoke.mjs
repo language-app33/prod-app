@@ -494,6 +494,20 @@ const results = [];
 const check = (label, ok, detail = "") => results.push(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? " — " + detail : ""}`);
 
 /*
+ * A card's forms, off the JSON — the card's own word first, then its
+ * alternates. Written out here rather than imported, because these checks
+ * read the app's two documents as a device would find them on disk.
+ */
+/** @param {any} it */
+const formsIn = (it) => ((it && it.forms) || []);
+/** @param {any} it */
+const lead = (it) => formsIn(it)[0] || {};
+/* The same card with its own word written over — the fixtures below build
+   variants of a stored card, and a card's word is the first of its forms.
+ */
+const reworded = (/** @type {any} */ it, /** @type {Record<string, any>} */ word) => ({ ...it, forms: [{ ...lead(it), ...word }, ...formsIn(it).slice(1)] });
+
+/*
  * Say what happened, whatever happened.
  *
  * The checks are printed at the end and the app's own console is held in
@@ -541,8 +555,8 @@ check("the cards that fill a variable arrive with the deck that needs them",
     byId["srv" + rafa.id].drill === false,
   JSON.stringify(byId["srv" + rafa.id] ? { fills: byId["srv" + rafa.id].fills, drill: byId["srv" + rafa.id].drill } : "not here"));
 check("and the phrase with the hole in it arrives as written",
-  !!byId["srv" + frameCard.id] && byId["srv" + frameCard.id].en === "My name is {{name}}",
-  byId["srv" + frameCard.id] ? byId["srv" + frameCard.id].en : "no frame card");
+  !!byId["srv" + frameCard.id] && lead(byId["srv" + frameCard.id]).en === "My name is {{name}}",
+  byId["srv" + frameCard.id] ? lead(byId["srv" + frameCard.id]).en : "no frame card");
 
 /* What a course card is, rather than what it used to be told it was. Every
    one of them arrived labelled "word" — which is why the practice filter did
@@ -551,21 +565,21 @@ check("and the phrase with the hole in it arrives as written",
 check("a one-word course card is a word", byId["srv" + card.id].kind === "word", byId["srv" + card.id].kind);
 check("and a course card holding a phrase is a phrase, not a word",
   byId["srv" + phrase.id].kind === "phrase", byId["srv" + phrase.id].kind);
-check("the old client's card kept its one answered state and gained nothing spurious", byId.oldclient1 && Object.keys(byId.oldclient1.s).join() === "ar2en" && byId.oldclient1.s.ar2en.reps === 3);
+check("the old client's card kept its one answered state and gained nothing spurious", byId.oldclient1 && Object.keys(lead(byId.oldclient1).s).join() === "ar2en" && lead(byId.oldclient1).s.ar2en.reps === 3);
 /* The v2 card's "mean" skill becomes ar2en; its "read" skill named the
    retired exercise and must not come back as a state for it. */
 check("a v2 card's skills lift onto types that exist, and no further",
-  byId.v2card && byId.v2card.s.ar2en && byId.v2card.s.ar2en.reps === 4,
-  byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
+  byId.v2card && lead(byId.v2card).s.ar2en && lead(byId.v2card).s.ar2en.reps === 4,
+  byId.v2card ? `states=${Object.keys(lead(byId.v2card).s).join(",")}` : "no v2 card");
 check("a v2 card gains no state for the retired exercise",
-  byId.v2card && !("ar2tr" in byId.v2card.s),
-  byId.v2card ? `states=${Object.keys(byId.v2card.s).join(",")}` : "no v2 card");
+  byId.v2card && !("ar2tr" in lead(byId.v2card).s),
+  byId.v2card ? `states=${Object.keys(lead(byId.v2card).s).join(",")}` : "no v2 card");
 /* On the phrase, which nobody has answered. The word card beside it in the
    same deck arrived carrying progress made on another device, which is the
    other half of the same rule: what is stored is what was answered. */
 check("untouched states are not stored",
-  byId["srv" + phrase.id] && Object.keys(byId["srv" + phrase.id].s).length === 0,
-  Object.keys((byId["srv" + phrase.id] || { s: {} }).s).join(",") || "none");
+  byId["srv" + phrase.id] && Object.keys(lead(byId["srv" + phrase.id]).s || {}).length === 0,
+  Object.keys(lead(byId["srv" + phrase.id]).s || {}).join(",") || "none");
 /* Seven of the nine: the two values are held and never counted. A card
    that fills a hole in somebody else's sentence is not a card waiting to be
    practised, and counting it would promise a session that never comes. */
@@ -582,11 +596,12 @@ const wire = remoteDocs.get(realToken)?.data;
    That is deliberate, and the reason a retired type's state is left alone
    rather than filtered out of the document. */
 const V2_KEYS = ["mean", "read", "write"];
-const typeStates = (/** @type {any} */ i) => Object.keys(i.s).filter((k) => !V2_KEYS.includes(k));
+const statesIn = (/** @type {any} */ i) => lead(i).s || {};
+const typeStates = (/** @type {any} */ i) => Object.keys(statesIn(i)).filter((k) => !V2_KEYS.includes(k));
 /* Answered, that is: a state is on the wire because something was written
    to it, never because a type exists. */
-check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((/** @type {any} */ i) => typeStates(i).every((k) => (i.s[k].reps || 0) > 0)), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
-check("the retired exercise is never written into the document", wire && wire.items.every((/** @type {any} */ i) => !("ar2tr" in i.s)), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(i.s).join("/") || "-"}`).join(" ") : "no wire doc");
+check("wire document is sparse and has no account", wire && !("account" in wire) && wire.items.every((/** @type {any} */ i) => typeStates(i).every((k) => (statesIn(i)[k].reps || 0) > 0)), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(statesIn(i)).join("/") || "-"}`).join(" ") : "no wire doc");
+check("the retired exercise is never written into the document", wire && wire.items.every((/** @type {any} */ i) => !("ar2tr" in statesIn(i))), wire ? wire.items.map((/** @type {any} */ i) => `${i.id}:${Object.keys(statesIn(i)).join("/") || "-"}`).join(" ") : "no wire doc");
 check("clip sync uploaded nothing (no blob: URLs)", !calls.some((c) => c.startsWith("POST /api/sync?audio")));
 check("clip sync did not fetch course recordings as a side effect", !calls.some((c) => c.includes("action=clip")), calls.filter((c) => c.includes("clip")).join(","));
 
@@ -2176,7 +2191,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      card is handed in with its bottom level mastered rather than read off
      the device — the rewrite reads states from the items it is given. */
   const done = { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 };
-  const card2 = { ...byId2.tied1, s: { ...byId2.tied1.s, ar2en: done, match: done } };
+  const card2 = reworded(byId2.tied1, { s: { ...lead(byId2.tied1).s, ar2en: done, match: done } });
   const one = withoutListening(
     [
       { id: card2.id, subId: null, type: "ar2en" },
@@ -2198,7 +2213,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   /* A card with nothing but sound to offer: the entry goes, rather than
      sitting in the queue unanswerable. */
-  const soundOnly = { ...card1, id: "soundonly", en: "", lat: "", recs: [{ id: "z".repeat(64) }] };
+  const soundOnly = {
+    ...reworded(card1, { id: "soundonly", en: "", lat: "", recs: [{ id: "z".repeat(64) }] }),
+    id: "soundonly",
+  };
   const dropped = withoutListening(
     [{ id: "soundonly", subId: null, type: "rec2ar" }],
     0,
@@ -2495,13 +2513,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const answered = (/** @type {any} */ u) =>
     Object.values((u && u.s) || {}).some((/** @type {any} */ st) => (st.reps || 0) > 0);
   check("what was answered is recorded against the line it was about",
-    !!afterScene && (afterScene.lines || []).concat([afterScene]).some(answered),
+    !!afterScene && (afterScene.lines || []).concat(formsIn(afterScene)).some(answered),
     afterScene ? JSON.stringify((afterScene.lines || []).map((/** @type {any} */ l) => Object.keys(l.s || {}).length)) : "");
   /* The read-through leaves nothing behind: it is an introduction, not an
      exercise, so there is nothing to schedule and nothing to store. */
   check("but the read-through is not scheduled, because it was never marked",
-    !!afterScene && !("dlgread" in (afterScene.s || {})),
-    afterScene ? Object.keys(afterScene.s || {}).join(",") : "");
+    !!afterScene && !("dlgread" in (lead(afterScene).s || {})),
+    afterScene ? Object.keys(lead(afterScene).s || {}).join(",") : "");
 
   /* A scene of three exercises runs out inside the loop above, so what is
      on screen is the end of the session rather than the middle of one —
@@ -2889,7 +2907,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const raw = w.localStorage.getItem("arabic-trainer:arabic-trainer-v3");
   const doc = raw ? JSON.parse(raw) : { items: [] };
   const frame = (doc.items || []).find((/** @type {any} */ i) => /k444444444444/.test(i.id || ""));
-  const met = (frame && frame.met) || {};
+  const met = lead(frame).met || {};
   const keys = Object.keys(met);
   check("answering it records which name it was asked with",
     keys.length > 0 && keys.every((k) => /^name:srvk[56]/.test(k)),
@@ -2902,7 +2920,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      empty record onto every card in the document the moment it was
      answered. */
   const forms = (doc.items || []).flatMap((/** @type {any} */ i) =>
-    [i].concat(i.subs || []).concat(i.lines || []));
+    formsIn(i).concat(i.lines || []));
   check("while a card with no hole in it keeps no such record",
     forms.every((/** @type {any} */ f) => !f.met || Object.keys(f.met).length > 0) &&
       forms.some((/** @type {any} */ f) => /k111111111111/.test(f.id || "") && !f.met),
