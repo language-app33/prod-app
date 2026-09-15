@@ -3601,6 +3601,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     typeInto(fieldNamed(/^English$/), "to eat");
     await sleep(200);
 
+    /* And the plainest card there is says what of it is drilled. 0.134 hid
+       the section on a card with one part, which is every ordinary word —
+       so the one place a teacher would look for it was the one place it
+       was never drawn. */
+    {
+      const plain = [...document.querySelectorAll(".at-formblock")].find((b) =>
+        /^What is drilled$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+      check("an ordinary word says what of it is drilled too", !!plain,
+        [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+      const only = plain ? [...plain.querySelectorAll(".at-tickrow")] : [];
+      check("one line, for the word itself, ticked",
+        only.length === 1 && /The main form/.test(only[0].textContent || "") &&
+          /** @type {any} */ (only[0].querySelector("input")).checked,
+        only.map((r) => (r.querySelector("b") || {}).textContent).join(" | ") || "(no lines)");
+    }
+
     const block = (/** @type {RegExp} */ re) =>
       [...document.querySelectorAll(".at-formblock")].find((b) =>
         re.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));

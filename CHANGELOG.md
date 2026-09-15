@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.135 — 15 September 2026
+
+- **Fixed: the *What is drilled* section was missing from every card that
+  needed no decision.** It was hidden on any card with only one part —
+  which is every ordinary word, and every card at the moment it is
+  created. So the section shipped in 0.134 appeared on none of the cards a
+  teacher opens first, and looked as though it had never arrived.
+
+  It is now on every card. On a plain word it is one line saying the word
+  is asked about, which is worth saying and is the only place anybody
+  would look to change it.
+
 ## 0.134 — 15 September 2026
 
 - **A card can now keep a form without being asked about it.** The editor
