@@ -1011,8 +1011,13 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the flag button opens the menu, and says that it has",
       !!menu && !!flag && flag.getAttribute("aria-expanded") === "true",
       menu && flag ? String(flag.getAttribute("aria-expanded")) : "no menu");
-    check("it offers the three things that can be wrong", opts.length === 3,
-      opts.map((o) => o.textContent).join(" | "));
+    check("it offers the four things a learner can say, too easy third", opts.length === 4 &&
+      /too easy/.test(opts[2].textContent || "") && /Something else/.test(opts[3].textContent || ""),
+      opts.map((o) => (o.querySelector(".at-flagopt-title") || {}).textContent).join(" | "));
+    check("and says what too easy does",
+      /graduate this card to the next level/.test((opts[2] && opts[2].textContent) || ""),
+      (opts[2] && opts[2].textContent) || "(no third option)");
+
     check("each is a card: what it is, and when to pick it",
       opts.length > 0 && opts.every((o) =>
         o.querySelector(".at-flagopt-title") && o.querySelector(".at-flagopt-what")),
@@ -1092,6 +1097,43 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       !document.querySelector('[data-el="flag-menu"]') &&
         /Flagged/.test((flagBtn && flagBtn.textContent) || ""),
       (flagBtn && flagBtn.textContent) || "no flag button");
+
+    /* ---- too easy: one level up, on the spot ----
+       Not a report: nothing is posted, and the form that was asked has
+       every exercise on its level counted as learnt before the menu has
+       closed. After the report above, on the same question: the two are
+       different things and a learner may do both. */
+    {
+      click(document.querySelector('[data-el="flag-button"]'));
+      await sleep(80);
+      const easyOpt = [...document.querySelectorAll('[data-el="flag-menu"] .at-flagopt')]
+        .find((o) => /too easy/.test(o.textContent || ""));
+      const before = calls.filter((c) => c.includes("report-flag")).length;
+      click(easyOpt);
+      await sleep(60);
+      clickNamed(/^Send$/);
+      await sleep(800);
+      check("too easy is not sent anywhere",
+        calls.filter((c) => c.includes("report-flag")).length === before, calls.slice(-2).join(", "));
+      check("and says what it did",
+        /Moved up a level|Already at the top/.test(document.body.textContent || ""),
+        ((document.querySelector(".at-snack") || {}).textContent || "").trim() || "(nothing said)");
+      const doc = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+      const lifted = (doc.items || [])
+        .flatMap((/** @type {any} */ i) => [...(i.forms || []), ...(i.lines || [])])
+        .filter((/** @type {any} */ f) => {
+          const fresh = Object.values(f.s || {}).filter((/** @type {any} */ st) =>
+            st.phase === "review" && Date.now() - (st.updated || 0) < 10000);
+          return fresh.length >= 2 && new Set(fresh.map((/** @type {any} */ st) => st.updated)).size === 1;
+        });
+      check("the form that was asked has its whole level counted as learnt, in one stamp",
+        lifted.length === 1,
+        `${lifted.length} forms lifted` + (lifted[0] ? `: ${Object.entries(lifted[0].s).filter(([, st]) => /** @type {any} */ (st).phase === "review").map(([k]) => k).join(",")}` : ""));
+      const flagBtnEasy = document.querySelector('[data-el="flag-button"]');
+      check("and the menu closes",
+        !document.querySelector('[data-el="flag-menu"]') && /Flagged/.test((flagBtnEasy && flagBtnEasy.textContent) || ""),
+        (flagBtnEasy && flagBtnEasy.textContent) || "no flag button");
+    }
 
     /* The naming scheme, kept honest. A -label or a -text is the second or
        third name of a block, so the block itself has to exist and has to be
@@ -2923,7 +2965,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(250);
   }
   click(buttonNamed(/^Continue$/));
-  await sleep(300);
+  /* Answers reach the device 600ms after the last one; read once that has
+     had time to happen, as the scene walk above does. */
+  await sleep(900);
 
   const raw = w.localStorage.getItem("arabic-trainer:arabic-trainer-v3");
   const doc = raw ? JSON.parse(raw) : { items: [] };

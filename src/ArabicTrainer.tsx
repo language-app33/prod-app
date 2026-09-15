@@ -172,6 +172,8 @@ import {
   difficulty,
   formatGap,
   freshState,
+  hasLevelAbove,
+  liftLevel,
   freshStates,
   isAsked,
   itemDifficulty as itemDifficultyOf,
@@ -4503,7 +4505,7 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
   onContinue: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  /* Which of the three is being reported, and the words for the one that
+  /* Which of the four is being reported, and the words for the one that
      asks for them. Picking no longer sends: the two buttons that act on
      this are on screen from the moment the menu opens, so what a press on
      an option does is choose, and Send is what sends. */
@@ -4554,8 +4556,8 @@ function AfterAnswer({ ok, overridden, onOverride, onFlag, flagged, onContinue }
               {flagged ? "Flagged" : "Flag a problem"}
             </button>
 
-            {/* Everything at once: what this is, the three things it can
-                be, the box for the third, and the way out and the way to
+            {/* Everything at once: what this is, the four things it can
+                be, the box for the last, and the way out and the way to
                 send. It covers the foot rather than floating above it —
                 nothing is behind it to press by accident, and the heading
                 says what the button it is standing on top of said. */}
@@ -4794,6 +4796,13 @@ export default function ArabicTrainer() {
   const [skipped, setSkipped] = useState(false);
   const [overridden, setOverridden] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
+  /* The question the learner said was too easy, whose form has already
+     been moved up its ladder — so the grading on Continue leaves that
+     form's schedule alone rather than rewarding or lapsing an answer the
+     learner has overruled. The question itself rather than a yes: a
+     session left without pressing Continue would otherwise carry a yes
+     into the next one and skip its first answer. */
+  const [easedFor, setEasedFor] = useState<object | null>(null);
   /*
    * The hint, and whether it was leant on.
    *
@@ -5699,6 +5708,7 @@ export default function ArabicTrainer() {
     setSkipped(false);
     setOverridden(false);
     setFlaggedNow(false);
+    setEasedFor(null);
     setAlsoOpen(false);
     setShowSaid(false);
     setShowMeaning(false);
@@ -6113,6 +6123,13 @@ export default function ArabicTrainer() {
     const said = String(note || "").slice(0, FLAG_NOTE_MAX);
     setFlaggedNow(true);
     sfx("tick");
+    /* "This was too easy" is not a report: it is the learner's own
+       shortcut up the ladder, done here and now on the form that was
+       asked, and never sent to anybody. */
+    if ((FLAG_KINDS.find((k) => k.key === kind) || {}).lifts) {
+      liftCurrent();
+      return;
+    }
     persist((cur) => {
       const next = { ...cur, items: cur.items.slice() };
       const idx = next.items.findIndex((i) => i.id === parentItem.id);
@@ -6157,6 +6174,64 @@ export default function ArabicTrainer() {
       .catch(() => flash("Noted on this device. We couldn't reach the server.", "warn"));
   }
 
+  /*
+   * Move the form that was asked up one level of its ladder.
+   *
+   * Every exercise on the level it stands on — and any below that the next
+   * level asks more of — is counted as learnt, so the next level opens from
+   * the next session; the next level itself is not touched. A form already
+   * on the top level is counted as mastered instead. The rule is
+   * liftLevel's; what this adds is which form, which keys, and the write.
+   * The keys are the form's own ladder (laddered), not the ones open right
+   * now: a listening exercise silenced for a quarter of an hour is still a
+   * rung to be climbed, and a lift that skipped it would leave the next
+   * level shut.
+   *
+   * On the spot rather than on Continue, because the message under the
+   * button says it has happened — and the grading on Continue then skips
+   * this form (see easedFor). A trial records nothing, as it records
+   * nothing else.
+   */
+  function liftCurrent() {
+    if (!item || !parentItem || !exercise) return;
+    if (session && session.trial) {
+      flash("A trial records nothing — the card is not yours to move.", "warn");
+      return;
+    }
+    const keys = laddered(item, settings);
+    const above = hasLevelAbove(keys, exercise.type);
+    setEasedFor(exercise);
+    persist((cur) => {
+      const next = { ...cur, items: cur.items.slice() };
+      const idx = next.items.findIndex((i) => i.id === parentItem.id);
+      if (idx < 0) return cur;
+      const it = { ...next.items[idx] };
+      const subId = exercise.subId || null;
+      const target = subId
+        ? formsOf(it).find((x) => x.id === subId) || linesOf(it).find((x) => x.id === subId)
+        : leadOf(it);
+      if (!target) return cur;
+      const lifted = liftLevel(keys, (k) => statesOf(target)[k], exercise.type);
+      if (!Object.keys(lifted).length) return cur;
+      const grown = (x: Form) => ({ ...x, s: { ...x.s, ...lifted }, updated: now() });
+      if (subId && linesOf(it).some((x) => x.id === subId)) {
+        it.lines = linesOf(it).map((x) => (x.id === subId ? grown(x) : x));
+      } else {
+        const asked = subId || leadOf(it).id;
+        it.forms = formsOf(it).map((x) => (x.id === asked ? grown(x) : x));
+      }
+      it.updated = now();
+      next.items[idx] = it;
+      return next;
+    });
+    flash(
+      above
+        ? "Moved up a level. It comes back at the next one."
+        : "Already at the top — counted as learnt.",
+      "good",
+    );
+  }
+
   function applyGrade() {
     if (!item || !parentItem || !exercise) return;
     /*
@@ -6183,6 +6258,11 @@ export default function ArabicTrainer() {
     /* Before the grading, not after: a question answered is learning done,
        whether it was right or wrong. */
     reportLearning(account);
+    /* This question, and no other: the mark names the question it was
+       made on, so a session that ended on it cannot carry it into the
+       next one. Put down once read. */
+    const eased = easedFor === exercise;
+    setEasedFor(null);
     // Nothing to grade by hand: the check decides, and a shown answer counts
     // as a miss. "Too strict" is the one way to overturn it.
     /*
@@ -6267,6 +6347,13 @@ export default function ArabicTrainer() {
             linesOf(it).find((x) => x.id === mark.subId)
           : leadOf(it);
         if (!target) continue;
+        /* The learner said this one was too easy and it has already been
+           moved up its ladder: the answer they gave is neither rewarded
+           nor lapsed. Any other word on the same grid is still marked. */
+        if (eased && mark.id === parentItem.id && (mark.subId || null) === (exercise.subId || null)) {
+          any = true;
+          continue;
+        }
 
         const before = statesOf(target)[exercise.type] || freshState();
         let s;

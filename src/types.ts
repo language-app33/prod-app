@@ -864,8 +864,10 @@ export type WireDoc = Partial<Doc>;
 
 /* ---- reported problems ---- */
 
-/** Which of the three things a learner said was wrong. */
-export type FlagKind = "strict" | "data" | "other";
+/** Which of the four things a learner said — three complaints, and "too
+    easy", which is a shortcut up the ladder rather than a report and is
+    never sent to the server. */
+export type FlagKind = "strict" | "data" | "easy" | "other";
 
 /**
  * What has become of a flagged card since the report was sent. Worked out

@@ -1192,3 +1192,47 @@ count lands on moved for adjective and number cards, once, because their
 pools shrank to the word. And `fillableAt` cannot foresee a blank cell, so
 a sentence may be dealt and then left unfilled — the gap the verb's own
 sentence already has, now shared.
+
+---
+
+## "Too easy" writes the ladder directly, once, on the form that was asked
+
+**16 September 2026** · `liftLevel`/`hasLevelAbove` in `src/scheduler.ts`,
+`liftCurrent` and `easedFor` in `src/ArabicTrainer.tsx`, the `lifts` mark
+on `FLAG_KINDS` in `src/shared.tsx`
+
+A learner who already knows a word had no way past the days of exercises
+the ladder deals them. The fourth flag is that way, and three choices
+about it were not obvious.
+
+**It is not a report.** The other three flags are sent to the teacher, and
+this one is not: it is the learner's own shortcut, it needs no account, and
+the server never sees the kind. Putting it in the flag menu is a choice
+about where a learner looks for "this question was wrong for me", not about
+what happens next. The owner chose this over reporting it.
+
+**It moves the form that was asked, not the card.** A card's ladder is
+climbed form by form — the plural and each cell of a table have their own —
+and a learner who finds the singular easy has said nothing about a plural
+they have not met. The whole-card reading would have skipped it.
+
+**It writes the states directly, not through the grader.** The grader's
+"easy" would have done for a new form, but it pushes a form already in
+review far past where it was, and it moves the count of right answers —
+which is what rotates a card's spellings and blanks — for questions never
+answered. The rule instead: the bar of the *next* level, applied to every
+key below it (which is how a level opens, and why climbing from three
+re-raises one and two), the smallest interval that meets it, and nothing
+touched that is already there. At the top there is no next level, so the
+form is counted as mastered throughout.
+
+**Done on Send, and the grading on Continue then skips that form.** The
+message under the button says it has happened, so it has to have. The
+grading remembers *which question* was lifted — the question object, not a
+yes — because a session left without pressing Continue would otherwise
+carry a yes into the next session and swallow its first answer, which it
+did, in the smoke walk, before it was a question.
+
+**What it costs.** A learner who flags a hard card as easy has skipped a
+level of it and meets it again at the next; the flag is deliberately not
+behind a confirmation. And a trial records nothing, as before.

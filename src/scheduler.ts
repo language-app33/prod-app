@@ -338,6 +338,57 @@ export function graduated(s: ExerciseState): boolean {
   return s.phase === "review";
 }
 
+/**
+ * The states to write so that a form climbs one level of its ladder, and
+ * no further — what "this was too easy" does.
+ *
+ * The bar is the *next* level's, applied to every key below it, because
+ * that is what opens a level (see openTypes): graduated for levels two and
+ * three, mastered for four — so climbing from three re-raises levels one
+ * and two as well. A form with no level above the one asked is counted as
+ * mastered throughout, which is what "done" means at the top. The next
+ * level's own keys are not touched, so the one after it stays shut.
+ *
+ * Written directly rather than through `reschedule` with an "easy": a key
+ * already in review would be pushed far past where it was, and the count
+ * of right answers — which is what rotates a card's spellings and blanks —
+ * would move for questions never answered. A state already at the bar is
+ * left alone; one that is not becomes a review state at the smallest
+ * interval that meets the bar, keeping any larger interval it already had,
+ * and stamped now so a sync keeps it.
+ *
+ * The keys are the form's own ladder, handed in, so a level the form has
+ * no material at is simply absent — the same reading openTypes makes.
+ */
+export function liftLevel(
+  keys: string[],
+  stateOf: (key: string) => ExerciseState | null | undefined,
+  key: string,
+  clock: Clock = REAL_CLOCK,
+): Record<string, ExerciseState> {
+  const at = timeOf(clock);
+  const from = levelOf(key);
+  const levels = [...new Set(keys.map(levelOf))].sort((a, b) => a - b);
+  const next = levels.find((l) => l > from);
+  const bar = next === undefined ? "mastered" : barAfterLevel(next - 1);
+  const under = next === undefined ? keys : keys.filter((k) => levelOf(k) < next);
+  const met = bar === "graduated" ? graduated : mastered;
+  const days = bar === "graduated" ? GRADUATE_DAYS : MASTERED_DAYS;
+  const out: Record<string, ExerciseState> = {};
+  for (const k of under) {
+    const s = stateOf(k) || freshState();
+    if (met(s)) continue;
+    const interval = Math.max(s.interval || 0, days);
+    out[k] = { ...s, phase: "review", step: 0, interval, due: at + interval * DAY, updated: at };
+  }
+  return out;
+}
+
+/** Whether a form has a level above the one this key is on — false at the
+    top, where liftLevel counts it as mastered instead of moving it up. */
+export const hasLevelAbove = (keys: string[], key: string): boolean =>
+  keys.some((k) => levelOf(k) > levelOf(key));
+
 /* ------------------------------------------------------------------
    The ladder
 

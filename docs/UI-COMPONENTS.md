@@ -273,9 +273,10 @@ its play buttons resolve to "missing" rather than fetching.
   them. Anything sent back to the server uses `serverCardId`; taking the
   prefix off by hand is wrong, because a form of a card is not the card and
   an item that was never course material has no server name at all.
-- **`FLAG_KINDS` / `flagTitle(kind)` / `FLAG_NOTE_MAX`** — the three things a
-  learner can say is wrong with a question, each with a `title` and the
-  `what` line under it. The trainer renders the list; Admin → Flags names
+- **`FLAG_KINDS` / `flagTitle(kind)` / `FLAG_NOTE_MAX`** — the four things a
+  learner can say about a question — three complaints, and "too easy",
+  which moves the form up its ladder on the device and is never sent —
+  each with a `title` and the `what` line under it. The trainer renders the list; Admin → Flags names
   what came back with `flagTitle`. Not components, but they live here for
   the same reason: two copies would be two vocabularies for one thing.
 - **`languageName(languages, id)`** / **`LanguageTag`** — one place that knows

@@ -888,8 +888,9 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
 
 /* --- what can be wrong with a question ----------------------------
  *
- * Three things, each shown as a card: a title saying what is wrong, and a
- * line saying when to pick it. The list was four one-line labels, and two
+ * Four things, each shown as a card: a title saying what is wrong, and a
+ * line saying when to pick it — three complaints, and one that is not a
+ * complaint at all but the learner saying a question was beneath them. The list was four one-line labels, and two
  * of them were guesses about what a label meant — "The check was too
  * strict" describes the marking rather than the complaint, and someone
  * whose recording was silent had to choose between "the card's data" and
@@ -904,9 +905,12 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
  *
  * `fixes` marks the option that also overturns the marking; `asks` marks
  * the one that cannot be sent on its own, because it covers everything not
- * listed and so has to be said in words.
+ * listed and so has to be said in words. `lifts` marks the one that is the
+ * learner's own shortcut rather than a report: it moves the form that was
+ * asked up a level of its ladder, on this device, and is never sent to
+ * anybody — the server does not know the kind, and does not need to.
  */
-export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: boolean; asks?: boolean }[] = [
+export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: boolean; asks?: boolean; lifts?: boolean }[] = [
   {
     key: "strict",
     title: "My answer should have been accepted",
@@ -919,9 +923,15 @@ export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: b
     what: "The word, its meaning, one of its forms or its recording is wrong.",
   },
   {
+    key: "easy",
+    title: "This was too easy",
+    what: "By flagging this exercise as too easy, we'll automatically graduate this card to the next level",
+    lifts: true,
+  },
+  {
     key: "other",
     title: "Something else",
-    what: "Anything the two above don't cover. Tell us what happened.",
+    what: "Anything the ones above don't cover. Tell us what happened.",
     asks: true,
   },
 ];

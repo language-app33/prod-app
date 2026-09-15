@@ -39,7 +39,7 @@ export function idAsWanted() {
 /* A kind the app does not offer cannot be reported: the server refuses it
    at run time, and there is no reason to find that out over the network. */
 export function unknownKind() {
-  // @ts-expect-error "vibes" is not one of the three
+  // @ts-expect-error "vibes" is not one of the four
   return API.reportFlag({ ...base, kind: "vibes", language: "ar-PS" });
 }
 

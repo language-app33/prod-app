@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.142 — 16 September 2026
+
+- **A fourth flag: "This was too easy".** The flag menu on a question now
+  offers it third, with the line *By flagging this exercise as too easy,
+  we'll automatically graduate this card to the next level* — and it does.
+  Choosing it and pressing Send moves the form that was asked — the word,
+  or the one cell of a table the question was about — up one level of its
+  ladder on the spot: every exercise on the level it is standing on is
+  counted as learnt, so the next level opens from the next session. Its
+  other forms keep their own places. A form already on the top level is
+  counted as mastered instead, and the message under the button says which
+  happened.
+
+  The answer you gave to that question is not marked against you: if you
+  got it wrong and then said it was too easy, the too-easy wins. Nothing is
+  sent to the teacher — this one is your own shortcut, not a report — so it
+  needs no account and does not appear in the teacher's list of flags. In
+  a trial of a teacher's own card it does nothing, like everything else
+  there.
+
 ## 0.141 — 16 September 2026
 
 - **In a sentence, an adjective agrees with the noun beside it.** A blank
