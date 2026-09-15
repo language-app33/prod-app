@@ -86,7 +86,7 @@ await build({
 });
 const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits, drillableUnits, agreeTook } =
   await import(path.join(out, "trainer.js"));
-const { defaultTypes, LANGUAGES, verbOf, attachedOf, specOf } = await import(path.join(here, "..", "src", "languages.ts"));
+const { TYPES, LANGUAGES, verbOf, attachedOf, specOf } = await import(path.join(here, "..", "src", "languages.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -792,7 +792,7 @@ test("a known word's cells are asked one exercise a level", () => {
  * form, which is the whole of what 0.131 changed — one gate on the card
  * opened the plural's eight the moment the singular was recognised.
  */
-const settings = { language: "ar-PS", types: defaultTypes(), kinds: {}, perItem: 2 };
+const settings = { language: "ar-PS", kinds: {} };
 /** @param {string} phase @param {number} interval */
 const state = (phase, interval) => ({
   phase, step: 0, ease: 2.5, interval, due: 0, reps: 3, lapses: 0,
@@ -800,7 +800,7 @@ const state = (phase, interval) => ({
 });
 /** Every exercise a form could be asked, at one standing. */
 const allAt = (/** @type {any} */ s) =>
-  Object.fromEntries(Object.keys(defaultTypes()).map((t) => [t, s]));
+  Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, s]));
 
 /** @param {Record<string, any>} over @returns {any} */
 const bookCard = (over) => ({

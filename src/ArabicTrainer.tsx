@@ -135,8 +135,7 @@ import {
   verdictText,
   verdictWord,
   GRAMMAR,
-  defaultTypes,
-  defaultLanguageOptions,
+  defaultMarking,
   grammarFields,
   normDimValue,
   showsOneAnswer,
@@ -166,9 +165,6 @@ import {
 } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
 import {
-  MIN,
-  LEARNING_CAP,
-  YOUNG_CAP,
   difficulty,
   formatGap,
   freshState,
@@ -269,9 +265,10 @@ import {
 
    Session rules, enforced by buildSession():
      1. A session always contains more than one exercise type.
-     2. Every item in a session is practiced in at least two exercise
-        types, three where the item data allows it.
-     3. Items that resemble each other are preferred within a session.
+     2. Every form in a session is practiced in two exercise types where
+        the data allows it.
+     3. Cards are taken in the order they fell due, and no one card takes
+        more than two of its forms into a session.
 
    Every exercise shows one item's own data, verbatim. Nothing is
    recombined across items.
@@ -303,15 +300,7 @@ const EMPTY: Doc = {
   settingsUpdated: 0,
   log: {},
   settings: {
-    sessionSize: 18,
-    perItem: 3,
-    newPerSession: 3,
-    /* Written out of the exercise table and the language packs, so a new
-       exercise type or a new language's leniency setting cannot arrive
-       without a default and silently behave as "off". */
-    types: defaultTypes(),
     kinds: { word: true, phrase: true, sentence: true, dialog: true },
-    cohesion: "balanced", // off | balanced | strong
     /*
      * The languages switched *off*, rather than the ones switched on.
      *
@@ -323,10 +312,14 @@ const EMPTY: Doc = {
      * always be put back to.
      */
     langsOff: [],
-    ...defaultLanguageOptions(),
-    showHint: false,
+    /* How strictly typing is marked. Each language's own answer, and no
+       longer anybody else's: it used to be a row of Exact/Lenient controls
+       under Advanced, which asked a learner to rule on harakat before they
+       could read one. The packs still declare it — see `marking` in
+       languages.ts — because what counts as a near miss is a fact about
+       the language. */
+    ...defaultMarking(),
     keyboard: "auto",
-    warmup: true,
     theme: "auto",
     sounds: "loud",
     language: DEFAULT_LANGUAGE,
@@ -928,7 +921,7 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
         const of = unit.id === card.id ? "" : unit.id;
         const mine = cellsIn(card, spec, of);
         if (!mine.length) continue;
-        const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
+        const supported = availableTypes(unit, lang);
         if (!reachedLevel(supported, (t) => statesOf(unit)[t], TOP_LEVEL)) continue;
         for (const cell of mine) out.add(cell.id);
       }
@@ -990,7 +983,7 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
           const of = unit.id === card.id ? "" : unit.id;
           const mine = cellsIn(card, spec, of);
           if (!mine.length) continue;
-          const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
+          const supported = availableTypes(unit, lang);
           const known = reachedLevel(supported, (t) => statesOf(unit)[t], 2);
           if (!known) for (const cell of mine) out.add(cell.id);
         }
@@ -1005,7 +998,7 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
         continue;
       }
       /* Rows that open one at a time: a verb's tenses. */
-      quietRows(card, spec, lang, settings, out);
+      quietRows(card, spec, lang, out);
     }
   }
   return out;
@@ -1019,7 +1012,7 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
  * a cell the learner has switched every exercise off for cannot hold the
  * rows below it shut for ever.
  */
-function quietRows(card: Item, spec: VerbSpec, lang: Lang, settings: Settings, out: Set<string>) {
+function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
   {
     const open = openRows(card, spec, (cell) => {
       /* The ladder as it stands for this cell alone, and deliberately not
@@ -1029,11 +1022,10 @@ function quietRows(card: Item, spec: VerbSpec, lang: Lang, settings: Settings, o
          quiet window is left out for the same reason it is applied after
          the ladder there: a listening exercise silenced for a quarter of
          an hour is still something to master, not a gap to slip through. */
-      const supported = availableTypes(cell, lang).filter((t) => settings.types[t]);
+      const supported = availableTypes(cell, lang);
       const climbing = openTypesOf(supported, (t) => statesOf(cell)[t]);
-      /* Nothing switched on, so nothing to wait for. A learner who has
-         turned an exercise off must not thereby hold the rows below it
-         shut for ever. */
+      /* Nothing to ask, so nothing to wait for: a cell the material cannot
+         put a question to must not hold the rows below it shut for ever. */
       if (!climbing.length) return true;
       return climbing.every((t) => {
         const s = statesOf(cell)[t];
@@ -1568,9 +1560,7 @@ function enabledTypes(it: Form, settings: Settings): string[] {
      pointer — that is only set during render, and this runs from anywhere.
      Read in the card's own language, so a Vietnamese card is not asked
      whether it supports the exercises Arabic declares. */
-  return availableTypes(it, langOf(settingsFor(settings, it))).filter(
-    (t) => settings.types[t] && typeAllowedNow(t)
-  );
+  return availableTypes(it, langOf(settingsFor(settings, it))).filter(typeAllowedNow);
 }
 
 /* The exercise a schedule key is about. Keys carry which accepted answer
@@ -1617,9 +1607,7 @@ function laddered(it: Form, settings: Settings): string[] {
      together. */
   return easedTo(
     it,
-    availableTypes(it, langOf(settingsFor(settings, it)))
-      .filter((t) => settings.types[t])
-      .flatMap((t) => keysFor(it, t)),
+    availableTypes(it, langOf(settingsFor(settings, it))).flatMap((t) => keysFor(it, t)),
   );
 }
 
@@ -1717,10 +1705,9 @@ const shuffle: <T>(arr: T[]) => T[] = (arr) => shuffled(arr);
  * How alike two words look, in the language's own terms: shared consonants
  * in Arabic, the same spelling under different marks in Vietnamese.
  *
- * Read twice — by the session builder, which uses it to bring related cards
- * into one sitting, and by the matching grid, which uses it to choose words
- * worth confusing. Two copies of it would be two apps disagreeing about
- * what "alike" means.
+ * Read by the matching grid, which uses it to choose words worth confusing.
+ * The session builder used to read it too, to gather related cards into one
+ * sitting; it no longer does — see SESSION_SIZE below for why.
  */
 function wordLikeness(a: string, b: string, lang: Lang): number {
   const key = lang.similarityKey || ((x: string) => String(x || ""));
@@ -1738,44 +1725,56 @@ function wordLikeness(a: string, b: string, lang: Lang): number {
   return ka === kb ? 4 : 0;
 }
 
-function similarity(a: Item, b: Item) {
-  let score = 0;
-
-  /*
-   * One card teaching a word the other contains is the strongest kinship
-   * two cards in this app can have — stronger than sharing a deck, and
-   * stronger than sharing three consonants, both of which are guesses at
-   * the relation this one states outright. A teacher ticked it.
-   *
-   * It is what brings a word and its phrase into the same session, so that
-   * meeting the word alone and meeting it in use happen in one sitting
-   * rather than in two unrelated ones. Which comes first is settled
-   * elsewhere: the context exercises sit below the plain ones in the
-   * table, so a unit is asked the word before it is asked the phrase.
-   */
-  if ((a.uses || []).includes(b.id) || (b.uses || []).includes(a.id)) score += 8;
-
-  const tagsA = new Set(a.tags || []);
-  const sharedTags = (b.tags || []).filter((t) => tagsA.has(t)).length;
-  score += sharedTags * 3;
-
-  score += wordLikeness(leadOf(a).ar, leadOf(b).ar, activeLang());
-
-  if (a.kind === b.kind) score += 0.5;
-  // Added in the same sitting — usually the same lesson.
-  if (Math.abs((a.created || 0) - (b.created || 0)) < 10 * MIN) score += 1.5;
-
-  return score;
-}
-
-const COHESION_POOL: Record<string, number> = { off: 1, balanced: 3, strong: 6 };
-
 /* ------------------------------------------------------------------
    Session building
+
+   The shape of a session is fixed, and this is where it is fixed.
+
+   It used to be six sliders under an Advanced disclosure — how long a
+   session runs, how many ways each form is drilled, how many new cards it
+   may open, whether related cards are gathered together, which order they
+   come in, which exercise types are in play at all. Every one of them was
+   a question nobody learning a language should be asked, and the honest
+   part of the label was the sentence under the disclosure: "the defaults
+   are sensible." If they are, they are the app; if they are not, the fix
+   belongs here rather than in a slider.
+
+   The numbers are not the old defaults verbatim. Two of them were the
+   reason the same words kept coming round: three exercises per form meant
+   an eighteen-question session was six cards, and gathering similar cards
+   meant those six were as alike as the list allowed. Two each and no
+   gathering makes it nine cards, met once apiece in two ways.
    ------------------------------------------------------------------ */
 
+/* How long a session runs. Long enough to be worth opening, short enough
+   to finish on a bus. */
+const SESSION_SIZE = 18;
 
-const MAX_UNITS_PER_FAMILY = 4;
+/*
+ * How many ways one form is drilled in a sitting.
+ *
+ * Two, not three. A form is asked in its own right on every one of these,
+ * so the third asking cost a whole other card its place in the session —
+ * and a third angle on a word you met ninety seconds ago teaches less than
+ * a first angle on a word you have not seen today.
+ */
+const PER_UNIT = 2;
+
+/* New cards a session may open, before the room for them is counted. */
+const NEW_PER_SESSION = 3;
+
+/*
+ * How many forms of one card a session will take.
+ *
+ * Two, and it is the other half of the repetition fix. A verb lays out
+ * twenty-odd cells and a word with pronouns on it a dozen, all of them
+ * forms of one word; the budget is divided by how many forms a card brings,
+ * so at four a session of verbs was two words and eighteen questions about
+ * them. At two, the cells still each get their turn — they are scheduled in
+ * their own right and come round on their own — but no single word can be
+ * half an evening.
+ */
+const MAX_UNITS_PER_FAMILY = 2;
 
 /* And of a conversation, in one sitting. Deliberate rather than
    discovered: without it a six-line scene is the whole session, and the
@@ -1873,8 +1872,7 @@ function buildSession({
   const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
 
-  const perUnit = Math.max(2, settings.perItem);
-  const budget = Math.max(4, budgetIn || settings.sessionSize);
+  const budget = Math.max(4, budgetIn || SESSION_SIZE);
 
   /* --- candidate families --- */
   let candidates = pool.map((it) => {
@@ -1909,18 +1907,17 @@ function buildSession({
   // A hand-picked session takes everything chosen, due or not.
   if (!practice && !includeAll) {
     candidates = candidates.filter((c) => c.ready);
-    if (settings.warmup) {
-      const backlog = pool.filter((it) =>
-        drillableUnits(it, settings).some(({ unit }) =>
-          enabledTypes(unit, settings).some(
-            (t) =>
-              difficulty(statesOf(unit)[t]) === "hard" &&
-              maturity(statesOf(unit)[t]) !== "mature"
-          )
+    /* Nothing new while a pile of cards is already fighting you. */
+    const backlog = pool.filter((it) =>
+      drillableUnits(it, settings).some(({ unit }) =>
+        enabledTypes(unit, settings).some(
+          (t) =>
+            difficulty(statesOf(unit)[t]) === "hard" &&
+            maturity(statesOf(unit)[t]) !== "mature"
         )
-      ).length;
-      if (backlog >= HARD_BACKLOG_LIMIT) candidates = candidates.filter((c) => !c.isNew);
-    }
+      )
+    ).length;
+    if (backlog >= HARD_BACKLOG_LIMIT) candidates = candidates.filter((c) => !c.isNew);
     /* How full the learner's hands are, counted over everything they hold
        in this language and not only the deck in front of them: the deck is
        what they chose to look at, the load is what they carry. */
@@ -1928,7 +1925,7 @@ function buildSession({
       items.filter((it) => isDrillable(it, settings)),
       (u) => openTypes(u, settings)
     );
-    const room = roomForNew(inHand, settings.newPerSession);
+    const room = roomForNew(inHand, NEW_PER_SESSION);
     let newSeen = 0;
     candidates = candidates.filter((c) => {
       if (!c.isNew) return true;
@@ -1942,13 +1939,13 @@ function buildSession({
      * above just let in were left to take their chance in the shuffle
      * with every card waiting for review — and the shortlist below is
      * only as long as the session has room for, so on any day with a
-     * queue behind it they fell off the end. "New cards per session — 3"
-     * then meant three on the days nothing else was waiting, which is
-     * not what a person reading it would think it meant.
+     * queue behind it they fell off the end. Three new cards a session
+     * then meant three on the days nothing else was waiting, which is not
+     * what it says.
      *
-     * They go to the front instead. Which cards join them is still the
-     * grouping's business, and the order they are asked in is still the
-     * warm-up's: this decides only that they are in the session at all.
+     * They go to the front instead. The order they are asked in is still
+     * the warm-up's: this decides only that they are in the session at
+     * all.
      */
     const admitted = candidates.filter((c) => c.isNew);
     if (admitted.length) candidates = admitted.concat(candidates.filter((c) => !c.isNew));
@@ -1956,40 +1953,33 @@ function buildSession({
 
   if (!candidates.length) return { exercises: [], reason: "nothing-due" };
 
-  /* --- rule 3: reach further down the due list for related items --- */
+  /*
+   * How many cards the budget buys, and which ones.
+   *
+   * A card brings as many forms as it lays out, capped, and each form is
+   * asked PER_UNIT ways — so the number of cards is the budget divided by
+   * what a card costs. They are taken straight off the front of the due
+   * list: the most overdue first, and chance between everything the due
+   * list calls equal.
+   *
+   * This used to reach three to six times further down that list and then
+   * pick, out of the reach, whatever was most like the cards already
+   * chosen — a shared root, a shared tag, the same afternoon's entry. It
+   * read well and it was the wrong trade. A session of near-identical
+   * words is a session that feels like one word, which is the complaint
+   * this whole change came from, and the cost was paid in scheduling: the
+   * card the reach passed over was one that was actually due.
+   */
   const avgUnits =
     candidates.reduce((n, c) => n + Math.min(c.units.length, MAX_UNITS_PER_FAMILY), 0) /
     candidates.length;
-  const wanted = Math.max(1, Math.round(budget / (perUnit * Math.max(1, avgUnits))));
-  const reach = COHESION_POOL[settings.cohesion] || 1;
-  const shortlist = candidates.slice(0, Math.min(candidates.length, Math.max(wanted, wanted * reach)));
-
-  const first = shortlist.shift();
-  const chosen = first ? [first] : [];
-  while (chosen.length < wanted && shortlist.length) {
-    let bestIdx = 0;
-    if (settings.cohesion !== "off") {
-      let best = -Infinity;
-      shortlist.forEach((cand, i) => {
-        const sim = Math.max(...chosen.map((c) => similarity(c.it, cand.it)));
-        const score = sim - i * 0.15;
-        if (score > best) {
-          best = score;
-          bestIdx = i;
-        }
-      });
-    }
-    const next = shortlist.splice(bestIdx, 1)[0];
-    if (!next) break;
-    chosen.push(next);
-  }
+  const wanted = Math.max(1, Math.round(budget / (PER_UNIT * Math.max(1, avgUnits))));
+  const chosen = candidates.slice(0, Math.min(candidates.length, wanted));
 
   /* Easiest first, and cards of the same difficulty in no particular
      order — which is most of them, since a card nobody has been wrong
      about yet is unrated. */
-  const warmed = settings.warmup
-    ? inOrder(chosen, (c) => DIFF_RANK[itemDifficulty(c.it)])
-    : shuffle(chosen);
+  const warmed = inOrder(chosen, (c) => DIFF_RANK[itemDifficulty(c.it)]);
 
   /* --- rules 2 and 6: every unit gets several exercise types, and a
          family's sub-items come along in the same session --- */
@@ -2013,7 +2003,7 @@ function buildSession({
 
     for (const { unit, isSub } of take) {
       const ordered = pickableTypes(unit, settings);
-      const picked = ordered.slice(0, Math.min(Math.max(2, perUnit), ordered.length));
+      const picked = ordered.slice(0, Math.min(PER_UNIT, ordered.length));
       /* Asked in the table's own order, which runs from recognition to
          production: which exercises a unit gets is a matter of chance,
          the order they come in is not. */
@@ -2228,12 +2218,12 @@ function unitFullyLearnt(unit: Form) {
 }
 
 /* Exercise types follow from the mode, so there is nothing to choose. */
-function typesForMode(mode: string, settings: Settings) {
+function typesForMode(mode: string) {
   /* The second place the quiet window has to be honoured: the manual builder
      comes through here rather than through enabledTypes. Get started draws on
      two gentle types, one of which is listening, so during the window it
      builds from recognition alone — which is still the gentle end. */
-  const enabled = TYPES.filter((t) => settings.types[t] && typeAllowedNow(t));
+  const enabled = TYPES.filter(typeAllowedNow);
   return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(typeOf(t))) : enabled;
 }
 
@@ -2255,7 +2245,7 @@ function buildManualSession({ items, settings, ids, mode, count }: {
   count?: number;
 }) {
   const chosen = new Set(ids);
-  const allowed = new Set(typesForMode(mode, settings));
+  const allowed = new Set(typesForMode(mode));
   /* Two types is the rule everywhere else, and it is what keeps a session
      from being one exercise repeated. Get started draws on the two gentle
      types alone, one of which needs a recording, so holding it to two would
@@ -2272,7 +2262,6 @@ function buildManualSession({ items, settings, ids, mode, count }: {
   const pool = items.filter(
     (i) => chosen.has(i.id) && settings.kinds[i.kind || ""] && i.drill !== false
   );
-  const perUnit = Math.max(2, settings.perItem);
   const plans: Question[] = [];
   const learnt = [];
   /* What the mode allows of what the form supports, and of that, the
@@ -2314,7 +2303,7 @@ function buildManualSession({ items, settings, ids, mode, count }: {
 
       const take = everyTypeMode(mode)
         ? usable
-        : shuffle(usable).slice(0, Math.min(perUnit, usable.length));
+        : shuffle(usable).slice(0, Math.min(PER_UNIT, usable.length));
       for (const t of take) {
         const ctx = pickContext(unit, t);
         plans.push({ id: it.id, subId: isSub ? unit.id : null, type: t, ...(ctx ? { ctx: ctx.id } : null) });
@@ -2929,23 +2918,48 @@ function liftItem(it: Record<string, any>) {
   };
 }
 
+/*
+ * Settings that no longer exist, dropped off anything loaded or imported.
+ *
+ * Every one of these was a control on how practice works — how long a
+ * session runs, how many ways a form is drilled, which exercises are in
+ * play, whether a hint opens by itself, how strictly typing is marked. They
+ * are decisions the app makes now, so a value stored by a device that still
+ * had the sliders must not quietly keep overriding them: a learner who once
+ * set harakat to "must be typed" would otherwise carry that for ever with
+ * nothing on any screen to say so, which is worse than either answer.
+ *
+ * The marking keys are asked of the language packs rather than listed, so a
+ * pack that declares another one needs nothing here. `ignoreTashkeel` and
+ * `skills` are older still, and were already being dropped.
+ */
+const RETIRED_SETTINGS = new Set([
+  "sessionSize",
+  "perItem",
+  "newPerSession",
+  "types",
+  "cohesion",
+  "warmup",
+  "showHint",
+  "ignoreTashkeel",
+  "skills",
+  ...Object.keys(defaultMarking()),
+]);
+
 function merge(parsedIn: Record<string, any> | null | undefined) {
   /* A stored or imported document never carries an account: the sync
      secret belongs to this device's sign-in, not to the data. */
   const { account: _dropped, ...parsed } = parsedIn || {};
   const incoming = parsed.settings || {};
-  const settings = { ...EMPTY.settings, ...incoming };
-  if (incoming.tashkeel == null && incoming.ignoreTashkeel != null) {
-    settings.tashkeel = incoming.ignoreTashkeel ? "either" : "required";
+  const settings = { ...EMPTY.settings };
+  for (const [k, v] of Object.entries(incoming)) {
+    if (!RETIRED_SETTINGS.has(k)) settings[k] = v;
   }
-  delete settings.ignoreTashkeel;
-  delete settings.skills;
   return {
     ...EMPTY,
     ...parsed,
     settings: {
       ...settings,
-      types: { ...EMPTY.settings.types, ...(incoming.types || {}) },
       kinds: { ...EMPTY.settings.kinds, ...(incoming.kinds || {}) },
     },
     items: (parsed.items || []).map(liftItem),
@@ -5754,16 +5768,17 @@ export default function ArabicTrainer() {
   /*
    * Whether the pronunciation or the meaning is beside the question.
    *
-   * The setting opens it by itself, except where the hint is the answer by
-   * another route: English → {script} with the transliteration up is
-   * {translit} → {script}, which is the level below, and the setting used
-   * to put it there on every question without anything recording that it
-   * had — so a learner with hints on graduated the top of the ladder
-   * having never once written the word from its meaning alone.
+   * Closed until it is asked for, always. There was a setting that opened
+   * it on every question by itself, and it was a way to learn less without
+   * being told: on the two questions where the nudge is the answer by
+   * another route — English → {script} with the transliteration up is
+   * {translit} → {script}, which is the level below — a learner with it on
+   * graduated the top of the ladder having never once written the word
+   * from its meaning alone. Asking for it is one press, and asking is what
+   * makes it a nudge rather than the answer.
    */
   const hintAt = spec && spec.hintField && item ? String(item[spec.hintField] || "") : "";
-  const hintShown =
-    !!hintAt && (hintOpen === null ? !!settings.showHint && !spec.hintTells : hintOpen);
+  const hintShown = !!hintAt && !!hintOpen;
   /* On the screen now, or on it at some point. */
   const hintTaken = hintShown || hintUsed;
   /* Whether the answer as marked stands as a right one, before the hint is
@@ -6596,13 +6611,6 @@ export default function ArabicTrainer() {
       settingsUpdated: now(),
     });
 
-  const toggleIn: (group: string, k: string) => void = (group, k) =>
-    persist({
-      ...data,
-      settings: { ...settings, [group]: { ...settings[group], [k]: !settings[group][k] } },
-      settingsUpdated: now(),
-    });
-
   /* Everything, in one file: the cards as JSON plus each recording as a
      real audio file. Streams into a zip rather than building one huge
      string, and the clips stay playable outside the app. */
@@ -6844,8 +6852,8 @@ Cards ready to practice
                   </p>
                   <Stat value={readyCount} big />
                   <Help>
-                    Each item gets {Math.max(2, settings.perItem)} different exercises where its
-                    data allows, spread across the session.
+                    Each form is asked {PER_UNIT} different ways where its data allows,
+                    spread across the session.
                   </Help>
 
                   <div className="at-row">
@@ -7640,7 +7648,6 @@ Cards ready to practice
             onClose={() => setScreen(null)}
             settings={settings}
             setSetting={setSetting}
-            toggleIn={toggleIn}
             onReset={resetScheduling}
             allClipIds={allClipIds}
             /* Signed out, the account screen is still reachable and still
@@ -9418,7 +9425,7 @@ function ManualSessionSheet({ items, allTags, settings, onStart, onSave, onClose
   const steps = ["Mode", "Cards", "Finish"];
   const last = step === steps.length - 1;
 
-  const typeCount = typesForMode(mode, settings).length;
+  const typeCount = typesForMode(mode).length;
   /* Matches the minimum buildManualSession uses, or Start would be offered
      for a session that then refuses to build — and refused for one that
      would have been fine. */
@@ -11281,13 +11288,22 @@ function AccountSettings({
   );
 }
 
-function AppPreferences({ settings, setSetting, toggleIn }: {
+/*
+ * The whole of what a learner can set: which language, how it looks, and
+ * how loud it is.
+ *
+ * There was an Advanced disclosure under this holding six controls over how
+ * a session is built and a row of marking leniencies, behind a sentence
+ * that said the defaults were sensible. If that sentence was true the
+ * controls were clutter, and if it was false the defaults were the thing to
+ * fix — so the defaults were fixed and the controls went. What they used to
+ * decide is now decided beside the session builder, which is the only place
+ * that ever read them.
+ */
+function AppPreferences({ settings, setSetting }: {
   settings: Settings;
   setSetting: (key: string, value: any) => void;
-  toggleIn: (key: string, value: any) => void;
 }) {
-  const [advanced, setAdvanced] = useState(false);
-
   return (
     <>
       <Section title="Language">
@@ -11362,188 +11378,6 @@ function AppPreferences({ settings, setSetting, toggleIn }: {
         </FormField>
       </Section>
 
-      <Section title="Hints">
-        <FormField label="A hint shows the pronunciation or the meaning before you answer">
-          <Segmented
-            label="Hints"
-            options={[
-              { value: false, label: "Off" },
-              { value: true, label: "On" },
-            ]}
-            value={!!settings.showHint}
-            onChange={(v) => setSetting("showHint", v)}
-          />
-          <Help>
-            On the two questions that ask you to write the word from its meaning, the nudge is
-            that word spelled out another way — so it stays closed until you ask for it, and an
-            answer written with it open counts as a near miss.
-          </Help>
-        </FormField>
-      </Section>
-
-      <div className="at-sub at-advanced">
-        <button
-          className="at-disclosure"
-          aria-expanded={advanced}
-          onClick={() => setAdvanced((v) => !v)}
-        >
-          <span className="at-eyebrow">
-            Advanced
-          </span>
-          <span className="at-chevron">{advanced ? "▾" : "▸"}</span>
-        </button>
-        {!advanced && (
-          <Help className="at-mt2">
-            How sessions are built and how your answers are marked. The defaults are sensible —
-            open this only if you want to change them.
-          </Help>
-        )}
-
-        {advanced && (
-          <>
-            <div className="at-advgroup">
-              <p className="at-eyebrow">Sessions</p>
-        <FormField label={<>Exercises per form — {Math.max(2, settings.perItem)}</>}>
-          <input
-            type="range"
-            min="2"
-            max="4"
-            style={{ width: "100%" }}
-            value={Math.max(2, settings.perItem)}
-            onChange={(e) => setSetting("perItem", Number(e.target.value))}
-          />
-          <Help>
-            How many different ways each form is drilled within one session, where its data
-            allows. They're spread out rather than run back to back.
-          </Help>
-        </FormField>
-
-<FormField label="Exercise types in play">
-          <div className="at-segmented" role="group" aria-label="Exercise types in play">
-            {TYPES.filter((t) => !EX[t].quizAttr || quizAttrOf(langOf(settings))).map((t) => (
-              <Button
-                key={t}
-                size="sm"
-                variant={settings.types[t] ? "primary" : "default"}
-                aria-pressed={!!settings.types[t]}
-                onClick={() => toggleIn("types", t)}
-                title={exOf(t, langOf(settings)).label}
-              >
-                {exOf(t, langOf(settings)).short}
-              </Button>
-            ))}
-          </div>
-          <Help>
-            {TYPES.filter((t) => settings.types[t]).length < 2 ? (
-              <span className="at-warn">
-                At least two types must be on — a session is never a single type.
-              </span>
-            ) : (
-              <>
-                A→E is recognition, T→A production from sound, E→A production from meaning, and
-                the L→ types drill the same things by ear. A card climbs them: it is read on its
-                own first, then told apart from other words, then written from a cue — each of
-                those opening once what is under it is through the learning steps and in review.
-                Writing it from its meaning alone waits longer: everything under that has to be
-                mastered, which is four days of interval, in review. Turning types off can drop
-                items below the two-type minimum.
-              </>
-            )}
-          </Help>
-</FormField>
-
-<FormField label="Exercises per session — {settings.sessionSize}">
-          <input
-            type="range"
-            min="6"
-            max="60"
-            style={{ width: "100%" }}
-            value={settings.sessionSize}
-            onChange={(e) => setSetting("sessionSize", Number(e.target.value))}
-          />
-</FormField>
-
-<FormField label="New cards per session — {settings.newPerSession}">
-          <input
-            type="range"
-            min="0"
-            max="15"
-            style={{ width: "100%" }}
-            value={settings.newPerSession}
-            onChange={(e) => setSetting("newPerSession", Number(e.target.value))}
-          />
-          <Help>
-            And only while there is room: new cards wait when {LEARNING_CAP} are already being
-            learnt, or {YOUNG_CAP} are young and still coming back for review.
-          </Help>
-</FormField>
-
-<FormField label="Group similar cards">
-          <Segmented
-            label="Group similar cards"
-            options={[
-              { value: "off", label: "Off" },
-              { value: "balanced", label: "Balanced" },
-              { value: "strong", label: "Strong" },
-            ]}
-            value={settings.cohesion}
-            onChange={(v) => setSetting("cohesion", v)}
-          />
-          <Help>
-            Similarity means shared tags, a shared consonant skeleton (usually a shared root), or
-            having been added in the same sitting. Stronger grouping reaches further down the due
-            list to find related items, so it trades a little scheduling precision for a more
-            coherent session.
-          </Help>
-</FormField>
-
-<FormField label="Order within a session">
-          <Segmented
-            options={[{ value: true, label: "Ease me in" }, { value: false, label: "Mixed" }]}
-            value={!!settings.warmup}
-            onChange={(v) => setSetting("warmup", v)}
-          />
-          <Help>
-            Easier items first, hard ones last, and new cards paused when {HARD_BACKLOG_LIMIT} or
-            more are still fighting you.
-          </Help>
-</FormField>
-            </div>
-
-            <div className="at-advgroup">
-              <p className="at-eyebrow">Marking</p>
-              {/* Whatever leniencies the language you are learning declares,
-                  in its own words. This block used to be Arabic's two
-                  settings written out by hand and shown to everyone: a
-                  Vietnamese learner was asked about harakat, and the
-                  Vietnamese pack's own tone setting had no control at all
-                  and sat at its default. The pack is asked instead, so a
-                  new language needs nothing here. */}
-              {(langOf(settings).options || []).map((opt) => (
-                <FormField key={opt.key} label={opt.label}>
-                  <Segmented
-                    label={opt.label}
-                    options={
-                      opt.toggle
-                        ? [{ value: false, label: "Exact" }, { value: true, label: "Lenient" }]
-                        : (opt.choices || []).map(([value, label]) => ({ value, label }))
-                    }
-                    value={opt.toggle ? !!settings[opt.key] : settings[opt.key]}
-                    onChange={(v) => setSetting(opt.key, v)}
-                  />
-                  {opt.help ? <Help>{opt.help}</Help> : null}
-                </FormField>
-              ))}
-              {langOf(settings).translitDrilled !== false && (
-                <Help>
-                  {langOf(settings).translitLabel} is always marked leniently: macrons, ʿayn marks
-                  and apostrophes are ignored.
-                </Help>
-              )}
-            </div>
-          </>
-        )}
-      </div>
     </>
   );
 }

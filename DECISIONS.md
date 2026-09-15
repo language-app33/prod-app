@@ -1236,3 +1236,54 @@ did, in the smoke walk, before it was a question.
 **What it costs.** A learner who flags a hard card as easy has skipped a
 level of it and meets it again at the next; the flag is deliberately not
 behind a confirmation. And a trial records nothing, as before.
+
+---
+
+## The shape of a session is fixed, and Advanced is gone
+
+**15 September 2026** · `SESSION_SIZE`, `PER_UNIT`, `MAX_UNITS_PER_FAMILY`,
+`NEW_PER_SESSION` and `RETIRED_SETTINGS` in `src/ArabicTrainer.tsx`,
+`marking` in `src/languages.ts`
+
+The owner asked why the same cards kept coming round in practice. Most of
+the answer was not a bug: an eighteen-question session was six cards asked
+three ways each, the similar-cards grouping picked those six to be as alike
+as the due list allowed, and a card that lays out forms — a verb, a word
+with pronouns on the end — brought four of them, which made a session of
+verbs two words and eighteen questions about them. All three were settings,
+all three were on by default, and the answer was to remove the settings.
+
+**A control over how well the app teaches is not a setting.** The Advanced
+disclosure said "the defaults are sensible — open this only if you want to
+change them", which is the panel admitting what it was. If the defaults are
+sensible they are the app; if they are not, the fix is a better default.
+What made it worth deleting rather than tidying is that a learner cannot
+evaluate these: nothing on the screen connects "Exercises per form — 3" to
+"you will see nine words tonight rather than six", so the slider asks a
+question its reader has no way to answer. The same reasoning took the
+marking leniencies — whether a missing haraka is a mistake is a fact about
+Arabic, and the packs now state it in `marking` — and the hints switch,
+which was a way to learn less without being told.
+
+**The values are not the old defaults.** Freezing them would have shipped
+the complaint permanently and taken away the one workaround. Two ways per
+form instead of three, two forms per card instead of four, no grouping. An
+ordinary session is nine words rather than six; a session of verbs is five
+rather than two.
+
+**Stored values are dropped, not honoured.** `RETIRED_SETTINGS` strips them
+on load and on import. Keeping them would have been the cheaper change and
+would have meant a learner who once set harakat to "must be typed" carrying
+that for ever with nothing on any screen to say so — a hidden setting is
+worse than either answer to it.
+
+**What it costs.** Three things are no longer possible: a longer or shorter
+session, practising with an exercise type switched off, and stricter
+marking. The first two have a partial answer already in Build a session,
+which chooses cards, a mode and a length by hand. The third has none, and
+if a teacher ever needs it the place for it is the course rather than the
+learner's own settings — it is a judgement about the material.
+
+Not done here, and still true: a question answered wrong is re-asked as the
+identical question appended to the end of the session, outside the pass
+that spaces a session out, so two misses on one card land back to back.

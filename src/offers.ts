@@ -163,8 +163,6 @@ export interface Offer {
   ready: boolean;
   /** What it is waiting for, where it cannot. */
   missing: string[];
-  /** Whether it is switched off in the settings. */
-  off: boolean;
 }
 
 /*
@@ -178,7 +176,6 @@ export function offersFor({
   contextsFor = () => [],
   valuesFor = () => ({}),
   matesFor = () => 0,
-  enabled = () => true,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
   lang: Lang;
@@ -187,7 +184,6 @@ export function offersFor({
   valuesFor?: (unit: Form) => Record<string, unknown[]>;
   /** How many other cards could stand beside it in the matching grid. */
   matesFor?: (unit: Form) => number;
-  enabled?: (type: string) => boolean;
 }): Offer[] {
   const known = units.map((u) => ({
     unit: u.unit,
@@ -225,7 +221,6 @@ export function offersFor({
         : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates).map((f) =>
             needLabel(f, lang)
           ),
-      off: !enabled(type),
     });
   }
   return offers;

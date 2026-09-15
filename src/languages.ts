@@ -1849,30 +1849,21 @@ export const LANGUAGES: Record<LangId, Lang> = {
       '"Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", serif',
     keys: { rows: AR_KEY_ROWS, extras: AR_EXTRAS, marks: AR_MARKS, marksLabel: "ً ٌ ٍ" },
     check: (given, expected, settings) => checkAr(given, expected, settings),
-    /* Leniency the teacher can set, and what each one means. */
-    options: [
-      {
-        key: "tashkeel",
-        label: "Harakat when typing",
-        choices: [
-          ["either", "Either form"],
-          ["required", "Must be typed"],
-          ["ignore", "Never checked"],
-        ],
-        help:
-          "Either form takes the bare letters or the fully vocalised spelling from one stored entry — but typed harakat have to be the right ones.",
-      },
-      {
-        key: "ignoreHamza",
-        label: "Hamza and final letters",
-        toggle: true,
-        help: "Lenient accepts ا for أ إ آ, و for ؤ, ي for ى and ئ, ه for ة, and a dropped ء. Strict wants every hamza where it is written.",
-      },
-    ],
+    /*
+     * How strictly typing is marked.
+     *
+     * `tashkeel: "either"` takes the bare letters or the fully vocalised
+     * spelling from one stored entry — but typed harakat have to be the
+     * right ones, so a wrong vowel is wrong and a missing one is merely
+     * incomplete. `ignoreHamza` accepts ا for أ إ آ, و for ؤ, ي for ى and
+     * ئ, ه for ة, and a dropped ء, because those distinctions are learnt
+     * later than the words that carry them.
+     */
+    marking: { tashkeel: "either", ignoreHamza: true },
     rules: [
       "Cards hold the Arabic script, an English meaning, and a transliteration. Any two of the three are enough to practice it.",
       "A student may type the bare consonants or the fully vocalised spelling and both are accepted — but harakat that are typed must be correct. A wrong vowel is marked wrong; a missing one is not.",
-      "By default ا is accepted for أ إ آ, و for ؤ, ي for ى and ئ, and ه for ة, because those distinctions are learnt later than the words themselves. Each learner can turn that off under Settings — Hamza and final letters.",
+      "ا is accepted for أ إ آ, و for ؤ, ي for ى and ئ, and ه for ة, because those distinctions are learnt later than the words themselves.",
       "Transliteration is marked most leniently of all: macrons, dots under letters, ʿayn marks, apostrophes and where the hyphens fall are all ignored, since schemes vary between textbooks.",
       "Invisible characters that Arabic keyboards insert — right-to-left marks and zero-width joiners — are stripped before comparing, so an answer that looks correct is treated as correct.",
       "Words with several forms — plurals, feminines — are held on one card as separate forms. Each is learnt in its own right, and the card is not counted as learnt until all of them are.",
@@ -1985,19 +1976,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
     fontStack: '"Be Vietnam Pro", "Noto Sans", system-ui, sans-serif',
     keys: { rows: VI_KEY_ROWS, extras: VI_EXTRAS, marks: VI_MARKS, marksLabel: "◌̀ ◌́ ◌̉" },
     check: (given, expected, settings) => checkViet(given, expected, settings),
-    options: [
-      {
-        key: "tones",
-        label: "Tone marks when typing",
-        choices: [
-          ["either", "Either form"],
-          ["required", "Must be typed"],
-          ["ignore", "Never checked"],
-        ],
-        help:
-          "Either form accepts the word with or without its tone marks — but a tone that is typed has to be the right one.",
-      },
-    ],
+    /* The word is accepted with or without its tone marks — but a tone
+       that is typed has to be the right one. */
+    marking: { tones: "either" },
     rules: [
       "Cards hold the Vietnamese spelling, an English meaning, and an optional pronunciation note. Any two of the three are enough to practice it.",
       "Tone marks work the way harakat do in Arabic: a student may type the word with or without them, but a tone that is typed must be correct. Writing má for mà is wrong; writing ma is merely incomplete.",
@@ -2082,29 +2063,15 @@ export const LANGUAGES: Record<LangId, Lang> = {
       '"Noto Serif Hebrew", "Noto Sans Hebrew", "Frank Ruehl CLM", "David CLM", "David", "Arial Hebrew", "Times New Roman", serif',
     keys: { rows: HE_KEY_ROWS, extras: HE_EXTRAS, marks: HE_MARKS, marksLabel: "◌ָ ◌ַ ◌ִ" },
     check: (given, expected, settings) => checkHe(given, expected, settings),
-    options: [
-      {
-        key: "niqqud",
-        label: "Niqqud when typing",
-        choices: [
-          ["either", "Either form"],
-          ["required", "Must be typed"],
-          ["ignore", "Never checked"],
-        ],
-        help:
-          "Either form takes the bare letters or the fully pointed spelling from one stored entry — but typed niqqud have to be the right ones.",
-      },
-      {
-        key: "foldFinals",
-        label: "Final letters",
-        toggle: true,
-        help: "Lenient accepts כ מ נ פ צ at the end of a word for ך ם ן ף ץ.",
-      },
-    ],
+    /* The bare letters or the fully pointed spelling, from one stored
+       entry — but typed niqqud have to be the right ones; and the ordinary
+       shape of a letter is accepted at the end of a word for its final
+       form, כ מ נ פ צ for ך ם ן ף ץ. */
+    marking: { niqqud: "either", foldFinals: true },
     rules: [
       "Cards hold the Hebrew, an English meaning, and a transliteration. Any two of the three are enough to practice it.",
       "A student may type the bare letters or the fully pointed spelling and both are accepted — but niqqud that are typed must be correct. A wrong vowel is marked wrong; a missing one is not.",
-      "By default the ordinary shape of a letter is accepted at the end of a word for its final form, because the finals are learnt later than the words themselves. A teacher can tighten this per course.",
+      "The ordinary shape of a letter is accepted at the end of a word for its final form, because the finals are learnt later than the words themselves.",
       "Transliteration is marked most leniently of all: macrons, dots, apostrophes and where the hyphens fall are all ignored, since schemes vary between textbooks.",
       "Invisible characters that Hebrew keyboards insert — right-to-left marks and zero-width joiners — are stripped before comparing, so an answer that looks correct is treated as correct.",
       "Words with several forms — plurals, feminines — are held on one card as separate forms. Each is learnt in its own right, and the card is not counted as learnt until all of them are.",
@@ -2645,20 +2612,12 @@ export const barOf = (key: string): "graduated" | "mastered" => LEVEL_BARS[level
 export const barAfterLevel = (level: number): "graduated" | "mastered" =>
   LEVEL_BARS[level + 1] || "mastered";
 
-export function defaultTypes(): Record<string, boolean> {
-  const out: Record<string, boolean> = {};
-  for (const t of TYPES) out[t] = true;
-  return out;
-}
-
-/* Every leniency setting any language offers, at its first choice. */
-export function defaultLanguageOptions(): Record<string, string | boolean> {
+/* How every language marks what is typed, gathered into the one flat
+   record the settings are stored as and the pack `check` functions read. */
+export function defaultMarking(): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
   for (const lang of Object.values(LANGUAGES)) {
-    for (const opt of lang.options || []) {
-      if (opt.toggle) out[opt.key] = true;
-      else if (opt.choices && opt.choices.length) out[opt.key] = opt.choices[0][0];
-    }
+    Object.assign(out, lang.marking || {});
   }
   return out;
 }

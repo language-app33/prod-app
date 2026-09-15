@@ -8,6 +8,44 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.143 — 15 September 2026
+
+- **Settings no longer asks how practice should work.** The Advanced panel
+  is gone, and with it the six controls over how a session is built —
+  exercises per form, exercise types in play, exercises per session, new
+  cards per session, grouping similar cards, order within a session — the
+  row of marking leniencies beside them, and the hints switch above them.
+  The app decides all of it now. Anything you had set is dropped rather
+  than quietly kept, so every device is on the same footing.
+
+  Settings keeps what is genuinely yours: which language you are learning,
+  theme, the on-screen keys, and how loud the answer sounds are.
+
+- **Fewer repeats of the same word in a session.** Two of the old defaults
+  were the reason the same handful of cards kept coming round, and neither
+  is a default any more. Each form is asked two ways in a sitting rather
+  than three, so an ordinary session is nine words instead of six; and a
+  card may bring two of its forms rather than four, so a session of verbs
+  is five words rather than two words asked eighteen times between them.
+  Similar cards are no longer gathered into the same session, which used to
+  reach past what was actually due to find a shared root or a shared tag.
+
+  Nothing about the scheduling changed — what is due is still what is due,
+  and every form is still learnt in its own right. A session simply spends
+  its eighteen questions on more of them.
+
+- **A hint stays closed until you ask for it.** It always could be opened
+  by hand, and there was a setting that opened it on every question
+  instead. That setting was a way to learn less without being told: on the
+  two questions where the nudge spells out the answer another way, having
+  it up by default meant climbing to the top of the ladder without once
+  writing the word from its meaning alone.
+
+- **Two settings that could not show you their own value.** "Exercises per
+  session" and "New cards per session" printed the words
+  `{settings.sessionSize}` and `{settings.newPerSession}` where the number
+  should have been. Both controls are gone, which is one way to fix it.
+
 ## 0.142 — 16 September 2026
 
 - **A fourth flag: "This was too easy".** The flag menu on a question now

@@ -297,15 +297,18 @@ export interface Derived {
   classes?: { id: string; label: string; merges: string[] }[];
 }
 
-/** A leniency the teacher can set on a course. */
-export interface LangOption {
-  key: string;
-  label: string;
-  help: string;
-  /** Absent on a plain on/off. */
-  choices?: [string, string][];
-  toggle?: boolean;
-}
+/**
+ * How strictly a language marks what is typed.
+ *
+ * A fact about the language, which is why it lives in the pack: whether a
+ * missing haraka is a mistake or merely an incomplete spelling is Arabic's
+ * answer, not a learner's. It used to be a row of Exact/Lenient controls
+ * under Settings — with labels, choices and help text declared here for
+ * them — and asking a beginner to rule on hamza before they could read one
+ * was never a fair question. The pack rules instead; each key is read by
+ * the pack's own `check`.
+ */
+export type LangMarking = Record<string, string | boolean>;
 
 /**
  * What each shade of not-quite-right is called. The tiers are the same in
@@ -376,7 +379,7 @@ export interface Lang {
   fontStack: string;
   keys: LangKeys;
   check: (given: string, expected: string, settings?: any) => any;
-  options: LangOption[];
+  marking: LangMarking;
   rules: string[];
   /** Only where the language has one. */
   lexical?: { key: string; label: string; help: string };

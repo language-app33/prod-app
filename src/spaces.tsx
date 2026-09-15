@@ -3307,11 +3307,10 @@ function DeckEditor({
  *   teacher was standing when they pressed it, so answering the question
  *   puts them back there rather than at the front of the space.
  */
-function TryExercises({ card, cards, lang, settings, onTry, back }: {
+function TryExercises({ card, cards, lang, onTry, back }: {
   card: Card;
   cards: Card[];
   lang?: Lang;
-  settings?: any;
   onTry?: (plan: { items: any[], exercise: any, back: any }) => void;
   back?: any;
 }) {
@@ -3365,12 +3364,8 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
         material.filter(
           (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false
         ).length - 1,
-      /* A student would not be asked an exercise switched off in the app's
-         settings, and a teacher may as well know which those are — but it
-         is still worth being able to try one. */
-      enabled: (type) => !settings || !settings.types || !!settings.types[type],
     });
-  }, [mine, lang, contexts, scenes, settings, values, material]);
+  }, [mine, lang, contexts, scenes, values, material]);
 
   if (!offers.length) return null;
 
@@ -3413,11 +3408,7 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
           >
             <span className="at-tryname">{offer.label}</span>
             <span className="at-trywhy">
-              {offer.ready
-                ? offer.off
-                  ? "Try it · off in the app's settings"
-                  : "Try it"
-                : `Needs ${offer.missing.join(" and ")}`}
+              {offer.ready ? "Try it" : `Needs ${offer.missing.join(" and ")}`}
             </span>
           </button>
         ))}
@@ -4745,7 +4736,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               card={viewing}
               cards={cards}
               lang={langOfCard(viewing)}
-              settings={settings}
               onTry={onTry}
             />
           </Screen>
@@ -5213,7 +5203,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     card={viewing}
                     cards={cards}
                     lang={langOfCard(viewing)}
-                    settings={settings}
                     onTry={onTry}
                   />
                 </Screen>

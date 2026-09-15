@@ -33,11 +33,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
   the scheduler reads both.
 
-  Two questions ask for the word in the script and offer its
-  transliteration as a nudge — *English → script* and *fill the gap*. On
-  those the nudge is the answer said another way, so it is never opened by
-  itself and an answer written with it up is marked as a near miss:
-  `hintTells` in `src/languages.ts`.
+  A nudge — the pronunciation, or the meaning — is beside every question
+  that has one, closed until it is asked for. Two questions ask for the
+  word in the script and offer its transliteration: *English → script* and
+  *fill the gap*. On those the nudge is the answer said another way, so an
+  answer written with it up is marked as a near miss: `hintTells` in
+  `src/languages.ts`.
 
   **The same ladder is what a learner is shown.** `standings` in the
   scheduler reads a card as one row per level it has material on, each
@@ -49,10 +50,31 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   combination to hold them together. `standing` picks the one row to put
   on a card. The Progress tab counts cards by level, and a card's own
   screen lists them.
-- **New cards are introduced only while there is room.** Beyond the
-  per-session limit in the settings, nothing new is dealt while ten cards
-  are already being learnt or forty are young and still coming back for
-  review. A card's phase is read over the levels it has reached: *New* is
+- **The shape of a session is the app's to decide, not the learner's.**
+  Eighteen questions; each form asked two ways where its data allows; at
+  most two forms of any one card; three new cards at the outside; easiest
+  first. Cards are taken in the order they fell due, with chance between
+  everything the due list calls equal, and nothing gathers similar words
+  together. The numbers are `SESSION_SIZE`, `PER_UNIT`,
+  `MAX_UNITS_PER_FAMILY` and `NEW_PER_SESSION` in `src/ArabicTrainer.tsx`,
+  beside `buildSession` which is the only thing that reads them.
+
+  They were six sliders under an Advanced disclosure, under a sentence
+  saying the defaults were sensible — and two of the defaults were why the
+  same handful of words kept coming round. Three exercises a form made an
+  eighteen-question session six cards; letting a card bring four of its
+  forms made a session of verbs two words and eighteen questions about
+  them; and grouping similar cards made sure those few were as alike as
+  the due list allowed. A setting is not the answer to that, because the
+  learner cannot see what it costs them. Marking leniency went the same
+  way: what counts as a near miss is a fact about the language, so each
+  pack states it in `marking` and nobody is asked to rule on harakat
+  before they can read one.
+
+- **New cards are introduced only while there is room.** Beyond the three
+  a session may open, nothing new is dealt while ten cards are already
+  being learnt or forty are young and still coming back for review. A
+  card's phase is read over the levels it has reached: *New* is
   never met, *Learning* is met and not yet through the steps somewhere,
   *Young* is graduated everywhere it is open, *Mature* is three weeks out
   everywhere.

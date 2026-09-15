@@ -279,15 +279,15 @@ test("a deletion older than a month is forgotten, and stops deleting", () => {
   assert.deepEqual(out.tombstones, {}, "and the tombstone is swept up rather than kept forever");
 });
 
-test("settings are one object, so a toggle on the losing device is lost", () => {
+test("settings are one object, so a change on the losing device is lost", () => {
   /* Another cost worth naming: settings merge whole rather than key by
-     key. Turn on listening exercises on the phone and change the theme on
-     the laptop a minute later, and the listening change goes. */
-  const phone = doc([], { settings: { types: { rec2en: true }, theme: "dark" }, settingsUpdated: 200 });
-  const laptop = doc([], { settings: { types: { rec2en: false }, theme: "light" }, settingsUpdated: 300 });
+     key. Turn the sounds down on the phone and change the theme on the
+     laptop a minute later, and the sound change goes. */
+  const phone = doc([], { settings: { sounds: "off", theme: "dark" }, settingsUpdated: 200 });
+  const laptop = doc([], { settings: { sounds: "loud", theme: "light" }, settingsUpdated: 300 });
   const out = mergeData(phone, laptop);
   assert.equal(out.settings.theme, "light");
-  assert.equal(out.settings.types.rec2en, false, "the phone's change to a different setting is lost");
+  assert.equal(out.settings.sounds, "loud", "the phone's change to a different setting is lost");
   assert.equal(out.settingsUpdated, 300);
 });
 
