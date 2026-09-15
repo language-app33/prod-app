@@ -1218,7 +1218,18 @@ const ATTACHED_TABLE: VerbSpec = {
  */
 const AR_AGREEMENT: VerbSpec = {
   persons: [
-    { id: "feminine", label: "feminine", picks: { number: "singular", gender: "feminine" } },
+    {
+      id: "feminine",
+      label: "feminine",
+      /* A feminine singular noun, or a plural of things — كتب كبيرة. The
+         second is one key against the plural column's two, so a plural
+         of people goes to the plural column and everything else plural
+         comes here, which is the rule. */
+      picks: [
+        { number: "singular", gender: "feminine" },
+        { number: "plural", human: "thing" },
+      ],
+    },
     { id: "plural", label: "plural", picks: { number: "plural", human: "person" } },
   ],
   tenses: [{ id: "agreement", label: "agreement" }],
@@ -1391,6 +1402,27 @@ export const teachesVerbs = (lang: Lang | null | undefined): boolean => !!verbOf
  * beside سيارة — the pronouns on the end of a word pick nothing, and a
  * verb's three rows need a sentence to say which, so neither is one.
  */
+/**
+ * Which of a card's forms it lends into a hole.
+ *
+ * A card whose forms agree with what they stand beside — an adjective, a
+ * number — lends its own word only, and the sentence picks the agreeing
+ * form: one that arrived by turn would stand beside the wrong noun. Every
+ * other card lends every form it has, which is 0.139's rule unchanged. One
+ * answer, read by the session, the teacher's preview and the teaching
+ * space alike, so the three never disagree about which words are in a
+ * hole.
+ */
+export const lendsForm = (
+  lang: Lang | null | undefined,
+  card: { category?: string } | null | undefined,
+): ((form: Record<string, unknown>) => boolean) => {
+  const spec = agreementOf(lang, card && card.category);
+  if (!spec) return () => true;
+  const rows = new Set(spec.tenses.map((t) => t.id));
+  return (form) => !rows.has(String((form && form.row) || ""));
+};
+
 export const agreementOf = (
   lang: Lang | null | undefined,
   category: string | null | undefined,

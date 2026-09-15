@@ -254,6 +254,8 @@ export function valuesFor(
   lang?: string,
   /** What kind of card this is — see fillsOf. Without it, only named slots. */
   kindOf?: (card: WithSlots) => string,
+  /** Which of a card's forms it lends — see lentBy. Without it, all of them. */
+  lends?: (card: WithSlots, form: WithSlots) => boolean,
 ): Record<string, Value[]> {
   const wanted = slotsOf(form);
   const out: Record<string, Value[]> = {};
@@ -265,7 +267,7 @@ export function valuesFor(
     if (!slots.length) continue;
     /* Every form of it, not only its own word: a plural is a word a
        sentence can be about, and so is one cell of a verb's table. */
-    for (const value of valuesOf(card)) {
+    for (const value of valuesOf(card, [], lends ? (f) => lends(card, f) : undefined)) {
       /* A card may stand in more than one hole now: the one it names, the
          kind of word it says it is, and the built-in that every word
          fills. */
@@ -298,11 +300,20 @@ export function valuesFor(
 export function lentBy(
   card: WithSlots | null | undefined,
   fields: string[] = [],
+  /**
+   * Which of a card's forms it lends, where a caller has a view. A card
+   * whose forms agree with what they stand beside lends its own word only:
+   * the sentence picks the agreeing form, and a form that arrived by turn
+   * would stand beside the wrong noun. Which cards those are is a
+   * language's answer, so it is passed in; this module knows none.
+   */
+  lends: (form: WithSlots) => boolean = () => true,
 ): { form: WithSlots; value: Value }[] {
   const own = String((card && card.id) || "");
   const out: { form: WithSlots; value: Value }[] = [];
   formsOf(card).forEach((form, at) => {
     if (form && (form as WithSlots).ask === false) return;
+    if (!lends(form as WithSlots)) return;
     const value = valueOf(form as WithSlots, fields);
     if (!value.ar) return;
     /* The card's own word answers to the card where the form carries no
@@ -317,7 +328,8 @@ export function lentBy(
 export const valuesOf = (
   card: WithSlots | null | undefined,
   fields: string[] = [],
-): Value[] => lentBy(card, fields).map((lent) => lent.value);
+  lends?: (form: WithSlots) => boolean,
+): Value[] => lentBy(card, fields, lends).map((lent) => lent.value);
 
 /*
  * One form, as the words it lends — or a whole card, as its own word does.

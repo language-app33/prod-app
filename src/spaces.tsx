@@ -51,8 +51,7 @@ import {
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
-  scriptVars,
-} from "./languages.ts";
+  scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
 import { hasSlots, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
@@ -3346,7 +3345,7 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
        teacher trying an exercise should see the same words a learner will
        be shown. */
     () => (unit: Form) =>
-      valuesFor(unit, material, lang && lang.id, (c) => kindOf(c, lang)),
+      valuesFor(unit, material, lang && lang.id, (c) => kindOf(c, lang), (c, f) => lendsForm(lang, c)(f)),
     [material, lang]
   );
 

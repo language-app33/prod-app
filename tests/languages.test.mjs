@@ -32,6 +32,7 @@ import {
   dimsOf,
   dimsFor,
   agreementOf,
+  lendsForm,
   categoriesOf,
   supportsContext,
   TYPES,
@@ -746,4 +747,17 @@ test("whether a noun is a person or a thing is never printed on a tag", () => {
   assert.equal(labelFor({ number: "singular", gender: "feminine", human: "thing" }, ar), "sg. f.");
   /* And a new form starts as a thing, which is what most nouns are. */
   assert.equal(dimValues({}).human, "thing");
+});
+
+test("an agreeing card lends its own word only, and every other card lends every form", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const lendsBig = lendsForm(ar, { category: "adjective" });
+  assert.equal(lendsBig({ ar: "كبير" }), true, "the word");
+  assert.equal(lendsBig({ ar: "كبيرة", row: "agreement", col: "feminine" }), false, "not a form the sentence picks");
+  assert.equal(lendsBig({ ar: "كبيرين", row: "" }), true, "a plain extra form still lends");
+  const lendsBook = lendsForm(ar, { category: "noun" });
+  assert.equal(lendsBook({ ar: "كتابي", row: "attached", col: "me" }), true, "the pronouns pick nothing, so they lend");
+  assert.equal(lendsForm(ar, { category: "" })({ row: "agreement" }), true, "a card that says nothing lends everything");
+  assert.equal(lendsForm(LANGUAGES["vi-Hue"], { category: "adjective" })({ row: "agreement" }), true, "nothing agrees in Huế");
+  assert.equal(lendsForm(null, { category: "adjective" })({}), true);
 });

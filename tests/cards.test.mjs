@@ -84,7 +84,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits, drillableUnits } =
+const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits, drillableUnits, agreeTook } =
   await import(path.join(out, "trainer.js"));
 const { defaultTypes, LANGUAGES, verbOf, attachedOf, specOf } = await import(path.join(here, "..", "src", "languages.ts"));
 
@@ -896,6 +896,48 @@ test("a card carrying two tables is gated on both", () => {
   assert.ok(quiet.has("s-me"), "the pronouns wait on the unread word");
   assert.ok(quiet.has("v-cmd"), "and the command waits on the present");
   assert.equal(quiet.has("v-past"), false, "while the first row is open");
+});
+
+/*
+ * A sentence puts the agreeing form beside its noun.
+ *
+ * The values a sentence was filled with, after the draw: an adjective's
+ * own word is swapped for the form that agrees with the slot beside it,
+ * read back through the card it came from.
+ */
+test("an adjective drawn into a sentence is swapped for the form that agrees with the noun beside it", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const big = /** @type {any} */ ({
+    id: "big", lang: "ar-PS", category: "adjective",
+    forms: [
+      { id: "big", ar: "كبير", en: "big", lat: "" },
+      { id: "big-f", ar: "كبيرة", en: "big", lat: "", row: "agreement", col: "feminine" },
+    ],
+  });
+  const owners = /** @type {Record<string, any>} */ ({ big: { card: big, form: big.forms[0] } });
+  const ownerOf = (/** @type {any} */ v) => owners[v.id] || null;
+  const noun = (/** @type {Record<string, string>} */ grammar) =>
+    ({ id: "n", ar: "x", en: "y", lat: "", grammar });
+  const word = { id: "big", ar: "كبير", en: "big", lat: "" };
+
+  const she = agreeTook({ noun: noun({ number: "singular", gender: "feminine", human: "thing" }), adjective: word },
+    ["noun", "adjective"], ownerOf, () => ar);
+  assert.equal(must(she, "filled").adjective.ar, "كبيرة");
+  assert.equal(must(she, "filled").noun.ar, "x", "the noun is left as it was drawn");
+
+  const he = agreeTook({ noun: noun({ number: "singular", gender: "masculine", human: "thing" }), adjective: word },
+    ["noun", "adjective"], ownerOf, () => ar);
+  assert.equal(must(he, "filled").adjective.ar, "كبير", "and the word itself where nothing picks");
+
+  /* A value nothing owns, or a card whose forms do not agree, is left alone. */
+  const loose = agreeTook({ noun: noun({ gender: "feminine" }), adjective: word }, ["noun", "adjective"], () => null, () => ar);
+  assert.equal(must(loose, "filled").adjective.ar, "كبير");
+
+  /* A column that picks a cell the teacher left blank: nothing to ask. */
+  const half = /** @type {any} */ ({ ...big, forms: [big.forms[0], { ...big.forms[1], ar: "" }] });
+  const blank = agreeTook({ noun: noun({ number: "singular", gender: "feminine" }), adjective: word },
+    ["noun", "adjective"], () => ({ card: half, form: half.forms[0] }), () => ar);
+  assert.equal(blank, null);
 });
 
 /*

@@ -8,6 +8,31 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.141 — 16 September 2026
+
+- **In a sentence, an adjective agrees with the noun beside it.** A blank
+  filled by an adjective now picks the form its noun calls for: كتاب كبير,
+  سيارة كبيرة, معلمين كبار — and كتب كبيرة, because a plural of things
+  takes the feminine singular, which is what the person-or-thing question
+  on nouns (added last release) is for. A number does the same by gender:
+  ثلاثة كتب, ثلاث سيارات. The form is read off the adjective's own table,
+  so a card with an empty cell is simply not asked in a sentence that needs
+  that cell, rather than being asked with the wrong form.
+
+  Which noun it agrees with is the first other blank in the sentence — the
+  same rule a verb's own sentence has always followed — so "{{noun}}
+  {{adjective}}" needs nothing said.
+
+  One consequence: an adjective or number card lends only its own word
+  into a blank, and its other forms are reached by agreement rather than
+  by turn. So which sentence a given asking lands on will move for those
+  cards. Nothing is lost by that; it is written down because it looks like
+  a change the first time somebody notices.
+
+  A verb standing in a sentence card still cannot agree: nothing on a
+  sentence card says which tense, so its forms go on taking turns as they
+  did. A verb's own sentence, written on the verb card, goes on working.
+
 ## 0.140 — 16 September 2026
 
 - **Each kind of word gets the editor its grammar wants.** The editor asks

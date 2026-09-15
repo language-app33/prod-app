@@ -136,8 +136,15 @@ export interface VerbPerson {
   id: string;
   /** What the learner is shown — "she", "you (f)". "" where none is wanted. */
   label: string;
-  /** The grammar values on a subject that call for this column. */
-  picks?: Record<string, string>;
+  /**
+   * The grammar values on a filler that call for this column — one set,
+   * or several where more than one kind of filler does. Arabic's feminine
+   * adjective is called for by a feminine singular noun *and* by a plural
+   * of things, which no single set of values names; each alternative is
+   * matched on its own, and the most specific match across every column
+   * wins.
+   */
+  picks?: Record<string, string> | Record<string, string>[];
 }
 
 /** One row: when it happened, or what mood it is in. */

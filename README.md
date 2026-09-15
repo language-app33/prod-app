@@ -129,7 +129,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   one — a sentence dropped into somebody else's hole is a sentence with a
   gap where the point was — and `{{verb}}` on a verb card's own sentence
   means its own place in it rather than any verb, which `ownSlot` in
-  `src/verbs.ts` is the one answer to. The editor asks which kind of card
+  `src/verbs.ts` is the one answer to. A word whose forms agree with what
+  they stand beside — an adjective, a number — lends its own word only,
+  and the sentence goes back to its card for the form the first other
+  blank calls for (`agreedValue` in `src/verbs.ts`, `agreeTook` in the
+  trainer): the cell a column picks, the word where none does, and nothing
+  where the cell is blank. The editor asks which kind of card
   it is: a word, a sentence, or a conversation. Nothing is stored saying
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.

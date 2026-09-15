@@ -381,6 +381,25 @@ test("every form of a card lends itself, each under its own name", () => {
   assert.deepEqual(valuesOf({ id: "l1", ar: "salaam", en: "peace", lat: "" }).map((v) => v.id), ["l1"]);
 });
 
+test("a caller may say which of a card's forms it lends, and this module does not ask why", () => {
+  /* An adjective lends its own word and the sentence picks the agreeing
+     form — but which cards those are is a language's answer, so it is
+     handed in as a predicate over forms. */
+  const card = {
+    id: "big", lang: "ar-PS", category: "adjective",
+    forms: [
+      { id: "big", ar: "kbiir", en: "big", lat: "" },
+      { id: "big-f", ar: "kbiire", en: "big", lat: "", row: "agreement", col: "feminine" },
+    ],
+  };
+  assert.deepEqual(valuesOf(card).map((v) => v.id), ["big", "big-f"], "everything, unless told otherwise");
+  assert.deepEqual(valuesOf(card, [], (f) => !f.row).map((v) => v.id), ["big"]);
+  assert.deepEqual(lentBy(card, [], (f) => !f.row).map((l) => l.form.ar), ["kbiir"]);
+  const frame = { ar: "{{adjective}}", en: "{{adjective}}", lat: "" };
+  assert.deepEqual(valuesFor(frame, [card], "ar-PS", undefined, (c, f) => !f.row).adjective.map((/** @type {any} */ v) => v.id), ["big"]);
+  assert.deepEqual(valuesFor(frame, [card], "ar-PS").adjective.map((/** @type {any} */ v) => v.id), ["big", "big-f"]);
+});
+
 test("a plural stands in a sentence its singular does not", () => {
   const frame = { ar: "{{noun}} hown", en: "{{noun}} here", lat: "" };
   const pool = [{

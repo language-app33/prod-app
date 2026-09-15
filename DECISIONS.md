@@ -1133,3 +1133,62 @@ label reworded ("Its attached pronouns"). And the reason the next release
 exists: an adjective's cells now lend themselves into `{{adjective}}` by
 turn like any other form, so a sentence can put كبيرة beside كتاب until
 agreement is built on the table this release declared.
+
+---
+
+## An agreeing card lends its word, and the sentence picks the form
+
+**16 September 2026** · `agreedValue`/`agreeWith`/`picksOf` in
+`src/verbs.ts`, `lendsForm` in `src/languages.ts`, the `lends` predicate on
+`lentBy`/`valuesFor` in `src/variables.ts`, `VALUE_OWNER` and `agreeTook`
+in `src/ArabicTrainer.tsx`
+
+0.139 had every form of a card lend itself into a blank, by turn. For a
+plural beside its singular that is right: both are words a sentence could
+be about. For an adjective it is wrong twice over — كبيرة is not a word
+"{{adjective}}" could be about, it is what كبير becomes beside a feminine
+noun — and a table declared in 0.140 for exactly that purpose was being
+read as three unrelated words.
+
+**So a card whose forms agree lends its own word only, and the sentence
+goes back to the card for the form.** Which cards those are is
+`agreementOf`: a kind of word whose table has one row and a column that
+picks. The pool stays language-blind — `lentBy` takes a predicate and
+never asks why — and the one predicate, `lendsForm`, is read by the
+session, the teacher's preview and the teaching space, so the three cannot
+disagree about which words are in a hole.
+
+**The rule is the verb's, with two additions.** A column picks on the
+filler's grammar, most specific wins, as `personFor` has always done. A
+column may now be called for by more than one kind of filler, because
+Arabic's feminine adjective is called for by a feminine singular noun *and*
+by a plural of things, which no single set of values names — so `picks` is
+one record or several, each matched on its own. And "no column picks" is
+the word itself: a masculine singular noun wants كبير, which is the word,
+where a verb's own sentence had no such case because its own word is a
+cell.
+
+**What it agrees with is the first other blank.** The same rule as the
+verb's subject, and for the same reason: the teacher who wrote the sentence
+already said which came first. "{{noun}} {{adjective}}" needs nothing more
+said.
+
+**A blank cell asks nobody.** A column that picks a cell the teacher left
+empty leaves the sentence unfilled, the way a verb's own sentence is left
+when its table has no such form — and for the same reason: nothing to ask
+and nothing to invent, and an unfilled hole on screen is a bug somebody
+notices rather than a wrong form somebody learns.
+
+**A verb from the pool still cannot agree.** Only a one-row table supplies
+its own row; a verb's three rows need a sentence to say which, and a
+sentence card has nowhere to say it. Its forms go on taking turns into
+`{{verb}}`, and the changelog says so rather than letting it look fixed.
+The honest fix is a later "a sentence says when", which is a fact on the
+sentence card and a different entry.
+
+**What it costs.** The owner index is a second map filled in the walk that
+already fills `VALUE_REACH`, keyed the same way. Which sentence a given
+count lands on moved for adjective and number cards, once, because their
+pools shrank to the word. And `fillableAt` cannot foresee a blank cell, so
+a sentence may be dealt and then left unfilled — the gap the verb's own
+sentence already has, now shared.

@@ -147,9 +147,13 @@ import {
   typeOf,
   tablesOf,
   verbOf,
+  agreementOf,
+  lendsForm,
 } from "./languages.ts";
 import {
   agreedCell,
+  agreedValue,
+  agreeWith,
   cellsIn,
   hasCells,
   ownSlot,
@@ -698,6 +702,14 @@ function setValueReach(map: Map<string, number | null>) {
   VALUE_REACH = map || new Map();
 }
 
+/* Which card, and which form of it, a lent word came from — so a sentence
+   can go back to the card for the form that agrees with what stands
+   beside it. Filled in the same walk as VALUE_REACH, keyed the same way. */
+let VALUE_OWNER: Map<string, { card: Item; form: Form }> = new Map();
+function setValueOwner(map: Map<string, { card: Item; form: Form }>) {
+  VALUE_OWNER = map || new Map();
+}
+
 /* What a value has climbed, for valuesAt. A value nothing knows about
    reads as unmet rather than as met: the whole point of the gate is that a
    word nobody has answered is not one to put in front of somebody. */
@@ -1175,6 +1187,43 @@ function pickContext(unit: Form, type: string) {
  * a question — canAsk refuses it, so it should never reach here — and
  * leaving {{name}} standing is a visible bug rather than a silent gap.
  */
+/**
+ * The values a sentence was filled with, with each agreeing card's own
+ * word swapped for the form that agrees with the slot beside it.
+ *
+ * An adjective lends its own word into a hole — see lendsForm — and this
+ * is where the sentence goes back to its card for the feminine beside a
+ * feminine noun: the slot it agrees with is the first other one the
+ * teacher wrote, its grammar picks a column, and the cell in that column
+ * is what is shown.
+ * Null where the column picks a cell the teacher left blank: nothing to
+ * ask and nothing to invent, the way a verb's own sentence is left when
+ * its table has no such cell.
+ *
+ * Handed what it reads rather than reaching for the module-level maps, so
+ * a test can ask it with a card in hand.
+ */
+export function agreeTook(
+  took: Record<string, Value>,
+  slots: string[],
+  ownerOf: (value: Value) => { card: Item; form: Form } | null,
+  langFor: (card: Item) => Lang,
+): Record<string, Value> | null {
+  const out = { ...took };
+  for (const slot of slots) {
+    const value = took[slot];
+    const owner = value ? ownerOf(value) : null;
+    if (!owner) continue;
+    const spec = agreementOf(langFor(owner.card), owner.card.category);
+    if (!spec) continue;
+    const partner = took[agreeWith(slots, slot)] || null;
+    const agreed = agreedValue(owner.card, spec, value, partner);
+    if (!agreed) return null;
+    out[slot] = agreed;
+  }
+  return out;
+}
+
 function castFill(
   resolved: { unit: Form, parent: Item, isSub: boolean } | null,
   type: string,
@@ -1199,7 +1248,18 @@ function castFill(
   const own = ownSlot(resolved.unit);
   const drawn = slots.filter((slot) => slot !== own);
   const pool = preview ? fillsFor(resolved.unit) : fillsAt(resolved.unit, type);
-  const took = valuesForTurn(drawn, pool, seen);
+  const turned = valuesForTurn(drawn, pool, seen);
+  if (!turned) return resolved;
+  /* An agreeing card lent its own word; the form that agrees with the
+     slot beside it goes in its place. Nothing to put there — a cell the
+     teacher left blank — leaves the sentence as it stands, the way an
+     unfilled hole is, so it reads as the gap it is. */
+  const took = agreeTook(
+    turned,
+    drawn,
+    (v) => VALUE_OWNER.get(refOf(v)) || null,
+    (card) => LANGUAGES[String(card.lang || "")] || activeLang(),
+  );
   if (!took) return resolved;
   if (slots.length !== drawn.length) {
     const agreed = verbValue(resolved, took);
@@ -5102,7 +5162,10 @@ export default function ArabicTrainer() {
          the plural that filled the subject rather than with the card's own
          word. A card's forms stay in the order they are written in, which
          is what keeps the rotation the same sentence twice. */
-      for (const value of valuesOf(it, grammarFields())) {
+      /* And only the forms it lends: an adjective lends its own word, and
+         the sentence picks the form that agrees — see lendsForm. */
+      const lends = lendsForm(LANGUAGES[langId] || langOf(settings), it);
+      for (const value of valuesOf(it, grammarFields(), lends)) {
         for (const slot of slots) {
           const key = valueKey(langId, slot);
           map.set(key, (map.get(key) || []).concat([value]));
@@ -5126,16 +5189,19 @@ export default function ArabicTrainer() {
    */
   const valueReach = useMemo(() => {
     const map: Map<string, number | null> = new Map();
+    const owner: Map<string, { card: Item; form: Form }> = new Map();
     for (const it of asking) {
       const langId = langIdOf(it, settings);
-      if (!fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings))).length) continue;
+      const lang = LANGUAGES[langId] || langOf(settings);
+      if (!fillsOf(it, kindOf(it, lang)).length) continue;
       const drilled = isDrillable(it, settings);
       /* Read off the form itself, which is the word a hole borrows: a
          plural the learner can already write stands in a sentence that
          asks for writing, whatever the singular beside it has done. */
-      for (const { form, value } of lentBy(it)) {
+      for (const { form, value } of lentBy(it, [], lendsForm(lang, it))) {
         const ref = refOf(value);
         if (!ref) continue;
+        owner.set(ref, { card: it, form: form as Form });
         if (!drilled) {
           map.set(ref, null);
           continue;
@@ -5154,9 +5220,10 @@ export default function ArabicTrainer() {
         map.set(ref, climbed);
       }
     }
-    return map;
+    return { map, owner };
   }, [asking, settings]);
-  setValueReach(valueReach);
+  setValueReach(valueReach.map);
+  setValueOwner(valueReach.owner);
 
   /* And how many words each language has to pair against. */
   const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
