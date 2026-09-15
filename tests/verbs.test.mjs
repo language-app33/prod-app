@@ -477,3 +477,99 @@ test("and a language that attaches none has no such table", () => {
   assert.deepEqual(cellsIn(null, attachedOf(LANGUAGES["vi-Hue"])), []);
   assert.equal(hasCells({ subs: [] }, null), false);
 });
+
+/*
+ * Whose table a cell is in.
+ *
+ * The pronouns a word takes on its end belong to a *form*, not to the
+ * card: the plural takes the same endings and has eight of its own. So
+ * every form carries a table and a cell says which — and two of them have
+ * a *me* apiece, which is exactly what a row and a column alone cannot
+ * tell apart.
+ */
+test("two forms of one word each have their own table", () => {
+  const attached = must(attachedOf(LANGUAGES["ar-PS"]), "the Arabic attached-pronoun table");
+  const book = {
+    id: "book",
+    ar: "كِتاب",
+    en: "book",
+    subs: [
+      /* The plural, as a form of the card. */
+      { id: "pl", ar: "كتب", en: "books", lat: "" },
+      /* The singular's pronouns, which name no owner: the card's own word.
+         This is what every cell written before 0.131 looks like. */
+      { id: "a-me", row: "attached", col: "me", ar: "كتابي", en: "my book", lat: "" },
+      /* And the plural's, which name theirs. */
+      { id: "p-me", of: "pl", row: "attached", col: "me", ar: "كتبي", en: "my books", lat: "" },
+      { id: "p-you", of: "pl", row: "attached", col: "you-m", ar: "كتبك", en: "your books", lat: "" },
+    ],
+  };
+
+  /* Asked about one table, one table's cells come back. */
+  assert.deepEqual(cellsIn(book, attached, "").map((c) => c.id), ["a-me"]);
+  assert.deepEqual(cellsIn(book, attached, "pl").map((c) => c.id), ["p-me", "p-you"]);
+  /* Asked about the card, all of them: whether this card has such a table
+     at all is a different question from what one table holds. */
+  assert.deepEqual(cellsIn(book, attached).map((c) => c.id), ["a-me", "p-me", "p-you"]);
+  assert.equal(hasCells(book, attached, "pl"), true);
+  assert.equal(hasCells(book, attached, "nobody"), false);
+
+  /* And a cell is looked up in a named table, because two of them sit at
+     the same row and column. Without the owner this was whichever was
+     typed first. */
+  assert.equal(must(cellAt(book, "attached", "me"), "the word's own me").ar, "كتابي");
+  assert.equal(must(cellAt(book, "attached", "me", "pl"), "the plural's me").ar, "كتبي");
+  assert.equal(cellAt(book, "attached", "you-m"), null);
+
+  /* Which is what the teacher's grid is drawn from: eight boxes per form,
+     filled from that form's own cells. */
+  assert.deepEqual(tableCount(book, attached), { filled: 1, blank: 7 });
+  assert.deepEqual(tableCount(book, attached, "pl"), { filled: 2, blank: 6 });
+});
+
+/*
+ * A verb's table is the card's, and passes no owner at all — so nothing
+ * about a verb changed. The gate down the rows is the place that would
+ * show it if anything had: it reads the cells of a table, and reading the
+ * wrong ones would open every row at once or none of them.
+ */
+test("a verb's table is unaffected by whose table a cell is in", () => {
+  assert.deepEqual(openRows(toEat, arabic, () => false), ["present"]);
+  assert.deepEqual(openRows(toEat, arabic, () => true), ["present", "past", "command"]);
+  const she = must(cellAt(toEat, "past", "she"), "she ate");
+  assert.equal(cellIsOpen(toEat, arabic, she, () => false), false);
+  assert.equal(cellIsOpen(toEat, arabic, she, () => true), true);
+  assert.equal(must(citedCell(toEat, arabic), "the cited cell").en, "he ate");
+});
+
+/*
+ * And a row of one form's table is held up by that form's cells, not by
+ * another's. One table mastered while the other is untouched opens the
+ * rows of the first and none of the second.
+ */
+test("a row waits on its own table's cells", () => {
+  /* Two tables of a verb's shape on one card, which is not a card anybody
+     writes — but it is the only way to ask this of a table with more than
+     one row, and what it checks is the rule rather than the card. */
+  const doubled = {
+    id: "both",
+    subs: [
+      { id: "mine-present", row: "present", col: "i", ar: "a", en: "a", lat: "" },
+      { id: "mine-past", row: "past", col: "i", ar: "b", en: "b", lat: "" },
+      { id: "yours-present", of: "other", row: "present", col: "i", ar: "c", en: "c", lat: "" },
+      { id: "yours-past", of: "other", row: "past", col: "i", ar: "d", en: "d", lat: "" },
+    ],
+  };
+  const done = new Set(["mine-present"]);
+  /* The card's own table has its present mastered, so its past opens —
+     and stops there, its own past being untouched. */
+  assert.deepEqual(openRows(doubled, arabic, (c) => done.has(c.id)), ["present", "past"]);
+  /* The other form's has not, so it stands where it was. */
+  assert.deepEqual(openRows(doubled, arabic, (c) => done.has(c.id), "other"), ["present"]);
+  /* Which is what cellIsOpen answers for a cell, off the cell's own
+     owner — the caller never has to say. */
+  const theirs = must(cellAt(doubled, "past", "i", "other"), "the other form's past");
+  assert.equal(cellIsOpen(doubled, arabic, theirs, (c) => done.has(c.id)), false);
+  const ours = must(cellAt(doubled, "past", "i"), "the card's own past");
+  assert.equal(cellIsOpen(doubled, arabic, ours, (c) => done.has(c.id)), true);
+});

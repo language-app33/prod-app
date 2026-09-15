@@ -156,6 +156,7 @@ import {
   citedCell,
   isCitation,
   openRows,
+  ownerOf,
   rowOf,
   subjectSlot,
 } from "./verbs.ts";
@@ -799,6 +800,95 @@ function setQuietUnits(quiet: Set<string>) {
    written before verbs had tables, which is nearly all of them. */
 const isQuiet = (unit: Form): boolean => !!unit && QUIET_UNITS.has(unit.id);
 
+/* ------------------------------------------------------------------
+   The cells a known word is not asked every way about
+
+   A word with pronouns on its end carries eight of them per form, and each
+   one differs from the word by an ending the learner is learning once. Ask
+   every exercise of all eight and a card whose word is long since learnt
+   spends a fortnight being asked, three ways a level, for what it already
+   knows.
+
+   So once the word a table hangs off has climbed the whole ladder — it is
+   being written from its meaning alone, with nothing on the screen to go
+   on — its cells climb a narrower one: **the same four rungs, one exercise
+   each**, rather than the two or three a level that a card with a
+   recording supports. Nothing about the ladder changes, and nothing is
+   skipped; the cell is asked once at each rung instead of two or three
+   times.
+
+   Applied in `laddered`, which is the one list every reader downstream
+   goes through — what a session deals, where the progress screen says the
+   card stands, when it counts as learnt. Narrow it there and the three
+   cannot disagree about what is left to do.
+   ------------------------------------------------------------------ */
+
+let EASED_UNITS: Set<string> = new Set();
+
+function setEasedUnits(eased: Set<string>) {
+  EASED_UNITS = eased || new Set();
+}
+
+const isEased = (unit: Form): boolean => !!unit && EASED_UNITS.has(unit.id);
+
+/**
+ * One exercise per level, in the order they were handed in.
+ *
+ * Which one is the first the form supports at that level, which is TYPES
+ * order — static, and read off material that does not change under the
+ * learner, so the same cell is asked the same way today as tomorrow.
+ *
+ * Takes keys or types alike: a level is read off either the same way, and
+ * a card accepting two spellings is asked for one of them rather than both
+ * — which is the same redundancy, one axis over.
+ */
+export const onePerLevel = (keys: string[]): string[] => {
+  const seen: Set<number> = new Set();
+  return (keys || []).filter((k) => {
+    const level = levelOf(k);
+    if (seen.has(level)) return false;
+    seen.add(level);
+    return true;
+  });
+};
+
+/* And that rule applied to whatever a caller was about to read off a unit:
+   the narrowed list for a cell whose word is known, and the list itself for
+   everything else, which is nearly every form in the app. */
+const easedTo = (unit: Form, keys: string[]): string[] =>
+  isEased(unit) ? onePerLevel(keys) : keys;
+
+/*
+ * Which cells those are, across every card in hand.
+ *
+ * A cell is eased when the form its table hangs off has reached the top of
+ * its own ladder. Read off that form rather than off the cell — the same
+ * arrangement the gate above makes, and for the same reason: the cell is
+ * what is being decided about, so asking it would be asking the answer to
+ * write itself.
+ *
+ * Read afresh every time, so a lapse on the word puts its cells back on the
+ * full ladder — the ladder's own habit, and nothing is lost by it: the keys
+ * that were not being asked keep whatever they had.
+ */
+export function easedUnits(items: Item[], settings: Settings): Set<string> {
+  const out: Set<string> = new Set();
+  for (const card of items) {
+    const lang = langOf(settingsFor(settings, card));
+    const attached = attachedOf(lang);
+    if (!attached || !hasCells(card, attached)) continue;
+    for (const { unit } of unitsOf(card)) {
+      const of = unit.id === card.id ? "" : unit.id;
+      const mine = cellsIn(card, attached, of);
+      if (!mine.length) continue;
+      const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
+      if (!reachedLevel(supported, (t) => statesOf(unit)[t], TOP_LEVEL)) continue;
+      for (const cell of mine) out.add(cell.id);
+    }
+  }
+  return out;
+}
+
 /*
  * Working them out, across every card in hand.
  *
@@ -807,32 +897,51 @@ const isQuiet = (unit: Form): boolean => !!unit && QUIET_UNITS.has(unit.id);
  * a cell the learner has switched every exercise off for cannot hold the
  * rows below it shut for ever.
  */
-function quietUnits(items: Item[], settings: Settings): Set<string> {
+export function quietUnits(items: Item[], settings: Settings): Set<string> {
   const out: Set<string> = new Set();
   for (const card of items) {
     const lang = langOf(settingsFor(settings, card));
     /*
-     * A word's attached pronouns, which wait on the word itself.
+     * A word's attached pronouns, which wait on the word they are on the
+     * end of.
      *
      * "my book" is a form of "book", and meeting the two together is
-     * meeting a word you have not learnt in a shape you cannot read. So
-     * the row is
-     * shut until the card's own word has climbed past level one — the same
+     * meeting a word you have not learnt in a shape you cannot read. So the
+     * row is shut until that word has climbed past level one — the same
      * "recognised before it is produced" the ladder makes, turned sideways,
      * and the same test openTypes makes when it opens level two.
      *
-     * Read off the card's own form rather than off the cells: the cells are
-     * what is waiting, and asking them would be asking the gate to open
-     * itself. Through availableTypes rather than laddered, for the same
-     * reason the row gate below is: laddered asks this very set, and a gate
-     * that reads the answer it is in the middle of writing reads whatever
-     * the last render left behind.
+     * Its own word, which is the whole of what changed here: every form
+     * carries a table now, so the plural's pronouns wait on the plural and
+     * the singular's on the singular. A single gate on the card held the
+     * plural's eight open the moment the singular was read.
+     *
+     * Read off the form rather than off its cells: the cells are what is
+     * waiting, and asking them would be asking the gate to open itself.
+     * Through availableTypes rather than laddered, for the same reason the
+     * row gate below is: laddered asks this very set, and a gate that reads
+     * the answer it is in the middle of writing reads whatever the last
+     * render left behind.
      */
     const attached = attachedOf(lang);
     if (attached && hasCells(card, attached)) {
-      const supported = availableTypes(card, lang).filter((t) => settings.types[t]);
-      const known = reachedLevel(supported, (t) => statesOf(card)[t], 2);
-      if (!known) for (const cell of cellsIn(card, attached)) out.add(cell.id);
+      for (const { unit } of unitsOf(card)) {
+        /* The card's own word owns the table its cells leave unnamed. */
+        const of = unit.id === card.id ? "" : unit.id;
+        const mine = cellsIn(card, attached, of);
+        if (!mine.length) continue;
+        const supported = availableTypes(unit, lang).filter((t) => settings.types[t]);
+        const known = reachedLevel(supported, (t) => statesOf(unit)[t], 2);
+        if (!known) for (const cell of mine) out.add(cell.id);
+      }
+      /* And a cell hanging off a form the card no longer carries, which is
+         a word with a pronoun on the end of nothing. The editor drops these
+         as it saves; one that reaches a device anyway is never asked, and
+         the loop above has already passed it over. */
+      for (const cell of cellsIn(card, attached)) {
+        const of = ownerOf(cell);
+        if (of && !(card.subs || []).some((f) => f.id === of)) out.add(cell.id);
+      }
     }
     const spec = verbOf(lang);
     if (!spec || !hasCells(card, spec)) continue;
@@ -1368,9 +1477,17 @@ const specOf = (key: string) => EX[typeOf(key)];
  */
 function laddered(it: Form, settings: Settings): string[] {
   if (isQuiet(it)) return [];
-  return availableTypes(it, langOf(settingsFor(settings, it)))
-    .filter((t) => settings.types[t])
-    .flatMap((t) => keysFor(it, t));
+  /* And a rung's worth rather than all of it, for a pronoun on the end of a
+     word the learner can already write — see easedUnits. Said here because
+     this is the list everything downstream reads, so what is dealt, what
+     the progress screen shows and when the cell is done all narrow
+     together. */
+  return easedTo(
+    it,
+    availableTypes(it, langOf(settingsFor(settings, it)))
+      .filter((t) => settings.types[t])
+      .flatMap((t) => keysFor(it, t)),
+  );
 }
 
 /*
@@ -1962,9 +2079,12 @@ function pickableTypes(unit: Form, settings: Settings) {
   });
 }
 
-/* Every exercise type this form supports is already mature. */
+/* Every exercise type this form supports is already mature — and for a
+   cell that is asked one exercise a level, every one of those: a form is
+   finished when nothing it is being asked is left, not when exercises
+   nobody is putting to it are still new. */
 function unitFullyLearnt(unit: Form) {
-  const types = availableTypes(unit);
+  const types = easedTo(unit, availableTypes(unit));
   return types.length > 0 && types.every((t) => maturity(statesOf(unit)[t]) === "mature");
 }
 
@@ -2021,7 +2141,8 @@ function buildManualSession({ items, settings, ids, mode, count }: {
      ladder a dealt one does. A form qualifies on the first — it is the
      material that has to offer two exercises — and is asked from the
      second. */
-  const supportedFor = (unit: Form) => availableTypes(unit).filter((t) => allowed.has(t));
+  const supportedFor = (unit: Form) =>
+    easedTo(unit, availableTypes(unit).filter((t) => allowed.has(t)));
   const usableFor = (unit: Form) =>
     openTypesOf(
       supportedFor(unit).flatMap((t) => keysFor(unit, t)),
@@ -4925,6 +5046,11 @@ export default function ArabicTrainer() {
      answers. */
   const quiet = useMemo(() => quietUnits(asking, settings), [asking, settings]);
   setQuietUnits(quiet);
+  /* And which of them are asked one exercise a level rather than all of
+     them, because the word they are a form of is already written from its
+     meaning. Beside the gate above and worked out the same way. */
+  const eased = useMemo(() => easedUnits(asking, settings), [asking, settings]);
+  setEasedUnits(eased);
 
   /* Every recording the cards refer to, for taking a course offline. */
   const allClipIds = useMemo(() => {

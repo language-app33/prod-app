@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
-import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec } from "./types.ts";
-import { cellsIn, citationOf, citedWord, isCell, personsOf, rowIdsOf, tableCount, tensesOf } from "./verbs.ts";
+import type { Card, Course, Deck, Flag, Form, Lang, LangId, User, VerbSpec, VerbTense } from "./types.ts";
+import { cellsIn, citationOf, citedWord, isCell, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 
 /*
@@ -2755,6 +2755,30 @@ export function ClaimAdmin({ onDone }: { onDone: (claimed?: boolean) => void }) 
    another. Which of them the editor actually shows is the language's call. */
 const blankForm = () => ({ ar: "", en: "", lat: "", clips: [], slowClips: [], ...dimValues({}) });
 
+/*
+ * A name for a form, so that something can point at it.
+ *
+ * A form used to be known by where it sat in the list, which is a fact
+ * about the list: the pronouns a form takes on its end had nothing to name
+ * as their own, and a form inserted above another moved every student's
+ * schedule down a place. So a form gets a name when it is made, and keeps
+ * it.
+ *
+ * Short and made here rather than asked for: nobody sees it, and the only
+ * thing it has to be is different from the names already on this card.
+ * Letters and digits, which is the shape the server stores an id in.
+ */
+const formName = (taken: { id?: string }[]): string => {
+  const used = new Set((taken || []).map((f) => String((f && f.id) || "")));
+  for (let tries = 0; tries < 50; tries++) {
+    const made = `f${Math.random().toString(36).slice(2, 8)}`;
+    if (!used.has(made)) return made;
+  }
+  /* Fifty collisions in a row is not a thing that happens; a name that is
+     certainly free beats a loop that could go round for ever. */
+  return `f${Date.now().toString(36)}`;
+};
+
 /* A turn nobody has written yet. No grammar on it: a line of a dialog is a
    thing somebody says, and whether it is singular or plural is a question
    about a word. `uses` is per line rather than per card, because a line is
@@ -3894,23 +3918,41 @@ function cellLabel(spec: VerbSpec | null, at: { row: string, col: string }) {
   return [tense ? tense.label : at.row, person ? person.label : ""].filter(Boolean).join(" · ");
 }
 
-function VerbTable({ lang, spec, cells, onChange, onRecord }: {
+function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, onChange, onRecord }: {
   lang: Lang;
   spec: VerbSpec;
+  /* Whose table this is: "" for the card's own word, a form's name for
+     that form's. A verb passes nothing — a verb's table is the card's, and
+     there is one of it. A word that takes pronouns on its end has one per
+     form, and two of them have a *me* apiece, so every read and every
+     write below is against this one table and not against the list. */
+  of?: string;
+  /* What that form is called on screen — "Form 2" — for the labels a
+     screen reader reads and the recording screen's title. Empty where the
+     table is the only one there is. */
+  ofLabel?: string;
+  /* Whether it sits inside the block of the form it belongs to, rather
+     than standing as a block of its own. */
+  inline?: boolean;
   cells: Record<string, any>[];
   onChange: (cells: Record<string, any>[]) => void;
   onRecord: (row: string, col: string) => void;
 }) {
+  const mine = (c: Record<string, any>) => String(c.of || "") === of;
   const at = (row: string, col: string) =>
-    cells.find((c) => c.row === row && c.col === col) || null;
+    cells.find((c) => c.row === row && c.col === col && mine(c)) || null;
 
   /* One cell written, added or dropped. A cell with nothing in any of its
      fields is not a blank the teacher is coming back to — it is a form the
      language has not got — so it leaves the list rather than being saved
      empty. */
   const write = (row: string, col: string, patch: Record<string, any>) => {
-    const next = { ...(at(row, col) || { ...blankForm(), row, col }), ...patch };
-    const rest = cells.filter((c) => !(c.row === row && c.col === col));
+    const had = at(row, col);
+    const next = {
+      ...(had || { ...blankForm(), row, col, ...(of ? { of } : null) }),
+      ...patch,
+    };
+    const rest = cells.filter((c) => !(c.row === row && c.col === col && mine(c)));
     const keep = ["ar", "en", "lat"].some((f) => String(next[f] || "").trim());
     onChange(keep ? rest.concat([next]) : rest);
   };
@@ -3926,31 +3968,21 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
      note belongs on the verb itself, which still has its own field below. */
   const saysHow = lang.translitDrilled !== false;
 
-  return (
+  /* One row of the table, whether it stands on its own or inside the block
+     of the form it belongs to. A table hung off a form is a part of that
+     form rather than a section beside it, so there it is a group of fields
+     under a line of its own — the same thing "Drilled in exercises" and
+     "Reference — not drilled" are in the blocks above. */
+  const row = (tense: VerbTense, at_: number) => (
     <>
-      {tensesOf(spec).map((tense, at_) => (
-        <div className="at-formblock at-mt5" key={tense.id}>
-          <div className="at-formhead">
-            <span className="at-formnum">{tense.label}</span>
-            {/* Which row opens when, which is only worth saying where there
-                is more than one of them: "taught first" over the single row
-                of an attached-pronoun table names an order it is not in.
-                What that one waits on is the word itself, and the line
-                under the table says so. */}
-            {tensesOf(spec).length > 1 && (
-              <span className="at-formrole">
-                {at_ === 0
-                  ? "taught first"
-                  : `opens once the ${tensesOf(spec)[at_ - 1].label} is known`}
-              </span>
-            )}
-          </div>
-
-          {persons.map((person) => {
+      {persons.map((person) => {
             const cell = at(tense.id, person.id);
             /* What to call this one when a label has to name it out loud —
-               for a screen reader, and on the recording screen's title. */
-            const which = [tense.label, person.label].filter(Boolean).join(" · ");
+               for a screen reader, and on the recording screen's title.
+               Whose table it is comes first where there is more than one of
+               them on screen: two forms of a word have a *me* apiece, and
+               a box labelled only "me" would be two boxes with one name. */
+            const which = [ofLabel, tense.label, person.label].filter(Boolean).join(" · ");
             const written = !!(cell && String(cell.ar || "").trim());
             const heard = cell ? clipsOf(cell).length : 0;
             /* Nothing marks the cell a dictionary would list this verb
@@ -4008,7 +4040,43 @@ function VerbTable({ lang, spec, cells, onChange, onRecord }: {
                 />
               </div>
             );
-          })}
+      })}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <>
+        {tensesOf(spec).map((tense, at_) => (
+          <div key={tense.id}>
+            <p className="at-groupline">{tense.label}</p>
+            {row(tense, at_)}
+          </div>
+        ))}
+      </>
+    );
+  }
+
+  return (
+    <>
+      {tensesOf(spec).map((tense, at_) => (
+        <div className="at-formblock at-mt5" key={tense.id}>
+          <div className="at-formhead">
+            <span className="at-formnum">{tense.label}</span>
+            {/* Which row opens when, which is only worth saying where there
+                is more than one of them: "taught first" over the single row
+                of an attached-pronoun table names an order it is not in.
+                What that one waits on is the word itself, and the line
+                under the table says so. */}
+            {tensesOf(spec).length > 1 && (
+              <span className="at-formrole">
+                {at_ === 0
+                  ? "taught first"
+                  : `opens once the ${tensesOf(spec)[at_ - 1].label} is known`}
+              </span>
+            )}
+          </div>
+          {row(tense, at_)}
         </div>
       ))}
     </>
@@ -4248,7 +4316,7 @@ export const formsOffered = (
     out.push({
       value: "attached",
       label: "Attached pronouns",
-      note: "my, your, his — each one a box of its own, once the word itself is known.",
+      note: "my, your, his — a table of them under every form, once that form is known.",
     });
   }
   /* One answer is no question. A language that lays out neither offers
@@ -4357,27 +4425,34 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
   const drillsTranslit = (lang || {}).translitDrilled !== false;
-  const [forms, setForms] = useState(() =>
-    card
-      ? [
-          {
-            ar: card.ar || "",
-            en: card.en || "",
-            lat: card.lat || "",
-            ...dimValues(card),
-            clips: card.clips || [],
-            slowClips: card.slowClips || [],
-          },
-          /* The cells of a verb's table are sub-forms too, and are edited
-             in the table below rather than as blocks here — so they are
-             held apart while the editor is open and put back on save. */
-          ...(card.subs || []).filter((s) => !isCell(s)).map((s) => ({ ...blankForm(), ...s })),
-        ]
-      /* A card started from a suggestion arrives with its first line
-         already written — the word the phrases keep using — and everything
-         else blank, which is the shape of the job left to do. */
-      : [{ ...blankForm(), ...(draft || {}) }]
-  );
+  const [forms, setForms] = useState(() => {
+    /* A card started from a suggestion arrives with its first line already
+       written — the word the phrases keep using — and everything else
+       blank, which is the shape of the job left to do. */
+    if (!card) return [{ ...blankForm(), ...(draft || {}) }] as Record<string, any>[];
+    const out: Record<string, any>[] = [
+      {
+        ar: card.ar || "",
+        en: card.en || "",
+        lat: card.lat || "",
+        ...dimValues(card),
+        clips: card.clips || [],
+        slowClips: card.slowClips || [],
+      },
+    ];
+    /* The cells of a verb's table are sub-forms too, and are edited in the
+       table below rather than as blocks here — so they are held apart while
+       the editor is open and put back on save.
+
+       A form written before forms had names is given one on the way in, so
+       that a table can be hung off it here and now. Naming it changes
+       nothing the student has done: a renamed form is matched back to its
+       schedule by where it sits — see foldForms in shared.tsx. */
+    for (const s of (card.subs || []).filter((f) => !isCell(f))) {
+      out.push({ ...blankForm(), ...s, id: String(s.id || "") || formName(out) });
+    }
+    return out;
+  });
   /* The card's verb table, where the language lays verbs out and this card
      is one. Kept beside `forms` rather than inside it because the two are
      edited in different shapes — a list of blocks, and a table — and
@@ -4440,7 +4515,14 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      has none. What the line under the radio counts. */
   const aside = [verbSpec, attachedSpec]
     .filter((spec): spec is VerbSpec => !!spec && spec !== shownSpec)
-    .reduce((n, spec) => n + tableCount({ subs: cells }, spec).filled, 0);
+    /* Every form's table of that kind, not only the card's own: a word with
+       pronouns on its end carries one per form, and the warning counts what
+       saving the card the other way would drop. */
+    .reduce(
+      (n, spec) =>
+        n + cellsIn({ subs: cells }, spec).filter((c) => String(c.ar || "").trim()).length,
+      0,
+    );
   /*
    * Choosing a kind, and choosing what a word lays out, are two questions
    * and each sets its own flag — so the two can never say a card is a
@@ -4482,13 +4564,22 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
   const cite = verbMode ? citationOf(verbSpec) : null;
   const citedAt = cite ? cells.find((c) => c.row === cite.row && c.col === cite.col) || null : null;
   const standsIn = !!cite;
-  /* Which cell of the table has the recording screen open, by where it
+  /* Which cell of which table has the recording screen open, by where it
      sits rather than by its place in the list: the list is rewritten
      whenever a cell is typed into, so an index would point at a different
-     form by the time the screen came back. */
-  const [recordingCell, setRecordingCell] = useState<{ row: string, col: string } | null>(null);
+     form by the time the screen came back.
+
+     Whose table, as well as which box of it. Two forms of one word each
+     have a *me*, so a row and a column name two cells between them and the
+     mic on the second would have opened the first. */
+  const [recordingCell, setRecordingCell] = useState<{ of: string, ofLabel: string, row: string, col: string } | null>(null);
   const cellHere = recordingCell
-    ? cells.find((c) => c.row === recordingCell.row && c.col === recordingCell.col) || null
+    ? cells.find(
+        (c) =>
+          c.row === recordingCell.row &&
+          c.col === recordingCell.col &&
+          String(c.of || "") === recordingCell.of,
+      ) || null
     : null;
   const [note] = useState((card && card.note) || "");
   /* What to call the card in a list. Only asked of a verb whose own word is
@@ -4585,6 +4676,27 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
      so a hole the cited cell leaves is checked against the fields beside
      it rather than against a block nobody is filling in. */
   const ownForms = [main].concat(forms.slice(1));
+  /*
+   * The cells of the table on screen, as they will be saved.
+   *
+   * Only the table on screen, so changing which one the card lays out puts
+   * the other away rather than saving a hidden one — and a card can never
+   * be saved carrying both.
+   *
+   * And only cells whose form is still here and still says something. A
+   * form with nothing typed into it is dropped on the way out, so its
+   * pronouns would otherwise be saved hanging off a name no form on the
+   * card answers to: drilled, never opened, and waiting for ever on a word
+   * that is not there.
+   */
+  const tableCells = shownSpec
+    ? cellsIn({ subs: cells }, shownSpec).filter((c) => {
+        const of = String(c.of || "");
+        if (!of) return true;
+        const owner = forms.find((f) => String(f.id || "") === of);
+        return !!owner && !!(String(owner.ar || "").trim() || String(owner.en || "").trim());
+      })
+    : [];
   const trouble = scene ? null : ownForms.map((f) => slotTrouble(f)).find(Boolean) || null;
 
   /*
@@ -4720,9 +4832,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                    which one the card lays out puts the other away rather
                    than saving a hidden one — and a card can never be saved
                    carrying both. */
-                forms: shownSpec
-                  ? ownForms.concat(cellsIn({ subs: cells }, shownSpec) as typeof forms)
-                  : ownForms,
+                forms: shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms,
                 note,
                 /* Only where it was asked for: a card that is not a verb of
                    this shape is named by its own word, and a name left
@@ -4828,7 +4938,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               <Help className="at-mt3">
                 {storedForms === "verb"
                   ? "A verb: its forms are its table, each practised in its own right. Empty the table and it is a word again."
-                  : "Attached pronouns: each one is a form of the word, practised in its own right. Empty the table and it is an ordinary word again."}
+                  : "Attached pronouns: every form of the word carries a table of them, each one practised in its own right. Empty the tables and it is an ordinary word again."}
               </Help>
             )}
 
@@ -4900,7 +5010,7 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                 spec={verbSpec}
                 cells={cells}
                 onChange={setCells}
-                onRecord={(row, col) => setRecordingCell({ row, col })}
+                onRecord={(row, col) => setRecordingCell({ of: "", ofLabel: "", row, col })}
               />
               {/* Only when it is in the way. A line explaining which box a
                   dictionary lists the verb under, standing there whether or
@@ -5147,7 +5257,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                       setForms((x) =>
                         x
                           .slice(0, i + 1)
-                          .concat([{ ...x[i], clips: [], slowClips: [] }])
+                          /* A name of its own, and no table: the copy is a
+                             different word, so the pronouns on the end of
+                             the original are the wrong ones for it — the
+                             same reason its recordings are left behind. */
+                          .concat([{ ...x[i], id: formName(x), clips: [], slowClips: [] }])
                           .concat(x.slice(i + 1))
                       )
                     }
@@ -5156,7 +5270,15 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                   </Button>
                   {i > 0 && (
                     <Button variant="ghost" size="sm"
-                      onClick={() => setForms((x) => x.filter((_, j) => j !== i))}
+                      onClick={() => {
+                        setForms((x) => x.filter((_, j) => j !== i));
+                        /* And the table it carried. A cell whose form has
+                           gone is a word with a pronoun on the end of
+                           nothing: it would be saved, drilled, and never
+                           opened, because what it waits on no longer
+                           exists. */
+                        if (f.id) setCells((x) => x.filter((c) => String(c.of || "") !== f.id));
+                      }}
                     >
                       Remove
                     </Button>
@@ -5228,6 +5350,51 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
                   </Field>
                 </>
               )}
+
+              {/* ---- the pronouns this form takes on its end ----
+
+                  Part of the form rather than a section beside it, which is
+                  what it is: the singular has its pronouns and the plural
+                  has its own, and a single table hanging off the card said
+                  the plural's were the singular's. It sits under the form's own fields, which
+                  is the order they are learnt in — the word first, and each
+                  of these once the word is known.
+
+                  The same component the verb's table uses, because it is
+                  the same thing: cells of a table over the card's own
+                  sub-forms. Inline, so the eye reads it as belonging to the
+                  block it is in. */}
+              {attachedMode && attachedSpec && (
+                <>
+                  <VerbTable
+                    inline
+                    lang={lang}
+                    spec={attachedSpec}
+                    of={i === 0 ? "" : String(f.id || "")}
+                    ofLabel={forms.length > 1 ? (i === 0 ? "the word" : `form ${i + 1}`) : ""}
+                    cells={cells}
+                    onChange={setCells}
+                    onRecord={(row, col) =>
+                      setRecordingCell({
+                        of: i === 0 ? "" : String(f.id || ""),
+                        ofLabel: forms.length > 1 ? (i === 0 ? "the word" : `form ${i + 1}`) : "",
+                        row,
+                        col,
+                      })
+                    }
+                  />
+                  {/* Said once, under the first table: it is the same
+                      sentence about every one of them, and a copy under
+                      each would be the page's own advice repeating. */}
+                  {i === 0 && (
+                    <p className="at-formneed">
+                      Each of these is practised in its own right, once the
+                      form it is on the end of is known. Leave out the ones
+                      you do not teach.
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           ))}
 
@@ -5242,50 +5409,30 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
               an accepted answer, written beside the one it is an
               alternative to, and never a form of its own.
 
-              The same now holds for a word that takes a pronoun on its
-              end, and it took a moment to see why. The plural looked like a
-              real thing to add — book, books — but the plural takes the
-              same pronouns, so it is not one more form: it is a second
-              table, and dropping it in here gives you a plural stripped of
-              the endings that made the card worth having. There is nothing
-              else a loose form could be.
+              A word that takes a pronoun on its end is offered one again.
+              0.130 took the offer away, on the grounds that the plural
+              takes the same endings and so was "not one more form but a
+              second table" — which was true, and the conclusion should have
+              been to give it one. Every form now carries its own table, so
+              adding a form adds the whole thing: the plural, and the eight
+              pronouns on the end of the plural.
 
               Duplicate, on a block already on screen, is left alone: it is
               a way out for somebody who has one, rather than an invitation
               to everybody who has not. And a form the card already carries
               stays on screen, because it is saved either way and hiding it
               would read as having lost it. */}
-          {!scene && !verbMode && !attachedMode && (
+          {!scene && !verbMode && (
             <Button variant="ghost" size="sm"
-              /* No number override: blankForm takes the language's declared
-                 default, so what a new form starts as is settled in one place. */
-              onClick={() => setForms((f) => f.concat([blankForm()]))}
+              /* No number override beyond the name: blankForm takes the
+                 language's declared default, so what a new form starts as
+                 is settled in one place. The name is what its own cells
+                 will point at. */
+              onClick={() => setForms((f) => f.concat([{ ...blankForm(), id: formName(f) }]))}
               icon="add"
             >
               Add a form
             </Button>
-          )}
-
-          {/* ---- the pronouns a word takes on its end ----
-
-              The same component, because it is the same thing: one row of a
-              table over the card's own sub-forms. It sits below the word's
-              own blocks rather than above them, which is the order they are
-              learnt in — the word is met first and the row waits on it. */}
-          {attachedMode && attachedSpec && (
-            <>
-              <VerbTable
-                lang={lang}
-                spec={attachedSpec}
-                cells={cells}
-                onChange={setCells}
-                onRecord={(row, col) => setRecordingCell({ row, col })}
-              />
-              <p className="at-formneed">
-                Each of these is practised in its own right, once the word
-                itself is known. Leave out the ones you do not teach.
-              </p>
-            </>
           )}
 
           {/* ---- blanks ----
@@ -5478,12 +5625,20 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
       )}
       {recordingCell && cellHere && (
         <RecordingScreen
-          title={`Recordings · ${cellLabel(verbSpec, recordingCell)}`}
+          /* Named out of whichever table is on screen. It used to be named
+             out of the verb's whatever the card was, so the recording
+             screen over a pronoun table was titled with the row and column
+             ids the pack happens to use rather than its words for them. */
+          title={`Recordings · ${[recordingCell.ofLabel, cellLabel(shownSpec, recordingCell)]
+            .filter(Boolean)
+            .join(" · ")}`}
           form={cellHere}
           onChange={(next) =>
             setCells((x) =>
               x.map((c) =>
-                c.row === recordingCell.row && c.col === recordingCell.col
+                c.row === recordingCell.row &&
+                c.col === recordingCell.col &&
+                String(c.of || "") === recordingCell.of
                   ? { ...c, ...next }
                   : c,
               ),

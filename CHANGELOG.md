@@ -8,6 +8,49 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.131 — 15 September 2026
+
+- **Every form of a word now carries its own table of attached pronouns.**
+  The table used to hang off the card: one row of *my*, *your*, *his* for
+  the whole thing. But the plural takes the same endings — *my books*,
+  *your books* — so a single table said the plural's pronouns were the
+  singular's, and 0.130 took **Add a form** away for want of anywhere to
+  put them.
+
+  A form is now a word plus its own table underneath it. **Add a form** is
+  back, and what it adds is the whole thing: another word, and the eight
+  pronouns on the end of that word. Removing a form takes its table with
+  it. The two kinds of grammar then sit at visibly different levels — what
+  the word is, on the form; whose it is, in the columns.
+
+- **A word's pronouns wait on that word, rather than on the card.** *My
+  book* is a form of *book*, and meeting the two together is meeting a word
+  you have not learnt in a shape you cannot read — so each table opens once
+  the form it hangs off has been read a few times. Its own form: the
+  plural's eight wait for the plural.
+
+- **And once a word can be written from its meaning, its pronouns are asked
+  one exercise a level** instead of every exercise they support. Eight
+  boxes per form, each differing from the word by an ending learnt once,
+  was a fortnight of questions about something already known. The ladder is
+  unchanged and nothing is skipped — every rung is still climbed, once
+  rather than two or three times. A lapse on the word puts its pronouns
+  back on the full ladder, and no progress is lost either way.
+
+- **Fixed: a verb's table reached a student as a heap of loose forms.**
+  Where each cell sat — which tense, which person — was dropped on the way
+  from the teacher's card to the learner's device, which is what every part
+  of a table is read from. So no row opened before another, the form a
+  dictionary lists was drilled twice over, and a sentence with a verb in it
+  never agreed with what filled it. Tables now arrive intact.
+
+- **Fixed: inserting a form shifted everyone's progress down a place.** A
+  student's work on a card's forms was matched to the teacher's by
+  position, so a form added above an existing one handed the second's
+  schedule to the first — silently, on every device holding the card. Forms
+  now carry a name of their own and keep their work wherever they are moved
+  to.
+
 ## 0.130 — 15 September 2026
 
 - **A word that takes a pronoun on its end is no longer offered a loose

@@ -830,6 +830,13 @@ export default async (req) => {
            raised to where a table fits with room over. */
         subs: Array.isArray(card.subs)
           ? card.subs.slice(0, 64).map((/** @type {Record<string, any>} */ sb) => ({
+              /* What this form is called, for as long as anything points at
+                 it — a cell of the table it carries, and a student's
+                 schedule for it. Stored where the client sends one and
+                 absent where it does not, so a card saved by an older build
+                 is unchanged by passing through here. Narrowed to the shape
+                 an id can take, like every other id on this document. */
+              ...(idish(sb.id) ? { id: idish(sb.id) } : {}),
               ar: String(sb.ar || "").slice(0, 400),
               en: String(sb.en || "").slice(0, 400),
               lat: String(sb.lat || "").slice(0, 400),
@@ -931,14 +938,25 @@ export default async (req) => {
          fields at all rather than two empty ones. */
       /** @param {Record<string, any>} form */
       function cellAt(form) {
-        const part = (/** @type {unknown} */ x) =>
-          String(x || "")
-            .toLowerCase()
-            .replace(/[^a-z0-9_-]/g, "")
-            .slice(0, 24);
-        const row = part(form.row);
-        const col = part(form.col);
-        return row && col ? { row, col } : {};
+        const row = idish(form.row);
+        const col = idish(form.col);
+        /* And whose table it is a cell of: a form's name, or nothing at all
+           for the card's own word. A word's plural takes the same pronouns
+           on its end and has a table of its own, so a cell that did not say
+           which form it belonged to would be two cells in one place. */
+        const of = idish(form.of);
+        return row && col ? { row, col, ...(of ? { of } : {}) } : {};
+      }
+
+      /* The shape an id can take, which is all the server checks of one:
+         which rows, columns and forms a card names is the client's
+         business, and this only makes sure what comes back is nameable. */
+      /** @param {unknown} x */
+      function idish(x) {
+        return String(x || "")
+          .toLowerCase()
+          .replace(/[^a-z0-9_-]/g, "")
+          .slice(0, 24);
       }
 
       let saved;

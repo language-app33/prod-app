@@ -45,7 +45,7 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { localIdFor, cardToItem, serverCardId } = await import(path.join(out, "shared.js"));
+const { localIdFor, cardToItem, serverCardId, foldCourses } = await import(path.join(out, "shared.js"));
 
 /* And which recording a question leads with, which is a plain function of a
    card's progress and belongs with the rest of them. The trainer is bundled
@@ -66,7 +66,9 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, formIsAmbiguous } = await import(path.join(out, "trainer.js"));
+const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits } =
+  await import(path.join(out, "trainer.js"));
+const { defaultTypes } = await import(path.join(here, "..", "src", "languages.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -563,4 +565,202 @@ test("and nothing is said where the question already settles it", () => {
   );
   /* And nothing at all on nothing, which is a question still being cast. */
   assert.equal(formIsAmbiguous({ unit: null, kin: [many], shown: [], promptField: "en" }), false);
+});
+
+/*
+ * A table, on its way to the learner.
+ *
+ * Where a cell sits did not come across at all until 0.131 — the teacher's
+ * card carried a row and a column and the item built from it carried
+ * neither — so a verb's table reached a student as a heap of alternate
+ * forms: no row opened before another, the word a dictionary lists was
+ * drilled twice over, and no sentence ever agreed with what filled it.
+ * Everything that reads a table reads these three fields, so everything
+ * that reads a table read nothing.
+ */
+test("a cell arrives knowing where it sits and whose table it is in", () => {
+  const item = cardToItem(
+    {
+      id: "k2", ar: "كِتاب", en: "book", lang: "ar-PS",
+      subs: [
+        { id: "pl", ar: "كُتُب", en: "books" },
+        { row: "attached", col: "me", ar: "كتابي", en: "my book" },
+        { of: "pl", row: "attached", col: "me", ar: "كتبي", en: "my books" },
+      ],
+    },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  const [plural, mine, ours] = item.subs;
+  assert.equal(plural.row, undefined, "a form that is not a cell gains no coordinates");
+  assert.equal(mine.row, "attached");
+  assert.equal(mine.col, "me");
+  assert.equal(mine.of, undefined, "a cell of the card's own table names no owner");
+  /* And the plural's cell points at the plural — by the name this device
+     gave it, not by the teacher's, so a cell points at the form beside it
+     rather than at a name from another machine. */
+  assert.equal(ours.of, plural.id);
+  assert.equal(plural.id, `${localIdFor("k2")}-f~pl`);
+});
+
+test("a form is named after itself where it has a name, and after its place where it has not", () => {
+  const item = cardToItem(
+    { id: "k3", ar: "a", en: "a", lang: "ar-PS", subs: [{ ar: "b", en: "b" }, { id: "x7", ar: "c", en: "c" }] },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  /* The old shape, for every form written before forms had names. */
+  assert.equal(item.subs[0].id, `${localIdFor("k3")}-f0`);
+  /* And the new one, which cannot collide with it: a name is never a bare
+     number, because of the tilde. */
+  assert.equal(item.subs[1].id, `${localIdFor("k3")}-f~x7`);
+});
+
+/*
+ * Which of the teacher's forms a student's progress belongs to.
+ *
+ * It was the form's place in the list, and a place is not an identity: a
+ * teacher who inserted a form above another handed the second's schedule
+ * to the first, silently, on every device holding the card.
+ */
+test("a form's progress follows the form, not its place in the list", () => {
+  /** @param {string} id @param {number} reps */
+  const form = (id, reps) => ({ id, ar: id, en: id, s: { ar2en: { phase: "review", reps } } });
+  const had = [
+    { id: "srvk4", ar: "a", en: "a", s: {}, source: { cardId: "k4" },
+      subs: [form("srvk4-f~one", 3), form("srvk4-f~two", 9)] },
+  ];
+  /* The teacher inserts a form above the two that were there. */
+  const fresh = [
+    { id: "srvk4", ar: "a", en: "a", s: {}, source: { cardId: "k4" },
+      subs: [
+        { id: "srvk4-f~new", ar: "n", en: "n", s: {} },
+        { id: "srvk4-f~one", ar: "a", en: "a", s: {} },
+        { id: "srvk4-f~two", ar: "b", en: "b", s: {} },
+      ] },
+  ];
+  const out = foldCourses(had, fresh).items[0];
+  assert.deepEqual(out.subs.map((/** @type {any} */ f) => f.id),
+    ["srvk4-f~new", "srvk4-f~one", "srvk4-f~two"]);
+  assert.equal(out.subs[0].s.ar2en, undefined, "the new form starts fresh");
+  assert.equal(out.subs[1].s.ar2en.reps, 3, "and each of the others keeps its own work");
+  assert.equal(out.subs[2].s.ar2en.reps, 9);
+});
+
+test("and forms that gain names all at once keep the progress they had", () => {
+  /* The release that names them renames every form on every card. A card
+     whose forms have all been renamed at once is the same card in the same
+     order, not two new ones — so where nothing matches by name, the places
+     are taken as they stand. */
+  /** @param {string} id @param {number} reps */
+  const form = (id, reps) => ({ id, ar: id, en: id, s: { ar2en: { phase: "review", reps } } });
+  const had = [
+    { id: "srvk5", ar: "a", en: "a", s: {}, source: { cardId: "k5" },
+      subs: [form("srvk5-f0", 3), form("srvk5-f1", 9)] },
+  ];
+  const fresh = [
+    { id: "srvk5", ar: "a", en: "a", s: {}, source: { cardId: "k5" },
+      subs: [
+        { id: "srvk5-f~one", ar: "a", en: "a", s: {} },
+        { id: "srvk5-f~two", ar: "b", en: "b", s: {} },
+      ] },
+  ];
+  const out = foldCourses(had, fresh).items[0];
+  assert.equal(out.subs[0].s.ar2en.reps, 3);
+  assert.equal(out.subs[1].s.ar2en.reps, 9);
+});
+
+/*
+ * The narrower ladder a known word's pronouns climb.
+ *
+ * Eight cells per form, each differing from the word by an ending learnt
+ * once: asking every exercise of all of them is asking a fortnight's worth
+ * of questions about something already known. So the cells of a form whose
+ * word is written from its meaning are asked one exercise a level — the
+ * same four rungs, one question each.
+ */
+test("a known word's cells are asked one exercise a level", () => {
+  /* Read off the level each key stands on, in the order they are handed
+     in — which is TYPES order, so which one survives is the same today as
+     tomorrow. */
+  assert.deepEqual(
+    onePerLevel(["ar2pick", "ar2en", "rec2en", "en2pick", "ar2tr", "rec2ar", "en2ar", "ctx2ar"]),
+    ["ar2pick", "en2pick", "ar2tr", "en2ar"],
+  );
+  /* A card accepting two spellings is asked for one of them rather than
+     both, which is the same redundancy one axis over. */
+  assert.deepEqual(onePerLevel(["ar2en", "ar2en@1"]), ["ar2en"]);
+  /* A level the form has nothing on is not invented, and nothing at all
+     comes back as nothing. */
+  assert.deepEqual(onePerLevel(["ar2en", "en2ar"]), ["ar2en", "en2ar"]);
+  assert.deepEqual(onePerLevel([]), []);
+});
+
+/*
+ * A table waits on the word it is a table of.
+ *
+ * "my book" is a form of "book": meeting the two together is meeting a
+ * word you have not learnt in a shape you cannot read, so a form's
+ * pronouns are held until that form has been read a few times. Held per
+ * form, which is the whole of what 0.131 changed — one gate on the card
+ * opened the plural's eight the moment the singular was recognised.
+ */
+const settings = { language: "ar-PS", types: defaultTypes(), kinds: {}, perItem: 2 };
+/** @param {string} phase @param {number} interval */
+const state = (phase, interval) => ({
+  phase, step: 0, ease: 2.5, interval, due: 0, reps: 3, lapses: 0,
+  right: 3, wrong: 0, skips: 0, near: 0, hints: 0, hist: [], updated: 0,
+});
+/** Every exercise a form could be asked, at one standing. */
+const allAt = (/** @type {any} */ s) =>
+  Object.fromEntries(Object.keys(defaultTypes()).map((t) => [t, s]));
+
+/** @param {Record<string, any>} over @returns {any} */
+const bookCard = (over) => ({
+  id: "book", ar: "كِتاب", en: "book", lat: "kitaab", lang: "ar-PS", kind: "word",
+  s: {}, ...over,
+  subs: [
+    { id: "pl", ar: "كُتُب", en: "books", lat: "kutub", lang: "ar-PS", s: {} },
+    { id: "s-me", ar: "كتابي", en: "my book", lat: "kitaabi", lang: "ar-PS",
+      row: "attached", col: "me", s: {} },
+    { id: "p-me", of: "pl", ar: "كتبي", en: "my books", lat: "kutubi", lang: "ar-PS",
+      row: "attached", col: "me", s: {} },
+    ...(over.subs || []),
+  ].map((f) => ({ ...f, ...((over.states || {})[f.id] ? { s: over.states[f.id] } : null) })),
+});
+
+test("a form's pronouns wait on that form, not on the card's own word", () => {
+  /* Nobody has answered anything: both tables are shut. */
+  const cold = quietUnits([bookCard({})], settings);
+  assert.ok(cold.has("s-me") && cold.has("p-me"), "both wait while nothing has been read");
+
+  /* The card's own word is read and its pronouns open — and the plural's
+     do not, the plural itself being untouched. */
+  const warm = quietUnits(
+    [bookCard({ s: allAt(state("review", 1)) })],
+    settings,
+  );
+  assert.equal(warm.has("s-me"), false, "the word's own pronouns open with the word");
+  assert.equal(warm.has("p-me"), true, "and the plural's are still waiting on the plural");
+
+  /* And they open when the plural itself is read. */
+  const both = quietUnits(
+    [bookCard({ s: allAt(state("review", 1)), states: { pl: allAt(state("review", 1)) } })],
+    settings,
+  );
+  assert.equal(both.has("p-me"), false);
+});
+
+/*
+ * And once the word is written from its meaning, its pronouns are asked
+ * one exercise a level rather than all of them: eight cells that differ by
+ * an ending learnt once is a fortnight of questions about something
+ * already known.
+ */
+test("a known word's cells are eased, and only those", () => {
+  const learning = easedUnits([bookCard({ s: allAt(state("review", 1)) })], settings);
+  assert.equal(learning.size, 0, "a word merely being reviewed eases nothing");
+
+  const known = easedUnits([bookCard({ s: allAt(state("review", 40)) })], settings);
+  assert.ok(known.has("s-me"), "the word's own cells are eased once it is mastered");
+  assert.equal(known.has("p-me"), false, "the plural's are not, the plural not being there yet");
+  assert.equal(known.has("pl"), false, "and a form that is not a cell is never eased");
 });

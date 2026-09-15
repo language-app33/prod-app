@@ -672,3 +672,65 @@ rather than offered a change that would throw the table away.
 axis, and 7 × 3 × 8 is not a table anybody fills in. Those belong in a phrase
 that teaches the verb, which is what `AR_ENCLITICS` and *Words this teaches*
 are already for.
+
+---
+
+## A sub-form has a name, and a table belongs to a form
+
+**15 September 2026** · `ownerOf`/`cellsIn`/`cellAt` in `src/verbs.ts`,
+`cardToItem`/`foldForms` in `src/shared.tsx`, the `subs` whitelist in
+`server/api/courses.js`, `laddered`/`easedUnits` in `src/ArabicTrainer.tsx`
+
+The entry above put a word's attached pronouns in a table hanging off **the
+card**, and said the row waits on the card's own word. Both halves were a
+place short. The plural takes the same endings — *my books*, *your books* —
+so it has eight of its own, and one table for the card said the plural's
+were the singular's. 0.130 removed *Add a form* for want of anywhere to put
+them; the conclusion should have been to give them one.
+
+So a table belongs to a **form**: the card's own word with its table under
+it, each further form with its own, and *Add a form* adding the whole unit.
+
+**Which needed something to point at, and there was nothing.** A sub-form
+had no identity in this app. The server's whitelist stored no `id`,
+`cardToItem` made one up from the form's place in the list, and
+`foldCourses` matched a student's progress to the teacher's forms by index.
+That last is why this is worth its own entry: it was also a live bug. A
+teacher who inserted a form above an existing one handed the second's
+schedule to the first, on every device holding the card, with nothing said.
+
+**So a form carries a name.** Minted by the editor, stored, never shown; a
+cell names its owner in `of`, and absent means the card's own word — which
+is what every cell written before this says, so nothing stored had to be
+rewritten. The fold matches by name first, then by any place no name has
+already claimed. That second half is what carries the release in which every
+form is named for the first time: no name matches, every place is free, and
+the card folds as it always did. It does not bring the old bug back with it,
+because a form inserted among named ones finds its place taken and starts
+fresh — which is what it is.
+
+**Why not let the order of `subs` carry ownership.** It needs no new field,
+and the editor already splits `subs` into forms and cells and rejoins them
+on save — so the relationship would live in an array order that one careless
+edit re-points invisibly. A second source of truth for the thing the first
+one is about.
+
+**A known word's cells climb a narrower ladder.** Sixteen cells over two
+forms, each asked every exercise its material supports, is a fortnight of
+questions about a word plus an ending learnt once. So a cell whose form has
+reached the top of its own ladder is asked **one exercise per level** rather
+than all of them: the same four rungs, one question each. It is applied in
+`laddered`, which is the single list every reader downstream goes through —
+what a session deals, where the progress screen says the card stands, when
+it counts as learnt. The alternative, a second bar inside the scheduler,
+would have had to be threaded through `openTypes`, `reachedLevel`,
+`standings` and `maturity` separately, and four copies of one rule is four
+places for it to drift.
+
+**What it cost, and what it fixed on the way.** Two new fields on the wire,
+and the editor minting names for forms that had none. And `cardToItem` never
+carried `row` or `col` at all, which is every part of a table: a verb's rows
+reached a student as a heap of alternate forms, no row opening before
+another, the cited form drilled twice over, and no sentence ever agreeing
+with what filled it. Nothing reported it, because everything that reads a
+table read nothing.

@@ -2842,12 +2842,40 @@ const keptAnswers = (form: Record<string, any>) =>
   answersOf(form, answerFields()).map(({ at: _at, ...answer }) => answer);
 
 export function cardToItem(card: Card, deckTitle: string, courseId: string, deckId: string, freshStates: () => Record<string, ExerciseState>): Item {
+  /*
+   * What a sub-form is called on this device.
+   *
+   * Off the name the teacher's card carries, where it has one, and off its
+   * place in the list where it does not — which is every form written
+   * before sub-forms had names, and is why the tilde is there: `-f~a3k9`
+   * can never collide with `-f2`, so a card's forms keep the ids they had
+   * until the teacher next saves it.
+   */
+  const formId = (name: string, i: number) =>
+    `${localIdFor(card.id)}-f${name ? `~${name}` : i}`;
   const forms = (card.subs || []).map((sb, i) => ({
-    id: `${localIdFor(card.id)}-f${i}`,
+    id: formId(String(sb.id || ""), i),
     ar: sb.ar || "",
     lat: sb.lat || "",
     en: sb.en || "",
     ...dimValues(sb),
+    /*
+     * Where it sits, if it sits in a table.
+     *
+     * These did not come across at all until 0.131, which meant a verb's
+     * table reached a student as a heap of alternate forms: no row opened
+     * before another, the word a dictionary lists was drilled twice over,
+     * and no sentence ever agreed with what filled it. Everything that
+     * reads a table reads these three fields — see src/verbs.ts — so
+     * everything that reads a table read nothing.
+     *
+     * `of` is a form's name on the teacher's card and is translated into
+     * this device's, so a cell points at the form beside it rather than at
+     * a name from another machine.
+     */
+    ...(sb.row ? { row: String(sb.row) } : null),
+    ...(sb.col ? { col: String(sb.col) } : null),
+    ...(sb.of ? { of: formId(String(sb.of), -1) } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers
@@ -3078,6 +3106,41 @@ export async function pullCourses(
   };
 }
 
+/*
+ * Which schedule on this device belongs to which of the teacher's forms.
+ *
+ * By name first. A form that carries one is that form wherever it has got
+ * to in the list, which is what makes a teacher's edit safe: before this
+ * the two lists were lined up by position alone, so inserting the plural
+ * above the feminine handed the plural's schedule to the feminine and the
+ * feminine's to nothing — silently, on every device holding the card.
+ *
+ * And by position for the rest, which is every form written before forms
+ * had names — including, once, all of them: the release that names them
+ * renames every form on every card, and a card whose forms have all been
+ * renamed at once is the same card in the same order, not fifteen new
+ * ones. What stops that leniency from bringing the old bug back with it is
+ * that a place already claimed by name is not offered again: where the
+ * plural is inserted above forms that *do* carry names, the two of them
+ * match by name, the new form finds its place taken, and starts fresh —
+ * which is what it is.
+ */
+function foldForms(had: Form[], fresh: Form[]): Form[] {
+  const byId = new Map(had.filter((f) => f && f.id).map((f) => [f.id, f]));
+  const taken: Set<number> = new Set();
+  const matched: (Form | null)[] = fresh.map((f) => {
+    const mate = f && f.id ? byId.get(f.id) : null;
+    if (!mate) return null;
+    const at = had.indexOf(mate);
+    if (at >= 0) taken.add(at);
+    return mate;
+  });
+  return fresh.map((f, i) => {
+    const mate = matched[i] || (taken.has(i) ? null : had[i]);
+    return { ...f, s: (mate && mate.s) || f.s };
+  });
+}
+
 /* Fold fresh course cards into the person's cards: progress kept, wording
    taken from the teacher, withdrawn cards named so they can be tombstoned. */
 export function foldCourses(items: Item[], incoming: Item[]) {
@@ -3090,7 +3153,7 @@ export function foldCourses(items: Item[], incoming: Item[]) {
       kept.push({
         ...fresh,
         s: existing.s,
-        subs: (fresh.subs || []).map((f, i) => ({ ...f, s: ((existing.subs || [])[i] || {}).s || f.s })),
+        subs: foldForms(existing.subs || [], fresh.subs || []),
       });
     } else {
       kept.push(fresh);

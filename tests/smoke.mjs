@@ -3828,10 +3828,55 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const attachedCell = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
-  check("which opens a row with a box per pronoun",
-    !!attachedCell("Arabic script for attached pronouns · me") &&
-      !!attachedCell("Arabic script for attached pronouns · them"),
+  /* A table per form, which is what these are: the singular has its
+     pronouns and the plural has its own, and one table hanging off the
+     card said the plural's were the singular's. This card carries a
+     plural, so there are two. */
+  check("which puts a table of them under the word",
+    !!attachedCell("Arabic script for the word · attached pronouns · me") &&
+      !!attachedCell("Arabic script for the word · attached pronouns · them"),
     [...document.querySelectorAll(".at-celllabel")].map((n) => n.textContent).join(" | ") || "(no table)");
+  check("and another under the form beside it",
+    !!attachedCell("Arabic script for form 2 · attached pronouns · me"),
+    [...document.querySelectorAll("input")]
+      .map((i) => i.getAttribute("aria-label"))
+      .filter((l) => l && /attached/.test(l)).join(" | ") || "(one table only)");
+  /* Which are two boxes and not one drawn twice: typing into the plural's
+     leaves the word's own alone. Before every form carried its own table,
+     a row and a column named one cell between them and the second form's
+     wrote over the first's. */
+  const typeIn = (/** @type {any} */ box, /** @type {string} */ text) => {
+    const setValue = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setValue, "the input's value setter").call(box, text);
+    box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  typeIn(attachedCell("Arabic script for form 2 · attached pronouns · me"), "كتبي");
+  await sleep(120);
+  check("and filling one of them does not fill the other",
+    attachedCell("Arabic script for form 2 · attached pronouns · me").value === "كتبي" &&
+      attachedCell("Arabic script for the word · attached pronouns · me").value === "",
+    `the word's: "${attachedCell("Arabic script for the word · attached pronouns · me").value}" · ` +
+      `form 2's: "${attachedCell("Arabic script for form 2 · attached pronouns · me").value}"`);
+  /* And the mic beside a box opens that box's recordings. It used to be
+     found by its row and column alone, which on two tables is two cells
+     with one name. */
+  const mic = [...document.querySelectorAll("button")]
+    .find((b) => /form 2 · attached pronouns · me/.test(b.getAttribute("aria-label") || ""));
+  click(mic);
+  await sleep(300);
+  const recTitle = [...document.querySelectorAll(".at-title, h1, h2")]
+    .map((n) => (n.textContent || "").trim()).find((t) => /Recordings/.test(t)) || "";
+  check("and the mic beside a box opens that box's recordings",
+    /form 2/.test(recTitle), recTitle || "(no recording screen)");
+  /* Its own way back, and not the editor's: the recording screen stands
+     over the card, so both are on the page and the editor's is the one a
+     plain search for "Back" finds first. */
+  click([...document.querySelectorAll("button")]
+    .find((b) => (b.getAttribute("aria-label") || "") === "Back to the card"));
+  await sleep(250);
   /* And the verb's table is not also up: a card lays out one or the
      other, and the radio is what says which. */
   check("and not the verb's table as well",
@@ -3844,21 +3889,20 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
   check("while the word itself keeps its own block, being what these are forms of",
     blockOrder().includes("Form 1"), blockOrder().join(" | "));
-  /* And the row comes after it, which is the order they are learnt in: the
-     word is met first and the row waits on it. A verb's table replaces the
-     block and stands where it did; this one is built on it. */
-  check("and the row sits after it, the way it is learnt",
-    blockOrder().indexOf("attached pronouns") > blockOrder().indexOf("Form 1"),
-    blockOrder().join(" | "));
-  /* And nothing loose can be added beside the table, as nothing can beside
-     a verb's. The plural looked like a real thing to add — book, books —
-     but the plural takes the same endings, so it is a second table rather
-     than one more form, and a plural stripped of them is not what the card
-     is for. */
+  /* And a form can be added again, which 0.130 took away on the grounds
+     that the plural is "a second table rather than one more form". True,
+     and the conclusion should have been to give it one: adding a form now
+     adds the word and the eight pronouns on the end of it. */
   const addForm = () => [...document.querySelectorAll("button")]
     .find((b) => /^Add a form$/.test((b.textContent || "").trim()));
-  check("and no loose form can be added beside the table", !addForm(),
-    addForm() ? "still offered" : "no such button");
+  check("a form can be added beside them again", !!addForm(),
+    addForm() ? "offered" : "no such button");
+  click(addForm());
+  await sleep(300);
+  check("and what it adds is a word and a table of its own",
+    blockOrder().includes("Form 3") &&
+      !!attachedCell("Arabic script for form 3 · attached pronouns · me"),
+    blockOrder().join(" | "));
   /* The forms it already carries stay: they are saved either way, and
      hiding one would read as having lost it. */
   check("while a form the card already had is still on screen",

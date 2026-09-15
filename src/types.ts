@@ -407,6 +407,27 @@ export interface CardForm {
    */
   row?: string;
   col?: string;
+  /**
+   * Whose table this cell sits in: the id of the form it is a form of, or
+   * absent for the card's own word.
+   *
+   * A verb's table belongs to the card — there is one of it, and the card
+   * is the verb — so its cells say nothing here. The pronouns a word takes
+   * on its end belong to a *form*: the plural takes the same endings and
+   * has eight of its own, so every form carries a table and a cell names
+   * which. Absent is what every cell written before this carries, and
+   * means the card's own word.
+   */
+  of?: string;
+  /**
+   * What this form is called, for as long as anything points at it.
+   *
+   * Sub-forms used to be told apart by where they sat in the list, which
+   * a cell cannot name — inserting a form above another moved every
+   * student's progress down a place — and which nothing could point at.
+   * Minted by the editor, stored, and never shown.
+   */
+  id?: string;
 }
 
 /**
