@@ -339,6 +339,61 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
     body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS", subs: [{ ar: "شموس", en: "suns", lat: "" }] }, decks: [] },
   });
   assert.equal("row" in plain.json.card.subs[0], false, "no empty position on a plain form");
+  assert.equal("id" in plain.json.card.subs[0], false, "and no name on a form that came without one");
+});
+
+/*
+ * A form's name, and whose table a cell is in.
+ *
+ * Both are what makes the pronouns on the end of a word a property of the
+ * form rather than of the card: the plural takes the same endings and has
+ * eight of its own, so a cell has to be able to say which form it is a
+ * form of. A name the server dropped would be a cell pointing at nothing
+ * the moment the card came back.
+ */
+test("a form keeps its name, and a cell keeps whose table it is in", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rami" } });
+  const key = made.json.key;
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", ar: "كِتاب", en: "book", lang: "ar-PS",
+        subs: [
+          { id: "fpl", ar: "كُتُب", en: "books", lat: "" },
+          { ar: "كتابي", en: "my book", lat: "", row: "attached", col: "me" },
+          { id: "fx1", of: "fpl", ar: "كتبي", en: "my books", lat: "", row: "attached", col: "me" },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  const [plural, mine, ours] = saved.json.card.subs;
+  assert.equal(plural.id, "fpl", "the form kept its name");
+  assert.equal("of" in mine, false, "a cell of the card's own table names no owner");
+  assert.equal(ours.of, "fpl", "and one of the plural's names the plural");
+  assert.equal(ours.id, "fx1");
+
+  /* Narrowed to the shape an id can take, like every other id on the
+     document — and an owner without a position is not an owner, because a
+     form that is not a cell is in no table at all. */
+  const odd = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", ar: "قلم", en: "pen", lang: "ar-PS",
+        subs: [
+          { ar: "قلمي", en: "my pen", lat: "", row: "attached", col: "me", of: "f PL!" },
+          { ar: "أقلام", en: "pens", lat: "", of: "fpl" },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(odd.json.card.subs[0].of, "fpl");
+  assert.equal("of" in odd.json.card.subs[1], false, "a form with no position is in nobody's table");
 });
 
 /*

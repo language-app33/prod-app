@@ -149,6 +149,34 @@ const nameCard = (id, ar, en, lat) => ({
      stored carries one. */
   created: ar === "رافائيل" ? 2 : 3,
 });
+/* A card whose two forms mean the same thing in English, which is the one
+   shape a prompt cannot settle by itself: "teacher" is either of them, so
+   asked to write it a learner has no way to know which was wanted and
+   writing the other is marked wrong for knowing the word. In no deck, so
+   nothing a learner counts moves. */
+const twoGenders = {
+  id: "k777777777777", owner: "t-1", ar: "مدرس", en: "teacher", lat: "mudarris",
+  note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  clips: [], uses: [], rev: 1, updated: 1, created: 4,
+  subs: [{
+    ar: "مدرسة", en: "teacher", lat: "mudarrisa",
+    number: "singular", gender: "feminine", classifier: "", clips: [],
+  }],
+};
+/* A word with pronouns on its end, as a teacher saved it: one cell, in the
+   attached table's row. It is here to be *reopened* — the editor used to
+   read any cell as a verb's, seed the dictionary form, and open the card on
+   the verb table with its pronouns put aside, which a save then dropped. */
+const penWithPronouns = {
+  id: "k888888888888", owner: "t-1", ar: "قلم", en: "pen", lat: "qalam",
+  note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  clips: [], uses: [], rev: 1, updated: 1, created: 5,
+  subs: [{
+    ar: "قلمي", en: "my pen", lat: "qalami",
+    number: "singular", gender: "", classifier: "", clips: [],
+    row: "attached", col: "me",
+  }],
+};
 const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
 const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
@@ -259,6 +287,8 @@ const fakeFetch = async (input, opts = {}) => {
           { ...frameCard, decks: ["d2"] },
           { ...rafa, decks: [] },
           { ...viktor, decks: [] },
+          { ...twoGenders, decks: [] },
+          { ...penWithPronouns, decks: [] },
         ],
       });
     }
@@ -2608,6 +2638,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      here only exhausts the turns — but worth knowing, because what is
      checked about it below is worth nothing if it never came up. */
   let sawFrame = false;
+  /* Whether "Choose the meaning" left anything behind. It puts up the word
+     and its meaning between the question and the answer, and used to end
+     with no Learn more at all — the box showed whatever the exercise offers
+     as a hint *during* the question, and that one offers none. */
+  /** @type {{ box: boolean, said: string } | null} */
+  let alsoOnMeaning = null;
 
   /* Walk until this block has met everything it asserts, rather than for a
      fixed number of turns.
@@ -2672,6 +2708,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        Behind "Learn more", which is where everything that is not the
        answer lives. */
     const more = document.querySelector('[data-el="also-toggle"]');
+    if (/Choose the meaning/.test(asked) && !alsoOnMeaning) {
+      if (more) click(more);
+      await sleep(120);
+      alsoOnMeaning = {
+        box: !!more,
+        said: ((document.querySelector('[data-el="also-hint"]') || {}).textContent || "")
+          .replace(/\s+/g, " ").trim(),
+      };
+    }
     if (more) {
       click(more);
       await sleep(120);
@@ -2698,6 +2743,20 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   /* The gentlest question there is: the word, and four meanings to choose
      between. It is where a card starts, so every card in the deck is asked
      it. */
+  /* The third field. The question showed the word and the answer showed
+     its meaning, so how it is pronounced is the one thing nobody said —
+     and where the box had nothing at all, it is now what is in it. */
+  check("choosing what a word means still leaves something worth knowing behind",
+    !!alsoOnMeaning && alsoOnMeaning.box,
+    !alsoOnMeaning
+      ? "that question never came up"
+      : alsoOnMeaning.box
+        ? "the box was there"
+        : "the question was asked and left nothing behind");
+  check("which is the field the question never showed",
+    !!alsoOnMeaning && /pronounced/.test(alsoOnMeaning.said),
+    (alsoOnMeaning && alsoOnMeaning.said) || "(nothing in the box)");
+
   check("a word can be met by choosing what it means, out of a few",
     !!meaningTiles && meaningTiles.options > 1,
     meaningTiles ? `${meaningTiles.options} meanings offered` : "never asked");
@@ -3784,10 +3843,55 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const attachedCell = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
-  check("which opens a row with a box per pronoun",
-    !!attachedCell("Arabic script for attached pronouns · me") &&
-      !!attachedCell("Arabic script for attached pronouns · them"),
+  /* A table per form, which is what these are: the singular has its
+     pronouns and the plural has its own, and one table hanging off the
+     card said the plural's were the singular's. This card carries a
+     plural, so there are two. */
+  check("which puts a table of them under the word",
+    !!attachedCell("Arabic script for the word · attached pronouns · me") &&
+      !!attachedCell("Arabic script for the word · attached pronouns · them"),
     [...document.querySelectorAll(".at-celllabel")].map((n) => n.textContent).join(" | ") || "(no table)");
+  check("and another under the form beside it",
+    !!attachedCell("Arabic script for form 2 · attached pronouns · me"),
+    [...document.querySelectorAll("input")]
+      .map((i) => i.getAttribute("aria-label"))
+      .filter((l) => l && /attached/.test(l)).join(" | ") || "(one table only)");
+  /* Which are two boxes and not one drawn twice: typing into the plural's
+     leaves the word's own alone. Before every form carried its own table,
+     a row and a column named one cell between them and the second form's
+     wrote over the first's. */
+  const typeIn = (/** @type {any} */ box, /** @type {string} */ text) => {
+    const setValue = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setValue, "the input's value setter").call(box, text);
+    box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  typeIn(attachedCell("Arabic script for form 2 · attached pronouns · me"), "كتبي");
+  await sleep(120);
+  check("and filling one of them does not fill the other",
+    attachedCell("Arabic script for form 2 · attached pronouns · me").value === "كتبي" &&
+      attachedCell("Arabic script for the word · attached pronouns · me").value === "",
+    `the word's: "${attachedCell("Arabic script for the word · attached pronouns · me").value}" · ` +
+      `form 2's: "${attachedCell("Arabic script for form 2 · attached pronouns · me").value}"`);
+  /* And the mic beside a box opens that box's recordings. It used to be
+     found by its row and column alone, which on two tables is two cells
+     with one name. */
+  const mic = [...document.querySelectorAll("button")]
+    .find((b) => /form 2 · attached pronouns · me/.test(b.getAttribute("aria-label") || ""));
+  click(mic);
+  await sleep(300);
+  const recTitle = [...document.querySelectorAll(".at-title, h1, h2")]
+    .map((n) => (n.textContent || "").trim()).find((t) => /Recordings/.test(t)) || "";
+  check("and the mic beside a box opens that box's recordings",
+    /form 2/.test(recTitle), recTitle || "(no recording screen)");
+  /* Its own way back, and not the editor's: the recording screen stands
+     over the card, so both are on the page and the editor's is the one a
+     plain search for "Back" finds first. */
+  click([...document.querySelectorAll("button")]
+    .find((b) => (b.getAttribute("aria-label") || "") === "Back to the card"));
+  await sleep(250);
   /* And the verb's table is not also up: a card lays out one or the
      other, and the radio is what says which. */
   check("and not the verb's table as well",
@@ -3800,12 +3904,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
   check("while the word itself keeps its own block, being what these are forms of",
     blockOrder().includes("Form 1"), blockOrder().join(" | "));
-  /* And the row comes after it, which is the order they are learnt in: the
-     word is met first and the row waits on it. A verb's table replaces the
-     block and stands where it did; this one is built on it. */
-  check("and the row sits after it, the way it is learnt",
-    blockOrder().indexOf("attached pronouns") > blockOrder().indexOf("Form 1"),
+  /* And a form can be added again, which 0.130 took away on the grounds
+     that the plural is "a second table rather than one more form". True,
+     and the conclusion should have been to give it one: adding a form now
+     adds the word and the eight pronouns on the end of it. */
+  const addForm = () => [...document.querySelectorAll("button")]
+    .find((b) => /^Add a form$/.test((b.textContent || "").trim()));
+  check("a form can be added beside them again", !!addForm(),
+    addForm() ? "offered" : "no such button");
+  click(addForm());
+  await sleep(300);
+  check("and what it adds is a word and a table of its own",
+    blockOrder().includes("Form 3") &&
+      !!attachedCell("Arabic script for form 3 · attached pronouns · me"),
     blockOrder().join(" | "));
+  /* The forms it already carries stay: they are saved either way, and
+     hiding one would read as having lost it. */
+  check("while a form the card already had is still on screen",
+    blockOrder().includes("Form 2"), blockOrder().join(" | "));
 
   const plainHere = () => {
     const row = saved().find((r) => /Just this word/.test(r.textContent || ""));
@@ -3822,6 +3938,109 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a saved word with pronouns on its end opens as what it is ----
+
+   The editor seeded a verb's dictionary form into any card that had a cell,
+   and a cell of the attached table is a cell. So a saved attached-pronoun
+   card in Arabic opened on the verb table, its pronouns put aside, the radio
+   hidden because the stored card is attached — and Save dropped them. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("قلم"));
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  const box = (/** @type {string} */ label) =>
+    /** @type {any} */ ([...document.querySelectorAll("input")]
+      .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+  const me = box("Arabic script for attached pronouns · me");
+  check("a saved word with pronouns on its end opens on its pronouns",
+    !!me && me.value === "قلمي", me ? `"${me.value}"` : "no such box");
+  check("and not on a verb table it never had",
+    !box("Arabic script for past · he"),
+    box("Arabic script for past · he") ? "a past · he box is up" : "no verb table");
+  check("and says which it is",
+    /Attached pronouns: every form/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-hint, .at-help, p")]
+      .map((n) => (n.textContent || "").trim()).find((t) => /^(A verb|Attached pronouns):/.test(t)) || "(nothing said)"));
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a prompt two forms of one card answer says which it wants ----
+
+   A card's forms are drilled on their own, and two of them can answer the
+   same question: both forms of this one mean "teacher". Asked to write it
+   in the script, a learner has no way to know which was wanted, and writing
+   the other is marked wrong for knowing the word.
+
+   Driven through the teacher's own trial, because that asks one named
+   exercise on one named card rather than whichever a shuffled queue
+   reaches. The rule itself is checked over every combination in
+   tests/cards.test.mjs; what is checked here is that the question is
+   actually handed the card's other forms and what is on screen beside it. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("teacher"));
+  check("the card whose two forms mean one thing is listed", !!tile,
+    tile ? (tile.textContent || "").replace(/\s+/g, " ").slice(0, 40) : "no tile");
+  click(tile);
+  await sleep(450);
+
+  const toScript = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try English →/.test(b.getAttribute("aria-label") || ""));
+  click(toScript);
+  await sleep(600);
+
+  const said = () =>
+    ((document.querySelector('[data-el="question-instruction"]') || {}).textContent || "")
+      .replace(/\s+/g, " ").trim();
+  const tag = () =>
+    ((document.querySelector('[data-el="question-form-tag"]') || {}).textContent || "")
+      .replace(/\s+/g, " ").trim();
+  check("writing it from its meaning says which form it wants", !!tag(), said() || "(no question up)");
+  /* The card's own form, which is the half that never got this: the tag was
+     shown on sub-forms alone, so the masculine standing beside its own
+     feminine was left bare. */
+  check("and names it by the grammar the language declares", /m\./.test(tag()),
+    tag() || "(nothing said)");
+
+  /* Answered and continued rather than left, the way the other trial is:
+     the teaching space is unmounted while a question is up, and Continue is
+     what puts it back. Backing out of a trial leaves nothing behind either
+     way — a teacher trying their own exercise is not learning. */
+  click(buttonNamed(/^I don't know$/));
+  await sleep(200);
+  if (!document.querySelector('[data-el="verdict"]')) {
+    click(document.querySelector('[data-el="check-button"]'));
+    await sleep(250);
+  }
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
 }

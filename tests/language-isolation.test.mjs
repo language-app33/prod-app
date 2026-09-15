@@ -35,7 +35,7 @@ const src = (/** @type {string} */ stem) => {
 
 /* Everything that renders or drives the app. languages is the one file
    allowed to know about languages, so it is not in this list. */
-const APP_FILES = ["ArabicTrainer", "spaces", "shared", "gallery", "screen-elements", "sync", "storage", "courses-api", "scheduler"];
+const APP_FILES = ["ArabicTrainer", "spaces", "card-editor", "shared", "gallery", "screen-elements", "sync", "storage", "courses-api", "scheduler"];
 
 /* A name belongs to one language if it is prefixed with that language, in
    either of the two spellings the file uses: ar/Ar for Arabic, vi/Viet for

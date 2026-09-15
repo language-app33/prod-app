@@ -672,3 +672,123 @@ rather than offered a change that would throw the table away.
 axis, and 7 × 3 × 8 is not a table anybody fills in. Those belong in a phrase
 that teaches the verb, which is what `AR_ENCLITICS` and *Words this teaches*
 are already for.
+
+---
+
+## A sub-form has a name, and a table belongs to a form
+
+**15 September 2026** · `ownerOf`/`cellsIn`/`cellAt` in `src/verbs.ts`,
+`cardToItem`/`foldForms` in `src/shared.tsx`, the `subs` whitelist in
+`server/api/courses.js`, `laddered`/`easedUnits` in `src/ArabicTrainer.tsx`
+
+The entry above put a word's attached pronouns in a table hanging off **the
+card**, and said the row waits on the card's own word. Both halves were a
+place short. The plural takes the same endings — *my books*, *your books* —
+so it has eight of its own, and one table for the card said the plural's
+were the singular's. 0.130 removed *Add a form* for want of anywhere to put
+them; the conclusion should have been to give them one.
+
+So a table belongs to a **form**: the card's own word with its table under
+it, each further form with its own, and *Add a form* adding the whole unit.
+
+**Which needed something to point at, and there was nothing.** A sub-form
+had no identity in this app. The server's whitelist stored no `id`,
+`cardToItem` made one up from the form's place in the list, and
+`foldCourses` matched a student's progress to the teacher's forms by index.
+That last is why this is worth its own entry: it was also a live bug. A
+teacher who inserted a form above an existing one handed the second's
+schedule to the first, on every device holding the card, with nothing said.
+
+**So a form carries a name.** Minted by the editor, stored, never shown; a
+cell names its owner in `of`, and absent means the card's own word — which
+is what every cell written before this says, so nothing stored had to be
+rewritten. The fold matches by name first, then by any place no name has
+already claimed. That second half is what carries the release in which every
+form is named for the first time: no name matches, every place is free, and
+the card folds as it always did. It does not bring the old bug back with it,
+because a form inserted among named ones finds its place taken and starts
+fresh — which is what it is.
+
+**Why not let the order of `subs` carry ownership.** It needs no new field,
+and the editor already splits `subs` into forms and cells and rejoins them
+on save — so the relationship would live in an array order that one careless
+edit re-points invisibly. A second source of truth for the thing the first
+one is about.
+
+**A known word's cells climb a narrower ladder.** Sixteen cells over two
+forms, each asked every exercise its material supports, is a fortnight of
+questions about a word plus an ending learnt once. So a cell whose form has
+reached the top of its own ladder is asked **one exercise per level** rather
+than all of them: the same four rungs, one question each. It is applied in
+`laddered`, which is the single list every reader downstream goes through —
+what a session deals, where the progress screen says the card stands, when
+it counts as learnt. The alternative, a second bar inside the scheduler,
+would have had to be threaded through `openTypes`, `reachedLevel`,
+`standings` and `maturity` separately, and four copies of one rule is four
+places for it to drift.
+
+**What it cost, and what it fixed on the way.** Two new fields on the wire,
+and the editor minting names for forms that had none. And `cardToItem` never
+carried `row` or `col` at all, which is every part of a table: a verb's rows
+reached a student as a heap of alternate forms, no row opening before
+another, the cited form drilled twice over, and no sentence ever agreeing
+with what filled it. Nothing reported it, because everything that reads a
+table read nothing.
+
+---
+
+## One card, four editors
+
+**15 September 2026** · `src/card-editor.tsx` — `useWordDraft`,
+`useSceneDraft`, the blocks, `WordEditor` / `VerbEditor` /
+`AttachedEditor` / `SceneEditor`, and the `CardEditor` shell
+
+The stored card is one thing, and that is the right shape: a verb, a word
+with pronouns on its end, a value and a conversation all reached sync,
+marking, recordings, the scheduler and the progress screen without any of
+those learning a new kind. The editing screen was where the same bet was
+being paid against. One ~1,300-line component held all four kinds with
+booleans — `scene`, `verbMode`, `attachedMode`, `standsIn` — and 0.131's
+four editor bugs were one bug: the recording overlay found the wrong cell,
+the save dropped whichever table was off screen, *Add a form*'s condition
+was flipped for the third release running, and an overlay was titled off
+the verb's spec on a pronoun card.
+
+**So the editor is four editors over one draft.** Each is a list of blocks
+in an order, over the draft it is handed, and asks nothing about what kind
+of card it is drawing; the shell chooses which of the four to draw, and
+that choice is the one place the kinds are told apart. The blocks —
+`KindBlock`, `FormBlock`, `BlanksBlock`, `TurnBlock` and the rest — are the
+framed sections a teacher already saw, cut at the seams they already had.
+
+**The draft lives above the editors, in two hooks called unconditionally.**
+A new card can be turned from a word into a conversation and back, or from
+a word into a verb and back, and what was typed the first time must still
+be there the second — the "put aside — N boxes" warning depends on the
+off-screen table still being held. When all of this was one component's
+`useState`s that was free. Letting each editor own its state would have
+meant escrowing it on unmount, which is exactly the kind of cleverness the
+bugs came from; so the shell calls `useWordDraft` and `useSceneDraft`
+whichever editor is showing, and the editors draw. What is *not* kept
+across a switch is transient widget state — an open keypad, an open grammar
+panel, an answer row added and left empty — because the blocks now remount.
+Accepted, and said in a comment: the old fixed layout kept those open only
+by keeping every kind's blocks on one screen at once.
+
+**Three word editors, not one with a switch.** The attached-pronoun editor
+differs from the word editor by a table inside each form block and one line
+of microcopy, and a `table?` render-prop on `WordEditor` would have been
+the boolean back under another name. It is its own short component that
+lists the same blocks, so the shell's choice stays the only switch and the
+name is something a test, the gallery and a grep can point at.
+
+**What moved, and what it fixed on the way.** The editor family — the
+editor, accepted answers, a form's recordings, the verb table, the deck and
+blank pickers, `shapeOf` and `formsOffered` (which the entries at
+*The editor's three kinds* and *A table is a table* name as living in
+`spaces.tsx`) — is in `card-editor.tsx`, byte for byte first and cut up
+after, each step checked against a DOM snapshot of the editor at seven
+points. Cutting it exposed that any card with a cell was being seeded with
+a verb's dictionary form, which opened a saved attached-pronoun card on the
+verb table and dropped its pronouns on save; that shipped as 0.132 on its
+own, before the split.

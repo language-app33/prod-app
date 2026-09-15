@@ -63,6 +63,21 @@ export const rowOf = (form: unknown): string => str(field(form, "row"));
 export const colOf = (form: unknown): string => str(field(form, "col"));
 
 /**
+ * Whose table this cell is in: the id of the form it is a form of, or ""
+ * for the card's own word.
+ *
+ * A verb's table is the card's — one table per card, and the card's word is
+ * the verb — so every cell of one answers "". The pronouns a word takes on
+ * its end are not like that: they are a property of a *form*, because the
+ * plural takes the same endings as the singular and has its own eight of
+ * them. So each form carries its own table, and a cell says which form's.
+ *
+ * Absent means the card's own word, which is what every cell written before
+ * this said, so nothing saved has to be rewritten.
+ */
+export const ownerOf = (form: unknown): string => str(field(form, "of"));
+
+/**
  * Whether a sub-form is a cell of a table at all.
  *
  * Both halves, because one without the other places nothing: a sub-form
@@ -97,10 +112,26 @@ export function cellsOf(card: unknown): Form[] {
 export const rowIdsOf = (spec: VerbSpec | null | undefined): Set<string> =>
   new Set(tensesOf(spec).map((t) => t.id));
 
-/** The cells of a card that belong to one table, in no particular order. */
-export function cellsIn(card: unknown, spec: VerbSpec | null | undefined): Form[] {
+/**
+ * The cells of a card that belong to one table, in no particular order.
+ *
+ * `of` names whose table: "" for the card's own word, a form's id for that
+ * form's. **Left out, every owner's cells come back** — which is what the
+ * card as a whole is asked (has this card any such table, what does a save
+ * carry), as against what one table holds. The two are different questions
+ * and "" is a real answer to the second, so the difference cannot be
+ * carried by a default.
+ */
+export function cellsIn(
+  card: unknown,
+  spec: VerbSpec | null | undefined,
+  of?: string,
+): Form[] {
   const rows = rowIdsOf(spec);
-  return cellsOf(card).filter((cell) => rows.has(rowOf(cell)));
+  const owner = of === undefined ? null : str(of);
+  return cellsOf(card).filter(
+    (cell) => rows.has(rowOf(cell)) && (owner === null || ownerOf(cell) === owner),
+  );
 }
 
 /**
@@ -112,8 +143,11 @@ export function cellsIn(card: unknown, spec: VerbSpec | null | undefined): Form[
  * question that could not tell the two apart gated one by the other's rows
  * and closed it for ever.
  */
-export const hasCells = (card: unknown, spec: VerbSpec | null | undefined): boolean =>
-  cellsIn(card, spec).length > 0;
+export const hasCells = (
+  card: unknown,
+  spec: VerbSpec | null | undefined,
+  of?: string,
+): boolean => cellsIn(card, spec, of).length > 0;
 
 /**
  * The hole a verb card leaves for itself in its own sentence.
@@ -170,18 +204,29 @@ export const subjectSlot = (slots: string[]): string =>
  *
  * A blank is not a hole to be filled later so much as a fact about the
  * language — there is no command for "I" — and it is never asked. Where
- * two sub-forms claim the same cell, the first wins: a card can only be
- * in that state by being edited somewhere that does not know about
- * tables, and picking one beats showing both.
+ * two sub-forms claim the same cell *of the same table*, the first wins: a
+ * card can only be in that state by being edited somewhere that does not
+ * know about tables, and picking one beats showing both.
+ *
+ * Which table is the `of` — and it is asked for by position rather than
+ * defaulted away, because two forms of one word have a *me* apiece and
+ * looking one up by row and column alone would hand back whichever was
+ * typed first. "" is the card's own word, which is what a verb always
+ * passes and what every cell written before this carries.
  */
 export function cellAt(
   card: unknown,
   row: string,
   col: string,
+  of: string = "",
 ): Form | null {
-  const want = { row: str(row), col: str(col) };
+  const want = { row: str(row), col: str(col), of: str(of) };
   if (!want.row || !want.col) return null;
-  return cellsOf(card).find((c) => rowOf(c) === want.row && colOf(c) === want.col) || null;
+  return (
+    cellsOf(card).find(
+      (c) => rowOf(c) === want.row && colOf(c) === want.col && ownerOf(c) === want.of,
+    ) || null
+  );
 }
 
 /* ---- the axes, as the language declares them ---- */
@@ -381,11 +426,12 @@ export function openRows(
   card: unknown,
   spec: VerbSpec | null | undefined,
   mastered: (cell: Form) => boolean,
+  of: string = "",
 ): string[] {
   const open: string[] = [];
   for (const tense of tensesOf(spec)) {
     open.push(tense.id);
-    const cells = cellsIn(card, spec).filter((c) => rowOf(c) === tense.id);
+    const cells = cellsIn(card, spec, of).filter((c) => rowOf(c) === tense.id);
     /* Nothing to master here, so the next row is not kept waiting on it. */
     if (!cells.length) continue;
     if (!cells.every((cell) => mastered(cell))) break;
@@ -416,7 +462,9 @@ export function cellIsOpen(
 ): boolean {
   if (!isCell(cell)) return true;
   if (isCitation(spec, cell)) return true;
-  return openRows(card, spec, mastered).includes(rowOf(cell));
+  /* Against its own table: a row of the plural's is held up by the plural's
+     cells above it, and not by the singular's. */
+  return openRows(card, spec, mastered, ownerOf(cell)).includes(rowOf(cell));
 }
 
 /**
@@ -430,6 +478,7 @@ export function cellIsOpen(
 export function tableOf(
   card: unknown,
   spec: VerbSpec | null | undefined,
+  of: string = "",
 ): { row: string; col: string; tense: VerbTense; person: VerbPerson; form: Form | null }[] {
   const out = [];
   for (const tense of tensesOf(spec)) {
@@ -439,7 +488,7 @@ export function tableOf(
         col: person.id,
         tense,
         person,
-        form: cellAt(card, tense.id, person.id),
+        form: cellAt(card, tense.id, person.id, of),
       });
     }
   }
@@ -450,8 +499,9 @@ export function tableOf(
 export function tableCount(
   card: unknown,
   spec: VerbSpec | null | undefined,
+  of: string = "",
 ): { filled: number; blank: number } {
-  const all = tableOf(card, spec);
+  const all = tableOf(card, spec, of);
   const filled = all.filter((c) => c.form && str(c.form.ar)).length;
   return { filled, blank: all.length - filled };
 }

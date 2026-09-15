@@ -73,7 +73,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["also-script", "How it is written, when the question was heard rather than read.", ""],
     ["also-script-label", "The small line naming that block.", "This is how it's written"],
     ["also-script-text", "The word written out, for a question that was only heard.", "كِتاب"],
-    ["also-hint", "The field the hint would have shown.", ""],
+    ["also-hint", "The field the question never showed — the hint's, where the exercise offers one, and otherwise whichever of the three the prompt and the answer did not use.", ""],
     ["also-hint-label", "Its label, which names the field.", "This is how it's pronounced"],
     ["also-hint-text", "The field itself — the meaning, or how it is pronounced.", "kitaab"],
     ["also-audio", "How it sounds, with a play button.", ""],

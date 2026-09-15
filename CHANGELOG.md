@@ -8,6 +8,143 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.133 — 15 September 2026
+
+- **The card editor is four editors underneath — word, verb, attached
+  pronouns, conversation — over one shared draft.** Nothing looks or
+  behaves differently: the screen is the same screen, checked against a
+  snapshot of it at every step. It was one large screen handling all four
+  kinds at once, and the four editor bugs fixed in 0.131 were all the same
+  bug — one screen keeping four shapes in its head. Each editor now shows
+  only the parts that belong to it.
+
+  One small change, accepted on purpose: when a *new* card is switched
+  between word, verb and attached pronouns, anything typed stays, but an
+  open pop-up — the keypad, a grammar panel — closes.
+
+## 0.132 — 15 September 2026
+
+- **Fixed: a saved word with attached pronouns opened as a verb, and saving
+  it dropped the pronouns.** On Arabic and Hebrew the editor put the
+  dictionary form into any card that had a box in a table — and a pronoun
+  box is a box in a table. So the card opened on the verb table with its
+  pronouns "put aside", the choice of table was hidden because the card was
+  already an attached-pronoun card, and Save wrote the verb table and threw
+  the pronouns away. Only a verb is treated as one now, and the app's own
+  checks reopen a saved attached-pronoun card so this cannot come back.
+
+## 0.131 — 15 September 2026
+
+- **Every form of a word now carries its own table of attached pronouns.**
+  The table used to hang off the card: one row of *my*, *your*, *his* for
+  the whole thing. But the plural takes the same endings — *my books*,
+  *your books* — so a single table said the plural's pronouns were the
+  singular's, and 0.130 took **Add a form** away for want of anywhere to
+  put them.
+
+  A form is now a word plus its own table underneath it. **Add a form** is
+  back, and what it adds is the whole thing: another word, and the eight
+  pronouns on the end of that word. Removing a form takes its table with
+  it. The two kinds of grammar then sit at visibly different levels — what
+  the word is, on the form; whose it is, in the columns.
+
+- **A word's pronouns wait on that word, rather than on the card.** *My
+  book* is a form of *book*, and meeting the two together is meeting a word
+  you have not learnt in a shape you cannot read — so each table opens once
+  the form it hangs off has been read a few times. Its own form: the
+  plural's eight wait for the plural.
+
+- **And once a word can be written from its meaning, its pronouns are asked
+  one exercise a level** instead of every exercise they support. Eight
+  boxes per form, each differing from the word by an ending learnt once,
+  was a fortnight of questions about something already known. The ladder is
+  unchanged and nothing is skipped — every rung is still climbed, once
+  rather than two or three times. A lapse on the word puts its pronouns
+  back on the full ladder, and no progress is lost either way.
+
+- **Fixed: a verb's table reached a student as a heap of loose forms.**
+  Where each cell sat — which tense, which person — was dropped on the way
+  from the teacher's card to the learner's device, which is what every part
+  of a table is read from. So no row opened before another, the form a
+  dictionary lists was drilled twice over, and a sentence with a verb in it
+  never agreed with what filled it. Tables now arrive intact.
+
+- **Fixed: inserting a form shifted everyone's progress down a place.** A
+  student's work on a card's forms was matched to the teacher's by
+  position, so a form added above an existing one handed the second's
+  schedule to the first — silently, on every device holding the card. Forms
+  now carry a name of their own and keep their work wherever they are moved
+  to.
+
+## 0.130 — 15 September 2026
+
+- **A word that takes a pronoun on its end is no longer offered a loose
+  form beside its table**, the way a verb already was not.
+
+  The plural looked like the reason to keep it — *book*, *books* — but the
+  plural takes the same endings, *my books*, *your books*. So it is not one
+  more form: it is a second table, and dropping it in here would have given
+  you a plural stripped of the endings that made the card worth having.
+  There was nothing else a loose form could have been.
+
+  That also takes the redundancy with it. Every loose form asks for its own
+  gender and number, which is how one is told from another — but the boxes
+  in the table are told apart by the column they sit in, and already say so.
+  With nothing loose left, there is nothing left asking twice.
+
+  A form the card already carries stays on screen, because it is saved
+  either way and hiding it would read as having lost it. **Duplicate**, on a
+  block already there, is untouched: it is a way out for somebody who has
+  one rather than an invitation to everybody who has not.
+
+## 0.129 — 14 September 2026
+
+- **"Learn more" now has something in it whatever was asked.** The box
+  showed whichever field the exercise offers as a hint *during* the
+  question — a different thing, and the exercises that offer none were left
+  with no box at all. **Choose the meaning** is the plainest case: it puts
+  up the word and then its meaning, and ended with nothing to add, though
+  how it is pronounced was exactly the thing nobody had said.
+
+  Where an exercise names a hint, that is still what is shown. Where it
+  names none, the box shows the field neither the question nor the answer
+  used — which is the one thing left worth knowing. **Choose the word**,
+  **Which word is missing?**, **Match each word to its meaning** and the
+  listening questions all gain one the same way.
+
+- **Two lines in Progress say what they mean more plainly.** The ladder is
+  *"Where your cards are on the learning ladder. A card moves up a level
+  when the previous level is mastered."*, and the decks are *"How you're
+  doing on each deck you're studying."*
+
+## 0.128 — 14 September 2026
+
+- **A question two forms of one card could answer now says which it
+  wants.** A card's forms are drilled on their own, and two of them can
+  mean the same thing: a masculine teacher and a feminine one are both
+  *teacher*. Asked to write it in the script, there was no way to know
+  which was wanted — and writing the other one was marked wrong for
+  knowing the word.
+
+  The instruction carries the form's own grammar in the two cases where the
+  question does not already settle it: when **another form of the same card
+  is on screen** among the tiles or in the grid, and when **another form
+  answers the same prompt**, which is the typed case and the worse one,
+  because nothing is up to compare and you find out by being marked wrong.
+
+  It reads *Write in Arabic script · sg. m.*, in whatever the language
+  declares — number and gender in Arabic and Hebrew, and nothing at all in
+  Huế, which declares neither.
+
+- **And it is said about the card's own form too, not only its others.**
+  The tag was shown on sub-forms alone, so of the two forms standing side
+  by side the one that got told apart was never the main one — which is as
+  easily confused with its feminine as the other way round.
+
+- **A card whose language declares no grammar no longer gets a bare
+  separator.** The tag drew its dot and its spacing before asking whether
+  there was anything to put after them.
+
 ## 0.127 — 14 September 2026
 
 - **A deck's figure counts the levels you have finished, not just the cards

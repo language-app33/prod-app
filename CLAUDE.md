@@ -38,3 +38,18 @@ the remote ref, as above. If the push is not a fast-forward, merge
 
 Opening a pull request is still something to be asked for. Merging to `beta`
 is not.
+
+## How to talk about the work
+
+**Plans, proposals and summaries of what was done are written for the
+owner, not for the code.** Plain language, and short: what is wrong or
+wanted, what will change for the people using the app, what it costs, and
+how it will be checked. No file paths, function names, line numbers or
+mechanism unless the owner asks — those belong in commit messages,
+`DECISIONS.md` and comments, where a reader wants them. If a technical
+detail must be kept in a plan for the build's sake, put it in one short
+section at the end, clearly marked as such.
+
+This applies to every plan presented for approval, every proposal offered
+in conversation, and every summary of actions taken at the end of a piece
+of work.
