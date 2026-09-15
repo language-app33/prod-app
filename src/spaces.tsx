@@ -4462,8 +4462,11 @@ function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, on
     const had = ((card && card.subs) || []).filter((s) => isCell(s)).map((s) => ({ ...blankForm(), ...s }));
     /* Only a card that is already a verb: a plain word has no table, and
        seeding one would be answering the selector above on the teacher's
-       behalf. */
-    return had.length ? seedCited(had, card, verbSpec) : had;
+       behalf. A verb, and not any card with a cell — a word with pronouns
+       on its end has cells too, and seeding the dictionary form into one
+       of those opened it on the verb table with its pronouns put aside,
+       which the next save then dropped. */
+    return cellsIn({ subs: had }, verbSpec).length ? seedCited(had, card, verbSpec) : had;
   });
   /* And the pronouns it attaches, where it attaches any. */
   const attachedSpec = takesAttached(lang) ? attachedOf(lang) : null;

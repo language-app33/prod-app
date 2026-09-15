@@ -163,6 +163,20 @@ const twoGenders = {
     number: "singular", gender: "feminine", classifier: "", clips: [],
   }],
 };
+/* A word with pronouns on its end, as a teacher saved it: one cell, in the
+   attached table's row. It is here to be *reopened* — the editor used to
+   read any cell as a verb's, seed the dictionary form, and open the card on
+   the verb table with its pronouns put aside, which a save then dropped. */
+const penWithPronouns = {
+  id: "k888888888888", owner: "t-1", ar: "قلم", en: "pen", lat: "qalam",
+  note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
+  clips: [], uses: [], rev: 1, updated: 1, created: 5,
+  subs: [{
+    ar: "قلمي", en: "my pen", lat: "qalami",
+    number: "singular", gender: "", classifier: "", clips: [],
+    row: "attached", col: "me",
+  }],
+};
 const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
 const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
@@ -274,6 +288,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...rafa, decks: [] },
           { ...viktor, decks: [] },
           { ...twoGenders, decks: [] },
+          { ...penWithPronouns, decks: [] },
         ],
       });
     }
@@ -3920,6 +3935,41 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const own = mainField ? mainField.querySelector("input") : null;
   check("and calling it a word again leaves the word where it was",
     !!own && own.value === "كتاب", own ? `"${own.value}"` : "no field");
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a saved word with pronouns on its end opens as what it is ----
+
+   The editor seeded a verb's dictionary form into any card that had a cell,
+   and a cell of the attached table is a cell. So a saved attached-pronoun
+   card in Arabic opened on the verb table, its pronouns put aside, the radio
+   hidden because the stored card is attached — and Save dropped them. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => (t.textContent || "").includes("قلم"));
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  const box = (/** @type {string} */ label) =>
+    /** @type {any} */ ([...document.querySelectorAll("input")]
+      .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
+  const me = box("Arabic script for attached pronouns · me");
+  check("a saved word with pronouns on its end opens on its pronouns",
+    !!me && me.value === "قلمي", me ? `"${me.value}"` : "no such box");
+  check("and not on a verb table it never had",
+    !box("Arabic script for past · he"),
+    box("Arabic script for past · he") ? "a past · he box is up" : "no verb table");
+  check("and says which it is",
+    /Attached pronouns: every form/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-hint, .at-help, p")]
+      .map((n) => (n.textContent || "").trim()).find((t) => /^(A verb|Attached pronouns):/.test(t)) || "(nothing said)"));
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);

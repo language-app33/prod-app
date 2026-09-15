@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.132 — 15 September 2026
+
+- **Fixed: a saved word with attached pronouns opened as a verb, and saving
+  it dropped the pronouns.** On Arabic and Hebrew the editor put the
+  dictionary form into any card that had a box in a table — and a pronoun
+  box is a box in a table. So the card opened on the verb table with its
+  pronouns "put aside", the choice of table was hidden because the card was
+  already an attached-pronoun card, and Save wrote the verb table and threw
+  the pronouns away. Only a verb is treated as one now, and the app's own
+  checks reopen a saved attached-pronoun card so this cannot come back.
+
 ## 0.131 — 15 September 2026
 
 - **Every form of a word now carries its own table of attached pronouns.**
