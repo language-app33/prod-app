@@ -176,6 +176,23 @@ export const VERB_SLOT = "verb";
  */
 export const isFrame = (form: unknown): boolean => !!rowOf(form) && !colOf(form);
 
+/**
+ * The hole this form fills out of its card's own table, where there is one.
+ *
+ * `{{verb}}` means two things, and which one it means is a fact about the
+ * form the sentence is written on. On a card's own sentence — a frame, so
+ * a row and no column — it is the card's own place, filled from the table
+ * below it by whatever fills the subject, and no card in the deck fills it.
+ * Anywhere else it is an ordinary blank named after a kind of word, filled
+ * by the verbs the teacher has written, exactly as `{{noun}}` is filled by
+ * the nouns.
+ *
+ * Until 0.139 it was always the first, which meant a sentence card could
+ * name every kind of word its language declared except the one a sentence
+ * most needs.
+ */
+export const ownSlot = (form: unknown): string => (isFrame(form) ? VERB_SLOT : "");
+
 /** The sentences a card asks itself in. */
 export function framesOf(card: unknown): Form[] {
   return subFormsOf(card).filter((sub) => isFrame(sub));

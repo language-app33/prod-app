@@ -99,6 +99,26 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   form's own table follows the form off — the pronouns on the end of a
   word wait on that word being known, so under a form nobody is asked they
   could never open.
+- **A sentence is a card made of blanks, and the vocabulary fills them.** A
+  card may leave a hole in itself — `اسمي {{name}}` — and the question fills
+  it before anybody reads the card, with a different word next time round.
+  A blank is filled three ways, in rising order of how much filing it
+  costs the teacher. `{{word}}` takes any word in the language, with
+  nothing written on any of them. A blank named after a **kind of word** —
+  `{{noun}}`, `{{verb}}`, whichever its pack declares — takes the cards
+  that say they are one, which they already did when they said what they
+  were. And a blank with a name of the teacher's own takes the cards that
+  name it back, in `fills`, which is the only case left where anything has
+  to be written twice. Every form of a filler lends itself, not only its
+  own word: a plural stands in a sentence its singular does not, gated on
+  what that form itself has climbed. A card with a blank in it never fills
+  one — a sentence dropped into somebody else's hole is a sentence with a
+  gap where the point was — and `{{verb}}` on a verb card's own sentence
+  means its own place in it rather than any verb, which `ownSlot` in
+  `src/verbs.ts` is the one answer to. The editor asks which kind of card
+  it is: a word, a sentence, or a conversation. Nothing is stored saying
+  "sentence" — the braces are in the text, so a card with a blank in it is
+  one whichever editor wrote it.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in
@@ -208,7 +228,7 @@ src/
                    keyboards, exercise definitions. Imports nothing from the
                    app, so it can be read and tested on its own.
   variables.ts     a hole in a card — "My name is {{name}}" — and the cards
-                   that fill it. Pure, like the two above.
+                   and forms that fill it. Pure, like the two above.
   cards.ts         what a card is made of: its own word and the forms it
                    carries, as one list. The single door everything that
                    walks a card's forms goes through. Pure, imports nothing.

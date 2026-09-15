@@ -20,6 +20,8 @@ import {
   slotsOf,
   splitSlots,
   valueOf,
+  valuesOf,
+  lentBy,
   valuesFor,
   valuesForTurn,
   fillsOf,
@@ -248,9 +250,12 @@ test("only a word fills it, and never a card with a hole of its own", () => {
 
   /* A frame dropped into somebody else's hole is a sentence with a gap
      where the point was — and dropped into its own, a sentence inside
-     itself. */
+     itself. It fills nothing at all, whatever it says: naming a slot by
+     hand was the one exception to that rule and it is gone. */
   const frame = { id: "f1", ar: "bḥibb {{word}}", en: "I like {{word}}", lat: "" };
   assert.deepEqual(fillsOf(frame, "word"), []);
+  assert.deepEqual(fillsOf({ ...frame, fills: "thing" }, "word"), []);
+  assert.deepEqual(fillsOf({ ...frame, fills: "thing", category: "noun" }, ""), []);
 
   /* A caller with no opinion about kinds gets the named slot alone, which
      is what every card did before this existed. */
@@ -290,6 +295,103 @@ test("a named hole and the built-in one fill from different cards", () => {
      about names. */
   assert.deepEqual(have.name.map((/** @type {any} */ v) => v.ar), ["Raphael"]);
   assert.deepEqual(have.word.map((/** @type {any} */ v) => v.ar), ["Raphael", "kitaab"]);
+});
+
+/* --- what a card says it is, and every form it has ---
+
+   Two ways a card fills a hole without being told to, one about the card
+   and one about its forms. Both exist so that a teacher writes a sentence
+   and the vocabulary joins in, rather than writing a name on every card
+   one at a time. */
+
+test("a blank named after a kind of word is filled by the words of that kind", () => {
+  const noun = { id: "n1", ar: "kitaab", en: "book", lat: "", category: "noun" };
+  /* It stands in {{noun}} because it says it is one, and in {{word}}
+     because everything does. */
+  assert.deepEqual(fillsOf(noun, "word"), ["word", "noun"]);
+  /* And it is asked of the card, not of this module: which names a
+     language declares is the language pack's business, so a category
+     nobody declares still fills a hole of its own name. */
+  assert.deepEqual(fillsOf({ ...noun, category: "clitic" }, ""), ["clitic"]);
+  /* A card nobody has answered for fills nothing extra. */
+  assert.deepEqual(fillsOf({ id: "x", ar: "kitaab", en: "book" }, ""), []);
+  /* A name the teacher wrote by hand and a kind of word are two answers
+     and both are kept, in that order. */
+  assert.deepEqual(fillsOf({ ...noun, fills: "thing" }, ""), ["thing", "noun"]);
+  /* Saying it fills the kind it is adds nothing: it already did. */
+  assert.deepEqual(fillsOf({ ...noun, fills: "noun" }, ""), ["noun"]);
+
+  /* A frame is not a filler, whatever it says it is: a sentence dropped
+     into somebody else's hole is a sentence with a gap in it. */
+  const said = { id: "f1", ar: "{{noun}} kbiir", en: "the {{noun}} is big", lat: "", category: "noun" };
+  assert.deepEqual(fillsOf(said, "phrase"), []);
+});
+
+test("a sentence draws its blanks from the cards that say what they are", () => {
+  const frame = { ar: "{{noun}} {{adjective}}", en: "the {{noun}} is {{adjective}}", lat: "" };
+  const pool = [
+    { id: "n1", ar: "kitaab", en: "book", lat: "", category: "noun", lang: "ar-PS" },
+    { id: "n2", ar: "beit", en: "house", lat: "", category: "noun", lang: "ar-PS" },
+    { id: "a1", ar: "kbiir", en: "big", lat: "", category: "adjective", lang: "ar-PS" },
+    /* A verb is neither of the two holes this sentence leaves. */
+    { id: "v1", ar: "akal", en: "ate", lat: "", category: "verb", lang: "ar-PS" },
+  ];
+  const have = valuesFor(frame, pool, "ar-PS");
+  assert.deepEqual(have.noun.map((/** @type {any} */ v) => v.ar), ["kitaab", "beit"]);
+  assert.deepEqual(have.adjective.map((/** @type {any} */ v) => v.ar), ["kbiir"]);
+});
+
+test("every form of a card lends itself, each under its own name", () => {
+  const card = {
+    id: "c1",
+    forms: [
+      { id: "c1", ar: "kitaab", en: "book", lat: "kitaab" },
+      { id: "c1-f0", ar: "kutub", en: "books", lat: "kutub" },
+    ],
+  };
+  assert.deepEqual(valuesOf(card).map((v) => [v.id, v.ar]),
+    [["c1", "kitaab"], ["c1-f0", "kutub"]]);
+
+  /* The name matters: how far the learner has climbed is a fact about a
+     form, and so is a frame's record of having met one. */
+  assert.deepEqual(lentBy(card).map((l) => l.form.en), ["book", "books"]);
+
+  /* A form the teacher keeps without asking about lends nothing — there is
+     no ladder to read, so a hole filled with it would hold a word nobody
+     is ever taught. And a form with no word in it would fill the hole with
+     nothing. */
+  const mixed = {
+    id: "c2",
+    forms: [
+      { id: "c2", ar: "qalam", en: "pen", lat: "" },
+      { id: "c2-f0", ar: "aqlaam", en: "pens", lat: "", ask: false },
+      { id: "c2-f1", ar: "", en: "nothing", lat: "" },
+    ],
+  };
+  assert.deepEqual(valuesOf(mixed).map((v) => v.id), ["c2"]);
+
+  /* A card's own word answers to the card where the form carries no name
+     of its own, because that is what it was called before forms had names
+     and what every record already written points at. */
+  const old = { id: "c3", forms: [{ ar: "shams", en: "sun", lat: "" }] };
+  assert.deepEqual(valuesOf(old).map((v) => v.id), ["c3"]);
+
+  /* Handed a plain form — a line of a conversation, a unit the scheduler
+     is holding — it is its own single lending. */
+  assert.deepEqual(valuesOf({ id: "l1", ar: "salaam", en: "peace", lat: "" }).map((v) => v.id), ["l1"]);
+});
+
+test("a plural stands in a sentence its singular does not", () => {
+  const frame = { ar: "{{noun}} hown", en: "{{noun}} here", lat: "" };
+  const pool = [{
+    id: "c1", lang: "ar-PS", category: "noun",
+    forms: [
+      { id: "c1", ar: "kitaab", en: "book", lat: "" },
+      { id: "c1-f0", ar: "kutub", en: "books", lat: "" },
+    ],
+  }];
+  assert.deepEqual(valuesFor(frame, pool, "ar-PS").noun.map((/** @type {any} */ v) => v.en),
+    ["book", "books"]);
 });
 
 /* --- a frame, cut into words and holes ---

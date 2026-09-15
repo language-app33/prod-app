@@ -8,6 +8,56 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.139 — 15 September 2026
+
+- **A sentence is now a kind of card you can make, and the words you have
+  already written fill it in.** Write "the {{noun}} is {{adjective}}" once
+  and it is asked as every noun and adjective you have, a different pair
+  each time, rather than being one sentence somebody learns whole.
+
+  The card editor asks what kind of card it is — a word, a sentence, or a
+  conversation — and a sentence gets its own editor: the sentence, the
+  blanks in it, and what each blank will be filled with. Nothing about
+  parts of speech or tables, because a sentence is not a word.
+
+  A card with a blank in it already opens as one, so the sentences you have
+  written are already there. Nothing is stored saying "sentence": the
+  blanks are in the words themselves, so a card that has one is a sentence
+  and a card that loses its last one is a phrase again.
+
+- **A blank named after a kind of word is filled by the words of that
+  kind.** `{{noun}}` takes every card you have called a noun, `{{verb}}`
+  every verb, and so on through whatever the language declares. Nothing has
+  to be written on those cards: they answered the question when you said
+  what they were.
+
+  Until now a blank had to be named on both sides — a blank called `name`,
+  and every card that fills it carrying the word "name" — which is filing
+  rather than teaching. That still works and is still the way to make a
+  narrow blank of your own. It is no longer the only way.
+
+- **Every form of a word can fill a blank, not only the word itself.** A
+  plural stands in a sentence, and so does one cell of a verb's table. Each
+  stands on its own progress: a form only turns up in a sentence a student
+  is far enough along to answer, exactly as the word itself always did.
+
+- **A sentence can ask for a verb.** `{{verb}}` used to mean one thing only
+  — a verb card's own place in its own sentence — so a sentence card could
+  name every kind of word its language has except the one a sentence most
+  needs. It still means the card's own place on a verb card's own sentence,
+  and means "any verb" everywhere else.
+
+  One limit worth stating: a blank is filled from the words the student
+  already has. A sentence in a lesson whose nouns the student has not been
+  given yet is not asked until they have been, and the editor says so
+  rather than leaving you to find out.
+
+- **A card with a blank in it no longer fills anybody else's.** That was
+  always the stated rule and there was one way round it: a card that both
+  had a blank and named one it filled went on standing in other cards'
+  sentences, which puts a sentence inside a sentence. If you have a card
+  doing that, it stops.
+
 ## 0.138 — 15 September 2026
 
 - **Housekeeping: a card is now simply the list of forms it holds.** Nothing

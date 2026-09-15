@@ -149,10 +149,10 @@ import {
   verbOf,
 } from "./languages.ts";
 import {
-  VERB_SLOT,
   agreedCell,
   cellsIn,
   hasCells,
+  ownSlot,
   citedCell,
   isCitation,
   openRows,
@@ -221,7 +221,7 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fillForm, fillsOf, hasSlots, noteMet, refOf, slotsOf, valueOf, valuesAt, valuesForTurn } from "./variables.ts";
+import { fillForm, fillsOf, hasSlots, lentBy, noteMet, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
 
 /*
@@ -767,7 +767,8 @@ function fillsAt(unit: Form, key: string, langId?: LangId): Record<string, Value
  * whether the table has anything to say yet.
  */
 function fillableAt(unit: Form, key: string, settings: Settings): boolean {
-  const slots = slotsOf(unit).filter((slot) => slot !== VERB_SLOT);
+  const own = ownSlot(unit);
+  const slots = slotsOf(unit).filter((slot) => slot !== own);
   if (!slots.length) return true;
   const pools = fillsAt(unit, key, langOf(settingsFor(settings, unit)).id);
   return slots.every((slot) => (pools[slot] || []).length > 0);
@@ -1161,8 +1162,11 @@ function castFill(
   const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
   /* The verb's own place is not filled from the cards: it is filled from
      the card's own table, by whatever fills the subject. So it is left out
-     of the draw and put back below. */
-  const drawn = slots.filter((slot) => slot !== VERB_SLOT);
+     of the draw and put back below. Only on the card's own sentence — see
+     ownSlot — because the same name on a sentence card is an ordinary
+     blank, filled by the verbs like any other. */
+  const own = ownSlot(resolved.unit);
+  const drawn = slots.filter((slot) => slot !== own);
   const pool = preview ? fillsFor(resolved.unit) : fillsAt(resolved.unit, type);
   const took = valuesForTurn(drawn, pool, seen);
   if (!took) return resolved;
@@ -1173,7 +1177,7 @@ function castFill(
        nothing to invent: left as it stands, the way an unfilled hole is,
        so it reads as the bug it is rather than as a silent gap. */
     if (!agreed) return resolved;
-    took[VERB_SLOT] = agreed;
+    took[own] = agreed;
   }
   const unit = (fillForm(resolved.unit, took) as any);
   return {
@@ -5062,13 +5066,16 @@ export default function ArabicTrainer() {
       const langId = langIdOf(it, settings);
       const slots = fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings)));
       if (!slots.length) continue;
-      /* With whatever the language declares about it, so a verb standing
-         in the same sentence can agree with it. */
-      const value = valueOf(it, grammarFields());
-      if (!value.ar) continue;
-      for (const slot of slots) {
-        const key = valueKey(langId, slot);
-        map.set(key, (map.get(key) || []).concat([value]));
+      /* Every form of it, each with whatever the language declares about
+         that form — so a verb standing in the same sentence agrees with
+         the plural that filled the subject rather than with the card's own
+         word. A card's forms stay in the order they are written in, which
+         is what keeps the rotation the same sentence twice. */
+      for (const value of valuesOf(it, grammarFields())) {
+        for (const slot of slots) {
+          const key = valueKey(langId, slot);
+          map.set(key, (map.get(key) || []).concat([value]));
+        }
       }
     }
     return map;
@@ -5091,25 +5098,30 @@ export default function ArabicTrainer() {
     for (const it of asking) {
       const langId = langIdOf(it, settings);
       if (!fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings))).length) continue;
-      const ref = refOf(valueOf(it));
-      if (!ref) continue;
-      if (!isDrillable(it, settings)) {
-        map.set(ref, null);
-        continue;
-      }
-      /* Read off the card's own form, which is the word a hole borrows.
-         Highest first, so the answer is the furthest it has got rather
-         than the first level that happens to be clear. */
-      const keys = laddered(leadOf(it), settings);
-      const stateAt = (key: string) => statesOf(leadOf(it))[key];
-      let climbed = 0;
-      for (let level = TOP_LEVEL; level >= 1; level--) {
-        if (reachedLevel(keys, stateAt, level)) {
-          climbed = level;
-          break;
+      const drilled = isDrillable(it, settings);
+      /* Read off the form itself, which is the word a hole borrows: a
+         plural the learner can already write stands in a sentence that
+         asks for writing, whatever the singular beside it has done. */
+      for (const { form, value } of lentBy(it)) {
+        const ref = refOf(value);
+        if (!ref) continue;
+        if (!drilled) {
+          map.set(ref, null);
+          continue;
         }
+        /* Highest first, so the answer is the furthest it has got rather
+           than the first level that happens to be clear. */
+        const keys = laddered(form as Form, settings);
+        const stateAt = (key: string) => statesOf(form as Form)[key];
+        let climbed = 0;
+        for (let level = TOP_LEVEL; level >= 1; level--) {
+          if (reachedLevel(keys, stateAt, level)) {
+            climbed = level;
+            break;
+          }
+        }
+        map.set(ref, climbed);
       }
-      map.set(ref, climbed);
     }
     return map;
   }, [asking, settings]);

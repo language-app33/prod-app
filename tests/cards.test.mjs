@@ -454,25 +454,41 @@ test("and an item that was never a course card has only the one name", () => {
  *
  * Two questions, not one. A verb was a third answer to the first for a
  * release, and it stopped working the moment there was a second table to
- * offer — so the kind is a word or a conversation, and which table a word
- * lays its forms out in is asked underneath. Neither is stored: a card has
- * a table when its forms carry cells in that table's rows, which is all
- * hasCells has ever read.
+ * offer — so the kind is a word, a sentence or a conversation, and which
+ * table a *word* lays its forms out in is asked underneath. Neither is
+ * stored: a card has a table when its forms carry cells in that table's
+ * rows, and it is a sentence when its own word has a blank in it.
  */
-test("a card is a word or a conversation, and nothing else", () => {
-  assert.equal(shapeOf(false), "word");
-  assert.equal(shapeOf(true), "scene");
+test("a card is a word, a sentence or a conversation, and says which by what it holds", () => {
+  assert.equal(shapeOf(null, false), "word");
+  assert.equal(shapeOf(null, true), "scene");
+  const worded = (/** @type {any} */ ar) => ({ id: "c", forms: [{ id: "c", ar, en: "x", lat: "" }] });
+  assert.equal(shapeOf(worded("كتاب"), false), "word");
+  /* The braces are in the text, so there is nothing to guess at: a card
+     with a blank in it is a sentence whichever editor wrote it. */
+  assert.equal(shapeOf(worded("{{noun}} كبير"), false), "sentence");
+  /* And turns win over blanks, because a conversation is a different
+     shape of card rather than a longer one. */
+  assert.equal(shapeOf(worded("{{noun}}"), true), "scene");
 });
 
-test("a new card may be either, and a written one stays what it is", () => {
+test("a new card may be any of the three, and a written one stays what it can", () => {
   const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  assert.deepEqual(values({ saved: false, scene: false }), ["word", "scene"]);
-  /* A written word is not offered the kind it cannot become — a scene with
-     four turns on it would have nowhere to put them — and a written
-     conversation is offered nothing at all, so the block says what it is
-     instead. */
-  assert.deepEqual(values({ saved: true, scene: false }), ["word"]);
-  assert.deepEqual(values({ saved: true, scene: true }), []);
+  assert.deepEqual(values({ saved: false, shape: "word", table: "" }),
+    ["word", "sentence", "scene"]);
+  /* A written conversation is offered nothing at all, so the block says
+     what it is instead: a scene with four turns on it would have nowhere
+     to put them. */
+  assert.deepEqual(values({ saved: true, shape: "scene", table: "" }), []);
+  /* A word and a sentence are the same card written two ways, so that
+     pair stays open both ways — writing a blank into a word is how most
+     sentences start. */
+  assert.deepEqual(values({ saved: true, shape: "word", table: "" }), ["word", "sentence"]);
+  assert.deepEqual(values({ saved: true, shape: "sentence", table: "" }), ["word", "sentence"]);
+  /* Except where the card has a table, which is content: saving it as a
+     sentence would drop it. */
+  assert.deepEqual(values({ saved: true, shape: "word", table: "verb" }), ["word"]);
+  assert.deepEqual(values({ saved: true, shape: "word", table: "attached" }), ["word"]);
 });
 
 test("and a word is asked what kind of word it is, in the language's own list", () => {

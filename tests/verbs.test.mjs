@@ -31,6 +31,7 @@ import {
   isCell,
   isCitation,
   isFrame,
+  ownSlot,
   hasCells,
   cellsIn,
   openRows,
@@ -202,6 +203,24 @@ test("the verb's own hole is the one no card fills", () => {
      position so a teacher does not have to say it twice. */
   assert.equal(subjectSlot(slots), "name");
   assert.equal(subjectSlot([VERB_SLOT]), "");
+});
+
+test("the verb's hole is its own only in its own sentence", () => {
+  /* On the card's own sentence — a row and no column — {{verb}} is filled
+     from the table below it, and no card in the deck fills it. */
+  const own = { id: "f1", row: "past", ar: "{{name}} {{verb}}", en: "", lat: "" };
+  assert.equal(ownSlot(own), VERB_SLOT);
+
+  /* Anywhere else it is an ordinary blank named after a kind of word,
+     filled by the verbs the teacher has written — which is what lets a
+     sentence card ask for one at all. Until 0.139 it was always the
+     card's own, so a sentence could name every kind of word its language
+     declared except the one a sentence most needs. */
+  const sentence = { id: "s1", ar: "{{name}} {{verb}}", en: "", lat: "" };
+  assert.equal(ownSlot(sentence), "");
+  assert.equal(ownSlot({ id: "c1", row: "past", col: "he", ar: "أكل", en: "", lat: "" }), "",
+    "and a cell of the table is not a sentence at all");
+  assert.equal(ownSlot(null), "");
 });
 
 test("a sentence has a row and no column; a cell has both", () => {

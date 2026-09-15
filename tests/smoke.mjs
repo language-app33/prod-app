@@ -158,6 +158,11 @@ const twoGenders = {
   id: "k777777777777", owner: "t-1", ar: "مدرس", en: "teacher", lat: "mudarris",
   note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
   clips: [], uses: [], rev: 1, updated: 1, created: 4,
+  /* And what the teacher says it is, which since 0.139 is also what it
+     fills: a blank named after a kind of word takes the words of that
+     kind, so a sentence saying {{noun}} is met with this one — and with
+     its feminine, because every form of a card lends itself. */
+  category: "noun",
   subs: [{
     ar: "مدرسة", en: "teacher", lat: "mudarrisa",
     number: "singular", gender: "feminine", classifier: "", clips: [],
@@ -3345,12 +3350,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   click([...inFrame.querySelectorAll("button")].find((b) => /^New card$/.test((b.textContent || "").trim())));
   await sleep(450);
 
-  /* Three answers, not two and a footnote. "This is a verb" was a tick
-     under this selector, which asked one question about what a card is in
-     two controls stacked on each other. */
+  /* The three shapes a card comes in, and nothing about tables: "This is a
+     verb" was a tick under this selector, which asked one question about
+     what a card is in two controls stacked on each other. */
   const kinds = [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')];
   check("a new card asks what kind of card it is",
-    kinds.length === 2 && /Conversation/.test(kinds[1].textContent || ""),
+    kinds.length === 3 &&
+      /Word/.test(kinds[0].textContent || "") &&
+      /Sentence/.test(kinds[1].textContent || "") &&
+      /Conversation/.test(kinds[2].textContent || ""),
     kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
   /* And, underneath, what kind of word it is — which is a second question
      and not a third answer to the first. The list is the language's own,
@@ -3368,7 +3376,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     formRows().map((r) => ((r.querySelector("i") || {}).textContent || "—")).join(" | "));
   /* And it is the wrapping variant, not the compact one. The compact track
      sizes every option to the longest label and never wraps, so three of
-     them is three times "Word or phrase" — wider than any phone, which is
+     them is three times "Conversation" — wider than any phone, which is
      how it came to run off the side of the screen. jsdom does no layout, so
      what is checked is which of the two tracks it is; that the wrapped one
      fits is measured in a browser. */
@@ -3602,6 +3610,76 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("and choosing it twice does not write it twice",
       !!en && en.value === "My name is {{name}}",
       en ? `"${en.value}"` : "no field");
+
+    /* ---- and a sentence is a kind of card in its own right ----
+
+       A card made of blanks is what the blanks are for, and until 0.139
+       there was no way to say you were writing one: the teacher typed
+       braces into a word card and hoped. Choosing it puts the card's own
+       editor up — the sentence, its blanks, and nothing about parts of
+       speech or tables, because a sentence is not a word. */
+    const shapeBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+      [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+        .find((b) => re.test((b.textContent || "").trim())) || null);
+    const blockNames = () =>
+      [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
+
+    check("a card can be called a sentence, beside a word and a conversation",
+      !!shapeBtn(/^Sentence$/),
+      [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+        .map((b) => b.textContent).join(" | ") || "(no kind picker)");
+    click(shapeBtn(/^Sentence$/));
+    await sleep(300);
+    check("choosing it names the block after what is in it",
+      blockNames().includes("The sentence"), blockNames().join(" | "));
+    check("and stops asking what kind of word it is, because it is not one",
+      !document.querySelector('[role="radiogroup"][aria-label="What kind of word"]'),
+      document.querySelector('[role="radiogroup"][aria-label="What kind of word"]')
+        ? "still asked" : "not asked");
+    check("and offers no second form, because another way of saying it is another sentence",
+      ![...document.querySelectorAll("button")]
+        .some((b) => /^Add another form$/.test((b.textContent || "").trim())),
+      [...document.querySelectorAll("button")].map((b) => (b.textContent || "").trim())
+        .filter((t) => /another form/i.test(t)).join(" | ") || "no such button");
+
+    /* The blanks a sentence is made of: one per kind of word the language
+       declares, so writing "{{noun}} {{adjective}}" is all a teacher has to
+       do and every noun they have written joins in. */
+    click(pickBtn(/\+ Blank/));
+    await sleep(250);
+    const kindsOfWord = [...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
+      .map((r) => ((r.querySelector("b") || {}).textContent || "").trim());
+    check("the blanks on offer include every kind of word this language declares",
+      kindsOfWord.includes("noun") && kindsOfWord.includes("verb") &&
+        kindsOfWord.includes("adjective"),
+      kindsOfWord.join(", ") || "(none)");
+    check("with the built-in ones first, where somebody is looking for them",
+      kindsOfWord[0] === "word", kindsOfWord.join(", "));
+    click([...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
+      .find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "noun"));
+    await sleep(250);
+    const sar = fieldNamed(/^Arabic script and transliteration$/i);
+    const sen = fieldNamed(/^English$/);
+    check("choosing one writes it into every field of the sentence at once",
+      !!sar && /\{\{noun\}\}/.test(sar.value) && !!sen && /\{\{noun\}\}/.test(sen.value),
+      `script "${sar ? sar.value : "—"}", English "${sen ? sen.value : "—"}"`);
+    /* And it is filled by the words that say they are nouns, with nothing
+       written on any of them to say so — which is the whole bargain: a
+       teacher writes the sentence, and the vocabulary joins in. */
+    const nounLines = () => [...((blanks() || document).querySelectorAll(".at-askedline span"))]
+      .map((n) => (n.textContent || "").trim());
+    check("and a blank named after a kind of word is filled by the words of that kind",
+      nounLines().length > 0 && nounLines().every((line) => /teacher/.test(line)),
+      nounLines().join(" / ") || "(none shown)");
+
+    /* And back, because a word and a sentence are the same card written
+       two ways: writing a blank into a word is how most sentences start. */
+    click(shapeBtn(/^Word$/));
+    await sleep(300);
+    const backEn = fieldNamed(/^English$/);
+    check("and it can be called a word again, with what was typed still there",
+      blockNames().includes("Form 1") && !!backEn && /\{\{noun\}\}/.test(backEn.value),
+      blockNames().join(" | "));
   }
 
   /* ---- a verb, where the dictionary form is a cell of its own table ----
@@ -3739,7 +3817,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     click(kindBtn(/^Something else/));
     await sleep(300);
     const back = fieldNamed(/^Arabic script and transliteration$/i);
-    check("choosing Word or phrase again brings the block back with the word still in it",
+    check("choosing an ordinary word again brings the block back with the word still in it",
       !!block(/^Form 1$|^The verb$/) && !!back && back.value === "akal",
       back ? `"${back.value}"` : "no field");
     check("and an ordinary card is still offered another form", !!addForm(),
@@ -3776,6 +3854,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
         .find((t) => /put aside/.test(t))) || "(nothing said)");
 
+    /* And calling it a sentence says the same thing, because it drops a
+       table just as surely — and a sentence is asked no radio, so a
+       warning that lived inside one would have been the silent half of
+       the same drop. */
+    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+      .find((b) => /^Sentence$/.test((b.textContent || "").trim())));
+    await sleep(300);
+    check("and calling it a sentence says it too, where there is no radio to say it under",
+      /table is put aside/.test(document.body.textContent || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")]
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /put aside/.test(t))) || "(nothing said)");
+    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+      .find((b) => /^Word$/.test((b.textContent || "").trim())));
+    await sleep(300);
+
     /* And the third answer is reachable from the other two, which the tick
        never was: a card ticked verb and then switched to a conversation
        kept its cells and saved a scene carrying a table nothing would show
@@ -3791,7 +3885,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        are two questions, so coming back from a conversation is answering
        the first one again before the second is even asked. */
     click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-      .find((b) => /^Word or phrase$/.test((b.textContent || "").trim())));
+      .find((b) => /^Word$/.test((b.textContent || "").trim())));
     await sleep(300);
     click(kindBtn(/^Verb/));
     await sleep(300);

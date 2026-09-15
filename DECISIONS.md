@@ -991,3 +991,84 @@ argument on a dozen functions. The bigger cost is the one above: three
 facts that used to be free now have to be carried deliberately, and a
 fourth of its kind will too. That is the honest price of the card and the
 form being different things, which they are.
+
+---
+
+## What a card says it is, is what it fills
+
+**15 September 2026** · `fillsOf` and `lentBy` in `src/variables.ts`,
+`ownSlot` in `src/verbs.ts`, the `valueIndex` and `valueReach` memos in
+`src/ArabicTrainer.tsx`, `SentenceEditor` in `src/card-editor.tsx`
+
+A blank used to be named on both sides: a card wrote `{{name}}` in its
+words, and every card that could fill it carried the word "name" in
+`fills`. That is right for a hole with a particular sort of thing in it and
+wrong for nearly everything else, and it is the reason `{{word}}` exists at
+all — naming every word in a deck one at a time is filing rather than
+teaching. 0.137 had the teacher say what kind of word each card is. This
+release reads that answer as the second half of the same sentence: **a
+blank named after a kind of word is filled by the cards that say they are
+one.**
+
+**Why the category and not a new field.** The alternative was a "what can
+this fill" list on every card, which is the `fills` field again with more
+boxes. The category is already the teacher's answer to a question they were
+already asked, and 0.137's own entry named this as the change it was
+deliberately not making yet ("it would have been easy to let the category
+pick which blank a card fills — that is real and it is later"). Later is
+here, and nothing about `fills` or `drill` has changed meaning: a card that
+exists only to fill a hole still says so, and still belongs to no deck.
+
+**variables.ts still knows no language.** It matches a slot name against the
+card's `category` string and never asks what categories exist. A pack that
+declares none fills none; a teacher whose pack has no `noun` may still name
+a blank `noun` and write the cards that fill it, exactly as before. Which
+names a language has is the pack's business, here as everywhere.
+
+**Every form lends, each under its own name.** A card is its forms (0.138),
+and every one of them is a word a sentence could be about — the plural, one
+cell of a verb's table. They lend under the *form's* id rather than the
+card's, which is what makes the gating right: how far a learner has climbed
+is a fact about a form, and so is a frame's record of having met one. The
+card's own word keeps the card's id where the form carries none, so every
+record already written still points at the same thing and nothing had to be
+migrated. A form the teacher keeps without asking about lends nothing: it
+has no ladder to read, so a hole filled with it would hold a word nobody is
+ever taught.
+
+**`{{verb}}` means two things, and the form says which.** On a verb card's
+own sentence — a row and no column — it is the card's own place, filled
+from the table below it by whatever fills the subject. Anywhere else it is
+an ordinary blank named after a kind of word. That was decided by `ownSlot`
+rather than by a flag because the two readings differ by a fact the form
+already carries, and the alternative was a sentence card that could name
+every kind of word its language has except the one a sentence most needs.
+
+**A sentence is read off the card, not stored.** The braces are in the text,
+so "has this card a blank in it" is a reading rather than a guess — which is
+what separates it from the table, where two tables that look alike had to be
+asked about (0.137). Nothing is stored saying "sentence"; a card that loses
+its last blank is a phrase again. The editor's third answer is a choice
+about which editor you get, and a sentence saves no category, because a
+sentence is not a part of speech and a card claiming to be one would be
+offering to fill a hole.
+
+**What it costs.**
+
+- **Pools got bigger.** A blank now draws on every form of every card of
+  that kind, so which value a given asking lands on has moved. The rotation
+  is still an odometer over a list in the order the cards were written, so
+  it is still the same sentence for the same count — but it is not the same
+  sentence it was before this release. Nothing is lost by that; it is
+  written down because it looks like a bug the first time somebody notices.
+- **A blank is filled from what the student already has.** The server sends
+  a teacher's `fills` cards with any deck whose phrases leave a hole of
+  that name, and that was deliberately *not* extended to categories. A noun
+  is a card in its own right and belongs to a deck; bundling a teacher's
+  whole noun library onto a student because one sentence says `{{noun}}`
+  would make a deck mean nothing. The cost is a sentence that cannot be
+  asked until the words reach the student, which the editor reports as the
+  blank having nothing to fill it.
+- **A card with a blank fills nothing at all now,** where before a frame
+  carrying `fills` still stood in other cards' holes. That was the
+  documented intent and the undocumented exception; the exception is gone.
