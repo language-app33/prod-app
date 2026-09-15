@@ -734,3 +734,61 @@ reached a student as a heap of alternate forms, no row opening before
 another, the cited form drilled twice over, and no sentence ever agreeing
 with what filled it. Nothing reported it, because everything that reads a
 table read nothing.
+
+---
+
+## One card, four editors
+
+**15 September 2026** · `src/card-editor.tsx` — `useWordDraft`,
+`useSceneDraft`, the blocks, `WordEditor` / `VerbEditor` /
+`AttachedEditor` / `SceneEditor`, and the `CardEditor` shell
+
+The stored card is one thing, and that is the right shape: a verb, a word
+with pronouns on its end, a value and a conversation all reached sync,
+marking, recordings, the scheduler and the progress screen without any of
+those learning a new kind. The editing screen was where the same bet was
+being paid against. One ~1,300-line component held all four kinds with
+booleans — `scene`, `verbMode`, `attachedMode`, `standsIn` — and 0.131's
+four editor bugs were one bug: the recording overlay found the wrong cell,
+the save dropped whichever table was off screen, *Add a form*'s condition
+was flipped for the third release running, and an overlay was titled off
+the verb's spec on a pronoun card.
+
+**So the editor is four editors over one draft.** Each is a list of blocks
+in an order, over the draft it is handed, and asks nothing about what kind
+of card it is drawing; the shell chooses which of the four to draw, and
+that choice is the one place the kinds are told apart. The blocks —
+`KindBlock`, `FormBlock`, `BlanksBlock`, `TurnBlock` and the rest — are the
+framed sections a teacher already saw, cut at the seams they already had.
+
+**The draft lives above the editors, in two hooks called unconditionally.**
+A new card can be turned from a word into a conversation and back, or from
+a word into a verb and back, and what was typed the first time must still
+be there the second — the "put aside — N boxes" warning depends on the
+off-screen table still being held. When all of this was one component's
+`useState`s that was free. Letting each editor own its state would have
+meant escrowing it on unmount, which is exactly the kind of cleverness the
+bugs came from; so the shell calls `useWordDraft` and `useSceneDraft`
+whichever editor is showing, and the editors draw. What is *not* kept
+across a switch is transient widget state — an open keypad, an open grammar
+panel, an answer row added and left empty — because the blocks now remount.
+Accepted, and said in a comment: the old fixed layout kept those open only
+by keeping every kind's blocks on one screen at once.
+
+**Three word editors, not one with a switch.** The attached-pronoun editor
+differs from the word editor by a table inside each form block and one line
+of microcopy, and a `table?` render-prop on `WordEditor` would have been
+the boolean back under another name. It is its own short component that
+lists the same blocks, so the shell's choice stays the only switch and the
+name is something a test, the gallery and a grep can point at.
+
+**What moved, and what it fixed on the way.** The editor family — the
+editor, accepted answers, a form's recordings, the verb table, the deck and
+blank pickers, `shapeOf` and `formsOffered` (which the entries at
+*The editor's three kinds* and *A table is a table* name as living in
+`spaces.tsx`) — is in `card-editor.tsx`, byte for byte first and cut up
+after, each step checked against a DOM snapshot of the editor at seven
+points. Cutting it exposed that any card with a cell was being seeded with
+a verb's dictionary form, which opened a saved attached-pronoun card on the
+verb table and dropped its pronouns on save; that shipped as 0.132 on its
+own, before the split.

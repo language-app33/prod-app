@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.133 — 15 September 2026
+
+- **The card editor is four editors underneath — word, verb, attached
+  pronouns, conversation — over one shared draft.** Nothing looks or
+  behaves differently: the screen is the same screen, checked against a
+  snapshot of it at every step. It was one large screen handling all four
+  kinds at once, and the four editor bugs fixed in 0.131 were all the same
+  bug — one screen keeping four shapes in its head. Each editor now shows
+  only the parts that belong to it.
+
+  One small change, accepted on purpose: when a *new* card is switched
+  between word, verb and attached pronouns, anything typed stays, but an
+  open pop-up — the keypad, a grammar panel — closes.
+
 ## 0.132 — 15 September 2026
 
 - **Fixed: a saved word with attached pronouns opened as a verb, and saving

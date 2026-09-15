@@ -1,7 +1,8 @@
 # UI components
 
 Everything reusable lives in `src/shared.tsx`. Usage counts are from the app
-files (`ArabicTrainer.tsx` + `spaces.tsx`) at the time of writing — they show
+files (`ArabicTrainer.tsx`, `spaces.tsx` and `card-editor.tsx`) at the time of
+writing — they show
 how established each piece is, not how important it is.
 
 **There is a live version of this list.** Admin → App → Components renders
