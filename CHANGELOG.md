@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.134 — 15 September 2026
+## 0.135 — 15 September 2026
 
 - **Housekeeping: there is now one way to ask what forms a card has.**
   Nothing looks or behaves differently. A card is its own word plus the
@@ -21,6 +21,29 @@ and moves once per batch of work you would notice, not once per commit.
   card is, sentence cards, and blanks that can be filled by any form of a
   word. Each of those has to walk a card's forms, and it is far safer to do
   that through one door than thirty.
+
+## 0.134 — 15 September 2026
+
+- **A card can now keep a form without being asked about it.** The editor
+  has a *What is drilled* section listing the parts of the card — its word,
+  each further form, the pronouns on the end of each of them, the
+  conjugations — all ticked, and any of them can be unticked.
+
+  An unticked part stays on the card and is still shown. Its recordings are
+  kept, and so is whatever progress a student has already made on it: it is
+  simply never asked about, and ticking it again takes up where it left
+  off. Until now the only way to stop a form being drilled was to delete
+  it, which threw all of that away — so a conjugation table written out for
+  a class to read cost twenty-one questions a day or nothing at all.
+
+  The section is not shown on a card with only one part, which is the
+  ordinary word: there is nothing there to choose between.
+
+  Two of the ticks take something with them, because the app would
+  otherwise be offering a choice that does nothing. A verb whose word is
+  one of the boxes in its own table is one thing, so the two go together;
+  and the pronouns on the end of a form go off with that form, since they
+  are only ever asked once the form itself is known.
 
 ## 0.133 — 15 September 2026
 

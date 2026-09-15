@@ -169,6 +169,7 @@ import {
   formatGap,
   freshState,
   freshStates,
+  isAsked,
   itemDifficulty as itemDifficultyOf,
   mastered,
   maturity,
@@ -580,13 +581,19 @@ function settingsFor(settings: Settings, unit: Form | null | undefined): Setting
   return { ...settings, language: id };
 }
 
-function drillableUnits(item: Item, settings: Settings) {
+/* Exported for the tests, which ask it what a card would actually be dealt
+   — the one question a screenshot cannot answer. */
+export function drillableUnits(item: Item, settings: Settings) {
   /* A unit with nothing to ask is left out here rather than further down,
      where it would take one of the four places a family gets in a session
      and fill it with no question — so a verb whose word is cited by one of
-     its own cells would be dealt three cells instead of four. */
+     its own cells would be dealt three cells instead of four.
+
+     And a form the teacher keeps on the card without asking about it — see
+     isAsked — for the same reason: it has no question to put, so a place
+     in a session spent on it is a place spent on nothing. */
   return unitsOf(item).filter(
-    ({ unit }) => !isQuiet(unit) && enabledTypes(unit, settings).length >= 2,
+    ({ unit }) => !isQuiet(unit) && isAsked(unit) && enabledTypes(unit, settings).length >= 2,
   );
 }
 
@@ -1478,6 +1485,13 @@ const specOf = (key: string) => EX[typeOf(key)];
  */
 function laddered(it: Form, settings: Settings): string[] {
   if (isQuiet(it)) return [];
+  /* And nothing at all for a form the teacher keeps without asking about
+     it. Said here, where the quiet ones are said, so that a form left on a
+     card for a student to read is absent from every count the same way a
+     row nobody has reached is: no question dealt, no level outstanding,
+     and the schedule it already had still sitting there for the day it is
+     switched back on. */
+  if (!isAsked(it)) return [];
   /* And a rung's worth rather than all of it, for a pronoun on the end of a
      word the learner can already write — see easedUnits. Said here because
      this is the list everything downstream reads, so what is dealt, what
@@ -1563,7 +1577,13 @@ function isDrillable(it: Item, settings: Settings) {
      card carries the two whole-scene exercises and a short dialog carries
      only one of them, so asking the card alone would throw away a
      conversation whose every line is ready to be asked. */
-  if (isDialog(it)) return drillableUnits(it, settings).length > 0;
+  /* A card whose own word the teacher keeps without asking about it
+     qualifies the same way a scene does — through what is left. A verb
+     whose dictionary form is the question and whose table is there to be
+     read is the ordinary case of this; so is the other way round. Asking
+     the card alone would hide every one of them from the list of what can
+     be practised while its forms were being practised. */
+  if (isDialog(it) || !isAsked(it)) return drillableUnits(it, settings).length > 0;
   return enabledTypes(it, settings).length >= 2;
 }
 

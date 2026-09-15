@@ -821,6 +821,13 @@ export default async (req) => {
            turned off and on again must come back as on, and an absent field
            would leave the client reading the last value it synced. */
         drill: card.drill !== false,
+        /* Whether the card's own word is asked about, as against the forms
+           under it. Stored as a boolean for the reason drill is: the saved
+           card is the old one with these fields written over it, so a field
+           left out here would leave a word switched off and back on again
+           reading as off for ever. A card saved before this has none, and
+           an absent one means asked. */
+        ask: card.ask !== false,
         answers: storedAnswers(card),
         /* The cap was twelve, which is more alternate forms than a word has
            ever wanted. A verb's table is made of these — one sub-form per
@@ -852,6 +859,12 @@ export default async (req) => {
                know one language from another. Narrowed to the shape an
                id can take so what comes back is what a pack can name. */
             ...cellAt(sb),
+            /* Whether this form is asked about. Stored only where it is
+               off, because the whole list is rewritten on every save —
+               there is no older value here to be left standing, and a
+               card saved by a build that knows nothing of this passes
+               through unchanged. */
+            ...(sb.ask === false ? { ask: false } : {}),
             answers: storedAnswers(sb),
             clips: Array.isArray(sb.clips) ? sb.clips.slice(0, 12) : [],
             slowClips: Array.isArray(sb.slowClips) ? sb.slowClips.slice(0, 12) : [],

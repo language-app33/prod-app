@@ -2877,6 +2877,11 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     ...(sb.row ? { row: String(sb.row) } : null),
     ...(sb.col ? { col: String(sb.col) } : null),
     ...(sb.of ? { of: formId(String(sb.of), -1) } : null),
+    /* And whether the teacher asks about it at all — a table written out
+       for a student to read rather than to be drilled on. Carried only
+       where it is off, so an ordinary form gains nothing; absent means
+       asked, here as everywhere. */
+    ...(sb.ask === false ? { ask: false } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers
@@ -2953,6 +2958,11 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        teacher's decision and neither can be read off the words. */
     ...(card.fills ? { fills: String(card.fills) } : null),
     ...(card.drill === false ? { drill: false } : null),
+    /* And whether its own word is asked about, as against the forms under
+       it: a verb whose table is the lesson and whose dictionary form is
+       there to be read. A third thing only the teacher can decide, carried
+       for the same reason the two above are. */
+    ...(card.ask === false ? { ask: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same
        reason those two are: it is the teacher's words and nothing here

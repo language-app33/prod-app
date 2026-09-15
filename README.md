@@ -86,6 +86,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   because meeting كتابي before كتاب is meeting a word you have not learnt in
   a shape you cannot read. Which table a cell belongs to is read off the row
   it sits in, so one card never lays out both.
+- **A form can be kept without being asked about.** A card is a word and a
+  pile of forms of it — other spellings, the pronouns on its end, every
+  person and tense of a verb — and a teacher may want some of that written
+  down for a student to read rather than drilled. Each of those is a part
+  that can be switched off in the editor: it stays on the card, keeps its
+  recordings and keeps whatever progress a student has made on it, and is
+  never asked. Stored as `ask: false` on the forms it covers, so a card
+  written before this and anything added to one later are both asked;
+  `askParts` in `src/card-editor.tsx` is what a teacher is shown, and
+  `isAsked` in `src/scheduler.ts` is what every reader goes through. A
+  form's own table follows the form off — the pronouns on the end of a
+  word wait on that word being known, so under a form nobody is asked they
+  could never open.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in

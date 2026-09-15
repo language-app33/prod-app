@@ -527,6 +527,25 @@ export function unitsOf(item: Item | null | undefined): Unit[] {
   return units;
 }
 
+/**
+ * Whether a form is asked about at all.
+ *
+ * The teacher's answer, off the form itself: a table of conjugations
+ * written out for a student to read rather than to be drilled on, a rare
+ * plural worth recording and not worth asking for. Absent means yes, which
+ * is what every form written before this said and what anything added to a
+ * card later says.
+ *
+ * It is a fact about the form and not about the schedule, which is why it
+ * is one line: everything that decides what to ask reads it through
+ * `laddered` in the app, and a form switched off comes back with no keys at
+ * all — nothing to deal, nothing outstanding on the progress screen, and
+ * every state it had kept exactly where it was for the day it is switched
+ * back on.
+ */
+export const isAsked = (unit: Form | null | undefined): boolean =>
+  !!unit && unit.ask !== false;
+
 /*
  * A family counts as learnt only when every one of its forms is, so both
  * of these take the weakest link across the card and its forms.

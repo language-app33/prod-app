@@ -3971,6 +3971,47 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     ([...document.querySelectorAll(".at-hint, .at-help, p")]
       .map((n) => (n.textContent || "").trim()).find((t) => /^(A verb|Attached pronouns):/.test(t)) || "(nothing said)"));
 
+  /* ---- and what of it is drilled ----
+
+     A card is a word and a pile of forms of it, and until 0.134 all of it
+     was asked about: the only way to stop a form being drilled was to
+     delete it, which took its recordings and every student's progress with
+     it. The section lists the parts this card actually has — its word, and
+     the pronouns on the end of that word — and the tick is what keeps one
+     without asking it. */
+  {
+    const block = [...document.querySelectorAll(".at-formblock")]
+      .find((b) => /What is drilled/.test((b.querySelector(".at-formnum") || {}).textContent || ""));
+    check("the editor says what of the card is drilled", !!block,
+      block ? (block.textContent || "").replace(/\s+/g, " ").slice(0, 80) : "(no such section)");
+    const rows = block ? [...block.querySelectorAll(".at-tickrow")] : [];
+    check("one line for the word and one for the pronouns on its end",
+      rows.length === 2 &&
+        /The main form/.test(rows[0].textContent || "") &&
+        /The pronouns on its end/.test(rows[1].textContent || ""),
+      rows.map((r) => (r.querySelector("b") || {}).textContent).join(" | ") || "(no lines)");
+    const ticks = rows.map((r) => /** @type {any} */ (r.querySelector("input")));
+    check("all of it is drilled until somebody says otherwise",
+      ticks.every((t) => t && t.checked), ticks.map((t) => !!(t && t.checked)).join(", "));
+
+    /* Untick the pronouns: the section counts what is left, and says what
+       switching one off actually does — which is the whole reason it is
+       here rather than a Delete button. */
+    click(ticks[1]);
+    await sleep(250);
+    const after = [...document.querySelectorAll(".at-formblock")]
+      .find((b) => /What is drilled/.test((b.querySelector(".at-formnum") || {}).textContent || ""));
+    const role = after ? ((after.querySelector(".at-formrole") || {}).textContent || "").trim() : "";
+    check("switching the pronouns off is counted rather than done silently",
+      role === "1 of 2", role || "(nothing said)");
+    check("and the word itself is still drilled",
+      !!after && /** @type {any} */ (after.querySelectorAll(".at-tickrow input")[0]).checked,
+      role);
+    check("while the table stays on the card, recordings and progress and all",
+      !!me && me.value === "قلمي" && /stays on the card/.test((after || {}).textContent || ""),
+      ((after || {}).textContent || "").replace(/\s+/g, " ").slice(-120));
+  }
+
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));

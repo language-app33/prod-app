@@ -46,7 +46,7 @@ await build({
 });
 const { shapeOf, shapeChoices, formsOffered,
   initialForms, initialCells, initialLayout, storedFormsOf, asideOf, tableCellsOf,
-  canSaveWord, canSaveScene, writtenLines, ownerLabel } =
+  canSaveWord, canSaveScene, writtenLines, ownerLabel, askParts, partAsked } =
   await import(path.join(out, "card-editor.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -83,7 +83,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits } =
+const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits, drillableUnits } =
   await import(path.join(out, "trainer.js"));
 const { defaultTypes, LANGUAGES, verbOf, attachedOf } = await import(path.join(here, "..", "src", "languages.ts"));
 
@@ -378,6 +378,35 @@ test("a conversation reaches the learner as a scene, with its turns drillable", 
   assert.deepEqual(item.lines[0].uses, [localIdFor("w1")]);
   assert.deepEqual(item.lines[0].recs.map((/** @type {any} */ r) => r.id), ["hello"]);
   assert.deepEqual(item.lines[1].recs, [], "a line with no recording is not a broken one");
+});
+
+test("what the teacher does not ask about reaches the student that way too", () => {
+  /* Everything that reads a table reads the fields carried here, and this
+     is one more of them: a card whose pronouns are written out for reading
+     rather than for drilling would otherwise arrive with all eight of them
+     being asked. */
+  const item = cardToItem(
+    {
+      id: "k9", ar: "كِتاب", en: "book", lang: "ar-PS", ask: false,
+      subs: [
+        { ar: "كتابي", en: "my book", row: "attached", col: "me", ask: false },
+        { ar: "كُتُب", en: "books" },
+      ],
+    },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal(item.ask, false, "the card's own word");
+  assert.equal(item.subs[0].ask, false, "and the cell");
+  assert.equal("ask" in item.subs[1], false, "while an ordinary form gains nothing");
+
+  /* And a card nobody has said anything about arrives asked, which is
+     every card written before this. */
+  const plain = cardToItem(
+    { id: "k10", ar: "شمس", en: "sun", lang: "ar-PS", subs: [{ ar: "شموس", en: "suns" }] },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal("ask" in plain, false);
+  assert.equal("ask" in plain.subs[0], false);
 });
 
 test("and an ordinary card is not turned into a scene on the way", () => {
@@ -867,6 +896,125 @@ test("what can be saved: a word needs its script and its English, a scene a name
   assert.equal(canSaveScene("  ", [{}, {}]), false);
   assert.equal(canSaveScene("At the door", [{}]), false);
   assert.deepEqual(writtenLines([{ ar: "سلام" }, { ar: " " }, { ar: "" }]).map((/** @type {any} */ l) => l.ar), ["سلام"]);
+});
+
+/*
+ * What is asked about, and what is only written down.
+ *
+ * A form kept on the card without being drilled is the thing that had no
+ * way of being said: the only way to stop a form being asked was to delete
+ * it, which took its recordings and every student's progress with it.
+ */
+test("every form is asked about until somebody says otherwise", () => {
+  assert.equal(partAsked({ ar: "كتاب" }), true, "absent means asked");
+  assert.equal(partAsked({ ar: "كتاب", ask: true }), true);
+  assert.equal(partAsked({ ar: "كتاب", ask: false }), false);
+  assert.equal(partAsked(null), false, "nothing is not a form");
+});
+
+test("a plain word has nothing to choose between, and a word with a table does", () => {
+  const forms = [{ ar: "كتاب", en: "book" }];
+  /* One part is no question: the section is not drawn, and the tick that
+     would turn the only form off is the one the Blanks block already has. */
+  assert.deepEqual(askParts({ forms, cells: [], spec: null, mode: "" }).map((/** @type {any} */ p) => p.id), ["form:0"]);
+
+  /* The word, and the pronouns on the end of the word. */
+  const cells = [cellOf("attached", "me", { ar: "كتابي" }), cellOf("attached", "you", { ar: "كتابك" })];
+  const parts = askParts({ forms, cells, spec: arAttached, mode: "attached" });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0", "attached:"]);
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.on), [true, true], "everything is asked until it is not");
+  assert.match(parts[1].note, /2 forms/, "and it says how many there are");
+});
+
+test("each form's own table is listed under it, and an empty one is not listed at all", () => {
+  const forms = [{ ar: "كتاب", en: "book" }, { id: "pl", ar: "كتب", en: "books" }];
+  const cells = [
+    cellOf("attached", "me", { ar: "كتابي" }),
+    cellOf("attached", "me", { ar: "كتبي", of: "pl" }),
+  ];
+  assert.deepEqual(
+    askParts({ forms, cells, spec: arAttached, mode: "attached" }).map((/** @type {any} */ p) => p.id),
+    ["form:0", "attached:", "form:1", "attached:pl"],
+  );
+  /* A table nobody has written is not a thing to be asked either way, so a
+     card being written from scratch opens with no section about it. */
+  assert.deepEqual(
+    askParts({ forms, cells: [], spec: arAttached, mode: "attached" }).map((/** @type {any} */ p) => p.id),
+    ["form:0", "form:1"],
+  );
+});
+
+test("a card reopens saying what of it is drilled", () => {
+  /* The round trip the section stands on: what the teacher switched off
+     comes back switched off, rather than every save quietly turning the
+     whole card back on. */
+  const saved = /** @type {any} */ ({
+    id: "k", ar: "كِتاب", en: "book", ask: false,
+    subs: [
+      { id: "pl", ar: "كُتُب", en: "books" },
+      cellOf("attached", "me", { ar: "كتابي", ask: false }),
+    ],
+  });
+  const forms = initialForms(saved, null);
+  const cells = initialCells(saved, arVerb);
+  assert.equal(partAsked(forms[0]), false, "the card's own word");
+  assert.equal(partAsked(forms[1]), true, "and a form nobody said anything about");
+  assert.equal(partAsked(cells[0]), false, "and the cell");
+});
+
+test("a form switched off takes its own table off the list with it", () => {
+  /* The pronouns on the end of a word wait on that word being known, so
+     under a form nobody is asked about they could never open. Offering the
+     tick would be offering something that does nothing. */
+  const forms = [{ ar: "كتاب", en: "book", ask: false }];
+  const cells = [cellOf("attached", "me", { ar: "كتابي", ask: false })];
+  const parts = askParts({ forms, cells, spec: arAttached, mode: "attached" });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0"]);
+  assert.equal(parts[0].on, false);
+});
+
+test("a verb is its word and its conjugations, and the cited cell is the word", () => {
+  /* Arabic cites the he-past, so that cell *is* the card's own word and is
+     the line about the word — not one of the twenty others. */
+  const forms = [{ ar: "أكل", en: "to eat" }];
+  const cells = [cellOf("past", "he", { ar: "أكل" }), cellOf("present", "he", { ar: "بياكل" })];
+  const parts = askParts({ forms, cells, spec: arVerb, mode: "verb" });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0", "verb"]);
+  assert.equal(parts[0].title, "The verb");
+  assert.match(parts[1].note, /1 form/, "the cited cell is the word, not a conjugation");
+
+  /* With nothing but the cited cell written there is no table to ask about. */
+  assert.deepEqual(
+    askParts({ forms, cells: [cellOf("past", "he", { ar: "أكل" })], spec: arVerb, mode: "verb" }).map((/** @type {any} */ p) => p.id),
+    ["form:0"],
+  );
+});
+
+test("a form switched off is dealt nothing, and the rest of the card still is", () => {
+  /* The whole point, asked of what a session would actually deal. */
+  const whole = drillableUnits(bookCard({ s: allAt(state("review", 1)) }), settings);
+  assert.ok(whole.some((/** @type {any} */ u) => u.unit.id === "s-me"), "the word's pronouns are dealt");
+  assert.ok(whole.some((/** @type {any} */ u) => u.unit.id === "book"), "and the word itself");
+
+  const off = drillableUnits(
+    bookCard({ s: allAt(state("review", 1)), states: {}, ask: false }),
+    settings,
+  );
+  assert.equal(off.some((/** @type {any} */ u) => u.unit.id === "book"), false, "the word is not");
+  assert.ok(off.some((/** @type {any} */ u) => u.unit.id === "s-me"), "its forms still are");
+
+  /* And a cell switched off, which is what a table kept for reading is
+     made of. */
+  const table = drillableUnits(
+    {
+      ...bookCard({ s: allAt(state("review", 1)) }),
+      subs: bookCard({}).subs.map((/** @type {any} */ f) =>
+        f.row === "attached" ? { ...f, ask: false } : f),
+    },
+    settings,
+  );
+  assert.equal(table.some((/** @type {any} */ u) => u.unit.id === "s-me"), false);
+  assert.ok(table.some((/** @type {any} */ u) => u.unit.id === "book"), "the word is asked as ever");
 });
 
 test("a form's table is named only where there is more than one on screen", () => {

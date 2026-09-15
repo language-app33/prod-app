@@ -397,6 +397,53 @@ test("a form keeps its name, and a cell keeps whose table it is in", async () =>
 });
 
 /*
+ * Which forms of a card are asked about.
+ *
+ * A teacher may want a table on the card for a student to read rather than
+ * to be drilled on, and until this the only way to stop a form being asked
+ * was to delete it — taking its recordings and every student's progress
+ * with it. The server keeps the answer the way it keeps a position: as
+ * given, knowing nothing about what it means.
+ */
+test("a form can be kept without being asked about, and says so both ways", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
+  const key = made.json.key;
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", ar: "كِتاب", en: "book", lang: "ar-PS",
+        subs: [
+          { ar: "كتابي", en: "my book", lat: "", row: "attached", col: "me", ask: false },
+          { ar: "كُتُب", en: "books", lat: "" },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.subs[0].ask, false, "the cell kept out of the drill says so");
+  assert.equal("ask" in saved.json.card.subs[1], false, "and an ordinary form gains no field");
+  assert.equal(saved.json.card.ask, true, "the card's own word is asked unless it says otherwise");
+
+  /* And switching the card's own word off and on again comes back on. The
+     saved card is the old one with these fields written over it, so a
+     field left out here would leave the last answer standing for ever —
+     which is the bug `drill` already has a comment about. */
+  const quiet = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: saved.json.card.id, ar: "كِتاب", en: "book", lang: "ar-PS", ask: false, subs: [] }, decks: [] },
+  });
+  assert.equal(quiet.json.card.ask, false);
+  const loud = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: saved.json.card.id, ar: "كِتاب", en: "book", lang: "ar-PS", subs: [] }, decks: [] },
+  });
+  assert.equal(loud.json.card.ask, true, "switched back on rather than left where it was");
+});
+
+/*
  * A conversation is a card like any other, so it reaches a student down
  * the same pipe: saved here, stored whole, handed out in the material
  * payload. What the server has to keep is the turns in order, who says
