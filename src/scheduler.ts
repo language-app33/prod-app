@@ -258,7 +258,34 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
   } else {
     mult = s.ease;
   }
-  const base = Math.max(1, s.interval || 1);
+  /*
+   * How long the learner actually went without seeing this card.
+   *
+   * A review card's gap is written into its own two fields: it was last
+   * answered at `due` minus `interval`, because that is how the line at
+   * the foot of this branch set them. So this needs nothing stored that
+   * was not already there, and a card from an older build reads the same.
+   *
+   * Capped at the interval, so answering late is worth exactly what
+   * answering on time is: a card left for three weeks when it asked for
+   * one is not evidence of three weeks' retention of anything, and
+   * treating it as such is how a forgotten collection inflates itself.
+   * That cap is also what keeps every on-time and overdue answer byte for
+   * byte what it was before this existed.
+   */
+  const waited = s.interval - (s.due - at) / DAY;
+  /*
+   * And the gap only grows from what was actually waited out.
+   *
+   * Practice is no longer gated on a card being due, so a learner with a
+   * free hour can answer a card minutes after they last saw it. Multiplying
+   * its existing month by the ease then would push it out to six weeks on
+   * the evidence of a ten-minute memory — and a keen evening would empty
+   * the next two months. Growing from what was waited instead means an
+   * early answer is worth what it is worth: something when the card was
+   * nearly due, almost nothing when it was not.
+   */
+  const base = Math.max(1, Math.min(s.interval || 1, waited));
   let next = Math.round(base * mult * fuzz(clock));
   /*
    * A near miss still moves.
@@ -277,6 +304,17 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
    * one; what it cannot do any more is stand still.
    */
   if (rating === "hard") next = Math.max(next, base + 1);
+  /*
+   * An early answer can help or do nothing. It can never take a card
+   * backwards.
+   *
+   * Without this, drilling a card the day after a month-long gap was set
+   * would grow from one day and hand back an interval of two or three —
+   * so practising something you know well would be punished by having it
+   * thrown at you all week. Getting it *wrong* still pulls it back, up
+   * above, because that is real news whenever it arrives.
+   */
+  next = Math.max(next, s.interval || 1);
   s.interval = Math.min(MAX_DAYS, Math.max(1, next));
   s.due = inDays(s.interval);
   return s;
