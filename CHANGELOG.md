@@ -8,6 +8,88 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.145 — 16 September 2026
+
+An audit of cards, scheduling and progress found work being lost in five
+places. Every one of them is fixed here, and none of them was anybody's
+fault twice: the way a card is stored changed a release ago, five readers
+were still reading the old way, and every test was written in the old shape
+so the whole suite agreed with them.
+
+- **Editing a card no longer empties it.** Opening a card saved since the
+  last release showed an empty first box where its word should be, with
+  Save greyed out; opening an older one showed the word it had *before* its
+  last edit, and saving put that back — losing the word's recordings, its
+  number and gender, and whether it was switched off. Cards opened since
+  the last release and re-saved may have lost their word that way; the word
+  a student has is the one to go by.
+
+  Two spellings of one thing keep their own number and gender through an
+  edit now as well. مبسوط from a man and مبسوطة from a woman are one card
+  with two right answers, and opening it used to give both of them whatever
+  the first one said.
+
+- **A teacher saving anything no longer resets their students.** New
+  material is checked for every forty-five seconds, and each check was
+  wiping two things the student had earned: their progress on **every turn
+  of every conversation**, and each sentence card's record of which words it
+  has already been filled with. Both are kept now. Progress on the forms of
+  a word was always kept; this is the rest of it.
+
+- **A word with two accepted spellings keeps its second schedule.** Each
+  spelling is practised in its own right, and the second one's schedule was
+  thrown away every time the app opened, after every sync and on every
+  import — so an evening's work on it was gone by morning and the card read
+  as never asked.
+
+- **Fixing a typo in a verb's table no longer shuffles progress between
+  its boxes.** A box of a table was the one part of a card with no name of
+  its own, so on a student's device it was known by its position — and
+  editing one box moved it to the end of the list, handing every box below
+  it the schedule of its neighbour. Every box has a name now. Nothing a
+  student has done is lost in the change: an unfamiliar name is matched back
+  by position, which is the same way forms were named a few releases ago.
+
+- **"This was too easy" now moves the level it says it does.** On a card
+  with a blank in it, or one accepting two spellings, it read the ladder off
+  the question rather than off the card — so it marked an exercise the card
+  can never be asked, and the level the learner was actually on stayed shut
+  while the message said it had opened.
+
+Smaller things in the same area:
+
+- **Build a session now follows the same rules a dealt session does.** A
+  form the teacher keeps on a card for a student to read rather than be
+  drilled on was asked there, and a verb's later tenses were dealt before
+  its present was known. Both are as they should be. It also judged a card
+  by the wrong language for anyone studying two.
+
+- **"Reset scheduling" now resets scheduling.** It reported success and
+  changed nothing at all.
+
+- **A backup now contains a conversation's recordings.** They were never
+  in one, and nothing said so — the count in the backup agreed with itself.
+
+- **A card that does not fit says what was left out.** A thirteenth turn, a
+  fifth speaker, a thirteenth recording: all of these were quietly dropped
+  and the save said "Saved". It now names what did not fit.
+
+- **Words, phrases, sentences and conversations are all practised again.**
+  A setting from a removed screen could still be hiding one of the four
+  entirely, on a device that had switched it off long ago, with nothing
+  anywhere to say so. It is dropped like the other retired settings.
+
+- **A noun and a preposition can be told apart after saving.** Prepositions
+  written before the app asked what kind of word a card is opened as nouns
+  and could not be corrected, which from two releases ago meant they filled
+  blanks meant for nouns.
+
+- **Two under-the-floor ones.** New cards were let in slightly too freely
+  during the fifteen minutes after you say you cannot play sound. And a box
+  of a table left pointing at a form that has been deleted is dropped when
+  the card is saved, as it always was, but the warning above the table now
+  counts it.
+
 ## 0.144 — 16 September 2026
 
 - **You can ask for a card.** Open any card under Cards and there is a

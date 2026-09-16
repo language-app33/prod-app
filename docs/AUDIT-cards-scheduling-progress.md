@@ -1,6 +1,16 @@
 # Audit: cards, scheduling and progress
 
-**16 September 2026 · release 0.143, commit 4fdc4f5 · re-checked against 0.144 (94c18a4), which landed on `beta` during the audit: every probe below still reproduces on the merged tree.**
+**16 September 2026 · release 0.143, commit 4fdc4f5 · re-checked against 0.144 (94c18a4), which landed on `beta` during the audit: every probe below still reproduced on the merged tree.**
+
+> **All eighteen findings were fixed in 0.145.** This document is kept as
+> it was written, because the reasoning is the record of why they were
+> there; the release entry in `CHANGELOG.md` says what changed for the
+> people using the app, and the `DECISIONS.md` entry *A reader that agrees
+> with its fixtures and not with the disk* says what changed underneath and
+> what was deliberately left alone. Findings 1 to 5 were each reproduced by
+> running the real code before the fix and again after it. The round trip
+> the last step below asks for exists now, in `tests/cards.test.mjs`, and
+> fails on four of the five high findings if they are put back.
 
 An in-depth read of how a card is stored, how a session is dealt and marked,
 and how progress is kept and shown, judged against two principles:
@@ -276,6 +286,26 @@ Silent progress-loss paths found: five (1 through 5). Silent
 misbehaviour paths: four (7, 8, 9, 13). Content-loss path in backups:
 one (10). All ten are on the read, write or fold side of a card — none in
 the pure layer — and none is reached by a test. The pure layer is sound.
+
+## What was done
+
+All eighteen, in 0.145, in the order below. Seven of the eight steps are
+finished; step 8, the structural one, is not, and is the only item here
+still open.
+
+Four test seams were opened to make the rules assertable: `laddered`,
+`liftStates` and `merge` are exported, and so are the two module-level
+indexes a card with a blank in it depends on, so a test can say "these
+words exist in this learner's deck". Sixteen unit tests and one smoke
+check were added or rewritten; the suite went from 514 to 530.
+
+One thing worth recording against the audit itself: the smoke check that
+covered "too easy" passed before the fix and failed after it. It asserted
+that two or more schedules were written in one stamp, which was true only
+because the old code was reading the filled-in question and so wrote a
+schedule for an exercise the card could never be asked. The check now
+asserts that, which is the rule — a proxy that only holds while the bug
+does is worse than no check.
 
 ## What to do, in order
 

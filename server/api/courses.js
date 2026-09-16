@@ -94,6 +94,54 @@ function makeHandle(displayName, taken) {
   return `${base}-${randomBytes(4).toString("hex")}`;
 }
 
+/*
+ * The fields a card carried before 0.138, cleared when one is saved.
+ *
+ * A card was its own first form: the word, its recordings and its grammar
+ * sat on the card, and its other forms in `subs` beside it. One `forms`
+ * list replaced both, and a save that spread the stored record under the
+ * new fields left the old ones standing — so every card written before
+ * that release kept a second, stale copy of its word for ever, sent it to
+ * every reader, and offered any of them the wrong half to read.
+ *
+ * Written out rather than derived, because the list is closed and short:
+ * these are the fields that stopped belonging to a card, and a field that
+ * stops belonging to one in future belongs here beside them. Every one of
+ * them now lives on a form — see the `forms` whitelist in save-card.
+ */
+/*
+ * Every recording a card refers to.
+ *
+ * Its forms' and its conversation's alike. A line of a scene is drilled in
+ * its own right and carries recordings of its own — the whitelist stores
+ * them — and the two places that had to know what a card's recordings are
+ * walked the forms alone: a backup of a course with a conversation in it
+ * came out without a word of the conversation audible, and clearing a card
+ * left its lines' recordings on the disk with nothing pointing at them.
+ * One answer, read by both.
+ */
+/** @param {Record<string, any>} card */
+const clipsOfCard = (card) => [
+  ...formsOf(card).flatMap((/** @type {Record<string, any>} */ f) => [
+    ...(f.clips || []),
+    ...(f.slowClips || []),
+  ]),
+  ...(((card && card.lines) || [])).flatMap((/** @type {Record<string, any>} */ ln) => [
+    ...(ln.clips || []),
+    ...(ln.slowClips || []),
+  ]),
+];
+
+const RETIRED_CARD_FIELDS = Object.fromEntries(
+  [
+    "ar", "en", "lat", "clips", "slowClips", "answers", "subs", "ask",
+    "row", "col", "of",
+    /* Whatever grammatical values the languages declare, which were the
+       card's when the card was a form. */
+    ...grammarFields(),
+  ].map((field) => [field, undefined]),
+);
+
 /* Left to infer rather than declared as a record of string-makers: the
    keys here are fixed and known, and saying otherwise made `K.course`
    something that might not exist. */
@@ -921,6 +969,73 @@ export default async (req) => {
           : [],
       };
 
+      /*
+       * What the whitelist above cut, in the teacher's own terms.
+       *
+       * Every cap here is a guard against a runaway client rather than a
+       * limit anybody should meet, and each of them did its work in
+       * silence: a teacher who wrote a thirteenth turn, or a fifth
+       * speaker, got "Saved" and a card with twelve turns in it. Nothing
+       * on any screen said which, and the only way to find out was to
+       * notice what was gone.
+       *
+       * Counted by comparing what arrived against what is being stored,
+       * rather than by repeating the numbers: the caps live once, in the
+       * whitelist, and a cap added there is reported by this without
+       * being told about. Named things rather than a count, because "one
+       * of your recordings" and "one of your turns" are not the same
+       * news.
+       */
+      const trimmedOf = () => {
+        /** @type {string[]} */
+        const cut = [];
+        /** @param {number} had @param {number} kept @param {string} one @param {string} many */
+        const note = (had, kept, one, many) => {
+          if (had > kept) cut.push(`${had - kept} ${had - kept === 1 ? one : many}`);
+        };
+        const sentForms = formsOf(card);
+        note(sentForms.length, fields.forms.length, "form", "forms");
+        note(
+          Array.isArray(card.lines) ? card.lines.length : 0,
+          fields.lines.length,
+          "turn",
+          "turns",
+        );
+        note(
+          Array.isArray(card.speakers) ? card.speakers.length : 0,
+          fields.speakers.length,
+          "speaker",
+          "speakers",
+        );
+        /* Recordings, over the forms that were kept: the ones on a form
+           that went are already counted by the line above it. */
+        /** @param {Record<string, any>[]} list */
+        const clipsIn = (list) =>
+          list.reduce(
+            (n, f) =>
+              n +
+              (Array.isArray(f.clips) ? f.clips.length : 0) +
+              (Array.isArray(f.slowClips) ? f.slowClips.length : 0),
+            0,
+          );
+        note(
+          clipsIn(sentForms.slice(0, fields.forms.length)),
+          clipsIn(fields.forms),
+          "recording",
+          "recordings",
+        );
+        /* And a word cut off at the end of a field, which is the one that
+           does not read as a count. */
+        const longest = (/** @type {Record<string, any>[]} */ list) =>
+          list.reduce(
+            (n, f) => Math.max(n, ...["ar", "en", "lat"].map((k) => String(f[k] || "").length)),
+            0,
+          );
+        if (longest(sentForms) > longest(fields.forms)) cut.push("the end of a long field");
+        return cut;
+      };
+      const trimmed = trimmedOf();
+
       /* What each accepted answer is, one entry per answer.
          Read through answersOf rather than trusted as sent, so a client
          that omits it — an older build, or a card pasted in — still stores
@@ -997,7 +1112,23 @@ export default async (req) => {
            being edited — the reader falls back to `updated`, which for a
            card never edited is exactly when it was made and for one that
            has been is at least an upper bound. */
-        saved = { ...existing, ...fields, rev: (existing.rev || 1) + 1, updated: Date.now() };
+        /* And the shape a card was stored in before 0.138 goes, rather
+           than being left underneath the new one. The word used to live on
+           the card with its other forms in `subs` beside it; `fields`
+           writes one `forms` list and said nothing about the old fields,
+           so spreading `existing` first kept a stale copy of the word, its
+           recordings and its answers on every card ever written — for
+           ever, on the wire as well as on disk. Two shapes for one card is
+           what 0.138 set out to remove, and a reader that picks the wrong
+           half is not a hypothetical: the card editor read the word off
+           the card until this release. JSON drops an undefined. */
+        saved = {
+          ...existing,
+          ...RETIRED_CARD_FIELDS,
+          ...fields,
+          rev: (existing.rev || 1) + 1,
+          updated: Date.now(),
+        };
       } else {
         const newId = `k${randomBytes(6).toString("hex")}`;
         const now = Date.now();
@@ -1056,7 +1187,14 @@ export default async (req) => {
       await writeJson(store, K.card(saved.id), saved);
       if (fields.fills || wasFilling) await bumpFills(saved.owner || "");
       await taught();
-      return json({ ok: true, card: { ...saved, decks: final }, decks: deckRecords });
+      /* `trimmed` only where something was — an ordinary save says nothing,
+         and the client has nothing to report. */
+      return json({
+        ok: true,
+        card: { ...saved, decks: final },
+        decks: deckRecords,
+        ...(trimmed.length ? { trimmed } : {}),
+      });
     }
 
     if (action === "delete-cards") {
@@ -1629,16 +1767,7 @@ export default async (req) => {
            Only the hashes are kept here; the bytes travel in their own
            chunks. */
         const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
-        const clipHashes = [
-          ...new Set(
-            cards.filter(Boolean).flatMap((c) =>
-              formsOf(c).flatMap((/** @type {Record<string, any>} */ f) => [
-                ...(f.clips || []),
-                ...(f.slowClips || []),
-              ])
-            )
-          ),
-        ];
+        const clipHashes = [...new Set(cards.filter(Boolean).flatMap(clipsOfCard))];
 
         /* Key hashes, so that restoring a backup leaves everyone's existing
            sign-in key working. The keys themselves are not stored anywhere
@@ -1782,16 +1911,7 @@ export default async (req) => {
            at it. */
         if (want.has("clips")) {
           const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
-          const hashes = [
-            ...new Set(
-              cards.filter(Boolean).flatMap((c) =>
-                formsOf(c).flatMap((/** @type {Record<string, any>} */ f) => [
-                  ...(f.clips || []),
-                  ...(f.slowClips || []),
-                ])
-              )
-            ),
-          ];
+          const hashes = [...new Set(cards.filter(Boolean).flatMap(clipsOfCard))];
           for (const h of hashes) {
             await store.delete(K.clip(h));
             removed.clips += 1;

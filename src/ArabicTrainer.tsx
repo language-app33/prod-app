@@ -232,7 +232,8 @@ import type { Value } from "./variables.ts";
  * a word in use, neither of which belongs in the scheduler — so it is
  * handed in here, at the one place that has both.
  */
-const itemDifficulty: (it: Item) => string = (it) => itemDifficultyOf(it, (u) => availableTypes(u));
+const itemDifficulty = (it: Item, settings: Settings): string =>
+  itemDifficultyOf(it, (u) => supportedTypes(u, settings));
 
 /* Where a card stands on the ladder, over the same keys the ladder itself
    climbs — see `laddered`. Everything that puts progress on a screen reads
@@ -300,7 +301,6 @@ const EMPTY: Doc = {
   settingsUpdated: 0,
   log: {},
   settings: {
-    kinds: { word: true, phrase: true, sentence: true, dialog: true },
     /*
      * The languages switched *off*, rather than the ones switched on.
      *
@@ -601,20 +601,34 @@ function settingsFor(settings: Settings, unit: Spoken): Settings {
   return { ...settings, language: id };
 }
 
-/* Exported for the tests, which ask it what a card would actually be dealt
+/*
+ * The forms of a card that have anything to ask at all.
+ *
+ * Two gates, and every reader of a card's forms wants both: a cell of a row
+ * nobody has reached yet — see quietUnits — and a form the teacher keeps on
+ * the card without asking about it — see isAsked. A unit with nothing to
+ * ask is left out here rather than further down, where it would take one of
+ * the places a family gets in a session and fill it with no question — so a
+ * verb whose word is cited by one of its own cells would be dealt one cell
+ * instead of two.
+ *
+ * Its own function because a session built by hand wants the gates without
+ * the minimum below: the gentle mode takes a card that supports a single
+ * exercise, so it walked every form of the card directly instead and
+ * applied neither gate — a table the teacher had switched off was asked
+ * there, and a verb's later tenses were dealt before its present was known.
+ */
+export function askedUnits(item: Item) {
+  return unitsOf(item).filter(({ unit }) => !isQuiet(unit) && isAsked(unit));
+}
+
+/* And of those, the ones a dealt session looks at: a form needs two
+   exercises to be worth one of the places a family gets.
+
+   Exported for the tests, which ask it what a card would actually be dealt
    — the one question a screenshot cannot answer. */
 export function drillableUnits(item: Item, settings: Settings) {
-  /* A unit with nothing to ask is left out here rather than further down,
-     where it would take one of the places a family gets in a session and
-     fill it with no question — so a verb whose word is cited by one of its
-     own cells would be dealt one cell instead of two.
-
-     And a form the teacher keeps on the card without asking about it — see
-     isAsked — for the same reason: it has no question to put, so a place
-     in a session spent on it is a place spent on nothing. */
-  return unitsOf(item).filter(
-    ({ unit }) => !isQuiet(unit) && isAsked(unit) && enabledTypes(unit, settings).length >= 2,
-  );
+  return askedUnits(item).filter(({ unit }) => enabledTypes(unit, settings).length >= 2);
 }
 
 /* Totals for the list indicators: how many forms, how many clips. */
@@ -672,11 +686,15 @@ function setContextIndex(map: Map<string, any[]>) {
 
 let VALUE_INDEX: Map<string, Value[]> = new Map();
 
-function setValueIndex(map: Map<string, Value[]>) {
+/* Exported, with the key it is filed under, so a test can say "these words
+   exist in this learner's deck" — the one fact a frame's whole behaviour
+   turns on and nothing outside a render could otherwise state. The app
+   fills it during render, from the cards in hand. */
+export function setValueIndex(map: Map<string, Value[]>) {
   VALUE_INDEX = map || new Map();
 }
 
-const valueKey = (langId: LangId, slot: string) => `${langId} ${slot}`;
+export const valueKey = (langId: LangId, slot: string) => `${langId}\u0000${slot}`;
 
 /*
  * And how far the learner has got with each of them.
@@ -1058,7 +1076,11 @@ function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
 
 let MATE_COUNTS: Map<LangId, number> = new Map();
 
-function setMateCounts(map: Map<LangId, number>) {
+/* Exported for the reason setValueIndex is: how many other words a deck
+   holds is a fact about the deck, and whether a word can be told apart
+   from anything depends on it. A test that wants the pick exercises on the
+   table has to be able to say the deck is not empty. */
+export function setMateCounts(map: Map<LangId, number>) {
   MATE_COUNTS = map || new Map();
 }
 
@@ -1490,7 +1512,7 @@ function reportLearning(account: User | null) {
  * rest of the session; there is genuinely nothing to ask.
  */
 export function withoutListening(exercises: Question[], from: number, items: Item[], settings: Settings): Question[] {
-  const keyOf = (ex: Question) => `${ex.id} ${ex.subId || ""}`;
+  const keyOf = (ex: Question) => `${ex.id}\u0000${ex.subId || ""}`;
   const used: Map<string, Set<string>> = new Map();
   const note = (ex: Question, type: string) => {
     const k = keyOf(ex);
@@ -1555,12 +1577,23 @@ function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.
   );
 }
 
+/*
+ * Which exercises a form supports, read in the language the form is
+ * written in.
+ *
+ * The language comes from the settings in hand, not from the module-level
+ * pointer — that is only set during render, and these run from anywhere.
+ * `availableTypes` defaults to whatever the app happens to be set to,
+ * which for somebody studying two languages is right about half the time:
+ * a Vietnamese card was asked whether it supports the exercises Arabic
+ * declares. Six callers read it that way; they read this instead, and the
+ * default is left for the one caller that genuinely has no card in hand.
+ */
+const supportedTypes = (it: Form, settings: Settings): string[] =>
+  availableTypes(it, langOf(settingsFor(settings, it)));
+
 function enabledTypes(it: Form, settings: Settings): string[] {
-  /* The language comes from the settings in hand, not from the module-level
-     pointer — that is only set during render, and this runs from anywhere.
-     Read in the card's own language, so a Vietnamese card is not asked
-     whether it supports the exercises Arabic declares. */
-  return availableTypes(it, langOf(settingsFor(settings, it))).filter(typeAllowedNow);
+  return supportedTypes(it, settings).filter(typeAllowedNow);
 }
 
 /* The exercise a schedule key is about. Keys carry which accepted answer
@@ -1591,7 +1624,11 @@ const specOf = (key: string) => EX[typeOf(key)];
  * card is, and therefore how much room there is for anything new. A row
  * still to come is the card's to reach, not a hole in it.
  */
-function laddered(it: Form, settings: Settings): string[] {
+/* Exported for the tests, which ask it the one thing a screenshot cannot
+   show: which keys a form actually climbs with — and, in particular, that
+   the answer is about the card as it is written rather than about the copy
+   a question was filled in from. */
+export function laddered(it: Form, settings: Settings): string[] {
   if (isQuiet(it)) return [];
   /* And nothing at all for a form the teacher keeps without asking about
      it. Said here, where the quiet ones are said, so that a form left on a
@@ -1631,14 +1668,29 @@ function askableTypes(unit: Form, settings: Settings): string[] {
   return openTypes(unit, settings).filter((t) => fillableAt(unit, t, settings));
 }
 
+/*
+ * The levels a form has actually reached, before the quiet window.
+ *
+ * The levels are read over everything the card supports and the learner has
+ * switched on, and only then is the quiet window applied: a listening
+ * exercise silenced for a quarter of an hour is still a level to be
+ * climbed, not a gap that lets the one above it open early.
+ *
+ * Which leaves two questions rather than one, and anything *counting* how
+ * far along a card is wants this one. The room kept for new cards was
+ * counted through the window, so a card being learnt on nothing but a
+ * listening exercise read as further along for fifteen minutes and the
+ * cap let a little more in — the comment beside it said it counted the way
+ * the progress screen counts, and the screen reads the list before the
+ * window.
+ */
+function reachedTypes(it: Form, settings: Settings): string[] {
+  return openTypesOf(laddered(it, settings), (k) => statesOf(it)[k]);
+}
+
+/* And of those, the ones that may be put to somebody this minute. */
 function openTypes(it: Form, settings: Settings): string[] {
-  /* The levels are read over everything the card supports and the learner
-     has switched on, and only then is the quiet window applied: a
-     listening exercise silenced for a quarter of an hour is still a level
-     to be climbed, not a gap that lets the one above it open early. */
-  return openTypesOf(laddered(it, settings), (k) => statesOf(it)[k]).filter((k) =>
-    typeAllowedNow(k)
-  );
+  return reachedTypes(it, settings).filter((k) => typeAllowedNow(k));
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -1678,7 +1730,23 @@ function isDrillable(it: Item, settings: Settings) {
      be borrowed, and "what does Raphael mean" is not a question. Absent
      means yes, which is what every card written before this meant. */
   if (it.drill === false) return false;
-  if (!settings.kinds[it.kind || ""]) return false;
+  /*
+   * There used to be a second test here: whether words, phrases, sentences
+   * and conversations were each switched on, read off `settings.kinds`.
+   *
+   * Nothing has set it for releases. No screen offers it, the clear-out
+   * that retired the Advanced panel did not name it, and its default is
+   * every kind — so it did nothing at all on almost every device, and on
+   * one that had switched conversations off years ago it went on hiding
+   * every scene in every session and every count, with nothing anywhere
+   * to say so. That is the hidden setting 0.143 set out to make
+   * impossible. It is retired with the rest of them, in
+   * RETIRED_SETTINGS.
+   *
+   * It also read as *off* for a card whose kind is not one of the four —
+   * `kinds[""]` is undefined — so a card that arrived without one could
+   * never be practised.
+   */
   /* A scene qualifies through its lines rather than through itself. The
      card carries the two whole-scene exercises and a short dialog carries
      only one of them, so asking the card alone would throw away a
@@ -1863,12 +1931,14 @@ const MODES = {
   },
 };
 
-/* Did this form go wrong in either of its last two outings? */
-function hasRecentMistake(unit: Form) {
-  const states = statesOf(unit);
+/* Did this form go wrong in either of its last two outings? Read in the
+   card's own language, and through stateOf, which answers for a key that
+   has never been written. */
+function hasRecentMistake(unit: Form, settings: Settings) {
+  const types = supportedTypes(unit, settings);
   let sawHistory = false;
-  for (const t of availableTypes(unit)) {
-    const h = states[t].hist || [];
+  for (const t of types) {
+    const h = stateOf(unit, t).hist || [];
     if (h.length) {
       sawHistory = true;
       if (h.slice(-2).some((x) => !x)) return true;
@@ -1876,7 +1946,7 @@ function hasRecentMistake(unit: Form) {
   }
   // Nothing recorded yet — fall back to whether it has ever gone wrong.
   if (!sawHistory) {
-    return availableTypes(unit).some((t) => (states[t].wrong || 0) > 0 || (states[t].lapses || 0) > 0);
+    return types.some((t) => (stateOf(unit, t).wrong || 0) > 0 || (stateOf(unit, t).lapses || 0) > 0);
   }
   return false;
 }
@@ -1987,8 +2057,8 @@ function buildSession({
       drillableUnits(it, settings).some(({ unit }) =>
         enabledTypes(unit, settings).some(
           (t) =>
-            difficulty(statesOf(unit)[t]) === "hard" &&
-            maturity(statesOf(unit)[t]) !== "mature"
+            difficulty(stateOf(unit, t)) === "hard" &&
+            maturity(stateOf(unit, t)) !== "mature"
         )
       )
     ).length;
@@ -2000,7 +2070,7 @@ function buildSession({
        what they chose to look at, the load is what they carry. */
     const inHand = phaseCounts(
       items.filter((it) => isDrillable(it, settings)),
-      (u) => openTypes(u, settings)
+      (u) => reachedTypes(u, settings)
     );
     const room = roomForNew(inHand, NEW_PER_SESSION);
     let newSeen = 0;
@@ -2068,7 +2138,7 @@ function buildSession({
      about yet is unrated. A card the learner asked for opens the session
      ahead of all of it: they went and marked it, and a warm-up that buried
      it behind eight other words would be the app quietly declining. */
-  const warmed = inOrder(chosen, (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it)]));
+  const warmed = inOrder(chosen, (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it, settings)]));
 
   /* --- rules 2 and 6: every unit gets several exercise types, and a
          family's sub-items come along in the same session --- */
@@ -2134,7 +2204,7 @@ function buildSession({
   if (offered.size < 2) return { exercises: [], reason: "no-variety" };
 
   return {
-    exercises: withReadThroughs(varied.slice(0, budget), items),
+    exercises: withReadThroughs(varied.slice(0, budget), items, settings),
     reason: null,
     items: new Set(plans.map((p) => p.id)).size,
     units: plans.length,
@@ -2251,14 +2321,14 @@ function withGrids(
  * Put in after the budget has been taken, so a scene cannot lose one of
  * its questions to its own preamble.
  */
-function withReadThroughs(list: any[], items: Item[]) {
+function withReadThroughs(list: any[], items: Item[], settings: Settings) {
   const seen = new Set();
   const out = [];
   for (const ex of list) {
     const card = items.find((i) => i.id === ex.id) || null;
     if (card && isDialog(card) && !seen.has(card.id)) {
       seen.add(card.id);
-      if (sceneUnmet(card)) out.push({ id: card.id, subId: null, type: "dlgread" });
+      if (sceneUnmet(card, settings)) out.push({ id: card.id, subId: null, type: "dlgread" });
     }
     out.push(ex);
   }
@@ -2267,9 +2337,9 @@ function withReadThroughs(list: any[], items: Item[]) {
 
 /* Nobody has answered anything about this scene yet — not a line, not the
    scene itself. */
-function sceneUnmet(card: Item) {
+function sceneUnmet(card: Item, settings: Settings) {
   return unitsOf(card).every(({ unit }) =>
-    availableTypes(unit).every((t) => (statesOf(unit)[t] || freshState()).phase === "new")
+    supportedTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
   );
 }
 
@@ -2301,9 +2371,9 @@ function pickableTypes(unit: Form, settings: Settings) {
    cell that is asked one exercise a level, every one of those: a form is
    finished when nothing it is being asked is left, not when exercises
    nobody is putting to it are still new. */
-function unitFullyLearnt(unit: Form) {
-  const types = easedTo(unit, availableTypes(unit));
-  return types.length > 0 && types.every((t) => maturity(statesOf(unit)[t]) === "mature");
+function unitFullyLearnt(unit: Form, settings: Settings) {
+  const types = easedTo(unit, supportedTypes(unit, settings));
+  return types.length > 0 && types.every((t) => maturity(stateOf(unit, t)) === "mature");
 }
 
 /* Exercise types follow from the mode, so there is nothing to choose. */
@@ -2348,18 +2418,16 @@ function buildManualSession({ items, settings, ids, mode, count }: {
      not a question — which a dealt session has always honoured, through
      isDrillable, and this one never did: picking the deck a frame lives in
      drilled its names as cards in their own right. */
-  const pool = items.filter(
-    (i) => chosen.has(i.id) && settings.kinds[i.kind || ""] && i.drill !== false
-  );
+  const pool = items.filter((i) => chosen.has(i.id) && i.drill !== false);
   const plans: Question[] = [];
   const learnt = [];
   /* What the mode allows of what the form supports, and of that, the
      levels the form has reached: a session built by hand climbs the same
      ladder a dealt one does. A form qualifies on the first — it is the
      material that has to offer two exercises — and is asked from the
-     second. */
+     second. Read in the card's own language, like every other reader. */
   const supportedFor = (unit: Form) =>
-    easedTo(unit, availableTypes(unit).filter((t) => allowed.has(t)));
+    easedTo(unit, supportedTypes(unit, settings).filter((t) => allowed.has(t)));
   const usableFor = (unit: Form) =>
     openTypesOf(
       supportedFor(unit).flatMap((t) => keysFor(unit, t)),
@@ -2377,14 +2445,17 @@ function buildManualSession({ items, settings, ids, mode, count }: {
     let anyUsable = false;
     let anyLearnt = false;
 
-    for (const { unit, isSub } of unitsOf(it)) {
+    /* The same gates a dealt session applies — a form the teacher keeps
+       without asking about, a cell of a row nobody has reached — and not
+       the two-exercise minimum, which this mode sets for itself below. */
+    for (const { unit, isSub } of askedUnits(it)) {
       const supported = supportedFor(unit);
       if (supported.length < minTypes) continue;
-      if (unitFullyLearnt(unit)) {
+      if (unitFullyLearnt(unit, settings)) {
         anyLearnt = true;
         continue;
       }
-      if (mode === "mistakes" && !hasRecentMistake(unit)) continue;
+      if (mode === "mistakes" && !hasRecentMistake(unit, settings)) continue;
       const usable = usableFor(unit);
       if (!usable.length) continue;
       anyUsable = true;
@@ -2428,7 +2499,7 @@ function buildManualSession({ items, settings, ids, mode, count }: {
   if (offered.size < minTypes) return { exercises: [], reason: "no-variety", learnt };
 
   return {
-    exercises: withReadThroughs(exercises, items),
+    exercises: withReadThroughs(exercises, items, settings),
     reason: null,
     manual: true,
     mode,
@@ -2900,7 +2971,11 @@ function liftState(s: Record<string, any> | null | undefined): ExerciseState {
   };
 }
 
-function liftStates(old: Record<string, any> = {}): Record<string, ExerciseState> {
+/* Exported for the tests. Everything a document carries comes through here
+   on its way in, so what it drops is dropped on every load, after every
+   sync and on every import — which is exactly the sort of thing worth
+   asserting rather than hoping about. */
+export function liftStates(old: Record<string, any> = {}): Record<string, ExerciseState> {
   const s = freshStates();
   for (const [oldKey, newKey] of Object.entries(V2_MAP)) {
     /* `newKey in s` because s starts from the types that exist: without it a
@@ -2909,6 +2984,28 @@ function liftStates(old: Record<string, any> = {}): Record<string, ExerciseState
     if (old[oldKey] && newKey in s) s[newKey] = liftState(old[oldKey]);
   }
   for (const t of TYPES) if (old[t]) s[t] = liftState(old[t]);
+  /*
+   * And the keys that name which accepted answer they are about.
+   *
+   * A card accepting two spellings is scheduled once per spelling on every
+   * question that shows one — "ar2en" for the first and "ar2en@1" for the
+   * second — and the loop above walks the bare type names alone, because
+   * that is all there was when it was written. So the second spelling's
+   * schedule was dropped here, on every load, after every sync and on
+   * every import: answered in the evening, gone by the morning, with the
+   * card reading as never asked.
+   *
+   * Only the ones already written, and only for an exercise that still
+   * exists. A key that has never been answered is deliberately absent —
+   * which is what let this be turned on without touching any document —
+   * so there is nothing to make up, and a key naming a retired exercise
+   * goes the way a retired type's own state does.
+   */
+  for (const [key, st] of Object.entries(old)) {
+    if (key in s || !st) continue;
+    if (!TYPES.includes(typeOf(key))) continue;
+    s[key] = liftState(st);
+  }
   return s;
 }
 
@@ -3032,10 +3129,18 @@ const RETIRED_SETTINGS = new Set([
   "showHint",
   "ignoreTashkeel",
   "skills",
+  /* Which kinds of card are practised at all — words, phrases, sentences,
+     conversations. It outlived the screen that set it and went on hiding
+     every card of a kind switched off long ago, which is the one thing
+     this list exists to prevent. See isDrillable. */
+  "kinds",
   ...Object.keys(defaultMarking()),
 ]);
 
-function merge(parsedIn: Record<string, any> | null | undefined) {
+/* Exported for the tests, which read a whole stored document through it —
+   the one place a card written by any older build becomes the shape the
+   rest of the app believes in. */
+export function merge(parsedIn: Record<string, any> | null | undefined) {
   /* A stored or imported document never carries an account: the sync
      secret belongs to this device's sign-in, not to the data. */
   const { account: _dropped, ...parsed } = parsedIn || {};
@@ -3047,10 +3152,7 @@ function merge(parsedIn: Record<string, any> | null | undefined) {
   return {
     ...EMPTY,
     ...parsed,
-    settings: {
-      ...settings,
-      kinds: { ...EMPTY.settings.kinds, ...(incoming.kinds || {}) },
-    },
+    settings,
     items: (parsed.items || []).map(liftItem),
     tombstones: parsed.tombstones || {},
     settingsUpdated: parsed.settingsUpdated || 0,
@@ -5794,13 +5896,32 @@ export default function ArabicTrainer() {
     resetExercise();
   }
 
-  /* Send every card back to the beginning: the cards, forms, decks and
-     recordings stay, only what the app has learnt about you goes. */
+  /*
+   * Send every card back to the beginning: the cards, forms, decks and
+   * recordings stay, only what the app has learnt about you goes.
+   *
+   * Which it did not do. It wrote fresh states onto the card and onto a
+   * `subs` list beside it, and a card has kept neither since 0.138 — its
+   * progress lives on its forms. So the button flashed, the next load
+   * stripped the two fields it had written, and every card came back
+   * exactly as due as it was. Every form, and every turn of a
+   * conversation, which carries its own progress the same way.
+   *
+   * What a frame has been shown goes too: which of its blanks has been
+   * filled with which word is something the app learnt about this learner,
+   * and a card sent back to the beginning that still remembers meeting
+   * Raphael is not at the beginning. What the learner has *asked* for — a
+   * card marked high priority — is theirs and stays.
+   */
   function resetScheduling() {
+    const wiped = <T extends Form>(f: T): T => {
+      const { met: _forgotten, ...rest } = f;
+      return { ...rest, s: freshStates() } as T;
+    };
     const cleared: Item[] = items.map((it) => ({
       ...it,
-      s: freshStates(),
-      subs: subFormsOf(it).map((sb) => ({ ...sb, s: freshStates() })),
+      forms: formsOf(it).map(wiped),
+      ...(it.lines ? { lines: linesOf(it).map(wiped) } : null),
       updated: now(),
     }));
     persist({ ...data, items: cleared, log: {} });
@@ -6307,7 +6428,21 @@ export default function ArabicTrainer() {
       flash("A trial records nothing — the card is not yours to move.", "warn");
       return;
     }
-    const keys = laddered(item, settings);
+    /*
+     * The ladder off the *stored* form, not off the question.
+     *
+     * `item` is the question as it is being asked — one spelling of the
+     * card's two, one of its meanings, its blanks filled — and the keys a
+     * form climbs with are read off how many accepted answers it has. So on
+     * a card that accepts two spellings the narrowed copy has one, the keys
+     * came back bare, and flagging the *second* spelling's question raised
+     * the first spelling's states: the message said the level had moved and
+     * nothing opened. resolveUnit hands back the form as it is stored,
+     * which is also the form written to below.
+     */
+    const stored = resolveUnit(asking, exercise);
+    if (!stored) return;
+    const keys = laddered(stored.unit, settings);
     const above = hasLevelAbove(keys, exercise.type);
     setEasedFor(exercise);
     persist((cur) => {
@@ -11542,7 +11677,7 @@ function nextDueLine(pool: Item[], settings: Settings) {
   for (const it of pool) {
     for (const { unit } of drillableUnits(it, settings)) {
       for (const t of enabledTypes(unit, settings)) {
-        const d = statesOf(unit)[t].due || 0;
+        const d = stateOf(unit, t).due || 0;
         if (d > now()) future.push(d);
       }
     }

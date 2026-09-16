@@ -1371,3 +1371,132 @@ twice running is what a learner writes in to complain about.
 **What it costs.** Both functions are exported solely so they can be
 tested, which is how the second of these was found — the first attempt
 passed every test that was written before it and failed one written after.
+
+---
+
+## A reader that agrees with its fixtures and not with the disk
+
+**16 September 2026** · `initialForms`/`initialCells` in
+`src/card-editor.tsx`, `foldForms`/`foldCourses` in `src/shared.tsx`,
+`liftStates` in `src/ArabicTrainer.tsx`, `RETIRED_CARD_FIELDS` and
+`clipsOfCard` in `server/api/courses.js`
+
+*A card is its forms* moved the stored shape to one list and said the lift
+on read was what made that safe: `formsOf` reads a card written the old
+way as the list it always meant, so "nothing else in the app knows there
+were ever two shapes." That was true of everything that asked `formsOf`.
+Five readers did not ask, and the entry's own confidence is why nobody
+looked: they went on reading fields that nothing had written since.
+
+**The editor was the worst of them.** `initialForms` built its first block
+from `card.ar`, `card.clips`, `card.ask` — the card's own word, where it
+lived until 0.138. The server had stopped writing there, so a card saved
+since opened blank; and because a save spread the stored record under the
+new fields without clearing the old ones, a card written *before* 0.138 kept
+a stale copy of its word for ever and opened on that. Either way the next
+save wrote the wrong thing back over the right one.
+
+**What made all five invisible is the same thing.** Every fixture in the
+suite was written in the pre-0.138 shape — `{ ar, en, subs }` — and every
+reader of a card reads that shape as the new one without complaint. So the
+readers agreed with the fixtures and the fixtures disagreed with the disk,
+and 514 tests passed. Tolerance at the boundary is right (a card is
+somebody's work, and half of it read is worth more than an exception), and
+it is exactly what turns a wrong reading into a silent one. **A tolerant
+reader needs a round trip, not more fixtures.** There is one now, in
+`tests/cards.test.mjs`: a card in the shape the server stores goes to a
+device, through the fold a refresh makes, into the editor and out again,
+and every field is checked at the far end. It fails on four of the five.
+
+**The old shape is cleared on save rather than left underneath.**
+`RETIRED_CARD_FIELDS` is a written-out list, not a derived one: these are
+the fields that stopped belonging to a card, and the next field to stop
+belonging to one belongs beside them. Keeping both shapes was never
+decided — it was what spreading `existing` did — and the cost was a stale
+copy of every old card's word on disk and on every wire payload, with a
+reader free to pick the wrong half.
+
+**The fold has to name what it keeps, and that is a bad shape.**
+`foldCourses` takes the teacher's card whole and copies the learner's own
+facts back onto it one at a time — the schedules, the priority mark, and
+now the conversation's turns and each frame's record of the words it has
+met. Anything not named is wiped, on a poll that runs every forty-five
+seconds. Two of the four were missing and it took an audit to see, because
+nothing fails: the card is still there and still correct, and only the
+progress is gone. The honest fix is the other way round — start from what
+the learner has and take the teacher's *wording* — and it is not this
+release: the wording is spread across a dozen fields and the card-level
+facts are three. Written down so the next person to add a per-learner
+field knows it has to be named, and that the shape is upside down.
+
+**`met` merges rather than being taken.** It is a high-water mark, so `max`
+is the answer whichever side is asked and asking twice changes nothing —
+the same rule sync already merges it by. A fold is not a merge, but making
+it behave like one costs nothing and removes a question.
+
+**A cell of a table finally has a name.** 0.131 gave forms names because
+matching a student's progress to a teacher's forms by position handed
+schedules to the wrong words when a form was inserted. A cell is a form,
+and it was left out: cells were minted with no `id`, and the editor
+rewrote an edited cell onto the *end* of the list on every keystroke — so
+correcting one box of a verb's table shifted every box below it by one on
+every device holding the card. The fix is a name and an in-place write. The
+positional fallback in `foldForms` is what carries the tables that already
+exist: an unrecognised name matches by position, which is what it was
+written for.
+
+**What a document drops on the way in, it drops for ever.** `liftStates`
+walked `TYPES` and the v2 map, which is every key that existed when it was
+written. A card accepting two spellings schedules the second under
+`ar2en@1`, and that key was not in either list — so it was dropped on load,
+after every sync and on every import. The suffix was chosen in 0.99
+precisely so that nothing else had to be told about it ("sync goes on
+merging state name by name without being told anything"), and the one place
+that *does* enumerate keys was missed. Anything that lists what a form may
+carry is a second answer to a question the keys already answer, and this
+one now filters by `typeOf` instead of listing.
+
+**The ladder belongs to the card, not to the question.** "Too easy" read
+`laddered` off the unit being displayed, and a displayed unit has had its
+blanks filled in — so a sentence card looked like an ordinary phrase,
+claimed the exercises a card with a blank can never be asked, and had a
+review state written for one of them while the level it was really on
+stayed shut. Everything else that reads a ladder reads the stored form;
+this now does too. The general rule is worth stating: **a cast form is for
+showing, never for deciding.** It is narrowed to one spelling, one meaning
+and no holes, and every one of those is a fact the schedule depends on.
+
+**One gate, two callers.** `askedUnits` is the two gates every reader of a
+card's forms shares — a cell behind its row, a form kept without being
+asked about — and `drillableUnits` is that plus the two-exercise minimum a
+dealt session wants. The manual builder needed the gates without the
+minimum and so walked `unitsOf` itself, which is how it came to ask a table
+the teacher had switched off. Splitting the function was cheaper than
+threading a number through it.
+
+**What the caps cut is now reported rather than inferred.** The server's
+whitelist caps everything, and each cap worked in silence: a thirteenth
+turn was dropped and the answer said "Saved". `trimmed` is counted by
+comparing what arrived against what is stored rather than by repeating the
+numbers, so a cap added to the whitelist is reported without being told
+about — the numbers stay in one place, which is the condition on which
+this is worth having at all.
+
+**And the harness rolls a seeded die.** The smoke walk ran on real
+randomness, so it answered a slightly different app on every run; its own
+comments record a check that "failed about one run in seven" and was
+loosened until it passed. It is seeded now — still varied within a run,
+which is a thing the walk checks, and the same sequence on the next one, so
+a failure can be reproduced and a flake cannot be mistaken for a fix.
+`SMOKE_SEED` takes another. The clock is left real: ids, `created` stamps
+and the save debounce all read it, and a frozen one is a different kind of
+unreal.
+
+**What is left out.** The structural item the audit put last: dealing,
+marking and the load-time lift still live inside the screen file, and
+`applyGrade` is still a closure over ten pieces of component state, so the
+write path that files a mark against a form has no unit test. Four small
+seams were opened here instead — `laddered`, `liftStates`, `merge` and the
+two module-level indexes a frame's behaviour depends on — which is enough
+to assert the rules this release changed and not enough to call the
+question closed.

@@ -4532,7 +4532,15 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                       cards.filter((c) => c.id !== saved.id).concat([saved]),
                       editLang || LANGUAGES[DEFAULT_LANGUAGE]
                     ).filter((pair) => !pair.confirmed && pair.word.id === saved.id).length;
-              return { name: (written ? written.title : main.en.trim() || main.ar.trim()) || "Card", waiting };
+              return {
+                name: (written ? written.title : main.en.trim() || main.ar.trim()) || "Card",
+                waiting,
+                /* And whatever the server had to cut to store it — a
+                   thirteenth turn, a fifth speaker. Every one of those
+                   caps used to apply in silence, so the only way to find
+                   out was to notice what was gone. */
+                trimmed: (r && r.trimmed) || [],
+              };
             },
             /* Named, because the editor closes on save: without the word
                back there is nothing left on screen to confirm which card
@@ -4542,8 +4550,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                already written, say so — that is the moment the link is
                worth making, and the alternative is a deck whose coverage
                quietly falls as it grows. */
-            (done: { name: string, waiting: number }) =>
-              done.waiting
+            (done: { name: string, waiting: number, trimmed: string[] }) =>
+              done.trimmed.length
+                ? `${done.name} saved — but ${done.trimmed.join(" and ")} did not fit and ${done.trimmed.length === 1 ? "was" : "were"} left out`
+                : done.waiting
                 ? `${done.name} saved · it turns up in ${plural(done.waiting, "phrase")} you have written — confirm them under In context`
                 : `${done.name} saved`
           )
