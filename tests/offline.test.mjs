@@ -42,9 +42,14 @@ await build({
   },
 });
 
-const { enabledTypes, setAudibleClips, setOfflineNow } = await import(
-  path.join(out, "trainer.js")
-);
+const {
+  buildManualSession,
+  buildSession,
+  enabledTypes,
+  installIndexes,
+  setAudibleClips,
+  setOfflineNow,
+} = await import(path.join(out, "trainer.js"));
 const { docSize, MAX_LOCAL_UNITS } = await import(path.join(root, "src", "sync.ts"));
 const { DEFAULT_LANGUAGE } = await import(path.join(root, "src", "languages.ts"));
 
@@ -128,6 +133,83 @@ test("a card with no recording at all is unaffected either way", () => {
   const off = enabledTypes(form(""), settings);
   state({ offline: false, here: [] });
   assert.deepEqual(off, enabledTypes(form(""), settings));
+});
+
+/* ------------------------------------------------------------------
+   And the same rule where the questions are actually dealt
+
+   The three tests above ask what a card *supports*, which is a different
+   question from what a session *asks* — and the first version of this
+   fix answered only the first. The card was correctly judged undrillable
+   where that mattered, and the session went on putting the silent
+   question anyway, because the types a question is built from come
+   through another door. These ask the session itself.
+   ------------------------------------------------------------------ */
+
+/** One ordinary card with a word, a meaning and one recording. */
+const card = () => ({
+  id: "c1",
+  updated: 1,
+  tags: [],
+  forms: [form("clip-1")],
+});
+
+/** The listening questions in a built session. */
+const heard = (/** @type {{ exercises?: { type: string }[] }} */ session) =>
+  (session.exercises || []).filter((q) =>
+    ["rec2en", "rec2ar", "rec2ctx", "rec2attr"].includes(String(q.type).split("@")[0]),
+  );
+
+test("a dealt session offline asks nothing that plays a recording it hasn't got", () => {
+  state({ offline: true, here: ["someone-else"] });
+  installIndexes([card()], settings);
+  const session = buildSession({
+    items: [card()],
+    settings,
+    inDeck: () => true,
+    practice: true,
+  });
+  assert.ok((session.exercises || []).length > 0, "the card is still practised");
+  assert.deepEqual(heard(session), [], "just never by ear");
+});
+
+test("and a session built by hand honours it too", () => {
+  /* The hand-built session reaches the same exercises by another route,
+     off the mode's own list of types — which knows nothing about whose
+     card it is being applied to. */
+  state({ offline: true, here: ["someone-else"] });
+  installIndexes([card()], settings);
+  const session = buildManualSession({
+    items: [card()],
+    settings,
+    ids: ["c1"],
+    mode: "ultimate",
+  });
+  assert.deepEqual(heard(session), []);
+});
+
+test("with the recording here, the session asks about it as usual", () => {
+  state({ offline: true, here: ["clip-1"] });
+  installIndexes([card()], settings);
+  const session = buildSession({
+    items: [card()],
+    settings,
+    inDeck: () => true,
+    practice: true,
+  });
+  assert.ok(heard(session).length > 0, "a downloaded course is practised in full");
+});
+
+test("online, a recording that is a fetch away is still asked about", () => {
+  state({ offline: false, here: [] });
+  installIndexes([card()], settings);
+  const session = buildSession({
+    items: [card()],
+    settings,
+    inDeck: () => true,
+    practice: true,
+  });
+  assert.ok(heard(session).length > 0);
 });
 
 /* ------------------------------------------------------------------

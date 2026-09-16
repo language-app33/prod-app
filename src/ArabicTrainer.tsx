@@ -2004,9 +2004,15 @@ function reachedTypes(it: Form, settings: Settings): string[] {
   return openTypesOf(laddered(it, settings), (k) => statesOf(it)[k]);
 }
 
-/* And of those, the ones that may be put to somebody this minute. */
+/* And of those, the ones that may be put to somebody this minute.
+
+   The form goes through with the key, not just the key: whether a
+   listening exercise can be asked depends on whose recording it would
+   play, and this is the door every dealt question passes through. Gating
+   only `enabledTypes` — which decides whether a card counts as drillable
+   at all — left the card in the session and the silent question in it. */
 function openTypes(it: Form, settings: Settings): string[] {
-  return reachedTypes(it, settings).filter((k) => typeAllowedNow(k));
+  return reachedTypes(it, settings).filter((k) => typeAllowedNow(k, it));
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -2745,8 +2751,15 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
      ladder a dealt one does. A form qualifies on the first — it is the
      material that has to offer two exercises — and is asked from the
      second. Read in the card's own language, like every other reader. */
+  /* `allowed` is the mode's own list and knows nothing of whose card this
+     is, so the per-form gate is applied here: a session built by hand must
+     no more ask for a recording this device does not hold than a dealt one
+     does. */
   const supportedFor = (unit: Form) =>
-    easedTo(unit, supportedTypes(unit, settings).filter((t) => allowed.has(t)));
+    easedTo(
+      unit,
+      supportedTypes(unit, settings).filter((t) => allowed.has(t) && typeAllowedNow(t, unit)),
+    );
   const usableFor = (unit: Form) =>
     openTypesOf(
       supportedFor(unit).flatMap((t) => keysFor(unit, t)),

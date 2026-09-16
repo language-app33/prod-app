@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.150 — 16 September 2026
+
+**A fix to 0.149's own fix.** Last release said you would no longer be
+asked to listen to a recording your phone hasn't got. Half of that was
+true: the app knew the card wasn't fully practisable, and then went ahead
+and asked the silent question anyway. It is now held back in both kinds of
+session — the one the app deals you and the one you build yourself — and
+there are tests that fail if it comes back.
+
 ## 0.149 — 16 September 2026
 
 This one is about the app working when your phone has no signal — which is
