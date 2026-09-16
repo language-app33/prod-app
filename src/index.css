@@ -906,6 +906,13 @@ button {
   text-transform:uppercase; color: var(--faint); line-height:1.4; }
 .at-minimeta { font-size:calc(11px * var(--tile, 1)); color: var(--faint); line-height:1.4; margin-top:auto;
   padding-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* The mark on a card the learner asked for. In the meta line because that
+   is the tile's one line of small print, but in brass rather than the
+   faint the rest of it is set in: the point of it is to be picked out of a
+   list you are scanning past. */
+.at-minipri { color: var(--brass); font-weight:700; margin-right:6px; }
+.at-minipri svg { width:calc(11px * var(--tile, 1)); height:calc(11px * var(--tile, 1));
+  vertical-align:-1px; margin-right:2px; }
 .at-minilat { font-size:calc(11px * var(--tile, 1)); color: var(--muted); }
 .at-minidecks .at-flag { font-size:11px; }
 .at-minicard.picked { border-color: var(--accent); }

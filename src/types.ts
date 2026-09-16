@@ -833,6 +833,16 @@ export type Item = {
   you?: number | null;
   source?: { courseId: string; deckId: string; cardId: string; rev: number };
   locked?: boolean;
+  /**
+   * The learner has asked for this card.
+   *
+   * Theirs, not the teacher's — it is set from the learner's own card list
+   * and survives a course refresh, which `foldCourses` has to be told
+   * about because that otherwise takes the teacher's card whole. While it
+   * is on, the card is ready whatever its schedule says and comes first in
+   * every session; nothing about the schedule underneath it moves.
+   */
+  priority?: boolean;
   created: Millis;
   updated?: Millis;
 };

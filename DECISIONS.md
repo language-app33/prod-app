@@ -1287,3 +1287,87 @@ learner's own settings — it is a judgement about the material.
 Not done here, and still true: a question answered wrong is re-asked as the
 identical question appended to the end of the session, outside the pass
 that spaces a session out, so two misses on one card land back to back.
+
+---
+
+## A learner can ask for a card, and the mark is theirs
+
+**16 September 2026** · `priority` on the card in `src/types.ts`, `isUrgent`
+and `setPriority` in `src/ArabicTrainer.tsx`, `foldCourses` in
+`src/shared.tsx`
+
+The schedule decides what a learner practises, which is the point of the
+app and is also occasionally wrong about them: the word they need for
+Tuesday, the one they keep fumbling in conversation, the one the lesson was
+about. High priority is the one override, and three things about it were
+not obvious.
+
+**It is a flag the learner clears, not one that clears itself.** The
+alternatives were "until it has been practised", which makes it a bump
+rather than a priority, and "until it has been got right", which is tidier
+and quietly decides on the learner's behalf when they are done with a word.
+The owner chose the standing mark. The cost is real and is the reason this
+is written down: mark thirty cards and every session is those thirty until
+they are unmarked. What makes that acceptable is that it is visible — the
+star is on every tile in the card list — and one tap to undo.
+
+**It outranks the rules that hold new cards back.** A card nobody has met
+is normally rationed, by the three-a-session limit and by the pause when
+ten cards are already being fought. Both of those are the app protecting
+somebody from more than they can hold, and neither is worth saying to a
+learner who has just pointed at a card. One card, chosen on purpose.
+
+**A course card's lock does not apply to it.** Cards come from courses and
+a course card is locked, which is the app saying the wording belongs to the
+teacher. What a learner wants to practise is not the wording, so this is
+written straight rather than through the editor's patch — and `foldCourses`
+has to carry it over a refresh by name, because that takes the teacher's
+card whole and would otherwise wipe every mark on the device every
+forty-five seconds.
+
+**What it costs.** A marked card is in every session, so the rest of the
+deck waits. There is no list of what is marked other than the card list
+itself, and no way to clear them all at once; if that turns out to be
+wanted, the card list is where it goes.
+
+---
+
+## A missed question rejoins the queue rather than being pushed onto it
+
+**16 September 2026** · `requeueMissed` and `varyTypes` in
+`src/ArabicTrainer.tsx`, `tests/session.test.mjs`
+
+A session is spaced out when it is built — no two questions running about
+the same card — and a question answered wrong was appended to the end of it
+afterwards, which skipped that pass. Miss both questions about one word and
+the session finished by asking about that word twice in a row.
+
+**The fix is the pass, not the place.** The retry still goes to the back of
+what is left, and that was always right: the gap is then the size of the
+rest of the sitting, which is a retest rather than a copy of an answer
+still on the screen, and it scales by itself — fifteen questions in a long
+session, three in a short one. It now looks for a slot clear of the card's
+own questions on both sides, forward from the back.
+
+An intermediate version put it a fixed three questions ahead and doubled
+that on each further miss. It was written, tested and thrown away: with
+every answer wrong it took three times as many questions to meet the
+material once, which the smoke walk caught by running out of turns before
+it had been asked half the exercises in the deck. A learner who is
+struggling is exactly who should not be made to grind the first three cards
+before seeing the fourth.
+
+**Where there is nothing to stand between, it stands next to itself.** The
+last question of a session, missed, is asked again immediately. Dropping it
+was tried and is worse: a session of one question would end the moment it
+was got wrong, having taught nothing, and Ultimate promises in as many
+words to repeat what you miss until you have it right.
+
+**The spacing pass now changes the word before the question.** Where it
+could not have both, it used to keep the card and change the exercise type.
+Two words in a row asked the same way is barely a texture; the same word
+twice running is what a learner writes in to complain about.
+
+**What it costs.** Both functions are exported solely so they can be
+tested, which is how the second of these was found — the first attempt
+passed every test that was written before it and failed one written after.

@@ -111,6 +111,11 @@ const ICONS: Record<string, string> = {
   mic:
     "M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z",
   remove: "M19 13H5v-2h14v2z",
+  /* A learner saying "this one, please" — see `priority` on a card. A star
+     rather than the flag beside it, which is already how a learner says
+     something is wrong with a question. */
+  star:
+    "M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
   chevronDown: "M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z",
   chevronUp: "M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z",
   /* A speaker with a line through it, for saying you cannot hear this
@@ -3189,8 +3194,18 @@ export function foldCourses(items: Item[], incoming: Item[]) {
       /* Keep what the student has earned; take the teacher's wording.
          One call, where it used to be the card's own progress and then its
          forms': the card's word is the first of its forms and matches by
-         name like any other. */
-      kept.push({ ...fresh, forms: foldForms(formsOf(existing), formsOf(fresh)) });
+         name like any other.
+
+         And keep what the student has said about the card, which rides on
+         the card rather than on its forms and so is not covered by that.
+         It has to be named: the teacher's card is taken whole, so anything
+         of the learner's not listed here is wiped by the next refresh —
+         which happens every forty-five seconds. */
+      kept.push({
+        ...fresh,
+        ...(existing.priority ? { priority: true } : null),
+        forms: foldForms(formsOf(existing), formsOf(fresh)),
+      });
     } else {
       kept.push(fresh);
     }
