@@ -3119,6 +3119,15 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        for the same reason the name is: it is the teacher's answer and
        nothing here could work it out. Left off where nobody has said. */
     ...(card.category ? { category: String(card.category) } : null),
+    /* And what number it is worth, where it is a number. Carried for the
+       same reason the three above are — it is the teacher's answer and
+       nothing here could read it off the word — and it is what everything
+       that builds forty-seven out of forty and seven finds its parts by.
+       Left off where there is none, which is every card that is not a
+       number and every number card written before they were built. */
+    ...(typeof card.value === "number" && Number.isFinite(card.value)
+      ? { value: card.value }
+      : null),
     tags: [deckTitle],
     locked: true,
     flags: [],

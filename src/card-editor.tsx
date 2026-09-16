@@ -282,7 +282,12 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
   );
 }
 
-function ScriptInput({ lang, value, onChange, compact = false, label }: {
+/* Exported for the Numbers screen, which is fifty-five of these boxes in a
+   grid and has exactly the same need: a field in the language's script,
+   laid out by its direction, with the on-screen keys a click away. A
+   second implementation of it there would be a second place for the caret
+   handling and the direction rule to drift. */
+export function ScriptInput({ lang, value, onChange, compact = false, label }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;

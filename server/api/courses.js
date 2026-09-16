@@ -869,6 +869,20 @@ export default async (req) => {
            another. Stored as "" where nobody has said, which is what
            every card written before the question existed carries. */
         category: idish(card.category),
+        /* Which number this card is worth, where it is a number.
+           Everything that builds a number out of the teacher's parts finds
+           those parts by this and nothing else: two teachers will write
+           "forty" and "أربعين" and neither string says what it is worth.
+           A whole number, never negative, and capped where the practice
+           stops — a card claiming more is a card claiming something no
+           exercise could ask. Absent on every other card, and on every
+           card written before numbers were built rather than memorised. */
+        ...(Number.isFinite(Number(card.value)) &&
+        Number.isInteger(Number(card.value)) &&
+        Number(card.value) >= 0 &&
+        Number(card.value) <= 9999999
+          ? { value: Number(card.value) }
+          : {}),
         note: String(card.note || "").slice(0, 500),
         lang: String(card.lang || "").slice(0, 12),
         /* Which variable this card fills, where it is a value rather than

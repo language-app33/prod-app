@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
-import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
+import type { Card, CardForm, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
-import { CardEditor } from "./card-editor.tsx";
+import { CardEditor, ScriptInput } from "./card-editor.tsx";
 import { formsOf, leadOf } from "./cards.ts";
+import {
+  bandsOf,
+  cellsFor,
+  glossOf,
+  labelOf,
+  missingFor,
+  numbersOf,
+  openBands,
+  partCards,
+  partsOf,
+  reachOf,
+  spell,
+  teachesNumbers,
+} from "./numbers.ts";
 
 /*
  * Whatever is waiting on a yes: the confirmation to show, and what to do
@@ -85,6 +99,7 @@ import {
   ItemList,
   LanguageRadio,
   Lede,
+  Meta,
   Notice,
   Screen,
   Section,
@@ -3922,6 +3937,248 @@ export function fillsInUse(cards: Card[]): { name: string; count: number }[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/* ---- the numbers a deck can build ----
+
+   What a teacher is shown for their parts, and what they fill them in on.
+   Two screens' worth of thing, kept together because they are one idea:
+   how far the deck reaches, and the boxes that decide it.
+
+   This is a coverage report, in the way `ContextReport` above is one, and
+   not a rehearsal of a student's screen — the numbers under it are what
+   the app will actually say, read out of the same `spell` the practice
+   asks with, so there is nothing here that could be right while the real
+   thing is wrong. */
+
+/** One row of the grid, as the screen holds it while it is being typed. */
+interface NumberRow {
+  value: number;
+  word: string;
+  cells: Record<string, string>;
+}
+
+/** The parts as a draft holds them, for spelling a number that has not
+    been saved yet — which is what lets the reach move while it is typed. */
+function draftParts(lang: Lang, draft: Record<number, NumberRow>): Map<number, { forms: CardForm[] }> {
+  const out = new Map<number, { forms: CardForm[] }>();
+  for (const row of Object.values(draft)) {
+    const word = (row.word || "").trim();
+    if (!word) continue;
+    const forms: CardForm[] = [{ ar: word, en: "", lat: "" }];
+    for (const [col, text] of Object.entries(row.cells || {})) {
+      if ((text || "").trim()) forms.push({ ar: text.trim(), en: "", lat: "", col });
+    }
+    out.set(row.value, { forms });
+  }
+  return out;
+}
+
+/**
+ * How far this deck's numbers reach, and what is in the way.
+ *
+ * The bands are a ramp, so the report is one too: everything up to the
+ * first gap is reached and nothing above it is, which is the truth a
+ * teacher needs rather than a count of filled boxes. The numbers written
+ * out underneath are the point of the whole screen — they are what a
+ * student will be asked, and reading a dozen of them is how a teacher
+ * catches a word typed into the wrong box.
+ */
+function NumberReach({ lang, parts }: { lang: Lang; parts: Map<number, { forms: CardForm[] }> }) {
+  const bands = bandsOf(lang);
+  const open = openBands(lang, parts);
+  const reach = reachOf(lang, parts);
+  const next = bands[open.length] || null;
+  const missing = next ? missingFor(lang, parts, next) : [];
+
+  /* Two from each band that opens, at the same places every time: a
+     sample that moved as it was read would be no use for checking. */
+  const sample = useMemo(() => {
+    const out: { value: number; text: string }[] = [];
+    for (const band of open) {
+      for (const at of [0.37, 0.81]) {
+        const v = band.from + Math.round((band.to - band.from) * at);
+        const said = spell(lang, parts, v);
+        if (said) out.push({ value: v, text: said.text });
+      }
+    }
+    return out;
+  }, [lang, parts, open]);
+
+  return (
+    <>
+      <Help>
+        {reach < 0
+          ? "No numbers can be made yet. Fill in the words below and this will say how far they reach."
+          : `Numbers up to ${reach.toLocaleString("en")} can be made from what is written here.`}
+      </Help>
+      <div className="at-bandlist">
+        {bands.map((band, i) => {
+          const isOpen = i < open.length;
+          return (
+            <div className="at-bandrow" key={band.id} data-open={isOpen ? "" : undefined}>
+              <span className="at-bandname">{band.label}</span>
+              <Meta>{isOpen ? "ready" : "not yet"}</Meta>
+            </div>
+          );
+        })}
+      </div>
+      {next && missing.length ? (
+        <Help>
+          {next.label} is waiting on {plural(missing.length, "word")}:{" "}
+          {missing.slice(0, 12).map((v) => v.toLocaleString("en")).join(", ")}
+          {missing.length > 12 ? " and more" : ""}.
+        </Help>
+      ) : null}
+      {sample.length ? (
+        <Section title="What a student will be asked" className="at-mt5">
+          <div className="at-numsample">
+            {sample.map((s) => (
+              <div className="at-numsamplerow" key={s.value}>
+                <span className="at-numfig">{s.value.toLocaleString("en")}</span>
+                <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+                  {s.text}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The grid a teacher fills the parts in on.
+ *
+ * One screen rather than fifty-five trips through the card editor, which
+ * is the only way this is a reasonable thing to ask of anybody: the parts
+ * are a set and they are filled in as one. Every box is an ordinary number
+ * card underneath, so anything written here can be opened, recorded and
+ * edited afterwards like any other card.
+ *
+ * An emptied box does nothing. A card that has been written carries a
+ * student's progress and possibly a recording, and clearing a field is not
+ * a way of asking for either to be thrown away — DECISIONS.md has the
+ * whole of that rule. Deleting the card from the deck's list is.
+ */
+function NumbersScreen({ deck, lang, cards, onSave, onClose, busy }: {
+  deck: Deck;
+  lang: Lang;
+  cards: Card[];
+  onSave: (rows: NumberRow[]) => void;
+  onClose: () => void;
+  busy?: boolean;
+}) {
+  const groups = (numbersOf(lang) || { groups: [] }).groups;
+
+  /* What is on the cards now, which is what the boxes open showing. */
+  const saved = useMemo(() => {
+    const byValue = partCards(cards, lang.id);
+    const out: Record<number, NumberRow> = {};
+    for (const group of groups) {
+      for (const part of group.parts) {
+        const card = byValue.get(part.value);
+        const forms = (card && card.forms) || [];
+        const cells: Record<string, string> = {};
+        for (const cell of cellsFor(lang, part.value)) {
+          const at = forms.find((f) => f && f.col === cell.id);
+          cells[cell.id] = String((at && at.ar) || "");
+        }
+        out[part.value] = { value: part.value, word: String((forms[0] && forms[0].ar) || ""), cells };
+      }
+    }
+    return out;
+  }, [cards, lang, groups]);
+
+  const [draft, setDraft] = useState<Record<number, NumberRow>>(saved);
+  const parts = useMemo(() => draftParts(lang, draft), [lang, draft]);
+
+  const setWord = (value: number, word: string) =>
+    setDraft((d) => ({ ...d, [value]: { ...d[value], value, word } }));
+  const setCell = (value: number, col: string, text: string) =>
+    setDraft((d) => ({
+      ...d,
+      [value]: { ...d[value], value, cells: { ...(d[value] || { cells: {} }).cells, [col]: text } },
+    }));
+
+  /* Only what was actually typed goes to the server. Fifty-five writes for
+     one changed box would be fifty-five versions of somebody else's deck. */
+  const changed = Object.values(draft).filter((row) => {
+    const was = saved[row.value] || { word: "", cells: {} };
+    if ((row.word || "").trim() !== (was.word || "").trim()) return true;
+    return Object.keys(row.cells || {}).some(
+      (col) => (row.cells[col] || "").trim() !== ((was.cells || {})[col] || "").trim(),
+    );
+  });
+
+  return (
+    <Screen
+      title="Numbers"
+      onBack={onClose}
+      footer={
+        <Button variant="primary" wide disabled={!changed.length || busy} onClick={() => onSave(changed)}>
+          {changed.length ? `Save ${plural(changed.length, "number")}` : "Nothing to save"}
+        </Button>
+      }
+    >
+      <Help>
+        Write the words this language builds its numbers out of, and the app makes the rest.
+        With one to ten it can ask anything up to ten; add the tens and it can ask anything up
+        to ninety-nine. Each box below is an ordinary card in <b>{deck.title}</b>, so you can
+        record it and edit it afterwards like any other.
+      </Help>
+      <Help>
+        Clearing a box leaves its card alone — it keeps its recordings and every student's
+        progress. Delete it from the deck's card list if you want it gone.
+      </Help>
+
+      <Section title="How far this reaches" className="at-mt5">
+        <NumberReach lang={lang} parts={parts} />
+      </Section>
+
+      {groups.map((group) => (
+        <Section key={group.id} title={group.label} lede={group.note} className="at-mt5">
+          <div className="at-numgrid">
+            {group.parts.map((part) => {
+              const row = draft[part.value] || { value: part.value, word: "", cells: {} };
+              const cells = cellsFor(lang, part.value);
+              return (
+                <div className="at-numrow" key={part.value}>
+                  <div className="at-numlabel">
+                    <span className="at-numfig">{labelOf(part)}</span>
+                    {part.hint ? <Meta>{part.hint}</Meta> : null}
+                  </div>
+                  <div className="at-numboxes">
+                    <ScriptInput
+                      lang={lang}
+                      value={row.word}
+                      label={`${labelOf(part)} in ${lang.name}`}
+                      compact
+                      onChange={(v) => setWord(part.value, v)}
+                    />
+                    {cells.map((cell) => (
+                      <div className="at-numcell" key={cell.id}>
+                        <Meta>{cell.label}</Meta>
+                        <ScriptInput
+                          lang={lang}
+                          value={(row.cells || {})[cell.id] || ""}
+                          label={`${labelOf(part)}, ${cell.label}`}
+                          compact
+                          onChange={(v) => setCell(part.value, cell.id, v)}
+                        />
+                        {cell.hint ? <Meta>{cell.hint}</Meta> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      ))}
+    </Screen>
+  );
+}
+
 /**
  * @param props  `onTry` runs one question on one of these cards, through the
  *   screen a student is asked on. The teaching space has no such screen of
@@ -3993,6 +4250,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   const [cardAction, setCardAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
   const [newCardLang, setNewCardLang] = useState<LangId | null>(null);
   const [managingDecks, setManagingDecks] = useState<string | null>(null); // a course id
+  /* The deck whose numbers are being filled in, where one is. Held apart
+     from `openDeck` rather than replacing it, so closing the Numbers
+     screen lands back on the deck it was opened from. */
+  const [numbering, setNumbering] = useState<string | null>(null); // a deck id
   /* Already teaching something? Then this is a rare errand, folded away. */
   const [joinNote, setJoinNote] = useState("");
   const [selDecks, setSelDecks] = useState(() => new Set<string>());
@@ -4325,6 +4586,73 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     } finally {
       setBusy(false);
     }
+  }
+
+  /*
+   * The Numbers grid, saved one ordinary card at a time.
+   *
+   * There is no bulk write and this does not invent one: the same
+   * `sendOrKeep` every other card in this space goes through, in a loop,
+   * so a number written on a train is kept and sent like anything else.
+   * Only the rows that changed are sent — the screen works that out — so
+   * a corrected box is one write rather than fifty-five.
+   *
+   * What a row becomes is an ordinary Number card carrying its value, and
+   * what it must never become is a card with its recordings dropped. So an
+   * existing card is edited rather than rebuilt: its forms are carried
+   * over and the text on them replaced, which leaves clips, answers and
+   * anything the teacher added in the card editor exactly where they were.
+   */
+  function saveNumbers(deck: Deck, lang: Lang, rows: NumberRow[]) {
+    return run(async () => {
+      const held = cards.filter((c) => (c.decks || []).includes(deck.id));
+      const byValue = partCards(held, lang.id);
+      const parts = new Map(partsOf(lang).map((p) => [p.value, p]));
+      let saved = 0;
+      for (const row of rows) {
+        const part = parts.get(row.value);
+        const word = String(row.word || "").trim();
+        /* An emptied box is not an instruction to delete anything. */
+        if (!part || !word) continue;
+        const was = byValue.get(row.value);
+        const old = (was && was.forms) || [];
+        const gloss = glossOf(part);
+        const mine = new Set(cellsFor(lang, row.value).map((c) => c.id));
+        const forms: CardForm[] = [{ ...(old[0] || { ar: "", en: "", lat: "" }), ar: word, en: gloss, ask: true }];
+        for (const cell of cellsFor(lang, row.value)) {
+          const text = String((row.cells || {})[cell.id] || "").trim();
+          const before = old.find((f) => f && f.col === cell.id);
+          if (!text) {
+            /* Cleared, or never filled: keep whatever is there and add
+               nothing. Same rule as the word above. */
+            if (before) forms.push(before);
+            continue;
+          }
+          forms.push({ ...(before || { lat: "" }), ar: text, en: gloss, row: cell.row, col: cell.id, ask: true });
+        }
+        /* Anything else the card carries — a second spelling a teacher
+           added in the editor — is kept, in the order it was in. */
+        for (const f of old.slice(1)) if (!f || !mine.has(String(f.col || ""))) forms.push(f);
+        const r = await sendOrKeep(
+          {
+            id: was ? was.id : "",
+            lang: lang.id,
+            forms,
+            category: "number",
+            value: row.value,
+            note: (was && was.note) || "",
+            name: (was && was.name) || "",
+            uses: (was && was.uses) || [],
+            fills: (was && was.fills) || "",
+            drill: true,
+          },
+          was ? [...new Set([...(was.decks || []), deck.id])] : [deck.id],
+        );
+        absorbSaved(r);
+        saved += 1;
+      }
+      return saved;
+    }, (n) => `${plural(n, "number")} saved`);
   }
 
   /*
@@ -4698,6 +5026,28 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     );
   }
 
+  /* ---- filling in the numbers a deck builds from ----
+         Sits before the deck screen so that closing it lands back on the
+         deck, the way the deck picker sits before the course. ---- */
+  if (numbering) {
+    const d = decks.find((x) => x.id === numbering);
+    const numLang = d ? langOfDeck(d) : null;
+    if (!d || !numLang || !teachesNumbers(numLang)) {
+      setNumbering(null);
+      return null;
+    }
+    return (
+      <NumbersScreen
+        deck={d}
+        lang={numLang}
+        cards={cards.filter((c) => (c.decks || []).includes(d.id))}
+        busy={busy}
+        onClose={() => setNumbering(null)}
+        onSave={(rows) => saveNumbers(d, numLang, rows)}
+      />
+    );
+  }
+
   /* ---- an open deck takes over the screen, showing its cards the same
          way the Cards tab does ---- */
   if (openDeck) {
@@ -4728,6 +5078,27 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
             <Section title="In context" className="at-mt5">
               <ContextReport cards={held} lang={langOfDeck(d) || LANGUAGES[DEFAULT_LANGUAGE]} />
             </Section>
+
+            {/* Numbers are built out of a handful of parts rather than
+                written one at a time, so they get a screen of their own
+                rather than fifty-five trips through the card editor. Only
+                where the language says how its numbers go together. */}
+            {teachesNumbers(langOfDeck(d)) ? (
+              <Section
+                title="Numbers"
+                className="at-mt5"
+                action={
+                  <Button size="sm" onClick={() => setNumbering(d.id)}>
+                    Fill these in
+                  </Button>
+                }
+              >
+                <NumberReach
+                  lang={langOfDeck(d) as Lang}
+                  parts={partCards(held, (langOfDeck(d) as Lang).id)}
+                />
+              </Section>
+            ) : null}
 
             <ItemList
               noun="card"

@@ -184,6 +184,33 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   word with nothing on the screen to go on. A card that is not practised in
   its own right — a name — is left to the frame's own `met` record, and a
   verb's own place in its own sentence to its table's gate.
+- **A number is built, not memorised.** A learner who knows *forty* and
+  *seven* knows *forty-seven*, so numbers are not cards one at a time: a
+  language declares how its numbers go together, the teacher fills in the
+  handful of **parts** on one screen, and the app makes up as many numbers
+  as it likes out of them. A card is a part by carrying a `value` — two
+  teachers write *forty* and أربعين and neither string says what it is
+  worth — and `spell` on the pack turns a number into words or refuses,
+  which is how a deck that stops at ten is never asked for a hundred.
+
+  Everything that differs between languages is in that one function.
+  Arabic puts the unit before the ten and a و in front of every chunk;
+  Hebrew puts the ten before the unit, one ו in the whole number, and
+  counts in the feminine except in front of *thousand*; Huế is regular
+  enough to need eleven boxes against the other two's fifty-five, and puts
+  its irregularity in the forms a word takes in company — *năm* is five and
+  *mười lăm* is fifteen, which is a cell of a table like an adjective's
+  feminine. `src/numbers.ts` knows none of it: it finds the card a part is
+  written on, works out which stretches of the number line can be built,
+  and chooses what to ask.
+
+  The practice is started by the learner, not dealt. It ramps: it opens in
+  the lowest **band** the deck can build — 0–10, 11–20, 21–99, and so on to
+  millions — widens as answers come back right, and remembers where it got
+  to in `settings.numbersReach`. The numbers themselves are never cards and
+  are thrown away with the sitting; a right answer credits the *parts* that
+  stood in the number, under the ordinary exercise the question was
+  evidence for, by exactly the rule a sentence credits its fillers with.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in
@@ -307,6 +334,11 @@ src/
   cards.ts         what a card is made of: its own word and the forms it
                    carries, as one list. The single door everything that
                    walks a card's forms goes through. Pure, imports nothing.
+  numbers.ts       numbers built out of a teacher's parts: finding the card
+                   a part is written on, how far a deck reaches, and what
+                   to ask next. How a language puts its numbers together is
+                   `spell` on the pack, never here. Pure, imports nothing
+                   but the pack.
   verbs.ts         a word's forms as a table over the card's own sub-forms —
                    a verb's persons and tenses, or the pronouns a language
                    attaches to the end of a word:
