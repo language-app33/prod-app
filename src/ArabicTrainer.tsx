@@ -244,8 +244,8 @@ const cardStandings = (it: Item, settings: Settings): Standing[] =>
 /* Marking an answer: what it counts as, and what that writes onto the card
    it was about. A module of its own so the one path that moves a learner's
    progress can be asked what it does without a browser — see grade.ts. */
-import { gradeInto, verdictOf } from "./grade.ts";
-import type { Mark } from "./grade.ts";
+import { fillerMarks, gradeInto, verdictOf } from "./grade.ts";
+import type { Filler, Mark } from "./grade.ts";
 
 import { applyUpdate, holdUpdates } from "./updates.ts";
 import {
@@ -741,6 +741,64 @@ const reachOfValue = (value: Value): number | null => {
    gated on its own progress and needs nothing written down. */
 const needsMetRecord = (ref: string): boolean => VALUE_REACH.get(ref) === null;
 
+/**
+ * The words that stood in this question's blanks, as marks can be made on
+ * them.
+ *
+ * Read off what the question was actually filled with — fillForm records
+ * that on the form it casts — rather than worked out a second time, which
+ * would draw the values again against a count this very answer is about to
+ * move. Each is looked up in the owner index, which knows every form of
+ * every card that fills anything, so the cell an adjective agreed into is
+ * found as readily as the word a noun lent.
+ *
+ * The verb's own place is left out. A verb card's sentence fills that from
+ * its own table rather than from the deck, so the word standing there is
+ * the card's own content and its ladder is the table's gate to open — not
+ * something the sentence above it has earned.
+ */
+export function fillersIn(unit: Form, key: string, settings: Settings): Filler[] {
+  const filled = (unit as Record<string, any>).filled as Record<string, string> | undefined;
+  if (!filled) return [];
+  const own = ownSlot(unit);
+  const out: Filler[] = [];
+  for (const [slot, ref] of Object.entries(filled)) {
+    if (!ref || (own && slot === own)) continue;
+    const found = VALUE_OWNER.get(ref);
+    if (!found) continue;
+    const { card, form } = found;
+    /*
+     * A card the teacher says is not practised on its own is left to the
+     * record the frame already keeps.
+     *
+     * "Raphael" is in the deck to fill somebody else's sentence, and "what
+     * does Raphael mean" is not a question — so it is never dealt, has no
+     * ladder, and a schedule written on it would be one nothing ever
+     * reads. How far such a value has been met is `met` on the frame, which
+     * is exactly the case that field exists for. The two kinds of value
+     * answer differently and this is the seam between them.
+     */
+    if (card.drill === false) continue;
+    out.push({
+      id: card.id,
+      subId: form.id === card.id ? null : form.id,
+      /* Only an exercise the word itself climbs: a sentence may be asked
+         something its fillers are not. */
+      asked: laddered(form, settings).includes(key),
+      /* Under way and due, rather than merely open. In memory every type
+         carries a state, so "has one" says nothing — what matters is
+         whether the word has ever been asked this on its own, which is
+         what a phase past `new` means. A sentence keeps a review up to
+         date and does not open a rung. */
+      ready: (() => {
+        const s = statesOf(form)[key];
+        return !!s && s.phase !== "new" && stateReady(s);
+      })(),
+    });
+  }
+  return out;
+}
+
 /*
  * What each of a unit's variables can be filled with. Empty for the
  * ordinary card, which has no holes in it and never looks.
@@ -1191,6 +1249,25 @@ export function valueReachOf(
         }
       }
       map.set(ref, climbed);
+    }
+    /*
+     * And every other form of the card, for the owner index alone.
+     *
+     * What a sentence records having been filled with is the form that was
+     * actually put on the screen, and that is not always one the card
+     * *lends*: an adjective lends its own word and the sentence goes back
+     * to the table for the form that agrees, so the word that stood in the
+     * blank is a cell nothing lent. Answering such a sentence is answering
+     * about that cell, so it has to be findable — see fillersIn.
+     *
+     * The reach map is left exactly as it was: which values a hole may
+     * take is read off the pool, and the pool is what a card lends. A
+     * further key here would be an answer nobody asks for.
+     */
+    for (const form of formsOf(it)) {
+      const ref = form.id === it.id ? it.id : form.id;
+      if (!ref || owner.has(ref)) continue;
+      owner.set(ref, { card: it, form });
     }
   }
   return { map, owner };
@@ -6629,18 +6706,36 @@ export default function ArabicTrainer() {
         });
       }
     } else {
-      marks.push({ id: parentItem.id, subId: exercise.subId || null, rating, correct: !!correct, advance: !practice });
+      marks.push({
+        id: parentItem.id,
+        subId: exercise.subId || null,
+        rating,
+        correct: !!correct,
+        advance: !practice,
+        /* What this question was filled with, where it had blanks — carried
+           on the mark, because the words it borrowed are marked too and
+           none of them was filled with anything. */
+        filled: (item as Record<string, any>).filled as Record<string, string> | undefined,
+      });
+      /*
+       * And the words that stood in those blanks.
+       *
+       * A sentence is a card made of blanks and the vocabulary fills them,
+       * so answering one is answering about the words in it: writing *the
+       * book is big* in the script is writing each of those two words in
+       * the script. Only the sentence used to be marked, so a learner
+       * could write a noun correctly a dozen times inside sentences and
+       * the app went on believing they had never produced it. The rule — a
+       * right answer only, the schedule moving only where that word's own
+       * was due, and only exercises the word itself climbs — is
+       * fillerMarks.
+       */
+      marks.push(...fillerMarks(fillersIn(item, exercise.type, settings), { correct: !!correct }, practice));
     }
-    /* What the question on screen was filled with, as the frame records it.
-       Read off the cast form here rather than per mark, because the grid
-       marks several cards off one question and only the one being asked
-       was the frame. */
-    const filledWith = (item as Record<string, any>).filled as Record<string, string> | undefined;
     persist((cur) => {
       const graded = gradeInto(cur.items, marks, {
         type: exercise.type,
         level: levelOf(exercise.type),
-        filledWith,
         keepMet: needsMetRecord,
         /* The question a lift has already moved up its ladder: answered,
            and neither rewarded nor lapsed. */

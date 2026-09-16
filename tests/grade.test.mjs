@@ -15,7 +15,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gradeInto, markedState, targetOf, verdictOf } from "../src/grade.ts";
+import { fillerMarks, gradeInto, markedState, targetOf, verdictOf } from "../src/grade.ts";
 import { freshState, DAY } from "../src/scheduler.ts";
 import { must } from "./helpers.mjs";
 
@@ -268,18 +268,21 @@ test("a frame records the words it was filled with, at the level it was asked", 
     forms: [{ id: "k", ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}", s: {} }],
   });
   const graded = wrote([frame], [
-    { id: "k", subId: null, rating: "good", correct: true, advance: true },
-  ], { type: "ar2en", level: 1, filledWith: { name: "rafa" }, clock });
+    { id: "k", subId: null, rating: "good", correct: true, advance: true,
+      filled: { name: "rafa" } },
+  ], { type: "ar2en", level: 1, clock });
   assert.deepEqual(graded[0].forms[0].met, { "name:rafa": 1 });
 
   /* A high-water mark: asked again lower down, it does not go backwards. */
   const again = wrote(graded, [
-    { id: "k", subId: null, rating: "good", correct: true, advance: true },
-  ], { type: "en2ar", level: 4, filledWith: { name: "rafa" }, clock });
+    { id: "k", subId: null, rating: "good", correct: true, advance: true,
+      filled: { name: "rafa" } },
+  ], { type: "en2ar", level: 4, clock });
   assert.deepEqual(again[0].forms[0].met, { "name:rafa": 4 });
   const down = wrote(again, [
-    { id: "k", subId: null, rating: "good", correct: true, advance: true },
-  ], { type: "ar2en", level: 1, filledWith: { name: "rafa" }, clock });
+    { id: "k", subId: null, rating: "good", correct: true, advance: true,
+      filled: { name: "rafa" } },
+  ], { type: "ar2en", level: 1, clock });
   assert.deepEqual(down[0].forms[0].met, { "name:rafa": 4 });
 });
 
@@ -291,8 +294,9 @@ test("only the values with no ladder of their own are written down", () => {
     forms: [{ id: "k", ar: "{{word}} كبير", en: "a big {{word}}", lat: "", s: {} }],
   });
   const graded = wrote([frame], [
-    { id: "k", subId: null, rating: "good", correct: true, advance: true },
-  ], { type: "ar2en", level: 1, filledWith: { word: "kbook" }, keepMet: () => false, clock });
+    { id: "k", subId: null, rating: "good", correct: true, advance: true,
+      filled: { word: "kbook" } },
+  ], { type: "ar2en", level: 1, keepMet: () => false, clock });
   assert.equal(graded[0].forms[0].met, undefined, "a drilled word records nothing");
 });
 
@@ -310,8 +314,9 @@ test("a wrong answer still records having seen the word", () => {
     forms: [{ id: "k", ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "", s: {} }],
   });
   const graded = wrote([frame], [
-    { id: "k", subId: null, rating: "again", correct: false, advance: true },
-  ], { type: "ar2en", level: 1, filledWith: { name: "rafa" }, clock });
+    { id: "k", subId: null, rating: "again", correct: false, advance: true,
+      filled: { name: "rafa" } },
+  ], { type: "ar2en", level: 1, clock });
   assert.deepEqual(graded[0].forms[0].met, { "name:rafa": 1 });
 });
 
@@ -332,4 +337,117 @@ test("the card and the form it wrote both carry the time it happened", () => {
   assert.equal(graded[0].updated, T, "so a merge knows which side is newer");
   assert.equal(graded[0].forms[1].updated, T);
   assert.equal(keyOf(graded[0].forms[1], "ar2en").updated, T);
+});
+
+/* ------------------------------------------------------------------
+   The words that stood in a sentence's blanks
+
+   A sentence is a card made of blanks and the vocabulary fills them, so
+   answering one is answering about the words in it. Only the sentence used
+   to be marked: a learner could write a noun correctly a dozen times
+   inside sentences and the app went on believing they had never produced
+   it.
+   ------------------------------------------------------------------ */
+
+/** @param {Record<string, any>} over */
+const filler = (over = {}) => ({ id: "n1", subId: null, asked: true, ready: false, ...over });
+
+test("a right answer credits every word that stood in the sentence", () => {
+  const marks = fillerMarks(
+    [filler({ id: "noun" }), filler({ id: "adj" })],
+    { correct: true },
+  );
+  assert.deepEqual(marks.map((m) => m.id), ["noun", "adj"]);
+  for (const m of marks) {
+    assert.equal(m.rating, "good");
+    assert.equal(m.correct, true);
+  }
+});
+
+test("a wrong answer blames none of them", () => {
+  /* A grid knows which word was mismatched; a sentence does not. Something
+     in it was wrong and there is no saying which part, so nothing is
+     recorded against the words it borrowed. */
+  assert.deepEqual(fillerMarks([filler(), filler({ id: "adj" })], { correct: false }), []);
+});
+
+test("a word is credited only on an exercise it climbs itself", () => {
+  /*
+   * A sentence may be asked something its fillers are not — and writing a
+   * state for an exercise a card can never be dealt is the mistake the
+   * "too easy" lift made by reading the question instead of the card.
+   */
+  const marks = fillerMarks(
+    [filler({ id: "noun", asked: true }), filler({ id: "adj", asked: false })],
+    { correct: true },
+  );
+  assert.deepEqual(marks.map((m) => m.id), ["noun"]);
+});
+
+test("the schedule moves only where that word's own was under way and due", () => {
+  /*
+   * Being mentioned in a sentence is not a reason to push a word further
+   * out than it had earned — the same rule a grid applies to a word dealt
+   * in to fill it out. Where the word was itself due, the answer is its
+   * answer.
+   */
+  const marks = fillerMarks(
+    [filler({ id: "due", ready: true }), filler({ id: "notdue", ready: false })],
+    { correct: true },
+  );
+  assert.equal(must(marks.find((m) => m.id === "due"), "the due word").advance, true);
+  assert.equal(must(marks.find((m) => m.id === "notdue"), "the other").advance, false);
+  /* And practice moves nothing, here as everywhere. */
+  const inPractice = fillerMarks([filler({ id: "due", ready: true })], { correct: true }, true);
+  assert.equal(inPractice[0].advance, false);
+});
+
+test("one card standing in two blanks of one sentence is one word", () => {
+  const marks = fillerMarks(
+    [filler({ id: "noun" }), filler({ id: "noun" })],
+    { correct: true },
+  );
+  assert.equal(marks.length, 1);
+  /* Two different forms of one card are two words, though: the plural is
+     not the singular. */
+  assert.equal(fillerMarks(
+    [filler({ id: "noun", subId: null }), filler({ id: "noun", subId: "fpl" })],
+    { correct: true },
+  ).length, 2);
+});
+
+test("nothing stood in the blanks, nothing is credited", () => {
+  assert.deepEqual(fillerMarks([], { correct: true }), []);
+  assert.deepEqual(fillerMarks(/** @type {any} */ (null), { correct: true }), []);
+});
+
+test("a sentence's own record of what filled it does not reach the words it borrowed", () => {
+  /*
+   * `met` is the sentence's note of which value it has been asked with,
+   * and it is keyed by slot. Written onto a word the sentence borrowed it
+   * would say that word had been met with itself — which is why what a
+   * question was filled with rides on the mark rather than beside the
+   * question now that one answer marks several cards.
+   */
+  const frame = {
+    id: "f", tags: [], created: 1, lang: "ar-PS",
+    forms: [{ id: "f", ar: "{{noun}} كبير", en: "a big {{noun}}", lat: "", s: {} }],
+  };
+  const noun = {
+    id: "n", tags: [], created: 1, lang: "ar-PS",
+    forms: [{ id: "n", ar: "كِتاب", en: "book", lat: "kitaab", s: {} }],
+  };
+  const graded = wrote(
+    [frame, noun],
+    [
+      { id: "f", subId: null, rating: "good", correct: true, advance: true,
+        filled: { noun: "n" } },
+      ...fillerMarks([{ id: "n", subId: null, asked: true, ready: false }], { correct: true }),
+    ],
+    { type: "ar2en", level: 1, clock },
+  );
+  assert.deepEqual(graded[0].forms[0].met, { "noun:n": 1 }, "the sentence keeps the record");
+  assert.equal(graded[1].forms[0].met, undefined, "and the word it borrowed carries none");
+  assert.ok(keyOf(graded[1].forms[0], "ar2en"), "but is credited for the answer");
+  assert.equal(keyOf(graded[1].forms[0], "ar2en").right, 1);
 });

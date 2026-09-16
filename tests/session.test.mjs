@@ -12,6 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { must } from "./helpers.mjs";
 import { build } from "esbuild";
 import path from "node:path";
 
@@ -38,8 +39,9 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes } =
-  await import(path.join(out, "trainer.js"));
+const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
+  fillersIn } = await import(path.join(out, "trainer.js"));
+const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
 
 /** @param {string} id @param {string} type */
 const q = (id, type) => ({ id, type, subId: null });
@@ -466,4 +468,165 @@ test("the same deck deals a different session next time", () => {
     buildSession({ items, settings, inDeck: anyDeck }).exercises
       .map((/** @type {any} */ e) => `${e.id}:${e.type}`).join(" "));
   assert.ok(new Set(runs).size > 1, "six sessions from one deck were identical");
+});
+
+/* ------------------------------------------------------------------
+   The words that stood in a sentence's blanks
+
+   Which card lent the word a sentence was filled with, and how far that
+   card has itself got with the exercise being asked. Both are facts about
+   the rest of the deck, so this is the half of crediting a filler that
+   only the app can answer — the rule it feeds is fillerMarks, in
+   tests/grade.test.mjs.
+   ------------------------------------------------------------------ */
+
+/** A schedule that is long since done, for opening a table's gate. */
+const mature = () => ({
+  phase: "review", step: 0, ease: 2.5, interval: 30, due: Date.now() + 30 * 86400000,
+  reps: 9, lapses: 0, right: 9, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1], updated: 1,
+});
+
+/** The form a question is actually asked of, filled in as the app fills it. */
+const askedForm = (/** @type {any} */ frame, /** @type {Record<string, string>} */ filled) =>
+  ({ ...frame.forms[0], filled });
+
+test("a sentence names the card that lent each word it was filled with", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  const items = [frame, noun];
+  installIndexes(items, settings);
+  const found = fillersIn(askedForm(frame, { noun: "n1" }), "ar2en", settings);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].id, "n1", "the noun's own card");
+  assert.equal(found[0].subId, null, "lent by its own word");
+  assert.equal(found[0].asked, true, "and reading it is on its ladder");
+});
+
+test("a word is not credited for an exercise it does not climb", () => {
+  /* A card with no recording has nothing on the listening exercises, and a
+     sentence asked one of them has taught nothing about the word. */
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  installIndexes([frame, noun], settings);
+  const found = fillersIn(askedForm(frame, { noun: "n1" }), "rec2en", settings);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].asked, false, "with no recording, there is nothing to hear");
+});
+
+test("a sentence keeps a word's review up to date but does not open a rung", () => {
+  /*
+   * Under way and due, rather than merely open: the top of the ladder is
+   * writing a word from its meaning with nothing on the screen, and inside
+   * a sentence there is a whole sentence on the screen.
+   */
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  const overdue = { phase: "review", step: 0, ease: 2.5, interval: 4, due: Date.now() - 86400000,
+    reps: 4, lapses: 0, right: 4, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1], updated: 1 };
+  const asked = word("n1", "كِتاب", "book", { category: "noun" });
+  asked.forms[0].s = { ar2en: overdue };
+  installIndexes([frame, asked], settings);
+  assert.equal(fillersIn(askedForm(frame, { noun: "n1" }), "ar2en", settings)[0].ready, true,
+    "a review that has come round is this answer's to satisfy");
+
+  /* Never asked on its own: open, perhaps, but not started from in here. */
+  const untouched = word("n2", "قلم", "pen", { category: "noun" });
+  installIndexes([frame, untouched], settings);
+  assert.equal(fillersIn(askedForm(frame, { noun: "n2" }), "ar2en", settings)[0].ready, false,
+    "an exercise the word has never been asked is left alone");
+});
+
+test("an adjective is credited on the form that actually stood in the sentence", () => {
+  /*
+   * An adjective lends its own word and the sentence goes back to its
+   * table for the form that agrees — كتاب كبير, سيارة كبيرة — so what
+   * stood in the blank is a cell nothing lent. It is that cell the answer
+   * is about, and it has a schedule of its own.
+   */
+  const frame = word("f1", "{{noun}} {{adjective}}", "a {{adjective}} {{noun}}");
+  const adj = {
+    id: "a1", tags: [], created: 2, lang: "ar-PS", kind: "word", category: "adjective",
+    forms: [
+      { id: "a1", ar: "كبير", en: "big", lat: "kabiir", lang: "ar-PS", s: {} },
+      { id: "a-fem", ar: "كبيرة", en: "big (f)", lat: "kabiira", lang: "ar-PS",
+        row: "agreement", col: "feminine", s: {} },
+    ],
+  };
+  const noun = word("n1", "سيّارة", "car", { category: "noun" });
+  installIndexes([frame, adj, noun], settings);
+  /* The feminine cell is what the sentence put up. */
+  const found = fillersIn(askedForm(frame, { noun: "n1", adjective: "a-fem" }), "ar2en", settings);
+  const fem = must(found.find((/** @type {any} */ f) => f.id === "a1"), "the adjective");
+  assert.equal(fem.subId, "a-fem", "the cell that agreed, not the word it came from");
+  assert.ok(found.some((/** @type {any} */ f) => f.id === "n1"), "and the noun beside it");
+
+  /*
+   * And it is credited only once the word it is a form of has been learnt,
+   * because that is when the table opens at all. Not a rule of its own:
+   * `laddered` is the one list every reader goes through, and a cell
+   * behind its gate climbs with nothing. In practice the two agree — an
+   * adjective whose own word is unmet cannot fill a blank either — and
+   * this is where they are held together.
+   */
+  assert.equal(fem.asked, false, "an unlearnt adjective's cell is behind its gate");
+  const learnt = {
+    ...adj,
+    forms: [{ ...adj.forms[0], s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, mature()])) },
+      adj.forms[1]],
+  };
+  installIndexes([frame, learnt, noun], settings);
+  const opened = fillersIn(askedForm(frame, { noun: "n1", adjective: "a-fem" }), "ar2en", settings);
+  assert.equal(must(opened.find((/** @type {any} */ f) => f.id === "a1"), "the adjective").asked, true,
+    "and once the word is known, the form that stood in the blank is credited");
+});
+
+test("a verb's own place in its own sentence is not credited from above", () => {
+  /*
+   * A verb card's sentence fills that slot out of its own table rather
+   * than from the deck, so the word standing there is the card's own
+   * content — its ladder is the table's gate to open, not something the
+   * sentence above it has earned.
+   */
+  const verb = /** @type {any} */ ({
+    id: "v1", tags: [], created: 1, lang: "ar-PS", kind: "word", category: "verb",
+    forms: [
+      { id: "v1", ar: "أكل", en: "to eat", lat: "akal", lang: "ar-PS", s: {} },
+      { id: "v-sent", ar: "{{name}} {{verb}}", en: "{{name}} {{verb}}", lat: "",
+        lang: "ar-PS", row: "past", s: {} },
+      { id: "v-past-he", ar: "أكل", en: "he ate", lat: "akal", lang: "ar-PS",
+        row: "past", col: "he", s: {} },
+    ],
+  });
+  const name = word("p1", "سارة", "Sarah", { category: "name", fills: "name", drill: false });
+  installIndexes([verb, name], settings);
+  const sentence = { ...verb.forms[1], filled: { name: "p1", verb: "v-past-he" } };
+  const found = fillersIn(/** @type {any} */ (sentence), "ar2en", settings);
+  assert.ok(!found.some((/** @type {any} */ f) => f.subId === "v-past-he"),
+    "the verb's own cell is left to its table");
+});
+
+test("a sentence filled from nothing credits nothing", () => {
+  const frame = word("f1", "{{noun}} كبير", "a big {{noun}}");
+  installIndexes([frame], settings);
+  assert.deepEqual(fillersIn(frame.forms[0], "ar2en", settings), [],
+    "a question that was never filled in has no words to credit");
+  /* And a name nothing in the deck answers to is not invented. */
+  assert.deepEqual(fillersIn(askedForm(frame, { noun: "nosuchcard" }), "ar2en", settings), []);
+});
+
+test("a value that is never practised keeps the record the sentence holds", () => {
+  /*
+   * "Raphael" is in the deck to fill somebody else's sentence, and "what
+   * does Raphael mean" is not a question — so it has no ladder and a
+   * schedule written on it would be one nothing ever reads. How far such a
+   * value has been met is `met` on the frame, which is the case that field
+   * exists for. The two kinds of value answer differently, and a drilled
+   * word beside it is still credited.
+   */
+  const frame = word("f1", "اسمي {{name}} و {{noun}}", "my name is {{name}} and {{noun}}");
+  const value = word("p1", "رافائيل", "Raphael", { fills: "name", drill: false });
+  const noun = word("n1", "كِتاب", "book", { category: "noun" });
+  installIndexes([frame, value, noun], settings);
+  const found = fillersIn(askedForm(frame, { name: "p1", noun: "n1" }), "ar2en", settings);
+  assert.deepEqual(found.map((/** @type {any} */ f) => f.id), ["n1"],
+    "the noun is credited and the name is left to the frame's own record");
 });

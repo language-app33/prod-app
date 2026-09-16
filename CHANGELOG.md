@@ -8,6 +8,40 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.147 — 16 September 2026
+
+- **The words in a sentence now get credit for answering it.** A sentence
+  card is a frame with blanks that your own vocabulary fills — "the
+  {{noun}} is {{adjective}}" — and until now only the sentence was marked.
+  The noun and the adjective standing in it got nothing, so you could write
+  a word correctly a dozen times inside sentences and the app went on
+  believing you had never produced it.
+
+  Answer a sentence correctly and every word that stood in it is credited,
+  on the exact form that was shown: where an adjective agreed with the noun
+  beside it, it is the feminine or the plural that gets the credit, not the
+  word it came from.
+
+  Three limits, so this does not quietly run ahead of what you have shown:
+
+  - **Only a right answer counts.** A wrong one says something in the
+    sentence was wrong without saying which part, so it counts against
+    none of the words in it. A matching grid knows which word you
+    mismatched; a sentence does not.
+  - **A word's own schedule moves only if it was already due.** Being
+    mentioned in a sentence is not a reason to push a word further out
+    than it had earned, which is the same rule a word dealt into a grid to
+    fill it out has always followed.
+  - **A sentence keeps a review up to date; it cannot open a new rung.**
+    An exercise a word has never been asked on its own is left alone. The
+    top of the ladder is writing a word from its meaning with nothing on
+    the screen to go on, and inside a sentence there is a whole sentence on
+    the screen.
+
+  Names and other cards you marked as not practised on their own are
+  unaffected: they have no schedule to credit, and the sentence has always
+  kept its own record of which of them it has been asked with.
+
 ## 0.146 — 16 September 2026
 
 Nothing on any screen changes in this release. It is the last item of the

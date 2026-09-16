@@ -126,6 +126,104 @@ export interface Mark {
   rating: string;
   correct: boolean;
   advance: boolean;
+  /**
+   * What this form's blanks were filled with, where it had any, as fillForm
+   * recorded it.
+   *
+   * On the mark rather than beside the question, because one answer marks
+   * more than one form and only one of them is the sentence: a grid marks
+   * five words off one question, and a sentence credits every word that
+   * stood in it. Writing the sentence's record onto the words it borrowed
+   * would say each of them had been met with itself.
+   */
+  filled?: Record<string, string> | null;
+}
+
+/**
+ * One word that stood in a sentence's blank.
+ *
+ * The caller resolves these, because which card lent a word and how far it
+ * has got with it are facts about the rest of the deck — this module is
+ * handed the answers.
+ */
+export interface Filler {
+  /** The card it came from. */
+  id: string;
+  /** Which of that card's forms lent the word — null for its own. */
+  subId: string | null;
+  /** Whether that form's own ladder includes the key that was asked. */
+  asked: boolean;
+  /**
+   * Whether its own schedule for that key is **under way and due** — not
+   * merely open. A key the word has never been asked in its own right is
+   * not started from inside a sentence; see fillerMarks.
+   */
+  ready: boolean;
+}
+
+/**
+ * The words that stood in a sentence's blanks, credited for the answer.
+ *
+ * A sentence is a card made of blanks and the vocabulary fills them, so
+ * answering one is answering about the words in it: writing *the book is
+ * big* in the script is writing each of those two words in the script.
+ * Until now only the sentence was marked, and the words it borrowed got
+ * nothing — so a learner could write a noun correctly a dozen times inside
+ * sentences and the app went on believing they had never produced it.
+ *
+ * Three rules, and the first two are the matching grid's, which is the
+ * other exercise where one answer is about several words:
+ *
+ *   * **Only on a right answer.** A grid knows which word was mismatched;
+ *     a sentence does not. A wrong answer says something in it was wrong
+ *     and not which part, so it blames none of them — where a right one is
+ *     unambiguous about every word in it.
+ *   * **The schedule moves only where that word's own was under way and
+ *     due.** A word dealt into a grid to fill it out is credited without
+ *     its schedule moving, and the same holds here: the sentence is what
+ *     was due, and being mentioned in one is not a reason to push a word
+ *     further out than it had earned. Where the word *was* due, the
+ *     answer is its answer — a sentence keeps a review up to date.
+ *
+ *     What it cannot do is *start* one. A key the word has never been
+ *     asked on its own is left alone, because the top of the ladder is
+ *     writing a word from its meaning with nothing on the screen to go
+ *     on, and inside a sentence there is a whole sentence on the screen.
+ *     Letting that open the rung would be graduating the strictest
+ *     question in the app on the strength of a cued answer.
+ *   * **Only exercises the word itself climbs.** A sentence may be asked
+ *     something its fillers are not, so the key is checked against the
+ *     filler's own ladder rather than assumed — the same rule the "too
+ *     easy" lift got wrong by reading the question instead of the card.
+ *
+ * It is "good" rather than "easy": the word was produced inside a sentence
+ * that was on the screen, which is a cued answer, and the ladder's whole
+ * shape is that a cue is worth less than recall from the meaning alone.
+ */
+export function fillerMarks(
+  fillers: Filler[],
+  verdict: Pick<Verdict, "correct">,
+  practice?: boolean,
+): Mark[] {
+  if (!verdict.correct) return [];
+  const seen: Set<string> = new Set();
+  const out: Mark[] = [];
+  for (const f of fillers || []) {
+    if (!f || !f.asked || !f.id) continue;
+    /* One card may stand in two blanks of one sentence, and it is one word
+       either way. */
+    const at = `${f.id} ${f.subId || ""}`;
+    if (seen.has(at)) continue;
+    seen.add(at);
+    out.push({
+      id: f.id,
+      subId: f.subId,
+      rating: "good",
+      correct: true,
+      advance: !practice && f.ready,
+    });
+  }
+  return out;
 }
 
 /** Everything about the question the marks were made on. */
@@ -134,8 +232,6 @@ export interface Asking {
   type: string;
   /** Which level that key stands on, for the record of values met. */
   level?: number;
-  /** What the question's blanks were filled with, as fillForm recorded it. */
-  filledWith?: Record<string, string> | null;
   /** Which values are worth recording as met — the ones with no ladder. */
   keepMet?: (ref: string) => boolean;
   /**
@@ -225,13 +321,14 @@ export function withMark(
   subId: string | null,
   state: ExerciseState,
   asking: Asking,
+  filled?: Record<string, string> | null,
 ): Item {
   const at = now(asking.clock);
   const target = targetOf(item, subId);
   if (!target) return item;
   const met = noteMet(
     target.met,
-    asking.filledWith,
+    filled,
     asking.level || 1,
     asking.keepMet || (() => true),
   );
@@ -288,6 +385,7 @@ export function gradeInto(items: Item[], marks: Mark[], asking: Asking): Item[] 
       mark.subId,
       markedState(before, mark, asking.how, asking.clock),
       asking,
+      mark.filled,
     );
     any = true;
   }

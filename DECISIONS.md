@@ -1570,3 +1570,73 @@ are, but the *wiring* between them is not: nothing asserts that the screen
 hands `applyGrade`'s marks the key that was dealt, because that is the
 component. A jsdom walk is the only thing that can say it, and one does —
 loosely. The gap is narrower than it was and it has not closed.
+
+---
+
+## A sentence credits the words that stood in it
+
+**16 September 2026** · `fillerMarks` and `filled` on `Mark` in
+`src/grade.ts`, `fillersIn` and the owner index in
+`src/ArabicTrainer.tsx`
+
+*A sentence is a card made of blanks, and the vocabulary fills them* built
+the frame and gated which words may stand in it. It never said what
+answering one does to those words, and the answer was nothing: the frame
+was marked and its fillers were not. So a learner could write a noun
+correctly a dozen times inside sentences while the app went on believing
+they had never produced it — and the sentence's own record, `met`, is a
+high-water mark of *which values it has been asked with*, which is a fact
+about the frame rather than progress on the word.
+
+**The grid is the precedent, and two of its three rules carry over.** A
+matching grid is the other exercise where one answer is about several
+words, and it already says that every word in it is marked in its own
+right and that one dealt in to fill it out is credited without its
+schedule moving. Both hold here.
+
+**What does not carry over is blame.** A grid knows which pair was
+mismatched. A sentence does not: something in "the book is big" was wrong
+and nothing says which part, so a wrong answer counts against none of the
+words in it. A right answer is unambiguous about every one of them. The
+asymmetry is the whole of why this is not simply "mark the fillers too".
+
+**And a sentence cannot open a rung.** The tempting version credits the
+filler exactly as the frame was credited, which would let a word graduate
+*write it from its meaning* — the strictest question in the app, defined as
+having nothing on the screen to go on — on the strength of an answer given
+with a whole sentence on the screen. So the schedule moves only where that
+word's own was already under way and due. "Under way" is `phase !== "new"`
+rather than "has a state": in memory every type carries one, so the
+question is whether the word has ever been asked this on its own.
+
+**It is credited on the form that was shown, which is not always the one
+that was lent.** An agreeing card lends its own word and the sentence goes
+back to the table for the form that agrees, so what stood in the blank is
+a cell nothing lent — and the cell has its own schedule. Which meant the
+owner index had to answer for every form of a filling card rather than
+only the lent ones. The reach map is deliberately untouched by that: which
+values a hole may take is read off the pool, and the pool is what a card
+lends, so a further key there would be an answer nobody asks for.
+
+**Two things are left out on purpose.** A card the teacher marked as not
+practised on its own — a name — is skipped: it has no ladder, so a
+schedule written on it is one nothing reads, and `met` on the frame is
+exactly the record for that case. And a verb card's own place in its own
+sentence is skipped, because that slot is filled from the card's own table
+rather than from the deck: the cell's ladder is the table's gate to open,
+not something the sentence above it has earned.
+
+**What it cost.** `filled` moved from the question onto the mark. It had
+been read once and applied to every mark, which was harmless while the
+only multi-mark question was a grid — a grid never contains a frame — and
+would have written the sentence's record onto each word it borrowed the
+moment this shipped, saying each had been met with itself. One answer
+marks several forms and only one of them is the sentence; the mark is
+where that belongs.
+
+**Where the gate and the credit meet.** A cell behind its table's gate has
+no keys at all, so it is credited for nothing — which is right, and is not
+a second rule: `laddered` is the one list every reader goes through. In
+practice the two agree, because an adjective whose own word is unmet
+cannot fill a blank either. A test holds them together rather than leaving
+it to be rediscovered.
