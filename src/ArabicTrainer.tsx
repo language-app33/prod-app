@@ -9408,7 +9408,7 @@ function CardLadder({ card, settings }: { card: Item; settings: Settings }) {
       </div>
       <Help>
         {at.status === "paused"
-          ? "A word you have slipped on closes the levels above it. Nothing is lost — this opens again as soon as the level under it is back."
+          ? "Missing the same question twice running closes the levels above it. Nothing is lost — this opens again as soon as the level under it is back."
           : at.status === "done"
           ? "Every level is done. The card still comes back, just further and further apart."
           : "A level opens once everything under it is through the learning steps and back in review. The last one waits longer: everything under it has to hold for four days."}

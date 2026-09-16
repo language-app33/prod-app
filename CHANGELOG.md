@@ -8,6 +8,34 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.155 — 16 September 2026
+
+**One wrong answer no longer shuts the levels above a word.**
+
+Getting a single question wrong used to close every level above it on that
+word. Fail one reading question and the writing practice on that word
+disappeared until you had put the reading right — the card said *Paused*,
+which was accurate and a very hair trigger. One bad answer, on one
+question, on one word.
+
+Now it takes two misses running on the same question: wrong, seen again a
+few minutes later, wrong again, with nothing right in between. A single
+miss changes nothing about the ladder. Getting it right at the second
+attempt clears the slate entirely.
+
+**Nothing about how a miss is scheduled has changed.** The question still
+comes back in about ten minutes, the word still loses a little ground, and
+the gap before you next see it still halves. The only thing that changed is
+whether the levels above shut while you put it right.
+
+One exception, at the top level only. Writing a word from its meaning
+alone asks that everything under it still holds a four-day gap, and every
+miss halves the gap. So the forgiveness is for the *miss*, not for the
+shrinking: keep missing a word and its gap eventually falls under four
+days, at which point the top level closes on merit rather than on the
+strike count. The lower levels have no such bar and always get the full
+two misses.
+
 ## 0.154 — 16 September 2026
 
 **New words now arrive about twice as fast, and you learn more of them.**

@@ -1982,3 +1982,76 @@ that, and are worth re-running rather than reasoning about.
 - **Sixty in hand is a bigger review load than forty young ever was.** The
   simulation says it is carried, because words leave it faster than they used
   to. It is the number to watch if anything about session size changes.
+
+---
+
+## One slip is a wobble; two is a gap
+
+**16 September 2026** · `src/scheduler.ts` (`holding`, `missedTwice`,
+`openTypes`, `reachedLevel`, `standings`)
+
+A single wrong answer used to shut every level above that question on the
+word. The screen called it *paused* and explained itself well, but it was a
+hair trigger, and the most common way to meet it was a lapse of attention
+rather than a gap in knowing.
+
+**Pausing was never a rule.** Nothing in the app decided to pause anything. A
+miss moves a question out of review into relearning; a level only opens when
+everything below it is in review; so the pause fell out of the two. That is
+what made raising the bar delicate. The obvious lever — make a miss less
+severe — would have changed how every card in the app is rescheduled, to fix
+something that is not about scheduling at all.
+
+**So the softening went into the gate, not the schedule.** `holding` sits
+beside `graduated` and `mastered` and is asked only by the three readers that
+decide whether a level is open: what may be asked, what the screen shows, and
+whether a level has been reached. A miss still returns the question in ten
+minutes, still costs the word its ease, still halves the gap. None of that
+moved.
+
+**Two running, not two ever.** `hist` — the last six outings, 1 right and 0
+wrong — is the only record with an order to it, so two zeros on the end of it
+is exactly "wrong, seen again, wrong again". A right answer anywhere in those
+two slots clears it. Two misses a month apart are two wobbles, and the rule
+should not punish them as a gap.
+
+**The length guard is load bearing.** A document written before `hist` existed
+carries an empty one, and `[].every()` is true — so without it every old card
+would have read as having just missed twice and paused on the spot. The
+trainer's `hasRecentMistake` meets the same case and answers it the same way.
+
+**Grace must forgive without promoting.** This is the part that took the
+thinking. Read naively, the rule would let a word that had only ever scraped
+into review have its first miss hold open a level it was never good enough
+for. So `holding` asks the bar what it makes of the state *but for the lapse*.
+At the lower levels, being in relearning proves the question had graduated, so
+the grace always applies. At the top, where the bar is a four-day gap and a
+miss halves it, a word that has only just got there falls under the bar on its
+own merits and still shuts the level.
+
+That is a real limit on "always exactly twice", and it is wider than it first
+looks: every miss halves the gap, so a word missed repeatedly — even with
+recoveries in between — walks its gap down under four days and then shuts the
+top level on a miss that the strike count would have forgiven. Checked by
+running it, not by reading it: a ten-day word missed, recovered and missed
+again sits at three days and closes the top level.
+
+Taken deliberately all the same. The forgiveness is for the miss, not for the
+shrinking, and the alternative — holding a level open for a word that does not
+currently hold the gap that level asks for — is worse than the inconsistency.
+The lower levels have no such bar and always get the full two.
+
+**What it cost.**
+
+- **Three tests rewritten**, each of which encoded one strike in its fixture.
+  Their intent is unchanged; they now miss twice.
+- **The lockstep test passed untouched**, which is the evidence that mattered
+  most. What the app asks and what the screen shows are the same judgement in
+  two places, and a change applied to one and not the other would have shown
+  up there across three hundred and seventy-five combinations.
+- **A near miss counts as a miss** for this, because `hist` records it as one,
+  as every other count in the app does. Near miss then miss is two.
+- **`graduated` and `mastered` were left exactly as they were.** `recognised`
+  — the front-door cap from 0.154 — and `quietRows` call `mastered` directly
+  and need the strict reading. A word you have just missed should still cost a
+  place at the front door: that is work in hand.

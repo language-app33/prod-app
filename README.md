@@ -28,8 +28,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   recall from the meaning alone. Level 4 opens on *mastered* — in review,
   with an interval of at least four days — so the strict bar stands where
   writing from memory begins. A level a card has no material for is passed
-  straight through. A lapse below closes the levels above until it is
-  recovered. Each exercise declares its own level in `src/languages.ts`
+  straight through. Missing a question below twice running — wrong, seen
+  again, wrong again — closes the levels above until it is recovered; a
+  single miss is forgiven, and `holding` in the scheduler is the whole of
+  that. Each exercise declares its own level in `src/languages.ts`
   and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
   the scheduler reads both.
 
@@ -43,8 +45,9 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   **The same ladder is what a learner is shown.** `standings` in the
   scheduler reads a card as one row per level it has material on, each
   *not started*, *learning*, *done* or *paused* — paused being a level
-  that had opened and has been shut again by a slip further down, which is
-  the one thing about the ladder nobody could otherwise make sense of. A
+  that had opened and has been shut again by a question further down being
+  missed twice running, which is the one thing about the ladder nobody
+  could otherwise make sense of. A
   level is *done* exactly when `openTypes` opens the one above it, so the
   screen and the scheduler cannot come to disagree; a test walks every
   combination to hold them together. `standing` picks the one row to put

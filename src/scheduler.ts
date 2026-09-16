@@ -398,6 +398,59 @@ export function graduated(s: ExerciseState): boolean {
   return s.phase === "review";
 }
 
+/*
+ * Wrong twice running, on the same question.
+ *
+ * `hist` is the only record with an order to it: the last six outings, 1
+ * right and 0 wrong, written on every marked answer. Two zeros on the end
+ * of it is wrong, seen again, wrong again, with nothing right in between —
+ * and one right answer anywhere in those two slots clears it.
+ *
+ * The length guard is load bearing rather than defensive. A document
+ * written before `hist` existed carries an empty one, and `[].every()` is
+ * true, so without it every old card would read as having just failed
+ * twice. `hasRecentMistake` in the trainer meets the same case and answers
+ * it the same way.
+ *
+ * A near miss counts as wrong here, as it does in every other count the
+ * app keeps: it is scheduled gently and it is still not knowing the word.
+ */
+export function missedTwice(s: ExerciseState): boolean {
+  const h = s.hist || [];
+  return h.length >= 2 && h.slice(-2).every((x) => !x);
+}
+
+/*
+ * Whether this exercise holds the levels above it open.
+ *
+ * The bar itself is unchanged and is still what a level is *reached* by.
+ * What this adds is one slip's grace: getting a question wrong once no
+ * longer shuts everything above it, because a single miss is as often a
+ * lapse of attention as a gap in knowing. Wrong twice running is the gap,
+ * and that closes them exactly as a single miss used to.
+ *
+ * Nothing about how a miss is *scheduled* changes. The question still
+ * comes back in ten minutes, still costs the word its ease, still halves
+ * the gap. This decides one thing only: whether the ladder above it shuts
+ * while that is being put right.
+ *
+ * The last clause is what keeps the grace honest. Read without it, a word
+ * that had only ever scraped into review would have its first miss hold
+ * open a level it was never good enough for — grace that promotes rather
+ * than forgives. Asking the bar what it makes of the state *but for the
+ * lapse* answers that: at the lower levels, being in relearning proves it
+ * had graduated, so the grace always applies; at the top, where the bar is
+ * a four-day gap and a miss halves it, a word that only just reached the
+ * top can fall under the bar on its own merits and still shut the level.
+ * Narrow — gaps outgrow it within a fortnight — and the right way to be
+ * wrong.
+ */
+export function holding(s: ExerciseState, bar: (st: ExerciseState) => boolean): boolean {
+  if (bar(s)) return true;
+  if (s.phase !== "relearning" || missedTwice(s)) return false;
+  return bar({ ...s, phase: "review" });
+}
+
 /**
  * The states to write so that a form climbs one level of its ladder, and
  * no further — what "this was too easy" does.
@@ -476,9 +529,10 @@ export const hasLevelAbove = (keys: string[], key: string): boolean =>
    it must reach to open level four; a form with nothing at all on a level
    passes straight through it.
 
-   Whether the bar is met is read afresh every time, so a lapse on the
-   bottom level closes the ones above it until it is recovered: somebody who
-   can no longer read a word is not asked to write it.
+   Whether the bar is met is read afresh every time, so missing a question
+   on the bottom level twice running closes the ones above it until it is
+   recovered: somebody who can no longer read a word is not asked to write
+   it. One miss is forgiven — see `holding`.
    ------------------------------------------------------------------ */
 
 /**
@@ -501,9 +555,12 @@ export function openTypes(types: string[], stateOf: (type: string) => ExerciseSt
        exercises the level was read off. */
     const bar = barOf(here[0]) === "graduated" ? graduated : mastered;
     const lower = types.filter((t) => levelOf(t) < level);
+    /* Through `holding`, so one miss below does not shut this level — see
+       there. The screen reads the same judgement through `standings`, and
+       a test walks every combination to keep the two from drifting. */
     const reached = lower.every((t) => {
       const s = stateOf(t);
-      return !!s && bar(s);
+      return !!s && holding(s, bar);
     });
     if (!reached) break;
     out.push(...here);
@@ -550,7 +607,7 @@ export function reachedLevel(
     .filter((t) => levelOf(t) < level)
     .every((t) => {
       const s = stateOf(t);
-      return !!s && bar(s);
+      return !!s && holding(s, bar);
     });
 }
 
@@ -825,7 +882,9 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
     const bar = barAfterLevel(level) === "graduated" ? graduated : mastered;
     /* Counted over this level and everything under it — see `done` above. */
     const under = levels.filter((l) => l <= level).flatMap((l) => at.get(l) || []);
-    const done = under.filter((s) => !!s && bar(s)).length;
+    /* The same `holding` openTypes gates on, so a single miss neither
+       shuts a level nor reports one as paused. */
+    const done = under.filter((s) => !!s && holding(s, bar)).length;
     const met = here.some(answered);
     const finished = done === under.length;
     out.push({

@@ -3166,8 +3166,9 @@ export function keysFor(form: WithAnswers | null | undefined, type: string): str
  * Level four keeps the four-day bar, so the strict gate stands exactly
  * where production from the meaning alone begins — the one place where
  * opening early means asking for something that has not been taught yet.
- * A lapse anywhere below still closes the levels above, because graduated
- * is false in relearning.
+ * Missing a question below twice running still closes the levels above,
+ * because graduated is false in relearning — see `holding` in the
+ * scheduler, which is what forgives the first miss.
  *
  * Written once per level rather than on each exercise. It was on each of
  * them for a day: nine declarations of one fact, kept in step by a test,

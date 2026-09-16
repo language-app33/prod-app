@@ -42,6 +42,7 @@ import {
   itemDifficulty,
   graduated,
   mastered,
+  missedTwice,
   openTypes,
   reachedLevel,
   standings,
@@ -82,6 +83,19 @@ const reviewing = (over = {}) => ({ ...freshState(), phase: "review", interval: 
  * @returns {ExerciseState}
  */
 const state = (over = {}) => ({ ...freshState(), ...over });
+
+/*
+ * A question got wrong, once and twice running.
+ *
+ * The difference is the whole of the two-strike rule: one miss leaves the
+ * levels above open, and a second closes them. Both are in relearning —
+ * the schedule treats them identically — so what tells them apart is the
+ * record of the last outings, which is what `holding` reads.
+ */
+const slipped = (/** @type {number} */ interval) =>
+  state({ phase: "relearning", interval, reps: 4, right: 3, wrong: 1, hist: [1, 1, 0] });
+const slippedTwice = (/** @type {number} */ interval) =>
+  state({ phase: "relearning", interval, reps: 5, right: 3, wrong: 2, hist: [1, 0, 0] });
 
 /* ------------------------------------------------------------------
    Learning a card for the first time
@@ -452,9 +466,17 @@ test("a cued level opens on graduated, and writing from the meaning on mastered"
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done })), ["ar2en", "tr2ar", "en2ar"]);
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done, en2ar: done })), ladder, "and stays open");
   assert.deepEqual(
-    openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), tr2ar: done, en2ar: done })),
+    openTypes(ladder, table({ ar2en: slippedTwice(10), tr2ar: done, en2ar: done })),
     ["ar2en"],
-    "a lapse at the bottom closes everything above it until it is recovered"
+    "missing the bottom twice running closes everything above it until it is recovered"
+  );
+  /* And once does not. One miss is as often a lapse of attention as a gap
+     in knowing, and the question is coming back in ten minutes either
+     way. */
+  assert.deepEqual(
+    openTypes(ladder, table({ ar2en: slipped(10), tr2ar: done, en2ar: done })).length,
+    ladder.length,
+    "a single miss leaves the levels above open"
   );
 });
 
@@ -526,8 +548,11 @@ test("the whole cued half of the ladder is climbed on graduated", () => {
     "three graduated levels still do not open writing from the meaning");
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done, tr2ar: done })), ladder,
     "mastering all three does");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), match: done })), ["ar2en"],
-    "and a lapse on the reading takes the grid away again until it is back in review");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: slippedTwice(10), match: done })), ["ar2en"],
+    "and missing the reading twice running takes the grid away until it is back in review");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: slipped(10), match: done })),
+    ["ar2en", "match", "tr2ar"],
+    "where one miss leaves the reading counting as graduated, so nothing below the top shuts");
   assert.equal(graduated(state({ phase: "review", interval: 1 })), true);
   assert.equal(graduated(state({ phase: "relearning", interval: 10 })), false);
   assert.equal(graduated(freshState()), false);
@@ -788,14 +813,92 @@ test("a level a card has no material for is not one of its levels", () => {
   assert.equal(standing([]), null);
 });
 
-test("a slip below pauses the levels above rather than losing them", () => {
+/* ------------------------------------------------------------------
+   One slip is a wobble; two is a gap
+
+   Pausing is not a rule of its own — it falls out of a miss taking a
+   question out of review, and a level only opening when everything below
+   it is in review. So these are about `holding`, which is the one place
+   that judgement is softened, and about the three readers staying level
+   with each other.
+   ------------------------------------------------------------------ */
+
+test("two misses running is what the ladder counts, not two misses", () => {
+  assert.equal(missedTwice(state({ hist: [1, 1, 0] })), false, "one miss");
+  assert.equal(missedTwice(state({ hist: [1, 0, 0] })), true, "and a second on top of it");
+  /* Recovering in between is the whole difference: that is two slips, not
+     two running. */
+  assert.equal(missedTwice(state({ hist: [0, 1, 0] })), false, "right in between clears it");
+  assert.equal(missedTwice(state({ hist: [0, 0, 1] })), false, "and a right answer since");
+});
+
+test("a card from before any of this was recorded is not treated as failing", () => {
+  /* Documents written before the history existed carry an empty one, and
+     `[].every()` is true — so without the length guard every old card
+     would read as having just missed twice and pause on the spot. */
+  assert.equal(missedTwice(state({ hist: [] })), false, "nothing recorded");
+  assert.equal(missedTwice(state({ hist: [0] })), false, "one outing recorded");
+  assert.equal(missedTwice(freshState()), false, "and a state with no history at all");
+});
+
+test("one miss does not shut the levels above, and a second does", () => {
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const ladder = (/** @type {any} */ first) =>
+    standings(
+      climber({ ar2en: first, match: done, tr2ar: done, en2ar: state({ phase: "learning", step: 1 }) }),
+      rungs,
+    ).map((r) => r.status);
+
+  assert.deepEqual(ladder(done), ["done", "done", "done", "learning"], "nothing missed");
+  assert.deepEqual(ladder(slipped(8)), ["done", "done", "done", "learning"],
+    "one miss changes nothing about the ladder");
+  assert.deepEqual(ladder(slippedTwice(8)), ["learning", "paused", "paused", "paused"],
+    "a second miss on the same question shuts them");
+});
+
+test("the grace forgives, it does not promote", () => {
+  /* A word that had only ever scraped into review must not have its first
+     miss hold open a level it was never good enough for. At the top the
+     bar is a four-day gap, and a miss halves it — so a word that only just
+     reached the top can fall under the bar on its own merits and shut the
+     level whatever its history says. */
+  const ladder = ["ar2en", "match", "tr2ar", "en2ar"];
+  const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  /* Halved to three days by the miss: under the top level's bar. */
+  const short = state({ ...slipped(MASTERED_DAYS - 1) });
+  assert.ok(
+    !openTypes(ladder, table({ ar2en: short, match: done, tr2ar: done })).includes("en2ar"),
+    "a gap under the bar does not hold the top level open",
+  );
+  /* Where the halved gap still clears the bar, one miss is forgiven all
+     the way up. */
+  const long = slipped(10);
+  assert.deepEqual(
+    openTypes(ladder, table({ ar2en: long, match: done, tr2ar: done })),
+    ladder,
+    "a gap still over the bar keeps every level open",
+  );
+  /* And the limit of that, written down because it is wider than it looks:
+     every miss halves the gap, so a word missed repeatedly walks itself
+     under the bar and closes the top level on a miss the strike count
+     would have forgiven. Ten days, missed, recovered, missed again is
+     three. The forgiveness is for the miss, not for the shrinking. */
+  const worn = state({ ...slipped(3) });
+  assert.ok(
+    !openTypes(ladder, table({ ar2en: worn, match: done, tr2ar: done })).includes("en2ar"),
+    "a gap worn down by repeated misses shuts the top level on merit",
+  );
+});
+
+test("missing a question below twice pauses the levels above rather than losing them", () => {
   const done = state({ phase: "review", interval: MASTERED_DAYS });
   /* Three levels mastered, the writing met once — then the reading is
-     forgotten. The levels above shut, and what was done there is still
-     done: nothing is lost, it is waiting. */
+     forgotten, twice running. The levels above shut, and what was done
+     there is still done: nothing is lost, it is waiting. */
   const rows = standings(
     climber({
-      ar2en: state({ phase: "relearning", interval: 8 }),
+      ar2en: slippedTwice(8),
       match: done,
       tr2ar: done,
       en2ar: state({ phase: "learning", step: 1 }),
