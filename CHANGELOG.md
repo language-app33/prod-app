@@ -8,6 +8,34 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.153 — 16 September 2026
+
+**The Numbers screen has moved, to Teaching → Cards.** It was behind a
+button on a deck; it is now the **#** in the toolbar at the top of the card
+list, beside the search box. Last release put it on a deck because that is
+where the cards went, and that had it backwards: the words a language
+builds its numbers out of are a fact about the language, not about one
+deck, and the same eleven Vietnamese words serve every deck you ever write
+in it. Filling them in twice for two decks was work nobody should have
+been asked to do.
+
+So the screen now shows every number card you have in that language,
+whatever deck each one is in, and saving writes them to your collection
+rather than into a deck. Putting them in front of students is the step
+every other new card takes: select them in the card list and add them to a
+deck. If you teach more than one language that builds its numbers, the
+button asks which first.
+
+Nothing about the numbers themselves changed — the same boxes, the same
+reach, the same sample of what a student will be asked. Cards written by
+the old screen are exactly where they were, decks included.
+
+**A fix on the way past: the button was invisible.** It asked for an icon
+the set had never had, and an icon nothing knows how to draw is drawn as
+nothing — so the control was there, worked, and could not be seen. There
+is now a test that fails if any screen asks for an icon that does not
+exist.
+
 ## 0.152 — 16 September 2026
 
 **Numbers are now built rather than memorised.** A student who knows

@@ -648,9 +648,13 @@ button {
    menus that order and narrow the list — it was an unlabelled icon up in
    the search row, where it read as another way of finding something. */
 .at-toolbar-sub .at-selectbtn.on { border-color: var(--accent); color: var(--accent); }
-/* How big to draw the tiles: an icon at the far end of the search row,
-   sized like the field beside it so the row keeps one height. */
-.at-toolbar .at-sizebtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
+/* An icon in the search row — how big to draw the tiles, the way in to a
+   language's numbers — sized like the field beside it so the row keeps one
+   height. Every icon there rather than that one by name: .at-icon is
+   flex:1 by default, which is right in a row of its own and wrong here,
+   and a second such button arriving would otherwise stretch to fill the
+   row on a list with nothing in it to search. */
+.at-toolbar .at-icon { flex:0 0 auto; width:44px; height:44px; min-height:44px;
   padding:0; box-sizing:border-box; }
 /* The bulk tray: what it is on the left, how many on the right. */
 .at-bulkhead2 { display:flex; align-items:baseline; justify-content:space-between;

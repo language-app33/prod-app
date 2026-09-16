@@ -216,6 +216,11 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   written on, works out which stretches of the number line can be built,
   and chooses what to ask.
 
+  The teacher fills the parts in from **Teaching → Cards**, the `#` in the
+  list's toolbar: one screen for the language, over every number card they
+  have in it, saving to their collection the way any new card does. A
+  language and not a deck, because the parts are the language's.
+
   The practice is started by the learner, not dealt. It ramps: it opens in
   the lowest **band** the deck can build — 0–10, 11–20, 21–99, and so on to
   millions — widens as answers come back right, and remembers where it got

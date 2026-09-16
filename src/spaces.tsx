@@ -4060,9 +4060,9 @@ function NumberReach({ lang, parts }: { lang: Lang; parts: Map<number, { forms: 
  * a way of asking for either to be thrown away — DECISIONS.md has the
  * whole of that rule. Deleting the card from the deck's list is.
  */
-function NumbersScreen({ deck, lang, cards, onSave, onClose, busy }: {
-  deck: Deck;
+function NumbersScreen({ lang, cards, onSave, onClose, busy }: {
   lang: Lang;
+  /** Every card of the teacher's in this language; the caller filters. */
   cards: Card[];
   onSave: (rows: NumberRow[]) => void;
   onClose: () => void;
@@ -4072,7 +4072,7 @@ function NumbersScreen({ deck, lang, cards, onSave, onClose, busy }: {
 
   /* What is on the cards now, which is what the boxes open showing. */
   const saved = useMemo(() => {
-    const byValue = partCards(cards, lang.id);
+    const byValue = partCards(cards);
     const out: Record<number, NumberRow> = {};
     for (const group of groups) {
       for (const part of group.parts) {
@@ -4121,14 +4121,15 @@ function NumbersScreen({ deck, lang, cards, onSave, onClose, busy }: {
       }
     >
       <Help>
-        Write the words this language builds its numbers out of, and the app makes the rest.
+        Write the words {lang.name} builds its numbers out of, and the app makes the rest.
         With one to ten it can ask anything up to ten; add the tens and it can ask anything up
-        to ninety-nine. Each box below is an ordinary card in <b>{deck.title}</b>, so you can
-        record it and edit it afterwards like any other.
+        to ninety-nine.
       </Help>
       <Help>
-        Clearing a box leaves its card alone — it keeps its recordings and every student's
-        progress. Delete it from the deck's card list if you want it gone.
+        Each box is an ordinary card in your collection, so you can record it and edit it like
+        any other — and <b>put it in a deck</b>, from the list behind this screen, for students
+        to get it. Clearing a box leaves its card alone, with its recordings and every
+        student&apos;s progress; deleting the card is how you get rid of it.
       </Help>
 
       <Section title="How far this reaches" className="at-mt5">
@@ -4250,10 +4251,15 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   const [cardAction, setCardAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
   const [newCardLang, setNewCardLang] = useState<LangId | null>(null);
   const [managingDecks, setManagingDecks] = useState<string | null>(null); // a course id
-  /* The deck whose numbers are being filled in, where one is. Held apart
-     from `openDeck` rather than replacing it, so closing the Numbers
-     screen lands back on the deck it was opened from. */
-  const [numbering, setNumbering] = useState<string | null>(null); // a deck id
+  /* The language whose numbers are being filled in, where one is.
+     A language rather than a deck: the words a language builds its numbers
+     out of are a fact about the language, not about any one deck, and the
+     same eleven words serve every deck written in it. */
+  const [numbering, setNumbering] = useState<LangId | null>(null);
+  /* And which language, where the teacher has more than one to choose
+     from. The same two-step the New card button takes, for the same
+     reason and through the same control. */
+  const [numberLang, setNumberLang] = useState<LangId | null>(null);
   /* Already teaching something? Then this is a rare errand, folded away. */
   const [joinNote, setJoinNote] = useState("");
   const [selDecks, setSelDecks] = useState(() => new Set<string>());
@@ -4349,6 +4355,18 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         ? Object.fromEntries(knownLangs.map((id) => [id, languages[id]]))
         : languages,
     [knownLangs, languages]
+  );
+  /*
+   * The languages whose numbers can be built, of the ones this teacher has.
+   *
+   * What decides whether the Numbers button is on the card list at all: a
+   * pack that does not say how its numbers go together has nothing to put
+   * on that screen, and a button leading to an empty one is a promise the
+   * app has not kept.
+   */
+  const numberLangs = useMemo(
+    () => Object.keys(taught).filter((id) => teachesNumbers(taught[id])),
+    [taught]
   );
 
   const snack = useSnackbar();
@@ -4603,10 +4621,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
    * over and the text on them replaced, which leaves clips, answers and
    * anything the teacher added in the card editor exactly where they were.
    */
-  function saveNumbers(deck: Deck, lang: Lang, rows: NumberRow[]) {
+  function saveNumbers(lang: Lang, rows: NumberRow[]) {
     return run(async () => {
-      const held = cards.filter((c) => (c.decks || []).includes(deck.id));
-      const byValue = partCards(held, lang.id);
+      const byValue = partCards(cards.filter((c) => (langOfCard(c) || { id: "" }).id === lang.id));
       const parts = new Map(partsOf(lang).map((p) => [p.value, p]));
       let saved = 0;
       for (const row of rows) {
@@ -4646,7 +4663,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
             fills: (was && was.fills) || "",
             drill: true,
           },
-          was ? [...new Set([...(was.decks || []), deck.id])] : [deck.id],
+          /* A card already in decks stays in them; a new one is made the
+             way the New card button makes one, in no deck at all. Putting
+             it in front of students is a deck it is added to afterwards,
+             from the list this screen was opened over — the same step
+             every other new card takes. */
+          was ? was.decks || [] : [],
         );
         absorbSaved(r);
         saved += 1;
@@ -5030,20 +5052,22 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
          Sits before the deck screen so that closing it lands back on the
          deck, the way the deck picker sits before the course. ---- */
   if (numbering) {
-    const d = decks.find((x) => x.id === numbering);
-    const numLang = d ? langOfDeck(d) : null;
-    if (!d || !numLang || !teachesNumbers(numLang)) {
+    const numLang = languages[numbering];
+    if (!numLang || !teachesNumbers(numLang)) {
       setNumbering(null);
       return null;
     }
     return (
       <NumbersScreen
-        deck={d}
         lang={numLang}
-        cards={cards.filter((c) => (c.decks || []).includes(d.id))}
+        /* Every card of the teacher's in that language, whatever deck it
+           is in and whether it is in one at all: a part is a part of the
+           language. Filtered here rather than in the screen, so the one
+           rule for "which language is this card in" is the space's. */
+        cards={cards.filter((c) => (langOfCard(c) || { id: "" }).id === numbering)}
         busy={busy}
         onClose={() => setNumbering(null)}
-        onSave={(rows) => saveNumbers(d, numLang, rows)}
+        onSave={(rows) => saveNumbers(numLang, rows)}
       />
     );
   }
@@ -5078,27 +5102,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
             <Section title="In context" className="at-mt5">
               <ContextReport cards={held} lang={langOfDeck(d) || LANGUAGES[DEFAULT_LANGUAGE]} />
             </Section>
-
-            {/* Numbers are built out of a handful of parts rather than
-                written one at a time, so they get a screen of their own
-                rather than fifty-five trips through the card editor. Only
-                where the language says how its numbers go together. */}
-            {teachesNumbers(langOfDeck(d)) ? (
-              <Section
-                title="Numbers"
-                className="at-mt5"
-                action={
-                  <Button size="sm" onClick={() => setNumbering(d.id)}>
-                    Fill these in
-                  </Button>
-                }
-              >
-                <NumberReach
-                  lang={langOfDeck(d) as Lang}
-                  parts={partCards(held, (langOfDeck(d) as Lang).id)}
-                />
-              </Section>
-            ) : null}
 
             <ItemList
               noun="card"
@@ -5517,6 +5520,40 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 </Screen>
               )}
 
+              {/* Which language's numbers, where the teacher has more than
+                  one that builds them. The same two-step the New card
+                  button takes, through the same control: the words are a
+                  fact about one language and nothing on the screen could
+                  work out which. */}
+              {numberLang !== null && (
+                <Screen title="Numbers" onBack={() => setNumberLang(null)}>
+                  <LanguageRadio
+                    languages={Object.fromEntries(numberLangs.map((id) => [id, taught[id]]))}
+                    value={numberLang}
+                    onChange={setNumberLang}
+                    label="Which language's numbers?"
+                  />
+                  <Help>
+                    Each language builds its numbers out of its own words, so they are filled
+                    in one language at a time.
+                  </Help>
+                  <div className="at-row at-mt5">
+                    <Button variant="ghost" onClick={() => setNumberLang(null)}>
+                      Cancel
+                    </Button>
+                    <Button variant="primary"
+                      disabled={!numberLang}
+                      onClick={() => {
+                        setNumbering(numberLang);
+                        setNumberLang(null);
+                      }}
+                    >
+                      Open them
+                    </Button>
+                  </div>
+                </Screen>
+              )}
+
               {confirm && confirm.kind === "cards" && (
                 <ConfirmModal
                   title={`Delete ${plural((confirm.ids || []).length, "card")}?`}
@@ -5711,6 +5748,25 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   shownCards.length === cards.length
                     ? null
                     : `${shownCards.length} of ${plural(cards.length, "card")}`
+                }
+                /* Numbers are written a set at a time rather than a card
+                   at a time, so they get their own screen off the toolbar
+                   — beside the search rather than in the list, because it
+                   is a different way in to the same cards and not a card
+                   in it. Icon alone: the row is narrow on a phone and the
+                   word is on the screen it opens. */
+                tools={
+                  numberLangs.length ? (
+                    <IconButton
+                      icon="hash"
+                      label="Numbers"
+                      onClick={() =>
+                        numberLangs.length === 1
+                          ? setNumbering(numberLangs[0])
+                          : setNumberLang(numberLangs[0])
+                      }
+                    />
+                  ) : null
                 }
                 menus={cardMenus}
                 resizable
