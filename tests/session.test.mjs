@@ -42,6 +42,7 @@ await build({
 const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn } = await import(path.join(out, "trainer.js"));
 const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
+const { FRONT_DOOR_CAP } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
 /** @param {string} id @param {string} type */
 const q = (id, type) => ({ id, type, subId: null });
@@ -281,17 +282,21 @@ const dueDeck = (/** @type {number} */ n) =>
     forms: [{ ...it.forms[0], s: { ar2en: due(), en2ar: due(), tr2ar: due() } }],
   }));
 
-test("only a few new cards are opened at once, however many are waiting", () => {
+test("a course does not arrive all at once, however many words are waiting", () => {
   /*
-   * New cards are introduced only while there is room. A deck of twelve
-   * brand-new words is not twelve words tonight — it is the handful a
-   * session may open, met properly, with the rest waiting. Getting this
-   * wrong in the other direction is a first week of forty words met once
+   * New words are introduced only while there is room at the front door.
+   * A course of sixty strangers is not sixty words tonight — it is what
+   * the door admits, met properly, with the rest waiting. Getting this
+   * wrong in the other direction is a first week of sixty words met once
    * each and nothing learnt.
+   *
+   * The bound is the door and not the session: the old rule was three a
+   * session, which meant ten short sittings in an evening were thirty new
+   * words for the same work. See FRONT_DOOR_CAP.
    */
-  const got = deal(deckOf(12));
+  const got = deal(deckOf(60));
   const cards = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
-  assert.ok(cards.size <= 3, `${cards.size} new cards opened at once`);
+  assert.ok(cards.size <= FRONT_DOOR_CAP, `${cards.size} new words opened at once`);
   assert.ok(cards.size >= 1, "and at least one");
 });
 
@@ -699,27 +704,49 @@ test("with nothing due, the nearest to due is taken and the furthest is not", ()
   assert.ok(!dealt.has("f30"), "the furthest card was taken anyway");
 });
 
-test("practising ahead never brings in more new cards than the rule allows", () => {
-  /* The other half of the decision: more practice means more of what you
-     hold, never more than you can take on at once. A deck of sixty
-     untouched cards must still open at three. */
+test("practising ahead never brings in more new words than there is room for", () => {
+  /* More practice means more of what you hold, never more than you can
+     take on at once. */
   const got = deal(deckOf(60));
   const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
-  assert.ok(dealt.size <= 3, `${dealt.size} new cards in one session`);
+  assert.ok(dealt.size <= FRONT_DOOR_CAP, `${dealt.size} new words in one session`);
 });
 
-test("a full hand of new cards does not stop the learning ones being practised", () => {
-  /* The wall itself: ten cards in hand, so no new ones may come in, and
-     twenty untouched behind them. The learner used to be told there was
-     nothing to practise while holding ten cards they were mid-way through
-     learning. */
-  const learning = Array.from({ length: 10 }, (_, i) => settled(`h${i + 1}`, 1));
-  const untouched = deckOf(20);
-  const got = deal(learning.concat(untouched));
+/** A word met but not yet recognisable: a gap shorter than the bar. */
+const learningWord = (/** @type {string} */ id) => {
+  const w = word(id, `كلمة${id}`, `word ${id}`);
+  const state = { phase: "review", step: 0, ease: 2.5, interval: 1,
+    due: Date.now() + DAY_MS, reps: 2, right: 2, wrong: 0, lapses: 0, skips: 0,
+    near: 0, hints: 0, updated: Date.now(), hist: [] };
+  w.forms[0].s = Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, { ...state }]));
+  return w;
+};
+
+test("a full front door stops new words, and does not stop the held ones being practised", () => {
+  /* The wall itself, and the whole point of the two pools. The front door
+     is full of words the learner cannot recognise yet, so nothing new may
+     come in — and they used to be told there was nothing to practise while
+     holding a handful of words they were midway through learning. */
+  const held = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => learningWord(`h${i + 1}`));
+  const waiting = deckOf(20);
+  const got = deal(held.concat(waiting));
   assert.equal(got.reason, null, `refused: ${got.reason}`);
   const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
   assert.ok(
-    [...dealt].some((id) => String(id).startsWith("h")),
-    `dealt none of the cards in hand: ${[...dealt].join(" ")}`,
+    [...dealt].every((id) => String(id).startsWith("h")),
+    `let a new word in past a full door: ${[...dealt].join(" ")}`,
+  );
+});
+
+test("and a word leaves the front door as soon as it can be recognised", () => {
+  /* The release valve. These have a gap past the bar, so they are through
+     the door and no longer block a newcomer, even though they are nowhere
+     near finished with their ladder. */
+  const known = Array.from({ length: FRONT_DOOR_CAP }, (_, i) => settled(`k${i + 1}`, 1));
+  const got = deal(known.concat(deckOf(20)));
+  const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
+  assert.ok(
+    [...dealt].some((id) => String(id).startsWith("w")),
+    `no new word got in behind recognised ones: ${[...dealt].join(" ")}`,
   );
 });

@@ -77,5 +77,5 @@
     "skipLibCheck": true
   },
   "include": ["src", "server", "scripts", "tests", "vite.config.js", "eslint.config.js"],
-  "exclude": ["node_modules", "dist", "dev-dist", "tests/.smoke-build", "tests/.cards-build", "tests/.session-build", "tests/.offline-build"]
+  "exclude": ["node_modules", "dist", "dev-dist", "tests/.smoke-build", "tests/.cards-build", "tests/.session-build", "tests/.offline-build", "tests/.pace-build"]
 }

@@ -52,24 +52,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   screen lists them.
 - **The shape of a session is the app's to decide, not the learner's.**
   Eighteen questions; each form asked two ways where its data allows; at
-  most two forms of any one card; three new cards at the outside; easiest
-  first. Cards are taken in the order they fell due, with chance between
+  most two forms of any one card; easiest first. Cards are taken in the order they fell due, with chance between
   everything the due list calls equal, and nothing gathers similar words
   together.
 
   **Being due settles that order and nothing else.** There is always a
-  session: a learner who is up to date, or who is partway through the
-  three-new-cards rule, is dealt the cards nearest to coming round rather
-  than an empty screen. What makes that safe is in the scheduler — a gap
+  session: a learner who is up to date, or who is holding as many new
+  words as the rule below allows, is dealt the cards nearest to coming
+  round rather than an empty screen. What makes that safe is in the scheduler — a gap
   grows from the time actually waited, so a card answered soon after the
   last time is counted and left where it was, and no amount of practice in
   one evening can push anything further out. The limits on *new* cards are
   a different rule and still apply: more practice is more of what the
   learner holds, never more than they can take on at once.
 
-  The numbers are `SESSION_SIZE`, `PER_UNIT`, `MAX_UNITS_PER_FAMILY` and
-  `NEW_PER_SESSION` in `src/ArabicTrainer.tsx`, beside `buildSession` which
-  is the only thing that reads them.
+  The numbers are `SESSION_SIZE`, `PER_UNIT` and `MAX_UNITS_PER_FAMILY` in
+  `src/ArabicTrainer.tsx`, beside `buildSession` which is the only thing
+  that reads them. How many *new* words a session may open is not among
+  them and is not the session's business — see below.
 
   They were six sliders under an Advanced disclosure, under a sentence
   saying the defaults were sensible — and two of the defaults were why the
@@ -95,13 +95,31 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   is written through a course card's lock rather than refused by it, and
   `foldCourses` carries it over a refresh beside the schedule.
 
-- **New cards are introduced only while there is room.** Beyond the three
-  a session may open, nothing new is dealt while ten cards are already
-  being learnt or forty are young and still coming back for review. A
-  card's phase is read over the levels it has reached: *New* is
-  never met, *Learning* is met and not yet through the steps somewhere,
-  *Young* is graduated everywhere it is open, *Mature* is three weeks out
-  everywhere.
+- **A new word is earned by learning one.** Two pools decide it and
+  nothing else: at most ten words the learner cannot yet recognise, and at
+  most sixty in hand altogether. A word leaves the first as soon as it has
+  earned a four-day gap on its first rung — the same bar that opens the
+  level above it — and goes on climbing against the second without
+  blocking a newcomer behind it.
+
+  Nothing is counted in sessions or in days, so ten short sittings in an
+  evening and one long one meet the same words. That was the fault of what
+  stood here before: three a session made the same work worth ten times as
+  much new material depending on how the learner broke up their time, and
+  the two ceilings behind it both counted a word as being learnt whenever
+  any exercise on it was unfinished — so a word held its place for its
+  whole climb and the pool never drained. The measured rate was about one
+  new word every four days.
+
+  The numbers are `FRONT_DOOR_CAP` and `IN_HAND_CAP` in
+  `src/scheduler.ts`, and they were measured rather than chosen:
+  `tests/pace.test.mjs` plays out a simulated learner and reports what a
+  course costs in days. Change one and run it.
+
+  A card's phase is still read over the levels it has reached, and the
+  Progress screen shows it: *New* is never met, *Learning* is met and not
+  yet through the steps somewhere, *Young* is graduated everywhere it is
+  open, *Mature* is three weeks out everywhere.
 - **One tense of a verb is ever new at a time.** Where a language lays its
   verbs out in a table — Arabic in seven persons and three tenses, Huế in
   one person and four markers — each cell of it is a sub-form, drilled and

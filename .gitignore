@@ -11,3 +11,5 @@ tests/.session-build/
 # Documents written by the server when DATA_DIR isn't set.
 data/
 tests/.offline-build/
+tests/.pace-build/
+.sweep-tmp/

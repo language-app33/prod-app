@@ -1901,3 +1901,84 @@ mode — which leaves the schedule completely untouched — stays unused by the
 learner's path: it was the obvious lever to reach for here and it is the
 wrong one, because work that counts for nothing is not what somebody with a
 free hour is asking for.
+
+---
+
+## A new word is earned by learning one
+
+**16 September 2026** · `src/scheduler.ts` (`FRONT_DOOR_CAP`, `IN_HAND_CAP`,
+`recognised`, `roomForNew`), `src/ArabicTrainer.tsx` (`handCounts`,
+`buildSession`), `tests/pace.test.mjs`
+
+Three rules decided how many new words a learner met, and none of them knew
+about the others: three a session, nothing while ten cards were mid-learning,
+nothing at all while forty were still settling, and a scan of every exercise on
+every card to hold new ones back while a pile was going badly. Measured, they
+let a learner who never got anything wrong meet about one new word every four
+days. A course of any size was a matter of years.
+
+**Two faults, and the second is the interesting one.**
+
+The first is that an allowance counted in sessions is not an allowance at all.
+Ten short sittings in an evening were thirty new words where one long sitting
+was three, for the same work. Whatever the right amount of new material is, it
+cannot depend on how somebody happened to break up their time.
+
+The second is that a word counted as *being learnt* whenever any exercise on it
+was unfinished — including one that opened that morning and had never been
+asked. A word climbing its ladder kept falling back into the pool, so it held a
+place for its whole climb, the pool never drained, and the cap on it was a wall
+rather than a queue.
+
+**So: two pools, and a word enters when one leaves.** The front door is words
+the learner cannot yet recognise, which is a four-day gap on the first rung —
+the same bar that already opens the level above, so *learnt* means one thing in
+this app rather than two. In hand is everything not yet fully settled, at any
+height. A word leaves the front door early and goes on climbing against the
+second cap without blocking a newcomer behind it. That early release is the
+whole difference between this and what it replaces.
+
+Nothing counts sessions and nothing counts days. A day-based allowance was
+considered and rejected: it needs a notion of "a day" that survives timezones
+and two devices, and it answers a question nobody asked. What a learner has
+standing is already the right measure.
+
+**The struggling case falls out rather than needing a rule.** A learner who
+keeps forgetting has words that never reach a four-day gap, so those words hold
+their places and nothing new arrives. That is what the backlog scan existed
+for, and it is now a consequence of the caps instead of a fourth thing to keep
+in step.
+
+**The numbers were measured.** The note that used to stand over `phaseCounts`
+recorded a simulation, concluded that loosening the caps admitted five more
+cards and mastered three fewer, and asked the next reader to measure before
+changing anything — and there was nothing left to run. `tests/pace.test.mjs` is
+that harness, rebuilt so it survives: it plays out a learner day by day against
+the real scheduler and session builder, both of which are pure with the clock
+passed in.
+
+Over a hundred and eighty simulated days of one session a day, against the
+design this replaces: 64-66 words met against 34-35, and 39-43 learnt properly
+against 25-28. Three runs each, because the session shuffle is not seeded.
+
+That earlier finding was right about its own design and does not carry to this
+one. Loosening a cap whose release is full maturity piles words up and spreads
+a fixed session thinner, which is exactly what it measured. Releasing at
+recognition lets them flow instead. The sweep also found where *this* design
+turns: past about sixteen at the front door, words mastered in ninety days
+starts to fall, and with no cap at all it collapses. Ten and sixty sit below
+that, and are worth re-running rather than reasoning about.
+
+**What it cost.**
+
+- **A test changed rather than added.** Three session tests pinned "three a
+  session" and two fixtures modelled a full hand with ten-day gaps — which
+  under the new reading are words already through the front door. They assert
+  the pools now. The intent of each is unchanged.
+- **The session no longer decides anything about new words**, which means one
+  fewer knob in `buildSession` and one more concept in the scheduler. That is
+  the right side for it to live on: how much a learner can take on is a fact
+  about the learner, not about the sitting.
+- **Sixty in hand is a bigger review load than forty young ever was.** The
+  simulation says it is carried, because words leave it faster than they used
+  to. It is the number to watch if anything about session size changes.

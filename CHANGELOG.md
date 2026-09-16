@@ -8,6 +8,43 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.152 — 16 September 2026
+
+**New words now arrive about twice as fast, and you learn more of them.**
+
+How many new words you met used to be decided by three rules at once:
+three a session, nothing while ten words were mid-learning, and nothing at
+all while forty were still settling. Between them they let a diligent
+learner meet about one new word every four days. They also meant the same
+hour of work was worth wildly different amounts depending on how you broke
+it up — ten short sittings in an evening were thirty new words where one
+long sitting was three.
+
+One rule replaces all three: **a new word is earned by learning one.** Two
+pools decide it. At most ten words you cannot yet recognise, and at most
+sixty on the go altogether. A word leaves the first pool as soon as you can
+recognise it — not when you have finished with it — and carries on being
+practised without holding the door shut behind it.
+
+Nothing is counted in sessions or in days any more, so how long you sit and
+how often you sit no longer change how much new material you are given.
+What changes it is learning the words you have.
+
+Measured against the old rules over a hundred and eighty simulated days of
+one session a day:
+
+| | before | now |
+|---|---|---|
+| words met | 34 | 65 |
+| words learnt properly | 26 | 41 |
+
+**And when nothing new is arriving, the app now says why.** A line on the
+home screen names how many words are waiting and explains that they come as
+the ones you are learning settle. Before, it simply stopped, which reads as
+the app having run out.
+
+Sessions are unchanged: still short, still overdue words first.
+
 ## 0.151 — 16 September 2026
 
 **There is always something to practise.**

@@ -53,19 +53,41 @@ export const MATURE_DAYS = 21;
 export const MASTERED_DAYS = 4;
 
 /*
- * How many cards may be in hand at once. New cards are introduced only
- * while there is room, on top of the per-session limit in the settings.
+ * How many words may be in hand at once — two pools, and the only thing
+ * that decides when a learner meets a new word.
  *
- * Learning — met, and not yet through the learning steps at whatever level
- * it is on — is what a person is actively holding, and ten is about what a
- * session of eighteen exercises can carry with a few new ones beside. Young
- * — graduated everywhere it is open, not yet mature — is the review load:
- * a young card comes back four or so times over three weeks for each of
- * its exercises, so forty of them is roughly one session a day of reviews,
- * which leaves the rest of the day's session for what is new.
+ * A word is *earned* rather than issued: one enters when one leaves. There
+ * is no quota counted in sessions and none counted in days, so a learner
+ * who sits for two minutes and one who sits for an hour are rationed by
+ * what they have standing rather than by how they spent their evening.
+ * That was the whole fault of what stood here before — three a session
+ * meant ten short sittings were thirty new words and one long sitting was
+ * three, for the same work.
+ *
+ * **The front door** is words the learner cannot yet recognise: met, and
+ * short of a four-day gap on the first rung of the ladder. It is what
+ * stops a new course arriving all at once, and it is small because these
+ * are the words that cost the most to hold — nothing about them is known
+ * yet, and every one of them is a stranger.
+ *
+ * **In hand** is everything not yet fully settled, at any height of the
+ * ladder. It is the ceiling on total load, so a short session is never
+ * spread so thin across half-learnt words that none of them moves.
+ *
+ * A word leaves the front door early, as soon as it is recognisable, and
+ * goes on climbing against the second cap without blocking a newcomer
+ * behind it. That is the difference between these two and the pair they
+ * replace: the old ones both counted a word as "in learning" whenever any
+ * exercise on it was unfinished — including one that had opened that
+ * morning and never been asked — so a word held its place for its whole
+ * climb through four levels and the pool never drained.
+ *
+ * The numbers were measured rather than chosen: see tests/pace.test.mjs,
+ * which plays out a simulated learner and reports what a course costs in
+ * days. Change one and run it.
  */
-export const LEARNING_CAP = 10;
-export const YOUNG_CAP = 40;
+export const FRONT_DOOR_CAP = 10;
+export const IN_HAND_CAP = 60;
 
 /*
  * The clock and the jitter. Defaulted here rather than at each call site,
@@ -537,16 +559,41 @@ export function reachedLevel(
    ------------------------------------------------------------------ */
 
 /**
- * How many new cards a session may introduce.
+ * Whether the learner can recognise this word yet.
  *
- * `want` is the per-session limit from the settings; what comes back is
- * that, cut to the room left under the caps. The learning cap is room —
- * a new card is in learning the moment it is answered — and the young cap
- * is a gate: nothing new until some of what is young has grown up.
+ * Every rung of its first level mastered — a four-day gap, which is the
+ * same bar that opens the level above it, so "learnt" means one thing in
+ * this app rather than two. A word that carries no first-level material at
+ * all has nothing to recognise and is through the door by definition.
  */
-export function roomForNew(counts: { learning: number; young: number }, want: number): number {
-  if (counts.young >= YOUNG_CAP) return 0;
-  return Math.max(0, Math.min(want, LEARNING_CAP - counts.learning));
+export function recognised(
+  types: string[],
+  stateOf: (type: string) => ExerciseState | null | undefined,
+): boolean {
+  const first = types.filter((t) => levelOf(t) === 1);
+  if (!first.length) return true;
+  return first.every((t) => {
+    const s = stateOf(t);
+    return !!s && mastered(s);
+  });
+}
+
+/**
+ * How many new words there is room for.
+ *
+ * The smaller of the two remainders, and nothing else: no per-session
+ * allowance, no per-day allowance. See the caps above for why.
+ *
+ * `front` is words met and not yet recognisable; `inHand` is everything
+ * not yet fully settled. Both are counted over everything the learner
+ * holds in this language, not over the deck in front of them — the deck is
+ * what they chose to look at, the load is what they carry.
+ */
+export function roomForNew(counts: { front: number; inHand: number }): number {
+  return Math.max(
+    0,
+    Math.min(FRONT_DOOR_CAP - (counts.front || 0), IN_HAND_CAP - (counts.inHand || 0)),
+  );
 }
 
 /* ------------------------------------------------------------------
@@ -675,20 +722,32 @@ export function familyMaturity(it: Item, typesOf: (unit: Form) => string[]): str
  *
  * An exercise on a level that has just opened and has never been answered
  * holds its card at *learning* here, which reads like an accident — the
- * card's reading may be weeks old — and it was very nearly changed on
- * that basis: pass the unanswered ones over, the argument went, and the
- * ten-card cap would stop filling up in the first week and a learner
- * would meet more than a card every three days.
+ * card's reading may be weeks old. It is deliberate: work that has
+ * arrived is work in hand, whether or not it has been touched, and the
+ * progress screen should say so.
  *
- * It was measured first, and it was the wrong change. Over a hundred and
- * twenty simulated days of one session a day, passing them over admitted
- * about five more cards and mastered three fewer, because the session
- * budget is what it always was and the extra cards simply spread it
- * thinner: a card took fifty-two days to reach writing rather than
- * thirty-seven. Those unanswered exercises are work that has arrived,
- * whether or not it has been touched, and counting them is the cap doing
- * its job. What actually buys a learner more new cards is a longer
- * session, not a laxer cap.
+ * It used to ration new cards as well, and that is what was wrong. A card
+ * fell back here every time it opened a rung, so it held a place for its
+ * whole climb and the pool never drained; the measured rate was about one
+ * new word every four days. Two caps replace it — see FRONT_DOOR_CAP —
+ * and the front one lets a word go as soon as it can be recognised rather
+ * than when it has finished with the ladder.
+ *
+ * The note that used to stand here recorded a simulation and asked the
+ * next reader to measure before changing anything, and there was nothing
+ * left to run. There is now: `tests/pace.test.mjs` plays out a learner and
+ * reports what a course costs in days. Against the design this replaced,
+ * over a hundred and eighty simulated days of one session a day, the two
+ * caps met 64-66 words against 34-35 and mastered 39-43 against 25-28.
+ *
+ * That earlier measurement was right about its own design and does not
+ * carry to this one: loosening a cap whose release is full maturity piles
+ * words up and spreads the session thinner, which is what it found.
+ * Releasing at recognition instead lets them flow. The sweep also found
+ * where this one turns: past about sixteen at the front door, words
+ * mastered in ninety days starts falling, and with no cap at all it
+ * collapses. Both numbers are worth re-running rather than reasoning
+ * about.
  */
 export function phaseCounts(
   items: Item[],

@@ -21,8 +21,9 @@ import {
   MAX_EASE,
   MATURE_DAYS,
   MASTERED_DAYS,
-  LEARNING_CAP,
-  YOUNG_CAP,
+  FRONT_DOOR_CAP,
+  IN_HAND_CAP,
+  recognised,
   LEARN_STEPS,
   GRADUATE_DAYS,
   EASY_DAYS,
@@ -544,15 +545,39 @@ test("the settings say which level each exercise stands on, and every one has a 
 
 /* ---- room for what is new ---- */
 
-test("new cards are introduced only while there is room in hand", () => {
-  assert.equal(roomForNew({ learning: 0, young: 0 }, 3), 3, "an empty hand takes the session's limit");
-  assert.equal(roomForNew({ learning: LEARNING_CAP - 1, young: 0 }, 3), 1, "the last place in learning");
-  assert.equal(roomForNew({ learning: LEARNING_CAP, young: 0 }, 3), 0, "learning is full");
-  assert.equal(roomForNew({ learning: LEARNING_CAP + 5, young: 0 }, 3), 0, "and never negative");
-  assert.equal(roomForNew({ learning: 0, young: YOUNG_CAP }, 3), 0, "too much young to review already");
-  assert.equal(roomForNew({ learning: 0, young: YOUNG_CAP - 1 }, 3), 3, "one under is room");
-  assert.equal(roomForNew({ learning: 0, young: 0 }, 0), 0, "a session that wants none gets none");
-  assert.ok(LEARNING_CAP > 0 && YOUNG_CAP > LEARNING_CAP, "the caps are in the order the phases come in");
+test("a new word is earned, by one of the words in hand being learnt", () => {
+  /* Two pools and no third thing. There is deliberately no per-session and
+     no per-day allowance in here: ten short sittings in an evening used to
+     be thirty new words where one long sitting was three, for the same
+     work, because the allowance was counted in sessions. */
+  const empty = { front: 0, inHand: 0 };
+  assert.equal(roomForNew(empty), FRONT_DOOR_CAP, "an empty hand opens the front door wide");
+  assert.equal(roomForNew({ front: FRONT_DOOR_CAP - 1, inHand: 0 }), 1, "the last place at the door");
+  assert.equal(roomForNew({ front: FRONT_DOOR_CAP, inHand: 0 }), 0, "the door is full");
+  assert.equal(roomForNew({ front: FRONT_DOOR_CAP + 5, inHand: 0 }), 0, "and never negative");
+
+  /* The second pool is the ceiling on total load, and it binds on its own:
+     a learner may be recognising everything they hold and still be holding
+     too much of it. */
+  assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP }), 0, "too much in hand already");
+  assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP - 2 }), 2, "two places left in hand");
+  assert.ok(IN_HAND_CAP > FRONT_DOOR_CAP, "the door is the narrower of the two");
+});
+
+test("a word is recognised when every rung of its first level is mastered", () => {
+  /* Four days, which is the same bar that opens the level above it — so
+     "learnt" means one thing in this app rather than two. */
+  const first = TYPES.filter((/** @type {string} */ t) => levelOf(t) === 1);
+  const all = (/** @type {any} */ st) => () => st;
+  assert.equal(recognised(first, all(state({ phase: "review", interval: MASTERED_DAYS }))), true);
+  assert.equal(recognised(first, all(state({ phase: "review", interval: MASTERED_DAYS - 1 }))), false);
+  assert.equal(recognised(first, all(freshState())), false, "never answered is not recognised");
+  assert.equal(recognised([], all(freshState())), true, "no first-level material: nothing to recognise");
+  /* Higher rungs are not asked about: a word is through the door as soon
+     as it can be recognised, and goes on climbing behind the newcomers. */
+  const mixed = (/** @type {string} */ t) =>
+    levelOf(t) === 1 ? state({ phase: "review", interval: MASTERED_DAYS }) : freshState();
+  assert.equal(recognised(TYPES, mixed), true, "the climb does not hold the door");
 });
 
 test("a family is as hard as its hardest form", () => {

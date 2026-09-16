@@ -167,7 +167,6 @@ import {
 } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
 import {
-  difficulty,
   formatGap,
   freshState,
   hasLevelAbove,
@@ -178,9 +177,10 @@ import {
   mastered,
   maturity,
   openTypes as openTypesOf,
-  phaseCounts,
   reachedLevel,
   roomForNew,
+  recognised,
+  familyMaturity,
   standing,
   standings as standingsOf,
   stateReady,
@@ -462,7 +462,6 @@ function standingShort(at: Standing | null): string {
    Automatic difficulty
    ------------------------------------------------------------------ */
 
-const HARD_BACKLOG_LIMIT = 10;
 const DIFF_RANK: Record<string, number> = { easy: 0, steady: 1, unrated: 2, hard: 3 };
 
 
@@ -2015,6 +2014,38 @@ function openTypes(it: Form, settings: Settings): string[] {
   return reachedTypes(it, settings).filter((k) => typeAllowedNow(k, it));
 }
 
+/*
+ * The two numbers that decide whether a new word may be met.
+ *
+ * Counted over everything the learner holds in this language rather than
+ * the deck in front of them: the deck is what they chose to look at, the
+ * load is what they carry.
+ *
+ * The front door is words met and not yet recognisable. A word never
+ * touched is *not* in it — it is waiting outside, which is the whole point
+ * — so a course of three hundred strangers does not fill the pool and
+ * block itself.
+ *
+ * Exported for the pace simulation, which reports what a course costs a
+ * learner in days and is the only honest way to choose the two caps.
+ */
+export function handCounts(items: Item[], settings: Settings) {
+  let front = 0;
+  let inHand = 0;
+  for (const it of items) {
+    if (!isDrillable(it, settings)) continue;
+    const stage = familyMaturity(it, (u: Form) => reachedTypes(u, settings));
+    /* Never met: outside both pools. */
+    if (stage === "new") continue;
+    if (stage !== "mature") inHand += 1;
+    const known = drillableUnits(it, settings).every(({ unit }) =>
+      recognised(reachedTypes(unit, settings), (t: string) => stateOf(unit, t))
+    );
+    if (!known) front += 1;
+  }
+  return { front, inHand };
+}
+
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
    family is drillable when its main form qualifies. */
 /* A card that has never been answered carries no schedule at all, so every
@@ -2172,9 +2203,6 @@ const SESSION_SIZE = 18;
  * a first angle on a word you have not seen today.
  */
 const PER_UNIT = 2;
-
-/* New cards a session may open, before the room for them is counted. */
-const NEW_PER_SESSION = 3;
 
 /*
  * How many forms of one card a session will take.
@@ -2409,27 +2437,25 @@ export function buildSession({
    */
   // A hand-picked session takes everything chosen, and sets its own limits.
   if (!practice && !includeAll) {
-    /* Nothing new while a pile of cards is already fighting you. */
-    const backlog = pool.filter((it) =>
-      drillableUnits(it, settings).some(({ unit }) =>
-        enabledTypes(unit, settings).some(
-          (t) =>
-            difficulty(stateOf(unit, t)) === "hard" &&
-            maturity(stateOf(unit, t)) !== "mature"
-        )
-      )
-    ).length;
-    if (backlog >= HARD_BACKLOG_LIMIT) {
-      candidates = candidates.filter((c) => !c.isNew || c.urgent);
-    }
-    /* How full the learner's hands are, counted over everything they hold
-       in this language and not only the deck in front of them: the deck is
-       what they chose to look at, the load is what they carry. */
-    const inHand = phaseCounts(
-      items.filter((it) => isDrillable(it, settings)),
-      (u) => reachedTypes(u, settings)
-    );
-    const room = roomForNew(inHand, NEW_PER_SESSION);
+    /*
+     * Room for what is new — the only thing that rations it.
+     *
+     * Three rules used to sit here and none of them knew about the others:
+     * three a session, nothing while ten cards were mid-learning, nothing
+     * at all while forty were still settling, and a scan of every exercise
+     * on every card to stop new ones arriving while a pile was going
+     * badly. Between them they made the real rate about one new word every
+     * four days, measured — and the first of them meant ten short sittings
+     * in an evening were thirty new words where one long sitting was
+     * three, for the same work.
+     *
+     * One rule now: a word is earned by learning one. The struggling case
+     * the backlog scan existed for falls out of it, because a learner who
+     * keeps forgetting has words that never reach a four-day gap — those
+     * words hold their place and nothing new arrives, which is the same
+     * protection without a rule of its own to keep in step.
+     */
+    const room = roomForNew(handCounts(items, settings));
     let newSeen = 0;
     candidates = candidates.filter((c) => {
       /* Except one the learner asked for by name. Both rules above are the
@@ -6265,11 +6291,7 @@ export default function ArabicTrainer() {
          of them — the same reckoning buildSession does, so the two cannot
          come to disagree. */
       const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
-      const inHand = phaseCounts(
-        items.filter((it) => isDrillable(it, settings)),
-        (u) => reachedTypes(u, settings)
-      );
-      return met + Math.min(fresh, roomForNew(inHand, NEW_PER_SESSION));
+      return met + Math.min(fresh, roomForNew(handCounts(items, settings)));
     },
     [settings, items]
   );
@@ -6340,6 +6362,23 @@ export default function ArabicTrainer() {
      on the home screen, and what decides whether there is a session to
      start at all. */
   const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
+
+  /*
+   * Why no new words are arriving, when none are.
+   *
+   * A learner can be practising perfectly happily and still never meet a
+   * new word, because the words they hold have not been learnt yet. That
+   * is the rule doing its job, and until now it did it in silence — which
+   * reads as the app having quietly run out. Named, it is a goal instead:
+   * these are the ones in the way, and more arrive as they go.
+   */
+  const newWordsHeldUp = useMemo(() => {
+    const unmet = drillable.filter(
+      (it) => familyMaturity(it, (u: Form) => reachedTypes(u, settings)) === "new"
+    ).length;
+    if (!unmet) return 0;
+    return roomForNew(handCounts(shown, settings)) === 0 ? unmet : 0;
+  }, [drillable, shown, settings]);
 
   /* ---------------- session ---------------- */
 
@@ -8017,6 +8056,13 @@ Cards ready to practice
                     <Help>
                       {`Nothing is due. ${nextDueLine(drillable, settings)} Practising now is
                         welcome and won't move your schedule much.`}
+                    </Help>
+                  )}
+                  {newWordsHeldUp > 0 && (
+                    <Help>
+                      {`${plural(newWordsHeldUp, "word")} waiting to be introduced. New ones arrive
+                        as the words you're learning settle, so practising what you have is what
+                        brings them.`}
                     </Help>
                   )}
                   {!drillable.length && items.length > 0 && (
