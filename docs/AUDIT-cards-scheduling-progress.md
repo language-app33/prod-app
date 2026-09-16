@@ -1,6 +1,6 @@
 # Audit: cards, scheduling and progress
 
-**16 September 2026 · release 0.143 · the tree on `origin/beta` (commit 4fdc4f5)**
+**16 September 2026 · release 0.143, commit 4fdc4f5 · re-checked against 0.144 (94c18a4), which landed on `beta` during the audit: every probe below still reproduces on the merged tree.**
 
 An in-depth read of how a card is stored, how a session is dealt and marked,
 and how progress is kept and shown, judged against two principles:
@@ -69,6 +69,10 @@ in a jsdom walk.
   asserted exactly.
 - **Decisions are written down**, including the ones later reversed, which
   is what let this audit tell a deliberate cost from an accident.
+- **0.144 moved in the right direction.** The re-queue of a missed
+  question and the spacing of types came out of the session builder as two
+  exported pure functions with a test file of their own. That is exactly
+  the move step 8 below asks for the rest of the builder and the grader.
 
 ## Findings
 
@@ -95,7 +99,11 @@ Minutes. Add a test that opens a forms-only card.*
 When new material arrives, a card's forms are folded so the student keeps
 their progress. The lines of a conversation are not folded: they are taken
 from the fresh copy, which carries no progress. The refresh runs whenever
-any teacher on the course saves anything.
+any teacher on the course saves anything; 0.144's own comment beside the
+fold puts it more starkly — the teacher's card is taken whole, so anything
+of the learner's not listed there is wiped by the next refresh, "which
+happens every forty-five seconds". 0.144 listed the new priority mark.
+Lines and the met record are still not listed.
 *Fix: fold the lines the way the forms are folded. An hour.*
 
 **3. Progress on a card's second accepted spelling is discarded on every page open and every sync.** *Probed.*
@@ -395,13 +403,16 @@ speakers), 908 (12 lines), 883 and 918 (24 uses), 798/806/847-849 (text).
 counts other-table cells only.
 
 Unexported, and therefore untestable as units: `buildSession`, `withGrids`,
-`withReadThroughs`, `pickableTypes`, `varyTypes`, `laddered`, `openTypes`,
+`withReadThroughs`, `pickableTypes`, `laddered`, `openTypes`,
 `askableTypes`, `fillableAt`, `liftItem`, `liftStates`, `liftAnswers`,
 `merge`, `RETIRED_SETTINGS`; `applyGrade` (6250) is a closure over ten
 pieces of component state. Reached by tests via an esbuild bundle:
 `drillableUnits`, `onePerLevel`, `easedUnits`, `quietUnits`, `agreeTook`,
-`withoutListening`, `formIsAmbiguous`, `deckPercent`, `leadSpeed`.
+`withoutListening`, `formIsAmbiguous`, `deckPercent`, `leadSpeed`, and
+since 0.144 `varyTypes`, `requeueMissed` and `isUrgent`
+(`tests/session.test.mjs`).
 
-Test counts: 479 `node --test` cases across twenty files (scheduler 59,
-cards 58, languages 65, layers 47, verbs 38, server 35); 478 smoke checks,
-and a FAIL line does fail `npm test` (`smoke.mjs:4731`).
+Test counts at 4fdc4f5: 479 `node --test` cases across twenty files
+(scheduler 59, cards 58, languages 65, layers 47, verbs 38, server 35);
+478 smoke checks, and a FAIL line does fail `npm test` (`smoke.mjs:4731`).
+0.144 adds fourteen session cases and four card cases.
