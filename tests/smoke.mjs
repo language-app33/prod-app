@@ -7,6 +7,36 @@ import { build } from "esbuild";
 import path from "node:path";
 import { must } from "./helpers.mjs";
 
+/*
+ * One generator, seeded, for the whole walk.
+ *
+ * The app rolls a die in every place a session is built — which of the
+ * cards that are equally due comes first, which two exercises a form gets,
+ * which words fill a matching grid — and it all comes through Math.random.
+ * So this harness answered a slightly different app on every run, and the
+ * comments below record what that cost: a check that "failed about one run
+ * in seven" and was loosened until it passed, and a handful of others
+ * written to accept whichever tile came first.
+ *
+ * Seeded rather than frozen. A fixed sequence still varies *within* a run
+ * — two sessions built a minute apart are still different sessions, which
+ * is a thing this file checks — while being the same sequence on the next
+ * run, so a failure here can be reproduced and a flake cannot be mistaken
+ * for a fix. SMOKE_SEED takes another one, for when a walk should be tried
+ * against several.
+ *
+ * The clock is left alone. Ids, `created` stamps and the save debounce all
+ * read it, and a frozen one is a different kind of unreal.
+ */
+const SEED = Number(process.env.SMOKE_SEED || 20260916) >>> 0;
+let rolling = SEED || 1;
+Math.random = () => {
+  /* Numerical Recipes' constants: a plain linear congruential generator,
+     which is all this needs — nobody is drawing lottery numbers. */
+  rolling = (Math.imul(rolling, 1664525) + 1013904223) >>> 0;
+  return rolling / 4294967296;
+};
+
 /* Built inside the project so the bundle's bare "react" imports resolve to
    the project's node_modules. */
 import { mkdirSync, rmSync } from "node:fs";
@@ -1119,16 +1149,46 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
         /Moved up a level|Already at the top/.test(document.body.textContent || ""),
         ((document.querySelector(".at-snack") || {}).textContent || "").trim() || "(nothing said)");
       const doc = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+      /* Which keys were written just now, per form. */
+      const freshOf = (/** @type {any} */ f) =>
+        Object.entries(f.s || {}).filter(
+          ([, st]) => /** @type {any} */ (st).phase === "review" &&
+            Date.now() - (/** @type {any} */ (st).updated || 0) < 10000,
+        );
       const lifted = (doc.items || [])
         .flatMap((/** @type {any} */ i) => [...(i.forms || []), ...(i.lines || [])])
         .filter((/** @type {any} */ f) => {
-          const fresh = Object.values(f.s || {}).filter((/** @type {any} */ st) =>
-            st.phase === "review" && Date.now() - (st.updated || 0) < 10000);
-          return fresh.length >= 2 && new Set(fresh.map((/** @type {any} */ st) => st.updated)).size === 1;
+          const fresh = freshOf(f);
+          /* One stamp: the whole level goes up in a single write, which is
+             what says it was the lift and not a graded answer. */
+          return fresh.length >= 1 &&
+            new Set(fresh.map(([, st]) => /** @type {any} */ (st).updated)).size === 1;
         });
-      check("the form that was asked has its whole level counted as learnt, in one stamp",
+      const keys = lifted[0] ? freshOf(lifted[0]).map(([k]) => k) : [];
+      check("the form that was asked has its level counted as learnt, in one stamp",
         lifted.length === 1,
-        `${lifted.length} forms lifted` + (lifted[0] ? `: ${Object.entries(lifted[0].s).filter(([, st]) => /** @type {any} */ (st).phase === "review").map(([k]) => k).join(",")}` : ""));
+        `${lifted.length} forms lifted: ${keys.join(",")}`);
+      /*
+       * And only for exercises the card can actually be asked.
+       *
+       * This walk flags a sentence card — "اسمي {{name}}" — and a card
+       * whose words change is never asked to be told apart from others:
+       * there is nothing stable to put beside it, so `ar2pick` and the
+       * grid are not on its ladder at all. The lift used to read that
+       * ladder off the question instead of off the card, and a question
+       * has had its blanks filled in by the time anybody sees it — so the
+       * filled copy looked like an ordinary phrase, claimed every
+       * exercise, and the lift wrote a review state for one the card can
+       * never be dealt while leaving the level it was really on shut.
+       *
+       * Named rather than derived because deriving it would be
+       * re-implementing which exercises a card supports, which is the
+       * thing under test. The rule itself is asserted directly in
+       * tests/cards.test.mjs.
+       */
+      check("and writes nothing for an exercise a card with a blank cannot be asked",
+        !keys.includes("ar2pick") && !keys.includes("match") && !keys.includes("en2pick"),
+        keys.join(",") || "(nothing written)");
       const flagBtnEasy = document.querySelector('[data-el="flag-button"]');
       check("and the menu closes",
         !document.querySelector('[data-el="flag-menu"]') && /Flagged/.test((flagBtnEasy && flagBtnEasy.textContent) || ""),

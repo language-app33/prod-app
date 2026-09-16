@@ -172,6 +172,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   it is: a word, a sentence, or a conversation. Nothing is stored saying
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
+
+  **Answering a sentence credits the words that stood in it**, on the form
+  that was actually shown — the feminine an adjective agreed into, not the
+  word it came from. Three limits, in `fillerMarks` in `src/grade.ts`: only
+  a right answer counts, because a sentence cannot say which part of it was
+  wrong where a grid can; a word's own schedule moves only if it was
+  already due, as a word dealt into a grid to fill it out does; and a
+  sentence keeps a review up to date without opening a rung the word has
+  never been asked on its own, because the top of the ladder is writing a
+  word with nothing on the screen to go on. A card that is not practised in
+  its own right — a name — is left to the frame's own `met` record, and a
+  verb's own place in its own sentence to its table's gate.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in
@@ -301,6 +313,9 @@ src/
                    where the rows and columns come from, what a cell means,
                    which cell a subject calls for, and which rows are open
                    yet. Pure, and imports nothing.
+  grade.ts         marking an answer: what it counts as, what that does to
+                   the schedule of the form it was about, and where it is
+                   written back. Pure, no React, the clock passed in.
   ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
   spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them

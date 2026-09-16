@@ -1449,3 +1449,154 @@ test("an older report still finds its card, and does not invent an edit", async 
   assert.equal(opened.status, 200, "so the card it points at actually opens");
   assert.equal(lead(opened.json.card).en, "sun");
 });
+
+/*
+ * The shape a card was stored in before 0.138, cleared when it is saved.
+ *
+ * A card was its own first form: the word on the card, its other forms in
+ * `subs` beside it. One `forms` list replaced both, and a save spread the
+ * stored record under the new fields — so a card written before that kept a
+ * second, stale copy of its word for ever, sent it to every reader, and
+ * offered any of them the wrong half. The card editor read that half until
+ * the release this test arrived in.
+ */
+test("saving a card clears the shape it was stored in before one list of forms", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dana" } });
+  const key = made.json.key;
+
+  /* A card as an older build wrote one, put straight into the store: the
+     word on the card, the rest in `subs`, and grammar flat beside them. */
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+  const aged = {
+    id: "kaged0000", owner: made.json.user.handle, lang: "ar-PS", rev: 3,
+    ar: "كِتاب", en: "book", lat: "kitaab", gender: "masculine",
+    clips: ["oldclip"], slowClips: [], answers: [{ text: "كِتاب", lat: "kitaab" }],
+    subs: [{ ar: "كُتُب", en: "books", lat: "kutub" }],
+    created: 1, updated: 1,
+  };
+  await store.set(`card:${aged.id}`, JSON.stringify(aged));
+  await store.set(`owncards:${made.json.user.handle}`, JSON.stringify([aged.id]));
+
+  /* The teacher opens it and saves it, in the shape the app sends now. */
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: aged.id, lang: "ar-PS",
+        forms: [
+          { id: aged.id, ar: "كِتاب", en: "book", lat: "kitaab", gender: "masculine", clips: ["oldclip"] },
+          { id: "fpl", ar: "كُتُب", en: "books", lat: "kutub" },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  const card = saved.json.card;
+  assert.equal(lead(card).ar, "كِتاب", "the word is where a card keeps it");
+  assert.equal(subs(card).length, 1);
+  for (const gone of ["ar", "en", "lat", "clips", "slowClips", "answers", "subs", "gender"]) {
+    assert.equal(card[gone], undefined, `the card no longer carries ${gone} of its own`);
+  }
+  /* And on disk, not merely in the answer. */
+  const onDisk = JSON.parse((await store.get(`card:${aged.id}`, { type: "text" })) || "null");
+  assert.equal(onDisk.subs, undefined, "nor on disk");
+  assert.equal(onDisk.ar, undefined);
+  assert.equal(onDisk.forms.length, 2);
+});
+
+/*
+ * What the whitelist cut, said out loud.
+ *
+ * Every cap here is a guard against a runaway client, and each of them did
+ * its work in silence: a teacher who wrote a thirteenth turn got "Saved"
+ * and a card with twelve turns in it, with nothing on any screen to say
+ * which one had gone.
+ */
+test("a card that does not fit says what was left out", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Faris" } });
+  const key = made.json.key;
+
+  /* A thirteenth turn and a fifth speaker, both past the cap. */
+  const scene = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS", forms: [{ ar: "", en: "At the door", lat: "" }],
+        speakers: ["A", "B", "C", "D", "E"],
+        lines: Array.from({ length: 13 }, (_, i) => ({ who: 0, ar: `س${i}`, en: `line ${i}`, lat: "" })),
+      },
+      decks: [],
+    },
+  });
+  assert.equal(scene.status, 200, scene.text);
+  assert.equal(scene.json.card.lines.length, 12);
+  assert.deepEqual(scene.json.trimmed, ["1 turn", "1 speaker"],
+    "named, and counted, in the teacher's own terms");
+
+  /* Recordings, over the forms that were kept. */
+  const loud = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS",
+        forms: [{ ar: "باب", en: "door", lat: "baab", clips: Array.from({ length: 14 }, (_, i) => `c${i}`) }],
+      },
+      decks: [],
+    },
+  });
+  assert.deepEqual(loud.json.trimmed, ["2 recordings"]);
+
+  /* And an ordinary card says nothing at all, so the client has nothing to
+     report. */
+  const plain = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "شمس", en: "sun", lat: "shams" }] }, decks: [] },
+  });
+  assert.equal(plain.json.trimmed, undefined);
+});
+
+/*
+ * A backup that contains a conversation's recordings.
+ *
+ * Clip hashes are only discoverable from the cards that use them, so the
+ * backup reads every card to know what a complete one holds — and it read
+ * the forms alone. A line of a scene is drilled in its own right and
+ * carries recordings of its own, so a backup of a course with a
+ * conversation in it came out without a word of the conversation audible,
+ * and nothing said so: the manifest's own count agreed with itself.
+ */
+test("a backup counts the recordings on a conversation's turns", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nour" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const scene = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS",
+        forms: [{ ar: "", en: "At the door", lat: "", clips: ["wordclip"] }],
+        speakers: ["A", "B"],
+        lines: [
+          { who: 0, ar: "مرحبا", en: "hello", lat: "", clips: ["lineclip"] },
+          { who: 1, ar: "أهلا", en: "hi", lat: "", slowClips: ["slowlineclip"] },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(scene.status, 200, scene.text);
+  assert.equal(scene.json.card.lines[0].clips[0], "lineclip", "the turn's recording is stored");
+
+  const got = await api("/api/courses?action=admin-backup-manifest", { key });
+  assert.equal(got.status, 200, got.text);
+  const planned = got.json.manifest.plan
+    .filter((/** @type {any} */ c) => c.kind === "clip")
+    .flatMap((/** @type {any} */ c) => c.keys);
+  for (const hash of ["wordclip", "lineclip", "slowlineclip"]) {
+    assert.ok(planned.includes(`clip:${hash}`), `${hash} is in the backup`);
+  }
+  assert.equal(got.json.manifest.counts.clips, planned.length, "and the count agrees with the plan");
+});

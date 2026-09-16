@@ -1371,3 +1371,272 @@ twice running is what a learner writes in to complain about.
 **What it costs.** Both functions are exported solely so they can be
 tested, which is how the second of these was found — the first attempt
 passed every test that was written before it and failed one written after.
+
+---
+
+## A reader that agrees with its fixtures and not with the disk
+
+**16 September 2026** · `initialForms`/`initialCells` in
+`src/card-editor.tsx`, `foldForms`/`foldCourses` in `src/shared.tsx`,
+`liftStates` in `src/ArabicTrainer.tsx`, `RETIRED_CARD_FIELDS` and
+`clipsOfCard` in `server/api/courses.js`
+
+*A card is its forms* moved the stored shape to one list and said the lift
+on read was what made that safe: `formsOf` reads a card written the old
+way as the list it always meant, so "nothing else in the app knows there
+were ever two shapes." That was true of everything that asked `formsOf`.
+Five readers did not ask, and the entry's own confidence is why nobody
+looked: they went on reading fields that nothing had written since.
+
+**The editor was the worst of them.** `initialForms` built its first block
+from `card.ar`, `card.clips`, `card.ask` — the card's own word, where it
+lived until 0.138. The server had stopped writing there, so a card saved
+since opened blank; and because a save spread the stored record under the
+new fields without clearing the old ones, a card written *before* 0.138 kept
+a stale copy of its word for ever and opened on that. Either way the next
+save wrote the wrong thing back over the right one.
+
+**What made all five invisible is the same thing.** Every fixture in the
+suite was written in the pre-0.138 shape — `{ ar, en, subs }` — and every
+reader of a card reads that shape as the new one without complaint. So the
+readers agreed with the fixtures and the fixtures disagreed with the disk,
+and 514 tests passed. Tolerance at the boundary is right (a card is
+somebody's work, and half of it read is worth more than an exception), and
+it is exactly what turns a wrong reading into a silent one. **A tolerant
+reader needs a round trip, not more fixtures.** There is one now, in
+`tests/cards.test.mjs`: a card in the shape the server stores goes to a
+device, through the fold a refresh makes, into the editor and out again,
+and every field is checked at the far end. It fails on four of the five.
+
+**The old shape is cleared on save rather than left underneath.**
+`RETIRED_CARD_FIELDS` is a written-out list, not a derived one: these are
+the fields that stopped belonging to a card, and the next field to stop
+belonging to one belongs beside them. Keeping both shapes was never
+decided — it was what spreading `existing` did — and the cost was a stale
+copy of every old card's word on disk and on every wire payload, with a
+reader free to pick the wrong half.
+
+**The fold has to name what it keeps, and that is a bad shape.**
+`foldCourses` takes the teacher's card whole and copies the learner's own
+facts back onto it one at a time — the schedules, the priority mark, and
+now the conversation's turns and each frame's record of the words it has
+met. Anything not named is wiped, on a poll that runs every forty-five
+seconds. Two of the four were missing and it took an audit to see, because
+nothing fails: the card is still there and still correct, and only the
+progress is gone. The honest fix is the other way round — start from what
+the learner has and take the teacher's *wording* — and it is not this
+release: the wording is spread across a dozen fields and the card-level
+facts are three. Written down so the next person to add a per-learner
+field knows it has to be named, and that the shape is upside down.
+
+**`met` merges rather than being taken.** It is a high-water mark, so `max`
+is the answer whichever side is asked and asking twice changes nothing —
+the same rule sync already merges it by. A fold is not a merge, but making
+it behave like one costs nothing and removes a question.
+
+**A cell of a table finally has a name.** 0.131 gave forms names because
+matching a student's progress to a teacher's forms by position handed
+schedules to the wrong words when a form was inserted. A cell is a form,
+and it was left out: cells were minted with no `id`, and the editor
+rewrote an edited cell onto the *end* of the list on every keystroke — so
+correcting one box of a verb's table shifted every box below it by one on
+every device holding the card. The fix is a name and an in-place write. The
+positional fallback in `foldForms` is what carries the tables that already
+exist: an unrecognised name matches by position, which is what it was
+written for.
+
+**What a document drops on the way in, it drops for ever.** `liftStates`
+walked `TYPES` and the v2 map, which is every key that existed when it was
+written. A card accepting two spellings schedules the second under
+`ar2en@1`, and that key was not in either list — so it was dropped on load,
+after every sync and on every import. The suffix was chosen in 0.99
+precisely so that nothing else had to be told about it ("sync goes on
+merging state name by name without being told anything"), and the one place
+that *does* enumerate keys was missed. Anything that lists what a form may
+carry is a second answer to a question the keys already answer, and this
+one now filters by `typeOf` instead of listing.
+
+**The ladder belongs to the card, not to the question.** "Too easy" read
+`laddered` off the unit being displayed, and a displayed unit has had its
+blanks filled in — so a sentence card looked like an ordinary phrase,
+claimed the exercises a card with a blank can never be asked, and had a
+review state written for one of them while the level it was really on
+stayed shut. Everything else that reads a ladder reads the stored form;
+this now does too. The general rule is worth stating: **a cast form is for
+showing, never for deciding.** It is narrowed to one spelling, one meaning
+and no holes, and every one of those is a fact the schedule depends on.
+
+**One gate, two callers.** `askedUnits` is the two gates every reader of a
+card's forms shares — a cell behind its row, a form kept without being
+asked about — and `drillableUnits` is that plus the two-exercise minimum a
+dealt session wants. The manual builder needed the gates without the
+minimum and so walked `unitsOf` itself, which is how it came to ask a table
+the teacher had switched off. Splitting the function was cheaper than
+threading a number through it.
+
+**What the caps cut is now reported rather than inferred.** The server's
+whitelist caps everything, and each cap worked in silence: a thirteenth
+turn was dropped and the answer said "Saved". `trimmed` is counted by
+comparing what arrived against what is stored rather than by repeating the
+numbers, so a cap added to the whitelist is reported without being told
+about — the numbers stay in one place, which is the condition on which
+this is worth having at all.
+
+**And the harness rolls a seeded die.** The smoke walk ran on real
+randomness, so it answered a slightly different app on every run; its own
+comments record a check that "failed about one run in seven" and was
+loosened until it passed. It is seeded now — still varied within a run,
+which is a thing the walk checks, and the same sequence on the next one, so
+a failure can be reproduced and a flake cannot be mistaken for a fix.
+`SMOKE_SEED` takes another. The clock is left real: ids, `created` stamps
+and the save debounce all read it, and a frozen one is a different kind of
+unreal.
+
+**What is left out.** The structural item the audit put last: dealing,
+marking and the load-time lift still live inside the screen file, and
+`applyGrade` is still a closure over ten pieces of component state, so the
+write path that files a mark against a form has no unit test. Four small
+seams were opened here instead — `laddered`, `liftStates`, `merge` and the
+two module-level indexes a frame's behaviour depends on — which is enough
+to assert the rules this release changed and not enough to call the
+question closed.
+
+---
+
+## Marking an answer comes out of the screen
+
+**16 September 2026** · `src/grade.ts`, `contextIndexOf`/`valueIndexOf`/
+`valueReachOf`/`installIndexes` and the exported `buildSession` in
+`src/ArabicTrainer.tsx`, `tests/grade.test.mjs`, the dealing half of
+`tests/session.test.mjs`
+
+The audit above ends with an item it did not do: dealing, marking and the
+load-time lift all lived inside the screen file, so the part of the app
+that decides what you practise and what you have learnt could not be
+tested. This is that item.
+
+**It is the move the scheduler already made.** `scheduler.ts` opens by
+saying the spaced-repetition maths lived inside the screen and therefore
+had no tests at all — "it could not have any: it was unreachable from a
+test, and every function read the clock and the random number generator
+straight out of the global scope." Marking was in the same position for the
+same reason, one floor up, and the fix is the same: a plain module, no
+React, nothing imported from the screen, and the impure things passed in.
+
+**What moved, and what the line is.** `grade.ts` answers three questions —
+what an answer counts as (`verdictOf`), what that writes onto one schedule
+(`markedState`), and where it goes on the card (`gradeInto`, through
+`withMark`). What stayed behind is what is genuinely the screen's: which
+of its pieces were on when Continue was pressed, and which words a grid
+put up. The component now gathers, asks and applies, and the `persist`
+callback is four lines.
+
+`gradeInto` answers **null** where it wrote nothing — every card named
+withdrawn, or the one mark being the question a lift already moved — so the
+caller leaves the document untouched rather than saving a copy that differs
+in nothing. That was a `let any = false` inside the old loop; it is the
+return value now, which is the same fact said where a caller can read it.
+
+**Dealing needed a seam, not a move.** `buildSession` was already a plain
+function of its arguments. What made it unreachable was the half-dozen
+module-level maps it reads — where each word turns up, what fills each
+blank and how far the learner has got with it, which cells are behind a
+gate — each of which only a render knew how to fill, because each was
+worked out inline in a `useMemo`. So the working-out is named
+(`contextIndexOf`, `valueIndexOf`, `valueReachOf`, beside the builders that
+already had names) and `installIndexes` calls all of them in the order they
+depend on each other.
+
+**The memos stay separate.** Collapsing them into one would have been
+tidier and is wrong: the context index walks every phrase against every
+word it claims to teach, and its dependency list deliberately reads
+`settings.language` rather than `settings` so that typing in a box does not
+rebuild it. `installIndexes` is a test seam and says so; the render still
+installs each map on its own terms, from the same functions.
+
+**What the new tests found.** Two things, both in the tests rather than the
+code, which is the honest answer for a move that changed no behaviour.
+Asserting that a session of twelve new cards spreads over four of them
+fails, because it opens three: that is the room kept for new cards doing
+its job, and the assertion was wrong about the app rather than the other
+way round. And a frame with a value in the deck is only dealt reliably when
+it is the one *new* card among cards that are due — otherwise it competes
+for those three places and the test is a coin toss. Both are now written as
+what the rules actually say.
+
+**What is still not covered.** The load-time lift is reachable
+(`liftStates` and `merge` were exported a release ago) and the two builders
+are, but the *wiring* between them is not: nothing asserts that the screen
+hands `applyGrade`'s marks the key that was dealt, because that is the
+component. A jsdom walk is the only thing that can say it, and one does —
+loosely. The gap is narrower than it was and it has not closed.
+
+---
+
+## A sentence credits the words that stood in it
+
+**16 September 2026** · `fillerMarks` and `filled` on `Mark` in
+`src/grade.ts`, `fillersIn` and the owner index in
+`src/ArabicTrainer.tsx`
+
+*A sentence is a card made of blanks, and the vocabulary fills them* built
+the frame and gated which words may stand in it. It never said what
+answering one does to those words, and the answer was nothing: the frame
+was marked and its fillers were not. So a learner could write a noun
+correctly a dozen times inside sentences while the app went on believing
+they had never produced it — and the sentence's own record, `met`, is a
+high-water mark of *which values it has been asked with*, which is a fact
+about the frame rather than progress on the word.
+
+**The grid is the precedent, and two of its three rules carry over.** A
+matching grid is the other exercise where one answer is about several
+words, and it already says that every word in it is marked in its own
+right and that one dealt in to fill it out is credited without its
+schedule moving. Both hold here.
+
+**What does not carry over is blame.** A grid knows which pair was
+mismatched. A sentence does not: something in "the book is big" was wrong
+and nothing says which part, so a wrong answer counts against none of the
+words in it. A right answer is unambiguous about every one of them. The
+asymmetry is the whole of why this is not simply "mark the fillers too".
+
+**And a sentence cannot open a rung.** The tempting version credits the
+filler exactly as the frame was credited, which would let a word graduate
+*write it from its meaning* — the strictest question in the app, defined as
+having nothing on the screen to go on — on the strength of an answer given
+with a whole sentence on the screen. So the schedule moves only where that
+word's own was already under way and due. "Under way" is `phase !== "new"`
+rather than "has a state": in memory every type carries one, so the
+question is whether the word has ever been asked this on its own.
+
+**It is credited on the form that was shown, which is not always the one
+that was lent.** An agreeing card lends its own word and the sentence goes
+back to the table for the form that agrees, so what stood in the blank is
+a cell nothing lent — and the cell has its own schedule. Which meant the
+owner index had to answer for every form of a filling card rather than
+only the lent ones. The reach map is deliberately untouched by that: which
+values a hole may take is read off the pool, and the pool is what a card
+lends, so a further key there would be an answer nobody asks for.
+
+**Two things are left out on purpose.** A card the teacher marked as not
+practised on its own — a name — is skipped: it has no ladder, so a
+schedule written on it is one nothing reads, and `met` on the frame is
+exactly the record for that case. And a verb card's own place in its own
+sentence is skipped, because that slot is filled from the card's own table
+rather than from the deck: the cell's ladder is the table's gate to open,
+not something the sentence above it has earned.
+
+**What it cost.** `filled` moved from the question onto the mark. It had
+been read once and applied to every mark, which was harmless while the
+only multi-mark question was a grid — a grid never contains a frame — and
+would have written the sentence's record onto each word it borrowed the
+moment this shipped, saying each had been met with itself. One answer
+marks several forms and only one of them is the sentence; the mark is
+where that belongs.
+
+**Where the gate and the credit meet.** A cell behind its table's gate has
+no keys at all, so it is credited for nothing — which is right, and is not
+a second rule: `laddered` is the one list every reader goes through. In
+practice the two agree, because an adjective whose own word is unmet
+cannot fill a blank either. A test holds them together rather than leaving
+it to be rediscovered.

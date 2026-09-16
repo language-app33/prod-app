@@ -45,9 +45,9 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { shapeOf, shapeChoices, categoryChoices, tableFor,
+const { shapeOf, shapeChoices, categoryChoices, categoryOffers, tableFor,
   initialForms, initialCells, initialCategory, storedFormsOf, asideOf, tableCellsOf,
-  canSaveWord, canSaveScene, writtenLines, ownerLabel, askParts, partAsked } =
+  canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked } =
   await import(path.join(out, "card-editor.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -84,7 +84,9 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits, drillableUnits, agreeTook } =
+const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits,
+  drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
+  setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
 const { TYPES, LANGUAGES, verbOf, attachedOf, specOf } = await import(path.join(here, "..", "src", "languages.ts"));
 
@@ -758,6 +760,74 @@ test("a card the learner asked for stays asked for when the teacher edits it", (
   assert.equal(out[1].priority, undefined, "a card nobody marked gains nothing");
 });
 
+/*
+ * And the two things the fold used to leave behind.
+ *
+ * A refresh takes the teacher's card whole, so anything of the learner's
+ * that is not carried across by name is wiped — and the refresh runs
+ * every forty-five seconds. The schedules of a card's forms were carried;
+ * the turns of a conversation, and a frame's record of which words it has
+ * been filled with, were not.
+ */
+test("a conversation's turns keep their progress when the teacher edits the scene", () => {
+  /* Every line is drilled in its own right, with its own recordings and
+     its own schedule — so taking the lines from the teacher's copy sent
+     every one of them back to never-answered on the next poll. */
+  const had = [
+    { id: "srvk9", source: { cardId: "k9" },
+      forms: [{ id: "srvk9", ar: "t", en: "t", s: {} }],
+      lines: [
+        { id: "srvk9-l0", ar: "مرحبا", en: "hello", s: { dlgpick: { phase: "review", reps: 5 } } },
+        { id: "srvk9-l1", ar: "أهلا", en: "hi", s: { dlgpick: { phase: "review", reps: 2 } } },
+      ] },
+  ];
+  /* The teacher fixes a typo in the second turn. */
+  const fresh = [
+    { id: "srvk9", source: { cardId: "k9" },
+      forms: [{ id: "srvk9", ar: "t", en: "t", s: {} }],
+      lines: [
+        { id: "srvk9-l0", ar: "مرحبا", en: "hello", s: {} },
+        { id: "srvk9-l1", ar: "أهلاً", en: "hi there", s: {} },
+      ] },
+  ];
+  const out = foldCourses(had, fresh).items[0];
+  assert.equal(out.lines[0].s.dlgpick.reps, 5, "the first turn keeps its work");
+  assert.equal(out.lines[1].s.dlgpick.reps, 2, "and so does the one that was edited");
+  assert.equal(out.lines[1].en, "hi there", "while the teacher's wording still wins");
+});
+
+test("a frame keeps its record of the words it has been filled with", () => {
+  /* `met` is how far a hole has been filled with each value, and it is the
+     only thing gating a value that has no ladder of its own. Dropped, every
+     name the frame had taught read as unmet again. */
+  const had = [
+    { id: "srvka", source: { cardId: "ka" },
+      forms: [{ id: "srvka", ar: "اسمي {{name}}", en: "my name is {{name}}",
+        s: { ar2en: { phase: "review", reps: 3 } }, met: { "name:raphael": 3, "name:sarah": 1 } }] },
+  ];
+  const fresh = [
+    { id: "srvka", source: { cardId: "ka" },
+      forms: [{ id: "srvka", ar: "اسمي {{name}}", en: "my name is {{name}}", s: {} }] },
+  ];
+  const out = foldCourses(had, fresh).items[0];
+  assert.deepEqual(out.forms[0].met, { "name:raphael": 3, "name:sarah": 1 });
+  /* A high-water mark, so the further of the two wins and it does not
+     matter which side is asked — the same rule sync merges it by. */
+  const bothWays = foldCourses(
+    had,
+    [{ id: "srvka", source: { cardId: "ka" },
+      forms: [{ id: "srvka", ar: "x", en: "x", s: {}, met: { "name:raphael": 1, "name:leila": 2 } }] }],
+  ).items[0];
+  assert.deepEqual(bothWays.forms[0].met,
+    { "name:raphael": 3, "name:sarah": 1, "name:leila": 2 });
+  /* And a card that never had one does not start carrying an empty one. */
+  const plain = foldCourses(
+    [{ id: "srvkb", source: { cardId: "kb" }, forms: [{ id: "srvkb", ar: "a", en: "a", s: {} }] }],
+    [{ id: "srvkb", source: { cardId: "kb" }, forms: [{ id: "srvkb", ar: "a", en: "a", s: {} }] }],
+  ).items[0];
+  assert.equal(plain.forms[0].met, undefined);
+});
+
 test("a card marked on this device only is not invented on one that has it too", () => {
   /* The other way round: the teacher's copy never carries the mark, so a
      card the learner has not marked must not come back marked. */
@@ -1265,6 +1335,336 @@ test("a card with no alternates is one form, and nothing at all is none", () => 
   assert.deepEqual(subFormsOf(null), []);
   assert.deepEqual(formsOf({ id: "k", subs: "not a list" }).map((f) => f.id), ["k"]);
   assert.deepEqual(subFormsOf({ id: "k", subs: 7 }), []);
+});
+
+/* ------------------------------------------------------------------
+   A card, all the way round and back
+
+   The audit that prompted these found five things lost between one end of
+   a card's journey and the other, and every one of them was green: the
+   fixtures were all written in the shape a card was stored in before
+   0.138, and every reader of a card reads that shape as the new one
+   without complaint. So the readers agreed with the fixtures and disagreed
+   with the disk.
+
+   These go the other way. They start from a card in the shape the server
+   actually stores — one `forms` list, nothing on the card itself — and
+   follow it to the student's device, back through the fold a refresh makes,
+   into the editor and out of it again.
+   ------------------------------------------------------------------ */
+
+/** A card in the shape save-card stores one: one list, the word first. */
+const storedCard = (/** @type {Record<string, any>} */ over = {}) => ({
+  id: "k1",
+  owner: "teacher",
+  lang: "ar-PS",
+  category: "noun",
+  name: "",
+  fills: "",
+  drill: true,
+  note: "about the book",
+  forms: [
+    { id: "k1", ar: "كِتاب", en: "book", lat: "kitaab", gender: "masculine", number: "singular",
+      clips: ["c1"], slowClips: ["c2"], answers: [{ text: "كِتاب", lat: "kitaab", gender: "masculine" }] },
+    { id: "fpl", ar: "كُتُب", en: "books", lat: "kutub", gender: "masculine", number: "plural", clips: [] },
+    { id: "fme", ar: "كتابي", en: "my book", lat: "kitaabi", row: "attached", col: "me", clips: [] },
+  ],
+  ...over,
+});
+
+test("a card stored as one list of forms opens in the editor as itself", () => {
+  /*
+   * The word lived on the card until 0.138 and has lived in the first of
+   * its forms since. The editor went on reading the card, so a card saved
+   * by this build opened with an empty first block — Save grey, and a
+   * teacher who retyped the word saved it with no recordings, no grammar
+   * and its "kept, not asked" switched back on.
+   */
+  const forms = initialForms(/** @type {any} */ (storedCard({ forms: [
+    { id: "k1", ar: "كِتاب", en: "book", lat: "kitaab", gender: "masculine", clips: ["c1"], ask: false },
+    { id: "fpl", ar: "كُتُب", en: "books", lat: "kutub" },
+  ] })), null);
+  assert.equal(forms[0].ar, "كِتاب", "the card's own word is there");
+  assert.equal(forms[0].en, "book");
+  assert.equal(forms[0].lat, "kitaab");
+  assert.equal(forms[0].gender, "masculine", "with whatever the language declares about it");
+  assert.deepEqual(forms[0].clips, ["c1"], "and its recordings");
+  assert.equal(forms[0].ask, false, "and whether it is asked about at all");
+  assert.equal(forms[1].ar, "كُتُب", "the forms under it as before");
+
+  /* And a card still stored the old way reads exactly the same, which is
+     what makes this safe to change: leadOf hands back the card itself. */
+  const old = initialForms(
+    /** @type {any} */ ({ id: "k", ar: "كِتاب", en: "book", lat: "kitaab", clips: ["c1"], ask: false, subs: [] }),
+    null,
+  );
+  assert.equal(old[0].ar, "كِتاب");
+  assert.deepEqual(old[0].clips, ["c1"]);
+  assert.equal(old[0].ask, false);
+});
+
+test("what each accepted answer is grammatically survives being opened", () => {
+  /* Two spellings of one thing may differ in exactly the grammar a card
+     records — مبسوط from a man, مبسوطة from a woman — and the strings
+     carry the words but not that. Rebuilt from the strings alone, the
+     feminine came back as whatever the form's own values said, on every
+     open and every save. */
+  const forms = initialForms(/** @type {any} */ ({
+    id: "k", lang: "ar-PS", forms: [{
+      id: "k", ar: "مبسوط / مبسوطة", en: "happy", lat: "mabsuuT / mabsuuTa",
+      answers: [
+        { text: "مبسوط", lat: "mabsuuT", gender: "masculine" },
+        { text: "مبسوطة", lat: "mabsuuTa", gender: "feminine" },
+      ],
+    }],
+  }), null);
+  assert.equal(forms[0].answers.length, 2);
+  assert.deepEqual(forms[0].answers.map((/** @type {any} */ a) => a.gender),
+    ["masculine", "feminine"]);
+});
+
+test("every cell of a table is given a name, and keeps the one it has", () => {
+  /*
+   * A cell was the one kind of form with nothing to point at, so on a
+   * student's device it was known by where it sat — and a teacher fixing a
+   * typo in one box handed its neighbours each other's schedules. 0.131
+   * named the forms for that reason and left the table out.
+   */
+  const cells = initialCells(/** @type {any} */ ({ id: "v", lang: "ar-PS", forms: [
+    { id: "v", ar: "أكل", en: "to eat", lat: "akal" },
+    cellOf("past", "he", { ar: "أكل", id: "fkept" }),
+    cellOf("past", "she", { ar: "أكلت" }),
+    cellOf("present", "he", { ar: "بياكل" }),
+  ] }), arLang);
+  assert.equal(cells.length, 3);
+  assert.equal(cells[0].id, "fkept", "a cell that has a name keeps it");
+  for (const c of cells) assert.match(String(c.id), /^f[a-z0-9]+$/, `${c.row}·${c.col} is named`);
+  assert.equal(new Set(cells.map((/** @type {any} */ c) => c.id)).size, 3, "and no two share one");
+  /* In the order they were stored, which is what carries a table written
+     before they had names across its first save: the fold matches an
+     unrecognised name by position. */
+  assert.deepEqual(cells.map((/** @type {any} */ c) => `${c.row}·${c.col}`),
+    ["past·he", "past·she", "present·he"]);
+});
+
+test("a card goes to a device, comes back through a refresh, and is saved unchanged", () => {
+  /*
+   * The whole journey, which is the test the audit asked for: five of the
+   * things it found were lost somewhere along it and every fixture in this
+   * file was written in the shape that hid them.
+   */
+  const card = storedCard();
+  /* To the student's device. */
+  const item = cardToItem(/** @type {any} */ (card), "Lesson 1", "c1", "d1", () => ({}));
+  assert.equal(formsOf(item).length, 3, "every form arrives");
+  assert.deepEqual(formsOf(item).map((/** @type {any} */ f) => f.ar), ["كِتاب", "كُتُب", "كتابي"]);
+  assert.equal(formsOf(item)[2].row, "attached", "a cell arrives as a cell");
+  assert.equal(formsOf(item)[2].col, "me");
+
+  /* The learner does some work on the plural and on the pronoun. */
+  const worked = {
+    ...item,
+    forms: formsOf(item).map((/** @type {any} */ f, i) =>
+      i === 0 ? f : { ...f, s: { ar2en: { phase: "review", reps: i * 2, updated: 1 } } }),
+  };
+  /* The teacher saves the card again — any save, for any reason — and the
+     refresh folds the new copy in. */
+  const again = cardToItem(/** @type {any} */ (card), "Lesson 1", "c1", "d1", () => ({}));
+  const folded = foldCourses([worked], [again]).items[0];
+  assert.equal(folded.forms[1].s.ar2en.reps, 2, "the plural keeps its work");
+  assert.equal(folded.forms[2].s.ar2en.reps, 4, "and so does the cell");
+
+  /* And back into the teacher's editor, out of it, and up. */
+  const forms = initialForms(/** @type {any} */ (card), null);
+  const cells = initialCells(/** @type {any} */ (card), arLang);
+  const written = writtenCard({
+    word: {
+      shownSpec: specOf(arLang, "attached"),
+      ownForms: forms,
+      tableCells: cells,
+      forms,
+      note: card.note,
+      standsIn: false,
+      name: "",
+      uses: [],
+      fills: "",
+      drill: true,
+      category: "noun",
+    },
+    talk: {},
+    shape: "word",
+    chosen: ["d1"],
+  });
+  assert.deepEqual(written.forms.map((/** @type {any} */ f) => f.ar), ["كِتاب", "كُتُب", "كتابي"],
+    "every form comes back out, the word first");
+  assert.deepEqual(written.forms[0].clips, ["c1"], "with the word's recordings still on it");
+  assert.equal(written.forms[0].gender, "masculine");
+  assert.equal(written.forms[2].row, "attached", "and the cell still placed");
+  assert.equal(written.category, "noun");
+  assert.equal(written.note, "about the book");
+});
+
+/* ---- what a document keeps on its way in ---- */
+
+test("a card's second accepted spelling keeps its schedule across a load", () => {
+  /*
+   * Each spelling of a card that accepts two is scheduled in its own
+   * right, under a key that names which — "ar2en" for the first and
+   * "ar2en@1" for the second. This walked the bare type names alone, so
+   * the second one's schedule was dropped on every load, after every sync
+   * and on every import: answered in the evening and gone by the morning.
+   */
+  const stored = {
+    ar2en: { phase: "review", interval: 3, reps: 4, right: 4 },
+    "ar2en@1": { phase: "review", interval: 2, reps: 2, right: 2 },
+  };
+  const lifted = liftStates(stored);
+  assert.equal(lifted["ar2en"].reps, 4);
+  assert.ok(lifted["ar2en@1"], "the second spelling's schedule is still there");
+  assert.equal(lifted["ar2en@1"].reps, 2);
+  assert.equal(lifted["ar2en@1"].interval, 2);
+  /* A key naming an exercise that no longer exists goes the way a retired
+     type's own state goes, and one nobody has answered is not invented:
+     an absent key is what let this be turned on without touching a
+     document. */
+  assert.equal(liftStates({ "gone2en@1": { phase: "review" } })["gone2en@1"], undefined);
+  assert.equal(liftStates({})["ar2en@1"], undefined);
+});
+
+test("a setting the app no longer offers is dropped rather than obeyed", () => {
+  /* Which kinds of card are practised at all outlived the screen that set
+     it: no writer anywhere, a default of every kind, and on a device that
+     had switched conversations off long ago it went on hiding every scene
+     in every session and every count. */
+  const doc = merge({
+    version: 3,
+    items: [],
+    settings: { language: "ar-PS", kinds: { word: true, phrase: true, sentence: true, dialog: false },
+      sessionSize: 40, theme: "dark" },
+  });
+  assert.equal(doc.settings.kinds, undefined, "the kinds are gone");
+  assert.equal(doc.settings.sessionSize, undefined, "as the session size already was");
+  assert.equal(doc.settings.theme, "dark", "and what is genuinely the learner's stays");
+});
+
+test("a document written the old way comes through as one list of forms", () => {
+  const doc = merge({
+    version: 3,
+    items: [{ id: "k", tags: [], created: 1, ar: "كِتاب", en: "book", lat: "kitaab",
+      s: { ar2en: { phase: "review", reps: 2 } },
+      subs: [{ id: "pl", ar: "كُتُب", en: "books", lat: "kutub", s: {} }] }],
+    settings: { language: "ar-PS" },
+  });
+  const it = doc.items[0];
+  assert.deepEqual(formsOf(it).map((/** @type {any} */ f) => f.ar), ["كِتاب", "كُتُب"]);
+  assert.equal(must(formsOf(it)[0].s, "the word's states").ar2en.reps, 2,
+    "the word's own progress moves with it");
+  assert.equal(it.ar, undefined, "and the old shape is not left underneath");
+  assert.equal(it.subs, undefined);
+});
+
+/* ---- the ladder a form climbs is the card's, not the question's ---- */
+
+test("a frame's ladder is read off the card as written, not as filled in", () => {
+  /*
+   * A card with a blank in it cannot be told apart from other words — the
+   * distractors would be stable and its own words would not — so the
+   * picking exercises are not on its ladder at all. Fill the blank in and
+   * the copy looks like an ordinary phrase and claims every exercise.
+   *
+   * Which is why "this was too easy" has to read the stored form: it read
+   * the question instead, and the question is filled in by the time
+   * anybody sees it. On a frame that meant writing a review state for an
+   * exercise the card can never be dealt, and calling the next level the
+   * one after that — so the level the learner was actually on stayed shut.
+   */
+  const settings = { language: "ar-PS" };
+  /* A word to put in the hole, or the frame is not a question at all —
+     which is its own rule, and not the one under test here. And a deck
+     with other words in it, or nothing can be told apart from anything
+     and the exercises this is about are off the table for both copies. */
+  setValueIndex(new Map([[valueKey("ar-PS", "name"),
+    [{ id: "rafa", ar: "رافائيل", en: "Raphael", lat: "Raphael" }]]]));
+  setMateCounts(new Map([["ar-PS", 12]]));
+  const frame = { id: "f", lang: "ar-PS", ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}", s: {} };
+  const filled = { ...frame, ar: "اسمي رافائيل", en: "my name is Raphael", lat: "ismi Raphael" };
+  const asWritten = laddered(/** @type {any} */ (frame), settings);
+  const asAsked = laddered(/** @type {any} */ (filled), settings);
+  assert.ok(asWritten.includes("ar2en"), "a frame can still be read");
+  assert.ok(!asWritten.includes("ar2pick"), "but never told apart from other words");
+  assert.ok(!asWritten.includes("match"));
+  assert.ok(asAsked.includes("ar2pick"), "while the filled-in copy claims it");
+  assert.ok(asAsked.length > asWritten.length, "which is the whole of the difference");
+  /* And with nothing to fill it, a frame is asked nothing — the rule the
+     line above steps around, asserted rather than assumed. */
+  setValueIndex(new Map());
+  assert.deepEqual(laddered(/** @type {any} */ (frame), settings), []);
+  setMateCounts(new Map());
+});
+
+/* ---- the gates every reader of a card's forms shares ---- */
+
+test("a form nobody is asked about is not offered to any session", () => {
+  /* Two gates, one list. A session built by hand walked the forms itself
+     and applied neither, so a table the teacher keeps for a student to
+     read was drilled there and a verb's later tenses were dealt before its
+     present was known. */
+  const settings = { language: "ar-PS" };
+  const card = {
+    id: "c", lang: "ar-PS", kind: "word",
+    forms: [
+      { id: "c", ar: "كِتاب", en: "book", lat: "kitaab", s: {} },
+      { id: "quiet", ar: "كُتُب", en: "books", lat: "kutub", ask: false, s: {} },
+    ],
+  };
+  const asked = askedUnits(/** @type {any} */ (card)).map((/** @type {any} */ u) => u.unit.id);
+  assert.deepEqual(asked, ["c"], "the form switched off is not one of them");
+  /* And what a dealt session looks at is that, narrowed to the forms with
+     two exercises between them — so the two answers cannot drift. */
+  const drilled = drillableUnits(/** @type {any} */ (card), settings).map((/** @type {any} */ u) => u.unit.id);
+  assert.deepEqual(drilled, ["c"]);
+});
+
+/* ---- what the editor offers on a card that already has a table ---- */
+
+test("a card with a table can still be told which kind of word it is", () => {
+  /*
+   * The radio was withheld whenever a card carried a table, because
+   * changing the kind changes the table and the table is the content. True
+   * of a verb and an adjective; not true of a noun and a preposition,
+   * which take the same pronouns — and the kind of an older card is
+   * guessed, first-declared-wins, so every preposition written before the
+   * question existed opened as a noun and was saved as one.
+   */
+  const withTable = categoryOffers(arLang, { worded: true, storedForms: "attached" })
+    .map((/** @type {any} */ c) => c.value);
+  assert.deepEqual(withTable, ["noun", "preposition"], "the two that lay out the same table");
+  /* A verb's table is only laid out by a verb, so there is no question to
+     ask and the line underneath says what the card is instead. */
+  assert.deepEqual(categoryOffers(arLang, { worded: true, storedForms: "verb" }), []);
+  assert.deepEqual(categoryOffers(arLang, { worded: true, storedForms: "agreement" }), []);
+  /* A card whose table is still empty is asked everything, as before. */
+  assert.equal(categoryOffers(arLang, { worded: true, storedForms: "" }).length,
+    categoryChoices(arLang).length);
+  /* And a conversation or a sentence is asked nothing. */
+  assert.deepEqual(categoryOffers(arLang, { worded: false, storedForms: "" }), []);
+});
+
+test("a cell left pointing at nothing is counted in what a save drops", () => {
+  /* A cell hanging off a form that is no longer on the card is a word with
+     a pronoun on the end of nothing, and the save leaves it out — rightly.
+     It was the one thing dropped without the line above the table saying
+     so. */
+  const spec = specOf(arLang, "attached");
+  const forms = [{ id: "c", ar: "كِتاب", en: "book" }];
+  const cells = [
+    cellOf("attached", "me", { ar: "كتابي" }),
+    cellOf("attached", "me", { ar: "كتبي", of: "gone" }),
+  ];
+  assert.equal(tableCellsOf(cells, spec, forms).length, 1, "only the one whose form is here is saved");
+  assert.equal(asideOf(cells, [spec], spec, forms), 1, "and the other is counted as dropped");
+  /* Nothing dropped, nothing counted, which is every ordinary card. */
+  assert.equal(asideOf([cells[0]], [spec], spec, forms), 0);
 });
 
 /*

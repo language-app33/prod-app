@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { splitSlots } from "./variables.ts";
+import { mergeMet, splitSlots } from "./variables.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -3167,10 +3167,10 @@ export async function pullCourses(
  * match by name, the new form finds its place taken, and starts fresh —
  * which is what it is.
  */
-function foldForms(had: Form[], fresh: Form[]): Form[] {
+function foldForms<T extends Form>(had: T[], fresh: T[]): T[] {
   const byId = new Map(had.filter((f) => f && f.id).map((f) => [f.id, f]));
   const taken: Set<number> = new Set();
-  const matched: (Form | null)[] = fresh.map((f) => {
+  const matched: (T | null)[] = fresh.map((f) => {
     const mate = f && f.id ? byId.get(f.id) : null;
     if (!mate) return null;
     const at = had.indexOf(mate);
@@ -3179,7 +3179,21 @@ function foldForms(had: Form[], fresh: Form[]): Form[] {
   });
   return fresh.map((f, i) => {
     const mate = matched[i] || (taken.has(i) ? null : had[i]);
-    return { ...f, s: (mate && mate.s) || f.s };
+    if (!mate) return f;
+    /*
+     * The schedule, and the other thing a form carries that the learner
+     * earned rather than the teacher wrote: how far each of a frame's
+     * blanks has been filled with each value. Only the schedule came
+     * across, so a sentence card's record of having met Raphael was wiped
+     * on every refresh — every forty-five seconds — and every name it had
+     * been taught with read as unmet again.
+     *
+     * Merged rather than taken, by the same max sync uses: it is a
+     * high-water mark, so the answer does not depend on which side is
+     * asked, and a form the teacher has just written has none to bring.
+     */
+    const met = mergeMet(f.met, mate.met);
+    return { ...f, s: mate.s || f.s, ...(met ? { met } : null) };
   });
 }
 
@@ -3200,11 +3214,20 @@ export function foldCourses(items: Item[], incoming: Item[]) {
          the card rather than on its forms and so is not covered by that.
          It has to be named: the teacher's card is taken whole, so anything
          of the learner's not listed here is wiped by the next refresh —
-         which happens every forty-five seconds. */
+         which happens every forty-five seconds.
+
+         A conversation's turns are the same story and were the loudest
+         case of it: a line is drilled in its own right, with its own
+         recordings and its own progress, and it was taken from the
+         teacher's copy whole — so every line of every scene went back to
+         never-answered on the next refresh. They fold by the same rule the
+         forms do; a line has carried a name of its own since it was
+         written. */
       kept.push({
         ...fresh,
         ...(existing.priority ? { priority: true } : null),
         forms: foldForms(formsOf(existing), formsOf(fresh)),
+        ...(fresh.lines ? { lines: foldForms(existing.lines || [], fresh.lines) } : null),
       });
     } else {
       kept.push(fresh);
