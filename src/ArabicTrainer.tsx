@@ -1863,19 +1863,28 @@ function reportLearning(account: User | null) {
 }
 
 /*
- * Take the listening exercises out of what is left of a queue.
+ * Take out of what is left of a queue anything that can no longer be asked.
  *
  * Only the tail is rewritten — everything before `from` has been answered and
  * is left exactly as it was. That is what keeps the cursor honest: filtering
  * the whole array would slide later entries down underneath a stationary
  * index, and the learner would silently skip questions they had never seen.
  *
- * A listening exercise becomes another way of asking about the same card,
- * preferring one that is not already queued for it. A card that has nothing
- * else to offer — a recording and a spelling, no English — drops out of the
- * rest of the session; there is genuinely nothing to ask.
+ * A question that can no longer be asked becomes another way of asking about
+ * the same card, preferring one that is not already queued for it. A card
+ * that has nothing else to offer — a recording and a spelling, no English —
+ * drops out of the rest of the session; there is genuinely nothing to ask.
+ *
+ * "Can no longer be asked" is `openTypes` and not a rule of its own, which is
+ * what lets one walk serve every reason a question can go away while a
+ * session is running. It was written for one of them — somebody saying they
+ * cannot listen just now — and the others were left unhandled: a connection
+ * dropping mid-session left the queue full of recordings that were never
+ * downloaded, and the learner met a silent player on a question they could
+ * only skip. Asking the same door every builder asks means a reason handled
+ * anywhere is handled here.
  */
-export function withoutListening(exercises: Question[], from: number, items: Item[], settings: Settings): Question[] {
+export function requeueUnaskable(exercises: Question[], from: number, items: Item[], settings: Settings): Question[] {
   const keyOf = (ex: Question) => `${ex.id}\u0000${ex.subId || ""}`;
   const used: Map<string, Set<string>> = new Map();
   const note = (ex: Question, type: string) => {
@@ -1886,22 +1895,29 @@ export function withoutListening(exercises: Question[], from: number, items: Ite
   };
   /* Everything already planned counts, answered or not: a substitute should
      be a different question, not the one queued two turns later. */
-  for (const ex of exercises) if (!isListening(ex.type)) note(ex, ex.type);
+  for (const ex of exercises) note(ex, ex.type);
 
   const tail: Question[] = [];
   for (const ex of exercises.slice(from)) {
-    if (!isListening(ex.type)) {
+    const resolved = resolveUnit(items, ex);
+    /* A card that has gone from under the queue — withdrawn mid-session —
+       takes its questions with it. */
+    if (!resolved) continue;
+    /* Asked of the gate rather than of the clock or the connection, so this
+       answers the same way whenever it is called — including from a test. */
+    const open = openTypes(resolved.unit, settings);
+    /* Still askable: left exactly as it is, cursor and all. */
+    if (open.includes(ex.type)) {
       tail.push(ex);
       continue;
     }
-    const resolved = resolveUnit(items, ex);
-    if (!resolved) continue;
-    /* Filtered here rather than trusting the clock, so this answers the same
-       way whenever it is called — including from a test. */
     /* From the levels the form has reached, and never the grid: a grid is
        dealt when the session is built, and one conjured here would be a
-       word alone with nothing to be told apart from. */
-    const options = openTypes(resolved.unit, settings).filter((t) => !isListening(t) && t !== "match");
+       word alone with nothing to be told apart from. Nor another listening
+       exercise: sound is much the commonest reason a question is withdrawn
+       mid-session, and swapping one for another of the same kind would be a
+       substitute that is about to go the same way. */
+    const options = open.filter((t) => !isListening(t) && t !== "match");
     if (!options.length) continue;
     const seen = used.get(keyOf(ex)) || new Set();
     const pick = options.find((t) => !seen.has(t)) || options[0];
@@ -7496,18 +7512,58 @@ export default function ArabicTrainer() {
     if (inputRef.current) inputRef.current.blur();
   }
 
+  /*
+   * A session that is already running, re-checked when the answer to "can
+   * this be asked?" changes underneath it.
+   *
+   * Two moments, and both are about sound. The connection going away, which
+   * withdraws every recording that was never downloaded; and the listing of
+   * what *is* on the device landing, which is the same fact arriving a
+   * moment late. A queue built while online and carried into a tunnel used
+   * to keep its listening questions, so the learner met a silent player and
+   * a note saying the recording was not here — on a question they could
+   * only skip. That is the failure the gate was written to stop, stopped at
+   * one door and not the other.
+   *
+   * Only ever narrowing. Coming back online does not put questions back:
+   * they are gone from this sitting and the next session deals them
+   * normally, because adding questions into a queue somebody is halfway
+   * through is a worse surprise than the one being fixed.
+   */
+  useEffect(() => {
+    if (!session || !session.exercises) return;
+    const next = requeueUnaskable(session.exercises, qi, items, settings);
+    /* Nothing went: the common case, and it must not churn the session
+       object or the question on screen. */
+    if (next.length === session.exercises.length) return;
+    if (next.length <= qi) {
+      /* Everything left needed something this device cannot do. Ending here
+         is honest, the way the quiet button ends it. */
+      setSession(null);
+      sfx("warn");
+      flash("Nothing left in this session that works offline");
+      return;
+    }
+    setSession((s: Session | null) => (s ? { ...s, exercises: next } : s));
+    /* The question at this index may be a different one now. */
+    resetExercise();
+  /* The two facts that change the answer, and nothing else: re-running this
+     on every answer would re-plan the session under the learner. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline, audible]);
+
   /* "Can't listen right now": stop asking for recordings, here and in
      anything built for the next quarter of an hour. */
   function goQuiet() {
     const until = now() + LISTEN_OFF_MS;
-    /* The module flag first, because withoutListening and every builder read
+    /* The module flag first, because requeueUnaskable and every builder read
        it rather than the state; then the state, so the screen re-renders;
        then the device, so a reload does not undo it. */
     setListenOffUntil(until);
     setListenOff(until);
     saveListenOff(until);
 
-    const next = session ? withoutListening(session.exercises, qi, items, settings) : [];
+    const next = session ? requeueUnaskable(session.exercises, qi, items, settings) : [];
     if (next.length <= qi) {
       /* Every card left needs sound. Ending here is honest — running the
          queue out would show "Session complete" over a session that was

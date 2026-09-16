@@ -47,6 +47,7 @@ const {
   buildSession,
   enabledTypes,
   installIndexes,
+  requeueUnaskable,
   setAudibleClips,
   setOfflineNow,
 } = await import(path.join(out, "trainer.js"));
@@ -279,4 +280,110 @@ test("everything the app is made of is kept for offline, the lazy screens includ
   for (const kind of ["js", "css", "html"]) {
     assert.match(found[1], new RegExp(kind), `${kind} files are not kept for offline`);
   }
+});
+
+/* ------------------------------------------------------------------
+   A session already running, when the connection goes
+
+   The gate that holds a listening question back is asked when a session is
+   *built*. A session built online and carried into a tunnel was never
+   asked again, so it kept its recordings and the learner met a silent
+   player on a question they could only skip — the very failure the gate
+   exists to stop, stopped at one door and not the other.
+   ------------------------------------------------------------------ */
+
+/** A card that can be read as well as heard, so it has somewhere to go. */
+const heardAndRead = () => ({
+  id: "c1",
+  updated: 1,
+  tags: [],
+  forms: [form("clip-1")],
+});
+
+/** And one that can only be heard. */
+const heardOnly = () => ({
+  id: "c2",
+  updated: 1,
+  tags: [],
+  forms: [{ id: "f2", ar: "قَلَم", en: "", lat: "", s: {}, recs: [{ id: "clip-2" }] }],
+});
+
+const queueOf = (/** @type {{id: string, type: string}[]} */ list) =>
+  list.map((q) => ({ id: q.id, subId: null, type: q.type }));
+
+test("a queue carried offline loses the recordings it cannot play", () => {
+  const items = [heardAndRead()];
+  installIndexes(items, settings);
+  const queue = queueOf([{ id: "c1", type: "rec2en" }, { id: "c1", type: "ar2en" }]);
+
+  state({ offline: false, here: [] });
+  assert.deepEqual(
+    requeueUnaskable(queue, 0, items, settings).map((/** @type {any} */ q) => q.type),
+    ["rec2en", "ar2en"],
+    "online it is a fetch away, so nothing moves",
+  );
+
+  state({ offline: true, here: [] });
+  const after = requeueUnaskable(queue, 0, items, settings);
+  assert.ok(
+    !after.some((/** @type {any} */ q) => q.type === "rec2en"),
+    `the unplayable question survived: ${after.map((/** @type {any} */ q) => q.type).join(",")}`,
+  );
+  assert.equal(after.length, 2, "and it was replaced rather than simply dropped");
+});
+
+test("a recording that is on the device is not taken away", () => {
+  /* The other half, and the one that would make this change a nuisance if
+     it were wrong: somebody who downloaded their course before travelling
+     must lose nothing by going offline mid-session. */
+  const items = [heardAndRead()];
+  installIndexes(items, settings);
+  state({ offline: true, here: ["clip-1"] });
+  const queue = queueOf([{ id: "c1", type: "rec2en" }, { id: "c1", type: "ar2en" }]);
+  assert.deepEqual(
+    requeueUnaskable(queue, 0, items, settings).map((/** @type {any} */ q) => q.type),
+    ["rec2en", "ar2en"],
+  );
+});
+
+test("what has already been answered is never rewritten", () => {
+  /* Filtering the whole queue would slide later questions down under a
+     stationary cursor, and the learner would skip questions unseen. */
+  const items = [heardAndRead()];
+  installIndexes(items, settings);
+  state({ offline: true, here: [] });
+  const queue = queueOf([{ id: "c1", type: "rec2en" }, { id: "c1", type: "ar2en" }]);
+  const after = requeueUnaskable(queue, 1, items, settings);
+  assert.equal(after[0], queue[0], "the answered one is the very same object");
+});
+
+test("a card with nothing else to offer drops out of the rest of the session", () => {
+  const items = [heardOnly()];
+  installIndexes(items, settings);
+  state({ offline: true, here: [] });
+  const after = requeueUnaskable(queueOf([{ id: "c2", type: "rec2en" }]), 0, items, settings);
+  assert.deepEqual(after, [], "there is genuinely nothing to ask");
+});
+
+test("the listing landing late is the same fact arriving a moment later", () => {
+  /* Until the device has said which recordings it holds, everything reads
+     as reachable — deliberately, so a card that is ready is never silenced
+     by mistake. A session built inside that window is put right when the
+     answer arrives. */
+  const items = [heardAndRead()];
+  installIndexes(items, settings);
+  const queue = queueOf([{ id: "c1", type: "rec2en" }, { id: "c1", type: "ar2en" }]);
+
+  state({ offline: true, here: null });
+  assert.equal(
+    requeueUnaskable(queue, 0, items, settings).length,
+    2,
+    "nobody has looked yet, so nothing is withheld",
+  );
+
+  state({ offline: true, here: [] });
+  assert.ok(
+    !requeueUnaskable(queue, 0, items, settings).some((/** @type {any} */ q) => q.type === "rec2en"),
+    "and once the device has answered, the question goes",
+  );
 });

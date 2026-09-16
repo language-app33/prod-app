@@ -2129,8 +2129,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
    The queue rewrite, driven directly: it is a pure function over a queue, an
    index, the cards and the settings, which is the whole reason it is one. */
 {
-  const { withoutListening, soundLevelOf, noCardsYet, SOUNDS, SOUND_LEVELS, setSounds,
-          PRAISE, WRONG_VERDICT, praiseFor } =
+  const { requeueUnaskable, setOfflineNow, setAudibleClips, soundLevelOf, noCardsYet,
+          SOUNDS, SOUND_LEVELS, setSounds, PRAISE, WRONG_VERDICT, praiseFor } =
     await import(path.join(out, "ArabicTrainer.js"));
 
   /* The verdict. A miss says the same thing every time and hands over to
@@ -2327,7 +2327,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     { id: card1.id, subId: null, type: "rec2ar" },
     { id: card1.id, subId: null, type: "en2ar" },
   ];
-  const out2 = withoutListening(queue, 1, stored2.items, set);
+  const out2 = requeueUnaskable(queue, 1, stored2.items, set);
 
   check("the answered questions are left exactly as they were",
     out2[0] === queue[0], `first=${JSON.stringify(out2[0])}`);
@@ -2350,7 +2350,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      the device — the rewrite reads states from the items it is given. */
   const done = { phase: "review", reps: 3, interval: 5, due: 0, updated: 5 };
   const card2 = reworded(byId2.tied1, { s: { ...lead(byId2.tied1).s, ar2en: done, match: done } });
-  const one = withoutListening(
+  const one = requeueUnaskable(
     [
       { id: card2.id, subId: null, type: "ar2en" },
       { id: card2.id, subId: null, type: "rec2en" },
@@ -2369,23 +2369,34 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("with nothing free it still substitutes rather than dropping",
     out2.length === queue.length, out2.map((/** @type {any} */ e) => e.type).join(","));
 
-  /* A card with nothing but sound to offer: the entry goes, rather than
-     sitting in the queue unanswerable. */
+  /* A card with nothing but sound to offer, once the sound has gone: the
+     entry goes rather than sitting in the queue unanswerable.
+
+     Driven through the connection, which is the case this is really about —
+     a queue built with a recording in it, carried into a tunnel. While the
+     recording can still be played the question is perfectly askable and
+     must be left exactly where it is, which is the check underneath. */
   const soundOnly = {
     ...reworded(card1, { id: "soundonly", en: "", lat: "", recs: [{ id: "z".repeat(64) }] }),
     id: "soundonly",
   };
-  const dropped = withoutListening(
-    [{ id: "soundonly", subId: null, type: "rec2ar" }],
-    0,
-    stored2.items.concat([soundOnly]),
-    set,
-  );
-  check("a card that can only be listened to drops out", dropped.length === 0,
-    JSON.stringify(dropped));
+  const soundQueue = [{ id: "soundonly", subId: null, type: "rec2ar" }];
+  const withSound = stored2.items.concat([soundOnly]);
+
+  const kept = requeueUnaskable(soundQueue, 0, withSound, set);
+  check("a recording that can still be played is left alone",
+    kept.length === 1 && kept[0].type === "rec2ar", JSON.stringify(kept));
+
+  setOfflineNow(true);
+  setAudibleClips(new Set());
+  const dropped = requeueUnaskable(soundQueue, 0, withSound, set);
+  setOfflineNow(false);
+  setAudibleClips(null);
+  check("and a card that can only be listened to drops out once it cannot be heard",
+    dropped.length === 0, JSON.stringify(dropped));
 
   /* Nothing to do when there is nothing to listen to. */
-  const untouched = withoutListening(queue.filter((e) => e.type === "ar2en"), 0, stored2.items, set);
+  const untouched = requeueUnaskable(queue.filter((e) => e.type === "ar2en"), 0, stored2.items, set);
   check("a queue with no listening exercises is returned unchanged",
     untouched.length === 1 && untouched[0].type === "ar2en");
 }

@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.156 — 16 September 2026
+
+**A session already under way now notices the connection going.**
+
+The app holds back questions that play a recording you have not downloaded,
+so you are never handed one you cannot answer. That was true when a session
+was built and not while one was running. Start a session on wifi, walk into
+a tunnel, and the questions already queued would still ask for recordings
+that never arrived — a silent player and a note saying the recording is not
+on this device, on a question you could only skip.
+
+Now the rest of the queue is re-checked the moment the connection goes, and
+again the moment the app finishes working out which recordings it holds,
+which closes a narrow gap where a session started very quickly after
+opening the app offline could be built before that answer arrived.
+
+Two things it deliberately does not do. A recording that *is* on your device
+is never taken away, so downloading a course before you travel still means
+losing nothing. And coming back online does not push questions back into a
+session you are halfway through; they come round in the next one.
+
+If nothing in the session can be asked any more, it ends and says so,
+rather than running out a queue that was cut short.
+
 ## 0.155 — 16 September 2026
 
 **One wrong answer no longer shuts the levels above a word.**
