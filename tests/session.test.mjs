@@ -40,8 +40,9 @@ await build({
   },
 });
 const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
-  fillersIn } = await import(path.join(out, "trainer.js"));
-const { TYPES } = await import(path.join(here, "..", "src", "languages.ts"));
+  fillersIn, buildNumberSession, numberFillers, isMadeUpNumber, NUMBER_SESSION_SIZE,
+  NUMBERS_PER_BAND } = await import(path.join(out, "trainer.js"));
+const { TYPES, NUMBER_EQUIVALENT } = await import(path.join(here, "..", "src", "languages.ts"));
 const { FRONT_DOOR_CAP } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
 /** @param {string} id @param {string} type */
@@ -748,5 +749,168 @@ test("and a word leaves the front door as soon as it can be recognised", () => {
   assert.ok(
     [...dealt].some((id) => String(id).startsWith("w")),
     `no new word got in behind recognised ones: ${[...dealt].join(" ")}`,
+  );
+});
+
+
+/* ------------------------------------------------------------------
+   A sitting of made-up numbers
+
+   The practice is not dealt from the deck: it builds numbers out of the
+   teacher's parts and asks about those. So what is worth checking is that
+   it never reaches past what the parts can build, that a made-up number is
+   never mistaken for a card, and that a right answer lands on the parts
+   rather than on the number — which is the whole of how it is scheduled.
+   ------------------------------------------------------------------ */
+
+/** A number part card, as a learner's device holds one. */
+const part = (/** @type {number} */ value, /** @type {string} */ ar, /** @type {any} */ over = {}) => ({
+  id: `p${value}`, tags: [], created: 1, lang: "ar-PS", kind: "word",
+  category: "number", value,
+  forms: [{ id: `p${value}`, ar, en: String(value), lat: "", lang: "ar-PS", s: {} }],
+  ...over,
+});
+
+/** Units alone: enough for nought to ten and nothing above it. */
+const UNITS = ["صفر", "واحد", "اتنين", "تلاتة", "أربعة", "خمسة", "ستة", "سبعة", "تمانية", "تسعة", "عشرة"]
+  .map((w, i) => part(i, w));
+
+/** And the teens and tens on top, which opens everything below a hundred. */
+const TO_NINETY_NINE = UNITS.concat(
+  ["حداعش", "اتناعش", "تلاتطاعش", "أربعطاعش", "خمسطاعش", "ستطاعش", "سبعطاعش", "تمنطاعش", "تسعطاعش"]
+    .map((w, i) => part(11 + i, w)),
+  ["عشرين", "تلاتين", "أربعين", "خمسين", "ستين", "سبعين", "تمانين", "تسعين"]
+    .map((w, i) => part(20 + i * 10, w)),
+);
+
+/** Deterministic, so an assertion about the range is about the range. */
+const steady = () => {
+  let seed = 11;
+  return () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+};
+
+const numbers = (/** @type {any[]} */ items, /** @type {any} */ over = {}) =>
+  buildNumberSession({ items, settings, langId: "ar-PS", random: steady(), ...over });
+
+test("a numbers practice asks about numbers that were never cards", () => {
+  const built = numbers(TO_NINETY_NINE);
+  assert.equal(built.reason, null);
+  assert.equal(built.exercises.length, NUMBER_SESSION_SIZE);
+  /* Every question is about something in the preview list rather than
+     about one of the parts: the parts are what it was built from. */
+  const held = new Set(built.preview.map((/** @type {any} */ i) => i.id));
+  for (const ex of built.exercises) {
+    assert.ok(held.has(ex.id), `${ex.id} is not in the sitting's own material`);
+    assert.ok(isMadeUpNumber({ id: ex.id }));
+  }
+  /* And none of them is a card this device has. */
+  const real = new Set(TO_NINETY_NINE.map((/** @type {any} */ i) => i.id));
+  for (const made of built.preview) assert.equal(real.has(made.id), false);
+});
+
+test("a made-up number is never dealt, listed or counted as a card", () => {
+  const built = numbers(TO_NINETY_NINE);
+  for (const made of built.preview) {
+    assert.equal(made.drill, false, "a number the app invented is not practised in its own right");
+    assert.ok(made.value >= 0, "it knows what it is worth");
+    assert.ok(Array.isArray(made.used) && made.used.length, "and which parts stood in it");
+  }
+});
+
+test("the practice never reaches past what the parts can build", () => {
+  /* Units alone: nothing above ten can be said, so nothing above ten is
+     asked however wide the ramp is wound. */
+  const built = numbers(UNITS, { reach: 8 });
+  assert.equal(built.bands, 1, "one band opens and no more");
+  for (const made of built.preview) {
+    assert.ok(made.value <= 10, `${made.value} is above what the deck can build`);
+  }
+  /* With the teens and tens in, it reaches ninety-nine and no further. */
+  const wider = numbers(TO_NINETY_NINE, { reach: 8 });
+  assert.equal(wider.bands, 3);
+  for (const made of wider.preview) assert.ok(made.value <= 99, `${made.value} is above ninety-nine`);
+});
+
+test("a deck with no number words builds no sitting at all", () => {
+  const built = numbers(deckOf(6));
+  assert.deepEqual(built.exercises, []);
+  assert.equal(built.reason, "no-parts");
+  /* And one whose language does not say how its numbers go together says
+     which of the two is wrong, rather than looking like an empty deck. */
+  const noRules = buildNumberSession({
+    items: TO_NINETY_NINE, settings, langId: "xx-Nowhere", random: steady(),
+  });
+  assert.equal(noRules.reason, "no-numbers");
+});
+
+test("the sitting starts where the last one left off and widens as it goes", () => {
+  /* Starting narrow: the first questions are in the lowest band, and the
+     range has opened by the end. */
+  const built = numbers(TO_NINETY_NINE, { reach: 1 });
+  const at = (/** @type {number} */ i) =>
+    must(built.preview.find((/** @type {any} */ p) => p.id === built.exercises[i].id), "asked").value;
+  for (let i = 0; i < NUMBERS_PER_BAND; i += 1) {
+    assert.ok(at(i) <= 10, `question ${i + 1} should still be in the first band`);
+  }
+  assert.ok(built.width > 1, "the sitting widened");
+  /* And one that starts wide is wide from the first question. */
+  const wide = numbers(TO_NINETY_NINE, { reach: 3 });
+  assert.equal(wide.width, 3);
+});
+
+test("a picking question brings wrong answers worth confusing with the right one", () => {
+  const built = numbers(TO_NINETY_NINE, { reach: 3 });
+  const picks = built.exercises.filter((/** @type {any} */ e) => e.type === "fig2pick");
+  assert.ok(picks.length, "the sitting asks some by picking");
+  for (const p of picks) {
+    assert.equal((p.mates || []).length, 3, "three wrong answers beside the right one");
+    /* Every one of them is a number, spelled by the same pack, and none of
+       them is the answer. */
+    for (const mate of p.mates) {
+      assert.ok(isMadeUpNumber({ id: mate.id }));
+      assert.notEqual(mate.id, p.id);
+    }
+  }
+});
+
+test("all three ways of asking are used", () => {
+  const built = numbers(TO_NINETY_NINE);
+  const asked = new Set(built.exercises.map((/** @type {any} */ e) => e.type));
+  assert.deepEqual([...asked].sort(), ["fig2num", "fig2pick", "num2fig"]);
+  /* And none of them is a type anything schedules: a number is not a card
+     and climbs no ladder. */
+  for (const type of asked) assert.equal(TYPES.includes(type), false, `${type} must not be scheduled`);
+});
+
+test("answering a number credits the parts that stood in it, not the number", () => {
+  const built = numbers(TO_NINETY_NINE, { reach: 3 });
+  const made = must(built.preview.find((/** @type {any} */ p) => p.value > 20 && p.value % 10 !== 0), "a built number");
+  /** @type {Map<number, any>} */
+  const parts = new Map(TO_NINETY_NINE.map((/** @type {any} */ p) => [p.value, p]));
+  /* Reading a number off the screen is evidence for the ordinary question
+     that asks what a word means, and it is the part cards it lands on. */
+  const key = NUMBER_EQUIVALENT.num2fig;
+  assert.equal(key, "ar2en");
+  const found = numberFillers(made, parts, key, settings);
+  assert.deepEqual(
+    found.map((/** @type {any} */ f) => f.id).sort(),
+    made.used.map((/** @type {number} */ v) => `p${v}`).sort(),
+    "every part that stood in the number is credited",
+  );
+  for (const f of found) {
+    assert.equal(f.subId, null, "the part's own word, not one of its forms");
+    assert.equal(f.asked, true, "and under a question that card actually climbs");
+    assert.equal(f.ready, false, "a part never asked on its own is not started from inside a number");
+  }
+});
+
+test("a part the learner does not hold is not credited", () => {
+  const built = numbers(TO_NINETY_NINE, { reach: 3 });
+  const made = must(built.preview.find((/** @type {any} */ p) => p.value > 20), "a built number");
+  assert.deepEqual(numberFillers(made, new Map(), "ar2en", settings), [],
+    "nothing is invented for a part that is not there",
   );
 });

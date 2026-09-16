@@ -648,9 +648,13 @@ button {
    menus that order and narrow the list — it was an unlabelled icon up in
    the search row, where it read as another way of finding something. */
 .at-toolbar-sub .at-selectbtn.on { border-color: var(--accent); color: var(--accent); }
-/* How big to draw the tiles: an icon at the far end of the search row,
-   sized like the field beside it so the row keeps one height. */
-.at-toolbar .at-sizebtn { flex:0 0 auto; width:44px; height:44px; min-height:44px;
+/* An icon in the search row — how big to draw the tiles, the way in to a
+   language's numbers — sized like the field beside it so the row keeps one
+   height. Every icon there rather than that one by name: .at-icon is
+   flex:1 by default, which is right in a row of its own and wrong here,
+   and a second such button arriving would otherwise stretch to fill the
+   row on a list with nothing in it to search. */
+.at-toolbar .at-icon { flex:0 0 auto; width:44px; height:44px; min-height:44px;
   padding:0; box-sizing:border-box; }
 /* The bulk tray: what it is on the left, how many on the right. */
 .at-bulkhead2 { display:flex; align-items:baseline; justify-content:space-between;
@@ -2687,3 +2691,42 @@ body.at-screening .at-chromebar { display:none; }
    gallery: quieter than the sentence, and never mistaken for it. */
 .at-elexample { font-family: var(--ui); font-size:13px; color: var(--muted); margin:4px 0 0;
   padding-inline-start:10px; border-inline-start:2px solid var(--line); }
+
+/* ---- numbers: the parts a language builds them out of ----
+
+   Two screens share these. The teacher's grid is a row per part — the
+   figure on the left, the word and any changed forms on the right — and
+   above it a report of which stretches of the number line the deck can
+   reach yet. Both are lists of short rows rather than a table, because a
+   table of fifty-five rows and two columns is a table on a desk and a
+   horizontal scroll on a phone. */
+.at-bandlist { display:flex; flex-direction:column; gap:2px; margin:8px 0; }
+.at-bandrow { display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  padding:5px 8px; border-radius:4px; background: var(--well); opacity:.55; }
+.at-bandrow[data-open] { opacity:1; }
+.at-bandname { font-size:12px; font-weight:600; min-width:0; overflow-wrap:anywhere; }
+.at-bandrow[data-open] .at-meta { color: var(--jade); }
+
+/* The worked sample: figures on the left, what the app will actually say
+   on the right, in the script and at its own size. */
+.at-numsample { display:flex; flex-direction:column; gap:1px; }
+.at-numsamplerow { display:flex; gap:12px; align-items:baseline; padding:5px 8px;
+  border-bottom:1px solid var(--line); }
+.at-numsamplerow:last-child { border-bottom:0; }
+.at-numfig { font-family: var(--mono); font-size:12px; color: var(--muted);
+  flex:0 0 84px; font-variant-numeric: tabular-nums; }
+.at-numsaid { font-family: var(--sfont); font-size:calc(19px * var(--sscale, 1));
+  line-height:calc(1.4 * var(--sleading, 1)); unicode-bidi:isolate; min-width:0;
+  overflow-wrap:anywhere; }
+
+/* The grid itself. */
+.at-numgrid { display:flex; flex-direction:column; gap:10px; }
+.at-numrow { display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap; }
+.at-numlabel { flex:0 0 96px; display:flex; flex-direction:column; gap:2px; padding-top:9px; }
+.at-numlabel .at-numfig { flex:none; font-size:13px; color: var(--ink); font-weight:700; }
+.at-numboxes { flex:1 1 220px; min-width:0; display:flex; flex-direction:column; gap:6px; }
+.at-numcell { display:flex; flex-direction:column; gap:2px; }
+@media (max-width: 560px) {
+  .at-numlabel { flex:0 0 100%; padding-top:0; }
+  .at-numfig { flex:0 0 68px; }
+}

@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.152 — 16 September 2026
+## 0.154 — 16 September 2026
 
 **New words now arrive about twice as fast, and you learn more of them.**
 
@@ -44,6 +44,99 @@ the ones you are learning settle. Before, it simply stopped, which reads as
 the app having run out.
 
 Sessions are unchanged: still short, still overdue words first.
+
+## 0.153 — 16 September 2026
+
+**The Numbers screen has moved, to Teaching → Cards.** It was behind a
+button on a deck; it is now the **#** in the toolbar at the top of the card
+list, beside the search box. Last release put it on a deck because that is
+where the cards went, and that had it backwards: the words a language
+builds its numbers out of are a fact about the language, not about one
+deck, and the same eleven Vietnamese words serve every deck you ever write
+in it. Filling them in twice for two decks was work nobody should have
+been asked to do.
+
+So the screen now shows every number card you have in that language,
+whatever deck each one is in, and saving writes them to your collection
+rather than into a deck. Putting them in front of students is the step
+every other new card takes: select them in the card list and add them to a
+deck. If you teach more than one language that builds its numbers, the
+button asks which first.
+
+Nothing about the numbers themselves changed — the same boxes, the same
+reach, the same sample of what a student will be asked. Cards written by
+the old screen are exactly where they were, decks included.
+
+**A fix on the way past: the button was invisible.** It asked for an icon
+the set had never had, and an icon nothing knows how to draw is drawn as
+nothing — so the control was there, worked, and could not be seen. There
+is now a test that fails if any screen asks for an icon that does not
+exist.
+
+## 0.152 — 16 September 2026
+
+**Numbers are now built rather than memorised.** A student who knows
+*forty* and *seven* should be able to be asked *forty-seven*, and until now
+that was a third card somebody had to write. It is now something the app
+makes up.
+
+**For teachers: one screen instead of fifty-five cards.** Open a deck and
+there is a Numbers section with a *Fill these in* button. Behind it is a
+grid of the words your language builds its numbers out of, in groups —
+nought to ten, the teens, the tens, the hundreds, the thousands, the
+millions. Fill in as many as you want and save.
+
+How many boxes there are is the language's answer, not ours. Palestinian
+Arabic and Hebrew ask for fifty-five, because their hundreds and thousands
+fuse with the unit in front of them and cannot be built — خمسمية is not
+خمسة and مية said one after the other. Huế Vietnamese asks for fourteen,
+because it is regular: *năm trăm* really is *five* and *hundred*, so the
+only extra boxes are the words that change in company — *năm* is five and
+*mười lăm* is fifteen, *một* is one and *hai mươi mốt* is twenty-one.
+
+Above the grid is how far the deck reaches: *numbers up to 9,999 can be
+made*, which stretch of the number line is ready and which is still
+waiting, and which words are in the way. Under that is a dozen numbers
+written out exactly as a student will see them, so you can check the
+wording before anybody is asked. It moves as you type.
+
+Every word is yours. The app supplies only the rule for joining them, so
+the dialect is the one you teach. Anything the rule gets wrong you can
+override by writing that number out as a card of its own — a card for a
+whole number always beats one the app built. Each box is an ordinary
+number card underneath, so you can record it, edit it and see a student's
+progress on it like any other. **Clearing a box does not delete anything**:
+the card keeps its recordings and everybody's progress, and deleting it
+from the deck's card list is how you get rid of it.
+
+**For students: a Practise numbers button, on the home screen.** It says
+how far it can go, and it asks three ways — read the number and write the
+figures, see the figures and write it out, see the figures and pick it from
+four. The wrong answers are numbers worth confusing with the right one, so
+74 stands beside 47 rather than a book and a house.
+
+It ramps. It opens where you left off and widens as answers come back
+right, from single digits up to seven figures over a few sittings, and
+steps back a notch when one goes wrong. It never asks for a number your
+deck cannot build, so a deck with only the units is a practice that counts
+to ten and stops.
+
+The numbers themselves are not cards and never become any — they are made
+up for the sitting and thrown away. What a right answer moves is the
+*words* that stood in the number: reading 1,525 correctly counts as reading
+the words for one thousand, five hundred, five and twenty, on the same
+terms a sentence has credited the words in it since 0.142. So numbers keep
+coming round in your ordinary sessions without a single extra card being
+scheduled.
+
+Hebrew counts in the feminine, which is what reading a number aloud
+actually uses, and keeps the masculine on the card for standing beside a
+noun — except in front of *thousand*, where the masculine is correct and is
+what you get.
+
+One thing supplied rather than asked for: Huế's *lẻ*, the word that marks
+an empty place in *một trăm lẻ năm*, is a box beside zero, so it is your
+typing like everything else.
 
 ## 0.151 — 16 September 2026
 

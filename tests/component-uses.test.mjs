@@ -75,3 +75,33 @@ test("Tile and TileNote are told apart", () => {
      simply the same list. */
   assert.notEqual(overlap.length, COMPONENT_USES.Tile.length);
 });
+
+/*
+ * Every icon a screen asks for is an icon that exists.
+ *
+ * `Icon` renders nothing for a name it does not know — which is the right
+ * thing for it to do, and means a typo is invisible rather than loud: the
+ * Numbers button shipped as an empty square because it asked for an icon
+ * the set had never had. Nothing else would have caught it; the button was
+ * in the DOM, had its label, and worked.
+ */
+test("every icon name used in the app is one the set has", () => {
+  const files = ["ArabicTrainer.tsx", "spaces.tsx", "shared.tsx", "card-editor.tsx", "gallery.tsx"];
+  const set = new Set(
+    [...readFileSync(new URL("../src/shared.tsx", import.meta.url), "utf8")
+      .split("export function Icon")[0]
+      .matchAll(/^ {2}([a-zA-Z][a-zA-Z0-9]*):/gm)].map((m) => m[1]),
+  );
+  assert.ok(set.size > 20, `only found ${set.size} icons — the scan is wrong, not the source`);
+  /** @type {string[]} */
+  const unknown = [];
+  for (const file of files) {
+    const src = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
+    /* `icon="x"` on a button, and `<Icon name="x" />` directly. Literals
+       only: a name built at runtime is not something a file can check. */
+    for (const m of src.matchAll(/(?:\bicon|<Icon\s+name)=["']([a-zA-Z][a-zA-Z0-9]*)["']/g)) {
+      if (!set.has(m[1])) unknown.push(`${file}: ${m[1]}`);
+    }
+  }
+  assert.deepEqual(unknown, [], `icons that render as nothing: ${unknown.join(", ")}`);
+});

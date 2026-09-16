@@ -681,10 +681,16 @@ test("the verb and the pronouns are still found by name, and the rest by the reg
   assert.ok(specOf(ar, "counted"), "and its numbers take a feminine form");
   assert.equal(specOf(ar, "no-such-table"), null);
   assert.equal(specOf(null, "verb"), null);
-  /* Huế lays out a verb and nothing else. */
+  /* Huế lays out a verb, and a number's forms inside a bigger number —
+     năm is five and mười lăm is fifteen, which is one word with two faces
+     and so a cell. It is the same table name the Semitic packs use for a
+     number's feminine, and deliberately: what a table is called is how a
+     card finds it, and what is in it is the language's own business. */
   const vi = LANGUAGES["vi-Hue"];
-  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb"]);
+  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb", "counted"]);
   assert.equal(specOf(vi, "agreement"), null);
+  assert.deepEqual(must(specOf(vi, "counted"), "Huế counted").persons.map((p) => p.id),
+    ["after-ten", "empty-place"]);
   /* Hebrew agrees in number and gender at once, so its plural is two cells. */
   assert.deepEqual(must(specOf(LANGUAGES["he-IL"], "agreement"), "Hebrew agreement").persons.map((p) => p.id),
     ["feminine", "masc-plural", "fem-plural"]);
