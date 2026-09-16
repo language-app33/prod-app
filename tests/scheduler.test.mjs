@@ -47,7 +47,6 @@ import {
   standings,
   standing,
   turnOf,
-  phaseCounts,
   roomForNew,
   formatGap,
   dayKey,
@@ -378,15 +377,23 @@ test("new means never met, whatever the card could be asked", () => {
   assert.equal(familyMaturity(card({ s: { ar2en: state({ phase: "review", interval: 40 }) } }), twoTypes), "learning");
 });
 
-test("phaseCounts is the progress screen's four numbers", () => {
-  const items = [
-    card({ id: "n" }),
-    card({ id: "l", s: { ar2en: state({ phase: "learning" }), en2ar: freshState() } }),
-    card({ id: "y", s: { ar2en: state({ phase: "review", interval: 2 }), en2ar: state({ phase: "review", interval: 2 }) } }),
-    card({ id: "m", s: { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) } }),
-  ];
-  assert.deepEqual(phaseCounts(items, twoTypes), { new: 1, learning: 1, young: 1, mature: 1 });
-  assert.deepEqual(phaseCounts([], twoTypes), { new: 0, learning: 0, young: 0, mature: 0 });
+test("a card stands where its least-finished exercise does", () => {
+  /* One reading for the whole card, taken from its worst part: a word you
+     can read and cannot write is a word you are still learning. */
+  const at = (/** @type {any} */ c) => familyMaturity(c, twoTypes);
+  assert.equal(at(card({ id: "n" })), "new", "never met");
+  assert.equal(
+    at(card({ id: "l", s: { ar2en: state({ phase: "learning" }), en2ar: freshState() } })),
+    "learning",
+  );
+  assert.equal(
+    at(card({ id: "y", s: { ar2en: state({ phase: "review", interval: 2 }), en2ar: state({ phase: "review", interval: 2 }) } })),
+    "young",
+  );
+  assert.equal(
+    at(card({ id: "m", s: { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) } })),
+    "mature",
+  );
 });
 
 test("a level that has opened and not been answered still fills the learner's hands", () => {
@@ -402,7 +409,6 @@ test("a level that has opened and not been answered still fills the learner's ha
     s: { ar2en: state({ phase: "review", interval: 6 }), en2ar: freshState() },
   });
   assert.equal(familyMaturity(climbing, twoTypes), "learning");
-  assert.deepEqual(phaseCounts([climbing], twoTypes), { new: 0, learning: 1, young: 0, mature: 0 });
 });
 
 /* ---- the ladder ---- */

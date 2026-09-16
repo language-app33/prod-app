@@ -715,48 +715,22 @@ export function familyMaturity(it: Item, typesOf: (unit: Form) => string[]): str
   return worst === "new" ? "learning" : worst || "new";
 }
 
-/**
- * How many cards stand in each phase, for the room-for-new sums. Counted
- * the way the progress screen counts them, so the two never disagree
- * about how full a learner's hands are.
+/*
+ * There used to be a `phaseCounts` here, adding the four phases up across a
+ * learner's whole collection, and a long note over it arguing that an
+ * exercise on a just-opened level should hold its card at *learning*.
  *
- * An exercise on a level that has just opened and has never been answered
- * holds its card at *learning* here, which reads like an accident — the
- * card's reading may be weeks old. It is deliberate: work that has
- * arrived is work in hand, whether or not it has been touched, and the
- * progress screen should say so.
+ * Nothing counts phases in the aggregate any more. What rations new words
+ * is two pools — see FRONT_DOOR_CAP — and what a learner is shown is the
+ * ladder, which is `standings` below and reads levels rather than phases.
+ * The count was left behind by that change, with a comment saying the
+ * progress screen read it, which it did not.
  *
- * It used to ration new cards as well, and that is what was wrong. A card
- * fell back here every time it opened a rung, so it held a place for its
- * whole climb and the pool never drained; the measured rate was about one
- * new word every four days. Two caps replace it — see FRONT_DOOR_CAP —
- * and the front one lets a word go as soon as it can be recognised rather
- * than when it has finished with the ladder.
- *
- * The note that used to stand here recorded a simulation and asked the
- * next reader to measure before changing anything, and there was nothing
- * left to run. There is now: `tests/pace.test.mjs` plays out a learner and
- * reports what a course costs in days. Against the design this replaced,
- * over a hundred and eighty simulated days of one session a day, the two
- * caps met 64-66 words against 34-35 and mastered 39-43 against 25-28.
- *
- * That earlier measurement was right about its own design and does not
- * carry to this one: loosening a cap whose release is full maturity piles
- * words up and spreads the session thinner, which is what it found.
- * Releasing at recognition instead lets them flow. The sweep also found
- * where this one turns: past about sixteen at the front door, words
- * mastered in ninety days starts falling, and with no cap at all it
- * collapses. Both numbers are worth re-running rather than reasoning
- * about.
+ * The argument it carried is still true and still load-bearing, so it sits
+ * on `familyMaturity` above, which is where it applies: work that has
+ * arrived is work in hand whether or not it has been touched. The
+ * measurement it cited is `tests/pace.test.mjs` now, and can be re-run.
  */
-export function phaseCounts(
-  items: Item[],
-  typesOf: (unit: Form) => string[]
-): { new: number; learning: number; young: number; mature: number } {
-  const counts = { new: 0, learning: 0, young: 0, mature: 0 };
-  for (const it of items) counts[familyMaturity(it, typesOf) as keyof typeof counts] += 1;
-  return counts;
-}
 
 
 export function itemDifficulty(it: Item, typesOf: (unit: Form) => string[]): string {
