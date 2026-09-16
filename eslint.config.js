@@ -18,7 +18,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import babelParser from "@babel/eslint-parser";
 
 export default [
-  { ignores: ["dist/**", "dev-dist/**", "node_modules/**", "tests/.smoke-build/**", "tests/.cards-build/**", "tests/.session-build/**"] },
+  { ignores: ["dist/**", "dev-dist/**", "node_modules/**", "tests/.smoke-build/**", "tests/.cards-build/**", "tests/.session-build/**", "tests/.offline-build/**"] },
 
   /* The app: a browser, React, ES modules — and TypeScript, which ESLint's
      own parser cannot read. Babel's can, and is already in the tree under

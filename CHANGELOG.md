@@ -8,6 +8,64 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.149 — 16 September 2026
+
+This one is about the app working when your phone has no signal — which is
+what it was built to do, and did, right up to the edges. An audit of every
+place a connection is involved found the middle sound and the edges
+online-only, with nothing on screen telling you which was which.
+
+**The app now knows when it is offline, and says so.** Before, everything
+that went wrong looked the same: the dot in the corner turned red and the
+line beside it said "Offline — will retry" whether the network was gone,
+your passphrase had been refused, or your collection had grown too big to
+send. Two of those never fix themselves, and you were being told once a
+minute that they would. The line now says which it is — and being offline
+says where your work is, because that is the actual question: it is on this
+device, and it is safe.
+
+**Your courses are still there when you open the app offline.** Your cards
+always were, but the courses they came from were fetched afresh every
+launch — so with no connection you got an error where your course list
+should be, the deck tiles you practise from were missing, and a teacher
+opening the app was shown an empty screen. All of it is kept on the device
+now. As a side effect the app also stops re-downloading every deck and
+every card on every launch: it asks what has changed, and usually the
+answer is nothing.
+
+**The app stops calling home while there is nothing to call.** It used to
+retry every forty-five seconds for as long as it was open, which achieved
+nothing and cost battery. It now waits for the connection to come back,
+which it is told about, and picks up from there.
+
+**You are no longer asked to listen to a recording you don't have.** A
+listening question whose sound had never been downloaded was still put to
+you offline, with a silent player and a note saying the clip wasn't on this
+device — a question you could only skip. Those questions are now held back
+until the recording is here or you are back online, and the rest of the
+card is drilled as usual. Account settings says how many recordings are
+still to download, and the button there fetches them.
+
+**A problem you report offline actually gets reported.** It used to be sent
+once and, if that failed, quietly dropped — while the app told you it had
+been noted. It is now kept and sent when you are back online.
+
+**And a card a teacher writes offline is no longer lost.** Writing a card
+with no connection meant losing it at the moment you pressed Save. The
+editor now says you are offline before you start typing, the card is kept
+on the device, and it goes up when the connection returns. Recordings still
+need a connection, and the editor says so.
+
+**Smaller things.** Setting up for the first time genuinely needs a
+connection, and the first screen used to say the opposite; it now says what
+it means, and the error you get there is written for someone who has not
+started yet. The app warns you as your collection approaches the limit of
+what this device can hold, not only the limit of what can be sent. A list
+of already-uploaded recordings that only ever grew is now kept to the ones
+still in use. And on a phone, the app offers once to be added to your home
+screen — on iPhones that is what stops the browser clearing everything
+after a week away.
+
 ## 0.148 — 16 September 2026
 
 Everything in this release is about one thing: your progress being kept.

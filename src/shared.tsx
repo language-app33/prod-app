@@ -13,6 +13,7 @@ import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { mergeMet, splitSlots } from "./variables.ts";
+import { isOffline, watchNet } from "./net.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -2697,7 +2698,41 @@ export function useSlowWait(waiting: boolean | undefined, ms: number = 500) {
 /* The two spaces that are fetched on somebody's behalf and kept. */
 type SpaceName = "admin" | "teach";
 
+/*
+ * What each space last had on screen.
+ *
+ * Held in memory *and* on the device. In memory alone it was emptied by
+ * every reload, so a teacher who opened the app without a connection —
+ * and teaching is the space a teacher opens into — was shown an empty
+ * screen and an error, with no sign that the app knew perfectly well what
+ * their courses were an hour ago.
+ *
+ * Keyed by handle on the way in and out, so signing in as somebody else
+ * never shows them the last person's material.
+ */
 const spaceHeld: Record<string, { handle: string; shown: any } | null> = { admin: null, teach: null };
+
+const SPACE_KEY = (space: SpaceName) => `arabic-trainer:space:${space}`;
+
+function rememberOnDevice(space: SpaceName, handle: string, shown: any) {
+  try {
+    localStorage.setItem(SPACE_KEY(space), JSON.stringify({ handle, shown, at: Date.now() }));
+  } catch (e) {
+    /* Storage full, blocked, or the space is simply too big to keep. The
+       app works exactly as it did before this existed. */
+  }
+}
+
+function recallFromDevice(space: SpaceName, handle: string) {
+  try {
+    const raw = localStorage.getItem(SPACE_KEY(space));
+    const held = raw ? JSON.parse(raw) : null;
+    if (held && held.handle === handle && held.shown) return held.shown;
+  } catch (e) {
+    /* Nothing readable. */
+  }
+  return null;
+}
 type SpaceWatcher = (space: SpaceName, handle: string, shown: any) => void;
 const spaceWatchers = new Set<SpaceWatcher>();
 
@@ -2706,6 +2741,7 @@ const spaceWatchers = new Set<SpaceWatcher>();
    showing it. */
 export function rememberSpace(space: SpaceName, handle: string, shown: any) {
   spaceHeld[space] = { handle, shown };
+  rememberOnDevice(space, handle, shown);
 }
 
 /* Out loud: a fetch made on somebody else's behalf, which whoever is on
@@ -2717,12 +2753,14 @@ function deliverSpace(space: SpaceName, handle: string, shown: any) {
 
 export function recallSpace(space: SpaceName, handle: string) {
   const held = spaceHeld[space];
-  if (!held) return null;
-  if (held.handle !== handle) {
-    spaceHeld[space] = null;
-    return null;
-  }
-  return held.shown;
+  if (held && held.handle === handle) return held.shown;
+  if (held) spaceHeld[space] = null;
+  /* Nothing in memory: this is a fresh launch, which is exactly when the
+     copy on the device is worth having. Taken into memory as well, so the
+     rest of the session reads it without going back to storage. */
+  const stored = recallFromDevice(space, handle);
+  if (stored) spaceHeld[space] = { handle, shown: stored };
+  return stored;
 }
 
 /* A space on screen taking contents fetched for it elsewhere. The callback
@@ -2772,22 +2810,95 @@ export async function pullTeaching(handle: string) {
 /* Course membership is changed by other people on other devices, so a screen
    that fetched once at mount goes quietly stale — a deleted course sits there
    until the app is reloaded. Re-fetch whenever this window comes back to the
-   foreground, and occasionally while it stays there. */
-export function useLiveRefresh(refresh: () => void, everyMs: number = 45000) {
+   foreground, and occasionally while it stays there.
+
+   Three things it does not do, each of which it used to.
+
+   It does not ask while there is no connection. Offline, every one of
+   these was a request that could only fail, forty-five seconds apart, for
+   as long as the app was open — and the connection coming back is an
+   event, so there is no need to poll for it.
+
+   It does not keep asking at the same rate when the answers keep failing.
+   A server that is down stays down for longer than forty-five seconds, and
+   the wait doubles up to a ceiling until one succeeds. A refresh says it
+   failed by answering false or by throwing; anything else counts as having
+   worked, so a caller that reports nothing is treated as it always was.
+
+   And it asks straight away when the connection returns, which is the
+   moment its answer is most likely to have changed. */
+const REFRESH_CEILING_MS = 10 * 60 * 1000;
+
+export function useLiveRefresh(
+  refresh: () => void | boolean | Promise<void | boolean>,
+  everyMs: number = 45000,
+) {
+  /* Held in a ref so that a caller which rebuilds its callback every
+     render does not restart the backoff along with it. */
+  const latest = useRef(refresh);
+  latest.current = refresh;
+
   useEffect(() => {
     if (!refresh) return undefined;
-    const again = () => {
-      if (!document.hidden) refresh();
+    let alive = true;
+    let missed = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const soon = () => {
+      if (timer) clearTimeout(timer);
+      if (!alive) return;
+      const wait = Math.min(everyMs * Math.pow(2, missed), REFRESH_CEILING_MS);
+      timer = setTimeout(() => void again(), wait);
     };
-    window.addEventListener("focus", again);
-    document.addEventListener("visibilitychange", again);
-    const timer = setInterval(again, everyMs);
+
+    const again = async () => {
+      if (!alive) return;
+      /* Nobody is looking, or there is nothing to ask. Either way the next
+         focus or the connection returning will bring us straight back. */
+      if (document.hidden || isOffline()) return soon();
+      let ok = true;
+      try {
+        ok = (await latest.current()) !== false;
+      } catch (e) {
+        ok = false;
+      }
+      if (!alive) return;
+      missed = ok ? 0 : missed + 1;
+      soon();
+    };
+
+    const onWake = () => void again();
+    window.addEventListener("focus", onWake);
+    document.addEventListener("visibilitychange", onWake);
+    /* Back online: ask now, and from a clean slate — whatever was failing
+       a moment ago was most likely the connection that has just returned. */
+    const unwatch = watchNet((off) => {
+      if (off) return;
+      missed = 0;
+      void again();
+    });
+    soon();
+
     return () => {
-      window.removeEventListener("focus", again);
-      document.removeEventListener("visibilitychange", again);
-      clearInterval(timer);
+      alive = false;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("focus", onWake);
+      document.removeEventListener("visibilitychange", onWake);
+      unwatch();
     };
   }, [refresh, everyMs]);
+}
+
+/*
+ * Whether the app is offline, for a component that shows it.
+ *
+ * The plain function in net.ts is what the module-level helpers read; this
+ * is the same fact as state, so a screen re-renders when it changes.
+ */
+export function useOffline(): boolean {
+  const [off, setOff] = useState(isOffline);
+  useEffect(() => watchNet(setOff), []);
+  return off;
 }
 
 const MODE_LABEL: Record<string, string> = { learn: "Learning", teach: "Teaching", admin: "Admin" };
@@ -3336,4 +3447,94 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
     gone: goneIds.length,
     goneIds,
   };
+}
+
+/* ------------------------------------------------------------------
+   Installing the app
+
+   An app kept in a browser tab is an app whose storage the browser may
+   reclaim. Safari is the one that matters: it clears a site's local
+   storage — the document, the recordings, all of it — once seven days of
+   using Safari go by without a visit, and it does not honour the request
+   for durable storage that Chrome and Firefox do. A site added to the
+   home screen is exempt.
+
+   That makes installing the single most useful thing an offline-first
+   learner can do, and nothing anywhere said so. So: one line, once,
+   dismissible for good, and never shown to somebody who has already done
+   it or cannot.
+   ------------------------------------------------------------------ */
+
+const INSTALLED_KEY = "arabic-trainer:install-hint";
+
+/* Chrome's own offer to install, as it arrives on the event. Named rather
+   than written inline at the call below: spelled out there, the rule that
+   checks a hook's dependencies read the type's own `prompt` member as a
+   value the effect was using and asked for it to be declared. */
+interface InstallPrompt {
+  prompt: () => Promise<unknown>;
+}
+
+/** Already running as an installed app, by either of the two ways of asking. */
+export function isInstalled(): boolean {
+  try {
+    if (typeof window === "undefined") return true;
+    const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    /* iOS answers the old question and not the new one. */
+    const ios = (window.navigator as { standalone?: boolean }).standalone;
+    return !!standalone || !!ios;
+  } catch (e) {
+    /* Nothing to go on: say yes, because a hint shown to somebody who has
+       already installed the app is worse than no hint at all. */
+    return true;
+  }
+}
+
+/**
+ * Whether to offer installing, and how.
+ *
+ * `prompt` is Chrome's own installer, held from the event that offers it;
+ * where there is none — Safari, most of all — there is nothing to do but
+ * say where the button is.
+ */
+export function useInstallOffer() {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(INSTALLED_KEY) === "off";
+    } catch (e) {
+      return false;
+    }
+  });
+  const [installed] = useState(isInstalled);
+  const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
+
+  useEffect(() => {
+    if (installed) return undefined;
+    const held = (e: Event) => {
+      /* Chrome offers to do it itself, but only if the page says it wants
+         the offer rather than the browser's own moment for it. */
+      e.preventDefault();
+      setPrompt(e as unknown as InstallPrompt);
+    };
+    window.addEventListener("beforeinstallprompt", held);
+    /* Installed while the app was open: the offer goes at once. */
+    const done = () => setDismissed(true);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", held);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, [installed]);
+
+  const dismiss = useCallback(() => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(INSTALLED_KEY, "off");
+    } catch (e) {
+      /* It will be offered again next time, which is a smaller fault than
+         refusing to work at all. */
+    }
+  }, []);
+
+  return { show: !installed && !dismissed, prompt, dismiss };
 }

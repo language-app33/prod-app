@@ -1463,6 +1463,41 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     !!offline && !offline.classList.contains("stale") && /abc1234/.test(offline.textContent),
     (offline && offline.textContent) || "");
   w.fetch = globalThis.fetch = realFetch;
+
+  /*
+   * And what the menu says about sync while there is no connection.
+   *
+   * It used to say one sentence — "Offline — will retry" — for every way a
+   * sync can fail, including the two that never clear by themselves. So a
+   * learner whose passphrase had been refused was told, for ever, that
+   * they were offline and it would sort itself out. Now the line says
+   * which it is, and being offline says where the work is rather than only
+   * what is missing.
+   */
+  const wasOnline = Object.getOwnPropertyDescriptor(w.navigator, "onLine");
+  Object.defineProperty(w.navigator, "onLine", { value: false, configurable: true });
+  w.dispatchEvent(new w.Event("offline"));
+  await sleep(60);
+  /* The menu is already open from the check above — asked rather than
+     assumed, so this reads the same whether or not that changes. */
+  if (!document.querySelector(".at-cmenu")) await openMenu();
+  await sleep(60);
+  const line = document.querySelector(".at-clinetext");
+  check("offline, the sync line says so and says the work is safe",
+    !!line && /offline/i.test(line.textContent) && /this device/i.test(line.textContent),
+    (line && line.textContent) || "no sync line in the menu");
+  const dot = document.querySelector(".at-cmenu .at-cdot");
+  check("and the dot stands for offline rather than for a failure",
+    !!dot && dot.className.includes("off"), (dot && dot.className) || "no dot");
+  if (document.querySelector(".at-cmenu")) {
+    click(document.querySelector(".at-cornerbtn"));
+    await sleep(40);
+  }
+  if (wasOnline) Object.defineProperty(w.navigator, "onLine", wasOnline);
+  else Object.defineProperty(w.navigator, "onLine", { value: true, configurable: true });
+  w.dispatchEvent(new w.Event("online"));
+  await sleep(60);
+
   deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
   click(document.querySelector(".at-cornerbtn"));
   await sleep(50);

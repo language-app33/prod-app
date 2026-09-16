@@ -2093,6 +2093,13 @@ button.at-stat { transition: border-color 140ms ease; }
 .at-notice.warn { border-color: var(--brass-shade); color: var(--text); }
 .at-notice.ok { border-color: var(--jade-shade); background: var(--jade-soft); color: var(--text); }
 .at-notice.busy { border-style:dashed; }
+/* A word inside a sentence that does something, for the one or two places
+   where a full button would be louder than what it offers. It is a real
+   button underneath, so it is reachable by keyboard and reads as a control
+   to a screen reader. */
+.at-linkbtn { font:inherit; color: var(--accent); background:none; border:0; padding:0;
+  text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.at-linkbtn:hover { color: var(--text); }
 .at-notice.plain { border:0; background:none; padding:0; }
 /* --- Empty: nothing here yet --- */
 .at-empty2 { text-align:center; padding: var(--s6) var(--s4); border:2px dashed var(--line); border-radius: var(--r); background: var(--well); }

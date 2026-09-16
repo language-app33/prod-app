@@ -393,10 +393,54 @@ function forWire(data: Doc): Doc {
 export const MAX_DOC_BYTES = 4 * 1024 * 1024;
 const WARN_AT = 0.75;
 
-/** How big the document is on the wire, and whether that is worth saying. */
-export function docSize(data: Doc): { bytes: number; limit: number; tight: boolean } {
-  const bytes = new TextEncoder().encode(JSON.stringify(forWire(data))).length;
-  return { bytes, limit: MAX_DOC_BYTES, tight: bytes > MAX_DOC_BYTES * WARN_AT };
+/*
+ * And the ceiling on this side of the wire, which is the lower of the two
+ * and was never checked.
+ *
+ * The document is kept in the browser's ordinary key-value store, which
+ * the common browsers cap around five megabytes of UTF-16 — and it shares
+ * that cap with the account, the sync settings, the courses and the queue
+ * of work waiting to go up. A document that outgrows it does not fail to
+ * sync; it fails to *save*, on a device that goes on showing every answer
+ * as though it had been recorded.
+ *
+ * Measured in UTF-16 units here on purpose, because that is what the store
+ * counts, where the server counts bytes. The same Arabic document is
+ * therefore nearer the server's limit and further from this one, which is
+ * exactly why both have to be asked rather than one standing in for the
+ * other.
+ */
+export const MAX_LOCAL_UNITS = 5 * 1024 * 1024;
+/* Earlier than the wire's warning: this failure is quieter, and the way
+   out of it — removing recordings — takes longer than one sitting. */
+const LOCAL_WARN_AT = 0.7;
+
+/**
+ * How big the document is, against both of the limits it has to live
+ * under, and whether either is close enough to be worth saying.
+ */
+export function docSize(data: Doc): {
+  bytes: number;
+  limit: number;
+  tight: boolean;
+  units: number;
+  localLimit: number;
+  localTight: boolean;
+} {
+  const wire = JSON.stringify(forWire(data));
+  const bytes = new TextEncoder().encode(wire).length;
+  /* What the device stores is the document, not the wire form — but the
+     two differ only in the fields sync leaves behind, so the wire form is
+     a fair and cheap measure of it. */
+  const units = wire.length;
+  return {
+    bytes,
+    limit: MAX_DOC_BYTES,
+    tight: bytes > MAX_DOC_BYTES * WARN_AT,
+    units,
+    localLimit: MAX_LOCAL_UNITS,
+    localTight: units > MAX_LOCAL_UNITS * LOCAL_WARN_AT,
+  };
 }
 
 export async function syncOnce(local: Doc, token: string) {

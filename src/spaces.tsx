@@ -57,6 +57,13 @@ import { hasSlots, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
+import { isOffline, watchNet } from "./net.ts";
+import { drainOutbox, keep as keepPending, waiting as waitingToSend } from "./outbox.ts";
+
+/* What a card that could not be sent is filed under while it waits. See
+   outbox.ts: one queue for every kind of waiting work, and the kind is
+   what keeps a teacher's cards and a learner's reports apart. */
+const CARD_OUTBOX = "card";
 import { buildDialogIndex } from "./dialogs.ts";
 import { freshStates, unitsOf } from "./scheduler.ts";
 import {
@@ -97,6 +104,7 @@ import {
   recallSpace,
   rememberSpace,
   useFreshSpace,
+  useOffline,
   useLiveRefresh,
   useSnackbar,
 } from "./shared.tsx";
@@ -129,6 +137,18 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
   const [codeNeeded, setCodeNeeded] = useState(false);
   const [signupCode, setSignupCode] = useState("");
 
+  /*
+   * The app's general wording for a request that could not be made is
+   * "Can't reach the server. Your own cards still work" — which is written
+   * for somebody who has cards, on a screen where nobody does yet. Here it
+   * is the one thing standing between a person and the app, so it says so
+   * and says what to do about it.
+   */
+  const explainHere = (e: unknown) =>
+    String((e && (e as Error).message) || e) === "offline"
+      ? "Setting up needs a connection. Once you're set up, the app works without one."
+      : API.explain(e);
+
   async function create() {
     setBusy(true);
     setError("");
@@ -143,7 +163,7 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
         setCodeNeeded(true);
         setError(signupCode.trim() ? "That invitation code isn't right." : "");
       } else {
-        setError(API.explain(e));
+        setError(explainHere(e));
       }
     } finally {
       setBusy(false);
@@ -159,7 +179,7 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
       API.saveAccount(account);
       onDone(account);
     } catch (e) {
-      setError(API.explain(e));
+      setError(explainHere(e));
     } finally {
       setBusy(false);
     }
@@ -171,9 +191,15 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
         {step === "choose" && (
           <>
             <h1>مُفْرَدات</h1>
+            {/* What it used to say: "an account only matters if you join a
+                course or use more than one device". Both exits from this
+                screen are requests to the server, so an account is not
+                optional — it is the door. Somebody installing the app
+                where there is no signal was being told, by the one screen
+                standing in their way, that it should not have been. */}
             <Lede>
-              Learn a language a card at a time. Everything stays on your device; an account only
-              matters if you join a course or use more than one device.
+              Learn a language a card at a time. Setting up takes a moment and a connection; after
+              that your cards and your progress live on this device, and the app works without one.
             </Lede>
             <Button variant="primary" wide onClick={() => setStep("new")}>
               Set up
@@ -1384,6 +1410,8 @@ export function AdminSpace({ account, languages, onClose }: {
      can ever be on screen at a time. */
   const [confirm, setConfirm] = useState<Pending | null>(null);
 
+  /* Answers whether it worked, which is what the background poll reads to
+     know whether to back off — see useLiveRefresh. */
   const refresh = useCallback(async (background: boolean = false) => {
     /* A background poll must not flash "Working" or grey the buttons out
        from under someone mid-click; only a deliberate refresh does that. */
@@ -1391,8 +1419,10 @@ export function AdminSpace({ account, languages, onClose }: {
     try {
       setData(await pullAdmin(account.handle));
       setError("");
+      return true;
     } catch (e) {
       if (!background) setError(API.explain(e));
+      return false;
     } finally {
       if (!background) setBusy(false);
     }
@@ -3942,6 +3972,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     scene?: boolean;
     draft?: Record<string, any>;
   } | null>(null);
+  /* How many cards are waiting for a connection, so the space can say so
+     rather than leaving a teacher to wonder where their work went. */
+  const [kept, setKept] = useState(() => waitingToSend(CARD_OUTBOX));
+  /* Whether there is a connection, so the editor can say so before the
+     typing rather than after it. */
+  const offline = useOffline();
   const [naming, setNaming] = useState<any | null>(null); // "new" | deck
   const [confirm, setConfirm] = useState<Pending | null>(null); // whatever is awaiting a yes
   /* A card being read rather than edited. On the way back from a trial it
@@ -3968,6 +4004,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   const [newDeckName, setNewDeckName] = useState<string | null>(null);
   const [pickedCourses, setPickedCourses] = useState<string[]>([]);
 
+  /* As in AdminSpace: whether it worked, for the poll's own backoff. A
+     partial answer counts as a failure for that purpose — something is
+     wrong out there — while still putting on screen whatever did arrive. */
   const refresh = useCallback(async (background: boolean = false) => {
     if (!background) setBusy(true);
     try {
@@ -3979,8 +4018,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       setDecks(fresh.decks);
       setCards(fresh.cards);
       if (!background || !fresh.failed) setError(fresh.failed ? API.explain(fresh.failed) : "");
+      return !fresh.failed;
     } catch (e) {
       if (!background) setError(API.explain(e));
+      return false;
     } finally {
       if (!background) setBusy(false);
     }
@@ -4286,6 +4327,61 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     }
   }
 
+  /*
+   * A card that could not be sent is kept rather than lost.
+   *
+   * Everything a teacher does here was a bare request that threw: a card
+   * written on a train, or a recording made in a bad moment, went with the
+   * connection that failed to carry it, and the only warning came after
+   * the typing rather than before it.
+   *
+   * Only a request that never reached the server is kept. That is the
+   * whole of the rule, and it is what makes replaying one safe: the
+   * server cannot have half-done something it never heard about, so the
+   * card is either already there under its own id — an edit — or not there
+   * at all. A request the server *answered*, even to refuse, has been
+   * decided, and sending it again would either change nothing or write it
+   * twice.
+   */
+  const sendOrKeep = useCallback(async (card: Partial<Card>, decks: string[]) => {
+    try {
+      return await API.saveCard(card, decks);
+    } catch (e) {
+      if (String((e && (e as Error).message) || e) !== "offline") throw e;
+      keepPending(CARD_OUTBOX, { card, decks });
+      setKept(waitingToSend(CARD_OUTBOX));
+      return { kept: true };
+    }
+  }, []);
+
+  /* And send them when there is something to send them down. One at a
+     time, oldest first; a card the server refuses outright is dropped,
+     because it will be refused again for the same reason. */
+  const sendKeptCards = useCallback(async () => {
+    if (isOffline()) return;
+    const { sent } = await drainOutbox(CARD_OUTBOX, async (body) => {
+      const held = body as { card: Partial<Card>; decks: string[] };
+      try {
+        absorbSaved(await API.saveCard(held.card, held.decks));
+        return "sent";
+      } catch (e) {
+        return String((e && (e as Error).message) || e) === "offline" ? "keep" : "drop";
+      }
+    });
+    setKept(waitingToSend(CARD_OUTBOX));
+    if (sent) snack(`${plural(sent, "card")} sent`, "good");
+  /* absorbSaved and snack are stable for this purpose: the first writes
+     through a state setter, the second forwards to a memoised snackbar. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    void sendKeptCards();
+    return watchNet((off) => {
+      if (!off) void sendKeptCards();
+    });
+  }, [sendKeptCards]);
+
   /* What the server answers to a save or a delete is enough to bring the
      lists up to date here, so nothing needs fetching again. A save used to
      be followed by three more requests, each reading every deck and course
@@ -4461,7 +4557,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                * Which is why a scene reaches a student through the same
                * material payload as everything else.
                */
-              const r = await API.saveCard(
+              const r = await sendOrKeep(
                 {
                   id: editing.card ? editing.card.id : "",
                   lang: (editLang || {}).id || "",
@@ -4534,6 +4630,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     ).filter((pair) => !pair.confirmed && pair.word.id === saved.id).length;
               return {
                 name: (written ? written.title : main.en.trim() || main.ar.trim()) || "Card",
+                /* Kept for later rather than saved, which is a different
+                   promise and has to read as one. */
+                kept: !!(r && r.kept),
                 waiting,
                 /* And whatever the server had to cut to store it — a
                    thirteenth turn, a fifth speaker. Every one of those
@@ -4550,8 +4649,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                already written, say so — that is the moment the link is
                worth making, and the alternative is a deck whose coverage
                quietly falls as it grows. */
-            (done: { name: string, waiting: number, trimmed: string[] }) =>
-              done.trimmed.length
+            (done: { name: string, kept: boolean, waiting: number, trimmed: string[] }) =>
+              done.kept
+                ? `${done.name} saved on this device — it goes up when you're back online`
+                : done.trimmed.length
                 ? `${done.name} saved — but ${done.trimmed.join(" and ")} did not fit and ${done.trimmed.length === 1 ? "was" : "were"} left out`
                 : done.waiting
                 ? `${done.name} saved · it turns up in ${plural(done.waiting, "phrase")} you have written — confirm them under In context`
@@ -4961,6 +5062,16 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       error={error}
       busy={busy}
     >
+          {/* Work that is safe but not yet shared. Said here, above every
+              tab, because it is true of the space rather than of whichever
+              list is on screen — and a teacher who has just written a card
+              on a train should be able to see that it is still coming. */}
+          {kept > 0 && (
+            <Notice kind="warn">
+              {`${plural(kept, "card")} saved on this device, waiting for a connection. `}
+              {offline ? "They go up as soon as you're back online." : "Sending…"}
+            </Notice>
+          )}
 
           {tab === "courses" && (
             <CoursesPage

@@ -56,6 +56,7 @@ import {
   Screen,
   Segmented,
   plural,
+  useOffline,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -3442,6 +3443,8 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             ? "verb"
             : "table";
   const selfId = (card && card.id) || "";
+  /* Whether there is a connection, for the line above the first field. */
+  const offline = useOffline();
 
   return (
     /* "over" puts this above the mode selector and the corner menu, so
@@ -3465,6 +3468,18 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
           </Button>
         }
       >
+          {/* Said before the typing rather than after it.
+              A save that cannot be made is now kept on the device and sent
+              when the connection returns — but a teacher about to write a
+              card with four recordings on it should know where they stand
+              first, because the recordings are the part that cannot wait:
+              they are uploaded as they are made. */}
+          {offline && (
+            <Notice kind="warn">
+              You&apos;re offline. What you write here is saved on this device and goes up when
+              you&apos;re back online — but recordings can&apos;t be added until then.
+            </Notice>
+          )}
           <KindBlock
             card={card}
             lang={lang}

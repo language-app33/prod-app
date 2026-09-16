@@ -1727,3 +1727,85 @@ design, and the failure is rare and visible in a way silent deletion is
 not. And the server's write lock is still in memory — correct for the one
 process on one volume that runs today, and the honest boundary to note
 rather than to build a distributed lock nothing yet needs.
+
+---
+
+## Offline is a state the app is in, not a request that failed
+
+**16 September 2026** · `src/net.ts`, `src/outbox.ts`, `src/shared.tsx`
+(`useLiveRefresh`, `rememberSpace`, `useInstallOffer`), `src/ArabicTrainer.tsx`
+(`typeAllowedNow`, `loadMaterial`), `src/sync.ts` (`docSize`)
+
+An audit of the app against its own objective — offline-first — found the
+learner's loop genuinely sound and the edges online-only. The shell is
+precached whole, the document is on the device, practice is pure and
+local, and sync merges rather than overwrites. What was missing was one
+fact: *the app never knew it was offline*.
+
+Everything followed from that. `navigator.onLine` was read in exactly one
+place, to word one error message. So a failed request was the only
+vocabulary the app had, and every offline moment had to borrow it: the
+corner dot went red, the line beside it said "Offline — will retry" for
+causes that would never clear, the polls went on firing every forty-five
+seconds into nothing, and a listening question was dealt with a recording
+that could not be fetched.
+
+**The state is held in one place and read two ways.** `net.ts` is the whole
+of it: a plain function for the module-level helpers that decide what a
+session may ask, and a subscription for the components that show it. It
+says *offline* with confidence and never promises that a request will
+succeed — `navigator.onLine` is famously generous, so false means "do not
+bother" and true means "worth trying", which is all any caller needs.
+
+**What follows from knowing:** the polls stop and resume on the event
+rather than on a timer; a sync is not attempted and does not report a
+failure it did not have; a form whose recordings are elsewhere is treated
+exactly as one whose listening exercises are paused, which is a mechanism
+that already existed; and the menu line says which failure it was, from a
+reason that was already being recorded and read by nobody.
+
+**An absence is still not an instruction** — the rule from the last audit
+applies here too, and twice. A course refresh that *fails* no longer counts
+as having been told there are no courses, so an enrolled student is no
+longer invited to join one. And "which recordings are on this device" is
+null until somebody looks, because reading "not asked yet" as "none here"
+would silence a card that is in fact ready.
+
+**One queue for work that could not be sent.** `outbox.ts` is a small
+durable list, used by reported problems and by a teacher's unsent cards.
+Deliberately one rather than two: a second copy of "keep it, try again
+later" is a second set of bugs about when to stop trying. The rule that
+makes replay safe is that only a request which *never reached the server*
+is kept — the server cannot have half-done something it never heard about
+— so a refusal is dropped rather than asked again for ever, and the caller
+decides which it was, because only the caller knows what its own errors
+mean.
+
+**What it cost.**
+
+- **A third thing kept on the device**, beside the document and the
+  recordings: the courses, the spaces, and the queue. All of it shares one
+  small store with the document, which is why `docSize` now measures
+  against that ceiling too — in UTF-16 units, because that is what the
+  store counts, where the server counts bytes. The same Arabic document
+  sits nearer one limit and further from the other, so both have to be
+  asked.
+- **A stored version is a claim about the document.** Handing the last
+  material version to the launch check is what makes that check cheap, and
+  it is only true while the cards it describes are still here. An import or
+  a reset makes a liar of it, and the answer would be a student whose
+  material never arrives — so the seeding asks the document first.
+- **A replayed card save could duplicate**, if a request that threw had in
+  fact reached the server. It cannot today: the client throws `offline`
+  only when the fetch itself failed. Client-minted card ids would close it
+  for good, and are the price of a fuller outbox — which is why the outbox
+  is scoped to the one thing that loses a teacher's typing rather than to
+  everything the teaching space does.
+
+**What was left alone, deliberately.** Setting up still needs a connection.
+Both ways in are requests, and a local-only start is a product decision
+about what an account is for rather than a gap in the code; what changed is
+that the first screen now says so instead of promising the opposite. And
+the teaching space still writes straight to the server for everything but
+a card save: a general replay of every teacher action needs ids the client
+mints, and nothing yet asks for it.

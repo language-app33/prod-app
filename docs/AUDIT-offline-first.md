@@ -2,6 +2,29 @@
 
 **16 September 2026 · release 0.148, commit 1c24f45, the tree on `origin/beta`**
 
+> **Ten of the twelve findings were addressed in 0.149**, and the two that
+> were not are recorded at the end of this note. This document is kept as
+> it was written, because the reasoning is the record of why they were
+> there; the release entry in `CHANGELOG.md` says what changed for the
+> people using the app, and the `DECISIONS.md` entry *Offline is a state
+> the app is in, not a request that failed* says what changed underneath
+> and what was deliberately left alone.
+>
+> **Not done, and why.** Finding 1's larger half — a local-only start, so
+> the app can be used without an account at all — is a product decision
+> about what an account is for, and was left for the owner; its smaller
+> half, the copy on that screen that promised the opposite, is fixed.
+> Finding 10, the developer gallery in the precache, was judged not worth
+> the change.
+>
+> Each of the missing tests the last step asks for exists now, in
+> `tests/outbox.test.mjs` and `tests/offline.test.mjs`: a listening
+> question offline with and without its recording, the document measured
+> against the device's own ceiling, the service worker's API denylist and
+> its lazy-chunk precache, and the whole of the queue for work that could
+> not be sent. `tests/smoke.mjs` reads the corner menu with the connection
+> switched off.
+
 The app's stated objective is to be offline-first: a learner opens it on a
 train, practises, and nothing about that depends on a connection. This
 audit reads every path a connection touches — the shell the browser keeps,

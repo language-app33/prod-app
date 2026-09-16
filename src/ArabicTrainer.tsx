@@ -35,7 +35,9 @@ import {
   shortDate,
   pullAdmin,
   pullTeaching,
+  useInstallOffer,
   useLiveRefresh,
+  useOffline,
   useScrollTop,
   useSlowWait,
   useSnackbar,
@@ -193,6 +195,8 @@ import type { Standing } from "./scheduler.ts";
 import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk } from "./offers.ts";
+import { isOffline } from "./net.ts";
+import { drainOutbox, keep as keepPending, waiting as waitingToSend } from "./outbox.ts";
 import {
   DEFAULT_SPEAKERS,
   DIALOG_KIND,
@@ -250,6 +254,7 @@ import type { Filler, Mark } from "./grade.ts";
 import { applyUpdate, beforeReload, holdUpdates } from "./updates.ts";
 import {
   syncClips,
+  clipIdsIn,
   loadSyncConfig,
   saveSyncConfig,
   tokenFor,
@@ -282,6 +287,11 @@ import {
    ================================================================== */
 
 const KEY = "arabic-trainer-v3";
+
+/* What a reported problem is filed under while it waits for a connection.
+   See outbox.ts: one queue, and the kind is how two sorts of waiting work
+   are kept out of each other's way. */
+const FLAG_OUTBOX = "flag";
 /* ------------------------------------------------------------------
    Exercise types
    Ordered easiest to hardest: recognition, then decoding, then
@@ -1700,10 +1710,69 @@ function blankedPhrase(context: any, lang: Lang, blank: string = "____") {
     .join(" ");
 }
 
-/* Whether a type may be asked at this moment. Only the clock makes this
-   false, so it is deliberately not part of what a card "supports". */
-function typeAllowedNow(type: string) {
-  return !(listenOffUntil > Date.now() && isListening(type));
+/*
+ * Whether a type may be asked at this moment, of this form.
+ *
+ * Nothing here is about what a card *supports* — that is a fact about the
+ * card and does not change with the hour or the connection. These are the
+ * two things that can make a supported exercise unaskable right now, and
+ * both of them pass.
+ *
+ * The clock: someone who cannot play sound where they are has said so, and
+ * listening exercises stop being asked until it runs out.
+ *
+ * And the connection. A recording that is not on this device is fetched
+ * when it is needed, which works until there is nothing to fetch it from —
+ * and then the question was still dealt, put a silent player on the screen
+ * and told the learner the clip "isn't on this device yet", leaving them to
+ * skip a question they were never able to answer. Offline, a form whose
+ * recordings are all elsewhere is treated exactly as one whose listening
+ * exercises are paused: not asked, not counted as missing, and back the
+ * moment there is a connection or the recordings have been downloaded.
+ */
+function typeAllowedNow(type: string, unit?: Form) {
+  if (!isListening(type)) return true;
+  if (listenOffUntil > Date.now()) return false;
+  return canHearHere(unit);
+}
+
+/*
+ * Whether there is a connection, for the helpers below.
+ *
+ * Read from a flag set during render rather than asked of the browser on
+ * the spot, for the same two reasons the clock above is: these are plain
+ * functions rather than hooks, and a test has to be able to say what the
+ * answer is. Exported with the recordings for that second reason — what a
+ * session may ask is the one thing here no screenshot could show.
+ */
+let offlineNow = false;
+export function setOfflineNow(off: boolean) {
+  offlineNow = !!off;
+}
+
+/*
+ * Which recordings are on this device, and whether anybody has looked.
+ *
+ * Module-level for the same reason as the clock above: the helpers that
+ * read it are plain functions called from anywhere rather than hooks. Null
+ * means the question has not been asked yet, which is not the same as
+ * "none" — before the first look everything is assumed reachable, because
+ * the alternative is silencing a card that is in fact ready.
+ */
+let audibleClips: Set<string> | null = null;
+export function setAudibleClips(ids: Set<string> | null) {
+  audibleClips = ids;
+}
+
+/** Whether this form has a recording that can be played without a connection. */
+function canHearHere(unit?: Form) {
+  /* Online, anything the server holds is a fetch away, and a form with no
+     recordings at all is not this rule's business — nothing offers it a
+     listening exercise in the first place. */
+  if (!offlineNow || !audibleClips || !unit) return true;
+  const recs = unit.recs || [];
+  if (!recs.length) return true;
+  return recs.some((r) => audibleClips !== null && audibleClips.has(r.id));
 }
 
 /* How long "can't listen right now" lasts. Long enough to cover the walk, the
@@ -1834,8 +1903,13 @@ function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.
 const supportedTypes = (it: Form, settings: Settings): string[] =>
   availableTypes(it, langOf(settingsFor(settings, it)));
 
-function enabledTypes(it: Form, settings: Settings): string[] {
-  return supportedTypes(it, settings).filter(typeAllowedNow);
+/* Exported for the tests, which ask it the question the offline gate
+   above turns on: which exercises this form can actually be asked, here,
+   now, with the recordings this device happens to hold. */
+export function enabledTypes(it: Form, settings: Settings): string[] {
+  /* The form goes through as well as the type: whether a listening
+     exercise can be asked depends on whose recording it would play. */
+  return supportedTypes(it, settings).filter((t) => typeAllowedNow(t, it));
 }
 
 /* The exercise a schedule key is about. Keys carry which accepted answer
@@ -2624,7 +2698,10 @@ function typesForMode(mode: string) {
      comes through here rather than through enabledTypes. Get started draws on
      two gentle types, one of which is listening, so during the window it
      builds from recognition alone — which is still the gentle end. */
-  const enabled = TYPES.filter(typeAllowedNow);
+  /* No form in hand here, so only the clock can rule a type out — which is
+     right: this is choosing what a drill is *about*, and the cards it will
+     be about are chosen afterwards. */
+  const enabled = TYPES.filter((t) => typeAllowedNow(t));
   return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(typeOf(t))) : enabled;
 }
 
@@ -3759,6 +3836,30 @@ async function hasClipLocal(id: string) {
   } catch (e) {
     return false;
   }
+}
+
+/*
+ * Every recording on this device, in one question.
+ *
+ * Asked rather than worked out card by card: what a session may ask turns
+ * on it while the app is offline, so it has to be cheap enough to ask
+ * again whenever the answer could have moved — at launch, when the
+ * connection goes, and after anything has been downloaded. One key listing
+ * does the whole store; the text store behind it is listed too, because a
+ * browser without IndexedDB keeps its recordings there and a learner on
+ * one is exactly who should not be asked a question they cannot hear.
+ */
+async function localClipIds(): Promise<Set<string>> {
+  const ids: Set<string> = new Set();
+  const keys = (await idbRun("readonly", (st) => st.getAllKeys())) || [];
+  for (const k of keys) if (typeof k === "string") ids.add(k);
+  try {
+    const listed = await window.storage.list("audio-");
+    for (const k of (listed && listed.keys) || []) ids.add(String(k).slice("audio-".length));
+  } catch (e) {
+    /* No text store, or nothing in it. */
+  }
+  return ids;
 }
 
 /* The recording as a data URL, for sending to the sync store. */
@@ -5104,6 +5205,61 @@ function saveTeaches(yes: boolean) {
   }
 }
 
+/*
+ * The courses and decks a student holds, kept on the device.
+ *
+ * Their *cards* were always kept — those are folded into the document —
+ * but everything framing them was held in memory alone and went with every
+ * launch. So opening the app without a connection put an error where the
+ * course list should be, took away the deck tiles a learner practises
+ * from, and told an enrolled student with nothing due yet to go and join a
+ * course.
+ *
+ * The version is kept with them, which is the other half of the saving:
+ * the server answers "nothing has changed" to a check that says which
+ * version it already has, and without one every launch pulled every deck
+ * and every card in full.
+ */
+const MATERIAL_KEY = "arabic-trainer:material";
+
+interface HeldMaterial {
+  courses: Course[];
+  decks: Deck[];
+  version: string;
+  at: Millis;
+}
+
+function loadMaterial(handle?: string | null): HeldMaterial | null {
+  if (!handle) return null;
+  try {
+    const raw = localStorage.getItem(MATERIAL_KEY);
+    const held = raw ? JSON.parse(raw) : null;
+    /* Whose it is matters: signing in as somebody else must not show them
+       the last person's courses. */
+    if (!held || held.handle !== handle) return null;
+    return {
+      courses: Array.isArray(held.courses) ? held.courses : [],
+      decks: Array.isArray(held.decks) ? held.decks : [],
+      version: String(held.version || ""),
+      at: Number(held.at) || 0,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveMaterial(handle: string, held: { courses: Course[]; decks: Deck[]; version: string }) {
+  try {
+    localStorage.setItem(
+      MATERIAL_KEY,
+      JSON.stringify({ handle, ...held, at: Date.now() }),
+    );
+  } catch (e) {
+    /* Private browsing, or no room. The app behaves as it did before this
+       existed: it asks the server on every launch. */
+  }
+}
+
 /* When listening exercises stop being asked for, as a timestamp.
 
    Kept on the device rather than in the synced settings, for two reasons. It
@@ -5185,15 +5341,61 @@ export default function ArabicTrainer() {
      the memos that decide what is drillable run below this line and go
      through enabledTypes, so the flag has to be true before they do. */
   setListenOffUntil(listenOff);
-  const [myCourses, setMyCourses] = useState<Course[]>([]);
+  /* Whether there is a connection, as a piece of state so that everything
+     showing it re-renders when it changes. */
+  const offline = useOffline();
+  /* How many reported problems are waiting for one, so the corner menu can
+     say so rather than leaving someone to wonder whether it went. */
+  const [toSend, setToSend] = useState(0);
+  /* Whether to offer installing the app, which on iOS is what keeps its
+     data from being cleared after a week away. */
+  const install = useInstallOffer();
+  /* And which recordings are here, for the same reason and pushed into the
+     same kind of module flag: offline, it decides whether a listening
+     exercise can be asked at all. Null until the first look. */
+  const [audible, setAudible] = useState<Set<string> | null>(null);
+  setAudibleClips(audible);
+  /* Pushed into its own flag beside the recordings, and for the same
+     reason: the memos below run through enabledTypes, which has to know
+     both before they do. */
+  setOfflineNow(offline);
+  /*
+   * Ask the device again what it holds.
+   *
+   * Declared up here beside the state rather than with the effect that
+   * first calls it, because the sync below reaches for it too — every
+   * recording it downloads is one more question that can be asked without
+   * a connection.
+   */
+  const refreshAudible = useCallback(() => {
+    localClipIds()
+      .then((ids) => setAudible(ids))
+      .catch(() => {
+        /* Leave the last answer standing; a failed listing is not evidence
+           that the recordings have gone. */
+      });
+  }, []);
+  /* What this device was last told about the courses, read once at the
+     first render. It is what the three pieces of state below open with, so
+     a launch with no connection shows the courses rather than an error. */
+  const heldMaterial = useRef(loadMaterial(account && account.handle)).current;
+  const [myCourses, setMyCourses] = useState<Course[]>(
+    heldMaterial ? heldMaterial.courses : [],
+  );
   /* An empty list means two different things until the first pull comes
      back: "not in any course" and "not asked yet". They look the same and
-     read very differently to someone who has joined one. */
-  const [coursesKnown, setCoursesKnown] = useState(false);
+     read very differently to someone who has joined one.
+
+     A device that has been told before knows the answer without asking,
+     which is the whole point of keeping it; and a check that *fails* no
+     longer counts as having been told, which it used to. */
+  const [coursesKnown, setCoursesKnown] = useState(!!heldMaterial);
   /* A deck the person asked to practice from the Courses tab, handed to the
      cards tab once it is on screen. */
   const [deckWanted, setDeckWanted] = useState<string | null>(null);
-  const [courseDecks, setCourseDecks] = useState<Deck[]>([]);
+  const [courseDecks, setCourseDecks] = useState<Deck[]>(
+    heldMaterial ? heldMaterial.decks : [],
+  );
   const [courseBusy, setCourseBusy] = useState(false);
   const [courseError, setCourseError] = useState("");
 
@@ -5206,9 +5408,26 @@ export default function ArabicTrainer() {
      the picker from opening with an answer already marked. It stays on the
      last answer so "Keep going" means more of the same. */
   /* And whether the question is being put. */
-  /* The version of course material this device last received. Per device
-     and per launch, so the first check after opening is always a full one. */
+  /*
+   * The version of course material this device last received.
+   *
+   * It used to be per launch, so the first check after opening was always
+   * a full one: every deck and every card the student holds, in the
+   * largest request the app makes, to be told in almost every case that
+   * none of it had moved. It is kept with the courses now and handed to
+   * that first check, which the server answers with "unchanged" and a few
+   * bytes.
+   *
+   * Only where the cards it describes are actually here, though. The
+   * version is a claim about the document, and a document that has been
+   * replaced — an import, a reset, a device wiped and signed back in —
+   * makes a liar of it, leaving a student whose course cards never arrive.
+   * So the seeding waits for the document to load and asks it, in the
+   * effect below.
+   */
   const materialVersion = useRef("");
+  /* So the seeding happens once, however often the launch effect runs. */
+  const materialSeeded = useRef(false);
   const refreshing = useRef(false);
 
   /* Confirm who we are on each start, so a reissued key is noticed and a
@@ -5306,10 +5525,11 @@ export default function ArabicTrainer() {
      background check every forty-five seconds sets nothing here, so the dot
      stays still for it. */
   const [spacesBusy, setSpacesBusy] = useState(false);
-  /* Recorded but not shown anywhere yet: the corner dot reports that a
-     sync failed, and this holds why. A hole rather than a name, so it
-     is clear the value is unread on purpose. */
-  const [, setSyncError] = useState("");
+  /* Why the last sync failed, in words. It used to be recorded and read by
+     nobody: the dot in the corner went red and the line beside it said
+     "Offline — will retry" whatever had actually happened, including the
+     two failures that never clear by themselves. */
+  const [syncError, setSyncError] = useState("");
   const syncTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   const syncing = useRef(false);
   const fromSync = useRef(false);
@@ -5337,6 +5557,16 @@ export default function ArabicTrainer() {
     async (token: string = "") => {
       const key = token || loadSyncConfig().token;
       if (!key || syncing.current) return;
+      /*
+       * Offline, the round trip can only fail, and failing at it says
+       * nothing the connection has not already said. What is on this
+       * device is safe where it is; the `online` listener below runs this
+       * the moment there is somewhere to send it.
+       */
+      if (isOffline()) {
+        setSyncState("off");
+        return;
+      }
       syncing.current = true;
       setSyncState("syncing");
       setSyncError("");
@@ -5402,8 +5632,24 @@ export default function ArabicTrainer() {
             },
             uploaded,
           });
-          uploaded = res.uploaded;
-          if (res.pulled) flash(`${plural(res.pulled, "recording")} downloaded`);
+          /*
+           * Pruned to what the document still refers to.
+           *
+           * This ledger exists so a clip already sent is not offered again,
+           * and it only ever grew: one id per recording ever uploaded from
+           * this device, kept for good in the same small store the whole
+           * document lives in. A recording that no card mentions any more
+           * will never be offered again whatever this says, so holding its
+           * id is paying rent on a fact nobody will ask for.
+           */
+          const mentioned = new Set(clipIdsIn(merged));
+          uploaded = res.uploaded.filter((id) => mentioned.has(id));
+          if (res.pulled) {
+            flash(`${plural(res.pulled, "recording")} downloaded`);
+            /* Something new can be heard now, which offline decides what a
+               session may ask. */
+            refreshAudible();
+          }
         } catch (e) {
           /* the document is synced; clips can catch up next time */
         }
@@ -5419,9 +5665,19 @@ export default function ArabicTrainer() {
            the day they lose a phone. Said once per sync, and only when it
            is actually tight. */
         const size = docSize(dataRef.current);
-        if (size.tight) {
+        if (size.tight || size.localTight) {
+          /*
+           * Two ceilings, and the nearer one is the one worth naming. The
+           * device's own store is the smaller and the quieter: past it the
+           * saving fails rather than the sending, on a screen that goes on
+           * showing every answer as though it had been kept.
+           */
+          const share = Math.max(
+            size.bytes / size.limit,
+            size.units / size.localLimit,
+          );
           flash(
-            `Your cards are ${Math.round((size.bytes / size.limit) * 100)}% of the size this can sync. ` +
+            `Your cards are ${Math.round(share * 100)}% of the size this device can hold. ` +
               "Remove some recordings before it stops.",
             "warn",
           );
@@ -5464,8 +5720,8 @@ export default function ArabicTrainer() {
             ? "Your cards are too big to sync. Remove some recordings or cards."
             : msg === "would-empty"
             ? "Sync refused: this device had nothing to send. Your cards on the server are untouched."
-            : navigator.onLine === false
-            ? "Offline — will retry"
+            : isOffline()
+            ? "Offline — your work is saved on this device"
             : "Sync failed";
         setSyncError(said);
         if (msg === "too-large" || msg === "would-empty") flash(said, "warn");
@@ -5538,14 +5794,59 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session && session.endsAt]);
 
+  /*
+   * Send what has been waiting for a connection.
+   *
+   * Reported problems only. Everything a learner *learns* travels in the
+   * document and is sent by the sync below; this is for the one thing they
+   * can do that is a message to somebody else, which had no way of
+   * reaching them from a train.
+   *
+   * A report the server refuses is dropped rather than tried for ever: the
+   * card it was about has gone, or the account has, and asking again would
+   * be told the same thing. Only a request that could not be made at all
+   * keeps its place in the queue.
+   */
+  const sendWaiting = useCallback(async () => {
+    if (!account || isOffline()) return;
+    API.setKey(account.key);
+    const { sent, left } = await drainOutbox(FLAG_OUTBOX, async (body) => {
+      try {
+        await API.reportFlag(body as API.FlagReport);
+        return "sent";
+      } catch (e) {
+        return String((e && (e as Error).message) || e) === "offline" ? "keep" : "drop";
+      }
+    });
+    setToSend(left);
+    if (sent) flash(`${plural(sent, "report")} sent. Thank you 🫶`, "good");
+  /* The key, not the account object, as everywhere else here. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountKey]);
+
+  /* What is waiting, as the app opens — before any connection has been
+     tried, so the corner menu is right from the first paint. */
+  useEffect(() => {
+    setToSend(waitingToSend(FLAG_OUTBOX));
+  }, []);
+
   // Retry when the connection comes back.
   useEffect(() => {
     const onOnline = () => {
       if (loadSyncConfig().token) runSync();
+      void sendWaiting();
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [runSync]);
+  }, [runSync, sendWaiting]);
+
+  /* And on launch, for a report kept during a session that ended before
+     the connection came back. */
+  useEffect(() => {
+    if (ready && account) void sendWaiting();
+  /* The handle, not the account object, for the same reason. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, accountHandle, sendWaiting]);
 
   useEffect(() => {
     let alive = true;
@@ -5584,6 +5885,20 @@ export default function ArabicTrainer() {
      clips that were already migrated. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
+
+  /*
+   * Which recordings are on this device.
+   *
+   * Asked at launch and again whenever the connection comes or goes, which
+   * are the two moments the answer changes what a session may ask: offline
+   * it decides whether a listening exercise is dealt at all. Everything
+   * that downloads a recording calls `refreshAudible` itself, so a course
+   * taken offline is audible without waiting for anything.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    refreshAudible();
+  }, [ready, offline, refreshAudible]);
 
   /*
    * Write what is in memory, now, and keep trying until it lands.
@@ -6058,12 +6373,19 @@ export default function ArabicTrainer() {
     /* Three answers, not two: silent, speak only if something moved, or
        speak either way. */
     async (announce: boolean | "changes") => {
-      if (!account) return;
+      if (!account) return true;
       /* A focus and a visibility change arrive together when a tab comes
          back; one refresh at a time is enough. */
-      if (refreshing.current) return;
+      if (refreshing.current) return true;
+      /* Nothing to ask and nothing to be learnt from asking. What this
+         device was last told is already on screen. */
+      if (isOffline()) return false;
       refreshing.current = true;
       setCourseBusy(true);
+      /* Whether this actually got an answer, which two callers read: the
+         background poll, to know whether to back off, and the line below
+         that decides whether an empty course list means anything. */
+      let answered = false;
       try {
         const r = await pullCourses(
           dataRef.current.items,
@@ -6074,6 +6396,7 @@ export default function ArabicTrainer() {
         setTeaches(r.teaches);
         saveTeaches(r.teaches);
         materialVersion.current = r.version || "";
+        answered = true;
         if (r.unchanged) {
           setCourseError("");
           if (announce === true) flash("Nothing new");
@@ -6081,6 +6404,13 @@ export default function ArabicTrainer() {
         }
         setMyCourses(r.courses);
         setCourseDecks(r.decks);
+        /* Kept, so the next launch opens with them rather than with an
+           error — and so the check after that can be the cheap one. */
+        saveMaterial(account.handle, {
+          courses: r.courses,
+          decks: r.decks,
+          version: r.version || "",
+        });
         /* Folded against the cards as they are now, not as they were when
            the request went out: an answer given while the material was
            being fetched used to be lost to the copy that came back. */
@@ -6150,11 +6480,16 @@ export default function ArabicTrainer() {
       } finally {
         refreshing.current = false;
         setCourseBusy(false);
-        /* Whether it answered or failed, we are no longer waiting to find
-           out — and an empty-handed student is only told to join a course
-           once we know they are not already in one. */
-        setCoursesKnown(true);
+        /*
+         * An empty-handed student is told to join a course only once we
+         * know they are not already in one — and a check that failed does
+         * not know that. It used to set this either way, so a student
+         * whose material could not be fetched was invited to join a course
+         * they were already enrolled on.
+         */
+        if (answered) setCoursesKnown(true);
       }
+      return answered;
     },
   /* The handle, not the account object. commit and flash are stable
      across renders — one writes through a ref, the other forwards to
@@ -6164,7 +6499,20 @@ export default function ArabicTrainer() {
   );
 
   useEffect(() => {
-    if (ready && account) refreshCourses(false);
+    if (!ready || !account) return;
+    /*
+     * Tell the first check what this device already has, but only if the
+     * cards that version describes are actually in the document. A stored
+     * version against a document that no longer holds the course cards
+     * would have the server answer "nothing has changed" to a device with
+     * nothing — a student whose material never arrives, silently.
+     */
+    if (!materialSeeded.current) {
+      materialSeeded.current = true;
+      const has = (dataRef.current.items || []).some((it) => it.source);
+      if (heldMaterial && has) materialVersion.current = heldMaterial.version;
+    }
+    refreshCourses(false);
   /* The handle, not the account object, for the same reason. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, accountHandle, refreshCourses]);
@@ -6752,7 +7100,13 @@ export default function ArabicTrainer() {
       flash("Noted on this device. Sign in to report it.", "warn");
       return;
     }
-    API.reportFlag({
+    /*
+     * The report itself, which is the same object whether it goes now or
+     * later: it carries a copy of the question rather than a pointer to
+     * the card, so it still says something after a fortnight in a queue —
+     * which is the property that makes it safe to keep at all.
+     */
+    const report: API.FlagReport = {
       kind,
       note: said,
       /* The card's id on the server, which is not the item's id here:
@@ -6772,9 +7126,39 @@ export default function ArabicTrainer() {
          a report that says only "card k3f2" is then unreadable. */
       prompt: leadOf(parentItem).ar || "",
       meaning: leadOf(parentItem).en || "",
-    })
+    };
+
+    /*
+     * Offline, it waits rather than being dropped.
+     *
+     * It used to be sent once, and a failure was answered with "Noted on
+     * this device" — which was true only in the sense that the note was
+     * written onto the card for the learner's own eyes. Nothing ever sent
+     * it, so a problem reported on a train was a problem nobody heard
+     * about, while the guide promised that anything done offline is sent
+     * when a connection returns.
+     */
+    if (isOffline()) {
+      keepPending(FLAG_OUTBOX, report);
+      setToSend(waitingToSend(FLAG_OUTBOX));
+      flash("Saved — it will be sent when you're back online", "good");
+      return;
+    }
+    API.reportFlag(report)
       .then(() => flash("Thank you for the feedback 🫶", "good"))
-      .catch(() => flash("Noted on this device. We couldn't reach the server.", "warn"));
+      .catch((e) => {
+        /* A refusal is the server having decided, and asking again would
+           be told the same thing; anything else never arrived, so it
+           waits. `offline` is what the client calls a request that could
+           not be made at all. */
+        if (String((e && (e as Error).message) || e) !== "offline") {
+          flash("Noted on this device. We couldn't reach the server.", "warn");
+          return;
+        }
+        keepPending(FLAG_OUTBOX, report);
+        setToSend(waitingToSend(FLAG_OUTBOX));
+        flash("Saved — it will be sent when you're back online", "good");
+      });
   }
 
   /*
@@ -7330,6 +7714,31 @@ export default function ArabicTrainer() {
      send someone looking for a fault that isn't there. */
   const listenQuiet = listenOff > Date.now();
 
+  /*
+   * What the corner menu says about sync.
+   *
+   * One line, and it used to say one of three things — syncing, "Offline —
+   * will retry", or up to date — with the middle one standing for every
+   * way a sync can fail. Two of those never clear by themselves, so a
+   * learner whose passphrase had been refused or whose collection had
+   * outgrown the limit was told, once a minute for ever, that they were
+   * offline and it would sort itself out.
+   *
+   * Offline comes first because it explains every other failure under it,
+   * and it says where the work is rather than only what is missing: the
+   * answer to "am I losing anything?" is no, and that is the question
+   * behind the look at the dot.
+   */
+  const syncNote = offline
+    ? `Offline — your work is saved on this device${
+        toSend ? ` · ${plural(toSend, "report")} to send` : ""
+      }`
+    : syncState === "syncing" || spacesBusy || (syncState === "idle" && courseBusy)
+    ? "Syncing now"
+    : syncState === "error"
+    ? syncError || "Sync failed"
+    : "Up to date";
+
   return (
     <div
       className={`at ${theme}${inExercise ? " in-exercise" : ""}${kbOpen ? " kb-open" : ""}`}
@@ -7377,6 +7786,30 @@ export default function ArabicTrainer() {
         {/* ============ STUDY ============ */}
         {tab === "home" && (
           <>
+            {/* Where it is most likely to be read by the person it is for:
+                above what they came here to do, once, and gone for good on
+                a tap. See useInstallOffer for why installing is the one
+                thing that keeps an offline app's data safe on iOS. */}
+            {install.show && !inExercise && (
+              <div className="at-mb3">
+                <Notice kind="info">
+                  <span>
+                    Add Taleb33 to your home screen to keep your cards safe and open it like an
+                    app.{" "}
+                    {install.prompt ? (
+                      <button className="at-linkbtn" onClick={() => install.prompt?.prompt()}>
+                        Install
+                      </button>
+                    ) : (
+                      <i>Use your browser&apos;s Share menu, then &ldquo;Add to Home Screen&rdquo;.</i>
+                    )}{" "}
+                    <button className="at-linkbtn" onClick={install.dismiss}>
+                      Not now
+                    </button>
+                  </span>
+                </Notice>
+              </div>
+            )}
             {items.length === 0 && (
               /* The same component the Progress and Cards tabs use for the
                  same situation. It was a hand-rolled block here, which is
@@ -8208,6 +8641,8 @@ Cards ready to practice
             setSetting={setSetting}
             onReset={resetScheduling}
             allClipIds={allClipIds}
+            onDevice={audible}
+            onDownloaded={refreshAudible}
             /* Signed out, the account screen is still reachable and still
                has to render. What it shows is nobody, not a half-account. */
             account={account || EMPTY_ACCOUNT}
@@ -8317,8 +8752,15 @@ Cards ready to practice
                every part of it is done — this device's cards, the courses,
                and the spaces this person belongs to. */
             syncState={
-              spacesBusy || (syncState === "idle" && courseBusy) ? "syncing" : syncState
+              offline
+                ? "off"
+                : spacesBusy || (syncState === "idle" && courseBusy)
+                ? "syncing"
+                : syncState
             }
+            /* Why, in words, rather than the one sentence that used to
+               stand for every way this can go wrong. */
+            syncNote={syncNote}
             onSyncNow={syncEverything}
             theme={settings.theme || "auto"}
             onTheme={(v) => setSetting("theme", v)}
@@ -11024,7 +11466,12 @@ const GUIDE = [
     title: "Your progress",
     body: [
       "Your progress lives on your device and, if you sign in, syncs between your devices. It is yours: a teacher sees the material, not your answers.",
-      "The app works fully offline. Anything you do while disconnected is kept and sent when a connection returns.",
+      /* This used to promise that *anything* done offline is sent later,
+         which was true of what you learn and of nothing else. It is worth
+         saying plainly which is which, because the difference is what
+         somebody would plan a journey around. */
+      "Practising works with no connection at all: your answers, your schedule and anything you report about a card are kept on the device and go up when you are back online.",
+      "What does need a connection: setting up, joining a course, new material from your teacher, and recordings you haven't played yet. Account settings can download a whole course's recordings before you travel.",
     ],
   },
 ];
@@ -11532,9 +11979,12 @@ function AppVersion() {
   );
 }
 
-function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }: {
+function CornerMenu({ account, syncState, syncNote, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }: {
   account: User | null;
   syncState?: string;
+  /** What to say about it. Worked out by the app, which is the only thing
+      that knows whether this was the connection or the passphrase. */
+  syncNote?: string;
   onSyncNow: () => void;
   theme?: string;
   onTheme: (theme: string) => void;
@@ -11579,13 +12029,7 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
             <span className="at-cico">
               <span className={`at-cdot ${syncState}`} />
             </span>
-            <span className="at-clinetext">
-              {syncState === "syncing"
-                ? "Syncing now"
-                : syncState === "error"
-                ? "Offline — will retry"
-                : "Up to date"}
-            </span>
+            <span className="at-clinetext">{syncNote || "Up to date"}</span>
             <button className="at-cact" onClick={onSyncNow}>
               Sync now
             </button>
@@ -11707,6 +12151,8 @@ function AccountSettings({
   onCloseAccount,
   onLogOut,
   allClipIds = [],
+  onDevice = null,
+  onDownloaded,
 }: {
   account: User & { key: string };
   onRename: (name: string) => void;
@@ -11717,6 +12163,11 @@ function AccountSettings({
   onCloseAccount: () => void;
   onLogOut: () => void;
   allClipIds?: string[];
+  /** Which recordings are here, so the screen can say how many are not.
+      Null before anybody has looked. */
+  onDevice?: Set<string> | null;
+  /** Something was downloaded, so what a session may ask has changed. */
+  onDownloaded?: () => void;
 }) {
   /* The storage figures moved here with the section that shows them. */
   const [stats, setStats] = useState<any | null>(null);
@@ -11731,7 +12182,23 @@ function AccountSettings({
     setWarming({ done: total, total, fetched, finished: true });
     const [st, db] = await Promise.all([clipStats(), openClipDb()]);
     setStats({ ...st, idb: !!db });
+    /* More can be heard now, which decides what an offline session may
+       ask. Said here rather than left to the next launch, because the
+       whole point of this button is being about to go offline. */
+    if (onDownloaded) onDownloaded();
   }
+
+  /*
+   * How many of this learner's recordings are not on the device.
+   *
+   * Worth saying out loud on this screen: offline, a card whose recording
+   * is elsewhere is not asked its listening exercises, and somebody about
+   * to get on a train would rather know that now than find a quieter
+   * session waiting for them.
+   */
+  const missing = onDevice
+    ? [...new Set(allClipIds)].filter((id) => !onDevice.has(id)).length
+    : 0;
   /* Shut by default: everything inside it is irreversible, so it shouldn't
      be sitting open where a thumb can reach it. */
   const [dangerOpen, setDangerOpen] = useState(false);
@@ -11760,12 +12227,20 @@ function AccountSettings({
               }`
             : "Counting recordings…"}
         </Lede>
+        {missing > 0 && (
+          <Help>
+            {`${plural(missing, "recording")} not on this device yet. Until they are, questions that
+              play them are only asked when you're online.`}
+          </Help>
+        )}
         {allClipIds.length > 0 && (
           <div className="at-row at-mt2">
             <Button variant="ghost" size="sm"
               disabled={!!warming && !warming.finished}
               onClick={downloadAll} icon="download">{warming && !warming.finished
                 ? `Downloading ${warming.done} of ${warming.total}…`
+                : missing > 0
+                ? `Download ${missing} for offline`
                 : "Download all recordings for offline"}</Button>
           </div>
         )}
