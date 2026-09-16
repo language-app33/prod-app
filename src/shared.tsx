@@ -6,13 +6,14 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.ts";
+import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Parked } from "./types.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { mergeMet, splitSlots } from "./variables.ts";
+import { isOffline, watchNet } from "./net.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -134,6 +135,8 @@ const ICONS: Record<string, string> = {
     "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zm6.93 6h-2.95c-.32-1.25-.78-2.45-1.38-3.56 1.84.63 3.37 1.91 4.33 3.56zM12 4.04c.83 1.2 1.48 2.53 1.91 3.96h-3.82c.43-1.43 1.08-2.76 1.91-3.96zM4.26 14C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2 0 .68.06 1.34.14 2H4.26zm.82 2h2.95c.32 1.25.78 2.45 1.38 3.56-1.84-.63-3.37-1.9-4.33-3.56zm2.95-8H5.08c.96-1.66 2.49-2.93 4.33-3.56C8.81 5.55 8.35 6.75 8.03 8zM12 19.96c-.83-1.2-1.48-2.53-1.91-3.96h3.82c-.43 1.43-1.08 2.76-1.91 3.96zM14.34 14H9.66c-.09-.66-.16-1.32-.16-2 0-.68.07-1.35.16-2h4.68c.09.65.16 1.32.16 2 0 .68-.07 1.34-.16 2zm.25 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95c-.96 1.65-2.49 2.93-4.33 3.56zM16.36 14c.08-.66.14-1.32.14-2 0-.68-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2h-3.38z",
   lock:
     "M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z",
+  /* The number sign, for the screen a language's numbers are written on. */
+  hash: "M20 10V8h-4V4h-2v4h-4V4H8v4H4v2h4v4H4v2h4v4h2v-4h4v4h2v-4h4v-2h-4v-4h4zm-6 4h-4v-4h4v4z",
 };
 
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {
@@ -2697,7 +2700,41 @@ export function useSlowWait(waiting: boolean | undefined, ms: number = 500) {
 /* The two spaces that are fetched on somebody's behalf and kept. */
 type SpaceName = "admin" | "teach";
 
+/*
+ * What each space last had on screen.
+ *
+ * Held in memory *and* on the device. In memory alone it was emptied by
+ * every reload, so a teacher who opened the app without a connection —
+ * and teaching is the space a teacher opens into — was shown an empty
+ * screen and an error, with no sign that the app knew perfectly well what
+ * their courses were an hour ago.
+ *
+ * Keyed by handle on the way in and out, so signing in as somebody else
+ * never shows them the last person's material.
+ */
 const spaceHeld: Record<string, { handle: string; shown: any } | null> = { admin: null, teach: null };
+
+const SPACE_KEY = (space: SpaceName) => `arabic-trainer:space:${space}`;
+
+function rememberOnDevice(space: SpaceName, handle: string, shown: any) {
+  try {
+    localStorage.setItem(SPACE_KEY(space), JSON.stringify({ handle, shown, at: Date.now() }));
+  } catch (e) {
+    /* Storage full, blocked, or the space is simply too big to keep. The
+       app works exactly as it did before this existed. */
+  }
+}
+
+function recallFromDevice(space: SpaceName, handle: string) {
+  try {
+    const raw = localStorage.getItem(SPACE_KEY(space));
+    const held = raw ? JSON.parse(raw) : null;
+    if (held && held.handle === handle && held.shown) return held.shown;
+  } catch (e) {
+    /* Nothing readable. */
+  }
+  return null;
+}
 type SpaceWatcher = (space: SpaceName, handle: string, shown: any) => void;
 const spaceWatchers = new Set<SpaceWatcher>();
 
@@ -2706,6 +2743,7 @@ const spaceWatchers = new Set<SpaceWatcher>();
    showing it. */
 export function rememberSpace(space: SpaceName, handle: string, shown: any) {
   spaceHeld[space] = { handle, shown };
+  rememberOnDevice(space, handle, shown);
 }
 
 /* Out loud: a fetch made on somebody else's behalf, which whoever is on
@@ -2717,12 +2755,14 @@ function deliverSpace(space: SpaceName, handle: string, shown: any) {
 
 export function recallSpace(space: SpaceName, handle: string) {
   const held = spaceHeld[space];
-  if (!held) return null;
-  if (held.handle !== handle) {
-    spaceHeld[space] = null;
-    return null;
-  }
-  return held.shown;
+  if (held && held.handle === handle) return held.shown;
+  if (held) spaceHeld[space] = null;
+  /* Nothing in memory: this is a fresh launch, which is exactly when the
+     copy on the device is worth having. Taken into memory as well, so the
+     rest of the session reads it without going back to storage. */
+  const stored = recallFromDevice(space, handle);
+  if (stored) spaceHeld[space] = { handle, shown: stored };
+  return stored;
 }
 
 /* A space on screen taking contents fetched for it elsewhere. The callback
@@ -2772,22 +2812,95 @@ export async function pullTeaching(handle: string) {
 /* Course membership is changed by other people on other devices, so a screen
    that fetched once at mount goes quietly stale — a deleted course sits there
    until the app is reloaded. Re-fetch whenever this window comes back to the
-   foreground, and occasionally while it stays there. */
-export function useLiveRefresh(refresh: () => void, everyMs: number = 45000) {
+   foreground, and occasionally while it stays there.
+
+   Three things it does not do, each of which it used to.
+
+   It does not ask while there is no connection. Offline, every one of
+   these was a request that could only fail, forty-five seconds apart, for
+   as long as the app was open — and the connection coming back is an
+   event, so there is no need to poll for it.
+
+   It does not keep asking at the same rate when the answers keep failing.
+   A server that is down stays down for longer than forty-five seconds, and
+   the wait doubles up to a ceiling until one succeeds. A refresh says it
+   failed by answering false or by throwing; anything else counts as having
+   worked, so a caller that reports nothing is treated as it always was.
+
+   And it asks straight away when the connection returns, which is the
+   moment its answer is most likely to have changed. */
+const REFRESH_CEILING_MS = 10 * 60 * 1000;
+
+export function useLiveRefresh(
+  refresh: () => void | boolean | Promise<void | boolean>,
+  everyMs: number = 45000,
+) {
+  /* Held in a ref so that a caller which rebuilds its callback every
+     render does not restart the backoff along with it. */
+  const latest = useRef(refresh);
+  latest.current = refresh;
+
   useEffect(() => {
     if (!refresh) return undefined;
-    const again = () => {
-      if (!document.hidden) refresh();
+    let alive = true;
+    let missed = 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const soon = () => {
+      if (timer) clearTimeout(timer);
+      if (!alive) return;
+      const wait = Math.min(everyMs * Math.pow(2, missed), REFRESH_CEILING_MS);
+      timer = setTimeout(() => void again(), wait);
     };
-    window.addEventListener("focus", again);
-    document.addEventListener("visibilitychange", again);
-    const timer = setInterval(again, everyMs);
+
+    const again = async () => {
+      if (!alive) return;
+      /* Nobody is looking, or there is nothing to ask. Either way the next
+         focus or the connection returning will bring us straight back. */
+      if (document.hidden || isOffline()) return soon();
+      let ok = true;
+      try {
+        ok = (await latest.current()) !== false;
+      } catch (e) {
+        ok = false;
+      }
+      if (!alive) return;
+      missed = ok ? 0 : missed + 1;
+      soon();
+    };
+
+    const onWake = () => void again();
+    window.addEventListener("focus", onWake);
+    document.addEventListener("visibilitychange", onWake);
+    /* Back online: ask now, and from a clean slate — whatever was failing
+       a moment ago was most likely the connection that has just returned. */
+    const unwatch = watchNet((off) => {
+      if (off) return;
+      missed = 0;
+      void again();
+    });
+    soon();
+
     return () => {
-      window.removeEventListener("focus", again);
-      document.removeEventListener("visibilitychange", again);
-      clearInterval(timer);
+      alive = false;
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("focus", onWake);
+      document.removeEventListener("visibilitychange", onWake);
+      unwatch();
     };
   }, [refresh, everyMs]);
+}
+
+/*
+ * Whether the app is offline, for a component that shows it.
+ *
+ * The plain function in net.ts is what the module-level helpers read; this
+ * is the same fact as state, so a screen re-renders when it changes.
+ */
+export function useOffline(): boolean {
+  const [off, setOff] = useState(isOffline);
+  useEffect(() => watchNet(setOff), []);
+  return off;
 }
 
 const MODE_LABEL: Record<string, string> = { learn: "Learning", teach: "Teaching", admin: "Admin" };
@@ -2944,7 +3057,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
      refresh; the words a line uses are card ids on the server and item
      ids here, the same translation the card's own `uses` gets. */
   const lines = (card.lines || []).map((ln, i) => ({
-    id: `${localIdFor(card.id)}-l${i}`,
+    /* Named the way a form is: off the name the teacher's turn carries
+       where it has one, and off its place where it does not — which is
+       every turn written before they had names. */
+    id: `${localIdFor(card.id)}-l${ln.id ? `~${ln.id}` : i}`,
     who: Number(ln.who) || 0,
     ar: ln.ar || "",
     lat: ln.lat || "",
@@ -3005,6 +3121,15 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        for the same reason the name is: it is the teacher's answer and
        nothing here could work it out. Left off where nobody has said. */
     ...(card.category ? { category: String(card.category) } : null),
+    /* And what number it is worth, where it is a number. Carried for the
+       same reason the three above are — it is the teacher's answer and
+       nothing here could read it off the word — and it is what everything
+       that builds forty-seven out of forty and seven finds its parts by.
+       Left off where there is none, which is every card that is not a
+       number and every number card written before they were built. */
+    ...(typeof card.value === "number" && Number.isFinite(card.value)
+      ? { value: card.value }
+      : null),
     tags: [deckTitle],
     locked: true,
     flags: [],
@@ -3065,15 +3190,18 @@ export interface Folded {
   added: number;
   gone: number;
   goneIds: string[];
+  /* The progress of cards no longer in the material, set aside in case
+     they come back — see foldCourses. */
+  parked: Record<string, Parked>;
 }
 
 export type CoursesPulled = Folded & {
   unchanged?: false;
   decks: Deck[];
   courses: Course[];
-  /* The same fold again, against whatever the cards are by the time the
-     caller adopts the result. */
-  fold: (current: Item[]) => Folded;
+  /* The same fold again, against whatever the cards and the drawer are by
+     the time the caller adopts the result. */
+  fold: (current: Item[], parked?: Record<string, Parked>) => Folded;
   version: string;
   teaches: boolean;
 };
@@ -3082,6 +3210,7 @@ export async function pullCourses(
   items: Item[],
   freshStates: () => Record<string, ExerciseState>,
   knownVersion?: string,
+  parked: Record<string, Parked> = {},
 ): Promise<CoursesUnchanged | CoursesPulled> {
   const r = await API.myMaterial(knownVersion || "");
   if (r.unchanged) {
@@ -3135,14 +3264,15 @@ export async function pullCourses(
     }
   }
 
-  const folded = foldCourses(items, incoming);
+  const folded = foldCourses(items, incoming, parked);
   return {
     ...folded,
     decks,
     courses: enrolled,
     /* The same fold again, against whatever the cards are by the time the
        caller adopts the result. */
-    fold: (current: Item[]) => foldCourses(current, incoming),
+    fold: (current: Item[], drawer: Record<string, Parked> = parked) =>
+      foldCourses(current, incoming, drawer),
     version: r.version || "",
     teaches: !!r.teaches,
   };
@@ -3197,9 +3327,62 @@ function foldForms<T extends Form>(had: T[], fresh: T[]): T[] {
   });
 }
 
+/**
+ * What a card's forms have earned, as the drawer keeps it.
+ *
+ * The schedules and the record of which words a sentence has been asked
+ * with — everything on a form that is the learner's rather than the
+ * teacher's — by the name of the form it belongs to.
+ */
+export function progressOf(item: Item): Parked {
+  const of = (list: Form[]) => {
+    const out: Parked["forms"] = {};
+    for (const f of list) {
+      if (!f || !f.id) continue;
+      const s = compactStates(f.s);
+      if (!Object.keys(s).length && !f.met) continue;
+      out[f.id] = { ...(Object.keys(s).length ? { s } : null), ...(f.met ? { met: f.met } : null) };
+    }
+    return out;
+  };
+  const lines = of(item.lines || []);
+  return {
+    at: Date.now(),
+    forms: of(formsOf(item)),
+    ...(Object.keys(lines).length ? { lines } : null),
+  };
+}
+
+/** And the same, put back onto a card that has come home. */
+export function withProgress(item: Item, saved: Parked | undefined): Item {
+  if (!saved) return item;
+  const put = <T extends Form>(f: T, from: Parked["forms"]): T => {
+    const had = f && f.id ? from[f.id] : null;
+    if (!had) return f;
+    return { ...f, s: { ...f.s, ...(had.s || {}) }, ...(had.met ? { met: had.met } : null) };
+  };
+  const lines = (item.lines || []).map((ln) => put(ln, saved.lines || {}));
+  return {
+    ...item,
+    forms: formsOf(item).map((f) => put(f, saved.forms || {})),
+    ...(lines.length ? { lines } : null),
+  };
+}
+
+/* States that have never been answered are not worth setting aside, the
+   same reading the wire and the disk make of them. */
+const compactStates = (s?: Record<string, ExerciseState>): Record<string, ExerciseState> => {
+  const out: Record<string, ExerciseState> = {};
+  for (const [t, st] of Object.entries(s || {})) {
+    if (st && (st.phase !== "new" || st.reps || st.updated)) out[t] = st;
+  }
+  return out;
+};
+
 /* Fold fresh course cards into the person's cards: progress kept, wording
-   taken from the teacher, withdrawn cards named so they can be tombstoned. */
-export function foldCourses(items: Item[], incoming: Item[]) {
+   taken from the teacher, withdrawn cards named so they can be tombstoned —
+   and their progress set aside rather than thrown away. */
+export function foldCourses(items: Item[], incoming: Item[], parked: Record<string, Parked> = {}) {
   const byId = new Map(items.map((i) => [i.id, i]));
   const kept: Item[] = [];
   for (const fresh of incoming) {
@@ -3225,12 +3408,15 @@ export function foldCourses(items: Item[], incoming: Item[]) {
          written. */
       kept.push({
         ...fresh,
-        ...(existing.priority ? { priority: true } : null),
+        ...(existing.priority ? { priority: true, priorityAt: existing.priorityAt } : null),
+        ...(existing.reset ? { reset: existing.reset } : null),
         forms: foldForms(formsOf(existing), formsOf(fresh)),
         ...(fresh.lines ? { lines: foldForms(existing.lines || [], fresh.lines) } : null),
       });
     } else {
-      kept.push(fresh);
+      /* A card the device has never held — or one that went away and has
+         come back, whose work was set aside rather than thrown out. */
+      kept.push(withProgress(fresh, parked[fresh.id]));
     }
   }
 
@@ -3241,12 +3427,125 @@ export function foldCourses(items: Item[], incoming: Item[]) {
      copy still holds them and the next sync would hand them straight back.
      They have to be marked as deleted, the same as a card the person removed
      themselves. */
-  const goneIds = items.filter((i) => i.source && !incomingIds.has(i.id)).map((i) => i.id);
+  const gone = items.filter((i) => i.source && !incomingIds.has(i.id));
+  const goneIds = gone.map((i) => i.id);
+  /*
+   * And their work, set aside.
+   *
+   * The card is the teacher's to withdraw; the progress on it is not
+   * theirs to destroy, and a card can go missing for reasons that are
+   * nobody's decision — a deck detached and reattached, a student briefly
+   * off a course, one record the server could not read. Each of those used
+   * to wipe a deck's worth of progress on every device the learner owns.
+   *
+   * What comes back is put back, above. What never comes back ages out
+   * with the headstones.
+   */
+  const nextParked = { ...parked };
+  for (const it of gone) {
+    const saved = progressOf(it);
+    if (Object.keys(saved.forms).length || (saved.lines && Object.keys(saved.lines).length)) {
+      nextParked[it.id] = saved;
+    }
+  }
+  /* A card that is here again has nothing left to keep aside. */
+  for (const id of incomingIds) delete nextParked[id];
 
   return {
+    parked: nextParked,
     items: own.concat(kept),
     added: kept.length,
     gone: goneIds.length,
     goneIds,
   };
+}
+
+/* ------------------------------------------------------------------
+   Installing the app
+
+   An app kept in a browser tab is an app whose storage the browser may
+   reclaim. Safari is the one that matters: it clears a site's local
+   storage — the document, the recordings, all of it — once seven days of
+   using Safari go by without a visit, and it does not honour the request
+   for durable storage that Chrome and Firefox do. A site added to the
+   home screen is exempt.
+
+   That makes installing the single most useful thing an offline-first
+   learner can do, and nothing anywhere said so. So: one line, once,
+   dismissible for good, and never shown to somebody who has already done
+   it or cannot.
+   ------------------------------------------------------------------ */
+
+const INSTALLED_KEY = "arabic-trainer:install-hint";
+
+/* Chrome's own offer to install, as it arrives on the event. Named rather
+   than written inline at the call below: spelled out there, the rule that
+   checks a hook's dependencies read the type's own `prompt` member as a
+   value the effect was using and asked for it to be declared. */
+interface InstallPrompt {
+  prompt: () => Promise<unknown>;
+}
+
+/** Already running as an installed app, by either of the two ways of asking. */
+export function isInstalled(): boolean {
+  try {
+    if (typeof window === "undefined") return true;
+    const standalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    /* iOS answers the old question and not the new one. */
+    const ios = (window.navigator as { standalone?: boolean }).standalone;
+    return !!standalone || !!ios;
+  } catch (e) {
+    /* Nothing to go on: say yes, because a hint shown to somebody who has
+       already installed the app is worse than no hint at all. */
+    return true;
+  }
+}
+
+/**
+ * Whether to offer installing, and how.
+ *
+ * `prompt` is Chrome's own installer, held from the event that offers it;
+ * where there is none — Safari, most of all — there is nothing to do but
+ * say where the button is.
+ */
+export function useInstallOffer() {
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(INSTALLED_KEY) === "off";
+    } catch (e) {
+      return false;
+    }
+  });
+  const [installed] = useState(isInstalled);
+  const [prompt, setPrompt] = useState<InstallPrompt | null>(null);
+
+  useEffect(() => {
+    if (installed) return undefined;
+    const held = (e: Event) => {
+      /* Chrome offers to do it itself, but only if the page says it wants
+         the offer rather than the browser's own moment for it. */
+      e.preventDefault();
+      setPrompt(e as unknown as InstallPrompt);
+    };
+    window.addEventListener("beforeinstallprompt", held);
+    /* Installed while the app was open: the offer goes at once. */
+    const done = () => setDismissed(true);
+    window.addEventListener("appinstalled", done);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", held);
+      window.removeEventListener("appinstalled", done);
+    };
+  }, [installed]);
+
+  const dismiss = useCallback(() => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(INSTALLED_KEY, "off");
+    } catch (e) {
+      /* It will be offered again next time, which is a smaller fault than
+         refusing to work at all. */
+    }
+  }, []);
+
+  return { show: !installed && !dismissed, prompt, dismiss };
 }

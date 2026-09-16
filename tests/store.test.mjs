@@ -126,3 +126,57 @@ test("with neither, the fallback is reported as not durable", () => {
   assert.equal(got.root, path.join("/app", "data"));
   assert.equal(got.durable, false);
 });
+
+/* ------------------------------------------------------------------
+   What a write leaves behind
+
+   The rename alone survives a process that dies: the old file is still
+   there. It does not survive a *host* that dies, because the bytes can
+   still be in the page cache while the directory entry has landed — and
+   what comes back then is a file of the right name and the wrong length.
+   That is the worst failure this store has, because a document nobody can
+   parse used to read as a document nobody had written.
+   ------------------------------------------------------------------ */
+
+test("a write keeps the copy it replaced", async () => {
+  const store = getStore("prev1");
+  assert.equal(await store.getPrevious("doc"), null, "nothing to keep on a first write");
+  await store.set("doc", "one");
+  assert.equal(await store.getPrevious("doc"), null, "still nothing: there was no document before");
+  await store.set("doc", "two");
+  assert.equal(await store.getPrevious("doc"), "one", "the copy it replaced");
+  await store.set("doc", "three");
+  assert.equal(await store.getPrevious("doc"), "two", "one deep, not a history");
+  assert.equal(await store.get("doc"), "three");
+});
+
+test("the copy is kept through a conditional write too", async () => {
+  const store = getStore("prev2");
+  await store.set("doc", "one");
+  const { etag } = must(await store.getWithMetadata("doc"), "the document just written");
+  await store.set("doc", "two", { onlyIfMatch: etag });
+  assert.equal(await store.getPrevious("doc"), "one");
+  /* And a refused write leaves it alone: nothing was replaced. */
+  await store.set("doc", "three", { onlyIfMatch: "not-the-etag" });
+  assert.equal(await store.getPrevious("doc"), "one");
+  assert.equal(await store.get("doc"), "two");
+});
+
+test("deleting a document takes the copy behind it", async () => {
+  const store = getStore("prev3");
+  await store.set("doc", "one");
+  await store.set("doc", "two");
+  assert.equal(await store.getPrevious("doc"), "one");
+  await store.delete("doc");
+  assert.equal(await store.get("doc"), null);
+  assert.equal(await store.getPrevious("doc"), null, "a deleted document leaves nothing behind");
+});
+
+test("a write leaves no temporary file behind", async () => {
+  const { readdir } = await import("node:fs/promises");
+  const store = getStore("prev4");
+  await store.set("doc", "one");
+  await store.set("doc", "two");
+  const left = (await readdir(store.directory)).filter((f) => f.endsWith(".tmp"));
+  assert.deepEqual(left, []);
+});

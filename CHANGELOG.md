@@ -8,6 +8,376 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.156 — 16 September 2026
+
+**A session already under way now notices the connection going.**
+
+The app holds back questions that play a recording you have not downloaded,
+so you are never handed one you cannot answer. That was true when a session
+was built and not while one was running. Start a session on wifi, walk into
+a tunnel, and the questions already queued would still ask for recordings
+that never arrived — a silent player and a note saying the recording is not
+on this device, on a question you could only skip.
+
+Now the rest of the queue is re-checked the moment the connection goes, and
+again the moment the app finishes working out which recordings it holds,
+which closes a narrow gap where a session started very quickly after
+opening the app offline could be built before that answer arrived.
+
+Two things it deliberately does not do. A recording that *is* on your device
+is never taken away, so downloading a course before you travel still means
+losing nothing. And coming back online does not push questions back into a
+session you are halfway through; they come round in the next one.
+
+If nothing in the session can be asked any more, it ends and says so,
+rather than running out a queue that was cut short.
+
+## 0.155 — 16 September 2026
+
+**One wrong answer no longer shuts the levels above a word.**
+
+Getting a single question wrong used to close every level above it on that
+word. Fail one reading question and the writing practice on that word
+disappeared until you had put the reading right — the card said *Paused*,
+which was accurate and a very hair trigger. One bad answer, on one
+question, on one word.
+
+Now it takes two misses running on the same question: wrong, seen again a
+few minutes later, wrong again, with nothing right in between. A single
+miss changes nothing about the ladder. Getting it right at the second
+attempt clears the slate entirely.
+
+**Nothing about how a miss is scheduled has changed.** The question still
+comes back in about ten minutes, the word still loses a little ground, and
+the gap before you next see it still halves. The only thing that changed is
+whether the levels above shut while you put it right.
+
+One exception, at the top level only. Writing a word from its meaning
+alone asks that everything under it still holds a four-day gap, and every
+miss halves the gap. So the forgiveness is for the *miss*, not for the
+shrinking: keep missing a word and its gap eventually falls under four
+days, at which point the top level closes on merit rather than on the
+strike count. The lower levels have no such bar and always get the full
+two misses.
+
+## 0.154 — 16 September 2026
+
+**New words now arrive about twice as fast, and you learn more of them.**
+
+How many new words you met used to be decided by three rules at once:
+three a session, nothing while ten words were mid-learning, and nothing at
+all while forty were still settling. Between them they let a diligent
+learner meet about one new word every four days. They also meant the same
+hour of work was worth wildly different amounts depending on how you broke
+it up — ten short sittings in an evening were thirty new words where one
+long sitting was three.
+
+One rule replaces all three: **a new word is earned by learning one.** Two
+pools decide it. At most ten words you cannot yet recognise, and at most
+sixty on the go altogether. A word leaves the first pool as soon as you can
+recognise it — not when you have finished with it — and carries on being
+practised without holding the door shut behind it.
+
+Nothing is counted in sessions or in days any more, so how long you sit and
+how often you sit no longer change how much new material you are given.
+What changes it is learning the words you have.
+
+Measured against the old rules over a hundred and eighty simulated days of
+one session a day:
+
+| | before | now |
+|---|---|---|
+| words met | 34 | 65 |
+| words learnt properly | 26 | 41 |
+
+**And when nothing new is arriving, the app now says why.** A line on the
+home screen names how many words are waiting and explains that they come as
+the ones you are learning settle. Before, it simply stopped, which reads as
+the app having run out.
+
+Sessions are unchanged: still short, still overdue words first.
+
+## 0.153 — 16 September 2026
+
+**The Numbers screen has moved, to Teaching → Cards.** It was behind a
+button on a deck; it is now the **#** in the toolbar at the top of the card
+list, beside the search box. Last release put it on a deck because that is
+where the cards went, and that had it backwards: the words a language
+builds its numbers out of are a fact about the language, not about one
+deck, and the same eleven Vietnamese words serve every deck you ever write
+in it. Filling them in twice for two decks was work nobody should have
+been asked to do.
+
+So the screen now shows every number card you have in that language,
+whatever deck each one is in, and saving writes them to your collection
+rather than into a deck. Putting them in front of students is the step
+every other new card takes: select them in the card list and add them to a
+deck. If you teach more than one language that builds its numbers, the
+button asks which first.
+
+Nothing about the numbers themselves changed — the same boxes, the same
+reach, the same sample of what a student will be asked. Cards written by
+the old screen are exactly where they were, decks included.
+
+**A fix on the way past: the button was invisible.** It asked for an icon
+the set had never had, and an icon nothing knows how to draw is drawn as
+nothing — so the control was there, worked, and could not be seen. There
+is now a test that fails if any screen asks for an icon that does not
+exist.
+
+## 0.152 — 16 September 2026
+
+**Numbers are now built rather than memorised.** A student who knows
+*forty* and *seven* should be able to be asked *forty-seven*, and until now
+that was a third card somebody had to write. It is now something the app
+makes up.
+
+**For teachers: one screen instead of fifty-five cards.** Open a deck and
+there is a Numbers section with a *Fill these in* button. Behind it is a
+grid of the words your language builds its numbers out of, in groups —
+nought to ten, the teens, the tens, the hundreds, the thousands, the
+millions. Fill in as many as you want and save.
+
+How many boxes there are is the language's answer, not ours. Palestinian
+Arabic and Hebrew ask for fifty-five, because their hundreds and thousands
+fuse with the unit in front of them and cannot be built — خمسمية is not
+خمسة and مية said one after the other. Huế Vietnamese asks for fourteen,
+because it is regular: *năm trăm* really is *five* and *hundred*, so the
+only extra boxes are the words that change in company — *năm* is five and
+*mười lăm* is fifteen, *một* is one and *hai mươi mốt* is twenty-one.
+
+Above the grid is how far the deck reaches: *numbers up to 9,999 can be
+made*, which stretch of the number line is ready and which is still
+waiting, and which words are in the way. Under that is a dozen numbers
+written out exactly as a student will see them, so you can check the
+wording before anybody is asked. It moves as you type.
+
+Every word is yours. The app supplies only the rule for joining them, so
+the dialect is the one you teach. Anything the rule gets wrong you can
+override by writing that number out as a card of its own — a card for a
+whole number always beats one the app built. Each box is an ordinary
+number card underneath, so you can record it, edit it and see a student's
+progress on it like any other. **Clearing a box does not delete anything**:
+the card keeps its recordings and everybody's progress, and deleting it
+from the deck's card list is how you get rid of it.
+
+**For students: a Practise numbers button, on the home screen.** It says
+how far it can go, and it asks three ways — read the number and write the
+figures, see the figures and write it out, see the figures and pick it from
+four. The wrong answers are numbers worth confusing with the right one, so
+74 stands beside 47 rather than a book and a house.
+
+It ramps. It opens where you left off and widens as answers come back
+right, from single digits up to seven figures over a few sittings, and
+steps back a notch when one goes wrong. It never asks for a number your
+deck cannot build, so a deck with only the units is a practice that counts
+to ten and stops.
+
+The numbers themselves are not cards and never become any — they are made
+up for the sitting and thrown away. What a right answer moves is the
+*words* that stood in the number: reading 1,525 correctly counts as reading
+the words for one thousand, five hundred, five and twenty, on the same
+terms a sentence has credited the words in it since 0.142. So numbers keep
+coming round in your ordinary sessions without a single extra card being
+scheduled.
+
+Hebrew counts in the feminine, which is what reading a number aloud
+actually uses, and keeps the masculine on the card for standing beside a
+noun — except in front of *thousand*, where the masculine is correct and is
+what you get.
+
+One thing supplied rather than asked for: Huế's *lẻ*, the word that marks
+an empty place in *một trăm lẻ năm*, is a box beside zero, so it is your
+typing like everything else.
+
+## 0.151 — 16 September 2026
+
+**There is always something to practise.**
+
+Until now a card had to be *due* before you could practise it, and that
+turned the app's own pacing into silence. Ten cards in four minutes, then
+seven minutes with nothing on offer while they came back round, four times
+over — and then, after about forty-five minutes on a new course, nothing at
+all until the next day, with twenty cards of your course still untouched and
+out of reach. Someone who had caught up got the same silence for the
+opposite reason.
+
+Being due now decides what a session *leads with*, not whether you are
+allowed one. Open the app whenever you like and there is a session waiting:
+overdue cards first, then whatever is nearest to coming round.
+
+**Practising early counts, in proportion to how long you actually waited.**
+This is what makes the above safe rather than merely generous. Before, the
+app pushed a card further out by multiplying its existing gap without
+looking at when you last saw it — so drilling a month-long card ten minutes
+after the last time would have thrown it a month and a half into the future
+on the strength of a ten-minute memory. Now:
+
+- Answer on the day it asks for, or later — exactly as before. Nothing
+  about a normal session changes.
+- Answer halfway through the gap — it still grows, by less.
+- Answer minutes after the last time — it stays where it is, and your
+  answer is still counted.
+- Get it wrong — counts in full, whenever you were. Forgetting is news.
+
+So an evening of extra practice can no longer empty your next month.
+
+**New cards still arrive at the same pace.** Three a session, and none at
+all while you already have a lot on the go. Extra practice means more of
+what you hold, not more new words — that limit is there so you do not bury
+yourself, and it has not moved.
+
+**The home screen stops contradicting itself.** At the wall it used to say
+"20 cards ready to practice" above a button that answered "nothing ready to
+practice yet", and the line written to explain the wait could never appear.
+The number now means what the next session will actually deal, the button
+always works, and when nothing is due it says so and tells you when the next
+card is due.
+
+**And the summary at the end says which kind of session it was** — whether
+you got through work that was waiting, or practised ahead and moved very
+little. Practising ahead is welcome; it is not the same as making headway,
+and the app should not imply that it is.
+
+**Offline, the app now tells you about recordings you haven't got.** They
+are the reason a journey can be a quieter session than you expected:
+questions that play a sound you have not downloaded are held back. The home
+screen says how many, while you are offline, and points at the button that
+fetches them.
+
+## 0.150 — 16 September 2026
+
+**A fix to 0.149's own fix.** Last release said you would no longer be
+asked to listen to a recording your phone hasn't got. Half of that was
+true: the app knew the card wasn't fully practisable, and then went ahead
+and asked the silent question anyway. It is now held back in both kinds of
+session — the one the app deals you and the one you build yourself — and
+there are tests that fail if it comes back.
+
+## 0.149 — 16 September 2026
+
+This one is about the app working when your phone has no signal — which is
+what it was built to do, and did, right up to the edges. An audit of every
+place a connection is involved found the middle sound and the edges
+online-only, with nothing on screen telling you which was which.
+
+**The app now knows when it is offline, and says so.** Before, everything
+that went wrong looked the same: the dot in the corner turned red and the
+line beside it said "Offline — will retry" whether the network was gone,
+your passphrase had been refused, or your collection had grown too big to
+send. Two of those never fix themselves, and you were being told once a
+minute that they would. The line now says which it is — and being offline
+says where your work is, because that is the actual question: it is on this
+device, and it is safe.
+
+**Your courses are still there when you open the app offline.** Your cards
+always were, but the courses they came from were fetched afresh every
+launch — so with no connection you got an error where your course list
+should be, the deck tiles you practise from were missing, and a teacher
+opening the app was shown an empty screen. All of it is kept on the device
+now. As a side effect the app also stops re-downloading every deck and
+every card on every launch: it asks what has changed, and usually the
+answer is nothing.
+
+**The app stops calling home while there is nothing to call.** It used to
+retry every forty-five seconds for as long as it was open, which achieved
+nothing and cost battery. It now waits for the connection to come back,
+which it is told about, and picks up from there.
+
+**You are no longer asked to listen to a recording you don't have.** A
+listening question whose sound had never been downloaded was still put to
+you offline, with a silent player and a note saying the clip wasn't on this
+device — a question you could only skip. Those questions are now held back
+until the recording is here or you are back online, and the rest of the
+card is drilled as usual. Account settings says how many recordings are
+still to download, and the button there fetches them.
+
+**A problem you report offline actually gets reported.** It used to be sent
+once and, if that failed, quietly dropped — while the app told you it had
+been noted. It is now kept and sent when you are back online.
+
+**And a card a teacher writes offline is no longer lost.** Writing a card
+with no connection meant losing it at the moment you pressed Save. The
+editor now says you are offline before you start typing, the card is kept
+on the device, and it goes up when the connection returns. Recordings still
+need a connection, and the editor says so.
+
+**Smaller things.** Setting up for the first time genuinely needs a
+connection, and the first screen used to say the opposite; it now says what
+it means, and the error you get there is written for someone who has not
+started yet. The app warns you as your collection approaches the limit of
+what this device can hold, not only the limit of what can be sent. A list
+of already-uploaded recordings that only ever grew is now kept to the ones
+still in use. And on a phone, the app offers once to be added to your home
+screen — on iPhones that is what stops the browser clearing everything
+after a week away.
+
+## 0.148 — 16 September 2026
+
+Everything in this release is about one thing: your progress being kept.
+An audit of every path it travels — from pressing Continue to the copy on
+the server and back to a second device — found fifteen ways it could be
+lost or quietly undone. All fifteen are dealt with, and each now has a test
+that fails if it comes back.
+
+The common fault behind most of them: the app read *"nothing here"* as
+*"nothing to keep"*. A refresh that listed fewer cards, a copy the server
+could not read, a schedule with nothing in it — each was taken as an
+instruction rather than as something unknown.
+
+**Sync can no longer be locked out for good.** If the stored copy on the
+server was ever damaged — a machine losing power mid-write was enough — the
+server reported it as "never synced", every device's next upload was
+refused, and it stayed refused for ever behind a bare "Sync failed". From
+that moment nothing you did was backed up and nothing said so. Now: every
+write is flushed to disk and the copy behind it is kept, so a damaged copy
+is recovered from the one before it; if nothing is readable the app says
+what happened and offers to send what it has, rather than failing in a
+loop.
+
+**A course that lists fewer cards no longer destroys your work on the
+ones missing.** Cards do go missing for reasons nobody decided — a deck
+detached to be reorganised, a student taken off a course by mistake, one
+record the server could not read. Any of those used to wipe your progress
+on every card in question, on every device, permanently. Now the card goes
+but its work is set aside, and the moment the card comes back the work
+comes back with it. Work nobody claims ages out on the same two-week
+schedule as deleted cards.
+
+**Reset scheduling sticks.** Resetting a card sent it back to the
+beginning and the next sync, seconds later, put it back exactly where it
+had been — with or without a second device. A reset is now dated, the date
+travels, and nothing older than it is treated as progress.
+
+**A card you asked for stays asked for.** Marking a card for next session
+was dropped as soon as another device merely answered a question about it.
+
+**Turns in a conversation are named.** Deleting one turn used to hand every
+turn below it the schedule of the turn above — on every device.
+
+**The last thing you did before closing the app is saved.** Saves are
+batched a fraction of a second apart, and nothing wrote them out when you
+closed the tab, backgrounded the app, or when the app reloaded itself to
+install an update. That last answer can no longer slip through the gap.
+
+**Two tabs no longer overwrite each other.** Each held its own copy of
+everything and wrote it whole, so whichever saved last won and the other
+tab's answers were gone. They now read each other's writes.
+
+**A device that cannot save says so, and keeps trying.** When storage is
+full or blocked it used to show one message and then fail silently for the
+rest of the session, with the screen showing progress that was going
+nowhere. It now retries, and the warning stays up until a save succeeds.
+
+**The size limit is honest, and arrives early.** Over the limit, sync used
+to fail with "Sync failed" and no way back. The limit is now measured the
+way the server measures it, a warning arrives well before you reach it, and
+the refusal says what it is.
+
+**And the server will no longer let anything wipe your collection.** A
+request that would replace everything with nothing is refused unless it is
+plainly meant — deleting your cards yourself still works.
+
 ## 0.147 — 16 September 2026
 
 - **The words in a sentence now get credit for answering it.** A sentence

@@ -53,19 +53,41 @@ export const MATURE_DAYS = 21;
 export const MASTERED_DAYS = 4;
 
 /*
- * How many cards may be in hand at once. New cards are introduced only
- * while there is room, on top of the per-session limit in the settings.
+ * How many words may be in hand at once — two pools, and the only thing
+ * that decides when a learner meets a new word.
  *
- * Learning — met, and not yet through the learning steps at whatever level
- * it is on — is what a person is actively holding, and ten is about what a
- * session of eighteen exercises can carry with a few new ones beside. Young
- * — graduated everywhere it is open, not yet mature — is the review load:
- * a young card comes back four or so times over three weeks for each of
- * its exercises, so forty of them is roughly one session a day of reviews,
- * which leaves the rest of the day's session for what is new.
+ * A word is *earned* rather than issued: one enters when one leaves. There
+ * is no quota counted in sessions and none counted in days, so a learner
+ * who sits for two minutes and one who sits for an hour are rationed by
+ * what they have standing rather than by how they spent their evening.
+ * That was the whole fault of what stood here before — three a session
+ * meant ten short sittings were thirty new words and one long sitting was
+ * three, for the same work.
+ *
+ * **The front door** is words the learner cannot yet recognise: met, and
+ * short of a four-day gap on the first rung of the ladder. It is what
+ * stops a new course arriving all at once, and it is small because these
+ * are the words that cost the most to hold — nothing about them is known
+ * yet, and every one of them is a stranger.
+ *
+ * **In hand** is everything not yet fully settled, at any height of the
+ * ladder. It is the ceiling on total load, so a short session is never
+ * spread so thin across half-learnt words that none of them moves.
+ *
+ * A word leaves the front door early, as soon as it is recognisable, and
+ * goes on climbing against the second cap without blocking a newcomer
+ * behind it. That is the difference between these two and the pair they
+ * replace: the old ones both counted a word as "in learning" whenever any
+ * exercise on it was unfinished — including one that had opened that
+ * morning and never been asked — so a word held its place for its whole
+ * climb through four levels and the pool never drained.
+ *
+ * The numbers were measured rather than chosen: see tests/pace.test.mjs,
+ * which plays out a simulated learner and reports what a course costs in
+ * days. Change one and run it.
  */
-export const LEARNING_CAP = 10;
-export const YOUNG_CAP = 40;
+export const FRONT_DOOR_CAP = 10;
+export const IN_HAND_CAP = 60;
 
 /*
  * The clock and the jitter. Defaulted here rather than at each call site,
@@ -258,7 +280,34 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
   } else {
     mult = s.ease;
   }
-  const base = Math.max(1, s.interval || 1);
+  /*
+   * How long the learner actually went without seeing this card.
+   *
+   * A review card's gap is written into its own two fields: it was last
+   * answered at `due` minus `interval`, because that is how the line at
+   * the foot of this branch set them. So this needs nothing stored that
+   * was not already there, and a card from an older build reads the same.
+   *
+   * Capped at the interval, so answering late is worth exactly what
+   * answering on time is: a card left for three weeks when it asked for
+   * one is not evidence of three weeks' retention of anything, and
+   * treating it as such is how a forgotten collection inflates itself.
+   * That cap is also what keeps every on-time and overdue answer byte for
+   * byte what it was before this existed.
+   */
+  const waited = s.interval - (s.due - at) / DAY;
+  /*
+   * And the gap only grows from what was actually waited out.
+   *
+   * Practice is no longer gated on a card being due, so a learner with a
+   * free hour can answer a card minutes after they last saw it. Multiplying
+   * its existing month by the ease then would push it out to six weeks on
+   * the evidence of a ten-minute memory — and a keen evening would empty
+   * the next two months. Growing from what was waited instead means an
+   * early answer is worth what it is worth: something when the card was
+   * nearly due, almost nothing when it was not.
+   */
+  const base = Math.max(1, Math.min(s.interval || 1, waited));
   let next = Math.round(base * mult * fuzz(clock));
   /*
    * A near miss still moves.
@@ -277,6 +326,17 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
    * one; what it cannot do any more is stand still.
    */
   if (rating === "hard") next = Math.max(next, base + 1);
+  /*
+   * An early answer can help or do nothing. It can never take a card
+   * backwards.
+   *
+   * Without this, drilling a card the day after a month-long gap was set
+   * would grow from one day and hand back an interval of two or three —
+   * so practising something you know well would be punished by having it
+   * thrown at you all week. Getting it *wrong* still pulls it back, up
+   * above, because that is real news whenever it arrives.
+   */
+  next = Math.max(next, s.interval || 1);
   s.interval = Math.min(MAX_DAYS, Math.max(1, next));
   s.due = inDays(s.interval);
   return s;
@@ -336,6 +396,59 @@ export function mastered(s: ExerciseState): boolean {
    takes it back out until the relearning step is passed. */
 export function graduated(s: ExerciseState): boolean {
   return s.phase === "review";
+}
+
+/*
+ * Wrong twice running, on the same question.
+ *
+ * `hist` is the only record with an order to it: the last six outings, 1
+ * right and 0 wrong, written on every marked answer. Two zeros on the end
+ * of it is wrong, seen again, wrong again, with nothing right in between —
+ * and one right answer anywhere in those two slots clears it.
+ *
+ * The length guard is load bearing rather than defensive. A document
+ * written before `hist` existed carries an empty one, and `[].every()` is
+ * true, so without it every old card would read as having just failed
+ * twice. `hasRecentMistake` in the trainer meets the same case and answers
+ * it the same way.
+ *
+ * A near miss counts as wrong here, as it does in every other count the
+ * app keeps: it is scheduled gently and it is still not knowing the word.
+ */
+export function missedTwice(s: ExerciseState): boolean {
+  const h = s.hist || [];
+  return h.length >= 2 && h.slice(-2).every((x) => !x);
+}
+
+/*
+ * Whether this exercise holds the levels above it open.
+ *
+ * The bar itself is unchanged and is still what a level is *reached* by.
+ * What this adds is one slip's grace: getting a question wrong once no
+ * longer shuts everything above it, because a single miss is as often a
+ * lapse of attention as a gap in knowing. Wrong twice running is the gap,
+ * and that closes them exactly as a single miss used to.
+ *
+ * Nothing about how a miss is *scheduled* changes. The question still
+ * comes back in ten minutes, still costs the word its ease, still halves
+ * the gap. This decides one thing only: whether the ladder above it shuts
+ * while that is being put right.
+ *
+ * The last clause is what keeps the grace honest. Read without it, a word
+ * that had only ever scraped into review would have its first miss hold
+ * open a level it was never good enough for — grace that promotes rather
+ * than forgives. Asking the bar what it makes of the state *but for the
+ * lapse* answers that: at the lower levels, being in relearning proves it
+ * had graduated, so the grace always applies; at the top, where the bar is
+ * a four-day gap and a miss halves it, a word that only just reached the
+ * top can fall under the bar on its own merits and still shut the level.
+ * Narrow — gaps outgrow it within a fortnight — and the right way to be
+ * wrong.
+ */
+export function holding(s: ExerciseState, bar: (st: ExerciseState) => boolean): boolean {
+  if (bar(s)) return true;
+  if (s.phase !== "relearning" || missedTwice(s)) return false;
+  return bar({ ...s, phase: "review" });
 }
 
 /**
@@ -416,9 +529,10 @@ export const hasLevelAbove = (keys: string[], key: string): boolean =>
    it must reach to open level four; a form with nothing at all on a level
    passes straight through it.
 
-   Whether the bar is met is read afresh every time, so a lapse on the
-   bottom level closes the ones above it until it is recovered: somebody who
-   can no longer read a word is not asked to write it.
+   Whether the bar is met is read afresh every time, so missing a question
+   on the bottom level twice running closes the ones above it until it is
+   recovered: somebody who can no longer read a word is not asked to write
+   it. One miss is forgiven — see `holding`.
    ------------------------------------------------------------------ */
 
 /**
@@ -441,9 +555,12 @@ export function openTypes(types: string[], stateOf: (type: string) => ExerciseSt
        exercises the level was read off. */
     const bar = barOf(here[0]) === "graduated" ? graduated : mastered;
     const lower = types.filter((t) => levelOf(t) < level);
+    /* Through `holding`, so one miss below does not shut this level — see
+       there. The screen reads the same judgement through `standings`, and
+       a test walks every combination to keep the two from drifting. */
     const reached = lower.every((t) => {
       const s = stateOf(t);
-      return !!s && bar(s);
+      return !!s && holding(s, bar);
     });
     if (!reached) break;
     out.push(...here);
@@ -490,7 +607,7 @@ export function reachedLevel(
     .filter((t) => levelOf(t) < level)
     .every((t) => {
       const s = stateOf(t);
-      return !!s && bar(s);
+      return !!s && holding(s, bar);
     });
 }
 
@@ -499,16 +616,41 @@ export function reachedLevel(
    ------------------------------------------------------------------ */
 
 /**
- * How many new cards a session may introduce.
+ * Whether the learner can recognise this word yet.
  *
- * `want` is the per-session limit from the settings; what comes back is
- * that, cut to the room left under the caps. The learning cap is room —
- * a new card is in learning the moment it is answered — and the young cap
- * is a gate: nothing new until some of what is young has grown up.
+ * Every rung of its first level mastered — a four-day gap, which is the
+ * same bar that opens the level above it, so "learnt" means one thing in
+ * this app rather than two. A word that carries no first-level material at
+ * all has nothing to recognise and is through the door by definition.
  */
-export function roomForNew(counts: { learning: number; young: number }, want: number): number {
-  if (counts.young >= YOUNG_CAP) return 0;
-  return Math.max(0, Math.min(want, LEARNING_CAP - counts.learning));
+export function recognised(
+  types: string[],
+  stateOf: (type: string) => ExerciseState | null | undefined,
+): boolean {
+  const first = types.filter((t) => levelOf(t) === 1);
+  if (!first.length) return true;
+  return first.every((t) => {
+    const s = stateOf(t);
+    return !!s && mastered(s);
+  });
+}
+
+/**
+ * How many new words there is room for.
+ *
+ * The smaller of the two remainders, and nothing else: no per-session
+ * allowance, no per-day allowance. See the caps above for why.
+ *
+ * `front` is words met and not yet recognisable; `inHand` is everything
+ * not yet fully settled. Both are counted over everything the learner
+ * holds in this language, not over the deck in front of them — the deck is
+ * what they chose to look at, the load is what they carry.
+ */
+export function roomForNew(counts: { front: number; inHand: number }): number {
+  return Math.max(
+    0,
+    Math.min(FRONT_DOOR_CAP - (counts.front || 0), IN_HAND_CAP - (counts.inHand || 0)),
+  );
 }
 
 /* ------------------------------------------------------------------
@@ -630,36 +772,22 @@ export function familyMaturity(it: Item, typesOf: (unit: Form) => string[]): str
   return worst === "new" ? "learning" : worst || "new";
 }
 
-/**
- * How many cards stand in each phase, for the room-for-new sums. Counted
- * the way the progress screen counts them, so the two never disagree
- * about how full a learner's hands are.
+/*
+ * There used to be a `phaseCounts` here, adding the four phases up across a
+ * learner's whole collection, and a long note over it arguing that an
+ * exercise on a just-opened level should hold its card at *learning*.
  *
- * An exercise on a level that has just opened and has never been answered
- * holds its card at *learning* here, which reads like an accident — the
- * card's reading may be weeks old — and it was very nearly changed on
- * that basis: pass the unanswered ones over, the argument went, and the
- * ten-card cap would stop filling up in the first week and a learner
- * would meet more than a card every three days.
+ * Nothing counts phases in the aggregate any more. What rations new words
+ * is two pools — see FRONT_DOOR_CAP — and what a learner is shown is the
+ * ladder, which is `standings` below and reads levels rather than phases.
+ * The count was left behind by that change, with a comment saying the
+ * progress screen read it, which it did not.
  *
- * It was measured first, and it was the wrong change. Over a hundred and
- * twenty simulated days of one session a day, passing them over admitted
- * about five more cards and mastered three fewer, because the session
- * budget is what it always was and the extra cards simply spread it
- * thinner: a card took fifty-two days to reach writing rather than
- * thirty-seven. Those unanswered exercises are work that has arrived,
- * whether or not it has been touched, and counting them is the cap doing
- * its job. What actually buys a learner more new cards is a longer
- * session, not a laxer cap.
+ * The argument it carried is still true and still load-bearing, so it sits
+ * on `familyMaturity` above, which is where it applies: work that has
+ * arrived is work in hand whether or not it has been touched. The
+ * measurement it cited is `tests/pace.test.mjs` now, and can be re-run.
  */
-export function phaseCounts(
-  items: Item[],
-  typesOf: (unit: Form) => string[]
-): { new: number; learning: number; young: number; mature: number } {
-  const counts = { new: 0, learning: 0, young: 0, mature: 0 };
-  for (const it of items) counts[familyMaturity(it, typesOf) as keyof typeof counts] += 1;
-  return counts;
-}
 
 
 export function itemDifficulty(it: Item, typesOf: (unit: Form) => string[]): string {
@@ -754,7 +882,9 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
     const bar = barAfterLevel(level) === "graduated" ? graduated : mastered;
     /* Counted over this level and everything under it — see `done` above. */
     const under = levels.filter((l) => l <= level).flatMap((l) => at.get(l) || []);
-    const done = under.filter((s) => !!s && bar(s)).length;
+    /* The same `holding` openTypes gates on, so a single miss neither
+       shuts a level nor reports one as paused. */
+    const done = under.filter((s) => !!s && holding(s, bar)).length;
     const met = here.some(answered);
     const finished = done === under.length;
     out.push({

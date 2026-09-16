@@ -182,6 +182,8 @@ const PLACES: Record<string, [string, string]> = {
   Recordings: [TEACH, "Editing a card · its recordings"],
   RecordingScreen: [TEACH, "Editing a card · making a recording"],
   ContextReport: [TEACH, "A deck · how much of it appears in phrases"],
+  NumberReach: [TEACH, "A deck · how far its numbers reach, and what a student will be asked"],
+  NumbersScreen: [TEACH, "Filling in the words a language builds its numbers out of"],
   InContext: [TEACH, "The In context tab"],
   TryExercises: [TEACH, "A card · trying an exercise on it"],
   SelectionBar: [TEACH, "When several cards are selected"],

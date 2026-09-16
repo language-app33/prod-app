@@ -21,8 +21,9 @@ import {
   MAX_EASE,
   MATURE_DAYS,
   MASTERED_DAYS,
-  LEARNING_CAP,
-  YOUNG_CAP,
+  FRONT_DOOR_CAP,
+  IN_HAND_CAP,
+  recognised,
   LEARN_STEPS,
   GRADUATE_DAYS,
   EASY_DAYS,
@@ -41,12 +42,12 @@ import {
   itemDifficulty,
   graduated,
   mastered,
+  missedTwice,
   openTypes,
   reachedLevel,
   standings,
   standing,
   turnOf,
-  phaseCounts,
   roomForNew,
   formatGap,
   dayKey,
@@ -82,6 +83,19 @@ const reviewing = (over = {}) => ({ ...freshState(), phase: "review", interval: 
  * @returns {ExerciseState}
  */
 const state = (over = {}) => ({ ...freshState(), ...over });
+
+/*
+ * A question got wrong, once and twice running.
+ *
+ * The difference is the whole of the two-strike rule: one miss leaves the
+ * levels above open, and a second closes them. Both are in relearning —
+ * the schedule treats them identically — so what tells them apart is the
+ * record of the last outings, which is what `holding` reads.
+ */
+const slipped = (/** @type {number} */ interval) =>
+  state({ phase: "relearning", interval, reps: 4, right: 3, wrong: 1, hist: [1, 1, 0] });
+const slippedTwice = (/** @type {number} */ interval) =>
+  state({ phase: "relearning", interval, reps: 5, right: 3, wrong: 2, hist: [1, 0, 0] });
 
 /* ------------------------------------------------------------------
    Learning a card for the first time
@@ -173,12 +187,22 @@ test("a near miss always moves the interval, however short it is", () => {
      floor, which is where it stays in charge. */
   assert.equal(reschedule(reviewing({ interval: 10 }), "hard", still).interval, 12);
   /* Nearly right over and over does reach the bar, rather than standing
-     still short of it — four near misses from a standing start. */
+     still short of it — four near misses from a standing start.
+
+     Each one is answered when the card asks for it rather than four times
+     in the same instant, because a gap now grows from the time actually
+     waited: four answers in one second are one second's worth of evidence
+     and rightly move the card once. Coming back when asked is what the
+     learner this test is about actually does. */
   let s = reviewing({ interval: 1 });
   const path = [];
+  let at = T;
   for (let i = 0; i < 4; i += 1) {
-    s = reschedule(s, "hard", still);
+    /* Answered on its due date, which is where it was put last time. */
+    const onTime = { now: () => at, random: () => 0.5 };
+    s = reschedule(s, "hard", onTime);
     path.push(s.interval);
+    at = s.due;
   }
   assert.deepEqual(path, [2, 3, 4, 5]);
   assert.equal(mastered(s), true, `nearly right four times reaches the bar: ${path.join(" → ")}`);
@@ -367,15 +391,23 @@ test("new means never met, whatever the card could be asked", () => {
   assert.equal(familyMaturity(card({ s: { ar2en: state({ phase: "review", interval: 40 }) } }), twoTypes), "learning");
 });
 
-test("phaseCounts is the progress screen's four numbers", () => {
-  const items = [
-    card({ id: "n" }),
-    card({ id: "l", s: { ar2en: state({ phase: "learning" }), en2ar: freshState() } }),
-    card({ id: "y", s: { ar2en: state({ phase: "review", interval: 2 }), en2ar: state({ phase: "review", interval: 2 }) } }),
-    card({ id: "m", s: { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) } }),
-  ];
-  assert.deepEqual(phaseCounts(items, twoTypes), { new: 1, learning: 1, young: 1, mature: 1 });
-  assert.deepEqual(phaseCounts([], twoTypes), { new: 0, learning: 0, young: 0, mature: 0 });
+test("a card stands where its least-finished exercise does", () => {
+  /* One reading for the whole card, taken from its worst part: a word you
+     can read and cannot write is a word you are still learning. */
+  const at = (/** @type {any} */ c) => familyMaturity(c, twoTypes);
+  assert.equal(at(card({ id: "n" })), "new", "never met");
+  assert.equal(
+    at(card({ id: "l", s: { ar2en: state({ phase: "learning" }), en2ar: freshState() } })),
+    "learning",
+  );
+  assert.equal(
+    at(card({ id: "y", s: { ar2en: state({ phase: "review", interval: 2 }), en2ar: state({ phase: "review", interval: 2 }) } })),
+    "young",
+  );
+  assert.equal(
+    at(card({ id: "m", s: { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) } })),
+    "mature",
+  );
 });
 
 test("a level that has opened and not been answered still fills the learner's hands", () => {
@@ -391,7 +423,6 @@ test("a level that has opened and not been answered still fills the learner's ha
     s: { ar2en: state({ phase: "review", interval: 6 }), en2ar: freshState() },
   });
   assert.equal(familyMaturity(climbing, twoTypes), "learning");
-  assert.deepEqual(phaseCounts([climbing], twoTypes), { new: 0, learning: 1, young: 0, mature: 0 });
 });
 
 /* ---- the ladder ---- */
@@ -435,9 +466,17 @@ test("a cued level opens on graduated, and writing from the meaning on mastered"
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done })), ["ar2en", "tr2ar", "en2ar"]);
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, tr2ar: done, en2ar: done })), ladder, "and stays open");
   assert.deepEqual(
-    openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), tr2ar: done, en2ar: done })),
+    openTypes(ladder, table({ ar2en: slippedTwice(10), tr2ar: done, en2ar: done })),
     ["ar2en"],
-    "a lapse at the bottom closes everything above it until it is recovered"
+    "missing the bottom twice running closes everything above it until it is recovered"
+  );
+  /* And once does not. One miss is as often a lapse of attention as a gap
+     in knowing, and the question is coming back in ten minutes either
+     way. */
+  assert.deepEqual(
+    openTypes(ladder, table({ ar2en: slipped(10), tr2ar: done, en2ar: done })).length,
+    ladder.length,
+    "a single miss leaves the levels above open"
   );
 });
 
@@ -509,8 +548,11 @@ test("the whole cued half of the ladder is climbed on graduated", () => {
     "three graduated levels still do not open writing from the meaning");
   assert.deepEqual(openTypes(ladder, table({ ar2en: done, match: done, tr2ar: done })), ladder,
     "mastering all three does");
-  assert.deepEqual(openTypes(ladder, table({ ar2en: state({ phase: "relearning", interval: 10 }), match: done })), ["ar2en"],
-    "and a lapse on the reading takes the grid away again until it is back in review");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: slippedTwice(10), match: done })), ["ar2en"],
+    "and missing the reading twice running takes the grid away until it is back in review");
+  assert.deepEqual(openTypes(ladder, table({ ar2en: slipped(10), match: done })),
+    ["ar2en", "match", "tr2ar"],
+    "where one miss leaves the reading counting as graduated, so nothing below the top shuts");
   assert.equal(graduated(state({ phase: "review", interval: 1 })), true);
   assert.equal(graduated(state({ phase: "relearning", interval: 10 })), false);
   assert.equal(graduated(freshState()), false);
@@ -534,15 +576,39 @@ test("the settings say which level each exercise stands on, and every one has a 
 
 /* ---- room for what is new ---- */
 
-test("new cards are introduced only while there is room in hand", () => {
-  assert.equal(roomForNew({ learning: 0, young: 0 }, 3), 3, "an empty hand takes the session's limit");
-  assert.equal(roomForNew({ learning: LEARNING_CAP - 1, young: 0 }, 3), 1, "the last place in learning");
-  assert.equal(roomForNew({ learning: LEARNING_CAP, young: 0 }, 3), 0, "learning is full");
-  assert.equal(roomForNew({ learning: LEARNING_CAP + 5, young: 0 }, 3), 0, "and never negative");
-  assert.equal(roomForNew({ learning: 0, young: YOUNG_CAP }, 3), 0, "too much young to review already");
-  assert.equal(roomForNew({ learning: 0, young: YOUNG_CAP - 1 }, 3), 3, "one under is room");
-  assert.equal(roomForNew({ learning: 0, young: 0 }, 0), 0, "a session that wants none gets none");
-  assert.ok(LEARNING_CAP > 0 && YOUNG_CAP > LEARNING_CAP, "the caps are in the order the phases come in");
+test("a new word is earned, by one of the words in hand being learnt", () => {
+  /* Two pools and no third thing. There is deliberately no per-session and
+     no per-day allowance in here: ten short sittings in an evening used to
+     be thirty new words where one long sitting was three, for the same
+     work, because the allowance was counted in sessions. */
+  const empty = { front: 0, inHand: 0 };
+  assert.equal(roomForNew(empty), FRONT_DOOR_CAP, "an empty hand opens the front door wide");
+  assert.equal(roomForNew({ front: FRONT_DOOR_CAP - 1, inHand: 0 }), 1, "the last place at the door");
+  assert.equal(roomForNew({ front: FRONT_DOOR_CAP, inHand: 0 }), 0, "the door is full");
+  assert.equal(roomForNew({ front: FRONT_DOOR_CAP + 5, inHand: 0 }), 0, "and never negative");
+
+  /* The second pool is the ceiling on total load, and it binds on its own:
+     a learner may be recognising everything they hold and still be holding
+     too much of it. */
+  assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP }), 0, "too much in hand already");
+  assert.equal(roomForNew({ front: 0, inHand: IN_HAND_CAP - 2 }), 2, "two places left in hand");
+  assert.ok(IN_HAND_CAP > FRONT_DOOR_CAP, "the door is the narrower of the two");
+});
+
+test("a word is recognised when every rung of its first level is mastered", () => {
+  /* Four days, which is the same bar that opens the level above it — so
+     "learnt" means one thing in this app rather than two. */
+  const first = TYPES.filter((/** @type {string} */ t) => levelOf(t) === 1);
+  const all = (/** @type {any} */ st) => () => st;
+  assert.equal(recognised(first, all(state({ phase: "review", interval: MASTERED_DAYS }))), true);
+  assert.equal(recognised(first, all(state({ phase: "review", interval: MASTERED_DAYS - 1 }))), false);
+  assert.equal(recognised(first, all(freshState())), false, "never answered is not recognised");
+  assert.equal(recognised([], all(freshState())), true, "no first-level material: nothing to recognise");
+  /* Higher rungs are not asked about: a word is through the door as soon
+     as it can be recognised, and goes on climbing behind the newcomers. */
+  const mixed = (/** @type {string} */ t) =>
+    levelOf(t) === 1 ? state({ phase: "review", interval: MASTERED_DAYS }) : freshState();
+  assert.equal(recognised(TYPES, mixed), true, "the climb does not hold the door");
 });
 
 test("a family is as hard as its hardest form", () => {
@@ -747,14 +813,92 @@ test("a level a card has no material for is not one of its levels", () => {
   assert.equal(standing([]), null);
 });
 
-test("a slip below pauses the levels above rather than losing them", () => {
+/* ------------------------------------------------------------------
+   One slip is a wobble; two is a gap
+
+   Pausing is not a rule of its own — it falls out of a miss taking a
+   question out of review, and a level only opening when everything below
+   it is in review. So these are about `holding`, which is the one place
+   that judgement is softened, and about the three readers staying level
+   with each other.
+   ------------------------------------------------------------------ */
+
+test("two misses running is what the ladder counts, not two misses", () => {
+  assert.equal(missedTwice(state({ hist: [1, 1, 0] })), false, "one miss");
+  assert.equal(missedTwice(state({ hist: [1, 0, 0] })), true, "and a second on top of it");
+  /* Recovering in between is the whole difference: that is two slips, not
+     two running. */
+  assert.equal(missedTwice(state({ hist: [0, 1, 0] })), false, "right in between clears it");
+  assert.equal(missedTwice(state({ hist: [0, 0, 1] })), false, "and a right answer since");
+});
+
+test("a card from before any of this was recorded is not treated as failing", () => {
+  /* Documents written before the history existed carry an empty one, and
+     `[].every()` is true — so without the length guard every old card
+     would read as having just missed twice and pause on the spot. */
+  assert.equal(missedTwice(state({ hist: [] })), false, "nothing recorded");
+  assert.equal(missedTwice(state({ hist: [0] })), false, "one outing recorded");
+  assert.equal(missedTwice(freshState()), false, "and a state with no history at all");
+});
+
+test("one miss does not shut the levels above, and a second does", () => {
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  const ladder = (/** @type {any} */ first) =>
+    standings(
+      climber({ ar2en: first, match: done, tr2ar: done, en2ar: state({ phase: "learning", step: 1 }) }),
+      rungs,
+    ).map((r) => r.status);
+
+  assert.deepEqual(ladder(done), ["done", "done", "done", "learning"], "nothing missed");
+  assert.deepEqual(ladder(slipped(8)), ["done", "done", "done", "learning"],
+    "one miss changes nothing about the ladder");
+  assert.deepEqual(ladder(slippedTwice(8)), ["learning", "paused", "paused", "paused"],
+    "a second miss on the same question shuts them");
+});
+
+test("the grace forgives, it does not promote", () => {
+  /* A word that had only ever scraped into review must not have its first
+     miss hold open a level it was never good enough for. At the top the
+     bar is a four-day gap, and a miss halves it — so a word that only just
+     reached the top can fall under the bar on its own merits and shut the
+     level whatever its history says. */
+  const ladder = ["ar2en", "match", "tr2ar", "en2ar"];
+  const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
+  const done = state({ phase: "review", interval: MASTERED_DAYS });
+  /* Halved to three days by the miss: under the top level's bar. */
+  const short = state({ ...slipped(MASTERED_DAYS - 1) });
+  assert.ok(
+    !openTypes(ladder, table({ ar2en: short, match: done, tr2ar: done })).includes("en2ar"),
+    "a gap under the bar does not hold the top level open",
+  );
+  /* Where the halved gap still clears the bar, one miss is forgiven all
+     the way up. */
+  const long = slipped(10);
+  assert.deepEqual(
+    openTypes(ladder, table({ ar2en: long, match: done, tr2ar: done })),
+    ladder,
+    "a gap still over the bar keeps every level open",
+  );
+  /* And the limit of that, written down because it is wider than it looks:
+     every miss halves the gap, so a word missed repeatedly walks itself
+     under the bar and closes the top level on a miss the strike count
+     would have forgiven. Ten days, missed, recovered, missed again is
+     three. The forgiveness is for the miss, not for the shrinking. */
+  const worn = state({ ...slipped(3) });
+  assert.ok(
+    !openTypes(ladder, table({ ar2en: worn, match: done, tr2ar: done })).includes("en2ar"),
+    "a gap worn down by repeated misses shuts the top level on merit",
+  );
+});
+
+test("missing a question below twice pauses the levels above rather than losing them", () => {
   const done = state({ phase: "review", interval: MASTERED_DAYS });
   /* Three levels mastered, the writing met once — then the reading is
-     forgotten. The levels above shut, and what was done there is still
-     done: nothing is lost, it is waiting. */
+     forgotten, twice running. The levels above shut, and what was done
+     there is still done: nothing is lost, it is waiting. */
   const rows = standings(
     climber({
-      ar2en: state({ phase: "relearning", interval: 8 }),
+      ar2en: slippedTwice(8),
       match: done,
       tr2ar: done,
       en2ar: state({ phase: "learning", step: 1 }),
@@ -989,4 +1133,89 @@ test("a level the form has no exercise at is passed over, as openTypes passes it
   const eased = ["ar2en", "match", "tr2ar", "en2ar"];
   const out = liftLevel(eased, stateIn({}), "match", still);
   assert.deepEqual(Object.keys(out).sort(), ["ar2en", "match"]);
+});
+
+/* ------------------------------------------------------------------
+   A gap grows from the time actually waited
+
+   Practice is no longer gated on a card being due, so a learner with a
+   free hour can answer a card minutes after they last saw it. The rule
+   that makes that safe: you never get credit for waiting longer than you
+   did, and answering early never takes a card backwards.
+   ------------------------------------------------------------------ */
+
+/** A review card last answered `ago` days back, so its gap is `interval`. */
+const waited = (/** @type {number} */ interval, /** @type {number} */ ago) => ({
+  ...freshState(),
+  phase: "review",
+  interval,
+  ease: 2.5,
+  /* Where the last answer put it: the moment it was answered plus its gap. */
+  due: T - ago * DAY + interval * DAY,
+  reps: 4,
+  right: 4,
+});
+
+test("answering on the day it asks for is exactly what it always was", () => {
+  /* The regression that matters most: every learner who uses the app the
+     way it intends must see no change at all from any of this. */
+  for (const interval of [1, 3, 10, 30, 180]) {
+    assert.equal(
+      reschedule(waited(interval, interval), "good", still).interval,
+      /* The ceiling still applies, as it did before: 180 days times the
+         ease is past a year, and a year is as far as anything goes. */
+      Math.min(MAX_DAYS, Math.round(interval * 2.5)),
+      `a ${interval}-day card answered on time`,
+    );
+  }
+});
+
+test("and answering late is worth what answering on time is, not more", () => {
+  /* A collection left for a month is not evidence of a month's retention
+     of every card in it. Treating it as such is how a forgotten pile
+     inflates itself out of reach. */
+  assert.equal(
+    reschedule(waited(10, 90), "good", still).interval,
+    reschedule(waited(10, 10), "good", still).interval,
+  );
+});
+
+test("answering straight after the last time does not move the card", () => {
+  /* The hour on the train: drilling a card you have just seen is welcome,
+     and it is worth nothing towards when the card comes back. */
+  const s = reschedule(waited(30, 0), "good", still);
+  assert.equal(s.interval, 30, "the gap stands");
+  assert.equal(s.right, 5, "but the right answer is counted");
+});
+
+test("answering halfway through the gap grows it, by less", () => {
+  const early = reschedule(waited(20, 10), "good", still).interval;
+  const onTime = reschedule(waited(20, 20), "good", still).interval;
+  assert.ok(early > 20, `it still grows: ${early}`);
+  assert.ok(early < onTime, `but less than the full step: ${early} vs ${onTime}`);
+});
+
+test("no amount of early practice can push a card further out", () => {
+  /* Twenty answers in one sitting used to be twenty multiplications. This
+     is the property that lets the app offer unlimited practice at all. */
+  let s = waited(30, 0);
+  for (let i = 0; i < 20; i += 1) s = reschedule(s, "good", still);
+  assert.equal(s.interval, 30, "still a thirty-day card");
+  assert.equal(s.reps, 24, "and every answer was counted");
+});
+
+test("getting it wrong counts in full, however early it was", () => {
+  /* Forgetting is news whenever it arrives, and it is the one thing that
+     must not be softened by the rule above. */
+  const s = reschedule(waited(30, 0), "again", still);
+  assert.equal(s.phase, "relearning");
+  assert.equal(s.interval, 15, "the gap is halved as it always was");
+  assert.equal(s.lapses, 1);
+});
+
+test("a card with no due date recorded is scheduled as it always was", () => {
+  /* Written by a build before any of this. There is nothing to work a wait
+     out from, so it falls back to the full step rather than to nothing. */
+  const old = { ...freshState(), phase: "review", interval: 10, ease: 2.5, due: 0 };
+  assert.equal(reschedule(old, "good", still).interval, 25);
 });

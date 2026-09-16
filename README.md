@@ -28,8 +28,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   recall from the meaning alone. Level 4 opens on *mastered* — in review,
   with an interval of at least four days — so the strict bar stands where
   writing from memory begins. A level a card has no material for is passed
-  straight through. A lapse below closes the levels above until it is
-  recovered. Each exercise declares its own level in `src/languages.ts`
+  straight through. Missing a question below twice running — wrong, seen
+  again, wrong again — closes the levels above until it is recovered; a
+  single miss is forgiven, and `holding` in the scheduler is the whole of
+  that. Each exercise declares its own level in `src/languages.ts`
   and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
   the scheduler reads both.
 
@@ -43,8 +45,9 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   **The same ladder is what a learner is shown.** `standings` in the
   scheduler reads a card as one row per level it has material on, each
   *not started*, *learning*, *done* or *paused* — paused being a level
-  that had opened and has been shut again by a slip further down, which is
-  the one thing about the ladder nobody could otherwise make sense of. A
+  that had opened and has been shut again by a question further down being
+  missed twice running, which is the one thing about the ladder nobody
+  could otherwise make sense of. A
   level is *done* exactly when `openTypes` opens the one above it, so the
   screen and the scheduler cannot come to disagree; a test walks every
   combination to hold them together. `standing` picks the one row to put
@@ -52,12 +55,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   screen lists them.
 - **The shape of a session is the app's to decide, not the learner's.**
   Eighteen questions; each form asked two ways where its data allows; at
-  most two forms of any one card; three new cards at the outside; easiest
-  first. Cards are taken in the order they fell due, with chance between
+  most two forms of any one card; easiest first. Cards are taken in the order they fell due, with chance between
   everything the due list calls equal, and nothing gathers similar words
-  together. The numbers are `SESSION_SIZE`, `PER_UNIT`,
-  `MAX_UNITS_PER_FAMILY` and `NEW_PER_SESSION` in `src/ArabicTrainer.tsx`,
-  beside `buildSession` which is the only thing that reads them.
+  together.
+
+  **Being due settles that order and nothing else.** There is always a
+  session: a learner who is up to date, or who is holding as many new
+  words as the rule below allows, is dealt the cards nearest to coming
+  round rather than an empty screen. What makes that safe is in the scheduler — a gap
+  grows from the time actually waited, so a card answered soon after the
+  last time is counted and left where it was, and no amount of practice in
+  one evening can push anything further out. The limits on *new* cards are
+  a different rule and still apply: more practice is more of what the
+  learner holds, never more than they can take on at once.
+
+  The numbers are `SESSION_SIZE`, `PER_UNIT` and `MAX_UNITS_PER_FAMILY` in
+  `src/ArabicTrainer.tsx`, beside `buildSession` which is the only thing
+  that reads them. How many *new* words a session may open is not among
+  them and is not the session's business — see below.
 
   They were six sliders under an Advanced disclosure, under a sentence
   saying the defaults were sensible — and two of the defaults were why the
@@ -83,13 +98,31 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   is written through a course card's lock rather than refused by it, and
   `foldCourses` carries it over a refresh beside the schedule.
 
-- **New cards are introduced only while there is room.** Beyond the three
-  a session may open, nothing new is dealt while ten cards are already
-  being learnt or forty are young and still coming back for review. A
-  card's phase is read over the levels it has reached: *New* is
-  never met, *Learning* is met and not yet through the steps somewhere,
-  *Young* is graduated everywhere it is open, *Mature* is three weeks out
-  everywhere.
+- **A new word is earned by learning one.** Two pools decide it and
+  nothing else: at most ten words the learner cannot yet recognise, and at
+  most sixty in hand altogether. A word leaves the first as soon as it has
+  earned a four-day gap on its first rung — the same bar that opens the
+  level above it — and goes on climbing against the second without
+  blocking a newcomer behind it.
+
+  Nothing is counted in sessions or in days, so ten short sittings in an
+  evening and one long one meet the same words. That was the fault of what
+  stood here before: three a session made the same work worth ten times as
+  much new material depending on how the learner broke up their time, and
+  the two ceilings behind it both counted a word as being learnt whenever
+  any exercise on it was unfinished — so a word held its place for its
+  whole climb and the pool never drained. The measured rate was about one
+  new word every four days.
+
+  The numbers are `FRONT_DOOR_CAP` and `IN_HAND_CAP` in
+  `src/scheduler.ts`, and they were measured rather than chosen:
+  `tests/pace.test.mjs` plays out a simulated learner and reports what a
+  course costs in days. Change one and run it.
+
+  A card's phase is still read over the levels it has reached, and the
+  Progress screen shows it: *New* is never met, *Learning* is met and not
+  yet through the steps somewhere, *Young* is graduated everywhere it is
+  open, *Mature* is three weeks out everywhere.
 - **One tense of a verb is ever new at a time.** Where a language lays its
   verbs out in a table — Arabic in seven persons and three tenses, Huế in
   one person and four markers — each cell of it is a sub-form, drilled and
@@ -184,6 +217,38 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   word with nothing on the screen to go on. A card that is not practised in
   its own right — a name — is left to the frame's own `met` record, and a
   verb's own place in its own sentence to its table's gate.
+- **A number is built, not memorised.** A learner who knows *forty* and
+  *seven* knows *forty-seven*, so numbers are not cards one at a time: a
+  language declares how its numbers go together, the teacher fills in the
+  handful of **parts** on one screen, and the app makes up as many numbers
+  as it likes out of them. A card is a part by carrying a `value` — two
+  teachers write *forty* and أربعين and neither string says what it is
+  worth — and `spell` on the pack turns a number into words or refuses,
+  which is how a deck that stops at ten is never asked for a hundred.
+
+  Everything that differs between languages is in that one function.
+  Arabic puts the unit before the ten and a و in front of every chunk;
+  Hebrew puts the ten before the unit, one ו in the whole number, and
+  counts in the feminine except in front of *thousand*; Huế is regular
+  enough to need eleven boxes against the other two's fifty-five, and puts
+  its irregularity in the forms a word takes in company — *năm* is five and
+  *mười lăm* is fifteen, which is a cell of a table like an adjective's
+  feminine. `src/numbers.ts` knows none of it: it finds the card a part is
+  written on, works out which stretches of the number line can be built,
+  and chooses what to ask.
+
+  The teacher fills the parts in from **Teaching → Cards**, the `#` in the
+  list's toolbar: one screen for the language, over every number card they
+  have in it, saving to their collection the way any new card does. A
+  language and not a deck, because the parts are the language's.
+
+  The practice is started by the learner, not dealt. It ramps: it opens in
+  the lowest **band** the deck can build — 0–10, 11–20, 21–99, and so on to
+  millions — widens as answers come back right, and remembers where it got
+  to in `settings.numbersReach`. The numbers themselves are never cards and
+  are thrown away with the sitting; a right answer credits the *parts* that
+  stood in the number, under the ordinary exercise the question was
+  evidence for, by exactly the rule a sentence credits its fillers with.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in
@@ -307,6 +372,11 @@ src/
   cards.ts         what a card is made of: its own word and the forms it
                    carries, as one list. The single door everything that
                    walks a card's forms goes through. Pure, imports nothing.
+  numbers.ts       numbers built out of a teacher's parts: finding the card
+                   a part is written on, how far a deck reaches, and what
+                   to ask next. How a language puts its numbers together is
+                   `spell` on the pack, never here. Pure, imports nothing
+                   but the pack.
   verbs.ts         a word's forms as a table over the card's own sub-forms —
                    a verb's persons and tenses, or the pronouns a language
                    attaches to the end of a word:
@@ -326,7 +396,9 @@ src/
   index.css        one stylesheet, with the design tokens at the top
 server/
   index.js         the process: routes /api, serves dist/, nothing else
-  store.js         documents on disk, with the conditional writes sync needs
+  store.js         documents on disk, with the conditional writes sync needs.
+                   Flushed, and one version back kept beside each document,
+                   so a host dying mid-write costs nothing
   api/
     sync.js        the per-person sync document
     courses.js     accounts, courses, decks, cards, recordings, reported
@@ -347,6 +419,12 @@ A few rules the code follows, learned the hard way:
   exercise type; states that have never been answered are not stored.
 - **Merging is idempotent.** Sync can run twice with the same input and
   nothing changes.
+- **An absence is not an instruction.** A read that failed, a list that came
+  back short, a schedule with nothing in it — none of them may be acted on
+  as though the learner had asked for something. A request whose read failed
+  fails; a card that has gone leaves its progress behind in case it comes
+  back; anything the learner said and can be undone by silence carries a
+  stamp of its own. DECISIONS.md has the whole of it.
 
 ### Types
 
@@ -391,7 +469,10 @@ contents, and are fetched on demand.
 Course cards carry a `source` pointing back at the deck they came from. The
 teacher owns their wording; the student owns their progress. When a teacher
 withdraws a card it is tombstoned rather than merely deleted, so the next
-sync does not hand it back.
+sync does not hand it back — and the progress that was on it is set aside
+beside the document rather than destroyed, restored if the card returns and
+aged out on the same schedule as the tombstones. A card can go missing for
+reasons nobody decided, and the device cannot tell those from a withdrawal.
 
 A card that fills a variable (`fills: "name"`) belongs to no deck: the server
 sends it with every deck whose phrases leave a hole of that name. It is the

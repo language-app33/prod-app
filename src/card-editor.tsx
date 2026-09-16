@@ -56,6 +56,7 @@ import {
   Screen,
   Segmented,
   plural,
+  useOffline,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -91,7 +92,13 @@ const formName = (taken: { id?: string }[]): string => {
    thing somebody says, and whether it is singular or plural is a question
    about a word. `uses` is per line rather than per card, because a line is
    where a word actually turns up. */
-const blankLine = () => ({ who: 0, ar: "", en: "", lat: "", clips: [], slowClips: [], uses: [] });
+/* A turn nobody has written yet, named so that a student's progress on it
+   can point at something. Named here rather than on save, because a turn
+   added and then moved is the same turn. */
+const blankLine = (taken: { id?: string }[] = []) => ({
+  id: formName(taken),
+  who: 0, ar: "", en: "", lat: "", clips: [], slowClips: [], uses: [],
+});
 
 /* One answer, or several: a field per accepted answer, a + after the last
    to add another and a − on every extra. What is stored is still one
@@ -275,7 +282,12 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
   );
 }
 
-function ScriptInput({ lang, value, onChange, compact = false, label }: {
+/* Exported for the Numbers screen, which is fifty-five of these boxes in a
+   grid and has exactly the same need: a field in the language's script,
+   laid out by its direction, with the on-screen keys a click away. A
+   second implementation of it there would be a second place for the caret
+   handling and the direction rule to drift. */
+export function ScriptInput({ lang, value, onChange, compact = false, label }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
@@ -2029,11 +2041,19 @@ export function useSceneDraft({ card }: { card: Card | null }) {
     card && (card.speakers || []).length ? (card.speakers || []).slice() : ["A", "B"]
   );
   const [you, setYou] = useState<number | null>(card ? namedPart(card) : null);
-  const [lines, setLines] = useState(() =>
-    card && (card.lines || []).length
-      ? (card.lines || []).map((l) => ({ ...blankLine(), ...l }))
-      : [{ ...blankLine(), who: 0 }, { ...blankLine(), who: 1 }]
-  );
+  const [lines, setLines] = useState(() => {
+    /* Each turn named on the way in, the way a form is — and one written
+       before turns had names is given one here, which changes nothing a
+       student has done: an unrecognised name folds back to its position.
+       See foldForms in shared.tsx. */
+    const out: Record<string, any>[] = [];
+    for (const l of card ? card.lines || [] : []) {
+      out.push({ ...blankLine(out), ...l, id: String(l.id || "") || formName(out) });
+    }
+    if (out.length) return out;
+    const first = blankLine();
+    return [{ ...first, who: 0 }, { ...blankLine([first]), who: 1 }];
+  });
   /* The scene's name and its setting are the card's own English and note:
      a conversation has no word of its own to put in either. */
   /* A scene's name and its setting are the card's own English and note: a
@@ -2060,7 +2080,7 @@ export function useSceneDraft({ card }: { card: Card | null }) {
     setLines((x) =>
       x.concat([
         {
-          ...blankLine(),
+          ...blankLine(x),
           who: x.length && speakers.length > 1
             ? ((Number(x[x.length - 1].who) || 0) + 1) % speakers.length
             : 0,
@@ -3428,6 +3448,8 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             ? "verb"
             : "table";
   const selfId = (card && card.id) || "";
+  /* Whether there is a connection, for the line above the first field. */
+  const offline = useOffline();
 
   return (
     /* "over" puts this above the mode selector and the corner menu, so
@@ -3451,6 +3473,18 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
           </Button>
         }
       >
+          {/* Said before the typing rather than after it.
+              A save that cannot be made is now kept on the device and sent
+              when the connection returns — but a teacher about to write a
+              card with four recordings on it should know where they stand
+              first, because the recordings are the part that cannot wait:
+              they are uploaded as they are made. */}
+          {offline && (
+            <Notice kind="warn">
+              You&apos;re offline. What you write here is saved on this device and goes up when
+              you&apos;re back online — but recordings can&apos;t be added until then.
+            </Notice>
+          )}
           <KindBlock
             card={card}
             lang={lang}

@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
-import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
+import type { Card, CardForm, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
-import { CardEditor } from "./card-editor.tsx";
+import { CardEditor, ScriptInput } from "./card-editor.tsx";
 import { formsOf, leadOf } from "./cards.ts";
+import {
+  bandsOf,
+  cellsFor,
+  glossOf,
+  labelOf,
+  missingFor,
+  numbersOf,
+  openBands,
+  partCards,
+  partsOf,
+  reachOf,
+  spell,
+  teachesNumbers,
+} from "./numbers.ts";
 
 /*
  * Whatever is waiting on a yes: the confirmation to show, and what to do
@@ -57,6 +71,13 @@ import { hasSlots, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
+import { isOffline, watchNet } from "./net.ts";
+import { drainOutbox, keep as keepPending, waiting as waitingToSend } from "./outbox.ts";
+
+/* What a card that could not be sent is filed under while it waits. See
+   outbox.ts: one queue for every kind of waiting work, and the kind is
+   what keeps a teacher's cards and a learner's reports apart. */
+const CARD_OUTBOX = "card";
 import { buildDialogIndex } from "./dialogs.ts";
 import { freshStates, unitsOf } from "./scheduler.ts";
 import {
@@ -78,6 +99,7 @@ import {
   ItemList,
   LanguageRadio,
   Lede,
+  Meta,
   Notice,
   Screen,
   Section,
@@ -97,6 +119,7 @@ import {
   recallSpace,
   rememberSpace,
   useFreshSpace,
+  useOffline,
   useLiveRefresh,
   useSnackbar,
 } from "./shared.tsx";
@@ -129,6 +152,18 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
   const [codeNeeded, setCodeNeeded] = useState(false);
   const [signupCode, setSignupCode] = useState("");
 
+  /*
+   * The app's general wording for a request that could not be made is
+   * "Can't reach the server. Your own cards still work" — which is written
+   * for somebody who has cards, on a screen where nobody does yet. Here it
+   * is the one thing standing between a person and the app, so it says so
+   * and says what to do about it.
+   */
+  const explainHere = (e: unknown) =>
+    String((e && (e as Error).message) || e) === "offline"
+      ? "Setting up needs a connection. Once you're set up, the app works without one."
+      : API.explain(e);
+
   async function create() {
     setBusy(true);
     setError("");
@@ -143,7 +178,7 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
         setCodeNeeded(true);
         setError(signupCode.trim() ? "That invitation code isn't right." : "");
       } else {
-        setError(API.explain(e));
+        setError(explainHere(e));
       }
     } finally {
       setBusy(false);
@@ -159,7 +194,7 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
       API.saveAccount(account);
       onDone(account);
     } catch (e) {
-      setError(API.explain(e));
+      setError(explainHere(e));
     } finally {
       setBusy(false);
     }
@@ -171,9 +206,15 @@ export function Onboarding({ onDone }: { onDone: (account?: User & { key: string
         {step === "choose" && (
           <>
             <h1>مُفْرَدات</h1>
+            {/* What it used to say: "an account only matters if you join a
+                course or use more than one device". Both exits from this
+                screen are requests to the server, so an account is not
+                optional — it is the door. Somebody installing the app
+                where there is no signal was being told, by the one screen
+                standing in their way, that it should not have been. */}
             <Lede>
-              Learn a language a card at a time. Everything stays on your device; an account only
-              matters if you join a course or use more than one device.
+              Learn a language a card at a time. Setting up takes a moment and a connection; after
+              that your cards and your progress live on this device, and the app works without one.
             </Lede>
             <Button variant="primary" wide onClick={() => setStep("new")}>
               Set up
@@ -1384,6 +1425,8 @@ export function AdminSpace({ account, languages, onClose }: {
      can ever be on screen at a time. */
   const [confirm, setConfirm] = useState<Pending | null>(null);
 
+  /* Answers whether it worked, which is what the background poll reads to
+     know whether to back off — see useLiveRefresh. */
   const refresh = useCallback(async (background: boolean = false) => {
     /* A background poll must not flash "Working" or grey the buttons out
        from under someone mid-click; only a deliberate refresh does that. */
@@ -1391,8 +1434,10 @@ export function AdminSpace({ account, languages, onClose }: {
     try {
       setData(await pullAdmin(account.handle));
       setError("");
+      return true;
     } catch (e) {
       if (!background) setError(API.explain(e));
+      return false;
     } finally {
       if (!background) setBusy(false);
     }
@@ -3892,6 +3937,249 @@ export function fillsInUse(cards: Card[]): { name: string; count: number }[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/* ---- the numbers a deck can build ----
+
+   What a teacher is shown for their parts, and what they fill them in on.
+   Two screens' worth of thing, kept together because they are one idea:
+   how far the deck reaches, and the boxes that decide it.
+
+   This is a coverage report, in the way `ContextReport` above is one, and
+   not a rehearsal of a student's screen — the numbers under it are what
+   the app will actually say, read out of the same `spell` the practice
+   asks with, so there is nothing here that could be right while the real
+   thing is wrong. */
+
+/** One row of the grid, as the screen holds it while it is being typed. */
+interface NumberRow {
+  value: number;
+  word: string;
+  cells: Record<string, string>;
+}
+
+/** The parts as a draft holds them, for spelling a number that has not
+    been saved yet — which is what lets the reach move while it is typed. */
+function draftParts(lang: Lang, draft: Record<number, NumberRow>): Map<number, { forms: CardForm[] }> {
+  const out = new Map<number, { forms: CardForm[] }>();
+  for (const row of Object.values(draft)) {
+    const word = (row.word || "").trim();
+    if (!word) continue;
+    const forms: CardForm[] = [{ ar: word, en: "", lat: "" }];
+    for (const [col, text] of Object.entries(row.cells || {})) {
+      if ((text || "").trim()) forms.push({ ar: text.trim(), en: "", lat: "", col });
+    }
+    out.set(row.value, { forms });
+  }
+  return out;
+}
+
+/**
+ * How far this deck's numbers reach, and what is in the way.
+ *
+ * The bands are a ramp, so the report is one too: everything up to the
+ * first gap is reached and nothing above it is, which is the truth a
+ * teacher needs rather than a count of filled boxes. The numbers written
+ * out underneath are the point of the whole screen — they are what a
+ * student will be asked, and reading a dozen of them is how a teacher
+ * catches a word typed into the wrong box.
+ */
+function NumberReach({ lang, parts }: { lang: Lang; parts: Map<number, { forms: CardForm[] }> }) {
+  const bands = bandsOf(lang);
+  const open = openBands(lang, parts);
+  const reach = reachOf(lang, parts);
+  const next = bands[open.length] || null;
+  const missing = next ? missingFor(lang, parts, next) : [];
+
+  /* Two from each band that opens, at the same places every time: a
+     sample that moved as it was read would be no use for checking. */
+  const sample = useMemo(() => {
+    const out: { value: number; text: string }[] = [];
+    for (const band of open) {
+      for (const at of [0.37, 0.81]) {
+        const v = band.from + Math.round((band.to - band.from) * at);
+        const said = spell(lang, parts, v);
+        if (said) out.push({ value: v, text: said.text });
+      }
+    }
+    return out;
+  }, [lang, parts, open]);
+
+  return (
+    <>
+      <Help>
+        {reach < 0
+          ? "No numbers can be made yet. Fill in the words below and this will say how far they reach."
+          : `Numbers up to ${reach.toLocaleString("en")} can be made from what is written here.`}
+      </Help>
+      <div className="at-bandlist">
+        {bands.map((band, i) => {
+          const isOpen = i < open.length;
+          return (
+            <div className="at-bandrow" key={band.id} data-open={isOpen ? "" : undefined}>
+              <span className="at-bandname">{band.label}</span>
+              <Meta>{isOpen ? "ready" : "not yet"}</Meta>
+            </div>
+          );
+        })}
+      </div>
+      {next && missing.length ? (
+        <Help>
+          {next.label} is waiting on {plural(missing.length, "word")}:{" "}
+          {missing.slice(0, 12).map((v) => v.toLocaleString("en")).join(", ")}
+          {missing.length > 12 ? " and more" : ""}.
+        </Help>
+      ) : null}
+      {sample.length ? (
+        <Section title="What a student will be asked" className="at-mt5">
+          <div className="at-numsample">
+            {sample.map((s) => (
+              <div className="at-numsamplerow" key={s.value}>
+                <span className="at-numfig">{s.value.toLocaleString("en")}</span>
+                <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+                  {s.text}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The grid a teacher fills the parts in on.
+ *
+ * One screen rather than fifty-five trips through the card editor, which
+ * is the only way this is a reasonable thing to ask of anybody: the parts
+ * are a set and they are filled in as one. Every box is an ordinary number
+ * card underneath, so anything written here can be opened, recorded and
+ * edited afterwards like any other card.
+ *
+ * An emptied box does nothing. A card that has been written carries a
+ * student's progress and possibly a recording, and clearing a field is not
+ * a way of asking for either to be thrown away — DECISIONS.md has the
+ * whole of that rule. Deleting the card from the deck's list is.
+ */
+function NumbersScreen({ lang, cards, onSave, onClose, busy }: {
+  lang: Lang;
+  /** Every card of the teacher's in this language; the caller filters. */
+  cards: Card[];
+  onSave: (rows: NumberRow[]) => void;
+  onClose: () => void;
+  busy?: boolean;
+}) {
+  const groups = (numbersOf(lang) || { groups: [] }).groups;
+
+  /* What is on the cards now, which is what the boxes open showing. */
+  const saved = useMemo(() => {
+    const byValue = partCards(cards);
+    const out: Record<number, NumberRow> = {};
+    for (const group of groups) {
+      for (const part of group.parts) {
+        const card = byValue.get(part.value);
+        const forms = (card && card.forms) || [];
+        const cells: Record<string, string> = {};
+        for (const cell of cellsFor(lang, part.value)) {
+          const at = forms.find((f) => f && f.col === cell.id);
+          cells[cell.id] = String((at && at.ar) || "");
+        }
+        out[part.value] = { value: part.value, word: String((forms[0] && forms[0].ar) || ""), cells };
+      }
+    }
+    return out;
+  }, [cards, lang, groups]);
+
+  const [draft, setDraft] = useState<Record<number, NumberRow>>(saved);
+  const parts = useMemo(() => draftParts(lang, draft), [lang, draft]);
+
+  const setWord = (value: number, word: string) =>
+    setDraft((d) => ({ ...d, [value]: { ...d[value], value, word } }));
+  const setCell = (value: number, col: string, text: string) =>
+    setDraft((d) => ({
+      ...d,
+      [value]: { ...d[value], value, cells: { ...(d[value] || { cells: {} }).cells, [col]: text } },
+    }));
+
+  /* Only what was actually typed goes to the server. Fifty-five writes for
+     one changed box would be fifty-five versions of somebody else's deck. */
+  const changed = Object.values(draft).filter((row) => {
+    const was = saved[row.value] || { word: "", cells: {} };
+    if ((row.word || "").trim() !== (was.word || "").trim()) return true;
+    return Object.keys(row.cells || {}).some(
+      (col) => (row.cells[col] || "").trim() !== ((was.cells || {})[col] || "").trim(),
+    );
+  });
+
+  return (
+    <Screen
+      title="Numbers"
+      onBack={onClose}
+      footer={
+        <Button variant="primary" wide disabled={!changed.length || busy} onClick={() => onSave(changed)}>
+          {changed.length ? `Save ${plural(changed.length, "number")}` : "Nothing to save"}
+        </Button>
+      }
+    >
+      <Help>
+        Write the words {lang.name} builds its numbers out of, and the app makes the rest.
+        With one to ten it can ask anything up to ten; add the tens and it can ask anything up
+        to ninety-nine.
+      </Help>
+      <Help>
+        Each box is an ordinary card in your collection, so you can record it and edit it like
+        any other — and <b>put it in a deck</b>, from the list behind this screen, for students
+        to get it. Clearing a box leaves its card alone, with its recordings and every
+        student&apos;s progress; deleting the card is how you get rid of it.
+      </Help>
+
+      <Section title="How far this reaches" className="at-mt5">
+        <NumberReach lang={lang} parts={parts} />
+      </Section>
+
+      {groups.map((group) => (
+        <Section key={group.id} title={group.label} lede={group.note} className="at-mt5">
+          <div className="at-numgrid">
+            {group.parts.map((part) => {
+              const row = draft[part.value] || { value: part.value, word: "", cells: {} };
+              const cells = cellsFor(lang, part.value);
+              return (
+                <div className="at-numrow" key={part.value}>
+                  <div className="at-numlabel">
+                    <span className="at-numfig">{labelOf(part)}</span>
+                    {part.hint ? <Meta>{part.hint}</Meta> : null}
+                  </div>
+                  <div className="at-numboxes">
+                    <ScriptInput
+                      lang={lang}
+                      value={row.word}
+                      label={`${labelOf(part)} in ${lang.name}`}
+                      compact
+                      onChange={(v) => setWord(part.value, v)}
+                    />
+                    {cells.map((cell) => (
+                      <div className="at-numcell" key={cell.id}>
+                        <Meta>{cell.label}</Meta>
+                        <ScriptInput
+                          lang={lang}
+                          value={(row.cells || {})[cell.id] || ""}
+                          label={`${labelOf(part)}, ${cell.label}`}
+                          compact
+                          onChange={(v) => setCell(part.value, cell.id, v)}
+                        />
+                        {cell.hint ? <Meta>{cell.hint}</Meta> : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      ))}
+    </Screen>
+  );
+}
+
 /**
  * @param props  `onTry` runs one question on one of these cards, through the
  *   screen a student is asked on. The teaching space has no such screen of
@@ -3942,6 +4230,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     scene?: boolean;
     draft?: Record<string, any>;
   } | null>(null);
+  /* How many cards are waiting for a connection, so the space can say so
+     rather than leaving a teacher to wonder where their work went. */
+  const [kept, setKept] = useState(() => waitingToSend(CARD_OUTBOX));
+  /* Whether there is a connection, so the editor can say so before the
+     typing rather than after it. */
+  const offline = useOffline();
   const [naming, setNaming] = useState<any | null>(null); // "new" | deck
   const [confirm, setConfirm] = useState<Pending | null>(null); // whatever is awaiting a yes
   /* A card being read rather than edited. On the way back from a trial it
@@ -3957,6 +4251,15 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   const [cardAction, setCardAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
   const [newCardLang, setNewCardLang] = useState<LangId | null>(null);
   const [managingDecks, setManagingDecks] = useState<string | null>(null); // a course id
+  /* The language whose numbers are being filled in, where one is.
+     A language rather than a deck: the words a language builds its numbers
+     out of are a fact about the language, not about any one deck, and the
+     same eleven words serve every deck written in it. */
+  const [numbering, setNumbering] = useState<LangId | null>(null);
+  /* And which language, where the teacher has more than one to choose
+     from. The same two-step the New card button takes, for the same
+     reason and through the same control. */
+  const [numberLang, setNumberLang] = useState<LangId | null>(null);
   /* Already teaching something? Then this is a rare errand, folded away. */
   const [joinNote, setJoinNote] = useState("");
   const [selDecks, setSelDecks] = useState(() => new Set<string>());
@@ -3968,6 +4271,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
   const [newDeckName, setNewDeckName] = useState<string | null>(null);
   const [pickedCourses, setPickedCourses] = useState<string[]>([]);
 
+  /* As in AdminSpace: whether it worked, for the poll's own backoff. A
+     partial answer counts as a failure for that purpose — something is
+     wrong out there — while still putting on screen whatever did arrive. */
   const refresh = useCallback(async (background: boolean = false) => {
     if (!background) setBusy(true);
     try {
@@ -3979,8 +4285,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       setDecks(fresh.decks);
       setCards(fresh.cards);
       if (!background || !fresh.failed) setError(fresh.failed ? API.explain(fresh.failed) : "");
+      return !fresh.failed;
     } catch (e) {
       if (!background) setError(API.explain(e));
+      return false;
     } finally {
       if (!background) setBusy(false);
     }
@@ -4047,6 +4355,18 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         ? Object.fromEntries(knownLangs.map((id) => [id, languages[id]]))
         : languages,
     [knownLangs, languages]
+  );
+  /*
+   * The languages whose numbers can be built, of the ones this teacher has.
+   *
+   * What decides whether the Numbers button is on the card list at all: a
+   * pack that does not say how its numbers go together has nothing to put
+   * on that screen, and a button leading to an empty one is a promise the
+   * app has not kept.
+   */
+  const numberLangs = useMemo(
+    () => Object.keys(taught).filter((id) => teachesNumbers(taught[id])),
+    [taught]
   );
 
   const snack = useSnackbar();
@@ -4286,6 +4606,132 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     }
   }
 
+  /*
+   * The Numbers grid, saved one ordinary card at a time.
+   *
+   * There is no bulk write and this does not invent one: the same
+   * `sendOrKeep` every other card in this space goes through, in a loop,
+   * so a number written on a train is kept and sent like anything else.
+   * Only the rows that changed are sent — the screen works that out — so
+   * a corrected box is one write rather than fifty-five.
+   *
+   * What a row becomes is an ordinary Number card carrying its value, and
+   * what it must never become is a card with its recordings dropped. So an
+   * existing card is edited rather than rebuilt: its forms are carried
+   * over and the text on them replaced, which leaves clips, answers and
+   * anything the teacher added in the card editor exactly where they were.
+   */
+  function saveNumbers(lang: Lang, rows: NumberRow[]) {
+    return run(async () => {
+      const byValue = partCards(cards.filter((c) => (langOfCard(c) || { id: "" }).id === lang.id));
+      const parts = new Map(partsOf(lang).map((p) => [p.value, p]));
+      let saved = 0;
+      for (const row of rows) {
+        const part = parts.get(row.value);
+        const word = String(row.word || "").trim();
+        /* An emptied box is not an instruction to delete anything. */
+        if (!part || !word) continue;
+        const was = byValue.get(row.value);
+        const old = (was && was.forms) || [];
+        const gloss = glossOf(part);
+        const mine = new Set(cellsFor(lang, row.value).map((c) => c.id));
+        const forms: CardForm[] = [{ ...(old[0] || { ar: "", en: "", lat: "" }), ar: word, en: gloss, ask: true }];
+        for (const cell of cellsFor(lang, row.value)) {
+          const text = String((row.cells || {})[cell.id] || "").trim();
+          const before = old.find((f) => f && f.col === cell.id);
+          if (!text) {
+            /* Cleared, or never filled: keep whatever is there and add
+               nothing. Same rule as the word above. */
+            if (before) forms.push(before);
+            continue;
+          }
+          forms.push({ ...(before || { lat: "" }), ar: text, en: gloss, row: cell.row, col: cell.id, ask: true });
+        }
+        /* Anything else the card carries — a second spelling a teacher
+           added in the editor — is kept, in the order it was in. */
+        for (const f of old.slice(1)) if (!f || !mine.has(String(f.col || ""))) forms.push(f);
+        const r = await sendOrKeep(
+          {
+            id: was ? was.id : "",
+            lang: lang.id,
+            forms,
+            category: "number",
+            value: row.value,
+            note: (was && was.note) || "",
+            name: (was && was.name) || "",
+            uses: (was && was.uses) || [],
+            fills: (was && was.fills) || "",
+            drill: true,
+          },
+          /* A card already in decks stays in them; a new one is made the
+             way the New card button makes one, in no deck at all. Putting
+             it in front of students is a deck it is added to afterwards,
+             from the list this screen was opened over — the same step
+             every other new card takes. */
+          was ? was.decks || [] : [],
+        );
+        absorbSaved(r);
+        saved += 1;
+      }
+      return saved;
+    }, (n) => `${plural(n, "number")} saved`);
+  }
+
+  /*
+   * A card that could not be sent is kept rather than lost.
+   *
+   * Everything a teacher does here was a bare request that threw: a card
+   * written on a train, or a recording made in a bad moment, went with the
+   * connection that failed to carry it, and the only warning came after
+   * the typing rather than before it.
+   *
+   * Only a request that never reached the server is kept. That is the
+   * whole of the rule, and it is what makes replaying one safe: the
+   * server cannot have half-done something it never heard about, so the
+   * card is either already there under its own id — an edit — or not there
+   * at all. A request the server *answered*, even to refuse, has been
+   * decided, and sending it again would either change nothing or write it
+   * twice.
+   */
+  const sendOrKeep = useCallback(async (card: Partial<Card>, decks: string[]) => {
+    try {
+      return await API.saveCard(card, decks);
+    } catch (e) {
+      if (String((e && (e as Error).message) || e) !== "offline") throw e;
+      keepPending(CARD_OUTBOX, { card, decks });
+      setKept(waitingToSend(CARD_OUTBOX));
+      return { kept: true };
+    }
+  }, []);
+
+  /* And send them when there is something to send them down. One at a
+     time, oldest first; a card the server refuses outright is dropped,
+     because it will be refused again for the same reason. */
+  const sendKeptCards = useCallback(async () => {
+    if (isOffline()) return;
+    const { sent } = await drainOutbox(CARD_OUTBOX, async (body) => {
+      const held = body as { card: Partial<Card>; decks: string[] };
+      try {
+        absorbSaved(await API.saveCard(held.card, held.decks));
+        return "sent";
+      } catch (e) {
+        return String((e && (e as Error).message) || e) === "offline" ? "keep" : "drop";
+      }
+    });
+    setKept(waitingToSend(CARD_OUTBOX));
+    if (sent) snack(`${plural(sent, "card")} sent`, "good");
+  /* absorbSaved and snack are stable for this purpose: the first writes
+     through a state setter, the second forwards to a memoised snackbar. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    void sendKeptCards();
+    return watchNet((off) => {
+      if (!off) void sendKeptCards();
+    });
+  }, [sendKeptCards]);
+
   /* What the server answers to a save or a delete is enough to bring the
      lists up to date here, so nothing needs fetching again. A save used to
      be followed by three more requests, each reading every deck and course
@@ -4461,7 +4907,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                * Which is why a scene reaches a student through the same
                * material payload as everything else.
                */
-              const r = await API.saveCard(
+              const r = await sendOrKeep(
                 {
                   id: editing.card ? editing.card.id : "",
                   lang: (editLang || {}).id || "",
@@ -4534,6 +4980,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     ).filter((pair) => !pair.confirmed && pair.word.id === saved.id).length;
               return {
                 name: (written ? written.title : main.en.trim() || main.ar.trim()) || "Card",
+                /* Kept for later rather than saved, which is a different
+                   promise and has to read as one. */
+                kept: !!(r && r.kept),
                 waiting,
                 /* And whatever the server had to cut to store it — a
                    thirteenth turn, a fifth speaker. Every one of those
@@ -4550,8 +4999,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                already written, say so — that is the moment the link is
                worth making, and the alternative is a deck whose coverage
                quietly falls as it grows. */
-            (done: { name: string, waiting: number, trimmed: string[] }) =>
-              done.trimmed.length
+            (done: { name: string, kept: boolean, waiting: number, trimmed: string[] }) =>
+              done.kept
+                ? `${done.name} saved on this device — it goes up when you're back online`
+                : done.trimmed.length
                 ? `${done.name} saved — but ${done.trimmed.join(" and ")} did not fit and ${done.trimmed.length === 1 ? "was" : "were"} left out`
                 : done.waiting
                 ? `${done.name} saved · it turns up in ${plural(done.waiting, "phrase")} you have written — confirm them under In context`
@@ -4593,6 +5044,30 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
             />
           ) : null
         }
+      />
+    );
+  }
+
+  /* ---- filling in the numbers a deck builds from ----
+         Sits before the deck screen so that closing it lands back on the
+         deck, the way the deck picker sits before the course. ---- */
+  if (numbering) {
+    const numLang = languages[numbering];
+    if (!numLang || !teachesNumbers(numLang)) {
+      setNumbering(null);
+      return null;
+    }
+    return (
+      <NumbersScreen
+        lang={numLang}
+        /* Every card of the teacher's in that language, whatever deck it
+           is in and whether it is in one at all: a part is a part of the
+           language. Filtered here rather than in the screen, so the one
+           rule for "which language is this card in" is the space's. */
+        cards={cards.filter((c) => (langOfCard(c) || { id: "" }).id === numbering)}
+        busy={busy}
+        onClose={() => setNumbering(null)}
+        onSave={(rows) => saveNumbers(numLang, rows)}
       />
     );
   }
@@ -4961,6 +5436,16 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       error={error}
       busy={busy}
     >
+          {/* Work that is safe but not yet shared. Said here, above every
+              tab, because it is true of the space rather than of whichever
+              list is on screen — and a teacher who has just written a card
+              on a train should be able to see that it is still coming. */}
+          {kept > 0 && (
+            <Notice kind="warn">
+              {`${plural(kept, "card")} saved on this device, waiting for a connection. `}
+              {offline ? "They go up as soon as you're back online." : "Sending…"}
+            </Notice>
+          )}
 
           {tab === "courses" && (
             <CoursesPage
@@ -5030,6 +5515,40 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                       }}
                     >
                       Start the card
+                    </Button>
+                  </div>
+                </Screen>
+              )}
+
+              {/* Which language's numbers, where the teacher has more than
+                  one that builds them. The same two-step the New card
+                  button takes, through the same control: the words are a
+                  fact about one language and nothing on the screen could
+                  work out which. */}
+              {numberLang !== null && (
+                <Screen title="Numbers" onBack={() => setNumberLang(null)}>
+                  <LanguageRadio
+                    languages={Object.fromEntries(numberLangs.map((id) => [id, taught[id]]))}
+                    value={numberLang}
+                    onChange={setNumberLang}
+                    label="Which language's numbers?"
+                  />
+                  <Help>
+                    Each language builds its numbers out of its own words, so they are filled
+                    in one language at a time.
+                  </Help>
+                  <div className="at-row at-mt5">
+                    <Button variant="ghost" onClick={() => setNumberLang(null)}>
+                      Cancel
+                    </Button>
+                    <Button variant="primary"
+                      disabled={!numberLang}
+                      onClick={() => {
+                        setNumbering(numberLang);
+                        setNumberLang(null);
+                      }}
+                    >
+                      Open them
                     </Button>
                   </div>
                 </Screen>
@@ -5229,6 +5748,25 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   shownCards.length === cards.length
                     ? null
                     : `${shownCards.length} of ${plural(cards.length, "card")}`
+                }
+                /* Numbers are written a set at a time rather than a card
+                   at a time, so they get their own screen off the toolbar
+                   — beside the search rather than in the list, because it
+                   is a different way in to the same cards and not a card
+                   in it. Icon alone: the row is narrow on a phone and the
+                   word is on the screen it opens. */
+                tools={
+                  numberLangs.length ? (
+                    <IconButton
+                      icon="hash"
+                      label="Numbers"
+                      onClick={() =>
+                        numberLangs.length === 1
+                          ? setNumbering(numberLangs[0])
+                          : setNumberLang(numberLangs[0])
+                      }
+                    />
+                  ) : null
                 }
                 menus={cardMenus}
                 resizable

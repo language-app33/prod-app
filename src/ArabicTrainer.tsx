@@ -20,6 +20,7 @@ import {
   ItemList,
   KeysButton,
   Lede,
+  Meta,
   Notice,
   LanguageRadio,
   Screen,
@@ -35,7 +36,9 @@ import {
   shortDate,
   pullAdmin,
   pullTeaching,
+  useInstallOffer,
   useLiveRefresh,
+  useOffline,
   useScrollTop,
   useSlowWait,
   useSnackbar,
@@ -148,6 +151,7 @@ import {
   verbOf,
   agreementOf,
   lendsForm,
+  NUMBER_EQUIVALENT,
 } from "./languages.ts";
 import {
   agreedCell,
@@ -165,7 +169,16 @@ import {
 } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
 import {
-  difficulty,
+  bandIndexOf,
+  confusablesOf,
+  openBands,
+  partCards,
+  pickNumber,
+  reachOf,
+  spell,
+  teachesNumbers,
+} from "./numbers.ts";
+import {
   formatGap,
   freshState,
   hasLevelAbove,
@@ -176,9 +189,10 @@ import {
   mastered,
   maturity,
   openTypes as openTypesOf,
-  phaseCounts,
   reachedLevel,
   roomForNew,
+  recognised,
+  familyMaturity,
   standing,
   standings as standingsOf,
   stateReady,
@@ -193,6 +207,8 @@ import type { Standing } from "./scheduler.ts";
 import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk } from "./offers.ts";
+import { isOffline } from "./net.ts";
+import { drainOutbox, keep as keepPending, waiting as waitingToSend } from "./outbox.ts";
 import {
   DEFAULT_SPEAKERS,
   DIALOG_KIND,
@@ -247,14 +263,16 @@ const cardStandings = (it: Item, settings: Settings): Standing[] =>
 import { fillerMarks, gradeInto, verdictOf } from "./grade.ts";
 import type { Filler, Mark } from "./grade.ts";
 
-import { applyUpdate, holdUpdates } from "./updates.ts";
+import { applyUpdate, beforeReload, holdUpdates } from "./updates.ts";
 import {
   syncClips,
+  clipIdsIn,
   loadSyncConfig,
   saveSyncConfig,
   tokenFor,
   syncOnce,
-  forgetRemote,
+  docSize,
+  drainRemote,
   compactItem,
   mergeData,
 } from "./sync.ts";
@@ -281,6 +299,11 @@ import {
    ================================================================== */
 
 const KEY = "arabic-trainer-v3";
+
+/* What a reported problem is filed under while it waits for a connection.
+   See outbox.ts: one queue, and the kind is how two sorts of waiting work
+   are kept out of each other's way. */
+const FLAG_OUTBOX = "flag";
 /* ------------------------------------------------------------------
    Exercise types
    Ordered easiest to hardest: recognition, then decoding, then
@@ -303,6 +326,9 @@ const EMPTY: Doc = {
   version: 3,
   items: [],
   tombstones: {},
+  /* The work of course cards no longer in the material — see `parked` in
+     types.ts. Empty on a device that has never lost one. */
+  parked: {},
   settingsUpdated: 0,
   log: {},
   settings: {
@@ -448,7 +474,6 @@ function standingShort(at: Standing | null): string {
    Automatic difficulty
    ------------------------------------------------------------------ */
 
-const HARD_BACKLOG_LIMIT = 10;
 const DIFF_RANK: Record<string, number> = { easy: 0, steady: 1, unrated: 2, hard: 3 };
 
 
@@ -790,6 +815,48 @@ export function fillersIn(unit: Form, key: string, settings: Settings): Filler[]
          whether the word has ever been asked this on its own, which is
          what a phase past `new` means. A sentence keeps a review up to
          date and does not open a rung. */
+      ready: (() => {
+        const s = statesOf(form)[key];
+        return !!s && s.phase !== "new" && stateReady(s);
+      })(),
+    });
+  }
+  return out;
+}
+
+/**
+ * The parts that stood in a made-up number, as fillers.
+ *
+ * A number is a sentence made of parts, so it credits them exactly the way
+ * a sentence credits the words that filled its blanks: only on a right
+ * answer, only where the part's own schedule for that question was under
+ * way and due, and only for exercises the part itself climbs. The same
+ * three rules, through the same function — see fillerMarks in grade.ts.
+ *
+ * What it is credited *as* is the ordinary exercise the number question
+ * was evidence for, not the number question itself. Reading *forty-seven*
+ * off the screen and writing 47 is reading the word for forty and knowing
+ * what it means, which is what `ar2en` asks; no card climbs a ladder
+ * called "num2fig", and crediting one would be writing a schedule nothing
+ * ever reads.
+ */
+export function numberFillers(
+  unit: Form,
+  parts: Map<number, Item>,
+  key: string,
+  settings: Settings,
+): Filler[] {
+  const used = ((unit as Record<string, any>).used as number[]) || [];
+  const out: Filler[] = [];
+  for (const value of used) {
+    const card = parts.get(value);
+    if (!card || card.drill === false) continue;
+    const form = leadOf(card);
+    if (!form) continue;
+    out.push({
+      id: card.id,
+      subId: null,
+      asked: laddered(form, settings).includes(key),
       ready: (() => {
         const s = statesOf(form)[key];
         return !!s && s.phase !== "new" && stateReady(s);
@@ -1696,10 +1763,69 @@ function blankedPhrase(context: any, lang: Lang, blank: string = "____") {
     .join(" ");
 }
 
-/* Whether a type may be asked at this moment. Only the clock makes this
-   false, so it is deliberately not part of what a card "supports". */
-function typeAllowedNow(type: string) {
-  return !(listenOffUntil > Date.now() && isListening(type));
+/*
+ * Whether a type may be asked at this moment, of this form.
+ *
+ * Nothing here is about what a card *supports* — that is a fact about the
+ * card and does not change with the hour or the connection. These are the
+ * two things that can make a supported exercise unaskable right now, and
+ * both of them pass.
+ *
+ * The clock: someone who cannot play sound where they are has said so, and
+ * listening exercises stop being asked until it runs out.
+ *
+ * And the connection. A recording that is not on this device is fetched
+ * when it is needed, which works until there is nothing to fetch it from —
+ * and then the question was still dealt, put a silent player on the screen
+ * and told the learner the clip "isn't on this device yet", leaving them to
+ * skip a question they were never able to answer. Offline, a form whose
+ * recordings are all elsewhere is treated exactly as one whose listening
+ * exercises are paused: not asked, not counted as missing, and back the
+ * moment there is a connection or the recordings have been downloaded.
+ */
+function typeAllowedNow(type: string, unit?: Form) {
+  if (!isListening(type)) return true;
+  if (listenOffUntil > Date.now()) return false;
+  return canHearHere(unit);
+}
+
+/*
+ * Whether there is a connection, for the helpers below.
+ *
+ * Read from a flag set during render rather than asked of the browser on
+ * the spot, for the same two reasons the clock above is: these are plain
+ * functions rather than hooks, and a test has to be able to say what the
+ * answer is. Exported with the recordings for that second reason — what a
+ * session may ask is the one thing here no screenshot could show.
+ */
+let offlineNow = false;
+export function setOfflineNow(off: boolean) {
+  offlineNow = !!off;
+}
+
+/*
+ * Which recordings are on this device, and whether anybody has looked.
+ *
+ * Module-level for the same reason as the clock above: the helpers that
+ * read it are plain functions called from anywhere rather than hooks. Null
+ * means the question has not been asked yet, which is not the same as
+ * "none" — before the first look everything is assumed reachable, because
+ * the alternative is silencing a card that is in fact ready.
+ */
+let audibleClips: Set<string> | null = null;
+export function setAudibleClips(ids: Set<string> | null) {
+  audibleClips = ids;
+}
+
+/** Whether this form has a recording that can be played without a connection. */
+function canHearHere(unit?: Form) {
+  /* Online, anything the server holds is a fetch away, and a form with no
+     recordings at all is not this rule's business — nothing offers it a
+     listening exercise in the first place. */
+  if (!offlineNow || !audibleClips || !unit) return true;
+  const recs = unit.recs || [];
+  if (!recs.length) return true;
+  return recs.some((r) => audibleClips !== null && audibleClips.has(r.id));
 }
 
 /* How long "can't listen right now" lasts. Long enough to cover the walk, the
@@ -1737,19 +1863,28 @@ function reportLearning(account: User | null) {
 }
 
 /*
- * Take the listening exercises out of what is left of a queue.
+ * Take out of what is left of a queue anything that can no longer be asked.
  *
  * Only the tail is rewritten — everything before `from` has been answered and
  * is left exactly as it was. That is what keeps the cursor honest: filtering
  * the whole array would slide later entries down underneath a stationary
  * index, and the learner would silently skip questions they had never seen.
  *
- * A listening exercise becomes another way of asking about the same card,
- * preferring one that is not already queued for it. A card that has nothing
- * else to offer — a recording and a spelling, no English — drops out of the
- * rest of the session; there is genuinely nothing to ask.
+ * A question that can no longer be asked becomes another way of asking about
+ * the same card, preferring one that is not already queued for it. A card
+ * that has nothing else to offer — a recording and a spelling, no English —
+ * drops out of the rest of the session; there is genuinely nothing to ask.
+ *
+ * "Can no longer be asked" is `openTypes` and not a rule of its own, which is
+ * what lets one walk serve every reason a question can go away while a
+ * session is running. It was written for one of them — somebody saying they
+ * cannot listen just now — and the others were left unhandled: a connection
+ * dropping mid-session left the queue full of recordings that were never
+ * downloaded, and the learner met a silent player on a question they could
+ * only skip. Asking the same door every builder asks means a reason handled
+ * anywhere is handled here.
  */
-export function withoutListening(exercises: Question[], from: number, items: Item[], settings: Settings): Question[] {
+export function requeueUnaskable(exercises: Question[], from: number, items: Item[], settings: Settings): Question[] {
   const keyOf = (ex: Question) => `${ex.id}\u0000${ex.subId || ""}`;
   const used: Map<string, Set<string>> = new Map();
   const note = (ex: Question, type: string) => {
@@ -1760,22 +1895,29 @@ export function withoutListening(exercises: Question[], from: number, items: Ite
   };
   /* Everything already planned counts, answered or not: a substitute should
      be a different question, not the one queued two turns later. */
-  for (const ex of exercises) if (!isListening(ex.type)) note(ex, ex.type);
+  for (const ex of exercises) note(ex, ex.type);
 
   const tail: Question[] = [];
   for (const ex of exercises.slice(from)) {
-    if (!isListening(ex.type)) {
+    const resolved = resolveUnit(items, ex);
+    /* A card that has gone from under the queue — withdrawn mid-session —
+       takes its questions with it. */
+    if (!resolved) continue;
+    /* Asked of the gate rather than of the clock or the connection, so this
+       answers the same way whenever it is called — including from a test. */
+    const open = openTypes(resolved.unit, settings);
+    /* Still askable: left exactly as it is, cursor and all. */
+    if (open.includes(ex.type)) {
       tail.push(ex);
       continue;
     }
-    const resolved = resolveUnit(items, ex);
-    if (!resolved) continue;
-    /* Filtered here rather than trusting the clock, so this answers the same
-       way whenever it is called — including from a test. */
     /* From the levels the form has reached, and never the grid: a grid is
        dealt when the session is built, and one conjured here would be a
-       word alone with nothing to be told apart from. */
-    const options = openTypes(resolved.unit, settings).filter((t) => !isListening(t) && t !== "match");
+       word alone with nothing to be told apart from. Nor another listening
+       exercise: sound is much the commonest reason a question is withdrawn
+       mid-session, and swapping one for another of the same kind would be a
+       substitute that is about to go the same way. */
+    const options = open.filter((t) => !isListening(t) && t !== "match");
     if (!options.length) continue;
     const seen = used.get(keyOf(ex)) || new Set();
     const pick = options.find((t) => !seen.has(t)) || options[0];
@@ -1830,8 +1972,13 @@ function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.
 const supportedTypes = (it: Form, settings: Settings): string[] =>
   availableTypes(it, langOf(settingsFor(settings, it)));
 
-function enabledTypes(it: Form, settings: Settings): string[] {
-  return supportedTypes(it, settings).filter(typeAllowedNow);
+/* Exported for the tests, which ask it the question the offline gate
+   above turns on: which exercises this form can actually be asked, here,
+   now, with the recordings this device happens to hold. */
+export function enabledTypes(it: Form, settings: Settings): string[] {
+  /* The form goes through as well as the type: whether a listening
+     exercise can be asked depends on whose recording it would play. */
+  return supportedTypes(it, settings).filter((t) => typeAllowedNow(t, it));
 }
 
 /* The exercise a schedule key is about. Keys carry which accepted answer
@@ -1926,9 +2073,47 @@ function reachedTypes(it: Form, settings: Settings): string[] {
   return openTypesOf(laddered(it, settings), (k) => statesOf(it)[k]);
 }
 
-/* And of those, the ones that may be put to somebody this minute. */
+/* And of those, the ones that may be put to somebody this minute.
+
+   The form goes through with the key, not just the key: whether a
+   listening exercise can be asked depends on whose recording it would
+   play, and this is the door every dealt question passes through. Gating
+   only `enabledTypes` — which decides whether a card counts as drillable
+   at all — left the card in the session and the silent question in it. */
 function openTypes(it: Form, settings: Settings): string[] {
-  return reachedTypes(it, settings).filter((k) => typeAllowedNow(k));
+  return reachedTypes(it, settings).filter((k) => typeAllowedNow(k, it));
+}
+
+/*
+ * The two numbers that decide whether a new word may be met.
+ *
+ * Counted over everything the learner holds in this language rather than
+ * the deck in front of them: the deck is what they chose to look at, the
+ * load is what they carry.
+ *
+ * The front door is words met and not yet recognisable. A word never
+ * touched is *not* in it — it is waiting outside, which is the whole point
+ * — so a course of three hundred strangers does not fill the pool and
+ * block itself.
+ *
+ * Exported for the pace simulation, which reports what a course costs a
+ * learner in days and is the only honest way to choose the two caps.
+ */
+export function handCounts(items: Item[], settings: Settings) {
+  let front = 0;
+  let inHand = 0;
+  for (const it of items) {
+    if (!isDrillable(it, settings)) continue;
+    const stage = familyMaturity(it, (u: Form) => reachedTypes(u, settings));
+    /* Never met: outside both pools. */
+    if (stage === "new") continue;
+    if (stage !== "mature") inHand += 1;
+    const known = drillableUnits(it, settings).every(({ unit }) =>
+      recognised(reachedTypes(unit, settings), (t: string) => stateOf(unit, t))
+    );
+    if (!known) front += 1;
+  }
+  return { front, inHand };
 }
 
 /* Rule 2: a unit needs at least two exercise types to appear at all, and a
@@ -2089,9 +2274,6 @@ const SESSION_SIZE = 18;
  */
 const PER_UNIT = 2;
 
-/* New cards a session may open, before the room for them is counted. */
-const NEW_PER_SESSION = 3;
-
 /*
  * How many forms of one card a session will take.
  *
@@ -2229,6 +2411,12 @@ interface Session {
   reason: string | null;
   items?: number;
   units?: number;
+  /* How many of the cards in it were actually waiting. The rest are ahead
+     of themselves, which is welcome and worth saying out loud: the screen
+     at the end reports which kind of session this was, so a learner
+     practising for the sake of it is never left thinking they have made
+     more headway through their schedule than they have. */
+  due?: number;
 }
 
 export function buildSession({
@@ -2265,18 +2453,20 @@ export function buildSession({
        yet is not counted as waiting: it would be picked, admitted against
        the room for new cards, and then deal no question at all — a new
        card's place spent on a card that cannot be asked. */
-    /* The learner asked for this one, so it is waiting whatever its
+    /* The learner asked for this one, so it goes to the front whatever its
        schedule says — see isUrgent. */
     const urgent = isUrgent(it, settings);
-    const ready =
-      urgent ||
-      units.some(({ unit }) =>
-        askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
-      );
+    /* Whether the card was *due* used to be worked out here and used to
+       cut the list. Nothing asks it any more: being due decides where a
+       card sits in the order, which `soonest` above already carries, and
+       no longer decides whether it may be practised at all. What is
+       genuinely waiting is still counted, for the number on the home
+       screen — see countReady, which is a question about the learner's
+       day rather than about this session. */
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew, urgent };
+    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -2287,30 +2477,55 @@ export function buildSession({
      above all of it. */
   candidates = inOrder(candidates, (c) => (c.urgent ? -1 : dueRank(c.soonest)));
 
-  // A hand-picked session takes everything chosen, due or not.
+  /*
+   * Being due decides the order, not whether you may practise at all.
+   *
+   * It used to be both, and the second job was the one that hurt. A
+   * learner partway through a course met the app's own pacing as silence:
+   * ten cards learnt in four minutes, then seven minutes with nothing on
+   * offer while they came back round, four times over, and then a wall
+   * for the rest of the day. Somebody up to date got the same silence for
+   * a different reason. And nothing on the screen could explain either,
+   * because "nothing is due" is not a sentence a person accepts from an
+   * app they opened on purpose.
+   *
+   * Practising early is cheap. An empty screen is not: it costs the
+   * learner who was willing, which is the only kind there is. So the list
+   * is no longer cut at the due line — it is simply *sorted* by it, which
+   * it already was a few lines above, and a session takes the front of it
+   * whether that is forty overdue cards or the nearest thing to due.
+   *
+   * What makes this safe rather than merely generous is in the scheduler:
+   * a gap grows from the time actually waited, so a card answered minutes
+   * after its last review is counted, welcomed and left exactly where it
+   * was. Twenty answers in an evening cannot push anything out of reach.
+   *
+   * The limits on *new* cards are a different rule with a different
+   * reason, and they still apply on every path below. More practice means
+   * more of what the learner already holds, never more than they can take
+   * on at once.
+   */
+  // A hand-picked session takes everything chosen, and sets its own limits.
   if (!practice && !includeAll) {
-    candidates = candidates.filter((c) => c.ready);
-    /* Nothing new while a pile of cards is already fighting you. */
-    const backlog = pool.filter((it) =>
-      drillableUnits(it, settings).some(({ unit }) =>
-        enabledTypes(unit, settings).some(
-          (t) =>
-            difficulty(stateOf(unit, t)) === "hard" &&
-            maturity(stateOf(unit, t)) !== "mature"
-        )
-      )
-    ).length;
-    if (backlog >= HARD_BACKLOG_LIMIT) {
-      candidates = candidates.filter((c) => !c.isNew || c.urgent);
-    }
-    /* How full the learner's hands are, counted over everything they hold
-       in this language and not only the deck in front of them: the deck is
-       what they chose to look at, the load is what they carry. */
-    const inHand = phaseCounts(
-      items.filter((it) => isDrillable(it, settings)),
-      (u) => reachedTypes(u, settings)
-    );
-    const room = roomForNew(inHand, NEW_PER_SESSION);
+    /*
+     * Room for what is new — the only thing that rations it.
+     *
+     * Three rules used to sit here and none of them knew about the others:
+     * three a session, nothing while ten cards were mid-learning, nothing
+     * at all while forty were still settling, and a scan of every exercise
+     * on every card to stop new ones arriving while a pile was going
+     * badly. Between them they made the real rate about one new word every
+     * four days, measured — and the first of them meant ten short sittings
+     * in an evening were thirty new words where one long sitting was
+     * three, for the same work.
+     *
+     * One rule now: a word is earned by learning one. The struggling case
+     * the backlog scan existed for falls out of it, because a learner who
+     * keeps forgetting has words that never reach a four-day gap — those
+     * words hold their place and nothing new arrives, which is the same
+     * protection without a rule of its own to keep in step.
+     */
+    const room = roomForNew(handCounts(items, settings));
     let newSeen = 0;
     candidates = candidates.filter((c) => {
       /* Except one the learner asked for by name. Both rules above are the
@@ -2441,11 +2656,25 @@ export function buildSession({
   const offered = new Set(plans.flatMap((p) => enabledTypes(p.unit, settings)));
   if (offered.size < 2) return { exercises: [], reason: "no-variety" };
 
+  /* Counted over the cards the session actually took, not over the whole
+     collection: this is a fact about the session on screen. A card the
+     learner asked for counts as waiting, because they said so. */
+  const dealt = new Set(plans.map((p) => p.id));
+  const due = [...dealt].filter((id) => {
+    const it = pool.find((x) => x.id === id);
+    if (!it) return false;
+    if (isUrgent(it, settings)) return true;
+    return drillableUnits(it, settings).some(({ unit }) =>
+      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+    );
+  }).length;
+
   return {
     exercises: withReadThroughs(varied.slice(0, budget), items, settings),
     reason: null,
-    items: new Set(plans.map((p) => p.id)).size,
+    items: dealt.size,
     units: plans.length,
+    due,
   };
 }
 
@@ -2620,7 +2849,10 @@ function typesForMode(mode: string) {
      comes through here rather than through enabledTypes. Get started draws on
      two gentle types, one of which is listening, so during the window it
      builds from recognition alone — which is still the gentle end. */
-  const enabled = TYPES.filter(typeAllowedNow);
+  /* No form in hand here, so only the clock can rule a type out — which is
+     right: this is choosing what a drill is *about*, and the cards it will
+     be about are chosen afterwards. */
+  const enabled = TYPES.filter((t) => typeAllowedNow(t));
   return mode === "started" ? enabled.filter((t) => EASY_TYPES.includes(typeOf(t))) : enabled;
 }
 
@@ -2664,8 +2896,15 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
      ladder a dealt one does. A form qualifies on the first — it is the
      material that has to offer two exercises — and is asked from the
      second. Read in the card's own language, like every other reader. */
+  /* `allowed` is the mode's own list and knows nothing of whose card this
+     is, so the per-form gate is applied here: a session built by hand must
+     no more ask for a recording this device does not hold than a dealt one
+     does. */
   const supportedFor = (unit: Form) =>
-    easedTo(unit, supportedTypes(unit, settings).filter((t) => allowed.has(t)));
+    easedTo(
+      unit,
+      supportedTypes(unit, settings).filter((t) => allowed.has(t) && typeAllowedNow(t, unit)),
+    );
   const usableFor = (unit: Form) =>
     openTypesOf(
       supportedFor(unit).flatMap((t) => keysFor(unit, t)),
@@ -2746,6 +2985,178 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
     units: plans.length,
   };
 }
+
+/* ---- the numbers practice ----
+
+   A sitting of made-up numbers, started by the learner rather than dealt.
+
+   The numbers are not cards and never become any: each is built out of the
+   teacher's parts at the moment the session is made, turned into an item
+   that lives for as long as the sitting does, and thrown away at the end.
+   They ride in the same `preview` list a teacher's trial does, which is
+   the app's existing answer to "ask a question about material that is not
+   on this device" — so the question screen, the marking, the keyboard, the
+   retry-what-you-missed rule and the summary are all the ones that already
+   exist, and none of them had to learn what a number is.
+
+   What a right answer moves is the part cards that stood in the number,
+   exactly as a sentence credits the words that filled its blanks. The
+   number itself has no schedule, because there is nothing to schedule: it
+   was made up, and it will never be made up again.
+
+   The ramp is here rather than in numbers.ts because it is about a sitting
+   and not about a language. It widens by a band every few questions inside
+   one sitting, and where the sitting ends up is carried to the next one in
+   `settings.numbersReach` — so a learner walks from single digits to seven
+   figures over a few sittings instead of being dropped into them. */
+
+/** Questions in a numbers practice, and how many before it widens a band. */
+export const NUMBER_SESSION_SIZE = 18;
+export const NUMBERS_PER_BAND = 6;
+
+/** The three ways a made-up number is asked, in the order a sitting uses
+    them: read it, pick it, write it. Rotated rather than drawn, so a
+    sitting asks all three of a given size before it asks any of them
+    twice — the same rule everything else that varies follows. */
+const NUMBER_TYPES = ["num2fig", "fig2pick", "fig2num"];
+
+/** How many wrong answers a picking question needs beside the right one. */
+const NUMBER_MATES = PICK_OPTIONS - 1;
+
+/**
+ * One made-up number as something the question screen can ask about.
+ *
+ * `drill: false` is the important one: a number is not practised in its
+ * own right and must never be dealt by anything else, counted as a card,
+ * or offered in somebody's card list. It is here to be asked once.
+ */
+function numberItem(langId: LangId, value: number, text: string, used: number[]): Item {
+  const id = `num:${langId}:${value}`;
+  return {
+    id,
+    lang: langId,
+    /* Which parts stood in it, so a right answer can credit them. Carried
+       on the item because the question screen has the item and not the
+       deck it was built from. */
+    used,
+    kind: "word",
+    tags: [],
+    category: "number",
+    value,
+    drill: false,
+    forms: [
+      {
+        id: `${id}-f0`,
+        /* The number written out, and the figures as its meaning — which
+           is what makes "read it" and "write it" the ordinary script and
+           meaning exercises rather than two new ones. */
+        ar: text,
+        en: String(value),
+        lat: "",
+        s: {},
+      },
+    ],
+    flags: [],
+    created: Date.now(),
+    updated: Date.now(),
+  };
+}
+
+/**
+ * A sitting of made-up numbers.
+ *
+ * Returns the questions, the items they are about — which the caller holds
+ * apart from the document — and, where it cannot build one, the reason in
+ * the same shape every other builder reports it.
+ */
+export function buildNumberSession({ items, settings, langId, count, reach, random }: {
+  items: Item[];
+  settings: Settings;
+  langId: LangId;
+  count?: number;
+  /** How many bands the learner reached last time. */
+  reach?: number;
+  random?: () => number;
+}) {
+  const lang = LANGUAGES[langId];
+  const rnd = random || Math.random;
+  const wanted = Math.max(1, count || NUMBER_SESSION_SIZE);
+  if (!teachesNumbers(lang)) return { exercises: [], preview: [], reason: "no-numbers", bands: 0 };
+
+  /* Only this language's parts, and only from cards the learner actually
+     holds — the same list every other builder reads. */
+  const parts = partCards(
+    items.filter((i) => langIdOf(i, settings) === langId),
+    langId,
+  );
+  const open = openBands(lang, parts);
+  if (!open.length) return { exercises: [], preview: [], reason: "no-parts", bands: 0 };
+
+  const preview: Item[] = [];
+  const exercises: Question[] = [];
+  const seen = new Set<number>();
+  const held = new Map<number, Item>();
+  /* One item per value, however many questions mention it: the wrong
+     answers beside one question are the right answer to another, and two
+     items for one number would be two ids for one thing. */
+  const itemFor = (value: number, text: string, used: number[]): Item => {
+    const had = held.get(value);
+    if (had) return had;
+    const made = numberItem(langId, value, text, used);
+    held.set(value, made);
+    preview.push(made);
+    return made;
+  };
+
+  /* Where the ramp starts: where the learner left off, never wider than
+     the deck can actually build and never narrower than one band. */
+  let width = Math.max(1, Math.min(Math.round(reach || 1) || 1, open.length));
+
+  for (let i = 0; i < wanted; i += 1) {
+    const picked = pickNumber(lang, parts, open, width, rnd, seen);
+    if (!picked) break;
+    seen.add(picked.value);
+    const item = itemFor(picked.value, picked.spelled.text, picked.spelled.used);
+    const type = NUMBER_TYPES[i % NUMBER_TYPES.length];
+    const q: Question = { id: item.id, type };
+    if (type === "fig2pick") {
+      /* The wrong answers: numbers worth confusing with this one, spelled
+         by the same pack and dropped where it cannot spell them. A
+         question that could not find three is asked another way rather
+         than with two options. */
+      const mates: { id: string; subId: string | null }[] = [];
+      for (const other of confusablesOf(picked.value)) {
+        if (mates.length >= NUMBER_MATES) break;
+        const said = spell(lang, parts, other);
+        if (!said || said.text === picked.spelled.text) continue;
+        mates.push({ id: itemFor(other, said.text, said.used).id, subId: null });
+      }
+      if (mates.length < NUMBER_MATES) q.type = "num2fig";
+      else q.mates = mates;
+    }
+    exercises.push(q);
+    /* And the ramp, a band at a time. */
+    if ((i + 1) % NUMBERS_PER_BAND === 0) width = Math.min(open.length, width + 1);
+  }
+
+  if (!exercises.length) return { exercises: [], preview: [], reason: "no-parts", bands: open.length };
+  return {
+    exercises,
+    preview,
+    reason: null,
+    manual: true,
+    numbers: true,
+    bands: open.length,
+    /* How wide the sitting got, which is what the next one starts at. */
+    width,
+    items: new Set(exercises.map((e) => e.id)).size,
+    units: exercises.length,
+  };
+}
+
+/** Whether an item is a number the app made up rather than a card. */
+export const isMadeUpNumber = (it: { id?: string } | null | undefined): boolean =>
+  String((it && it.id) || "").startsWith("num:");
 
 /* Resolve an exercise back to the item and the specific form it drills. */
 function resolveUnit(items: Item[], ex: Question | null | undefined) {
@@ -3393,6 +3804,7 @@ export function merge(parsedIn: Record<string, any> | null | undefined) {
     settings,
     items: (parsed.items || []).map(liftItem),
     tombstones: parsed.tombstones || {},
+    parked: parsed.parked || {},
     settingsUpdated: parsed.settingsUpdated || 0,
   };
 }
@@ -3754,6 +4166,30 @@ async function hasClipLocal(id: string) {
   } catch (e) {
     return false;
   }
+}
+
+/*
+ * Every recording on this device, in one question.
+ *
+ * Asked rather than worked out card by card: what a session may ask turns
+ * on it while the app is offline, so it has to be cheap enough to ask
+ * again whenever the answer could have moved — at launch, when the
+ * connection goes, and after anything has been downloaded. One key listing
+ * does the whole store; the text store behind it is listed too, because a
+ * browser without IndexedDB keeps its recordings there and a learner on
+ * one is exactly who should not be asked a question they cannot hear.
+ */
+async function localClipIds(): Promise<Set<string>> {
+  const ids: Set<string> = new Set();
+  const keys = (await idbRun("readonly", (st) => st.getAllKeys())) || [];
+  for (const k of keys) if (typeof k === "string") ids.add(k);
+  try {
+    const listed = await window.storage.list("audio-");
+    for (const k of (listed && listed.keys) || []) ids.add(String(k).slice("audio-".length));
+  } catch (e) {
+    /* No text store, or nothing in it. */
+  }
+  return ids;
 }
 
 /* The recording as a data URL, for sending to the sync store. */
@@ -5099,6 +5535,61 @@ function saveTeaches(yes: boolean) {
   }
 }
 
+/*
+ * The courses and decks a student holds, kept on the device.
+ *
+ * Their *cards* were always kept — those are folded into the document —
+ * but everything framing them was held in memory alone and went with every
+ * launch. So opening the app without a connection put an error where the
+ * course list should be, took away the deck tiles a learner practises
+ * from, and told an enrolled student with nothing due yet to go and join a
+ * course.
+ *
+ * The version is kept with them, which is the other half of the saving:
+ * the server answers "nothing has changed" to a check that says which
+ * version it already has, and without one every launch pulled every deck
+ * and every card in full.
+ */
+const MATERIAL_KEY = "arabic-trainer:material";
+
+interface HeldMaterial {
+  courses: Course[];
+  decks: Deck[];
+  version: string;
+  at: Millis;
+}
+
+function loadMaterial(handle?: string | null): HeldMaterial | null {
+  if (!handle) return null;
+  try {
+    const raw = localStorage.getItem(MATERIAL_KEY);
+    const held = raw ? JSON.parse(raw) : null;
+    /* Whose it is matters: signing in as somebody else must not show them
+       the last person's courses. */
+    if (!held || held.handle !== handle) return null;
+    return {
+      courses: Array.isArray(held.courses) ? held.courses : [],
+      decks: Array.isArray(held.decks) ? held.decks : [],
+      version: String(held.version || ""),
+      at: Number(held.at) || 0,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveMaterial(handle: string, held: { courses: Course[]; decks: Deck[]; version: string }) {
+  try {
+    localStorage.setItem(
+      MATERIAL_KEY,
+      JSON.stringify({ handle, ...held, at: Date.now() }),
+    );
+  } catch (e) {
+    /* Private browsing, or no room. The app behaves as it did before this
+       existed: it asks the server on every launch. */
+  }
+}
+
 /* When listening exercises stop being asked for, as a timestamp.
 
    Kept on the device rather than in the synced settings, for two reasons. It
@@ -5180,15 +5671,61 @@ export default function ArabicTrainer() {
      the memos that decide what is drillable run below this line and go
      through enabledTypes, so the flag has to be true before they do. */
   setListenOffUntil(listenOff);
-  const [myCourses, setMyCourses] = useState<Course[]>([]);
+  /* Whether there is a connection, as a piece of state so that everything
+     showing it re-renders when it changes. */
+  const offline = useOffline();
+  /* How many reported problems are waiting for one, so the corner menu can
+     say so rather than leaving someone to wonder whether it went. */
+  const [toSend, setToSend] = useState(0);
+  /* Whether to offer installing the app, which on iOS is what keeps its
+     data from being cleared after a week away. */
+  const install = useInstallOffer();
+  /* And which recordings are here, for the same reason and pushed into the
+     same kind of module flag: offline, it decides whether a listening
+     exercise can be asked at all. Null until the first look. */
+  const [audible, setAudible] = useState<Set<string> | null>(null);
+  setAudibleClips(audible);
+  /* Pushed into its own flag beside the recordings, and for the same
+     reason: the memos below run through enabledTypes, which has to know
+     both before they do. */
+  setOfflineNow(offline);
+  /*
+   * Ask the device again what it holds.
+   *
+   * Declared up here beside the state rather than with the effect that
+   * first calls it, because the sync below reaches for it too — every
+   * recording it downloads is one more question that can be asked without
+   * a connection.
+   */
+  const refreshAudible = useCallback(() => {
+    localClipIds()
+      .then((ids) => setAudible(ids))
+      .catch(() => {
+        /* Leave the last answer standing; a failed listing is not evidence
+           that the recordings have gone. */
+      });
+  }, []);
+  /* What this device was last told about the courses, read once at the
+     first render. It is what the three pieces of state below open with, so
+     a launch with no connection shows the courses rather than an error. */
+  const heldMaterial = useRef(loadMaterial(account && account.handle)).current;
+  const [myCourses, setMyCourses] = useState<Course[]>(
+    heldMaterial ? heldMaterial.courses : [],
+  );
   /* An empty list means two different things until the first pull comes
      back: "not in any course" and "not asked yet". They look the same and
-     read very differently to someone who has joined one. */
-  const [coursesKnown, setCoursesKnown] = useState(false);
+     read very differently to someone who has joined one.
+
+     A device that has been told before knows the answer without asking,
+     which is the whole point of keeping it; and a check that *fails* no
+     longer counts as having been told, which it used to. */
+  const [coursesKnown, setCoursesKnown] = useState(!!heldMaterial);
   /* A deck the person asked to practice from the Courses tab, handed to the
      cards tab once it is on screen. */
   const [deckWanted, setDeckWanted] = useState<string | null>(null);
-  const [courseDecks, setCourseDecks] = useState<Deck[]>([]);
+  const [courseDecks, setCourseDecks] = useState<Deck[]>(
+    heldMaterial ? heldMaterial.decks : [],
+  );
   const [courseBusy, setCourseBusy] = useState(false);
   const [courseError, setCourseError] = useState("");
 
@@ -5201,9 +5738,26 @@ export default function ArabicTrainer() {
      the picker from opening with an answer already marked. It stays on the
      last answer so "Keep going" means more of the same. */
   /* And whether the question is being put. */
-  /* The version of course material this device last received. Per device
-     and per launch, so the first check after opening is always a full one. */
+  /*
+   * The version of course material this device last received.
+   *
+   * It used to be per launch, so the first check after opening was always
+   * a full one: every deck and every card the student holds, in the
+   * largest request the app makes, to be told in almost every case that
+   * none of it had moved. It is kept with the courses now and handed to
+   * that first check, which the server answers with "unchanged" and a few
+   * bytes.
+   *
+   * Only where the cards it describes are actually here, though. The
+   * version is a claim about the document, and a document that has been
+   * replaced — an import, a reset, a device wiped and signed back in —
+   * makes a liar of it, leaving a student whose course cards never arrive.
+   * So the seeding waits for the document to load and asks it, in the
+   * effect below.
+   */
   const materialVersion = useRef("");
+  /* So the seeding happens once, however often the launch effect runs. */
+  const materialSeeded = useRef(false);
   const refreshing = useRef(false);
 
   /* Confirm who we are on each start, so a reissued key is noticed and a
@@ -5278,6 +5832,14 @@ export default function ArabicTrainer() {
   const [tally, setTally] = useState({ ok: 0, no: 0 });
 
   const timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
+  /* How many changes are in memory and not yet on the disk. Zero means the
+     two agree — read by the flush on the way out and by the sync, which
+     runs again when this moves during a round trip. */
+  const unsaved = useRef(0);
+  /* A failed write, backing off. The delay doubles to half a minute and
+     the warning stays up until something lands. */
+  const retryAt: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
+  const retryFor = useRef(500);
   const inputRef: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
   const undoTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   const [lastDeleted, setLastDeleted] = useState<Item[] | null>(null);
@@ -5293,10 +5855,11 @@ export default function ArabicTrainer() {
      background check every forty-five seconds sets nothing here, so the dot
      stays still for it. */
   const [spacesBusy, setSpacesBusy] = useState(false);
-  /* Recorded but not shown anywhere yet: the corner dot reports that a
-     sync failed, and this holds why. A hole rather than a name, so it
-     is clear the value is unread on purpose. */
-  const [, setSyncError] = useState("");
+  /* Why the last sync failed, in words. It used to be recorded and read by
+     nobody: the dot in the corner went red and the line beside it said
+     "Offline — will retry" whatever had actually happened, including the
+     two failures that never clear by themselves. */
+  const [syncError, setSyncError] = useState("");
   const syncTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   const syncing = useRef(false);
   const fromSync = useRef(false);
@@ -5315,17 +5878,47 @@ export default function ArabicTrainer() {
     setSyncCfg(loadSyncConfig());
   }, []);
 
+  /* So that a sync can ask for another one when something was written
+     while it was in flight, without naming itself as its own dependency. */
+  const runSyncRef = useRef<(token?: string) => void>(() => {});
   const runSync = useCallback(
     /* Defaulted rather than required: most callers have no token in hand
        and want whatever this device is already signed in with. */
     async (token: string = "") => {
       const key = token || loadSyncConfig().token;
       if (!key || syncing.current) return;
+      /*
+       * Offline, the round trip can only fail, and failing at it says
+       * nothing the connection has not already said. What is on this
+       * device is safe where it is; the `online` listener below runs this
+       * the moment there is somewhere to send it.
+       */
+      if (isOffline()) {
+        setSyncState("off");
+        return;
+      }
       syncing.current = true;
       setSyncState("syncing");
       setSyncError("");
+      /* What the document stood at going in. If anything is written while
+         the round trip is in flight, this moves, and the sync runs again
+         rather than leaving that change to wait for the next one — which
+         used to be the next answer or the next launch. */
+      const wasAt = unsaved.current;
       try {
-        const { merged, changed } = await syncOnce(dataRef.current, key);
+        const { merged, changed, lost } = await syncOnce(dataRef.current, key);
+        if (lost) {
+          /* The shared copy could not be read and this sync has replaced
+             it. What is on this device is safe; anything another device
+             had put up and this one never pulled went with it, and that is
+             worth saying rather than passing off as an ordinary sync. */
+          flash(
+            lost === "recovered"
+              ? "The shared copy was damaged — an earlier one was used. Sync your other devices."
+              : "The shared copy could not be read and has been replaced from this device. Sync your other devices.",
+            "warn",
+          );
+        }
         if (changed) {
           /* Two things before the merged copy is adopted.
 
@@ -5343,7 +5936,12 @@ export default function ArabicTrainer() {
           const adopted = merge(mergeData(dataRef.current, merged));
           fromSync.current = true;
           commit(adopted);
-          await saveData(adopted);
+          /* Through the one writer, which cancels the debounced save still
+             pending. That save was built from the document before this
+             merge, and letting it fire afterwards wrote the older copy
+             back over the adopted one — memory and the server were right
+             and the disk was behind until the next change. */
+          await writeNow();
         }
 
         // Clips travel separately, one key each, only when missing.
@@ -5364,8 +5962,24 @@ export default function ArabicTrainer() {
             },
             uploaded,
           });
-          uploaded = res.uploaded;
-          if (res.pulled) flash(`${plural(res.pulled, "recording")} downloaded`);
+          /*
+           * Pruned to what the document still refers to.
+           *
+           * This ledger exists so a clip already sent is not offered again,
+           * and it only ever grew: one id per recording ever uploaded from
+           * this device, kept for good in the same small store the whole
+           * document lives in. A recording that no card mentions any more
+           * will never be offered again whatever this says, so holding its
+           * id is paying rent on a fact nobody will ask for.
+           */
+          const mentioned = new Set(clipIdsIn(merged));
+          uploaded = res.uploaded.filter((id) => mentioned.has(id));
+          if (res.pulled) {
+            flash(`${plural(res.pulled, "recording")} downloaded`);
+            /* Something new can be heard now, which offline decides what a
+               session may ask. */
+            refreshAudible();
+          }
         } catch (e) {
           /* the document is synced; clips can catch up next time */
         }
@@ -5375,6 +5989,30 @@ export default function ArabicTrainer() {
         setSyncCfg(cfg);
         setSyncState("ok");
 
+        /* And how close the document is to the size the server refuses.
+           Past that, sync stops for good and everything after it stays on
+           one device — so the first a learner hears of it should not be
+           the day they lose a phone. Said once per sync, and only when it
+           is actually tight. */
+        const size = docSize(dataRef.current);
+        if (size.tight || size.localTight) {
+          /*
+           * Two ceilings, and the nearer one is the one worth naming. The
+           * device's own store is the smaller and the quieter: past it the
+           * saving fails rather than the sending, on a screen that goes on
+           * showing every answer as though it had been kept.
+           */
+          const share = Math.max(
+            size.bytes / size.limit,
+            size.units / size.localLimit,
+          );
+          flash(
+            `Your cards are ${Math.round(share * 100)}% of the size this device can hold. ` +
+              "Remove some recordings before it stops.",
+            "warn",
+          );
+        }
+
         /* Everything this device holds has now gone up under the shared
            token, so a document left behind by an older build's private key
            carries nothing that isn't here. Remove it rather than leave a
@@ -5382,23 +6020,50 @@ export default function ArabicTrainer() {
         for (const legacy of [...LEGACY_SYNC_KEYS]) {
           LEGACY_SYNC_KEYS.delete(legacy);
           tokenFor(legacy)
-            .then((old) => (old !== key ? forgetRemote(old) : null))
+            .then(async (old) => {
+              if (old === key) return;
+              /* Read before it goes. It used to be deleted outright, on
+                 the assumption it held nothing this device lacked — which
+                 is true of this device's own old key and false if another
+                 device synced under the same passphrase and this one
+                 never pulled it. */
+              const taken = await drainRemote(old, dataRef.current);
+              if (taken === dataRef.current) return;
+              const adopted = merge(taken);
+              fromSync.current = true;
+              commit(adopted);
+              await writeNow();
+            })
             .catch(() => {});
         }
       } catch (err) {
         const msg = String(
     (err && typeof err === "object" && "message" in err && err.message) || err
   );
-        setSyncError(
+        /* Named where the app knows what happened, because two of these
+           never clear by themselves and a learner needs to be told rather
+           than left syncing into a wall. */
+        const said =
           msg === "bad-passphrase"
             ? "Passphrase rejected"
-            : navigator.onLine === false
-            ? "Offline — will retry"
-            : "Sync failed"
-        );
+            : msg === "too-large"
+            ? "Your cards are too big to sync. Remove some recordings or cards."
+            : msg === "would-empty"
+            ? "Sync refused: this device had nothing to send. Your cards on the server are untouched."
+            : isOffline()
+            ? "Offline — your work is saved on this device"
+            : "Sync failed";
+        setSyncError(said);
+        if (msg === "too-large" || msg === "would-empty") flash(said, "warn");
         setSyncState("error");
       } finally {
         syncing.current = false;
+        /* Written to while this was in flight, so it is owed another
+           round trip. One, and only if something moved. */
+        if (unsaved.current !== wasAt) {
+          if (syncTimer.current) clearTimeout(syncTimer.current);
+          syncTimer.current = setTimeout(() => runSyncRef.current(), 1500);
+        }
       }
     },
   /* Deliberately none. This reads and writes through refs so that a
@@ -5407,6 +6072,7 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
+  runSyncRef.current = runSync;
 
   /* The sign-in key is the only secret, so devices find each other without
      anything being set up: every device signed in as this person derives
@@ -5458,14 +6124,59 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session && session.endsAt]);
 
+  /*
+   * Send what has been waiting for a connection.
+   *
+   * Reported problems only. Everything a learner *learns* travels in the
+   * document and is sent by the sync below; this is for the one thing they
+   * can do that is a message to somebody else, which had no way of
+   * reaching them from a train.
+   *
+   * A report the server refuses is dropped rather than tried for ever: the
+   * card it was about has gone, or the account has, and asking again would
+   * be told the same thing. Only a request that could not be made at all
+   * keeps its place in the queue.
+   */
+  const sendWaiting = useCallback(async () => {
+    if (!account || isOffline()) return;
+    API.setKey(account.key);
+    const { sent, left } = await drainOutbox(FLAG_OUTBOX, async (body) => {
+      try {
+        await API.reportFlag(body as API.FlagReport);
+        return "sent";
+      } catch (e) {
+        return String((e && (e as Error).message) || e) === "offline" ? "keep" : "drop";
+      }
+    });
+    setToSend(left);
+    if (sent) flash(`${plural(sent, "report")} sent. Thank you 🫶`, "good");
+  /* The key, not the account object, as everywhere else here. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountKey]);
+
+  /* What is waiting, as the app opens — before any connection has been
+     tried, so the corner menu is right from the first paint. */
+  useEffect(() => {
+    setToSend(waitingToSend(FLAG_OUTBOX));
+  }, []);
+
   // Retry when the connection comes back.
   useEffect(() => {
     const onOnline = () => {
       if (loadSyncConfig().token) runSync();
+      void sendWaiting();
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [runSync]);
+  }, [runSync, sendWaiting]);
+
+  /* And on launch, for a report kept during a session that ended before
+     the connection came back. */
+  useEffect(() => {
+    if (ready && account) void sendWaiting();
+  /* The handle, not the account object, for the same reason. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, accountHandle, sendWaiting]);
 
   useEffect(() => {
     let alive = true;
@@ -5505,6 +6216,65 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
+  /*
+   * Which recordings are on this device.
+   *
+   * Asked at launch and again whenever the connection comes or goes, which
+   * are the two moments the answer changes what a session may ask: offline
+   * it decides whether a listening exercise is dealt at all. Everything
+   * that downloads a recording calls `refreshAudible` itself, so a course
+   * taken offline is audible without waiting for anything.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    refreshAudible();
+  }, [ready, offline, refreshAudible]);
+
+  /*
+   * Write what is in memory, now, and keep trying until it lands.
+   *
+   * The debounce above exists so that a run of changes writes once, and it
+   * was the only path to the disk — so an answer given inside those six
+   * hundred milliseconds was never written at all if the tab closed, the
+   * app was put away, or a deploy reloaded the page. `flushSave` below is
+   * what closes that window; this is the write both paths share.
+   *
+   * And a failed write is retried. It used to be reported once, by a
+   * message that said the last answer might not stick, and then dropped:
+   * with storage full or blocked every later answer failed the same way in
+   * silence while the screen went on showing them, and a reload lost the
+   * lot. Backing off rather than hammering, because the usual cause —
+   * quota, private browsing — does not clear in a hurry, and the warning
+   * stays up while it is unwritten.
+   */
+  const writeNow = useCallback(async (): Promise<boolean> => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const at = unsaved.current;
+    const ok = await saveData(dataRef.current);
+    setSaveFailed(!ok);
+    if (ok) {
+      /* Only if nothing was written while this was in flight; otherwise
+         the newer change is still owed a write. */
+      if (unsaved.current === at) unsaved.current = 0;
+      if (retryAt.current) {
+        clearTimeout(retryAt.current);
+        retryAt.current = null;
+      }
+      return true;
+    }
+    if (!retryAt.current) {
+      retryFor.current = Math.min(Math.max(retryFor.current * 2, 1000), 30000);
+      retryAt.current = setTimeout(() => {
+        retryAt.current = null;
+        void writeNow();
+      }, retryFor.current);
+    }
+    return false;
+  }, []);
+
   /* Takes the next document, or a function of the current one. The
      function form is for anything that can run while a sync or a course
      refresh is in flight — grading, flagging — so it builds on what is
@@ -5514,13 +6284,89 @@ export default function ArabicTrainer() {
       const next = typeof nextOrFn === "function" ? nextOrFn(dataRef.current) : nextOrFn;
       if (!next || next === dataRef.current) return;
       commit(next);
+      /* Something is now in memory that is not on the disk. Read by the
+         flush below and by the sync, which re-runs when this moves while a
+         round trip is in flight. */
+      unsaved.current += 1;
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(async () => {
-        setSaveFailed(!(await saveData(next)));
+      timer.current = setTimeout(() => {
+        void writeNow();
       }, 600);
     },
-    [commit]
+    [commit, writeNow]
   );
+
+  /*
+   * Write on the way out.
+   *
+   * `pagehide` is the one event that fires for every way a page goes away
+   * — closed, navigated, swiped out of a phone's app switcher, discarded
+   * by the system — and `visibilitychange` catches the app being put in
+   * the background without being unloaded, which on iOS is where a page
+   * usually dies. Both are registered, and both are cheap when nothing is
+   * owed.
+   *
+   * Storage is synchronous underneath, so a write started here completes
+   * even as the page is being torn down; there is nothing to await and
+   * nothing that can be awaited at that point.
+   */
+  useEffect(() => {
+    const flush = () => {
+      if (unsaved.current) void writeNow();
+    };
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHidden);
+    /* And before any reload the app brings on itself, which is a service
+       worker taking over with a new build — that used to happen inside the
+       debounce and take the last answer with it. */
+    const release = beforeReload(flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHidden);
+      release();
+    };
+  }, [writeNow]);
+
+  /*
+   * What another tab of this app has written.
+   *
+   * Every tab holds the whole document and writes the whole document, so
+   * two of them open was last-save-wins: answer in one, answer in the
+   * other, and whichever saved second had never seen the first's answer
+   * and wrote over it. A learner with no account lost it outright.
+   *
+   * The storage event fires only in the *other* tabs, which is exactly the
+   * signal needed: whatever arrives is merged in the same way a sync
+   * merges — per form, per exercise, by when each was answered — and the
+   * result is written back, so both tabs converge on the union rather than
+   * racing. Merging is idempotent, so doing this on every write from
+   * across the way costs nothing but the merge.
+   */
+  useEffect(() => {
+    if (!ready) return undefined;
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || !e.key.endsWith(KEY) || !e.newValue) return;
+      let theirs = null;
+      try {
+        theirs = JSON.parse(e.newValue);
+      } catch (err) {
+        return;
+      }
+      if (!theirs || !Array.isArray(theirs.items)) return;
+      const merged = merge(mergeData(dataRef.current, theirs));
+      /* Only where it actually adds something, so two tabs do not write
+         each other awake for ever. */
+      if (JSON.stringify(merged) === JSON.stringify(dataRef.current)) return;
+      fromSync.current = true;
+      commit(merged);
+      void writeNow();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [ready, commit, writeNow]);
 
   /*
    * Cards borrowed for a trial run, which are not this device's.
@@ -5533,6 +6379,19 @@ export default function ArabicTrainer() {
    * has to be able to find the phrases that word turns up in.
    */
   const [preview, setPreview] = useState<Item[]>([]);
+  /*
+   * A sitting of made-up numbers leaves nothing behind.
+   *
+   * They exist for as long as the questions about them do; once the
+   * session is over or has been replaced, holding them would leave the
+   * question machinery looking at cards this device does not have. A
+   * teacher's trial borrows the same list, so only the made-up numbers are
+   * cleared and a trial in progress is left alone.
+   */
+  useEffect(() => {
+    if (session && session.numbers) return;
+    setPreview((held) => (held.some(isMadeUpNumber) ? held.filter((i) => !isMadeUpNumber(i)) : held));
+  }, [session]);
   /* And where to put the teacher back down afterwards: the card they
      pressed the button on, and the screen they were looking at it from. */
   const [trialBack, setTrialBack] = useState<any>(null);
@@ -5623,6 +6482,13 @@ export default function ArabicTrainer() {
     return ids;
   }, [items]);
 
+  /* How many of them are not here. Read on the home screen while offline,
+     and in Account settings beside the button that fetches them. */
+  const missingClips = useMemo(
+    () => (audible ? [...new Set(allClipIds)].filter((id) => !audible.has(id)).length : 0),
+    [allClipIds, audible],
+  );
+
   const allTags = useMemo(() => {
   const counts: Record<string, number> = {};
     for (const it of items) for (const t of it.tags || []) counts[t] = (counts[t] || 0) + 1;
@@ -5643,22 +6509,46 @@ export default function ArabicTrainer() {
     [items, settings, inDeck]
   );
 
-  /* Over the levels a card has reached, not everything it could one day be
-     asked: a level it has not climbed to is not work waiting to be done,
-     and counting it promised a session that would not include the card. */
+  /*
+   * How much is actually waiting — the number under "Cards ready to
+   * practice", and a promise about the session the button beneath it
+   * builds.
+   *
+   * Over the levels a card has reached, not everything it could one day be
+   * asked: a level it has not climbed to is not work waiting to be done,
+   * and counting it promised a session that would not include the card.
+   *
+   * And a card never seen is only waiting if the app would actually deal
+   * it. Every untouched card counts as ready to the scheduler — correctly,
+   * since nothing is known about it — so a course of sixty new cards
+   * reported sixty waiting while the rule on new cards would admit three.
+   * At the point where that rule admits none at all, the screen said
+   * "20 cards ready to practice" over a button that answered "nothing
+   * ready to practice yet", and the line written to explain the wait could
+   * never appear because the count it was gated on was never zero.
+   */
   const countReady: (pool: Item[]) => number = useCallback(
-    (pool) =>
-      pool.filter(
-        (it) =>
-          /* A card the learner asked for is waiting by their say-so, and
-             the number here is a promise about the session the button
-             beneath it builds — see isUrgent. */
-          isUrgent(it, settings) ||
-          drillableUnits(it, settings).some(({ unit }) =>
-            openTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
-          )
-      ).length,
-    [settings]
+    (pool) => {
+      const waiting = (it: Item, includeNew: boolean) =>
+        /* A card the learner asked for is waiting by their say-so — see
+           isUrgent. */
+        isUrgent(it, settings) ||
+        drillableUnits(it, settings).some(({ unit }) =>
+          openTypes(unit, settings).some((t) => {
+            const st = stateOf(unit, t);
+            return includeNew ? stateReady(st) : st.phase !== "new" && stateReady(st);
+          })
+        );
+      /* Everything genuinely due, which is the honest half of the number. */
+      const met = pool.filter((it) => waiting(it, false)).length;
+      /* Plus as many never-seen cards as the app would let in today, read
+         over everything this learner holds rather than the deck in front
+         of them — the same reckoning buildSession does, so the two cannot
+         come to disagree. */
+      const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
+      return met + Math.min(fresh, roomForNew(handCounts(items, settings)));
+    },
+    [settings, items]
   );
 
   /*
@@ -5727,6 +6617,23 @@ export default function ArabicTrainer() {
      on the home screen, and what decides whether there is a session to
      start at all. */
   const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
+
+  /*
+   * Why no new words are arriving, when none are.
+   *
+   * A learner can be practising perfectly happily and still never meet a
+   * new word, because the words they hold have not been learnt yet. That
+   * is the rule doing its job, and until now it did it in silence — which
+   * reads as the app having quietly run out. Named, it is a goal instead:
+   * these are the ones in the way, and more arrive as they go.
+   */
+  const newWordsHeldUp = useMemo(() => {
+    const unmet = drillable.filter(
+      (it) => familyMaturity(it, (u: Form) => reachedTypes(u, settings)) === "new"
+    ).length;
+    if (!unmet) return 0;
+    return roomForNew(handCounts(shown, settings)) === 0 ? unmet : 0;
+  }, [drillable, shown, settings]);
 
   /* ---------------- session ---------------- */
 
@@ -5857,17 +6764,30 @@ export default function ArabicTrainer() {
     /* Three answers, not two: silent, speak only if something moved, or
        speak either way. */
     async (announce: boolean | "changes") => {
-      if (!account) return;
+      if (!account) return true;
       /* A focus and a visibility change arrive together when a tab comes
          back; one refresh at a time is enough. */
-      if (refreshing.current) return;
+      if (refreshing.current) return true;
+      /* Nothing to ask and nothing to be learnt from asking. What this
+         device was last told is already on screen. */
+      if (isOffline()) return false;
       refreshing.current = true;
       setCourseBusy(true);
+      /* Whether this actually got an answer, which two callers read: the
+         background poll, to know whether to back off, and the line below
+         that decides whether an empty course list means anything. */
+      let answered = false;
       try {
-        const r = await pullCourses(dataRef.current.items, freshStates, materialVersion.current);
+        const r = await pullCourses(
+          dataRef.current.items,
+          freshStates,
+          materialVersion.current,
+          dataRef.current.parked || {},
+        );
         setTeaches(r.teaches);
         saveTeaches(r.teaches);
         materialVersion.current = r.version || "";
+        answered = true;
         if (r.unchanged) {
           setCourseError("");
           if (announce === true) flash("Nothing new");
@@ -5875,10 +6795,17 @@ export default function ArabicTrainer() {
         }
         setMyCourses(r.courses);
         setCourseDecks(r.decks);
+        /* Kept, so the next launch opens with them rather than with an
+           error — and so the check after that can be the cheap one. */
+        saveMaterial(account.handle, {
+          courses: r.courses,
+          decks: r.decks,
+          version: r.version || "",
+        });
         /* Folded against the cards as they are now, not as they were when
            the request went out: an answer given while the material was
            being fetched used to be lost to the copy that came back. */
-        Object.assign(r, r.fold(dataRef.current.items));
+        Object.assign(r, r.fold(dataRef.current.items, dataRef.current.parked || {}));
 
         /* The trainer teaches one language at a time. If every course a person
            is in teaches the same one, that is the language their cards are in,
@@ -5917,9 +6844,11 @@ export default function ArabicTrainer() {
           /* And anything that has come back — a course rejoined, a deck put
              back — is no longer deleted, so its headstone goes. */
           for (const it of r.items) if (it.source) delete tombstones[it.id];
-          const next = { ...dataRef.current, items: r.items, tombstones };
+          /* The withdrawn cards' work goes in the drawer rather than out
+             with the cards — see foldCourses and `parked` in types.ts. */
+          const next = { ...dataRef.current, items: r.items, tombstones, parked: r.parked };
           commit(next);
-          await saveData(next);
+          await writeNow();
         }
         setCourseError("");
         /* "always" is the Refresh button on the courses screen, which should
@@ -5942,11 +6871,16 @@ export default function ArabicTrainer() {
       } finally {
         refreshing.current = false;
         setCourseBusy(false);
-        /* Whether it answered or failed, we are no longer waiting to find
-           out — and an empty-handed student is only told to join a course
-           once we know they are not already in one. */
-        setCoursesKnown(true);
+        /*
+         * An empty-handed student is told to join a course only once we
+         * know they are not already in one — and a check that failed does
+         * not know that. It used to set this either way, so a student
+         * whose material could not be fetched was invited to join a course
+         * they were already enrolled on.
+         */
+        if (answered) setCoursesKnown(true);
       }
+      return answered;
     },
   /* The handle, not the account object. commit and flash are stable
      across renders — one writes through a ref, the other forwards to
@@ -5956,7 +6890,20 @@ export default function ArabicTrainer() {
   );
 
   useEffect(() => {
-    if (ready && account) refreshCourses(false);
+    if (!ready || !account) return;
+    /*
+     * Tell the first check what this device already has, but only if the
+     * cards that version describes are actually in the document. A stored
+     * version against a document that no longer holds the course cards
+     * would have the server answer "nothing has changed" to a device with
+     * nothing — a student whose material never arrives, silently.
+     */
+    if (!materialSeeded.current) {
+      materialSeeded.current = true;
+      const has = (dataRef.current.items || []).some((it) => it.source);
+      if (heldMaterial && has) materialVersion.current = heldMaterial.version;
+    }
+    refreshCourses(false);
   /* The handle, not the account object, for the same reason. */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, accountHandle, refreshCourses]);
@@ -6033,6 +6980,52 @@ export default function ArabicTrainer() {
    * for the card list and progress too, so there is nothing left for a
    * session to decide.
    */
+  /*
+   * A sitting of made-up numbers.
+   *
+   * The numbers go into `preview`, which is where the app already keeps
+   * material it is asking about but does not hold — a teacher's trial card
+   * arrives the same way. Unlike a trial this is not `trial`: the sitting
+   * is the learner's own, so what it credits the parts is written.
+   */
+  /*
+   * How far the numbers practice could reach right now, in the language
+   * the app is set to — and 0 where it could not reach at all, which is
+   * what decides whether the button is there. Read off the same `spell`
+   * the practice asks with, so a button that appears is a sitting that
+   * builds.
+   */
+  const numbersReach = useMemo(() => {
+    const L = langOf(settings);
+    if (!teachesNumbers(L)) return 0;
+    const parts = partCards(shown.filter((i) => langIdOf(i, settings) === L.id), L.id);
+    return Math.max(0, reachOf(L, parts));
+  }, [shown, settings]);
+
+  function beginNumbers(langId: LangId) {
+    const built = buildNumberSession({
+      items: shown,
+      settings,
+      langId,
+      reach: Number(settings.numbersReach) || 1,
+    });
+    if (!built.exercises.length) {
+      flash(
+        built.reason === "no-numbers"
+          ? "This language doesn't say how its numbers go together yet"
+          : "No numbers to build from — the deck needs its number words first"
+      );
+      return;
+    }
+    setPreview(built.preview);
+    warmSession(built);
+    setSession({ ...built, practice: false, startedAt: now(), endsAt: 0 });
+    setQi(0);
+    setTally({ ok: 0, no: 0 });
+    resetExercise();
+    setTab("home");
+  }
+
   function begin(practice?: boolean) {
     const built = buildSession({ items: shown, settings, inDeck, practice });
     if (!built.exercises.length) {
@@ -6040,10 +7033,25 @@ export default function ArabicTrainer() {
          mattered little when the only way to get here was a card list that
          was plainly too thin; with listening switched off it is reachable
          with a deck full of cards, and the reason has to be said. */
+      /*
+       * Why there is no session, which is now a much rarer thing to have
+       * to say — being due no longer keeps anyone out, so reaching here
+       * means the cards themselves cannot carry one.
+       *
+       * The old wording, "nothing ready to practice yet", was the app's
+       * answer to every one of these and was usually untrue: it was said
+       * most often to somebody holding a course of cards that were merely
+       * not due, and it was said over a screen reporting how many were
+       * ready. What is left is genuinely about the material.
+       */
       flash(
         listenOff > Date.now()
           ? "Nothing to practice without sound just now"
-          : "Nothing ready to practice yet"
+          : built.reason === "no-variety"
+          ? "These cards need two kinds of exercise between them"
+          : built.reason === "none-drillable"
+          ? "No card here has enough on it to be practised yet"
+          : "Nothing new to bring in yet — what you're learning comes back shortly"
       );
       return;
     }
@@ -6076,11 +7084,18 @@ export default function ArabicTrainer() {
       const { met: _forgotten, ...rest } = f;
       return { ...rest, s: freshStates() } as T;
     };
+    const at = now();
     const cleared: Item[] = items.map((it) => ({
       ...it,
       forms: formsOf(it).map(wiped),
       ...(it.lines ? { lines: linesOf(it).map(wiped) } : null),
-      updated: now(),
+      /* When it was reset, which is what makes it stick. A blank schedule
+         is indistinguishable from one that was never written, so it is
+         left off the wire — and the merge used to hand back whatever the
+         other side still held, seconds after the message said the reset
+         had worked. See `reset` in types.ts. */
+      reset: at,
+      updated: at,
     }));
     persist({ ...data, items: cleared, log: {} });
     setSession(null);
@@ -6138,6 +7153,43 @@ export default function ArabicTrainer() {
   const qLang = langOf(qSettings);
   setActiveLang(qLang.id);
   const spec = exercise ? exOf(exercise.type, qLang) : null;
+
+  /*
+   * The learner's own number parts, in the language being asked about.
+   *
+   * Read from `items` rather than from the session, because what a right
+   * answer credits is a card on this device and the made-up number is not
+   * one. Off `shown` for the same reason everything else is: a part in a
+   * language switched off is not a part anybody is being asked about.
+   */
+  const numberParts = useMemo(
+    () => partCards(shown.filter((i) => langIdOf(i, settings) === qLang.id), qLang.id),
+    [shown, settings, qLang.id],
+  );
+
+  /*
+   * How far the numbers practice has got, kept between sittings.
+   *
+   * The widest band a number has been answered right in, so the next
+   * sitting opens where this one left off instead of back at single
+   * digits. A miss takes the answer at face value the same way: getting a
+   * thousand wrong says the thousands are not held yet, so the reach comes
+   * back to the band below it and is climbed again.
+   *
+   * Written through `settings`, which is the last-writer-wins bag a
+   * preference belongs in — this is a convenience about where to start,
+   * not progress on a card, and losing it to a merge costs a learner six
+   * easy questions.
+   */
+  function rememberNumberReach(unit: Form, correct: boolean) {
+    const value = Number((unit as Record<string, any>).value);
+    if (!Number.isFinite(value)) return;
+    const at = bandIndexOf(qLang, value);
+    if (at < 0) return;
+    const was = Math.max(1, Number(settings.numbersReach) || 1);
+    const next = correct ? Math.max(was, at + 1) : Math.max(1, Math.min(was, at));
+    if (next !== was) setSetting("numbersReach", next);
+  }
   /*
    * Whether the pronunciation or the meaning is beside the question.
    *
@@ -6278,6 +7330,29 @@ export default function ArabicTrainer() {
         : [];
     }
     if (!item) return [];
+    /*
+     * A made-up number brings its own wrong answers.
+     *
+     * They are numbers worth confusing with the right one — seventy-four
+     * beside forty-seven, four hundred and seventy beside it too — and
+     * they were chosen when the question was built, because which numbers
+     * are confusable is arithmetic and which of those can be said is the
+     * language pack's business. Drawing from the learner's vocabulary
+     * instead would put a book and a house beside a number and make the
+     * question a reading test.
+     */
+    if (exercise && isMadeUpNumber(item)) {
+      const said = (exercise.mates || [])
+        .map((m: { id: string }) => (asking.find((i) => i.id === m.id) || { forms: [] }).forms[0])
+        .filter(Boolean);
+      return optionsFor({
+        answer: item,
+        pool: said,
+        wanted: PICK_OPTIONS,
+        seed: `${item.id}`,
+        textOf: (w) => w.ar,
+      });
+    }
     /* The meanings of the learner's other words, one meaning apiece: a
        card that means two things offers the first of them, so no tile is
        two answers with a comma between. The card being asked is narrowed
@@ -6437,18 +7512,58 @@ export default function ArabicTrainer() {
     if (inputRef.current) inputRef.current.blur();
   }
 
+  /*
+   * A session that is already running, re-checked when the answer to "can
+   * this be asked?" changes underneath it.
+   *
+   * Two moments, and both are about sound. The connection going away, which
+   * withdraws every recording that was never downloaded; and the listing of
+   * what *is* on the device landing, which is the same fact arriving a
+   * moment late. A queue built while online and carried into a tunnel used
+   * to keep its listening questions, so the learner met a silent player and
+   * a note saying the recording was not here — on a question they could
+   * only skip. That is the failure the gate was written to stop, stopped at
+   * one door and not the other.
+   *
+   * Only ever narrowing. Coming back online does not put questions back:
+   * they are gone from this sitting and the next session deals them
+   * normally, because adding questions into a queue somebody is halfway
+   * through is a worse surprise than the one being fixed.
+   */
+  useEffect(() => {
+    if (!session || !session.exercises) return;
+    const next = requeueUnaskable(session.exercises, qi, items, settings);
+    /* Nothing went: the common case, and it must not churn the session
+       object or the question on screen. */
+    if (next.length === session.exercises.length) return;
+    if (next.length <= qi) {
+      /* Everything left needed something this device cannot do. Ending here
+         is honest, the way the quiet button ends it. */
+      setSession(null);
+      sfx("warn");
+      flash("Nothing left in this session that works offline");
+      return;
+    }
+    setSession((s: Session | null) => (s ? { ...s, exercises: next } : s));
+    /* The question at this index may be a different one now. */
+    resetExercise();
+  /* The two facts that change the answer, and nothing else: re-running this
+     on every answer would re-plan the session under the learner. */
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offline, audible]);
+
   /* "Can't listen right now": stop asking for recordings, here and in
      anything built for the next quarter of an hour. */
   function goQuiet() {
     const until = now() + LISTEN_OFF_MS;
-    /* The module flag first, because withoutListening and every builder read
+    /* The module flag first, because requeueUnaskable and every builder read
        it rather than the state; then the state, so the screen re-renders;
        then the device, so a reload does not undo it. */
     setListenOffUntil(until);
     setListenOff(until);
     saveListenOff(until);
 
-    const next = session ? withoutListening(session.exercises, qi, items, settings) : [];
+    const next = session ? requeueUnaskable(session.exercises, qi, items, settings) : [];
     if (next.length <= qi) {
       /* Every card left needs sound. Ending here is honest — running the
          queue out would show "Session complete" over a session that was
@@ -6537,7 +7652,13 @@ export default function ArabicTrainer() {
       flash("Noted on this device. Sign in to report it.", "warn");
       return;
     }
-    API.reportFlag({
+    /*
+     * The report itself, which is the same object whether it goes now or
+     * later: it carries a copy of the question rather than a pointer to
+     * the card, so it still says something after a fortnight in a queue —
+     * which is the property that makes it safe to keep at all.
+     */
+    const report: API.FlagReport = {
       kind,
       note: said,
       /* The card's id on the server, which is not the item's id here:
@@ -6557,9 +7678,39 @@ export default function ArabicTrainer() {
          a report that says only "card k3f2" is then unreadable. */
       prompt: leadOf(parentItem).ar || "",
       meaning: leadOf(parentItem).en || "",
-    })
+    };
+
+    /*
+     * Offline, it waits rather than being dropped.
+     *
+     * It used to be sent once, and a failure was answered with "Noted on
+     * this device" — which was true only in the sense that the note was
+     * written onto the card for the learner's own eyes. Nothing ever sent
+     * it, so a problem reported on a train was a problem nobody heard
+     * about, while the guide promised that anything done offline is sent
+     * when a connection returns.
+     */
+    if (isOffline()) {
+      keepPending(FLAG_OUTBOX, report);
+      setToSend(waitingToSend(FLAG_OUTBOX));
+      flash("Saved — it will be sent when you're back online", "good");
+      return;
+    }
+    API.reportFlag(report)
       .then(() => flash("Thank you for the feedback 🫶", "good"))
-      .catch(() => flash("Noted on this device. We couldn't reach the server.", "warn"));
+      .catch((e) => {
+        /* A refusal is the server having decided, and asking again would
+           be told the same thing; anything else never arrived, so it
+           waits. `offline` is what the client calls a request that could
+           not be made at all. */
+        if (String((e && (e as Error).message) || e) !== "offline") {
+          flash("Noted on this device. We couldn't reach the server.", "warn");
+          return;
+        }
+        keepPending(FLAG_OUTBOX, report);
+        setToSend(waitingToSend(FLAG_OUTBOX));
+        flash("Saved — it will be sent when you're back online", "good");
+      });
   }
 
   /*
@@ -6732,10 +7883,34 @@ export default function ArabicTrainer() {
        */
       marks.push(...fillerMarks(fillersIn(item, exercise.type, settings), { correct: !!correct }, practice));
     }
+    /*
+     * A made-up number is marked on its parts and never on itself.
+     *
+     * It has no card, no schedule and no ladder — it was built for this
+     * question and will not be built again — so the mark above is thrown
+     * away and the parts that stood in it are credited instead, under the
+     * ordinary exercise the question was evidence for. Same three rules a
+     * sentence's fillers get, through the same function.
+     */
+    const numbersAsked = isMadeUpNumber(item);
+    const gradedType = numbersAsked
+      ? NUMBER_EQUIVALENT[exercise.type] || exercise.type
+      : exercise.type;
+    if (numbersAsked) {
+      marks.length = 0;
+      marks.push(
+        ...fillerMarks(
+          numberFillers(item, numberParts, gradedType, settings),
+          { correct: !!correct },
+          practice,
+        ),
+      );
+      rememberNumberReach(item, !!correct);
+    }
     persist((cur) => {
       const graded = gradeInto(cur.items, marks, {
-        type: exercise.type,
-        level: levelOf(exercise.type),
+        type: gradedType,
+        level: levelOf(gradedType),
         keepMet: needsMetRecord,
         /* The question a lift has already moved up its ladder: answered,
            and neither rewarded nor lapsed. */
@@ -6794,7 +7969,13 @@ export default function ArabicTrainer() {
     persist({
       ...data,
       items: items.map((i) =>
-        i.id === id ? { ...i, ...(on ? { priority: true } : { priority: undefined }), updated: now() } : i
+        /* Stamped, and stored as `false` rather than removed when it is
+           cleared: the merge takes whichever device said something about
+           the mark most recently, and "no longer wanted, as of then" has
+           to be able to beat an older yes. Without the stamp the mark was
+           simply lost the next time the other device answered the card —
+           see `priorityAt` in types.ts. */
+        i.id === id ? { ...i, priority: on, priorityAt: now(), updated: now() } : i
       ),
     });
     flash(on ? "Marked — it is in your next session" : "No longer high priority");
@@ -7109,6 +8290,31 @@ export default function ArabicTrainer() {
      send someone looking for a fault that isn't there. */
   const listenQuiet = listenOff > Date.now();
 
+  /*
+   * What the corner menu says about sync.
+   *
+   * One line, and it used to say one of three things — syncing, "Offline —
+   * will retry", or up to date — with the middle one standing for every
+   * way a sync can fail. Two of those never clear by themselves, so a
+   * learner whose passphrase had been refused or whose collection had
+   * outgrown the limit was told, once a minute for ever, that they were
+   * offline and it would sort itself out.
+   *
+   * Offline comes first because it explains every other failure under it,
+   * and it says where the work is rather than only what is missing: the
+   * answer to "am I losing anything?" is no, and that is the question
+   * behind the look at the dot.
+   */
+  const syncNote = offline
+    ? `Offline — your work is saved on this device${
+        toSend ? ` · ${plural(toSend, "report")} to send` : ""
+      }`
+    : syncState === "syncing" || spacesBusy || (syncState === "idle" && courseBusy)
+    ? "Syncing now"
+    : syncState === "error"
+    ? syncError || "Sync failed"
+    : "Up to date";
+
   return (
     <div
       className={`at ${theme}${inExercise ? " in-exercise" : ""}${kbOpen ? " kb-open" : ""}`}
@@ -7156,6 +8362,50 @@ export default function ArabicTrainer() {
         {/* ============ STUDY ============ */}
         {tab === "home" && (
           <>
+            {/* Where it is most likely to be read by the person it is for:
+                above what they came here to do, once, and gone for good on
+                a tap. See useInstallOffer for why installing is the one
+                thing that keeps an offline app's data safe on iOS. */}
+            {/* Recordings that are not here yet, said at the moment it
+                starts to matter. Offline, a card whose sound was never
+                downloaded sits out its listening questions — so a journey
+                is quietly a quieter session, and the place to find that
+                out is not halfway through it. Only while offline and only
+                while there is something to fetch, so it is never a
+                standing nag. */}
+            {offline && missingClips > 0 && !inExercise && (
+              <div className="at-mb3">
+                <Notice kind="warn">
+                  <span>
+                    {`${plural(missingClips, "recording")} isn't on this device, so questions that
+                      play ${missingClips === 1 ? "it" : "them"} are being held back. `}
+                    <button className="at-linkbtn" onClick={() => setScreen("account")}>
+                      Download when you&apos;re back online
+                    </button>
+                  </span>
+                </Notice>
+              </div>
+            )}
+            {install.show && !inExercise && (
+              <div className="at-mb3">
+                <Notice kind="info">
+                  <span>
+                    Add Taleb33 to your home screen to keep your cards safe and open it like an
+                    app.{" "}
+                    {install.prompt ? (
+                      <button className="at-linkbtn" onClick={() => install.prompt?.prompt()}>
+                        Install
+                      </button>
+                    ) : (
+                      <i>Use your browser&apos;s Share menu, then &ldquo;Add to Home Screen&rdquo;.</i>
+                    )}{" "}
+                    <button className="at-linkbtn" onClick={install.dismiss}>
+                      Not now
+                    </button>
+                  </span>
+                </Notice>
+              </div>
+            )}
             {items.length === 0 && (
               /* The same component the Progress and Cards tabs use for the
                  same situation. It was a hand-rolled block here, which is
@@ -7193,11 +8443,17 @@ Cards ready to practice
                   </Help>
 
                   <div className="at-row">
+                    {/* Always live while there is anything to drill. Being
+                        due decides what a session leads with, not whether
+                        there is one — so a learner who is up to date, or
+                        partway through the app's own pacing of new cards,
+                        is offered more of what they hold rather than a
+                        greyed-out button and silence. */}
                     <Button variant="primary"
                       onClick={() => begin(false)}
-                      disabled={!readyCount}
+                      disabled={!drillable.length}
                     >
-                      Start session
+                      {readyCount ? "Start session" : "Practise anyway"}
                     </Button>
                   </div>
                   <div className="at-row at-mt3">
@@ -7209,6 +8465,20 @@ Cards ready to practice
                     </Button>
 
                   </div>
+                  {/* Numbers are built out of the deck's parts rather than
+                      dealt from it, so the practice is started by hand and
+                      has no place in the count above. Offered only where
+                      there is actually something to build — a deck with no
+                      number words in it would open on an empty sitting,
+                      which is a promise the app has not kept. */}
+                  {numbersReach > 0 && (
+                    <div className="at-row at-mt3">
+                      <Button variant="ghost" onClick={() => beginNumbers(langOf(settings).id)}>
+                        Practise numbers
+                      </Button>
+                      <Meta>up to {numbersReach.toLocaleString("en")}</Meta>
+                    </div>
+                  )}
                   {/* Only once there is one to open. A button that leads to
                       an empty screen is a promise the app has not kept, and
                       the way to find this is to save one, which the Build
@@ -7222,7 +8492,17 @@ Cards ready to practice
                   )}
 
                   {!readyCount && drillable.length > 0 && (
-                    <Help>{nextDueLine(drillable, settings)}</Help>
+                    <Help>
+                      {`Nothing is due. ${nextDueLine(drillable, settings)} Practising now is
+                        welcome and won't move your schedule much.`}
+                    </Help>
+                  )}
+                  {newWordsHeldUp > 0 && (
+                    <Help>
+                      {`${plural(newWordsHeldUp, "word")} waiting to be introduced. New ones arrive
+                        as the words you're learning settle, so practising what you have is what
+                        brings them.`}
+                    </Help>
                   )}
                   {!drillable.length && items.length > 0 && (
                     <Notice kind="warn">
@@ -7838,6 +9118,21 @@ Cards ready to practice
                 <Help>
                   {practice
                     ? "Your schedule is untouched, apart from anything marked Again."
+                    : /*
+                       * Which kind of session this was.
+                       *
+                       * A session may now be dealt from cards that were not
+                       * yet due, so "every gap just got longer" is not true
+                       * of all of them — a card answered soon after the
+                       * last time barely moves, by design. Saying so is
+                       * what keeps the offer honest: practising ahead is
+                       * welcome, and it is not the same as getting through
+                       * your schedule.
+                       */
+                    session.due === 0
+                    ? "None of these were due, so your schedule has barely moved. The practice still counts."
+                    : session.items && session.due && session.due < session.items
+                    ? `${session.items - session.due} of these weren't due yet and have barely moved.`
                     : tally.no === 0
                     ? "Clean run. Every gap just got longer."
                     : `${tally.no} lapsed and will come back shortly.`}
@@ -7987,6 +9282,8 @@ Cards ready to practice
             setSetting={setSetting}
             onReset={resetScheduling}
             allClipIds={allClipIds}
+            onDevice={audible}
+            onDownloaded={refreshAudible}
             /* Signed out, the account screen is still reachable and still
                has to render. What it shows is nobody, not a half-account. */
             account={account || EMPTY_ACCOUNT}
@@ -8030,7 +9327,19 @@ Cards ready to practice
           />
         )}
 
-        {saveFailed && <p className="at-toast">Couldn't save — your last answer may not stick</p>}
+        {saveFailed && (
+          /* Kept up while anything is owed to the disk, and retried behind
+             it — this used to be said once and then dropped, so with
+             storage full every later answer was lost in silence while the
+             screen went on showing it. The advice is the one thing that
+             actually saves the work: get it off the device. */
+          <p className="at-toast">
+            Couldn't save to this device —{" "}
+            {account
+              ? "still trying. Your answers are going to the server as you give them."
+              : "still trying. Sign in so your answers are kept somewhere other than this device."}
+          </p>
+        )}
       </div>
 
       {lastDeleted && lastDeleted.length > 0 && (
@@ -8084,8 +9393,15 @@ Cards ready to practice
                every part of it is done — this device's cards, the courses,
                and the spaces this person belongs to. */
             syncState={
-              spacesBusy || (syncState === "idle" && courseBusy) ? "syncing" : syncState
+              offline
+                ? "off"
+                : spacesBusy || (syncState === "idle" && courseBusy)
+                ? "syncing"
+                : syncState
             }
+            /* Why, in words, rather than the one sentence that used to
+               stand for every way this can go wrong. */
+            syncNote={syncNote}
             onSyncNow={syncEverything}
             theme={settings.theme || "auto"}
             onTheme={(v) => setSetting("theme", v)}
@@ -8148,7 +9464,7 @@ function CardLadder({ card, settings }: { card: Item; settings: Settings }) {
       </div>
       <Help>
         {at.status === "paused"
-          ? "A word you have slipped on closes the levels above it. Nothing is lost — this opens again as soon as the level under it is back."
+          ? "Missing the same question twice running closes the levels above it. Nothing is lost — this opens again as soon as the level under it is back."
           : at.status === "done"
           ? "Every level is done. The card still comes back, just further and further apart."
           : "A level opens once everything under it is through the learning steps and back in review. The last one waits longer: everything under it has to hold for four days."}
@@ -10791,7 +12107,12 @@ const GUIDE = [
     title: "Your progress",
     body: [
       "Your progress lives on your device and, if you sign in, syncs between your devices. It is yours: a teacher sees the material, not your answers.",
-      "The app works fully offline. Anything you do while disconnected is kept and sent when a connection returns.",
+      /* This used to promise that *anything* done offline is sent later,
+         which was true of what you learn and of nothing else. It is worth
+         saying plainly which is which, because the difference is what
+         somebody would plan a journey around. */
+      "Practising works with no connection at all: your answers, your schedule and anything you report about a card are kept on the device and go up when you are back online.",
+      "What does need a connection: setting up, joining a course, new material from your teacher, and recordings you haven't played yet. Account settings can download a whole course's recordings before you travel.",
     ],
   },
 ];
@@ -11299,9 +12620,12 @@ function AppVersion() {
   );
 }
 
-function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }: {
+function CornerMenu({ account, syncState, syncNote, onSyncNow, theme, onTheme, onAccount, onPrefs, onGuide }: {
   account: User | null;
   syncState?: string;
+  /** What to say about it. Worked out by the app, which is the only thing
+      that knows whether this was the connection or the passphrase. */
+  syncNote?: string;
   onSyncNow: () => void;
   theme?: string;
   onTheme: (theme: string) => void;
@@ -11346,13 +12670,7 @@ function CornerMenu({ account, syncState, onSyncNow, theme, onTheme, onAccount, 
             <span className="at-cico">
               <span className={`at-cdot ${syncState}`} />
             </span>
-            <span className="at-clinetext">
-              {syncState === "syncing"
-                ? "Syncing now"
-                : syncState === "error"
-                ? "Offline — will retry"
-                : "Up to date"}
-            </span>
+            <span className="at-clinetext">{syncNote || "Up to date"}</span>
             <button className="at-cact" onClick={onSyncNow}>
               Sync now
             </button>
@@ -11474,6 +12792,8 @@ function AccountSettings({
   onCloseAccount,
   onLogOut,
   allClipIds = [],
+  onDevice = null,
+  onDownloaded,
 }: {
   account: User & { key: string };
   onRename: (name: string) => void;
@@ -11484,6 +12804,11 @@ function AccountSettings({
   onCloseAccount: () => void;
   onLogOut: () => void;
   allClipIds?: string[];
+  /** Which recordings are here, so the screen can say how many are not.
+      Null before anybody has looked. */
+  onDevice?: Set<string> | null;
+  /** Something was downloaded, so what a session may ask has changed. */
+  onDownloaded?: () => void;
 }) {
   /* The storage figures moved here with the section that shows them. */
   const [stats, setStats] = useState<any | null>(null);
@@ -11498,7 +12823,23 @@ function AccountSettings({
     setWarming({ done: total, total, fetched, finished: true });
     const [st, db] = await Promise.all([clipStats(), openClipDb()]);
     setStats({ ...st, idb: !!db });
+    /* More can be heard now, which decides what an offline session may
+       ask. Said here rather than left to the next launch, because the
+       whole point of this button is being about to go offline. */
+    if (onDownloaded) onDownloaded();
   }
+
+  /*
+   * How many of this learner's recordings are not on the device.
+   *
+   * Worth saying out loud on this screen: offline, a card whose recording
+   * is elsewhere is not asked its listening exercises, and somebody about
+   * to get on a train would rather know that now than find a quieter
+   * session waiting for them.
+   */
+  const missing = onDevice
+    ? [...new Set(allClipIds)].filter((id) => !onDevice.has(id)).length
+    : 0;
   /* Shut by default: everything inside it is irreversible, so it shouldn't
      be sitting open where a thumb can reach it. */
   const [dangerOpen, setDangerOpen] = useState(false);
@@ -11527,12 +12868,20 @@ function AccountSettings({
               }`
             : "Counting recordings…"}
         </Lede>
+        {missing > 0 && (
+          <Help>
+            {`${plural(missing, "recording")} not on this device yet. Until they are, questions that
+              play them are only asked when you're online.`}
+          </Help>
+        )}
         {allClipIds.length > 0 && (
           <div className="at-row at-mt2">
             <Button variant="ghost" size="sm"
               disabled={!!warming && !warming.finished}
               onClick={downloadAll} icon="download">{warming && !warming.finished
                 ? `Downloading ${warming.done} of ${warming.total}…`
+                : missing > 0
+                ? `Download ${missing} for offline`
                 : "Download all recordings for offline"}</Button>
           </div>
         )}

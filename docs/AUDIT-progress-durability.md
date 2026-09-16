@@ -2,6 +2,27 @@
 
 **16 September 2026 · release 0.147, commit 9f31b64, the tree on `origin/beta`**
 
+> **All fifteen findings were addressed in 0.148**, findings 1 to 11 by
+> fixing them and 12 to 15 as described at the end of this note. This
+> document is kept as it was written, because the reasoning is the record of
+> why they were there; the release entry in `CHANGELOG.md` says what changed
+> for the people using the app, and the `DECISIONS.md` entry *An absence is
+> not an instruction* says what changed underneath and what was deliberately
+> left alone. Each of the six missing tests the last step asks for exists
+> now: a bad file on disk and a document the server cannot read
+> (`tests/store.test.mjs`, `tests/server.test.mjs`), an empty refresh and a
+> turn removed from a scene (`tests/cards.test.mjs`), and a reset and a mark
+> through a merge (`tests/sync.test.mjs`).
+>
+> The four low findings, which were written down as worth knowing rather
+> than as work: **12** (clock skew) stands as described and is inherent to
+> the design; **13** is gone, because adopting a sync result now writes the
+> adopted document to the device rather than leaving the disk behind; **14**
+> is gone, because the legacy document is read and merged before it is
+> deleted; **15** stands for two replicas, and the delete is inside the lock
+> now, which was the part that was wrong for the one process that runs
+> today.
+
 The question this time is narrower and harder than the last audit's: from the
 moment a learner presses Continue, is what they did recorded, and is it ever
 lost afterwards? Every path progress travels was read — grading, the save to

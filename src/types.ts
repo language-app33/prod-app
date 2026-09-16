@@ -208,6 +208,120 @@ export interface VerbSpec {
   citation?: { row: string; col: string };
 }
 
+/* ---- numbers ----
+
+   A number is not a word to memorise one at a time: forty-seven is built
+   out of forty and seven, and a learner who has those two should be able
+   to be asked all of it. So a language declares how its numbers are put
+   together, the teacher writes down the handful of parts, and the app
+   makes up as many numbers as it likes out of them.
+
+   Everything that differs between languages is in `spell` — the order the
+   parts go in, what joins them, which form a part takes in company. The
+   app knows only how to find a part's card, how to ask, and how to widen
+   the range as a learner gets them right. See src/numbers.ts. */
+
+/**
+ * One box on the teacher's Numbers screen: a value, and what to write in
+ * it.
+ *
+ * `gloss` exists because a part is not always the name of its own number.
+ * Arabic's مية *is* a hundred and Huế's trăm is only the word *hundred* —
+ * one hundred is *một trăm*, with the one said out loud. So the box for 100
+ * in Huế is glossed "hundred" and the pack builds 100 out of it, where
+ * Arabic's box for 100 is glossed "100" and is the answer on its own.
+ */
+export interface NumberPart {
+  value: number;
+  /** What the box is called. Defaults to the digits. */
+  label?: string;
+  /** The meaning written onto the card. Defaults to the digits. */
+  gloss?: string;
+  /** A line under the box — an example, a warning about a fused form. */
+  hint?: string;
+}
+
+/** A run of boxes on the teacher's screen, under one heading. */
+export interface NumberGroup {
+  id: string;
+  label: string;
+  note?: string;
+  parts: NumberPart[];
+}
+
+/**
+ * A stretch of the number line the practice ramps through, smallest first.
+ *
+ * A band is open when every number in it can be built from the cards the
+ * student has, which is what stops the app asking for a million from a
+ * deck that stops at ten. The practice starts in the lowest open band and
+ * widens as answers come back right, so the ramp to millions is walked
+ * rather than jumped.
+ */
+export interface NumberBand {
+  id: string;
+  label: string;
+  from: number;
+  to: number;
+}
+
+/**
+ * An extra form a part takes inside a bigger number.
+ *
+ * Huế is the reason this exists: *năm* is five and *mười lăm* is fifteen,
+ * *một* is one and *hai mươi mốt* is twenty-one. The changed form is a
+ * form of the same word, so it is a cell of a table like any other — `row`
+ * and `col` place it, and the pack's `spell` asks for it by `col`.
+ */
+export interface NumberCell {
+  /** The cell's column id, which is what spell() asks for. */
+  id: string;
+  row: string;
+  label: string;
+  hint?: string;
+}
+
+/**
+ * What a pack's `spell` is handed: the words the teacher has actually
+ * written, and nothing else.
+ *
+ * Both return "" for something that is not there, so a pack can test what
+ * it got and give up on a number it cannot build — which is how a deck
+ * that stops at ten is never asked for a hundred.
+ */
+export interface NumberCtx {
+  /** The teacher's word for exactly this value, or "". */
+  word(value: number): string;
+  /** A named alternate form of that value's card, or "". */
+  cell(value: number, id: string): string;
+}
+
+/** A number written out, and the parts it was built from. */
+export interface Spelling {
+  text: string;
+  /** The values whose cards stood in it, for crediting the answer. */
+  used: number[];
+}
+
+/**
+ * How a language builds its numbers.
+ *
+ * `spell` is the whole of it. Everything else here describes what the
+ * teacher is asked for and how far the practice can reach; the rules —
+ * unit before ten in Arabic and ten before unit in Hebrew, a و before
+ * every chunk and a ו before only the last, Huế's *không trăm lẻ* in the
+ * middle of a thousand — live in that one function, and the app never
+ * looks inside what it returns.
+ */
+export interface NumberSpec {
+  groups: NumberGroup[];
+  bands: NumberBand[];
+  /** The extra boxes a given value carries, where it carries any. */
+  cells?: (value: number) => NumberCell[];
+  /** The number written out, or null where a part is missing. */
+  spell: (value: number, ctx: NumberCtx) => Spelling | null;
+}
+
 /**
  * One thing a word can be: a noun, a verb, a name.
  *
@@ -406,6 +520,13 @@ export interface Lang {
    * guessKind() reads it.
    */
   guessKind?: (text: string) => string;
+  /**
+   * How this language builds its numbers, where it says. A pack without
+   * one teaches numbers the way it teaches any other word — one card at a
+   * time — and the Numbers screen and the numbers practice are simply not
+   * offered. See src/numbers.ts.
+   */
+  numbers?: NumberSpec;
 }
 
 /**
@@ -563,6 +684,17 @@ export type Card = {
    * business: nothing about how a card is drilled reads this.
    */
   category?: string;
+  /**
+   * What number this card is worth, where it is a number.
+   *
+   * The only thing that makes a number card findable: everything that
+   * builds *forty-seven* out of *forty* and *seven* looks the parts up by
+   * value, and two teachers will write "forty" and "أربعين" without
+   * either string saying what it is worth. Absent on every other card,
+   * and on a number card written before this — which goes on being
+   * practised as the word it is, and simply builds nothing.
+   */
+  value?: number;
   /**
    * The variable this card can stand in for, where it is a value rather
    * than something to learn: a card saying `name` fills every {{name}} in
@@ -823,8 +955,52 @@ export type Item = {
   name?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
   category?: string;
+  /** What number it is worth, where it is a number. See Card. */
+  value?: number;
+  /**
+   * Which number parts stood in this one, where it is a number the app
+   * made up rather than a card.
+   *
+   * A made-up number lives for one sitting and is never stored, so this
+   * never reaches the disk or the wire — but it is what a right answer
+   * credits, the way a sentence credits the words that filled its blanks,
+   * so it travels with the item that is asked about. Values, not ids: the
+   * card a value is written on is a fact about the device, and is looked
+   * up at the moment of marking.
+   */
+  used?: number[];
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /**
+   * When the learner last said whether they want this card next, so that
+   * the answer survives a merge.
+   *
+   * `priority` alone did not. A merge takes a card whole from whichever
+   * device touched it last and merges only the schedules underneath, and
+   * every graded answer stamps the card — so a mark set on one device was
+   * dropped the moment the other device merely answered the card, or
+   * answered a sentence the card stood in. With a time on it the merge can
+   * take the later answer instead of the later card.
+   *
+   * Set whenever the mark is turned on *or off*, which is why `priority`
+   * is stored as `false` rather than removed: "no longer wanted, as of
+   * then" is an answer and has to beat an older yes.
+   */
+  priorityAt?: Millis;
+  /**
+   * When every schedule on this card was last sent back to the beginning.
+   *
+   * A reset writes blank schedules, and a blank schedule is exactly what
+   * the app makes for one that was never stored — so it is left off the
+   * wire and off the disk, and the merge kept whatever the other side
+   * still had. The reset was undone seconds later by the server's own
+   * copy, with the message saying it had worked.
+   *
+   * The stamp travels instead, merges by taking the later, and any state
+   * older than it is dropped: a reset is a fact about the card, where the
+   * absence of a schedule is not.
+   */
+  reset?: Millis;
   /** Which of the teacher's other cards this one teaches by containing them. */
   uses?: string[];
   flags?: any[];
@@ -848,6 +1024,21 @@ export type Item = {
 };
 
 /**
+ * What was set aside when a course card went away: its schedules and its
+ * record of the words it has been asked with, by the name of the form each
+ * belonged to, and when it was parked.
+ *
+ * Keyed by form name rather than held as forms, because the card that
+ * comes back is the teacher's and may have been edited in the meantime —
+ * what is being restored is the progress, not the wording.
+ */
+export interface Parked {
+  at: Millis;
+  forms: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
+  lines?: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
+}
+
+/**
  * The whole document one person's devices share, as it goes over the wire.
  * Merging two of these is idempotent: the same input twice changes
  * nothing.
@@ -857,6 +1048,25 @@ export interface Doc {
   items: Item[];
   /** Withdrawn cards, so a sync does not hand them back. */
   tombstones: Record<string, Millis>;
+  /**
+   * The progress of course cards that are no longer in the material,
+   * kept in case they come back.
+   *
+   * A course refresh treats a card missing from the answer as one the
+   * teacher withdrew: removed, and tombstoned so the next sync removes it
+   * from this learner's other devices too. That is right about the card
+   * and was wrong about the work: a card can be missing for reasons that
+   * have nothing to do with a teacher deciding anything — a deck detached
+   * and reattached, a student briefly removed from a course, one
+   * unreadable record on the server — and every one of those destroyed
+   * the learner's progress on the whole deck, everywhere, for good.
+   *
+   * So the card goes and the work is set aside here, by the card's id,
+   * and put back if the card returns. Nothing else reads this: it is a
+   * drawer, not a second copy of the document. Pruned on the same
+   * schedule as the headstones above.
+   */
+  parked?: Record<string, Parked>;
   log: Record<string, any>;
   /** Every document has them; EMPTY is where the defaults live. */
   settings: Settings;

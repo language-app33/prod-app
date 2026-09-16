@@ -17,13 +17,26 @@
  * file and are renamed into place, so a reader sees either the old document
  * or the new one and never half of either.
  *
+ * **And the bytes are flushed before the rename, with one previous copy
+ * kept beside the document.** The rename alone is enough for a process that
+ * dies: the old file is still there. It is not enough for a *host* that
+ * dies — power loss, a killed container — because the data may still be in
+ * the page cache while the rename has landed, and what comes back is a file
+ * of the right name and the wrong length. That is the worst failure this
+ * store has: a document nobody can parse reads as a document nobody has
+ * written, and the sync endpoint then refuses every push for ever. So the
+ * temporary file is fsynced, the directory entry is fsynced after the
+ * rename, and the copy being replaced is hard-linked aside first, which
+ * costs one link per write and gives the endpoint something to fall back
+ * to.
+ *
  * The ETag is a digest of the content, so two documents with the same bytes
  * share an ETag. That is what the sync endpoint wants: a write that would
  * not change anything cannot be a lost update.
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { link, mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 
 /*
@@ -63,6 +76,33 @@ const etagOf = (text) => createHash("sha256").update(text).digest("hex").slice(0
    directory legible when something has to be looked at by hand. */
 /** @type {(dir: string, key: string) => string} */
 const fileFor = (dir, key) => path.join(dir, encodeURIComponent(key));
+
+/* The copy kept of whatever a write replaced. One deep: it is a floor
+   under a document that cannot be read, not a history. */
+/** @type {(dir: string, key: string) => string} */
+const previousFor = (dir, key) => `${fileFor(dir, key)}.prev`;
+
+/*
+ * Flush a directory entry, so a rename survives the host and not merely the
+ * process.
+ *
+ * Best effort by design. Some filesystems refuse to open a directory for
+ * writing and some refuse the fsync, and on both the rename has still
+ * happened — so a failure here is quieter than the alternative of failing a
+ * write that went through.
+ */
+/** @param {string} dir */
+async function syncDir(dir) {
+  let handle = null;
+  try {
+    handle = await open(dir, "r");
+    await handle.sync();
+  } catch (err) {
+    /* Nothing to do about it and nothing worth failing for. */
+  } finally {
+    if (handle) await handle.close().catch(() => {});
+  }
+}
 
 /*
  * A conditional write reads the current document and then writes, and those
@@ -125,8 +165,32 @@ export function getStore(name) {
        atomic within one filesystem. */
     const temp = `${target}.${process.pid}.${Math.random().toString(16).slice(2)}.tmp`;
     try {
-      await writeFile(temp, text, "utf8");
+      /* Written and flushed before anything points at it, so what the
+         rename publishes is on the disk and not merely in the cache. */
+      const handle = await open(temp, "w");
+      try {
+        await handle.writeFile(text, "utf8");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      /*
+       * The copy being replaced, kept aside by a hard link.
+       *
+       * A link rather than a copy because it costs nothing and because the
+       * document is never absent for an instant: renaming the old file out
+       * of the way would leave a window in which a read — which does not
+       * take the lock — sees nothing at all, and "nothing stored" is the
+       * very answer that makes an unreadable document unrecoverable.
+       *
+       * Best effort throughout: there is nothing to keep on a first write,
+       * and a filesystem that will not link is a filesystem where this
+       * store still works.
+       */
+      await unlink(previousFor(dir, key)).catch(() => {});
+      await link(target, previousFor(dir, key)).catch(() => {});
       await rename(temp, target);
+      await syncDir(dir);
     } catch (err) {
       await unlink(temp).catch(() => {});
       throw err;
@@ -153,6 +217,23 @@ export function getStore(name) {
       const data = await readRaw(key);
       if (data === null) return null;
       return { data, etag: etagOf(data) };
+    },
+
+    /**
+     * The copy the last write replaced, where one was kept.
+     *
+     * For one caller: the sync endpoint, when the document it holds cannot
+     * be parsed. Everything else reads the document itself and should not
+     * know this exists.
+     * @param {string} key
+     */
+    async getPrevious(key) {
+      try {
+        return await readFile(previousFor(dir, key), "utf8");
+      } catch (err) {
+        if (err && /** @type {NodeJS.ErrnoException} */ (err).code === "ENOENT") return null;
+        throw err;
+      }
     },
 
     /*
@@ -183,15 +264,22 @@ export function getStore(name) {
       });
     },
 
+    /* Under the lock, like a conditional write: a delete that interleaved
+       with one would let the write report an ETag for a document that no
+       longer exists. */
     /** @param {string} key */
     async delete(key) {
-      try {
-        await unlink(fileFor(dir, key));
-      } catch (err) {
-        /* Deleting what isn't there is not a failure; the endpoints delete
-           optimistically in several places. */
-        if (!err || /** @type {NodeJS.ErrnoException} */ (err).code !== "ENOENT") throw err;
-      }
+      return underLock(`${dir} ${key}`, async () => {
+        for (const at of [fileFor(dir, key), previousFor(dir, key)]) {
+          try {
+            await unlink(at);
+          } catch (err) {
+            /* Deleting what isn't there is not a failure; the endpoints
+               delete optimistically in several places. */
+            if (!err || /** @type {NodeJS.ErrnoException} */ (err).code !== "ENOENT") throw err;
+          }
+        }
+      });
     },
 
     /* So the server can say where documents are going when it starts. */

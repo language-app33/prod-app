@@ -1640,3 +1640,418 @@ a second rule: `laddered` is the one list every reader goes through. In
 practice the two agree, because an adjective whose own word is unmet
 cannot fill a blank either. A test holds them together rather than leaving
 it to be rediscovered.
+
+---
+
+## An absence is not an instruction
+
+**16 September 2026** · `server/store.js`, `server/api/sync.js`, `src/sync.ts`,
+`src/shared.tsx` (`progressOf`, `withProgress`, `foldCourses`)
+
+Fifteen ways a learner's work could be lost, found by an audit of every
+path progress travels, came down mostly to one reading. Three places in
+the app treated an emptiness as a decision:
+
+- A course refresh that listed fewer cards meant *the teacher withdrew
+  them* — so the cards were dropped, tombstoned, and their progress
+  destroyed on every device the learner owns. It equally meant *the read
+  failed*, *the deck was detached to be reorganised*, or *the enrolment was
+  removed by mistake*, and in each of those the loss was total and
+  irreversible.
+- A stored document the server could not parse meant *nothing has ever
+  been synced* — so the device pushed as a first write, was refused because
+  a file existed, re-pulled, pushed again, and gave up. Permanently, for
+  every device sharing the passphrase.
+- A blank schedule meant *nothing to say* — which is true of a card never
+  answered and false of a card just reset, and they are written
+  identically. The sparse wire that exists to keep documents small left
+  both off, so the other side's old schedules survived a reset by seconds.
+
+**The rule now: where the app cannot tell "nothing" from "not known", it
+must not act on it.**
+
+**On the server, a failed read fails the request.** The course endpoints
+used to swallow an unreadable record and answer with what they could read,
+which is the shape of a complete answer with cards missing — and the device
+could only read that as a withdrawal. A read that fails is now a 500, and
+the device holds what it has.
+
+**Writes are flushed, and one copy back is kept.** The temp-file-and-rename
+was right for a process dying and wrong for a host dying: nothing reached
+the disk. Each write now fsyncs the file and the directory, and hard-links
+the outgoing version aside first. A document that cannot be parsed is
+answered from that copy, and if neither is readable the response says so —
+`lost: "unreadable"` — which is what lets the device offer to overwrite it
+instead of looping.
+
+**On the device, withdrawn work is parked rather than destroyed.** The
+schedules and high-water marks of a card that has gone live beside the
+document under the card's id, are restored the moment it comes back, and
+are pruned on the same two-week schedule as tombstones. The tombstone still
+removes the card; it no longer removes the work.
+
+**A reset is dated, and so is a mark.** Three of the facts on a card are
+the learner's rather than the teacher's — its schedules, whether they asked
+for it, and whether they sent it back to the beginning — and the last two
+now carry their own stamps rather than riding on the card's. The merge
+reads schedules against the later reset and drops anything older, and takes
+the mark from whichever side spoke about it last. Before this the card's own
+`updated` decided, and every graded answer stamps it, so the device that
+merely *answered* a card was almost always the later writer and dropped
+what the other one had just said.
+
+**What it cost.**
+
+- **Two files per document on the server rather than one**, and an fsync
+  per write. The write was never on a hot path — it is one request every
+  few minutes per learner — and the previous copy is the only thing
+  standing between a bad write and total loss.
+- **The drawer of parked work grows the document.** Only forms with real
+  progress go in, and only for cards that have actually gone, so in
+  ordinary use it is empty; a course detached for a fortnight is the case
+  it exists for, and it ages out on its own.
+- **A reset now sends something rather than nothing.** The stamp is one
+  number on the card, which is the cheap half of the alternative: sending
+  every blank schedule stamped "now" would be correct too, and would cost
+  the document size the sparse wire exists to save.
+- **`allowEmpty` is a flag the client sets**, which is a protocol asking a
+  client to say it means it. The server refuses a write that drops a
+  populated collection to nothing without it. A learner deleting their own
+  cards is the one case that legitimately empties a document, and it says
+  so by sending the tombstones that prove it.
+
+**What was left alone, deliberately.** Every merge is still last-writer-wins
+on the device's own clock, so a device whose clock is badly wrong still
+loses: fixing it means a logical clock per device, which is a different
+design, and the failure is rare and visible in a way silent deletion is
+not. And the server's write lock is still in memory — correct for the one
+process on one volume that runs today, and the honest boundary to note
+rather than to build a distributed lock nothing yet needs.
+
+---
+
+## Offline is a state the app is in, not a request that failed
+
+**16 September 2026** · `src/net.ts`, `src/outbox.ts`, `src/shared.tsx`
+(`useLiveRefresh`, `rememberSpace`, `useInstallOffer`), `src/ArabicTrainer.tsx`
+(`typeAllowedNow`, `loadMaterial`), `src/sync.ts` (`docSize`)
+
+An audit of the app against its own objective — offline-first — found the
+learner's loop genuinely sound and the edges online-only. The shell is
+precached whole, the document is on the device, practice is pure and
+local, and sync merges rather than overwrites. What was missing was one
+fact: *the app never knew it was offline*.
+
+Everything followed from that. `navigator.onLine` was read in exactly one
+place, to word one error message. So a failed request was the only
+vocabulary the app had, and every offline moment had to borrow it: the
+corner dot went red, the line beside it said "Offline — will retry" for
+causes that would never clear, the polls went on firing every forty-five
+seconds into nothing, and a listening question was dealt with a recording
+that could not be fetched.
+
+**The state is held in one place and read two ways.** `net.ts` is the whole
+of it: a plain function for the module-level helpers that decide what a
+session may ask, and a subscription for the components that show it. It
+says *offline* with confidence and never promises that a request will
+succeed — `navigator.onLine` is famously generous, so false means "do not
+bother" and true means "worth trying", which is all any caller needs.
+
+**What follows from knowing:** the polls stop and resume on the event
+rather than on a timer; a sync is not attempted and does not report a
+failure it did not have; a form whose recordings are elsewhere is treated
+exactly as one whose listening exercises are paused, which is a mechanism
+that already existed; and the menu line says which failure it was, from a
+reason that was already being recorded and read by nobody.
+
+**An absence is still not an instruction** — the rule from the last audit
+applies here too, and twice. A course refresh that *fails* no longer counts
+as having been told there are no courses, so an enrolled student is no
+longer invited to join one. And "which recordings are on this device" is
+null until somebody looks, because reading "not asked yet" as "none here"
+would silence a card that is in fact ready.
+
+**One queue for work that could not be sent.** `outbox.ts` is a small
+durable list, used by reported problems and by a teacher's unsent cards.
+Deliberately one rather than two: a second copy of "keep it, try again
+later" is a second set of bugs about when to stop trying. The rule that
+makes replay safe is that only a request which *never reached the server*
+is kept — the server cannot have half-done something it never heard about
+— so a refusal is dropped rather than asked again for ever, and the caller
+decides which it was, because only the caller knows what its own errors
+mean.
+
+**What it cost.**
+
+- **A third thing kept on the device**, beside the document and the
+  recordings: the courses, the spaces, and the queue. All of it shares one
+  small store with the document, which is why `docSize` now measures
+  against that ceiling too — in UTF-16 units, because that is what the
+  store counts, where the server counts bytes. The same Arabic document
+  sits nearer one limit and further from the other, so both have to be
+  asked.
+- **A stored version is a claim about the document.** Handing the last
+  material version to the launch check is what makes that check cheap, and
+  it is only true while the cards it describes are still here. An import or
+  a reset makes a liar of it, and the answer would be a student whose
+  material never arrives — so the seeding asks the document first.
+- **A replayed card save could duplicate**, if a request that threw had in
+  fact reached the server. It cannot today: the client throws `offline`
+  only when the fetch itself failed. Client-minted card ids would close it
+  for good, and are the price of a fuller outbox — which is why the outbox
+  is scoped to the one thing that loses a teacher's typing rather than to
+  everything the teaching space does.
+
+**What was left alone, deliberately.** Setting up still needs a connection.
+Both ways in are requests, and a local-only start is a product decision
+about what an account is for rather than a gap in the code; what changed is
+that the first screen now says so instead of promising the opposite. And
+the teaching space still writes straight to the server for everything but
+a card save: a general replay of every teacher action needs ids the client
+mints, and nothing yet asks for it.
+
+---
+
+## Being due orders a session; it does not gate one
+
+**16 September 2026** · `src/scheduler.ts` (`reschedule`),
+`src/ArabicTrainer.tsx` (`buildSession`, `countReady`)
+
+The question that started this was how much an offline student can practise.
+The answer was: about twenty minutes out of an hour, in bursts, and then
+nothing until tomorrow. Traced through, a fresh sixty-card course gives four
+minutes of work, seven minutes of silence while those cards come back round,
+four times over, and then a wall — no new cards until the ones in hand have
+settled, with twenty cards of the course unreachable for the rest of the day.
+
+None of it was caused by being offline. Offline was only where it hurt,
+because there is nothing else to do and no way to see why the app has gone
+quiet.
+
+**The fault was that `due` did two jobs.** One is ordering: of everything
+that could be shown, what matters most. That is the valuable one and it
+caused none of the trouble. The other is permission: whether you may
+practise at all. That produced every symptom above.
+
+Permission is very hard to justify for an app people open on their own time.
+Practising a little early is cheap. An empty screen is not — it costs the
+learner who was willing, which is the only kind there is. And it turned away
+exactly the wrong person: someone returning after a fortnight meets a pile of
+overdue cards and never sees the gate, while the new student working through
+a course, and the keen one who has caught up, hit it every time.
+
+**So the due filter is gone and the due *sort* stays**, which it already was
+a few lines above it in the same function. A session takes the front of the
+list whether that is forty overdue cards or the nearest thing to due.
+
+**What makes that safe is in the scheduler, not the session builder.** A
+review interval used to grow by multiplying the interval the card already
+had, with no reference to when it was last answered — so a card answered ten
+minutes after a month-long gap was set would be pushed out six weeks on the
+evidence of a ten-minute memory. Remove the gate without fixing that and a
+keen evening empties the next two months.
+
+Now a gap grows from the time actually waited — `min(interval, elapsed)`,
+where elapsed is read off the card's own `due` and `interval` and so needs
+nothing new stored. Two caps make the whole of the behaviour:
+
+- **Capped above at the interval**, so answering late is worth what
+  answering on time is. A collection left for a month is not evidence of a
+  month's retention of every card in it. This is also what makes every
+  on-time and overdue answer identical to what it was before — the
+  regression that mattered most, and the thing the first new test asserts.
+- **Floored at the current interval**, so an early answer can never take a
+  card backwards. Otherwise drilling something you know well would be
+  punished by having it thrown at you all week.
+
+A wrong answer is untouched by any of this: it lapses in full, whenever it
+arrives, because forgetting is news wherever it happens.
+
+**The limits on new cards were deliberately left where they are.** Three a
+session, none at all once forty are still settling. They answer a different
+question — how much can somebody take on — and the project has already
+decided once that this is the app's call and not a setting. So extra practice
+is more of what a learner holds, never more new words. At the old wall they
+can now drill the ten cards in their hands and still get no new ones.
+
+**What it cost.**
+
+- **One test changed rather than added.** A near-miss test drilled the same
+  card four times in the same instant and expected four advances. Under the
+  new rule that is one second of evidence and rightly moves the card once,
+  so it now answers on each due date instead. Its intent — that being nearly
+  right over and over still reaches the bar — is unchanged and still
+  asserted.
+- **`readyCount` had to stop lying.** Every never-seen card reads as ready to
+  the scheduler, correctly, since nothing is known about it — so a course of
+  sixty new cards reported sixty waiting while the new-card rule would admit
+  three, and at the wall the screen said "20 ready" over a button that
+  answered "nothing ready". It now counts what is genuinely due plus as many
+  new cards as would actually be admitted, which is the promise the number
+  was always making.
+- **A session reports how much of it was waiting** (`due` on the session), so
+  the screen at the end can tell a learner they practised ahead rather than
+  implying they got through their schedule. Practising ahead is welcome; it
+  is not headway, and the app should not suggest otherwise.
+
+**What was left alone, deliberately.** The hand-built session still sets its
+own limits and still advances the schedule, which is now simply consistent
+with everything else rather than the one exception. And the `practice: true`
+mode — which leaves the schedule completely untouched — stays unused by the
+learner's path: it was the obvious lever to reach for here and it is the
+wrong one, because work that counts for nothing is not what somebody with a
+free hour is asking for.
+
+---
+
+## A new word is earned by learning one
+
+**16 September 2026** · `src/scheduler.ts` (`FRONT_DOOR_CAP`, `IN_HAND_CAP`,
+`recognised`, `roomForNew`), `src/ArabicTrainer.tsx` (`handCounts`,
+`buildSession`), `tests/pace.test.mjs`
+
+Three rules decided how many new words a learner met, and none of them knew
+about the others: three a session, nothing while ten cards were mid-learning,
+nothing at all while forty were still settling, and a scan of every exercise on
+every card to hold new ones back while a pile was going badly. Measured, they
+let a learner who never got anything wrong meet about one new word every four
+days. A course of any size was a matter of years.
+
+**Two faults, and the second is the interesting one.**
+
+The first is that an allowance counted in sessions is not an allowance at all.
+Ten short sittings in an evening were thirty new words where one long sitting
+was three, for the same work. Whatever the right amount of new material is, it
+cannot depend on how somebody happened to break up their time.
+
+The second is that a word counted as *being learnt* whenever any exercise on it
+was unfinished — including one that opened that morning and had never been
+asked. A word climbing its ladder kept falling back into the pool, so it held a
+place for its whole climb, the pool never drained, and the cap on it was a wall
+rather than a queue.
+
+**So: two pools, and a word enters when one leaves.** The front door is words
+the learner cannot yet recognise, which is a four-day gap on the first rung —
+the same bar that already opens the level above, so *learnt* means one thing in
+this app rather than two. In hand is everything not yet fully settled, at any
+height. A word leaves the front door early and goes on climbing against the
+second cap without blocking a newcomer behind it. That early release is the
+whole difference between this and what it replaces.
+
+Nothing counts sessions and nothing counts days. A day-based allowance was
+considered and rejected: it needs a notion of "a day" that survives timezones
+and two devices, and it answers a question nobody asked. What a learner has
+standing is already the right measure.
+
+**The struggling case falls out rather than needing a rule.** A learner who
+keeps forgetting has words that never reach a four-day gap, so those words hold
+their places and nothing new arrives. That is what the backlog scan existed
+for, and it is now a consequence of the caps instead of a fourth thing to keep
+in step.
+
+**The numbers were measured.** The note that used to stand over `phaseCounts`
+recorded a simulation, concluded that loosening the caps admitted five more
+cards and mastered three fewer, and asked the next reader to measure before
+changing anything — and there was nothing left to run. `tests/pace.test.mjs` is
+that harness, rebuilt so it survives: it plays out a learner day by day against
+the real scheduler and session builder, both of which are pure with the clock
+passed in.
+
+Over a hundred and eighty simulated days of one session a day, against the
+design this replaces: 64-66 words met against 34-35, and 39-43 learnt properly
+against 25-28. Three runs each, because the session shuffle is not seeded.
+
+That earlier finding was right about its own design and does not carry to this
+one. Loosening a cap whose release is full maturity piles words up and spreads
+a fixed session thinner, which is exactly what it measured. Releasing at
+recognition lets them flow instead. The sweep also found where *this* design
+turns: past about sixteen at the front door, words mastered in ninety days
+starts to fall, and with no cap at all it collapses. Ten and sixty sit below
+that, and are worth re-running rather than reasoning about.
+
+**What it cost.**
+
+- **A test changed rather than added.** Three session tests pinned "three a
+  session" and two fixtures modelled a full hand with ten-day gaps — which
+  under the new reading are words already through the front door. They assert
+  the pools now. The intent of each is unchanged.
+- **The session no longer decides anything about new words**, which means one
+  fewer knob in `buildSession` and one more concept in the scheduler. That is
+  the right side for it to live on: how much a learner can take on is a fact
+  about the learner, not about the sitting.
+- **Sixty in hand is a bigger review load than forty young ever was.** The
+  simulation says it is carried, because words leave it faster than they used
+  to. It is the number to watch if anything about session size changes.
+
+---
+
+## One slip is a wobble; two is a gap
+
+**16 September 2026** · `src/scheduler.ts` (`holding`, `missedTwice`,
+`openTypes`, `reachedLevel`, `standings`)
+
+A single wrong answer used to shut every level above that question on the
+word. The screen called it *paused* and explained itself well, but it was a
+hair trigger, and the most common way to meet it was a lapse of attention
+rather than a gap in knowing.
+
+**Pausing was never a rule.** Nothing in the app decided to pause anything. A
+miss moves a question out of review into relearning; a level only opens when
+everything below it is in review; so the pause fell out of the two. That is
+what made raising the bar delicate. The obvious lever — make a miss less
+severe — would have changed how every card in the app is rescheduled, to fix
+something that is not about scheduling at all.
+
+**So the softening went into the gate, not the schedule.** `holding` sits
+beside `graduated` and `mastered` and is asked only by the three readers that
+decide whether a level is open: what may be asked, what the screen shows, and
+whether a level has been reached. A miss still returns the question in ten
+minutes, still costs the word its ease, still halves the gap. None of that
+moved.
+
+**Two running, not two ever.** `hist` — the last six outings, 1 right and 0
+wrong — is the only record with an order to it, so two zeros on the end of it
+is exactly "wrong, seen again, wrong again". A right answer anywhere in those
+two slots clears it. Two misses a month apart are two wobbles, and the rule
+should not punish them as a gap.
+
+**The length guard is load bearing.** A document written before `hist` existed
+carries an empty one, and `[].every()` is true — so without it every old card
+would have read as having just missed twice and paused on the spot. The
+trainer's `hasRecentMistake` meets the same case and answers it the same way.
+
+**Grace must forgive without promoting.** This is the part that took the
+thinking. Read naively, the rule would let a word that had only ever scraped
+into review have its first miss hold open a level it was never good enough
+for. So `holding` asks the bar what it makes of the state *but for the lapse*.
+At the lower levels, being in relearning proves the question had graduated, so
+the grace always applies. At the top, where the bar is a four-day gap and a
+miss halves it, a word that has only just got there falls under the bar on its
+own merits and still shuts the level.
+
+That is a real limit on "always exactly twice", and it is wider than it first
+looks: every miss halves the gap, so a word missed repeatedly — even with
+recoveries in between — walks its gap down under four days and then shuts the
+top level on a miss that the strike count would have forgiven. Checked by
+running it, not by reading it: a ten-day word missed, recovered and missed
+again sits at three days and closes the top level.
+
+Taken deliberately all the same. The forgiveness is for the miss, not for the
+shrinking, and the alternative — holding a level open for a word that does not
+currently hold the gap that level asks for — is worse than the inconsistency.
+The lower levels have no such bar and always get the full two.
+
+**What it cost.**
+
+- **Three tests rewritten**, each of which encoded one strike in its fixture.
+  Their intent is unchanged; they now miss twice.
+- **The lockstep test passed untouched**, which is the evidence that mattered
+  most. What the app asks and what the screen shows are the same judgement in
+  two places, and a change applied to one and not the other would have shown
+  up there across three hundred and seventy-five combinations.
+- **A near miss counts as a miss** for this, because `hist` records it as one,
+  as every other count in the app does. Near miss then miss is two.
+- **`graduated` and `mastered` were left exactly as they were.** `recognised`
+  — the front-door cap from 0.154 — and `quietRows` call `mastered` directly
+  and need the strict reading. A word you have just missed should still cost a
+  place at the front door: that is work in hand.

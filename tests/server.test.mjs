@@ -1600,3 +1600,129 @@ test("a backup counts the recordings on a conversation's turns", async () => {
   }
   assert.equal(got.json.manifest.counts.clips, planned.length, "and the count agrees with the plan");
 });
+
+/* ------------------------------------------------------------------
+   A shared document that cannot be read
+
+   The worst failure the app had. A host dying mid-write can leave the
+   stored document truncated, and this endpoint answered that with exactly
+   what it answers a first sync: nothing stored. The device then pushed as a
+   first write, the store refused because a file existed, the device
+   re-pulled, pushed again, was refused again, and gave up — for every
+   device on that passphrase, for ever, behind "Sync failed", with nothing
+   from that moment on ever leaving the phone.
+   ------------------------------------------------------------------ */
+
+/* What a host dying mid-write leaves: the document's own file, overwritten
+   in place, with the copy behind it untouched. */
+/** @param {string} token @param {string} bytes */
+async function damage(token, bytes) {
+  const { getStore } = await import("../server/store.js");
+  const { writeFile } = await import("node:fs/promises");
+  const store = getStore("arabic-trainer");
+  const key = createHash("sha256").update(`arabic-trainer:${token}`).digest("hex");
+  await writeFile(path.join(store.directory, encodeURIComponent(key)), bytes, "utf8");
+}
+
+test("a damaged shared document is recovered rather than locking every device out", async () => {
+  const token = createHash("sha256").update("damaged").digest("hex");
+  await api("/api/sync", { method: "POST", token, body: { data: { items: [{ id: "a" }] } } });
+  const one = await api("/api/sync", { token });
+  await api("/api/sync", {
+    method: "POST", token,
+    body: { etag: one.json.etag, data: { items: [{ id: "a" }, { id: "b" }] } },
+  });
+
+  /* The host dies mid-write: the right name, the wrong length. Written
+     straight to the file, because that is what a crash does — going
+     through the store would rotate the copy behind it, which is the thing
+     under test. */
+  await damage(token, "{ half a doc");
+
+  const pull = await api("/api/sync", { token });
+  assert.equal(pull.status, 200);
+  assert.equal(pull.json.lost, "recovered", "it says the copy was damaged");
+  assert.equal(pull.json.data.items.length, 1, "and hands back the copy behind it");
+  assert.ok(pull.json.etag, "with an ETag, which is what lets the device replace the wreckage");
+
+  /* And the device's ordinary next push goes through, which is the whole
+     point: no lockout. */
+  const heal = await api("/api/sync", {
+    method: "POST", token,
+    body: { etag: pull.json.etag, data: { items: [{ id: "a" }, { id: "b" }, { id: "c" }] } },
+  });
+  assert.equal(heal.status, 200, heal.text);
+  assert.equal((await api("/api/sync", { token })).json.data.items.length, 3);
+});
+
+test("with nothing readable behind it, the device is still not locked out", async () => {
+  const token = createHash("sha256").update("nothing-behind").digest("hex");
+  /* A first write, then damage — so the copy behind it is the absent one. */
+  await api("/api/sync", { method: "POST", token, body: { data: { items: [{ id: "a" }] } } });
+  await damage(token, "");
+
+  const pull = await api("/api/sync", { token });
+  assert.equal(pull.json.lost, "unreadable", "it says so rather than pretending");
+  assert.equal(pull.json.data, null);
+  assert.ok(pull.json.etag);
+  const heal = await api("/api/sync", {
+    method: "POST", token,
+    body: { etag: pull.json.etag, data: { items: [{ id: "z" }] } },
+  });
+  assert.equal(heal.status, 200, "this device's copy replaces it");
+});
+
+test("a push that would empty a document that is not empty is refused", async () => {
+  /* There is no legitimate way to reach this: a device with nothing on it
+     pulls before it pushes, so what it sends carries whatever was there.
+     What is left is a merge that lost everything, and one request is
+     enough to make that permanent. */
+  const token = createHash("sha256").update("would-empty").digest("hex");
+  await api("/api/sync", { method: "POST", token, body: { data: { items: [{ id: "a" }, { id: "b" }] } } });
+  const read = await api("/api/sync", { token });
+
+  const wipe = await api("/api/sync", {
+    method: "POST", token,
+    body: { etag: read.json.etag, data: { items: [] } },
+  });
+  assert.equal(wipe.status, 409);
+  assert.equal(wipe.json.error, "would-empty");
+  assert.equal(wipe.json.held, 2, "and says what it is protecting");
+  assert.equal((await api("/api/sync", { token })).json.data.items.length, 2, "untouched");
+
+  /* A learner who has genuinely removed every card has the headstones to
+     show for it, and says so. */
+  const meant = await api("/api/sync", {
+    method: "POST", token,
+    body: { etag: read.json.etag, data: { items: [], tombstones: { a: 1, b: 1 } }, allowEmpty: true },
+  });
+  assert.equal(meant.status, 200, meant.text);
+  assert.deepEqual((await api("/api/sync", { token })).json.data.items, []);
+});
+
+test("an unreadable record fails the request rather than reading as absent", async () => {
+  /*
+   * Every list on the courses endpoint filters out what it could not read
+   * and answers `ok`, so one unreadable record came back as a complete
+   * answer with that record missing — and on a student's device a course
+   * card missing from the answer is a card the teacher withdrew: removed,
+   * and marked deleted so the next sync removes it from their other
+   * devices too. A disk hiccup destroyed a learner's progress on a whole
+   * deck, everywhere.
+   */
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Ziad" } });
+  const key = made.json.key;
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Lesson 1", description: "", lang: "ar-PS" },
+  });
+  assert.equal(deck.status, 200, deck.text);
+
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+  await store.set(`deck:${deck.json.deck.id}`, "{ not json");
+
+  const listed = await api("/api/courses?action=my-decks", { key });
+  assert.equal(listed.status, 500, "the request fails");
+  assert.equal(listed.json.error, "server");
+  assert.match(String(listed.json.detail), /unreadable/, "and says what could not be read");
+});
