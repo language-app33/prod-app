@@ -25,6 +25,15 @@ import {
   GRAMMAR,
   guessKind,
   LANGUAGES,
+  tablesOf,
+  specOf,
+  verbOf,
+  attachedOf,
+  dimsOf,
+  dimsFor,
+  agreementOf,
+  lendsForm,
+  categoriesOf,
   supportsContext,
   TYPES,
   EX,
@@ -637,4 +646,118 @@ test("a hint that gives the answer away is declared as one, and nothing else is"
     const tells = spec.hintField === "lat" && spec.answerField === "ar" && spec.answerMode === "ar";
     if (tells) assert.ok(spec.hintTells, `${t}: its hint is the word it asks for — say so with hintTells`);
   }
+});
+
+/* ------------------------------------------------------------------
+   The tables a language declares, by name
+
+   Two of them used to be named fields on the pack, and a third table would
+   have been a third field, a third accessor and a third branch wherever the
+   two were told apart. A pack declares what it has under a name, and each
+   table says what its cells wait on and whether every form carries one.
+   ------------------------------------------------------------------ */
+
+test("every table a pack declares has rows and columns, and every row name is the pack's alone", () => {
+  for (const lang of Object.values(LANGUAGES)) {
+    const tables = tablesOf(lang);
+    const rows = new Set();
+    for (const [name, spec] of Object.entries(tables)) {
+      assert.ok(spec.tenses.length > 0 && spec.persons.length > 0, `${lang.id} ${name} has an empty axis`);
+      /* The invariant everything stands on: a cell says which table it is
+         in by the row it sits in, so no two tables may share a row name. */
+      for (const t of spec.tenses) {
+        assert.equal(rows.has(t.id), false, `${lang.id}: row "${t.id}" is in two tables`);
+        rows.add(t.id);
+      }
+    }
+  }
+});
+
+test("the verb and the pronouns are still found by name, and the rest by the registry", () => {
+  const ar = LANGUAGES["ar-PS"];
+  assert.equal(verbOf(ar), specOf(ar, "verb"));
+  assert.equal(attachedOf(ar), specOf(ar, "attached"));
+  assert.ok(specOf(ar, "agreement"), "Arabic adjectives agree");
+  assert.ok(specOf(ar, "counted"), "and its numbers take a feminine form");
+  assert.equal(specOf(ar, "no-such-table"), null);
+  assert.equal(specOf(null, "verb"), null);
+  /* Huế lays out a verb and nothing else. */
+  const vi = LANGUAGES["vi-Hue"];
+  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb"]);
+  assert.equal(specOf(vi, "agreement"), null);
+  /* Hebrew agrees in number and gender at once, so its plural is two cells. */
+  assert.deepEqual(must(specOf(LANGUAGES["he-IL"], "agreement"), "Hebrew agreement").persons.map((p) => p.id),
+    ["feminine", "masc-plural", "fem-plural"]);
+});
+
+test("a table says what its cells wait on, and whose it is", () => {
+  const ar = LANGUAGES["ar-PS"];
+  assert.equal(must(verbOf(ar), "verb").gate, "rows", "one tense of a verb is ever new at a time");
+  assert.equal(must(attachedOf(ar), "attached").gate, "word", "the pronouns wait on the word");
+  assert.equal(must(attachedOf(ar), "attached").perForm, true, "and every form carries its own");
+  assert.equal(must(specOf(ar, "agreement"), "agreement").gate, "word");
+  assert.equal(!!must(specOf(ar, "agreement"), "agreement").perForm, false, "an adjective's forms are the card's");
+  /* What it is called to a teacher, where the rows do not say. */
+  assert.ok(must(specOf(ar, "agreement"), "agreement").label);
+  assert.ok(must(specOf(ar, "counted"), "counted").label);
+});
+
+test("what a kind of word lays out, and what it is asked about, is the category's answer", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const cat = (/** @type {string} */ id) => must(categoriesOf(ar).find((c) => c.id === id), id);
+  assert.equal(cat("adjective").table, "agreement");
+  assert.equal(cat("number").table, "counted");
+  assert.equal(cat("noun").table, "attached");
+  assert.equal(cat("verb").table, "verb");
+  assert.equal(cat("pronoun").table, undefined);
+  /* The axes each is asked about, within the pack's own. */
+  const fields = (/** @type {string} */ id) => dimsFor(ar, id).map((d) => d.field);
+  assert.deepEqual(fields("noun"), ["number", "gender", "human"]);
+  assert.deepEqual(fields("name"), ["number", "gender"], "a name keeps its number: the verb beside it reads it");
+  assert.deepEqual(fields("pronoun"), ["number", "gender"]);
+  assert.deepEqual(fields("preposition"), []);
+  assert.deepEqual(fields("verb"), []);
+  assert.deepEqual(fields("adjective"), [], "its number and gender are its table");
+  /* A kind nobody has said, or a pack that says nothing, is asked everything the pack has. */
+  assert.deepEqual(fields(""), dimsOf(ar).map((d) => d.field));
+  assert.deepEqual(fields("particle"), dimsOf(ar).map((d) => d.field));
+  /* Hebrew has no person-or-thing rule, so the shared list's "human" is
+     not asked there — the category's list is within the pack's. */
+  assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "noun").map((d) => d.field), ["number", "gender"]);
+  assert.deepEqual(dimsFor(LANGUAGES["vi-Hue"], "adjective"), []);
+  assert.deepEqual(dimsFor(null, "noun"), []);
+});
+
+test("which kinds of word agree out of a table, and which do not", () => {
+  const ar = LANGUAGES["ar-PS"];
+  assert.ok(agreementOf(ar, "adjective"), "an adjective agrees");
+  assert.ok(agreementOf(ar, "number"), "so does a number, by gender");
+  /* The pronouns on the end of a word pick nothing, and a verb's three
+     rows need a sentence to say which. */
+  assert.equal(agreementOf(ar, "noun"), null);
+  assert.equal(agreementOf(ar, "verb"), null);
+  assert.equal(agreementOf(ar, "name"), null);
+  assert.equal(agreementOf(ar, ""), null);
+  assert.equal(agreementOf(LANGUAGES["vi-Hue"], "adjective"), null, "nothing agrees in Huế");
+});
+
+test("whether a noun is a person or a thing is never printed on a tag", () => {
+  const ar = LANGUAGES["ar-PS"];
+  assert.equal(labelFor({ number: "plural", gender: "masculine", human: "person" }, ar), "pl. m.");
+  assert.equal(labelFor({ number: "singular", gender: "feminine", human: "thing" }, ar), "sg. f.");
+  /* And a new form starts as a thing, which is what most nouns are. */
+  assert.equal(dimValues({}).human, "thing");
+});
+
+test("an agreeing card lends its own word only, and every other card lends every form", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const lendsBig = lendsForm(ar, { category: "adjective" });
+  assert.equal(lendsBig({ ar: "كبير" }), true, "the word");
+  assert.equal(lendsBig({ ar: "كبيرة", row: "agreement", col: "feminine" }), false, "not a form the sentence picks");
+  assert.equal(lendsBig({ ar: "كبيرين", row: "" }), true, "a plain extra form still lends");
+  const lendsBook = lendsForm(ar, { category: "noun" });
+  assert.equal(lendsBook({ ar: "كتابي", row: "attached", col: "me" }), true, "the pronouns pick nothing, so they lend");
+  assert.equal(lendsForm(ar, { category: "" })({ row: "agreement" }), true, "a card that says nothing lends everything");
+  assert.equal(lendsForm(LANGUAGES["vi-Hue"], { category: "adjective" })({ row: "agreement" }), true, "nothing agrees in Huế");
+  assert.equal(lendsForm(null, { category: "adjective" })({}), true);
 });

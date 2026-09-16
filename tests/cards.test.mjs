@@ -8,6 +8,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import { formsOf, subFormsOf } from "../src/cards.ts";
+import { must } from "./helpers.mjs";
 import { build } from "esbuild";
 import path from "node:path";
 
@@ -42,9 +45,9 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { shapeOf, shapeChoices, formsOffered,
-  initialForms, initialCells, initialLayout, storedFormsOf, asideOf, tableCellsOf,
-  canSaveWord, canSaveScene, writtenLines, ownerLabel } =
+const { shapeOf, shapeChoices, categoryChoices, tableFor,
+  initialForms, initialCells, initialCategory, storedFormsOf, asideOf, tableCellsOf,
+  canSaveWord, canSaveScene, writtenLines, ownerLabel, askParts, partAsked } =
   await import(path.join(out, "card-editor.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -81,9 +84,9 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits } =
+const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits, drillableUnits, agreeTook } =
   await import(path.join(out, "trainer.js"));
-const { defaultTypes, LANGUAGES, verbOf, attachedOf } = await import(path.join(here, "..", "src", "languages.ts"));
+const { TYPES, LANGUAGES, verbOf, attachedOf, specOf } = await import(path.join(here, "..", "src", "languages.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -338,7 +341,8 @@ test("a course card arrives saying which language it is in, on every form", () =
     "Lesson 1", "c1", "d1", () => ({}),
   );
   assert.equal(item.lang, "vi-Hue");
-  assert.equal(item.subs[0].lang, "vi-Hue");
+  assert.equal(item.forms[0].lang, "vi-Hue", "its own word");
+  assert.equal(item.forms[1].lang, "vi-Hue", "and every other form of it");
 });
 
 test("a conversation reaches the learner as a scene, with its turns drillable", () => {
@@ -361,7 +365,7 @@ test("a conversation reaches the learner as a scene, with its turns drillable", 
   );
 
   assert.equal(item.kind, "dialog", "a card with a conversation on it is a dialog");
-  assert.equal(item.en, "At the door", "the scene's name is the card's English");
+  assert.equal(item.forms[0].en, "At the door", "the scene's name is the card's English");
   assert.deepEqual(item.speakers, ["Layla", "Karim"]);
   assert.equal(item.you, 1);
   assert.equal(item.lines.length, 2);
@@ -376,6 +380,35 @@ test("a conversation reaches the learner as a scene, with its turns drillable", 
   assert.deepEqual(item.lines[0].uses, [localIdFor("w1")]);
   assert.deepEqual(item.lines[0].recs.map((/** @type {any} */ r) => r.id), ["hello"]);
   assert.deepEqual(item.lines[1].recs, [], "a line with no recording is not a broken one");
+});
+
+test("what the teacher does not ask about reaches the student that way too", () => {
+  /* Everything that reads a table reads the fields carried here, and this
+     is one more of them: a card whose pronouns are written out for reading
+     rather than for drilling would otherwise arrive with all eight of them
+     being asked. */
+  const item = cardToItem(
+    {
+      id: "k9", ar: "كِتاب", en: "book", lang: "ar-PS", ask: false,
+      subs: [
+        { ar: "كتابي", en: "my book", row: "attached", col: "me", ask: false },
+        { ar: "كُتُب", en: "books" },
+      ],
+    },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal(item.forms[0].ask, false, "the card's own word");
+  assert.equal(item.forms[1].ask, false, "and the cell");
+  assert.equal("ask" in item.forms[2], false, "while an ordinary form gains nothing");
+
+  /* And a card nobody has said anything about arrives asked, which is
+     every card written before this. */
+  const plain = cardToItem(
+    { id: "k10", ar: "شمس", en: "sun", lang: "ar-PS", subs: [{ ar: "شموس", en: "suns" }] },
+    "Lesson 1", "c1", "d1", () => ({}),
+  );
+  assert.equal("ask" in plain.forms[0], false);
+  assert.equal("ask" in plain.forms[1], false);
 });
 
 test("and an ordinary card is not turned into a scene on the way", () => {
@@ -399,14 +432,14 @@ test("a card recorded at both speeds reaches the learner as both, named", () => 
     },
     "Lesson 1", "c1", "d1", () => ({}),
   );
-  assert.deepEqual(item.recs.map((/** @type {any} */ r) => [r.id, r.label]),
+  assert.deepEqual(item.forms[0].recs.map((/** @type {any} */ r) => [r.id, r.label]),
     [["fast", ""], ["slow", "Slow"]]);
-  assert.deepEqual(item.subs[0].recs.map((/** @type {any} */ r) => [r.id, r.label]),
+  assert.deepEqual(item.forms[1].recs.map((/** @type {any} */ r) => [r.id, r.label]),
     [["subslow", "Slow"]], "a form recorded only slowly still arrives with it");
   /* And each says its speed as a field rather than only inside its name:
      the player shows one of each and picks by this, and picking by reading
      a label back is guessing. */
-  assert.deepEqual(item.recs.map((/** @type {any} */ r) => r.speed), ["regular", "slow"]);
+  assert.deepEqual(item.forms[0].recs.map((/** @type {any} */ r) => r.speed), ["regular", "slow"]);
 });
 
 test("and an item that was never a course card has only the one name", () => {
@@ -422,41 +455,79 @@ test("and an item that was never a course card has only the one name", () => {
  *
  * Two questions, not one. A verb was a third answer to the first for a
  * release, and it stopped working the moment there was a second table to
- * offer — so the kind is a word or a conversation, and which table a word
- * lays its forms out in is asked underneath. Neither is stored: a card has
- * a table when its forms carry cells in that table's rows, which is all
- * hasCells has ever read.
+ * offer — so the kind is a word, a sentence or a conversation, and which
+ * table a *word* lays its forms out in is asked underneath. Neither is
+ * stored: a card has a table when its forms carry cells in that table's
+ * rows, and it is a sentence when its own word has a blank in it.
  */
-test("a card is a word or a conversation, and nothing else", () => {
-  assert.equal(shapeOf(false), "word");
-  assert.equal(shapeOf(true), "scene");
+test("a card is a word, a sentence or a conversation, and says which by what it holds", () => {
+  assert.equal(shapeOf(null, false), "word");
+  assert.equal(shapeOf(null, true), "scene");
+  const worded = (/** @type {any} */ ar) => ({ id: "c", forms: [{ id: "c", ar, en: "x", lat: "" }] });
+  assert.equal(shapeOf(worded("كتاب"), false), "word");
+  /* The braces are in the text, so there is nothing to guess at: a card
+     with a blank in it is a sentence whichever editor wrote it. */
+  assert.equal(shapeOf(worded("{{noun}} كبير"), false), "sentence");
+  /* And turns win over blanks, because a conversation is a different
+     shape of card rather than a longer one. */
+  assert.equal(shapeOf(worded("{{noun}}"), true), "scene");
 });
 
-test("a new card may be either, and a written one stays what it is", () => {
+test("a new card may be any of the three, and a written one stays what it can", () => {
   const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  assert.deepEqual(values({ saved: false, scene: false }), ["word", "scene"]);
-  /* A written word is not offered the kind it cannot become — a scene with
-     four turns on it would have nowhere to put them — and a written
-     conversation is offered nothing at all, so the block says what it is
-     instead. */
-  assert.deepEqual(values({ saved: true, scene: false }), ["word"]);
-  assert.deepEqual(values({ saved: true, scene: true }), []);
+  assert.deepEqual(values({ saved: false, shape: "word", table: "" }),
+    ["word", "sentence", "scene"]);
+  /* A written conversation is offered nothing at all, so the block says
+     what it is instead: a scene with four turns on it would have nowhere
+     to put them. */
+  assert.deepEqual(values({ saved: true, shape: "scene", table: "" }), []);
+  /* A word and a sentence are the same card written two ways, so that
+     pair stays open both ways — writing a blank into a word is how most
+     sentences start. */
+  assert.deepEqual(values({ saved: true, shape: "word", table: "" }), ["word", "sentence"]);
+  assert.deepEqual(values({ saved: true, shape: "sentence", table: "" }), ["word", "sentence"]);
+  /* Except where the card has a table, which is content: saving it as a
+     sentence would drop it. */
+  assert.deepEqual(values({ saved: true, shape: "word", table: "verb" }), ["word"]);
+  assert.deepEqual(values({ saved: true, shape: "word", table: "attached" }), ["word"]);
 });
 
-test("and a word is offered the tables its language actually lays out", () => {
-  const values = (/** @type {any} */ t) =>
-    formsOffered(null, t).map((/** @type {any} */ c) => c.value);
-  /* Arabic lays out both, so there are three answers: neither, and one
-     each. */
-  assert.deepEqual(values({ verb: true, attached: true }), ["", "verb", "attached"]);
-  /* Huế lays out verbs and attaches nothing. */
-  assert.deepEqual(values({ verb: true, attached: false }), ["", "verb"]);
-  /* And a pack that lays out neither asks nothing: one answer is no
-     question, so the radio is not drawn at all. */
-  assert.deepEqual(values({ verb: false, attached: false }), []);
-  /* Every answer carries a line saying what it gets you, which is why this
+test("and a word is asked what kind of word it is, in the language's own list", () => {
+  const ids = (/** @type {any} */ lang) =>
+    categoryChoices(lang).map((/** @type {any} */ c) => c.value);
+  assert.ok(ids(LANGUAGES["ar-PS"]).includes("noun"));
+  assert.ok(ids(LANGUAGES["ar-PS"]).includes("verb"));
+  /* A pack that declares none is asked nothing, and its cards go on
+     saying what they are by what they hold. */
+  assert.deepEqual(ids(null), []);
+  /* Every answer carries a line saying what it means, which is why this
      is a list of rows and not a track of segments. */
-  assert.ok(formsOffered(null, { verb: true, attached: true }).every((/** @type {any} */ o) => o.note));
+  assert.ok(categoryChoices(LANGUAGES["ar-PS"]).every((/** @type {any} */ o) => o.note));
+});
+
+test("what a word is decides which table it is offered", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const viet = LANGUAGES["vi-Hue"];
+  /* A verb has its persons and tenses; a noun and a preposition take the
+     pronouns on their end. */
+  assert.equal(tableFor(ar, "verb"), "verb");
+  assert.equal(tableFor(ar, "noun"), "attached");
+  assert.equal(tableFor(ar, "preposition"), "attached");
+  /* An adjective its feminine and plural; a number its feminine. */
+  assert.equal(tableFor(ar, "adjective"), "agreement");
+  assert.equal(tableFor(ar, "number"), "counted");
+  /* And everything else is the word and whatever forms the teacher
+     writes — including a word nobody has said anything about. */
+  assert.equal(tableFor(ar, "name"), "");
+  assert.equal(tableFor(ar, "pronoun"), "");
+  assert.equal(tableFor(ar, ""), "");
+  assert.equal(tableFor(ar, "nonsense"), "");
+  /* Huế attaches nothing and nothing agrees, so a noun and an adjective
+     there have no table — which is what a category naming a table its
+     pack has not got means. Its verbs still have theirs. */
+  assert.equal(tableFor(viet, "noun"), "");
+  assert.equal(tableFor(viet, "adjective"), "");
+  assert.equal(tableFor(viet, "verb"), "verb");
 });
 
 /*
@@ -605,7 +676,7 @@ test("a cell arrives knowing where it sits and whose table it is in", () => {
     },
     "Lesson 1", "c1", "d1", () => ({}),
   );
-  const [plural, mine, ours] = item.subs;
+  const [, plural, mine, ours] = item.forms;
   assert.equal(plural.row, undefined, "a form that is not a cell gains no coordinates");
   assert.equal(mine.row, "attached");
   assert.equal(mine.col, "me");
@@ -623,10 +694,10 @@ test("a form is named after itself where it has a name, and after its place wher
     "Lesson 1", "c1", "d1", () => ({}),
   );
   /* The old shape, for every form written before forms had names. */
-  assert.equal(item.subs[0].id, `${localIdFor("k3")}-f0`);
+  assert.equal(item.forms[1].id, `${localIdFor("k3")}-f0`);
   /* And the new one, which cannot collide with it: a name is never a bare
      number, because of the tilde. */
-  assert.equal(item.subs[1].id, `${localIdFor("k3")}-f~x7`);
+  assert.equal(item.forms[2].id, `${localIdFor("k3")}-f~x7`);
 });
 
 /*
@@ -640,24 +711,60 @@ test("a form's progress follows the form, not its place in the list", () => {
   /** @param {string} id @param {number} reps */
   const form = (id, reps) => ({ id, ar: id, en: id, s: { ar2en: { phase: "review", reps } } });
   const had = [
-    { id: "srvk4", ar: "a", en: "a", s: {}, source: { cardId: "k4" },
-      subs: [form("srvk4-f~one", 3), form("srvk4-f~two", 9)] },
+    { id: "srvk4", source: { cardId: "k4" },
+      forms: [form("srvk4", 1), form("srvk4-f~one", 3), form("srvk4-f~two", 9)] },
   ];
   /* The teacher inserts a form above the two that were there. */
   const fresh = [
-    { id: "srvk4", ar: "a", en: "a", s: {}, source: { cardId: "k4" },
-      subs: [
+    { id: "srvk4", source: { cardId: "k4" },
+      forms: [
+        { id: "srvk4", ar: "a", en: "a", s: {} },
         { id: "srvk4-f~new", ar: "n", en: "n", s: {} },
         { id: "srvk4-f~one", ar: "a", en: "a", s: {} },
         { id: "srvk4-f~two", ar: "b", en: "b", s: {} },
       ] },
   ];
   const out = foldCourses(had, fresh).items[0];
-  assert.deepEqual(out.subs.map((/** @type {any} */ f) => f.id),
-    ["srvk4-f~new", "srvk4-f~one", "srvk4-f~two"]);
-  assert.equal(out.subs[0].s.ar2en, undefined, "the new form starts fresh");
-  assert.equal(out.subs[1].s.ar2en.reps, 3, "and each of the others keeps its own work");
-  assert.equal(out.subs[2].s.ar2en.reps, 9);
+  assert.deepEqual(out.forms.map((/** @type {any} */ f) => f.id),
+    ["srvk4", "srvk4-f~new", "srvk4-f~one", "srvk4-f~two"]);
+  assert.equal(out.forms[0].s.ar2en.reps, 1, "the card's own word keeps its work");
+  assert.equal(out.forms[1].s.ar2en, undefined, "the new form starts fresh");
+  assert.equal(out.forms[2].s.ar2en.reps, 3, "and each of the others keeps its own");
+  assert.equal(out.forms[3].s.ar2en.reps, 9);
+});
+
+test("a card the learner asked for stays asked for when the teacher edits it", () => {
+  /* The mark is the learner's and the card is the teacher's, and a refresh
+     takes the teacher's card whole — so without being told, the
+     forty-five-second poll would quietly clear every card anybody had
+     marked. The schedule was already carried over; this rides beside it. */
+  const had = [
+    { id: "srvk6", source: { cardId: "k6" }, priority: true,
+      forms: [{ id: "srvk6", ar: "a", en: "a", s: { ar2en: { phase: "review", reps: 4 } } }] },
+    { id: "srvk7", source: { cardId: "k7" },
+      forms: [{ id: "srvk7", ar: "b", en: "b", s: {} }] },
+  ];
+  /* The teacher has corrected the wording of both. */
+  const fresh = [
+    { id: "srvk6", source: { cardId: "k6" },
+      forms: [{ id: "srvk6", ar: "a!", en: "a!", s: {} }] },
+    { id: "srvk7", source: { cardId: "k7" },
+      forms: [{ id: "srvk7", ar: "b!", en: "b!", s: {} }] },
+  ];
+  const out = foldCourses(had, fresh).items;
+  assert.equal(out[0].priority, true, "the mark survives the teacher's edit");
+  assert.equal(out[0].forms[0].ar, "a!", "and the teacher's wording still wins");
+  assert.equal(out[0].forms[0].s.ar2en.reps, 4, "beside the progress, as before");
+  assert.equal(out[1].priority, undefined, "a card nobody marked gains nothing");
+});
+
+test("a card marked on this device only is not invented on one that has it too", () => {
+  /* The other way round: the teacher's copy never carries the mark, so a
+     card the learner has not marked must not come back marked. */
+  const had = [{ id: "srvk8", source: { cardId: "k8" }, forms: [{ id: "srvk8", ar: "c", en: "c", s: {} }] }];
+  const fresh = [{ id: "srvk8", source: { cardId: "k8" }, priority: true, forms: [{ id: "srvk8", ar: "c", en: "c", s: {} }] }];
+  const out = foldCourses(had, fresh).items[0];
+  assert.equal(out.priority, true, "what the incoming card says still stands where it says something");
 });
 
 test("and forms that gain names all at once keep the progress they had", () => {
@@ -668,19 +775,20 @@ test("and forms that gain names all at once keep the progress they had", () => {
   /** @param {string} id @param {number} reps */
   const form = (id, reps) => ({ id, ar: id, en: id, s: { ar2en: { phase: "review", reps } } });
   const had = [
-    { id: "srvk5", ar: "a", en: "a", s: {}, source: { cardId: "k5" },
-      subs: [form("srvk5-f0", 3), form("srvk5-f1", 9)] },
+    { id: "srvk5", source: { cardId: "k5" },
+      forms: [form("srvk5", 1), form("srvk5-f0", 3), form("srvk5-f1", 9)] },
   ];
   const fresh = [
-    { id: "srvk5", ar: "a", en: "a", s: {}, source: { cardId: "k5" },
-      subs: [
+    { id: "srvk5", source: { cardId: "k5" },
+      forms: [
+        { id: "srvk5", ar: "a", en: "a", s: {} },
         { id: "srvk5-f~one", ar: "a", en: "a", s: {} },
         { id: "srvk5-f~two", ar: "b", en: "b", s: {} },
       ] },
   ];
   const out = foldCourses(had, fresh).items[0];
-  assert.equal(out.subs[0].s.ar2en.reps, 3);
-  assert.equal(out.subs[1].s.ar2en.reps, 9);
+  assert.equal(out.forms[1].s.ar2en.reps, 3);
+  assert.equal(out.forms[2].s.ar2en.reps, 9);
 });
 
 /*
@@ -718,7 +826,7 @@ test("a known word's cells are asked one exercise a level", () => {
  * form, which is the whole of what 0.131 changed — one gate on the card
  * opened the plural's eight the moment the singular was recognised.
  */
-const settings = { language: "ar-PS", types: defaultTypes(), kinds: {}, perItem: 2 };
+const settings = { language: "ar-PS", kinds: {} };
 /** @param {string} phase @param {number} interval */
 const state = (phase, interval) => ({
   phase, step: 0, ease: 2.5, interval, due: 0, reps: 3, lapses: 0,
@@ -726,7 +834,7 @@ const state = (phase, interval) => ({
 });
 /** Every exercise a form could be asked, at one standing. */
 const allAt = (/** @type {any} */ s) =>
-  Object.fromEntries(Object.keys(defaultTypes()).map((t) => [t, s]));
+  Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, s]));
 
 /** @param {Record<string, any>} over @returns {any} */
 const bookCard = (over) => ({
@@ -781,11 +889,99 @@ test("a known word's cells are eased, and only those", () => {
 });
 
 /*
+ * Which rule a table's cells wait by is the table's own answer, read off
+ * the table rather than off which accessor it came from. An adjective's
+ * feminine and plural wait on the word the way the pronouns do — without
+ * anything in the trainer having been told there is such a table.
+ */
+/** @param {Record<string, any>} over @returns {any} */
+const bigCard = (over) => ({
+  id: "big", ar: "كبير", en: "big", lat: "kbiir", lang: "ar-PS", kind: "word",
+  category: "adjective", s: {}, ...over,
+  subs: [
+    { id: "big-f", ar: "كبيرة", en: "big (f)", lat: "kbiire", lang: "ar-PS",
+      row: "agreement", col: "feminine", s: {} },
+    { id: "big-pl", ar: "كبار", en: "big (pl)", lat: "kbaar", lang: "ar-PS",
+      row: "agreement", col: "plural", s: {} },
+  ],
+});
+
+test("an adjective's forms wait on the word, and ease once it is known", () => {
+  const cold = quietUnits([bigCard({})], settings);
+  assert.ok(cold.has("big-f") && cold.has("big-pl"), "both wait while the word is unread");
+  const warm = quietUnits([bigCard({ s: allAt(state("review", 1)) })], settings);
+  assert.equal(warm.has("big-f"), false, "and open with it");
+  assert.equal(warm.has("big-pl"), false);
+  const known = easedUnits([bigCard({ s: allAt(state("review", 40)) })], settings);
+  assert.ok(known.has("big-f") && known.has("big-pl"), "eased once the word is mastered");
+});
+
+test("a card carrying two tables is gated on both", () => {
+  /* The verb rule used to end the card early. Read as a loop over tables,
+     a card whose forms carried a verb's rows *and* a pronoun's row would
+     have its second table never gated at all. */
+  const card = bookCard({
+    subs: [
+      { id: "v-past", ar: "x", en: "y", lat: "", lang: "ar-PS", row: "present", col: "he", s: {} },
+      { id: "v-cmd", ar: "x", en: "y", lat: "", lang: "ar-PS", row: "command", col: "he", s: {} },
+    ],
+  });
+  const quiet = quietUnits([card], settings);
+  assert.ok(quiet.has("s-me"), "the pronouns wait on the unread word");
+  assert.ok(quiet.has("v-cmd"), "and the command waits on the present");
+  assert.equal(quiet.has("v-past"), false, "while the first row is open");
+});
+
+/*
+ * A sentence puts the agreeing form beside its noun.
+ *
+ * The values a sentence was filled with, after the draw: an adjective's
+ * own word is swapped for the form that agrees with the slot beside it,
+ * read back through the card it came from.
+ */
+test("an adjective drawn into a sentence is swapped for the form that agrees with the noun beside it", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const big = /** @type {any} */ ({
+    id: "big", lang: "ar-PS", category: "adjective",
+    forms: [
+      { id: "big", ar: "كبير", en: "big", lat: "" },
+      { id: "big-f", ar: "كبيرة", en: "big", lat: "", row: "agreement", col: "feminine" },
+    ],
+  });
+  const owners = /** @type {Record<string, any>} */ ({ big: { card: big, form: big.forms[0] } });
+  const ownerOf = (/** @type {any} */ v) => owners[v.id] || null;
+  const noun = (/** @type {Record<string, string>} */ grammar) =>
+    ({ id: "n", ar: "x", en: "y", lat: "", grammar });
+  const word = { id: "big", ar: "كبير", en: "big", lat: "" };
+
+  const she = agreeTook({ noun: noun({ number: "singular", gender: "feminine", human: "thing" }), adjective: word },
+    ["noun", "adjective"], ownerOf, () => ar);
+  assert.equal(must(she, "filled").adjective.ar, "كبيرة");
+  assert.equal(must(she, "filled").noun.ar, "x", "the noun is left as it was drawn");
+
+  const he = agreeTook({ noun: noun({ number: "singular", gender: "masculine", human: "thing" }), adjective: word },
+    ["noun", "adjective"], ownerOf, () => ar);
+  assert.equal(must(he, "filled").adjective.ar, "كبير", "and the word itself where nothing picks");
+
+  /* A value nothing owns, or a card whose forms do not agree, is left alone. */
+  const loose = agreeTook({ noun: noun({ gender: "feminine" }), adjective: word }, ["noun", "adjective"], () => null, () => ar);
+  assert.equal(must(loose, "filled").adjective.ar, "كبير");
+
+  /* A column that picks a cell the teacher left blank: nothing to ask. */
+  const half = /** @type {any} */ ({ ...big, forms: [big.forms[0], { ...big.forms[1], ar: "" }] });
+  const blank = agreeTook({ noun: noun({ number: "singular", gender: "feminine" }), adjective: word },
+    ["noun", "adjective"], () => ({ card: half, form: half.forms[0] }), () => ar);
+  assert.equal(blank, null);
+});
+
+/*
  * What a card opens as in the editor, and what a save carries — the rules
  * the four editors stand on, asked without a screen.
  */
-const arVerb = verbOf(LANGUAGES["ar-PS"]);
-const arAttached = attachedOf(LANGUAGES["ar-PS"]);
+const arLang = LANGUAGES["ar-PS"];
+const arVerb = verbOf(arLang);
+const arAttached = attachedOf(arLang);
+const arAgreement = must(specOf(arLang, "agreement"), "Arabic agreement");
 /** @param {string} row @param {string} col @param {Record<string, any>} [over] */
 const cellOf = (row, col, over = {}) => ({ ar: "x", en: "y", lat: "", clips: [], row, col, ...over });
 
@@ -812,26 +1008,60 @@ test("only a verb has its dictionary form seeded", () => {
   /* A word with pronouns on its end has cells, and is not a verb. Seeding
      it opened the card on the verb table and dropped the pronouns on save. */
   const pen = /** @type {any} */ ({ id: "p", ar: "قلم", en: "pen", subs: [cellOf("attached", "me", { ar: "قلمي" })] });
-  const cells = initialCells(pen, arVerb);
+  const cells = initialCells(pen, arLang);
   assert.deepEqual(cells.map((/** @type {any} */ c) => [c.row, c.col]), [["attached", "me"]]);
-  assert.equal(initialLayout(cells, arVerb, arAttached), "attached");
+  assert.equal(initialCategory(pen, LANGUAGES["ar-PS"], cells), "noun");
 
   /* A verb whose cited cell nobody filled gets its word put there. */
   const eat = /** @type {any} */ ({ id: "e", ar: "أكل", en: "to eat", subs: [cellOf("present", "he", { ar: "بياكل" })] });
-  const seeded = initialCells(eat, arVerb);
+  const seeded = initialCells(eat, arLang);
   assert.ok(seeded.some((/** @type {any} */ c) => c.row === "past" && c.col === "he" && c.ar === "أكل"));
-  assert.equal(initialLayout(seeded, arVerb, arAttached), "verb");
+  assert.equal(initialCategory(eat, LANGUAGES["ar-PS"], seeded), "verb");
 
   /* And a plain word has no table at all. */
-  assert.deepEqual(initialCells(/** @type {any} */ ({ id: "w", ar: "شمس", en: "sun", subs: [] }), arVerb), []);
-  assert.equal(initialLayout([], arVerb, arAttached), "");
+  assert.deepEqual(initialCells(/** @type {any} */ ({ id: "w", ar: "شمس", en: "sun", subs: [] }), arLang), []);
+  assert.equal(initialCategory(/** @type {any} */ ({ id: "w" }), LANGUAGES["ar-PS"], []), "");
+
+  /* An adjective's table cites nothing, so nothing is seeded — and a card
+     carrying one opens as an adjective, read the way the tables are
+     declared. */
+  const big = /** @type {any} */ ({ id: "b", ar: "كبير", en: "big", subs: [cellOf("agreement", "feminine", { ar: "كبيرة" })] });
+  const bigCells = initialCells(big, arLang);
+  assert.deepEqual(bigCells.map((/** @type {any} */ c) => [c.row, c.col]), [["agreement", "feminine"]]);
+  assert.equal(initialCategory(big, arLang, bigCells), "adjective");
+  assert.equal(initialCategory(big, arLang, [cellOf("counted", "feminine")]), "number");
+});
+
+/*
+ * What a card says it is when it is opened: the teacher's answer where
+ * there is one, and what the card holds where there is not.
+ */
+test("a card opens as what the teacher said, or as what it looks like", () => {
+  const ar = LANGUAGES["ar-PS"];
+  const said = /** @type {any} */ ({ id: "a", category: "adjective" });
+  assert.equal(initialCategory(said, ar, []), "adjective", "the teacher's answer wins");
+  /* Even against the table: a card is what it says it is, and the cells
+     are only read where nobody has said. */
+  const both = /** @type {any} */ ({ id: "b", category: "preposition" });
+  assert.equal(initialCategory(both, ar, [cellOf("attached", "me")]), "preposition");
+  /* A category this pack does not declare is no answer at all — the card
+     falls back to what it holds. */
+  const odd = /** @type {any} */ ({ id: "c", category: "particle" });
+  assert.equal(initialCategory(odd, ar, [cellOf("past", "he")]), "verb");
+  assert.equal(initialCategory(odd, ar, []), "");
+  /* And a language that declares no categories asks nothing, so nothing
+     is ever said. */
+  assert.equal(initialCategory(said, null, []), "");
 });
 
 test("a saved card is told what it lays out, and a new one is asked", () => {
-  assert.equal(storedFormsOf(null, arVerb, arAttached), "");
-  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("past", "he")] }), arVerb, arAttached), "verb");
-  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("attached", "me")] }), arVerb, arAttached), "attached");
-  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [{ ar: "a", en: "b" }] }), arVerb, arAttached), "");
+  assert.equal(storedFormsOf(null, arLang), "");
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("past", "he")] }), arLang), "verb");
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("attached", "me")] }), arLang), "attached");
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("agreement", "plural")] }), arLang), "agreement");
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [{ ar: "a", en: "b" }] }), arLang), "");
+  /* And a table this language does not lay out is no table here. */
+  assert.equal(storedFormsOf(/** @type {any} */ ({ subs: [cellOf("agreement", "plural")] }), LANGUAGES["vi-Hue"]), "");
 });
 
 test("the table put aside is counted, filled boxes only, and never the one on screen", () => {
@@ -867,9 +1097,212 @@ test("what can be saved: a word needs its script and its English, a scene a name
   assert.deepEqual(writtenLines([{ ar: "سلام" }, { ar: " " }, { ar: "" }]).map((/** @type {any} */ l) => l.ar), ["سلام"]);
 });
 
+/*
+ * What is asked about, and what is only written down.
+ *
+ * A form kept on the card without being drilled is the thing that had no
+ * way of being said: the only way to stop a form being asked was to delete
+ * it, which took its recordings and every student's progress with it.
+ */
+test("every form is asked about until somebody says otherwise", () => {
+  assert.equal(partAsked({ ar: "كتاب" }), true, "absent means asked");
+  assert.equal(partAsked({ ar: "كتاب", ask: true }), true);
+  assert.equal(partAsked({ ar: "كتاب", ask: false }), false);
+  assert.equal(partAsked(null), false, "nothing is not a form");
+});
+
+test("a plain word has nothing to choose between, and a word with a table does", () => {
+  const forms = [{ ar: "كتاب", en: "book" }];
+  /* One part is no question: the section is not drawn, and the tick that
+     would turn the only form off is the one the Blanks block already has. */
+  assert.deepEqual(askParts({ forms, cells: [], spec: null }).map((/** @type {any} */ p) => p.id), ["form:0"]);
+
+  /* The word, and the pronouns on the end of the word. */
+  const cells = [cellOf("attached", "me", { ar: "كتابي" }), cellOf("attached", "you", { ar: "كتابك" })];
+  const parts = askParts({ forms, cells, spec: arAttached });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0", "table:"]);
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.on), [true, true], "everything is asked until it is not");
+  assert.match(parts[1].note, /2 forms/, "and it says how many there are");
+});
+
+test("each form's own table is listed under it, and an empty one is not listed at all", () => {
+  const forms = [{ ar: "كتاب", en: "book" }, { id: "pl", ar: "كتب", en: "books" }];
+  const cells = [
+    cellOf("attached", "me", { ar: "كتابي" }),
+    cellOf("attached", "me", { ar: "كتبي", of: "pl" }),
+  ];
+  assert.deepEqual(
+    askParts({ forms, cells, spec: arAttached }).map((/** @type {any} */ p) => p.id),
+    ["form:0", "table:", "form:1", "table:pl"],
+  );
+  /* A table nobody has written is not a thing to be asked either way, so a
+     card being written from scratch opens with no section about it. */
+  assert.deepEqual(
+    askParts({ forms, cells: [], spec: arAttached }).map((/** @type {any} */ p) => p.id),
+    ["form:0", "form:1"],
+  );
+});
+
+test("a table the card carries is one line, named after the table", () => {
+  /* An adjective's feminine and plural: the card's, not each form's, so
+     one part beside the word rather than one under every form. */
+  const forms = [{ ar: "كبير", en: "big" }, { id: "x", ar: "كبيرين", en: "big (dual)" }];
+  const cells = [cellOf("agreement", "feminine", { ar: "كبيرة" }), cellOf("agreement", "plural", { ar: "كبار" })];
+  const parts = askParts({ forms, cells, spec: arAgreement });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0", "form:1", "table:"]);
+  assert.equal(parts[0].title, "The main form", "nothing stands in for the word");
+  assert.match(parts[2].title, /feminine and plural/, "and the part is called what the table is");
+  assert.match(parts[2].note, /2 forms/);
+});
+
+test("a card reopens saying what of it is drilled", () => {
+  /* The round trip the section stands on: what the teacher switched off
+     comes back switched off, rather than every save quietly turning the
+     whole card back on. */
+  const saved = /** @type {any} */ ({
+    id: "k", ar: "كِتاب", en: "book", ask: false,
+    subs: [
+      { id: "pl", ar: "كُتُب", en: "books" },
+      cellOf("attached", "me", { ar: "كتابي", ask: false }),
+    ],
+  });
+  const forms = initialForms(saved, null);
+  const cells = initialCells(saved, arLang);
+  assert.equal(partAsked(forms[0]), false, "the card's own word");
+  assert.equal(partAsked(forms[1]), true, "and a form nobody said anything about");
+  assert.equal(partAsked(cells[0]), false, "and the cell");
+});
+
+test("a form switched off takes its own table off the list with it", () => {
+  /* The pronouns on the end of a word wait on that word being known, so
+     under a form nobody is asked about they could never open. Offering the
+     tick would be offering something that does nothing. */
+  const forms = [{ ar: "كتاب", en: "book", ask: false }];
+  const cells = [cellOf("attached", "me", { ar: "كتابي", ask: false })];
+  const parts = askParts({ forms, cells, spec: arAttached });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0"]);
+  assert.equal(parts[0].on, false);
+});
+
+test("a verb is its word and its conjugations, and the cited cell is the word", () => {
+  /* Arabic cites the he-past, so that cell *is* the card's own word and is
+     the line about the word — not one of the twenty others. */
+  const forms = [{ ar: "أكل", en: "to eat" }];
+  const cells = [cellOf("past", "he", { ar: "أكل" }), cellOf("present", "he", { ar: "بياكل" })];
+  const parts = askParts({ forms, cells, spec: arVerb });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0", "table:"]);
+  assert.equal(parts[0].title, "The verb");
+  assert.match(parts[1].note, /1 form/, "the cited cell is the word, not a conjugation");
+
+  /* With nothing but the cited cell written there is no table to ask about. */
+  assert.deepEqual(
+    askParts({ forms, cells: [cellOf("past", "he", { ar: "أكل" })], spec: arVerb }).map((/** @type {any} */ p) => p.id),
+    ["form:0"],
+  );
+});
+
+test("a form switched off is dealt nothing, and the rest of the card still is", () => {
+  /* The whole point, asked of what a session would actually deal. */
+  const whole = drillableUnits(bookCard({ s: allAt(state("review", 1)) }), settings);
+  assert.ok(whole.some((/** @type {any} */ u) => u.unit.id === "s-me"), "the word's pronouns are dealt");
+  assert.ok(whole.some((/** @type {any} */ u) => u.unit.id === "book"), "and the word itself");
+
+  const off = drillableUnits(
+    bookCard({ s: allAt(state("review", 1)), states: {}, ask: false }),
+    settings,
+  );
+  assert.equal(off.some((/** @type {any} */ u) => u.unit.id === "book"), false, "the word is not");
+  assert.ok(off.some((/** @type {any} */ u) => u.unit.id === "s-me"), "its forms still are");
+
+  /* And a cell switched off, which is what a table kept for reading is
+     made of. */
+  const table = drillableUnits(
+    {
+      ...bookCard({ s: allAt(state("review", 1)) }),
+      subs: bookCard({}).subs.map((/** @type {any} */ f) =>
+        f.row === "attached" ? { ...f, ask: false } : f),
+    },
+    settings,
+  );
+  assert.equal(table.some((/** @type {any} */ u) => u.unit.id === "s-me"), false);
+  assert.ok(table.some((/** @type {any} */ u) => u.unit.id === "book"), "the word is asked as ever");
+});
+
 test("a form's table is named only where there is more than one on screen", () => {
   assert.equal(ownerLabel(0, 1), "");
   assert.equal(ownerLabel(0, 2), "the word");
   assert.equal(ownerLabel(1, 2), "form 2");
   assert.equal(ownerLabel(2, 3), "form 3");
+});
+
+/*
+ * What a card's forms are, asked in one place.
+ *
+ * A card is its own word plus the alternates it carries, and until this
+ * module the join between the two was written out by hand wherever
+ * anybody wanted the list — which is how three readers ended up meaning
+ * the same thing in three shapes. These pin what the one door answers.
+ */
+test("a card's forms are its own word first, then the rest", () => {
+  const card = { id: "k", ar: "كتاب", en: "book", subs: [{ id: "a" }, { id: "b" }] };
+  assert.deepEqual(formsOf(card).map((f) => f.id), ["k", "a", "b"]);
+  assert.deepEqual(subFormsOf(card).map((f) => f.id), ["a", "b"]);
+  /* The lead is the card itself, not a copy of its words: a reader walking
+     forms holds the same object the caller passed, so the card's own
+     recordings and schedule are the lead form's. */
+  assert.equal(formsOf(card)[0], card);
+});
+
+test("a card with no alternates is one form, and nothing at all is none", () => {
+  const alone = { id: "k", ar: "شمس", en: "sun" };
+  assert.deepEqual(formsOf(alone).map((f) => f.id), ["k"]);
+  assert.deepEqual(subFormsOf(alone), []);
+  /* A card withdrawn while somebody was looking at it, and the junk a
+     half-written draft or an older document can hold: an empty list
+     rather than a crash, which is what every reader wants of it. */
+  assert.deepEqual(formsOf(null), []);
+  assert.deepEqual(formsOf(undefined), []);
+  assert.deepEqual(subFormsOf(null), []);
+  assert.deepEqual(formsOf({ id: "k", subs: "not a list" }).map((f) => f.id), ["k"]);
+  assert.deepEqual(subFormsOf({ id: "k", subs: 7 }), []);
+});
+
+/*
+ * And that the door stays the only one.
+ *
+ * The point of the accessor is that the day a card is stored as one list
+ * of forms rather than a word plus a `subs` array, one file changes. A
+ * reader that reaches into `subs` itself would go on compiling and
+ * silently find nothing, so the rule is checked here rather than
+ * remembered.
+ *
+ * What may still name it: the door itself, an assignment (writing the
+ * field is not reading the list, and the stored shape is still `subs`
+ * until it changes), and the handful of objects that are not cards — the
+ * trainer's own draft while a card is being written, the patch it hands
+ * back, and the counts on a tile.
+ */
+test("nothing but the door reads a card's forms out of subs", () => {
+  /** @type {[string, (f: string) => boolean][]} */
+  const roots = [
+    ["src", (/** @type {string} */ f) => /\.tsx?$/.test(f) && f !== "cards.ts"],
+    ["server/api", (/** @type {string} */ f) => f.endsWith(".js")],
+  ];
+  /* A receiver that is not a card. Named rather than counted, so adding
+     one is a decision somebody writes down. */
+  const notCards = ["patch", "d", "draft", "counts"];
+  /* `something.subs`, where something is a name — so `...subs` and a bare
+     `subs:` key are not it — and not `something.subs = …`, which writes. */
+  const reads = /(?<![.\w])([A-Za-z_$][\w$]*)\.subs\b(?!\s*=[^=])/g;
+  /** @type {string[]} */
+  const found = [];
+  for (const [dir, keep] of roots) {
+    for (const file of readdirSync(new URL(`../${dir}`, import.meta.url)).filter(keep)) {
+      const source = readFileSync(new URL(`../${dir}/${file}`, import.meta.url), "utf8");
+      for (const [, who] of source.matchAll(reads)) {
+        if (!notCards.includes(who)) found.push(`${dir}/${file}: ${who}.subs`);
+      }
+    }
+  }
+  assert.deepEqual(found, [], `these read a card's forms directly — ask formsOf or subFormsOf instead:\n${found.join("\n")}`);
 });

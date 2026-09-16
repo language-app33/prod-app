@@ -27,7 +27,6 @@ const offers = (card, opts = {}) =>
     units: [{ unit: card, isSub: false, scene: null }],
     lang: opts.lang || ar,
     contextsFor: () => opts.contexts || [],
-    enabled: opts.enabled,
   });
 
 /** @param {any[]} list @param {string} type */
@@ -148,13 +147,6 @@ test("a two-line scene says what the whole-scene puzzles are waiting for", () =>
   assert.equal(find(list, "dlgorder").ready, false);
   assert.deepEqual(find(list, "dlgorder").missing, ["three lines or more"]);
   assert.equal(find(list, "dlgwhole").ready, true, "two lines is still a scene to read");
-});
-
-test("an exercise switched off is still worth trying, and says so", () => {
-  const list = offers(word(), { enabled: (/** @type {string} */ t) => t !== "en2ar" });
-  assert.equal(find(list, "en2ar").ready, true, "the card can do it");
-  assert.equal(find(list, "en2ar").off, true, "a student would not be asked it");
-  assert.equal(find(list, "ar2en").off, false);
 });
 
 test("the list reads in the order a learner would meet them", () => {

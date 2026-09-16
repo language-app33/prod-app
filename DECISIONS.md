@@ -792,3 +792,582 @@ points. Cutting it exposed that any card with a cell was being seeded with
 a verb's dictionary form, which opened a saved attached-pronoun card on the
 verb table and dropped its pronouns on save; that shipped as 0.132 on its
 own, before the split.
+
+---
+
+## A form kept without being asked about
+
+**15 September 2026** · `ask` in `src/types.ts`, `isAsked` in
+`src/scheduler.ts`, `askParts`/`AskBlock` in `src/card-editor.tsx`
+
+A card is a word and a pile of forms of it, and every one of them was
+drilled. The only way to stop any of it being drilled was to delete it —
+which took its recordings, and every student's progress on it, with it. The
+entry on verb tables above says as much in passing: a saved verb is not
+offered the change that would drop its table, and "the way out is to empty
+the table, which is the same act said honestly". It is honest, and it is
+also the only way out of a want that has nothing to do with deleting
+anything. A teacher writing a conjugation table out for a class to read is
+not asking for twenty-one more questions a day.
+
+**So a form says whether it is asked about, and absent means yes.** One
+boolean, on the forms themselves — where a cell is a form, so a table is
+covered by writing it on the cells. Nothing had to be rewritten: a card
+saved before this carries none, and anything added to a card after it
+carries none, so both are asked. It is what `langsOff` does one floor up —
+store what is switched *off*, and a thing that arrives later is in play.
+
+**Read in one place, and that place is the ladder.** `laddered` already
+says which keys a form climbs with, and already returns nothing for a cell
+of a row nobody has reached. A form switched off returns nothing there for
+the same reason, which buys the whole of the rest for free: no question
+dealt, no level outstanding on the progress screen, nothing counted
+towards how mature the card is, and every state it had still sitting there
+for the day it is switched back on. The alternative — a second gate inside
+the session builder — would have had the screen and the scheduler
+disagreeing about what was left to do, which is the bug that ladder was
+built to make impossible.
+
+**The teacher is asked about parts, and the parts are not stored.** What
+the section lists is the card's word, each further form, the pronouns on
+the end of each of them, the conjugations — which is what a teacher can
+see on screen, and is a grouping of forms and nothing more. Storing the
+grouping as well would be a second answer to what a card is made of, which
+is the thing this codebase keeps having to remove. So `askParts` derives
+the lines from the draft and `setAskPart` writes the answer onto the forms
+each line covers.
+
+Two of them cover more than they look like. Where a language cites a cell
+as the dictionary form, the card's own word *is* that cell — one word in
+two places — so the line about the word writes both and they cannot come
+apart. And a form's table of pronouns follows the form off: those wait on
+the word they are on the end of being known, so under a form nobody is
+asked about they could never open, and a tick that does nothing is worse
+than no tick. Not back on with it, though. What is asked about is the
+teacher's to say, and a table that switched itself on would be the app
+answering for them.
+
+**What it cost.** A field on the wire, and a third thing in the
+neighbourhood of `drill` — which is about the whole card being a value
+rather than something to learn, and stays exactly what it was. The line
+between them is that `drill` is a fact about the card and `ask` is a fact
+about one form of it; a card with every form switched off is not a value,
+it is a card with nothing to ask, and the section says so in those words
+rather than pretending the two are the same. And `isDrillable` had to stop
+asking the card's own word alone — a verb whose table is the lesson and
+whose dictionary form is there to be read would otherwise have vanished
+from the list of what can be practised while its forms were being
+practised. It qualifies through its units now, the way a conversation
+always has.
+
+**What is left out.** Switching an *exercise* off on a card. Which
+exercises a form is asked is answered twice already — by the ladder, which
+opens them in order, and by the learner's own settings — and a third
+answer on the card would be somewhere for the three to disagree. The
+parts are forms, which is what the card is made of.
+
+---
+
+## What a word is, the teacher says
+
+**15 September 2026** · `WORD_CATEGORIES` and `categoriesOf` in
+`src/languages.ts`, `categoryChoices`/`tableFor`/`initialCategory` in
+`src/card-editor.tsx`, `category` on the card
+
+Two entries above rest on the same claim: nothing stored says "verb". *The
+editor's three kinds are not the four stored kinds* and *A table is a table*
+both say a card's shape is derived — a verb card is one whose forms carry
+cells in the verb's rows, and the editor reads that off the rows rather than
+off a label.
+
+Deriving it was right about the table and wrong about the card. The rows a
+cell sits in say which table it is; they do not say what the word is, and
+the editor needed that second answer to know what to offer. So it guessed,
+and the guess was "has it got cells, and in whose rows" — which is how a
+saved word with pronouns on its end opened as a verb, had its pronouns put
+aside, and lost them on the next save (0.132). A card carrying nothing yet
+could not be guessed at all, so the teacher was asked a question in the
+app's own vocabulary instead: *Just this word · A verb · Attached
+pronouns*, which is a question about machinery.
+
+**So a card says what kind of word it is, and the table follows.** Noun,
+verb, adjective, preposition, pronoun, name, number, or something else —
+the language pack's own list, because parts of speech are a language's
+answer and not this app's. A noun and a preposition take the pronouns on
+their end; a verb has its persons and tenses; the rest are the word and
+whatever forms the teacher writes.
+
+**What is still derived, and deliberately.** The table. `verbs.ts` is
+untouched: a cell belongs to whichever table declares its row, `hasCells`
+reads that, and nothing in the scheduler, the session or the server has
+learnt a new word. The category decides only what the *editor* offers. That
+line matters — it is what keeps this one field from becoming a second
+source of truth about content that already says what it is.
+
+**And nothing about drilling reads it.** It would have been easy to make a
+name un-drilled by category, or to let the category pick which blank a card
+fills. Both are real and both are later: `drill` and `fills` are the
+teacher's answers today, and changing what they mean in the same release
+that introduces the field would be two changes wearing one coat.
+
+**Why one noun rather than two.** "A noun with pronouns" and "a noun
+without" is one part of speech asked as two, and the difference is already
+visible: the table is either filled in or it is not. A noun in a language
+that attaches nothing — Huế — is a noun with no table under it, which is
+what a category naming a table its pack has not got means.
+
+**It sits beside `kind`, which is a different question.** Word, phrase and
+sentence are read off the text and always were: how long a card's words
+are is not something a teacher should have to declare, and it decides
+things about exercises that a part of speech does not. The category is the
+one thing about a card no amount of reading the script will tell you.
+
+**What it costs.** A card written before the question carries no answer.
+The editor works one out from what the card holds — a verb's table makes it
+a verb, pronouns make it a noun — and shows it *selected* rather than
+storing it quietly, so a teacher opening an old card sees what it looks
+like and can say otherwise. Nothing is written until they save. A card
+whose table already has something in it is still told what it is rather
+than offered the change, which is 0.120's rule unchanged: the table is the
+content, and offering to swap it is offering to throw it away.
+
+---
+
+## A card is its forms
+
+**15 September 2026** · `src/cards.ts`, `Item`/`Card` in `src/types.ts`,
+`liftItem` in `src/ArabicTrainer.tsx`, `forms` on the stored card and on the
+wire
+
+A card was a form with a list of other forms beside it: its own word lived
+on the card, and its alternates in `subs`. Two shapes for one kind of
+thing, and the seam between them was written out by hand wherever anybody
+wanted the whole list — `[card, ...subs]` in one place, a push then a loop
+in another, a filter over `subs` in a third. 0.136 put one door in front of
+that (`formsOf`); this moves the stored shape to what every reader already
+believed.
+
+**Why it was worth moving rather than leaving the door in place.** The
+duplication was not in the walking, it was in the *describing*. Every fact
+that belongs to a form had to be declared twice — once as a field of the
+card, once inside `subs` — and the two drifted every time: a sub-form had
+no id until 0.131, `ask` needed a card-level answer beside the per-form
+one, and a cell of a pronoun table had to invent `of` to say "I belong to
+the card's own word". One list means one description, so the next per-form
+field is written once.
+
+**Lift on read, not a migration.** `formsOf` reads a card written the old
+way as the list it always meant, and `liftItem` writes the new shape back
+the first time a document is loaded. A card from a course, a card synced
+from a device on an older build and a card in an exported file all come
+through the same door. Nothing is rewritten on the server: the whitelist
+stores one `forms` list, and a client too old to read it is not supported —
+the app updates itself, and holding a second shape on disk for builds
+nobody is running is the cost this whole change exists to remove.
+
+**What had to be decided rather than translated.** Three questions used to
+be answered by the card and the form being the same object:
+
+- *Which language is this form in?* The card carries it. Every builder of
+  an item — the course reader, the editor, the document lift — stamps it
+  onto each form, which is what `Form.lang` always said and was only true
+  of the lead one by accident. A sub-form of a Vietnamese card used to be
+  read in whichever language the app happened to be set to.
+- *Is this card a conversation?* `isDialog` reads the turns, and a form
+  carries none. The whole-scene questions — read it through, put it back in
+  order — are asked of the scene's own word, and the dialog index says so:
+  it places that word at `WHOLE_SCENE`, beside the turns it places at their
+  own numbers. One question ("where does this unit stand in its scene"),
+  one answer shape.
+- *Has this card a hole in it?* `slotsOf` and `valueOf` read the card's own
+  word, so "is this a frame" and "what does this card lend a blank" are
+  answered the same whether a card or a form is handed in. A plain form is
+  its own lead, which is what makes that work.
+
+**What it costs.** `leadOf` allocates on a card written the old way, and
+`slotsOf` and `valueOf` now ask it on every call — measured against the
+smoke harness and lost in the noise, and the alternative was a second
+argument on a dozen functions. The bigger cost is the one above: three
+facts that used to be free now have to be carried deliberately, and a
+fourth of its kind will too. That is the honest price of the card and the
+form being different things, which they are.
+
+---
+
+## What a card says it is, is what it fills
+
+**15 September 2026** · `fillsOf` and `lentBy` in `src/variables.ts`,
+`ownSlot` in `src/verbs.ts`, the `valueIndex` and `valueReach` memos in
+`src/ArabicTrainer.tsx`, `SentenceEditor` in `src/card-editor.tsx`
+
+A blank used to be named on both sides: a card wrote `{{name}}` in its
+words, and every card that could fill it carried the word "name" in
+`fills`. That is right for a hole with a particular sort of thing in it and
+wrong for nearly everything else, and it is the reason `{{word}}` exists at
+all — naming every word in a deck one at a time is filing rather than
+teaching. 0.137 had the teacher say what kind of word each card is. This
+release reads that answer as the second half of the same sentence: **a
+blank named after a kind of word is filled by the cards that say they are
+one.**
+
+**Why the category and not a new field.** The alternative was a "what can
+this fill" list on every card, which is the `fills` field again with more
+boxes. The category is already the teacher's answer to a question they were
+already asked, and 0.137's own entry named this as the change it was
+deliberately not making yet ("it would have been easy to let the category
+pick which blank a card fills — that is real and it is later"). Later is
+here, and nothing about `fills` or `drill` has changed meaning: a card that
+exists only to fill a hole still says so, and still belongs to no deck.
+
+**variables.ts still knows no language.** It matches a slot name against the
+card's `category` string and never asks what categories exist. A pack that
+declares none fills none; a teacher whose pack has no `noun` may still name
+a blank `noun` and write the cards that fill it, exactly as before. Which
+names a language has is the pack's business, here as everywhere.
+
+**Every form lends, each under its own name.** A card is its forms (0.138),
+and every one of them is a word a sentence could be about — the plural, one
+cell of a verb's table. They lend under the *form's* id rather than the
+card's, which is what makes the gating right: how far a learner has climbed
+is a fact about a form, and so is a frame's record of having met one. The
+card's own word keeps the card's id where the form carries none, so every
+record already written still points at the same thing and nothing had to be
+migrated. A form the teacher keeps without asking about lends nothing: it
+has no ladder to read, so a hole filled with it would hold a word nobody is
+ever taught.
+
+**`{{verb}}` means two things, and the form says which.** On a verb card's
+own sentence — a row and no column — it is the card's own place, filled
+from the table below it by whatever fills the subject. Anywhere else it is
+an ordinary blank named after a kind of word. That was decided by `ownSlot`
+rather than by a flag because the two readings differ by a fact the form
+already carries, and the alternative was a sentence card that could name
+every kind of word its language has except the one a sentence most needs.
+
+**A sentence is read off the card, not stored.** The braces are in the text,
+so "has this card a blank in it" is a reading rather than a guess — which is
+what separates it from the table, where two tables that look alike had to be
+asked about (0.137). Nothing is stored saying "sentence"; a card that loses
+its last blank is a phrase again. The editor's third answer is a choice
+about which editor you get, and a sentence saves no category, because a
+sentence is not a part of speech and a card claiming to be one would be
+offering to fill a hole.
+
+**What it costs.**
+
+- **Pools got bigger.** A blank now draws on every form of every card of
+  that kind, so which value a given asking lands on has moved. The rotation
+  is still an odometer over a list in the order the cards were written, so
+  it is still the same sentence for the same count — but it is not the same
+  sentence it was before this release. Nothing is lost by that; it is
+  written down because it looks like a bug the first time somebody notices.
+- **A blank is filled from what the student already has.** The server sends
+  a teacher's `fills` cards with any deck whose phrases leave a hole of
+  that name, and that was deliberately *not* extended to categories. A noun
+  is a card in its own right and belongs to a deck; bundling a teacher's
+  whole noun library onto a student because one sentence says `{{noun}}`
+  would make a deck mean nothing. The cost is a sentence that cannot be
+  asked until the words reach the student, which the editor reports as the
+  blank having nothing to fill it.
+- **A card with a blank fills nothing at all now,** where before a frame
+  carrying `fills` still stood in other cards' holes. That was the
+  documented intent and the undocumented exception; the exception is gone.
+
+---
+
+## A language declares its tables by name
+
+**16 September 2026** · `tables` on the pack and `gate`/`perForm`/`label`
+on `VerbSpec` in `src/types.ts`; `tablesOf`/`specOf`/`dimsFor`/`agreementOf`
+in `src/languages.ts`; `quietUnits`/`easedUnits` in `src/ArabicTrainer.tsx`;
+`tableFor`/`storedFormsOf`/`initialCategory`/`askParts` and `TableEditor`
+in `src/card-editor.tsx`; `GRAMMAR.human`
+
+*A table is a table* said a verb's table is sub-forms seen through two
+axes, and everything downstream took a second table without being told.
+What stayed named was the **registry**: two fields on the pack, a closed
+union on the category, two accessors, and fourteen places in the editor
+that asked *which accessor* a spec came from. A third table would have been
+a third field, a third accessor and a third branch at each — and the owner
+had just pointed out that six of the eight kinds of word bought nothing.
+
+**So the pack declares its tables by name**, and a table says the two
+things about itself that are not its rows and columns: what its cells wait
+on (the row above, or the word) and whether every form carries one or the
+card does. The gating rules did not change a line; which rule applies is
+read off the table, and the loop over them is one loop. `verbOf` and
+`attachedOf` stay, because two callers genuinely want *the verb table by
+name* — a verb's own sentence, and the dictionary form — and a name is what
+they were asking for all along.
+
+**Editors stay separate.** The fourth is a list of blocks like the other
+three, chosen by two facts on the spec, and the choice still lives in the
+shell. `VerbBlock` became `TableBlock` because it draws any table the card
+carries; the verb's editor differs from the new one by a name to list it
+under, which is the citation's business and nobody else's.
+
+**Number's table is not the adjective's with a cell left blank.** The
+reason is the picks, not the blank: the noun a number counts is plural, so
+an agreement table's plural column would fire on every counted noun and
+select a cell nobody fills. A number's column picks on gender alone. And
+Hebrew's agreement table is not Arabic's — feminine, masculine plural and
+feminine plural — which is itself the argument for a registry where each
+pack declares its own columns.
+
+**Fields per kind are display only.** Each category lists the axes it is
+asked about, within the pack's own list, so the shared category list can
+name an axis and Huế, which has none, is untouched. Storage stays wide:
+`dimValues`, `grammarFields` and the server whitelist walk every axis, so
+nothing saved changes meaning and a value written before the kinds narrowed
+is kept. A name keeps its number as well as its gender because the verb
+beside it reads both to choose *he* or *she*; a name with no number would
+silently stop agreeing.
+
+**Person or thing is an axis that never labels anything.** It exists for
+one rule — a plural of things takes the feminine singular adjective — and
+is asked only of nouns. It would have printed "thing" on every noun's tag,
+so an axis may now carry its own short forms, and this one's are empty.
+
+**What it costs.** One more question on every noun card. One checklist
+label reworded ("Its attached pronouns"). And the reason the next release
+exists: an adjective's cells now lend themselves into `{{adjective}}` by
+turn like any other form, so a sentence can put كبيرة beside كتاب until
+agreement is built on the table this release declared.
+
+---
+
+## An agreeing card lends its word, and the sentence picks the form
+
+**16 September 2026** · `agreedValue`/`agreeWith`/`picksOf` in
+`src/verbs.ts`, `lendsForm` in `src/languages.ts`, the `lends` predicate on
+`lentBy`/`valuesFor` in `src/variables.ts`, `VALUE_OWNER` and `agreeTook`
+in `src/ArabicTrainer.tsx`
+
+0.139 had every form of a card lend itself into a blank, by turn. For a
+plural beside its singular that is right: both are words a sentence could
+be about. For an adjective it is wrong twice over — كبيرة is not a word
+"{{adjective}}" could be about, it is what كبير becomes beside a feminine
+noun — and a table declared in 0.140 for exactly that purpose was being
+read as three unrelated words.
+
+**So a card whose forms agree lends its own word only, and the sentence
+goes back to the card for the form.** Which cards those are is
+`agreementOf`: a kind of word whose table has one row and a column that
+picks. The pool stays language-blind — `lentBy` takes a predicate and
+never asks why — and the one predicate, `lendsForm`, is read by the
+session, the teacher's preview and the teaching space, so the three cannot
+disagree about which words are in a hole.
+
+**The rule is the verb's, with two additions.** A column picks on the
+filler's grammar, most specific wins, as `personFor` has always done. A
+column may now be called for by more than one kind of filler, because
+Arabic's feminine adjective is called for by a feminine singular noun *and*
+by a plural of things, which no single set of values names — so `picks` is
+one record or several, each matched on its own. And "no column picks" is
+the word itself: a masculine singular noun wants كبير, which is the word,
+where a verb's own sentence had no such case because its own word is a
+cell.
+
+**What it agrees with is the first other blank.** The same rule as the
+verb's subject, and for the same reason: the teacher who wrote the sentence
+already said which came first. "{{noun}} {{adjective}}" needs nothing more
+said.
+
+**A blank cell asks nobody.** A column that picks a cell the teacher left
+empty leaves the sentence unfilled, the way a verb's own sentence is left
+when its table has no such form — and for the same reason: nothing to ask
+and nothing to invent, and an unfilled hole on screen is a bug somebody
+notices rather than a wrong form somebody learns.
+
+**A verb from the pool still cannot agree.** Only a one-row table supplies
+its own row; a verb's three rows need a sentence to say which, and a
+sentence card has nowhere to say it. Its forms go on taking turns into
+`{{verb}}`, and the changelog says so rather than letting it look fixed.
+The honest fix is a later "a sentence says when", which is a fact on the
+sentence card and a different entry.
+
+**What it costs.** The owner index is a second map filled in the walk that
+already fills `VALUE_REACH`, keyed the same way. Which sentence a given
+count lands on moved for adjective and number cards, once, because their
+pools shrank to the word. And `fillableAt` cannot foresee a blank cell, so
+a sentence may be dealt and then left unfilled — the gap the verb's own
+sentence already has, now shared.
+
+---
+
+## "Too easy" writes the ladder directly, once, on the form that was asked
+
+**16 September 2026** · `liftLevel`/`hasLevelAbove` in `src/scheduler.ts`,
+`liftCurrent` and `easedFor` in `src/ArabicTrainer.tsx`, the `lifts` mark
+on `FLAG_KINDS` in `src/shared.tsx`
+
+A learner who already knows a word had no way past the days of exercises
+the ladder deals them. The fourth flag is that way, and three choices
+about it were not obvious.
+
+**It is not a report.** The other three flags are sent to the teacher, and
+this one is not: it is the learner's own shortcut, it needs no account, and
+the server never sees the kind. Putting it in the flag menu is a choice
+about where a learner looks for "this question was wrong for me", not about
+what happens next. The owner chose this over reporting it.
+
+**It moves the form that was asked, not the card.** A card's ladder is
+climbed form by form — the plural and each cell of a table have their own —
+and a learner who finds the singular easy has said nothing about a plural
+they have not met. The whole-card reading would have skipped it.
+
+**It writes the states directly, not through the grader.** The grader's
+"easy" would have done for a new form, but it pushes a form already in
+review far past where it was, and it moves the count of right answers —
+which is what rotates a card's spellings and blanks — for questions never
+answered. The rule instead: the bar of the *next* level, applied to every
+key below it (which is how a level opens, and why climbing from three
+re-raises one and two), the smallest interval that meets it, and nothing
+touched that is already there. At the top there is no next level, so the
+form is counted as mastered throughout.
+
+**Done on Send, and the grading on Continue then skips that form.** The
+message under the button says it has happened, so it has to have. The
+grading remembers *which question* was lifted — the question object, not a
+yes — because a session left without pressing Continue would otherwise
+carry a yes into the next session and swallow its first answer, which it
+did, in the smoke walk, before it was a question.
+
+**What it costs.** A learner who flags a hard card as easy has skipped a
+level of it and meets it again at the next; the flag is deliberately not
+behind a confirmation. And a trial records nothing, as before.
+
+---
+
+## The shape of a session is fixed, and Advanced is gone
+
+**15 September 2026** · `SESSION_SIZE`, `PER_UNIT`, `MAX_UNITS_PER_FAMILY`,
+`NEW_PER_SESSION` and `RETIRED_SETTINGS` in `src/ArabicTrainer.tsx`,
+`marking` in `src/languages.ts`
+
+The owner asked why the same cards kept coming round in practice. Most of
+the answer was not a bug: an eighteen-question session was six cards asked
+three ways each, the similar-cards grouping picked those six to be as alike
+as the due list allowed, and a card that lays out forms — a verb, a word
+with pronouns on the end — brought four of them, which made a session of
+verbs two words and eighteen questions about them. All three were settings,
+all three were on by default, and the answer was to remove the settings.
+
+**A control over how well the app teaches is not a setting.** The Advanced
+disclosure said "the defaults are sensible — open this only if you want to
+change them", which is the panel admitting what it was. If the defaults are
+sensible they are the app; if they are not, the fix is a better default.
+What made it worth deleting rather than tidying is that a learner cannot
+evaluate these: nothing on the screen connects "Exercises per form — 3" to
+"you will see nine words tonight rather than six", so the slider asks a
+question its reader has no way to answer. The same reasoning took the
+marking leniencies — whether a missing haraka is a mistake is a fact about
+Arabic, and the packs now state it in `marking` — and the hints switch,
+which was a way to learn less without being told.
+
+**The values are not the old defaults.** Freezing them would have shipped
+the complaint permanently and taken away the one workaround. Two ways per
+form instead of three, two forms per card instead of four, no grouping. An
+ordinary session is nine words rather than six; a session of verbs is five
+rather than two.
+
+**Stored values are dropped, not honoured.** `RETIRED_SETTINGS` strips them
+on load and on import. Keeping them would have been the cheaper change and
+would have meant a learner who once set harakat to "must be typed" carrying
+that for ever with nothing on any screen to say so — a hidden setting is
+worse than either answer to it.
+
+**What it costs.** Three things are no longer possible: a longer or shorter
+session, practising with an exercise type switched off, and stricter
+marking. The first two have a partial answer already in Build a session,
+which chooses cards, a mode and a length by hand. The third has none, and
+if a teacher ever needs it the place for it is the course rather than the
+learner's own settings — it is a judgement about the material.
+
+Not done here, and still true: a question answered wrong is re-asked as the
+identical question appended to the end of the session, outside the pass
+that spaces a session out, so two misses on one card land back to back.
+
+---
+
+## A learner can ask for a card, and the mark is theirs
+
+**16 September 2026** · `priority` on the card in `src/types.ts`, `isUrgent`
+and `setPriority` in `src/ArabicTrainer.tsx`, `foldCourses` in
+`src/shared.tsx`
+
+The schedule decides what a learner practises, which is the point of the
+app and is also occasionally wrong about them: the word they need for
+Tuesday, the one they keep fumbling in conversation, the one the lesson was
+about. High priority is the one override, and three things about it were
+not obvious.
+
+**It is a flag the learner clears, not one that clears itself.** The
+alternatives were "until it has been practised", which makes it a bump
+rather than a priority, and "until it has been got right", which is tidier
+and quietly decides on the learner's behalf when they are done with a word.
+The owner chose the standing mark. The cost is real and is the reason this
+is written down: mark thirty cards and every session is those thirty until
+they are unmarked. What makes that acceptable is that it is visible — the
+star is on every tile in the card list — and one tap to undo.
+
+**It outranks the rules that hold new cards back.** A card nobody has met
+is normally rationed, by the three-a-session limit and by the pause when
+ten cards are already being fought. Both of those are the app protecting
+somebody from more than they can hold, and neither is worth saying to a
+learner who has just pointed at a card. One card, chosen on purpose.
+
+**A course card's lock does not apply to it.** Cards come from courses and
+a course card is locked, which is the app saying the wording belongs to the
+teacher. What a learner wants to practise is not the wording, so this is
+written straight rather than through the editor's patch — and `foldCourses`
+has to carry it over a refresh by name, because that takes the teacher's
+card whole and would otherwise wipe every mark on the device every
+forty-five seconds.
+
+**What it costs.** A marked card is in every session, so the rest of the
+deck waits. There is no list of what is marked other than the card list
+itself, and no way to clear them all at once; if that turns out to be
+wanted, the card list is where it goes.
+
+---
+
+## A missed question rejoins the queue rather than being pushed onto it
+
+**16 September 2026** · `requeueMissed` and `varyTypes` in
+`src/ArabicTrainer.tsx`, `tests/session.test.mjs`
+
+A session is spaced out when it is built — no two questions running about
+the same card — and a question answered wrong was appended to the end of it
+afterwards, which skipped that pass. Miss both questions about one word and
+the session finished by asking about that word twice in a row.
+
+**The fix is the pass, not the place.** The retry still goes to the back of
+what is left, and that was always right: the gap is then the size of the
+rest of the sitting, which is a retest rather than a copy of an answer
+still on the screen, and it scales by itself — fifteen questions in a long
+session, three in a short one. It now looks for a slot clear of the card's
+own questions on both sides, forward from the back.
+
+An intermediate version put it a fixed three questions ahead and doubled
+that on each further miss. It was written, tested and thrown away: with
+every answer wrong it took three times as many questions to meet the
+material once, which the smoke walk caught by running out of turns before
+it had been asked half the exercises in the deck. A learner who is
+struggling is exactly who should not be made to grind the first three cards
+before seeing the fourth.
+
+**Where there is nothing to stand between, it stands next to itself.** The
+last question of a session, missed, is asked again immediately. Dropping it
+was tried and is worse: a session of one question would end the moment it
+was got wrong, having taught nothing, and Ultimate promises in as many
+words to repeat what you miss until you have it right.
+
+**The spacing pass now changes the word before the question.** Where it
+could not have both, it used to keep the card and change the exercise type.
+Two words in a row asked the same way is barely a texture; the same word
+twice running is what a learner writes in to complain about.
+
+**What it costs.** Both functions are exported solely so they can be
+tested, which is how the second of these was found — the first attempt
+passed every test that was written before it and failed one written after.

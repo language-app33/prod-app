@@ -36,6 +36,7 @@
 
 import type { Item, Line } from "./types.ts";
 import { PICK_OPTIONS, optionsFor, shuffledBy } from "./chance.ts";
+import { leadOf } from "./cards.ts";
 
 /* A card, a line of one, or the half-written draft in an editor.
    Deliberately open: the same questions are asked of all three, and only
@@ -49,11 +50,25 @@ export type Scene = Record<string, any> | null | undefined;
    divergence this file exists to prevent. */
 export type { Line };
 
-/* Where a line stands in the scene it belongs to. */
+/* Where a unit stands in the scene it belongs to. */
 export interface Placed {
   card: Item;
   at: number;
 }
+
+/*
+ * The place a scene's own word stands: the whole of it, rather than any
+ * one turn.
+ *
+ * A conversation carries two kinds of question — the ones about the
+ * conversation (read it through, put it back in order) and the ones about
+ * a turn in it. The first used to be asked of the card itself, because the
+ * card *was* its own first form; since 0.138 a card is a list of forms and
+ * its own word is the first of them, so the whole-scene questions are
+ * asked of that word. This is how it says which scene it is the word of —
+ * the same question a line answers, with the same answer shape.
+ */
+export const WHOLE_SCENE = -1;
 
 export const DIALOG_KIND = "dialog";
 
@@ -256,6 +271,12 @@ export function buildDialogIndex(items: Item[]): Map<string, Placed> {
   const index = new Map<string, Placed>();
   for (const card of items || []) {
     if (!isDialog(card)) continue;
+    /* The scene's own word, standing for the whole conversation. Without
+       it the questions about the conversation had nothing to ask them of:
+       a card's own word is a form like any other and carries no turns, so
+       nothing could tell it apart from an ordinary word. */
+    const word = leadOf(card);
+    if (word.id) index.set(word.id, { card, at: WHOLE_SCENE });
     linesOf(card).forEach((line, at) => {
       if (line && line.id) index.set(line.id, { card, at });
     });
@@ -379,16 +400,21 @@ export const partAnswers = (typed: string): string[] => String(typed || "").spli
  * being able to read in one place.
  */
 export function dialogNeedMet(need: string, scene: Placed | null, unit: Record<string, any>): boolean {
-  if (need === "dialog") return isDialog(unit);
-  if (need === "line") return !!scene;
+  /* The conversation these are questions about: the one the unit was
+     placed in, or — for a caller holding a whole card, which the editor
+     and the teaching space both do — the unit itself. */
+  const card = scene ? scene.card : unit;
+  if (need === "dialog") return isDialog(card);
+  /* A turn, which the scene's own word is not. */
+  if (need === "line") return !!scene && scene.at !== WHOLE_SCENE;
   /* Something has to have been said before there is a reply to make. */
   if (need === "reply") return !!scene && scene.at > 0;
   if (need === "choices") return !!scene && linesOf(scene.card).length >= MIN_PICK_LINES;
-  if (need === "order") return linesOf(unit).length >= MIN_ORDER_LINES;
+  if (need === "order") return linesOf(card).length >= MIN_ORDER_LINES;
   /* A part to play, and somebody to play it against. Asked of the parts
      rather than of `you`, because a scene that names no part still has
      them — the question picks one. */
-  if (need === "part") return partsToPlay(unit).length > 0 && linesOf(unit).length >= 2;
+  if (need === "part") return partsToPlay(card).length > 0 && linesOf(card).length >= 2;
   return false;
 }
 
@@ -404,6 +430,8 @@ export const DIALOG_NEEDS: string[] = ["dialog", "line", "reply", "choices", "or
  */
 export function roleOf(unit: Scene, scene: Placed | null = null): "card" | "line" | "word" {
   if (isDialog(unit)) return "card";
-  if (scene) return "line";
+  /* A scene's own word stands for the whole conversation; anything else
+     placed in one is a turn. */
+  if (scene) return scene.at === WHOLE_SCENE ? "card" : "line";
   return "word";
 }

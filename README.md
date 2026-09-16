@@ -33,11 +33,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
   the scheduler reads both.
 
-  Two questions ask for the word in the script and offer its
-  transliteration as a nudge — *English → script* and *fill the gap*. On
-  those the nudge is the answer said another way, so it is never opened by
-  itself and an answer written with it up is marked as a near miss:
-  `hintTells` in `src/languages.ts`.
+  A nudge — the pronunciation, or the meaning — is beside every question
+  that has one, closed until it is asked for. Two questions ask for the
+  word in the script and offer its transliteration: *English → script* and
+  *fill the gap*. On those the nudge is the answer said another way, so an
+  answer written with it up is marked as a near miss: `hintTells` in
+  `src/languages.ts`.
 
   **The same ladder is what a learner is shown.** `standings` in the
   scheduler reads a card as one row per level it has material on, each
@@ -49,10 +50,43 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   combination to hold them together. `standing` picks the one row to put
   on a card. The Progress tab counts cards by level, and a card's own
   screen lists them.
-- **New cards are introduced only while there is room.** Beyond the
-  per-session limit in the settings, nothing new is dealt while ten cards
-  are already being learnt or forty are young and still coming back for
-  review. A card's phase is read over the levels it has reached: *New* is
+- **The shape of a session is the app's to decide, not the learner's.**
+  Eighteen questions; each form asked two ways where its data allows; at
+  most two forms of any one card; three new cards at the outside; easiest
+  first. Cards are taken in the order they fell due, with chance between
+  everything the due list calls equal, and nothing gathers similar words
+  together. The numbers are `SESSION_SIZE`, `PER_UNIT`,
+  `MAX_UNITS_PER_FAMILY` and `NEW_PER_SESSION` in `src/ArabicTrainer.tsx`,
+  beside `buildSession` which is the only thing that reads them.
+
+  They were six sliders under an Advanced disclosure, under a sentence
+  saying the defaults were sensible — and two of the defaults were why the
+  same handful of words kept coming round. Three exercises a form made an
+  eighteen-question session six cards; letting a card bring four of its
+  forms made a session of verbs two words and eighteen questions about
+  them; and grouping similar cards made sure those few were as alike as
+  the due list allowed. A setting is not the answer to that, because the
+  learner cannot see what it costs them. Marking leniency went the same
+  way: what counts as a near miss is a fact about the language, so each
+  pack states it in `marking` and nobody is asked to rule on harakat
+  before they can read one.
+
+- **A learner can ask for a card.** Marking one *high priority* on its own
+  screen, under Cards, is the one place a learner overrides the schedule:
+  the card counts as waiting however far off its next review is, opens the
+  next session, and stays in every session until the mark is taken off.
+  Nothing underneath it moves — what has been learnt, and when the card
+  would have come round anyway, are both still there when the mark goes.
+  `priority` on the card, `isUrgent` in `src/ArabicTrainer.tsx`, which the
+  count of what is ready and the session builder both read so the two
+  cannot come to disagree. It is the learner's and not the teacher's, so it
+  is written through a course card's lock rather than refused by it, and
+  `foldCourses` carries it over a refresh beside the schedule.
+
+- **New cards are introduced only while there is room.** Beyond the three
+  a session may open, nothing new is dealt while ten cards are already
+  being learnt or forty are young and still coming back for review. A
+  card's phase is read over the levels it has reached: *New* is
   never met, *Learning* is met and not yet through the steps somewhere,
   *Young* is graduated everywhere it is open, *Mature* is three weeks out
   everywhere.
@@ -86,6 +120,58 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   because meeting كتابي before كتاب is meeting a word you have not learnt in
   a shape you cannot read. Which table a cell belongs to is read off the row
   it sits in, so one card never lays out both.
+- **A language declares the tables it lays a word out in, by name.** A
+  verb's persons and tenses, the pronouns on the end of a word, an
+  adjective's feminine and plural, a number's feminine — each a table of
+  cells over the card's own sub-forms, told apart by the row a cell sits
+  in. A table says what its cells wait on (the row above, as a verb's do,
+  or the word itself, as pronouns do — which also means one exercise a
+  level once the word is known) and whether every form carries one or the
+  card does; the trainer reads those two facts and knows no table by name
+  except the verb's, which its own sentence and the dictionary form ask for.
+  What kind of word a card is decides which table it is offered and which
+  grammar axes it is asked about — a preposition has neither number nor
+  gender, a noun is asked whether it is a person or a thing — and nothing
+  stored is narrowed by that: `dimsFor` is display and editing, `dimValues`
+  is storage. See `tablesOf` and `WORD_CATEGORIES` in `src/languages.ts`.
+- **A form can be kept without being asked about.** A card is a word and a
+  pile of forms of it — other spellings, the pronouns on its end, every
+  person and tense of a verb — and a teacher may want some of that written
+  down for a student to read rather than drilled. Each of those is a part
+  that can be switched off in the editor: it stays on the card, keeps its
+  recordings and keeps whatever progress a student has made on it, and is
+  never asked. Stored as `ask: false` on the forms it covers, so a card
+  written before this and anything added to one later are both asked;
+  `askParts` in `src/card-editor.tsx` is what a teacher is shown, and
+  `isAsked` in `src/scheduler.ts` is what every reader goes through. A
+  form's own table follows the form off — the pronouns on the end of a
+  word wait on that word being known, so under a form nobody is asked they
+  could never open.
+- **A sentence is a card made of blanks, and the vocabulary fills them.** A
+  card may leave a hole in itself — `اسمي {{name}}` — and the question fills
+  it before anybody reads the card, with a different word next time round.
+  A blank is filled three ways, in rising order of how much filing it
+  costs the teacher. `{{word}}` takes any word in the language, with
+  nothing written on any of them. A blank named after a **kind of word** —
+  `{{noun}}`, `{{verb}}`, whichever its pack declares — takes the cards
+  that say they are one, which they already did when they said what they
+  were. And a blank with a name of the teacher's own takes the cards that
+  name it back, in `fills`, which is the only case left where anything has
+  to be written twice. Every form of a filler lends itself, not only its
+  own word: a plural stands in a sentence its singular does not, gated on
+  what that form itself has climbed. A card with a blank in it never fills
+  one — a sentence dropped into somebody else's hole is a sentence with a
+  gap where the point was — and `{{verb}}` on a verb card's own sentence
+  means its own place in it rather than any verb, which `ownSlot` in
+  `src/verbs.ts` is the one answer to. A word whose forms agree with what
+  they stand beside — an adjective, a number — lends its own word only,
+  and the sentence goes back to its card for the form the first other
+  blank calls for (`agreedValue` in `src/verbs.ts`, `agreeTook` in the
+  trainer): the cell a column picks, the word where none does, and nothing
+  where the cell is blank. The editor asks which kind of card
+  it is: a word, a sentence, or a conversation. Nothing is stored saying
+  "sentence" — the braces are in the text, so a card with a blank in it is
+  one whichever editor wrote it.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in
@@ -102,6 +188,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `turnOf` in the scheduler — so a question that was missed is the one
   asked again, rather than the miss itself turning up a sentence nobody
   has been taught.
+- **A question answered wrong is asked again before the session ends.** The
+  same question, at the back of whatever is left — so the gap is the size of
+  the rest of the sitting, which makes it a retest rather than a copy of an
+  answer still on the screen. It goes through the same spacing rule the
+  queue was built with, so it never lands beside another question about the
+  same card: `requeueMissed` beside `varyTypes`. Where nothing is left but
+  the card's own questions it is asked next, which is what keeps a session
+  of one question from ending the moment it is missed, and is Ultimate's
+  promise to repeat what you miss until you have it right.
+
 - **A matching grid is five questions.** Every word in it is asked, marked
   and scheduled in its own right. Which words stand together is decided
   when the session is built: the grid is filled out from cards already
@@ -195,7 +291,10 @@ src/
                    keyboards, exercise definitions. Imports nothing from the
                    app, so it can be read and tested on its own.
   variables.ts     a hole in a card — "My name is {{name}}" — and the cards
-                   that fill it. Pure, like the two above.
+                   and forms that fill it. Pure, like the two above.
+  cards.ts         what a card is made of: its own word and the forms it
+                   carries, as one list. The single door everything that
+                   walks a card's forms goes through. Pure, imports nothing.
   verbs.ts         a word's forms as a table over the card's own sub-forms —
                    a verb's persons and tenses, or the pronouns a language
                    attaches to the end of a word:

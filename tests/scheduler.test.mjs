@@ -30,6 +30,8 @@ import {
   freshState,
   freshStates,
   reschedule,
+  liftLevel,
+  hasLevelAbove,
   stateReady,
   maturity,
   difficulty,
@@ -322,13 +324,26 @@ const twoTypes = () => ["ar2en", "en2ar"];
    actually hold. Only `s` and `subs` are ever varied here — the rest is
    what every card carries and what the family readers walk past. */
 /**
- * @param {Partial<Item>} [over]
+ * @param {Record<string, any>} [over]
  * @returns {Item}
  */
-const card = (over = {}) => ({
-  id: "a", ar: "كتاب", en: "book", lat: "kitaab", tags: [], created: 0, updated: 0,
-  s: freshStates(), subs: [], ...over,
-});
+const card = (over = {}) => {
+  const { s, subs, ar, en, lat, id, ...rest } = over;
+  return /** @type {Item} */ ({
+    id: id || "a", tags: [], created: 0, updated: 0,
+    forms: [
+      {
+        id: id || "a",
+        ar: ar || "كتاب", en: en || "book", lat: lat || "kitaab",
+        s: s || freshStates(),
+      },
+      /* A form written as a card, for the fixtures that build one that
+         way: what is wanted from it is its forms, not its wrapper. */
+      ...(subs || []).flatMap((/** @type {any} */ sub) => sub.forms || [sub]),
+    ],
+    ...rest,
+  });
+};
 
 test("a family is only as grown-up as its weakest form", () => {
   const grown = { ar2en: state({ phase: "review", interval: 40 }), en2ar: state({ phase: "review", interval: 40 }) };
@@ -554,7 +569,8 @@ test("unitsOf lists the card first, then each of its forms", () => {
   assert.deepEqual(unitsOf(item).map((u) => [u.unit.id, u.isSub]),
     [["a", false], ["b", true], ["c", true]]);
   assert.deepEqual(unitsOf(card()).map((u) => u.unit.id), ["a"], "a card with no forms");
-  assert.deepEqual(unitsOf(undefined).map((u) => u.unit), [undefined], "and no crash on nothing");
+  assert.deepEqual(unitsOf(undefined).map((u) => u.unit.id), [""],
+    "and no crash on nothing: one blank form, which is what a card with no words has");
 });
 
 test("a fresh card carries one state per exercise type", () => {
@@ -901,4 +917,76 @@ test("how far a form has climbed, for a card standing in somebody else's sentenc
      it has nothing standing on. */
   assert.equal(reachedLevel(["ar2en"], table({ ar2en: done }), 4), true,
     "nothing below to be waiting on");
+});
+
+/* ------------------------------------------------------------------
+   "This was too easy": one level up, and no further
+   ------------------------------------------------------------------ */
+
+/* A word's whole ladder, as laddered hands it in: three exercises a level. */
+const LADDER = ["ar2pick", "ar2en", "rec2en", "match", "en2pick", "ctx2pick", "tr2ar", "rec2ar", "rec2attr", "en2ar", "ctx2ar", "rec2ctx"];
+/** @param {Record<string, any>} have */
+const stateIn = (have) => (/** @type {string} */ k) => have[k];
+
+test("from the bottom, every level-one exercise is graduated and nothing above appears", () => {
+  const out = liftLevel(LADDER, stateIn({}), "ar2en", still);
+  assert.deepEqual(Object.keys(out).sort(), ["ar2en", "ar2pick", "rec2en"]);
+  for (const s of Object.values(out)) {
+    assert.equal(graduated(s), true);
+    assert.equal(s.phase, "review");
+    assert.equal(s.interval, GRADUATE_DAYS, "the smallest interval that meets the bar");
+    assert.equal(s.updated, T, "stamped, so a sync keeps it");
+    assert.equal(s.due, T + GRADUATE_DAYS * DAY);
+  }
+  /* The next level's own exercises are not touched, so the one after it stays shut. */
+  assert.equal("match" in out, false);
+});
+
+test("from level two, levels one and two are graduated", () => {
+  const out = liftLevel(LADDER, stateIn({}), "en2pick", still);
+  assert.deepEqual(Object.keys(out).sort(), ["ar2en", "ar2pick", "ctx2pick", "en2pick", "match", "rec2en"]);
+});
+
+test("from level three, everything below four is mastered — the bar the top asks of it", () => {
+  /* A level-one exercise merely graduated is raised to mastered as well:
+     opening level four asks more of levels one and two than opening level
+     three did. */
+  const had = { ar2en: state({ phase: "review", interval: 1 }) };
+  const out = liftLevel(LADDER, stateIn(had), "tr2ar", still);
+  assert.equal(Object.keys(out).length, 9);
+  for (const s of Object.values(out)) assert.equal(mastered(s), true);
+  assert.equal(out.ar2en.interval, MASTERED_DAYS, "raised from graduated to the mastered bar");
+  assert.equal("en2ar" in out, false, "and level four itself is untouched");
+});
+
+test("at the top there is nothing to open, so the form is counted as mastered throughout", () => {
+  const out = liftLevel(LADDER, stateIn({}), "en2ar", still);
+  assert.equal(Object.keys(out).length, LADDER.length);
+  for (const s of Object.values(out)) assert.equal(mastered(s), true);
+  assert.equal(hasLevelAbove(LADDER, "en2ar"), false);
+  assert.equal(hasLevelAbove(LADDER, "tr2ar"), true);
+});
+
+test("a state already at the bar is left alone, and a longer interval is kept", () => {
+  const had = {
+    ar2pick: state({ phase: "review", interval: 12 }),
+    ar2en: state({ phase: "learning", interval: 0 }),
+    rec2en: state({ phase: "relearning", interval: 3 }),
+  };
+  const out = liftLevel(LADDER, stateIn(had), "ar2en", still);
+  assert.equal("ar2pick" in out, false, "already graduated: not written at all");
+  assert.equal(out.ar2en.phase, "review");
+  assert.equal(out.rec2en.phase, "review", "relearning is not graduated, so it is");
+  assert.equal(out.rec2en.interval, 3, "and keeps the interval it had, being above the bar's");
+  /* Nothing here touches the count that rotates a card's spellings. */
+  assert.equal(out.ar2en.right, had.ar2en.right);
+  assert.equal(out.ar2en.reps, had.ar2en.reps);
+});
+
+test("a level the form has no exercise at is passed over, as openTypes passes it", () => {
+  /* A verb's cell asked one exercise a level: lifting from its level-two
+     key touches its level-one and level-two keys and opens level three. */
+  const eased = ["ar2en", "match", "tr2ar", "en2ar"];
+  const out = liftLevel(eased, stateIn({}), "match", still);
+  assert.deepEqual(Object.keys(out).sort(), ["ar2en", "match"]);
 });

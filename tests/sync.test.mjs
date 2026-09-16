@@ -17,18 +17,36 @@ const fresh = () => ({
 const states = () => Object.fromEntries(TYPES.map((t) => [t, fresh()]));
 /* A card that has never been answered has no schedule at all, and the app
    says so the same way — see statesOf in the trainer. */
+/* A card's own word is the first of its forms, and its schedule is that
+   form's — which is what every one of these reads. */
 /**
- * @param {Item} it
+ * @param {any} it
  * @returns {Record<string, any>}
  */
-const statesOf = (it) => it.s || {};
-/* Likewise the other forms: a card need not have any, and the fixtures
-   here all do. */
+const statesOf = (it) => ((it && it.forms ? leadOf(it) : it) || {}).s || {};
+
+/* The same card with something different written on its own word — which
+   is a form's field now, not the card's. */
 /**
- * @param {Item} it
- * @returns {Item[]}
+ * @param {Record<string, any>} extra
+ * @param {Record<string, any>} word
+ * @returns {any}
  */
-const formsOf = (it) => /** @type {Item[]} */ (it.subs || []);
+const worded = (extra, word) => {
+  const it = shared(extra);
+  return { ...it, forms: [{ ...it.forms[0], ...word }, ...it.forms.slice(1)] };
+};
+/**
+ * @param {any} it
+ * @returns {any}
+ */
+const leadOf = (it) => (it.forms || [])[0] || {};
+/* And the alternates it carries, which is every form after the first. */
+/**
+ * @param {any} it
+ * @returns {any[]}
+ */
+const formsOf = (it) => (it.forms || []).slice(1);
 
 /**
  * Stand in for the network with something that answers only what the sync
@@ -52,8 +70,12 @@ const stubFetch = (answer) => {
  * @returns {Item}
  */
 const item = (id, extra = {}) => ({
-  id, ar: "كتاب", en: "book", lat: "kitaab", tags: [], created: 0, updated: 0,
-  s: states(), subs: [{ id: `${id}-f0`, ar: "كتب", en: "books", lat: "", s: states() }], ...extra,
+  id, tags: [], created: 0, updated: 0,
+  forms: [
+    { id, ar: "كتاب", en: "book", lat: "kitaab", s: states() },
+    { id: `${id}-f0`, ar: "كتب", en: "books", lat: "", s: states() },
+  ],
+  ...extra,
 });
 
 test("a state that was never answered is fresh; any answer is not", () => {
@@ -70,7 +92,7 @@ test("compactItem drops untouched states from the card and its forms, and shrink
   statesOf(it).ar2en = { ...fresh(), reps: 3, phase: "review", updated: 10 };
   const slim = compactItem(it);
   assert.deepEqual(Object.keys(statesOf(slim)), ["ar2en"]);
-  assert.deepEqual(Object.keys(statesOf(/** @type {Item} */ ((slim.subs || [])[0]))), []);
+  assert.deepEqual(Object.keys(statesOf(formsOf(slim)[0])), []);
   const ratio = JSON.stringify(it).length / JSON.stringify(slim).length;
   assert.ok(ratio > 3, `expected >3x, got ${ratio.toFixed(2)}x`);
 });
@@ -88,7 +110,7 @@ test("merging a sparse remote against a full local keeps every answered state", 
   const s = statesOf(merged.items[0]);
   assert.equal(s.ar2en.reps, 5, "remote answer kept");
   assert.equal(s.en2ar.reps, 2, "local answer kept when remote omitted it");
-  assert.equal((merged.items[0].subs || [])[0].id, "a-f0");
+  assert.equal(formsOf(merged.items[0])[0].id, "a-f0");
 });
 
 test("merge is idempotent on sparse documents", () => {
@@ -118,8 +140,12 @@ test("merge is idempotent on sparse documents", () => {
  * @returns {Item}
  */
 const shared = (extra = {}) => ({
-  id: "c1", ar: "كتاب", en: "book", lat: "kitaab", tags: [], created: 0, updated: 100,
-  s: states(), subs: [{ id: "c1-f0", ar: "كتب", en: "books", lat: "", s: states() }], ...extra,
+  id: "c1", tags: [], created: 0, updated: 100,
+  forms: [
+    { id: "c1", ar: "كتاب", en: "book", lat: "kitaab", s: states() },
+    { id: "c1-f0", ar: "كتب", en: "books", lat: "", s: states() },
+  ],
+  ...extra,
 });
 /* `version` because this is the device's own document, and that always
    has one: EMPTY sets it and every write carries it through. */
@@ -133,12 +159,12 @@ const doc = (items, extra = {}) => ({
 });
 
 test("two devices edit the same field: the later edit wins", () => {
-  const phone = shared({ en: "a book", updated: 200 });
-  const laptop = shared({ en: "the book", updated: 300 });
-  assert.equal(mergeData(doc([phone]), doc([laptop])).items[0].en, "the book");
+  const phone = worded({ updated: 200 }, { en: "a book" });
+  const laptop = worded({ updated: 300 }, { en: "the book" });
+  assert.equal(leadOf(mergeData(doc([phone]), doc([laptop])).items[0]).en, "the book");
   /* And the other way round, so it is the timestamp deciding and not the
      order the two documents happen to arrive in. */
-  assert.equal(mergeData(doc([laptop]), doc([phone])).items[0].en, "the book");
+  assert.equal(leadOf(mergeData(doc([laptop]), doc([phone])).items[0]).en, "the book");
 });
 
 test("two devices edit different fields of one card: the earlier edit is still lost", () => {
@@ -147,11 +173,11 @@ test("two devices edit different fields of one card: the earlier edit is still l
      dropped even though the laptop never touched that field. Merging text
      field by field would need a timestamp per field, which cards do not
      carry. */
-  const phone = shared({ lat: "kitaab (corrected)", updated: 200 });
-  const laptop = shared({ en: "the book", updated: 300 });
+  const phone = worded({ updated: 200 }, { lat: "kitaab (corrected)" });
+  const laptop = worded({ updated: 300 }, { en: "the book" });
   const out = mergeData(doc([phone]), doc([laptop])).items[0];
-  assert.equal(out.en, "the book", "the later device's edit is kept");
-  assert.equal(out.lat, "kitaab", "and the earlier device's edit to another field is not");
+  assert.equal(leadOf(out).en, "the book", "the later device's edit is kept");
+  assert.equal(leadOf(out).lat, "kitaab", "and the earlier device's edit to another field is not");
 });
 
 test("two devices answer different exercises on one card: both answers survive", () => {
@@ -198,9 +224,9 @@ test("two devices answer the same exercise: the later answer wins, by its own cl
 test("progress on a form survives a text edit made on the other device", () => {
   const phone = shared({ updated: 200 });
   statesOf(formsOf(phone)[0]).ar2en = { ...fresh(), reps: 4, updated: 250 };
-  const laptop = shared({ en: "the book", updated: 300 });
+  const laptop = worded({ updated: 300 }, { en: "the book" });
   const out = mergeData(doc([phone]), doc([laptop])).items[0];
-  assert.equal(out.en, "the book", "the laptop's text edit is kept");
+  assert.equal(leadOf(out).en, "the book", "the laptop's text edit is kept");
   assert.equal(statesOf(formsOf(out)[0]).ar2en.reps, 4, "and the phone's work on the plural is not thrown away");
 });
 
@@ -213,24 +239,24 @@ test("a form added on the losing device is dropped", () => {
      code gives, and the fix is a per-form stamp rather than a different
      choice between these two. */
   const phone = shared({ updated: 200 });
-  formsOf(phone).push(item("c1-f1", { ar: "كتابان", en: "two books", subs: [] }));
-  const laptop = shared({ en: "the book", updated: 300 });
+  phone.forms.push({ id: "c1-f1", ar: "كتابان", en: "two books", lat: "", s: states() });
+  const laptop = worded({ updated: 300 }, { en: "the book" });
   const out = mergeData(doc([phone]), doc([laptop])).items[0];
   assert.deepEqual(formsOf(out).map((f) => f.id), ["c1-f0"], "the added form is gone");
 
   /* The same card, with the phone editing last, keeps it — which is what
      makes this a race and not a rule. */
-  const other = mergeData(doc([shared({ en: "the book", updated: 100 })]), doc([phone])).items[0];
+  const other = mergeData(doc([worded({ updated: 100 }, { en: "the book" })]), doc([phone])).items[0];
   assert.deepEqual(formsOf(other).map((f) => f.id), ["c1-f0", "c1-f1"]);
 });
 
 test("a recording added on the losing device is dropped", () => {
   /* Same shape as the form above, and worth its own test because a lost
      recording cannot be retyped. */
-  const phone = shared({ updated: 200, recs: [{ id: "r-phone" }] });
-  const laptop = shared({ en: "the book", updated: 300, recs: [] });
+  const phone = worded({ updated: 200 }, { recs: [{ id: "r-phone" }] });
+  const laptop = worded({ updated: 300 }, { en: "the book", recs: [] });
   const out = mergeData(doc([phone]), doc([laptop])).items[0];
-  assert.deepEqual(out.recs, [], "the phone's recording is not carried across");
+  assert.deepEqual(leadOf(out).recs, [], "the phone's recording is not carried across");
 });
 
 test("a card deleted on one device stays deleted unless the other edited it later", () => {
@@ -253,15 +279,15 @@ test("a deletion older than a month is forgotten, and stops deleting", () => {
   assert.deepEqual(out.tombstones, {}, "and the tombstone is swept up rather than kept forever");
 });
 
-test("settings are one object, so a toggle on the losing device is lost", () => {
+test("settings are one object, so a change on the losing device is lost", () => {
   /* Another cost worth naming: settings merge whole rather than key by
-     key. Turn on listening exercises on the phone and change the theme on
-     the laptop a minute later, and the listening change goes. */
-  const phone = doc([], { settings: { types: { rec2en: true }, theme: "dark" }, settingsUpdated: 200 });
-  const laptop = doc([], { settings: { types: { rec2en: false }, theme: "light" }, settingsUpdated: 300 });
+     key. Turn the sounds down on the phone and change the theme on the
+     laptop a minute later, and the sound change goes. */
+  const phone = doc([], { settings: { sounds: "off", theme: "dark" }, settingsUpdated: 200 });
+  const laptop = doc([], { settings: { sounds: "loud", theme: "light" }, settingsUpdated: 300 });
   const out = mergeData(phone, laptop);
   assert.equal(out.settings.theme, "light");
-  assert.equal(out.settings.types.rec2en, false, "the phone's change to a different setting is lost");
+  assert.equal(out.settings.sounds, "loud", "the phone's change to a different setting is lost");
   assert.equal(out.settingsUpdated, 300);
 });
 
@@ -269,9 +295,9 @@ test("merging a conflict twice changes nothing the second time", () => {
   /* Sync merges, pushes, and on a 409 pulls and merges again. If a second
      merge moved anything, two devices could push each other back and
      forth without ever settling. */
-  const phone = shared({ en: "a book", updated: 200 });
+  const phone = worded({ updated: 200 }, { en: "a book" });
   statesOf(phone).ar2en = { ...fresh(), reps: 3, updated: 210 };
-  const laptop = shared({ en: "the book", updated: 300 });
+  const laptop = worded({ updated: 300 }, { en: "the book" });
   statesOf(laptop).en2ar = { ...fresh(), reps: 7, updated: 310 };
   const once = mergeData(doc([phone]), doc([laptop]));
   const twice = mergeData(once, doc([laptop]));
@@ -286,7 +312,7 @@ test("the exercise types this file merges are the ones the app has", () => {
 
 test("syncClips never uploads an object URL and never fetches what is already local", async () => {
   /** @type {WireDoc} */
-  const data = { items: [item("x", { recs: [{ id: "here" }, { id: "there" }], subs: [] })] };
+  const data = { items: [item("x", { forms: [{ id: "x", ar: "", en: "", lat: "", recs: [{ id: "here" }, { id: "there" }] }] })] };
   /** @type {[string | null, unknown][]} */
   const pushed = [];
   /** @type {(string | null)[]} */
@@ -319,7 +345,7 @@ test("syncClips never uploads an object URL and never fetches what is already lo
 
 test("syncClips uploads a real data URL once and remembers it", async () => {
   /** @type {WireDoc} */
-  const data = { items: [item("x", { recs: [{ id: "mine" }], subs: [] })] };
+  const data = { items: [item("x", { forms: [{ id: "x", ar: "", en: "", lat: "", recs: [{ id: "mine" }] }] })] };
   /** @type {string[]} */
   const pushed = [];
   stubFetch((url, opts) => {
@@ -347,8 +373,11 @@ test("clipIdsIn walks cards and their forms", () => {
   /** @type {WireDoc} */
   const data = {
     items: [
-      item("x", { recs: [{ id: "a" }], subs: [{ id: "x-f0", ar: "", en: "", lat: "", recs: [{ id: "b" }] }] }),
-      item("y", { recs: [], subs: [] }),
+      item("x", { forms: [
+        { id: "x", ar: "", en: "", lat: "", recs: [{ id: "a" }] },
+        { id: "x-f0", ar: "", en: "", lat: "", recs: [{ id: "b" }] },
+      ] }),
+      item("y", { forms: [{ id: "y", ar: "", en: "", lat: "", recs: [] }] }),
     ],
   };
   assert.deepEqual(clipIdsIn(data), ["a", "b"]);
@@ -362,29 +391,33 @@ test("which of a frame's values each device has met merges by taking the further
   const mine = /** @type {Doc} */ ({
     version: 3,
     items: [item("k1", {
-      met: { "name:raphael": 3, "name:sarah": 1 },
-      subs: [{ id: "k1-f0", ar: "كتب", en: "books", lat: "", s: states(), met: { "name:victor": 2 } }],
+      forms: [
+        { id: "k1", ar: "كتاب", en: "book", lat: "", s: states(), met: { "name:raphael": 3, "name:sarah": 1 } },
+        { id: "k1-f0", ar: "كتب", en: "books", lat: "", s: states(), met: { "name:victor": 2 } },
+      ],
     })],
     tombstones: {}, log: {}, settings: {},
   });
   const theirs = /** @type {WireDoc} */ ({
     version: 3,
     items: [item("k1", {
-      met: { "name:raphael": 1, "name:sarah": 4 },
-      subs: [{ id: "k1-f0", ar: "كتب", en: "books", lat: "", s: states(), met: { "name:victor": 1 } }],
+      forms: [
+        { id: "k1", ar: "كتاب", en: "book", lat: "", s: states(), met: { "name:raphael": 1, "name:sarah": 4 } },
+        { id: "k1-f0", ar: "كتب", en: "books", lat: "", s: states(), met: { "name:victor": 1 } },
+      ],
     })],
     tombstones: {}, log: {},
   });
 
   const merged = mergeData(mine, theirs).items[0];
-  assert.deepEqual(merged.met, { "name:raphael": 3, "name:sarah": 4 },
+  assert.deepEqual(leadOf(merged).met, { "name:raphael": 3, "name:sarah": 4 },
     "the further of the two, key by key, so neither device loses a level");
   assert.deepEqual(formsOf(merged)[0].met, { "name:victor": 2 },
     "and the other forms carry their own record, as they carry their own progress");
 
   /* The one thing sync asks of anything it merges. */
   const twice = mergeData(mergeData(mine, theirs), theirs).items[0];
-  assert.deepEqual(twice.met, merged.met, "merging is idempotent");
+  assert.deepEqual(leadOf(twice).met, leadOf(merged).met, "merging is idempotent");
 
   /* And a card that has no such record does not start carrying an empty
      one: an ordinary word leaves no hole and has nothing to remember. */
@@ -392,5 +425,5 @@ test("which of a frame's values each device has met merges by taking the further
     /** @type {Doc} */ ({ version: 3, items: [item("k2")], tombstones: {}, log: {}, settings: {} }),
     /** @type {WireDoc} */ ({ version: 3, items: [item("k2")], tombstones: {}, log: {} })
   ).items[0];
-  assert.equal("met" in plain, false);
+  assert.equal("met" in leadOf(plain), false);
 });

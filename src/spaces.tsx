@@ -3,6 +3,7 @@ import * as API from "./courses-api.ts";
 import type { Card, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
 import { CardEditor } from "./card-editor.tsx";
+import { formsOf, leadOf } from "./cards.ts";
 
 /*
  * Whatever is waiting on a yes: the confirmation to show, and what to do
@@ -50,8 +51,7 @@ import {
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
-  scriptVars,
-} from "./languages.ts";
+  scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
 import { hasSlots, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
@@ -2189,7 +2189,7 @@ export function AdminSpace({ account, languages, onClose }: {
               {openCard && (
                 <Screen
                   title={
-                    (openCard.card && (openCard.card.en || openCard.card.ar)) ||
+                    (openCard.card && (leadOf(openCard.card).en || leadOf(openCard.card).ar)) ||
                     openCard.flag.meaning ||
                     openCard.flag.prompt ||
                     "The flagged card"
@@ -3307,11 +3307,10 @@ function DeckEditor({
  *   teacher was standing when they pressed it, so answering the question
  *   puts them back there rather than at the front of the space.
  */
-function TryExercises({ card, cards, lang, settings, onTry, back }: {
+function TryExercises({ card, cards, lang, onTry, back }: {
   card: Card;
   cards: Card[];
   lang?: Lang;
-  settings?: any;
   onTry?: (plan: { items: any[], exercise: any, back: any }) => void;
   back?: any;
 }) {
@@ -3345,7 +3344,7 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
        teacher trying an exercise should see the same words a learner will
        be shown. */
     () => (unit: Form) =>
-      valuesFor(unit, material, lang && lang.id, (c) => kindOf(c, lang)),
+      valuesFor(unit, material, lang && lang.id, (c) => kindOf(c, lang), (c, f) => lendsForm(lang, c)(f)),
     [material, lang]
   );
 
@@ -3363,14 +3362,10 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
          with a hole in it is not a word. */
       matesFor: () =>
         material.filter(
-          (c) => !isDialog(c) && c.ar && c.en && !hasSlots(c) && c.drill !== false
+          (c) => !isDialog(c) && leadOf(c).ar && leadOf(c).en && !hasSlots(c) && c.drill !== false
         ).length - 1,
-      /* A student would not be asked an exercise switched off in the app's
-         settings, and a teacher may as well know which those are — but it
-         is still worth being able to try one. */
-      enabled: (type) => !settings || !settings.types || !!settings.types[type],
     });
-  }, [mine, lang, contexts, scenes, settings, values, material]);
+  }, [mine, lang, contexts, scenes, values, material]);
 
   if (!offers.length) return null;
 
@@ -3413,11 +3408,7 @@ function TryExercises({ card, cards, lang, settings, onTry, back }: {
           >
             <span className="at-tryname">{offer.label}</span>
             <span className="at-trywhy">
-              {offer.ready
-                ? offer.off
-                  ? "Try it · off in the app's settings"
-                  : "Try it"
-                : `Needs ${offer.missing.join(" and ")}`}
+              {offer.ready ? "Try it" : `Needs ${offer.missing.join(" and ")}`}
             </span>
           </button>
         ))}
@@ -3787,10 +3778,10 @@ function ContextReport({ cards, lang }: { cards: Card[]; lang: Partial<Lang> }) 
 /* Recordings live on each form, not on the card, so a card counts as having
    one if any of its forms does. */
 export const cardHasAudio: (c: Card) => boolean = (c) =>
-  formHasAudio(c) || (c.subs || []).some(formHasAudio);
+  formsOf(c).some(formHasAudio);
 
 /* The main form is a form. A card with two subs has three. */
-export const cardFormCount: (c: Card) => number = (c) => 1 + (c.subs || []).length;
+export const cardFormCount: (c: Card) => number = (c) => formsOf(c).length;
 
 /*
  * When a card was added.
@@ -4452,7 +4443,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, decks: inDecks, uses, fills, drill, scene: written }) =>
+        onSave={({ forms, note, name, category, decks: inDecks, uses, fills, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -4476,30 +4467,46 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                   lang: (editLang || {}).id || "",
                   ...(written
                     ? {
-                        ar: "",
-                        en: written.title,
-                        lat: "",
+                        /* A scene's name is the card's own word and its
+                           setting the note: a conversation has nothing else
+                           to put in either, and its turns are the lesson. */
+                        forms: [{ ar: "", en: written.title, lat: "" }],
                         note: written.setting,
                         uses: [],
-                        subs: [],
-                        clips: [],
-                        slowClips: [],
                         speakers: written.speakers,
                         you: written.you,
                         lines: written.lines,
                       }
                     : {
-                        ar: main.ar.trim(),
-                        en: main.en.trim(),
-                        lat: main.lat.trim(),
-                        ...dimValues(main),
-                        clips: main.clips || [],
-                        slowClips: main.slowClips || [],
+                        /* The card's own word first, then every other form
+                           of it — one list, which is how a card is stored
+                           and how the editor has always held it. A form
+                           with nothing written in it is not a form. */
+                        forms: [
+                          {
+                            ...main,
+                            ar: main.ar.trim(),
+                            en: main.en.trim(),
+                            lat: main.lat.trim(),
+                            ...dimValues(main),
+                            /* And whether the card's own word is asked
+                               about, as against the forms under it: a verb
+                               whose table is the lesson and whose
+                               dictionary form is there to be read. */
+                            ask: main.ask !== false,
+                          },
+                          ...subs.filter((f: any) => f.ar.trim() || f.en.trim()),
+                        ],
                         note: note.trim(),
                         /* What to call it in a list, where its own words do
                            not name it — a verb saved as the form a
                            dictionary lists. Empty on every other card. */
                         name,
+                        /* And what the teacher says the word is — a noun, a
+                           verb, a name. Which table the editor offers
+                           follows from it; nothing about how the card is
+                           drilled reads it. */
+                        category,
                         uses,
                         /* Which variable it fills, and whether it is a
                            question of its own. A conversation is neither:
@@ -4507,7 +4514,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            offer either field on one. */
                         fills,
                         drill,
-                        subs: subs.filter((f: any) => f.ar.trim() || f.en.trim()),
                       }),
                 },
                 inDecks
@@ -4553,9 +4559,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         confirming={
           confirm && confirm.kind === "card" && confirm.card ? (
             <ConfirmModal
-              title={`Delete "${confirm.card.en || confirm.card.ar}"?`}
+              title={`Delete "${leadOf(confirm.card).en || leadOf(confirm.card).ar}"?`}
               confirmLabel="Delete the card"
-              confirmWord={confirm.card.en || confirm.card.ar}
+              confirmWord={leadOf(confirm.card).en || leadOf(confirm.card).ar}
               busy={busy}
               body={
                 <p>
@@ -4629,8 +4635,8 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                  its turns are searched too: a teacher looking for a scene
                  remembers a line of it, not the name they gave it. */
               match={(c, q) =>
-                (c.ar || "").toLowerCase().includes(q) ||
-                (c.en || "").toLowerCase().includes(q) ||
+                (leadOf(c).ar || "").toLowerCase().includes(q) ||
+                (leadOf(c).en || "").toLowerCase().includes(q) ||
                 /* And what it is called, where it has a name of its own:
                    a verb listed as "to eat" is looked for under that. */
                 (c.name || "").toLowerCase().includes(q) ||
@@ -4707,7 +4713,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
 
         {viewing && (
           <Screen
-            title={viewing.en || viewing.ar}
+            title={leadOf(viewing).en || leadOf(viewing).ar}
             onBack={() => setViewing(null)}
             action={
               <Button variant="primary" size="sm"
@@ -4730,7 +4736,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               card={viewing}
               cards={cards}
               lang={langOfCard(viewing)}
-              settings={settings}
               onTry={onTry}
             />
           </Screen>
@@ -5178,7 +5183,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
 
               {viewing && (
                 <Screen
-                  title={viewing.en || viewing.ar}
+                  title={leadOf(viewing).en || leadOf(viewing).ar}
                   onBack={() => setViewing(null)}
                   action={
                     <Button variant="primary" size="sm"
@@ -5198,7 +5203,6 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     card={viewing}
                     cards={cards}
                     lang={langOfCard(viewing)}
-                    settings={settings}
                     onTry={onTry}
                   />
                 </Screen>
@@ -5226,9 +5230,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     : "No cards yet. Make one — a card is anything to learn, with its meaning."
                 }
                 match={(c, q) =>
-                  (c.ar || "").toLowerCase().includes(q) ||
-                  (c.en || "").toLowerCase().includes(q) ||
-                  (c.lat || "").toLowerCase().includes(q) ||
+                  (leadOf(c).ar || "").toLowerCase().includes(q) ||
+                  (leadOf(c).en || "").toLowerCase().includes(q) ||
+                  (leadOf(c).lat || "").toLowerCase().includes(q) ||
                   /* And what it is called, where it has a name of its own:
                      a verb listed as "to eat" is looked for under that. */
                   (c.name || "").toLowerCase().includes(q) ||

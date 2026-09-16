@@ -29,7 +29,7 @@ import type { Placed } from "./dialogs.ts";
 import { DIALOG_NEEDS, dialogNeedMet, roleOf } from "./dialogs.ts";
 import { saidAnswers } from "./answers.ts";
 import { slotsOf } from "./variables.ts";
-import { VERB_SLOT } from "./verbs.ts";
+import { ownSlot } from "./verbs.ts";
 import { EX, TYPES, answerFields, derivedValue, exOf, needLabel, quizAttrOf } from "./languages.ts";
 import { MIN_PAIR_MATES } from "./chance.ts";
 
@@ -67,9 +67,15 @@ export function unmetNeeds(
      `values` about it would grey out every sentence a verb was ever
      written into. Whether the table has the cell the sentence turns out to
      want is decided when the sentence is filled, one filler at a time, and
-     is not a fact about the card that could be reported here. */
+     is not a fact about the card that could be reported here.
+
+     Only on the card's own sentence, though — see ownSlot. The same name
+     written on a sentence card is an ordinary blank, and one that was
+     silently never waited for would be a sentence asked with {{verb}}
+     still showing. */
+  const own = ownSlot(unit);
   const unfilled = holes.filter(
-    (slot) => slot !== VERB_SLOT && !((values && values[slot]) || []).length,
+    (slot) => slot !== own && !((values && values[slot]) || []).length,
   );
   /*
    * Two things a variable takes away from a card, both of them reported
@@ -157,8 +163,6 @@ export interface Offer {
   ready: boolean;
   /** What it is waiting for, where it cannot. */
   missing: string[];
-  /** Whether it is switched off in the settings. */
-  off: boolean;
 }
 
 /*
@@ -172,7 +176,6 @@ export function offersFor({
   contextsFor = () => [],
   valuesFor = () => ({}),
   matesFor = () => 0,
-  enabled = () => true,
 }: {
   units: { unit: Form; isSub: boolean; scene?: Placed | null }[];
   lang: Lang;
@@ -181,7 +184,6 @@ export function offersFor({
   valuesFor?: (unit: Form) => Record<string, unknown[]>;
   /** How many other cards could stand beside it in the matching grid. */
   matesFor?: (unit: Form) => number;
-  enabled?: (type: string) => boolean;
 }): Offer[] {
   const known = units.map((u) => ({
     unit: u.unit,
@@ -219,7 +221,6 @@ export function offersFor({
         : unmetNeeds(on.unit, spec, on.scene, on.contexts, on.values, on.mates).map((f) =>
             needLabel(f, lang)
           ),
-      off: !enabled(type),
     });
   }
   return offers;

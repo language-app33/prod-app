@@ -61,6 +61,24 @@ const overviewOf = (r) => r.json;
  */
 const coursesOf = (r) => r.json.courses;
 
+/* A card's forms, as a saved card carries them: the card's own word first
+   and its other forms after. Written out here rather than imported so
+   these tests read a saved card the way a client would, off the JSON. */
+/** @param {any} card */
+const lead = (card) => card.forms[0];
+/** @param {any} card */
+const subs = (card) => card.forms.slice(1);
+/**
+ * A card to save, from its word and its other forms — the shape the app
+ * sends.
+ * @param {Record<string, any>} word
+ * @param {Record<string, any>[]} [rest]
+ * @param {Record<string, any>} [over]
+ */
+const carded = (word, rest = [], over = {}) => ({
+  id: "", lang: "ar-PS", forms: [word, ...rest], ...over,
+});
+
 const server = createApp();
 const origin = await listenSomewhere(server);
 
@@ -291,12 +309,12 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
 
   const saved = await api("/api/courses?action=save-card", {
     method: "POST", key,
-    body: { card: { id: "", ar: "أكل", en: "to eat", lang: "ar-PS", subs: cells }, decks: [] },
+    body: { card: carded({ ar: "أكل", en: "to eat" }, cells), decks: [] },
   });
   assert.equal(saved.status, 200, saved.text);
-  assert.equal(saved.json.card.subs.length, 21, "the whole table survived the save");
+  assert.equal(subs(saved.json.card).length, 21, "the whole table survived the save");
 
-  const she = saved.json.card.subs.find(
+  const she = subs(saved.json.card).find(
     (/** @type {Record<string, any>} */ s) => s.row === "past" && s.col === "she",
   );
   assert.ok(she, "the she-past cell came back placed");
@@ -309,8 +327,8 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
      language from another. */
   const named = await api("/api/courses?action=save-card", {
     method: "POST", key,
-    body: { card: { id: saved.json.card.id, ar: "أكل", en: "he ate", lang: "ar-PS",
-                    name: "to eat", subs: cells }, decks: [] },
+    body: { card: carded({ ar: "أكل", en: "he ate" }, cells,
+                         { id: saved.json.card.id, name: "to eat" }), decks: [] },
   });
   assert.equal(named.json.card.name, "to eat", "the name came back");
   /* And a card with none does not start carrying one that says something. */
@@ -322,24 +340,59 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
   const odd = await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: {
-      card: { id: "", ar: "شرب", en: "to drink", lang: "ar-PS",
-              subs: [{ ar: "شربت", en: "drank", lat: "", row: "past" },
-                     { ar: "بيشرب", en: "drinks", lat: "", row: "pre sent!", col: "he" }] },
+      card: carded({ ar: "شرب", en: "to drink" }, [
+        { ar: "شربت", en: "drank", lat: "", row: "past" },
+        { ar: "بيشرب", en: "drinks", lat: "", row: "pre sent!", col: "he" },
+      ]),
       decks: [],
     },
   });
-  assert.equal(odd.json.card.subs[0].row, undefined, "a row with no column is not a position");
-  assert.equal(odd.json.card.subs[0].col, undefined);
+  assert.equal(subs(odd.json.card)[0].row, undefined, "a row with no column is not a position");
+  assert.equal(subs(odd.json.card)[0].col, undefined);
   /* And what is kept is narrowed to the shape a language pack can name. */
-  assert.equal(odd.json.card.subs[1].row, "present");
+  assert.equal(subs(odd.json.card)[1].row, "present");
 
   /* An ordinary card gains no fields it never had. */
   const plain = await api("/api/courses?action=save-card", {
     method: "POST", key,
-    body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS", subs: [{ ar: "شموس", en: "suns", lat: "" }] }, decks: [] },
+    body: { card: carded({ ar: "شمس", en: "sun" }, [{ ar: "شموس", en: "suns", lat: "" }]), decks: [] },
   });
-  assert.equal("row" in plain.json.card.subs[0], false, "no empty position on a plain form");
-  assert.equal("id" in plain.json.card.subs[0], false, "and no name on a form that came without one");
+  assert.equal("row" in subs(plain.json.card)[0], false, "no empty position on a plain form");
+  assert.equal("id" in subs(plain.json.card)[0], false, "and no name on a form that came without one");
+});
+
+/*
+ * What the teacher says a word is.
+ *
+ * Stored as given and narrowed to the shape an id can take: which
+ * categories exist is the language pack's business, and the server does
+ * not know one language from another. A card written before the question
+ * existed carries none, and passes through unchanged.
+ */
+test("a card keeps what the teacher says it is", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dina" } });
+  const key = made.json.key;
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "كِتاب", en: "book", lang: "ar-PS", category: "noun" }, decks: [] },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.card.category, "noun", "it came back");
+
+  /* And it is the card's to change: a noun written as one can be corrected. */
+  const again = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: saved.json.card.id, ar: "كِتاب", en: "book", lang: "ar-PS", category: "PREPOSITION!" }, decks: [] },
+  });
+  assert.equal(again.json.card.category, "preposition", "narrowed to the shape an id can take");
+
+  /* A card that says nothing says nothing — not "word", not a guess. */
+  const quiet = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [] },
+  });
+  assert.equal(quiet.json.card.category, "", "nobody has said what it is");
 });
 
 /*
@@ -358,19 +411,16 @@ test("a form keeps its name, and a cell keeps whose table it is in", async () =>
   const saved = await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: {
-      card: {
-        id: "", ar: "كِتاب", en: "book", lang: "ar-PS",
-        subs: [
-          { id: "fpl", ar: "كُتُب", en: "books", lat: "" },
-          { ar: "كتابي", en: "my book", lat: "", row: "attached", col: "me" },
-          { id: "fx1", of: "fpl", ar: "كتبي", en: "my books", lat: "", row: "attached", col: "me" },
-        ],
-      },
+      card: carded({ ar: "كِتاب", en: "book" }, [
+        { id: "fpl", ar: "كُتُب", en: "books", lat: "" },
+        { ar: "كتابي", en: "my book", lat: "", row: "attached", col: "me" },
+        { id: "fx1", of: "fpl", ar: "كتبي", en: "my books", lat: "", row: "attached", col: "me" },
+      ]),
       decks: [],
     },
   });
   assert.equal(saved.status, 200, saved.text);
-  const [plural, mine, ours] = saved.json.card.subs;
+  const [plural, mine, ours] = subs(saved.json.card);
   assert.equal(plural.id, "fpl", "the form kept its name");
   assert.equal("of" in mine, false, "a cell of the card's own table names no owner");
   assert.equal(ours.of, "fpl", "and one of the plural's names the plural");
@@ -382,18 +432,60 @@ test("a form keeps its name, and a cell keeps whose table it is in", async () =>
   const odd = await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: {
-      card: {
-        id: "", ar: "قلم", en: "pen", lang: "ar-PS",
-        subs: [
-          { ar: "قلمي", en: "my pen", lat: "", row: "attached", col: "me", of: "f PL!" },
-          { ar: "أقلام", en: "pens", lat: "", of: "fpl" },
-        ],
-      },
+      card: carded({ ar: "قلم", en: "pen" }, [
+        { ar: "قلمي", en: "my pen", lat: "", row: "attached", col: "me", of: "f PL!" },
+        { ar: "أقلام", en: "pens", lat: "", of: "fpl" },
+      ]),
       decks: [],
     },
   });
-  assert.equal(odd.json.card.subs[0].of, "fpl");
-  assert.equal("of" in odd.json.card.subs[1], false, "a form with no position is in nobody's table");
+  assert.equal(subs(odd.json.card)[0].of, "fpl");
+  assert.equal("of" in subs(odd.json.card)[1], false, "a form with no position is in nobody's table");
+});
+
+/*
+ * Which forms of a card are asked about.
+ *
+ * A teacher may want a table on the card for a student to read rather than
+ * to be drilled on, and until this the only way to stop a form being asked
+ * was to delete it — taking its recordings and every student's progress
+ * with it. The server keeps the answer the way it keeps a position: as
+ * given, knowing nothing about what it means.
+ */
+test("a form can be kept without being asked about, and says so both ways", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
+  const key = made.json.key;
+
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: carded({ ar: "كِتاب", en: "book" }, [
+        { ar: "كتابي", en: "my book", lat: "", row: "attached", col: "me", ask: false },
+        { ar: "كُتُب", en: "books", lat: "" },
+      ]),
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(subs(saved.json.card)[0].ask, false, "the cell kept out of the drill says so");
+  assert.equal("ask" in subs(saved.json.card)[1], false, "and an ordinary form gains no field");
+  assert.equal("ask" in lead(saved.json.card), false,
+    "the card's own word is asked unless it says otherwise, and it is a form like the rest");
+
+  /* And switching the card's own word off and on again comes back on. The
+     saved card is the old one with these fields written over it, so a
+     field left out here would leave the last answer standing for ever —
+     which is the bug `drill` already has a comment about. */
+  const quiet = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "كِتاب", en: "book", ask: false }, [], { id: saved.json.card.id }), decks: [] },
+  });
+  assert.equal(lead(quiet.json.card).ask, false);
+  const loud = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "كِتاب", en: "book" }, [], { id: saved.json.card.id }), decks: [] },
+  });
+  assert.equal("ask" in lead(loud.json.card), false, "switched back on rather than left where it was");
 });
 
 /*
@@ -535,7 +627,7 @@ test("a deck's phrases are sent with the cards that fill their variables", async
   await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: {
-      card: { id: "", ar: "اسمي {{name}}", en: "My name is {{name}}", lat: "ismi {{name}}", lang: "ar-PS" },
+      card: carded({ ar: "اسمي {{name}}", en: "My name is {{name}}", lat: "ismi {{name}}" }),
       decks: [deckId],
     },
   });
@@ -543,7 +635,10 @@ test("a deck's phrases are sent with the cards that fill their variables", async
   const value = (/** @type {string} */ ar, /** @type {string} */ en) =>
     api("/api/courses?action=save-card", {
       method: "POST", key,
-      body: { card: { id: "", ar, en, lat: en.toLowerCase(), lang: "ar-PS", fills: "name", drill: false }, decks: [] },
+      body: {
+        card: carded({ ar, en, lat: en.toLowerCase() }, [], { fills: "name", drill: false }),
+        decks: [],
+      },
     });
   await value("رافائيل", "Raphael");
   await value("فيكتور", "Victor");
@@ -551,7 +646,10 @@ test("a deck's phrases are sent with the cards that fill their variables", async
      but a different sentence. */
   await api("/api/courses?action=save-card", {
     method: "POST", key,
-    body: { card: { id: "", ar: "Tâm", en: "Tam", lang: "vi-HUE", fills: "name", drill: false }, decks: [] },
+    body: {
+      card: carded({ ar: "Tâm", en: "Tam" }, [], { lang: "vi-HUE", fills: "name", drill: false }),
+      decks: [],
+    },
   });
 
   const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Omar" } });
@@ -562,7 +660,7 @@ test("a deck's phrases are sent with the cards that fill their variables", async
   const first = await api("/api/courses?action=my-material", { key: student.json.key });
   const sent = (first.json.cards || []).flatMap((/** @type {any} */ d) => d.cards);
   assert.deepEqual(
-    sent.filter((/** @type {any} */ c) => c.fills).map((/** @type {any} */ c) => c.en).sort(),
+    sent.filter((/** @type {any} */ c) => c.fills).map((/** @type {any} */ c) => lead(c).en).sort(),
     ["Raphael", "Victor"],
     "the values a deck's phrases need did not travel with it"
   );
@@ -589,7 +687,7 @@ test("a deck's phrases are sent with the cards that fill their variables", async
     (after.json.cards || [])
       .flatMap((/** @type {any} */ d) => d.cards)
       .filter((/** @type {any} */ c) => c.fills)
-      .map((/** @type {any} */ c) => c.en)
+      .map((/** @type {any} */ c) => lead(c).en)
       .sort(),
     ["Raphael", "Sarah", "Victor"]
   );
@@ -609,11 +707,11 @@ test("a card keeps the gap that pairs an answer with how it is said", async () =
 
   const saved = await api("/api/courses?action=save-card", {
     method: "POST", key,
-    body: { card: { id: "", ar: "كتاب / سفر", en: "book", lat: " / safar", lang: "ar-PS" }, decks: [] },
+    body: { card: carded({ ar: "كتاب / سفر", en: "book", lat: " / safar" }), decks: [] },
   });
   assert.equal(saved.status, 200, saved.text);
-  assert.equal(saved.json.card.lat, " / safar", "the gap was trimmed away");
-  assert.equal(saved.json.card.ar, "كتاب / سفر");
+  assert.equal(lead(saved.json.card).lat, " / safar", "the gap was trimmed away");
+  assert.equal(lead(saved.json.card).ar, "كتاب / سفر");
 });
 
 test("and a word is not turned into a conversation by being saved", async () => {
@@ -642,27 +740,26 @@ test("a card keeps its recordings at both speeds, on every form", async () => {
   const saved = await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: {
-      card: {
-        id: "", ar: "كِتاب", en: "book", lang: "ar-PS",
-        clips: ["a".repeat(64)], slowClips: ["b".repeat(64)],
-        subs: [{ ar: "كُتُب", en: "books", slowClips: ["c".repeat(64)] }],
-      },
+      card: carded(
+        { ar: "كِتاب", en: "book", clips: ["a".repeat(64)], slowClips: ["b".repeat(64)] },
+        [{ ar: "كُتُب", en: "books", slowClips: ["c".repeat(64)] }]
+      ),
       decks: [],
     },
   });
   assert.equal(saved.status, 200, saved.text);
-  assert.deepEqual(saved.json.card.clips, ["a".repeat(64)]);
-  assert.deepEqual(saved.json.card.slowClips, ["b".repeat(64)]);
-  assert.deepEqual(saved.json.card.subs[0].slowClips, ["c".repeat(64)]);
+  assert.deepEqual(lead(saved.json.card).clips, ["a".repeat(64)]);
+  assert.deepEqual(lead(saved.json.card).slowClips, ["b".repeat(64)]);
+  assert.deepEqual(subs(saved.json.card)[0].slowClips, ["c".repeat(64)]);
   /* A form recorded only slowly still answers the ordinary question with a
      list, not with nothing: every reader of a card takes both as arrays. */
-  assert.deepEqual(saved.json.card.subs[0].clips, []);
+  assert.deepEqual(subs(saved.json.card)[0].clips, []);
 
   /* And a card that says nothing about the slow ones has an empty list. */
   const plain = await api("/api/courses?action=save-card", {
-    method: "POST", key, body: { card: { id: "", ar: "بيت", en: "house", lang: "ar-PS" }, decks: [] },
+    method: "POST", key, body: { card: carded({ ar: "بيت", en: "house" }), decks: [] },
   });
-  assert.deepEqual(plain.json.card.slowClips, []);
+  assert.deepEqual(lead(plain.json.card).slowClips, []);
 });
 
 /*
@@ -1245,7 +1342,7 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
     method: "POST", key, body: { title: "Flagged Lesson", lang: "ar-PS" },
   })).json.deck;
   const make = async (/** @type {string} */ ar, /** @type {string} */ en) => (await api("/api/courses?action=save-card", {
-    method: "POST", key, body: { card: { ar, en, lang: "ar-PS" }, decks: [deck.id] },
+    method: "POST", key, body: { card: carded({ ar, en }), decks: [deck.id] },
   })).json.card;
   const untouched = await make("كِتاب", "book");
   const edited = await make("بيت", "house");
@@ -1269,7 +1366,8 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
   };
 
   await api("/api/courses?action=save-card", {
-    method: "POST", key, body: { card: { ...edited, en: "home" }, decks: [deck.id] },
+    method: "POST", key,
+    body: { card: { ...edited, forms: [{ ...lead(edited), en: "home" }] }, decks: [deck.id] },
   });
   await api("/api/courses?action=delete-card", { method: "POST", key, body: { cardId: deleted.id } });
 
@@ -1289,7 +1387,7 @@ test("a flag says what became of its card: edited, deleted, or never the site's"
      Admin lists decks, not cards. */
   const opened = await api(`/api/courses?action=admin-card&card=${untouched.id}`, { key });
   assert.equal(opened.status, 200, opened.text);
-  assert.equal(opened.json.card.ar, "كِتاب");
+  assert.equal(lead(opened.json.card).ar, "كِتاب");
   assert.deepEqual(opened.json.card.decks, [deck.id], "with the decks it is in, for the readout");
 
   const missing = await api(`/api/courses?action=admin-card&card=${deleted.id}`, { key });
@@ -1319,12 +1417,13 @@ test("an older report still finds its card, and does not invent an edit", async 
     method: "POST", key, body: { title: "Older Reports", lang: "ar-PS" },
   })).json.deck;
   let card = (await api("/api/courses?action=save-card", {
-    method: "POST", key, body: { card: { ar: "شمس", en: "sun", lang: "ar-PS" }, decks: [deck.id] },
+    method: "POST", key, body: { card: carded({ ar: "شمس", en: "sun" }), decks: [deck.id] },
   })).json.card;
   /* Saved again, so it is past rev 1 — the number a missing one would be
      compared against if the code guessed. */
   card = (await api("/api/courses?action=save-card", {
-    method: "POST", key, body: { card: { ...card, lat: "shams" }, decks: [deck.id] },
+    method: "POST", key,
+    body: { card: { ...card, forms: [{ ...lead(card), lat: "shams" }] }, decks: [deck.id] },
   })).json.card;
   assert.ok(card.rev > 1, "the card has been saved more than once");
 
@@ -1348,5 +1447,5 @@ test("an older report still finds its card, and does not invent an edit", async 
 
   const opened = await api(`/api/courses?action=admin-card&card=${seen.cardId}`, { key });
   assert.equal(opened.status, 200, "so the card it points at actually opens");
-  assert.equal(opened.json.card.en, "sun");
+  assert.equal(lead(opened.json.card).en, "sun");
 });

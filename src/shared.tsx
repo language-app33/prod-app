@@ -7,9 +7,10 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.ts";
+import { formsOf, leadOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
-import { answerFields, dimValues, dimsOf, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
+import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { splitSlots } from "./variables.ts";
 
@@ -110,6 +111,11 @@ const ICONS: Record<string, string> = {
   mic:
     "M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z",
   remove: "M19 13H5v-2h14v2z",
+  /* A learner saying "this one, please" — see `priority` on a card. A star
+     rather than the flag beside it, which is already how a learner says
+     something is wrong with a question. */
+  star:
+    "M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z",
   chevronDown: "M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z",
   chevronUp: "M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z",
   /* A speaker with a line through it, for saying you cannot hear this
@@ -796,7 +802,10 @@ function Written({ text }: { text?: string | null }) {
  * sides show these: only the wording is read, and that is all a form is.
  */
 export function CardTile({ card, lang, showLat, meta, actions, onClick, className }: {
-  card: Form;
+  /* A card, not one of its forms: the tile shows the card's own word —
+     the first of them — and says what the card is called, which is a fact
+     about the card. */
+  card: Record<string, any>;
   lang?: Lang;
   showLat?: boolean;
   meta?: Node;
@@ -809,7 +818,8 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
      one, which is what a person recognises it by. Here rather than at each
      list, so every place cards are shown says the same thing about them —
      the tile with an empty face was the alternative. */
-  const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : card.ar;
+  const lead = leadOf(card);
+  const face = isDialog(card) ? (linesOf(card)[0] || {}).ar || "" : lead.ar;
   return (
     <div
       className={`at-minicard${className ? " " + className : ""}`}
@@ -868,8 +878,8 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         <Written text={face} />
       </div>
-      {card.name ? null : <div className="at-minien">{card.en}</div>}
-      {showLat && card.lat ? <div className="at-minilat">{card.lat}</div> : null}
+      {card.name ? null : <div className="at-minien">{lead.en}</div>}
+      {showLat && lead.lat ? <div className="at-minilat">{lead.lat}</div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how
           many forms it had and how many recordings — four facts in a
@@ -883,8 +893,9 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
 
 /* --- what can be wrong with a question ----------------------------
  *
- * Three things, each shown as a card: a title saying what is wrong, and a
- * line saying when to pick it. The list was four one-line labels, and two
+ * Four things, each shown as a card: a title saying what is wrong, and a
+ * line saying when to pick it — three complaints, and one that is not a
+ * complaint at all but the learner saying a question was beneath them. The list was four one-line labels, and two
  * of them were guesses about what a label meant — "The check was too
  * strict" describes the marking rather than the complaint, and someone
  * whose recording was silent had to choose between "the card's data" and
@@ -899,9 +910,12 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
  *
  * `fixes` marks the option that also overturns the marking; `asks` marks
  * the one that cannot be sent on its own, because it covers everything not
- * listed and so has to be said in words.
+ * listed and so has to be said in words. `lifts` marks the one that is the
+ * learner's own shortcut rather than a report: it moves the form that was
+ * asked up a level of its ladder, on this device, and is never sent to
+ * anybody — the server does not know the kind, and does not need to.
  */
-export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: boolean; asks?: boolean }[] = [
+export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: boolean; asks?: boolean; lifts?: boolean }[] = [
   {
     key: "strict",
     title: "My answer should have been accepted",
@@ -914,9 +928,15 @@ export const FLAG_KINDS: { key: FlagKind; title: string; what: string; fixes?: b
     what: "The word, its meaning, one of its forms or its recording is wrong.",
   },
   {
+    key: "easy",
+    title: "This was too easy",
+    what: "By flagging this exercise as too easy, we'll automatically graduate this card to the next level",
+    lifts: true,
+  },
+  {
     key: "other",
     title: "Something else",
-    what: "Anything the two above don't cover. Tell us what happened.",
+    what: "Anything the ones above don't cover. Tell us what happened.",
     asks: true,
   },
 ];
@@ -997,7 +1017,7 @@ export function clipHashes(card: {
   subs?: { clips?: string[], slowClips?: string[] }[];
 }) {
   const on = (form: { clips?: string[]; slowClips?: string[] }) => CLIP_KINDS.flatMap((k) => form[k.key] || []);
-  return [...on(card || {}), ...((card && card.subs) || []).flatMap(on)];
+  return formsOf(card).flatMap(on);
 }
 
 /* --- shortDate ----------------------------------------------------
@@ -1839,8 +1859,12 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
   whereItLives?: boolean;
 }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
-  const dims = dimsOf(L);
-  const forms: Record<string, any>[] = [card, ...(card.subs || [])];
+  /* The axes this kind of word is asked about, so a preposition's
+     read-out does not list a gender it was never asked. A value written
+     before the kinds narrowed is still on the card; it is simply not a
+     row here. */
+  const dims = dimsFor(L, card.category);
+  const forms: Record<string, any>[] = formsOf(card);
   const titles = (card.decks || [])
     .map((id: string) => decks.find((d) => d.id === id))
     .map((d) => d && d.title)
@@ -2853,12 +2877,21 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
    */
   const formId = (name: string, i: number) =>
     `${localIdFor(card.id)}-f${name ? `~${name}` : i}`;
-  const forms = (card.subs || []).map((sb, i) => ({
-    id: formId(String(sb.id || ""), i),
-    ar: sb.ar || "",
-    lat: sb.lat || "",
-    en: sb.en || "",
-    ...dimValues(sb),
+  /*
+   * One form, whichever of them it is.
+   *
+   * Written once and used for the card's own word as well as for its
+   * alternates, which is the whole of what the one list bought: a field
+   * that belongs to a form — where it sits in a table, whether it is asked
+   * about, what its answers are grammatically — is carried here, once,
+   * rather than here and again on the card.
+   */
+  const formOf = (f: Record<string, any>, id: string) => ({
+    id,
+    ar: f.ar || "",
+    lat: f.lat || "",
+    en: f.en || "",
+    ...dimValues(f),
     /*
      * Where it sits, if it sits in a table.
      *
@@ -2873,14 +2906,19 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
      * this device's, so a cell points at the form beside it rather than at
      * a name from another machine.
      */
-    ...(sb.row ? { row: String(sb.row) } : null),
-    ...(sb.col ? { col: String(sb.col) } : null),
-    ...(sb.of ? { of: formId(String(sb.of), -1) } : null),
+    ...(f.row ? { row: String(f.row) } : null),
+    ...(f.col ? { col: String(f.col) } : null),
+    ...(f.of ? { of: formId(String(f.of), -1) } : null),
+    /* And whether the teacher asks about it at all — a table written out
+       for a student to read rather than to be drilled on. Carried only
+       where it is off, so an ordinary form gains nothing; absent means
+       asked, here as everywhere. */
+    ...(f.ask === false ? { ask: false } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers
        carrying them, which is what they meant when there was one set. */
-    answers: keptAnswers(sb),
+    answers: keptAnswers(f),
     note: "",
     /* Which language this is in, carried onto every form rather than onto
        the card alone: a form is what an exercise is about, and what marks
@@ -2888,11 +2926,18 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        language the app happens to be set to, which for somebody studying
        two is right half the time. */
     lang: card.lang,
-    recs: recsOf(sb),
+    recs: recsOf(f),
     created: Date.now(),
     updated: Date.now(),
     s: freshStates(),
-  }));
+  });
+
+  /* The card's own word first, then its alternates — one list, and the
+     card's own word answers to the card's own id, which is what every
+     question about it has always carried. */
+  const forms = formsOf(card).map((f, i) =>
+    formOf(f, i === 0 ? localIdFor(card.id) : formId(String(f.id || ""), i - 1)),
+  );
 
   /* A conversation's turns, which are forms with a speaker on them. Named
      the way the other forms are, so a line keeps its progress across a
@@ -2914,9 +2959,6 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
 
   return {
     id: localIdFor(card.id),
-    ar: card.ar || "",
-    lat: card.lat || "",
-    en: card.en || "",
     /* Every course card used to arrive labelled a word, whatever it held.
        That made the practice filter useless on course material, told the
        session builder that any two cards were more alike than they are, and
@@ -2928,6 +2970,7 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        holds. Asked through kindOf, which is the one answer to "what is
        this card" that every screen reads. */
     kind: kindOf({ ...card, lines }, LANGUAGES[card.lang]),
+    forms,
     ...(lines.length
       ? {
           lines,
@@ -2958,13 +3001,13 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        could work it out. Left off where there is none, so an ordinary card
        does not start carrying an empty one. */
     ...(card.name ? { name: String(card.name) } : null),
+    /* And what the teacher says it is — a noun, a verb, a name. Carried
+       for the same reason the name is: it is the teacher's answer and
+       nothing here could work it out. Left off where nobody has said. */
+    ...(card.category ? { category: String(card.category) } : null),
     tags: [deckTitle],
     locked: true,
     flags: [],
-    recs: recsOf(card),
-    ...dimValues(card),
-    answers: keptAnswers(card),
-    subs: forms,
     source: { courseId, deckId, cardId: card.id, rev: card.rev || 1 },
     /* When the card was made, not when it reached this device — so "added"
        means the same thing to the student as it does to the teacher who
@@ -2972,7 +3015,6 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        date. */
     created: card.created || Date.now(),
     updated: Date.now(),
-    s: freshStates(),
   };
 }
 
@@ -3149,11 +3191,20 @@ export function foldCourses(items: Item[], incoming: Item[]) {
   for (const fresh of incoming) {
     const existing = byId.get(fresh.id);
     if (existing) {
-      /* Keep what the student has earned; take the teacher's wording. */
+      /* Keep what the student has earned; take the teacher's wording.
+         One call, where it used to be the card's own progress and then its
+         forms': the card's word is the first of its forms and matches by
+         name like any other.
+
+         And keep what the student has said about the card, which rides on
+         the card rather than on its forms and so is not covered by that.
+         It has to be named: the teacher's card is taken whole, so anything
+         of the learner's not listed here is wiped by the next refresh —
+         which happens every forty-five seconds. */
       kept.push({
         ...fresh,
-        s: existing.s,
-        subs: foldForms(existing.subs || [], fresh.subs || []),
+        ...(existing.priority ? { priority: true } : null),
+        forms: foldForms(formsOf(existing), formsOf(fresh)),
       });
     } else {
       kept.push(fresh);

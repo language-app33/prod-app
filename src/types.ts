@@ -136,8 +136,15 @@ export interface VerbPerson {
   id: string;
   /** What the learner is shown — "she", "you (f)". "" where none is wanted. */
   label: string;
-  /** The grammar values on a subject that call for this column. */
-  picks?: Record<string, string>;
+  /**
+   * The grammar values on a filler that call for this column — one set,
+   * or several where more than one kind of filler does. Arabic's feminine
+   * adjective is called for by a feminine singular noun *and* by a plural
+   * of things, which no single set of values names; each alternative is
+   * matched on its own, and the most specific match across every column
+   * wins.
+   */
+  picks?: Record<string, string> | Record<string, string>[];
 }
 
 /** One row: when it happened, or what mood it is in. */
@@ -146,10 +153,42 @@ export interface VerbTense {
   label: string;
 }
 
-/** A language's verb table: its columns, and its rows in teaching order. */
+/**
+ * A table of a word's forms: its columns, and its rows in teaching order.
+ *
+ * Named for the verb's, which was the first, and the shape has stayed the
+ * verb's: rows and columns, and a cell is one thing to learn. A language
+ * declares as many as it lays out — see `tables` on the pack — and every
+ * reader takes the table it is handed rather than asking which one it is.
+ * Three facts a table carries about itself beyond its axes are below.
+ */
 export interface VerbSpec {
   persons: VerbPerson[];
   tenses: VerbTense[];
+  /**
+   * What its cells wait on before they are asked.
+   *
+   * `rows`: one row is ever new at a time, the next opening when the one
+   * above it is mastered — a verb's tenses, which are not as hard as each
+   * other. `word`: every cell waits on the word it is a form of being
+   * known, and once that word is learnt each cell is asked one exercise a
+   * level rather than all of them — the pronouns on the end of a word, the
+   * feminine of an adjective. Absent reads as `word`, which is the rule
+   * every one-row table has followed since there was one.
+   */
+  gate?: "rows" | "word";
+  /**
+   * Whether every form of the card carries one, or the card does.
+   *
+   * The plural takes the same pronouns the singular does and has eight of
+   * its own, so that table hangs off each form. A verb's table, and an
+   * adjective's feminine and plural, belong to the card: there is one of
+   * them, and the card is the word. Absent means the card's.
+   */
+  perForm?: boolean;
+  /** What to call it to a teacher — "attached pronouns", "feminine and
+      plural". Absent on the verb's, which is called by its rows. */
+  label?: string;
   /**
    * Which cell of the table is the verb as a dictionary names it.
    *
@@ -169,6 +208,39 @@ export interface VerbSpec {
   citation?: { row: string; col: string };
 }
 
+/**
+ * One thing a word can be: a noun, a verb, a name.
+ *
+ * What a card is was guessed until 0.137 — a verb if its table had
+ * anything in it, a word if its text was short — and the guessing is what
+ * let a saved card open as something it was not. The teacher says it now,
+ * once, and the editor follows: which table it is offered, and (later)
+ * which blank in somebody else's sentence it can stand in.
+ *
+ * Which categories exist is the language pack's answer, like everything
+ * else about a language. `table` names one the pack declares — a noun
+ * takes the pronouns on its end, a verb has its persons and tenses — and
+ * a category naming a table the pack has not got simply has none.
+ */
+export interface WordCategory {
+  id: string;
+  /** What the teacher is shown — "Noun". */
+  label: string;
+  /** The line under it saying what it means. */
+  note: string;
+  /** The table it lays out, by the name the pack declares it under. */
+  table?: string;
+  /**
+   * Which grammar axes a word of this kind is asked about, of the ones
+   * the pack declares — a preposition has neither number nor gender, a
+   * name has both because the verb beside it reads them. Absent means
+   * every axis the pack has, which is what every kind was asked until
+   * 0.140. Display and editing only: what is stored is never narrowed by
+   * this, so a value written before it existed is kept.
+   */
+  grammar?: string[];
+}
+
 /** A grammatical axis a word varies along — number, gender, addressee. */
 export interface GrammarDim {
   label: string;
@@ -176,6 +248,14 @@ export interface GrammarDim {
   required: boolean;
   /** [stored value, what to show]. */
   options: [string, string][];
+  /**
+   * How a value reads on a form's tag — "sg.", "f." — where it reads at
+   * all. A value mapped to "" is deliberately silent: N/A names nothing,
+   * and whether a noun is a person or a thing decides what agrees with it
+   * without being a way of telling its forms apart. Absent means the
+   * option's own label.
+   */
+  short?: Record<string, string>;
   /** What a new or unreadable value becomes. */
   default?: string;
   retired?: boolean;
@@ -217,15 +297,18 @@ export interface Derived {
   classes?: { id: string; label: string; merges: string[] }[];
 }
 
-/** A leniency the teacher can set on a course. */
-export interface LangOption {
-  key: string;
-  label: string;
-  help: string;
-  /** Absent on a plain on/off. */
-  choices?: [string, string][];
-  toggle?: boolean;
-}
+/**
+ * How strictly a language marks what is typed.
+ *
+ * A fact about the language, which is why it lives in the pack: whether a
+ * missing haraka is a mistake or merely an incomplete spelling is Arabic's
+ * answer, not a learner's. It used to be a row of Exact/Lenient controls
+ * under Settings — with labels, choices and help text declared here for
+ * them — and asking a beginner to rule on hamza before they could read one
+ * was never a fair question. The pack rules instead; each key is read by
+ * the pack's own `check`.
+ */
+export type LangMarking = Record<string, string | boolean>;
 
 /**
  * What each shade of not-quite-right is called. The tiers are the same in
@@ -296,19 +379,28 @@ export interface Lang {
   fontStack: string;
   keys: LangKeys;
   check: (given: string, expected: string, settings?: any) => any;
-  options: LangOption[];
+  marking: LangMarking;
   rules: string[];
   /** Only where the language has one. */
   lexical?: { key: string; label: string; help: string };
   /**
-   * How this language lays a verb out, where it lays one out at all. A
-   * pack without it teaches verbs as ordinary cards, which is every pack
-   * before this existed.
+   * The tables this language lays a word's forms out in, by name.
+   *
+   * `verb` is the persons and tenses, where verbs vary; `attached` the
+   * pronouns on the end of a word; `agreement` an adjective's feminine and
+   * plural; `counted` a number's feminine. A pack declares the ones it
+   * has and none of the rest — a noun in Huế is a noun with nothing laid
+   * out under it. Two of them used to be named fields here, and a third
+   * table would have been a third field, a third accessor and a third
+   * branch wherever the two were told apart.
    */
-  verb?: VerbSpec;
-  /** The pronouns this language attaches to the end of a word, where it
-      attaches any. One row, and a column per pronoun — see ATTACHED_TABLE. */
-  attached?: VerbSpec;
+  tables?: Record<string, VerbSpec>;
+  /**
+   * What a word can be in this language, in the order the teacher is asked.
+   * A pack without a list is asked nothing, and its cards say what they are
+   * the way every card did before this — by what they hold.
+   */
+  categories?: WordCategory[];
   /**
    * A pack's own rule for word/phrase/sentence. None has one yet;
    * guessKind() reads it.
@@ -428,6 +520,23 @@ export interface CardForm {
    * Minted by the editor, stored, and never shown.
    */
   id?: string;
+  /**
+   * Whether this form is asked about. Absent means yes, which is what
+   * every form written before this meant and what anything added to a card
+   * later means.
+   *
+   * A teacher may want a form on the card without it being drilled — a
+   * table of conjugations written out for a student to read, a rare plural
+   * worth recording and not worth asking for. Until this, the only way to
+   * stop a form being asked was to delete it, which took its recordings
+   * and every student's progress on it with it.
+   *
+   * Not to be confused with a card's `drill`, which is about the whole
+   * card: a value that fills somebody else's blank and is never a question
+   * of its own. This is one form of one card, and a card whose every form
+   * is switched off is simply a card with nothing to ask.
+   */
+  ask?: boolean;
 }
 
 /**
@@ -438,11 +547,22 @@ export interface CardForm {
  * why this is indexable: the server takes whatever grammarFields() lists
  * without knowing which language uses which.
  */
-export type Card = CardForm & {
+export type Card = {
   id: string;
   owner?: string;
   lang: LangId;
+  /** The card's own word first, then the alternates it carries. */
+  forms: CardForm[];
   note?: string;
+  /**
+   * What the teacher says this word is — a noun, a verb, a name. One of
+   * the ids the language pack declares; see WordCategory.
+   *
+   * Absent on every card written before it was asked, and on any the
+   * teacher has not answered for. What follows from it is the editor's
+   * business: nothing about how a card is drilled reads this.
+   */
+  category?: string;
   /**
    * The variable this card can stand in for, where it is a value rather
    * than something to learn: a card saying `name` fills every {{name}} in
@@ -466,7 +586,6 @@ export type Card = CardForm & {
    * else's sentence, and asking what it means is not a question.
    */
   drill?: boolean;
-  subs?: CardForm[];
   uses?: string[];
   lines?: (CardForm & { who?: number; uses?: string[] })[];
   speakers?: string[];
@@ -628,6 +747,11 @@ export type Form = Record<string, any> & {
   clips?: string[];
   slowClips?: string[];
   s?: Record<string, ExerciseState>;
+  /* Whether this form is asked about at all. Absent means yes — see
+     CardForm, where the teacher sets it. A form switched off keeps its
+     wording, its recordings and whatever schedule it had; it is simply
+     never dealt. */
+  ask?: boolean;
   /* How far this form has been asked with each of the values that fill its
      holes — "slot:valueId" to the highest level it was met at. Only for a
      value with no ladder of its own to be read instead; see valuesAt in
@@ -667,23 +791,60 @@ export type Line = Form & { who?: number; uses?: string[] };
  * names who is in it, and `you` says which of them the learner plays — or
  * is null, where the card leaves that to the question.
  */
-export type Item = Form & {
+/**
+ * A card on a device: the forms it is made of, and the facts that belong
+ * to the card as a whole.
+ *
+ * It *was* a form with a list of other forms beside it — the card's own
+ * word lived on the card, and its alternates in `subs`, which is two
+ * shapes for one kind of thing. Every per-form fact then had to be
+ * declared twice and handled twice, and the two drifted: a sub-form had no
+ * name of its own until 0.131, a cell of a pronoun table had to invent a
+ * way of saying "I belong to the card's own word", and each new per-form
+ * field was written once for the lead and once for the rest.
+ *
+ * One list now, the card's own word first. `forms[0]` is what a list
+ * shows, what a search matches and what a sentence borrows — see leadOf in
+ * cards.ts, which is how every reader asks for it.
+ */
+export type Item = {
+  id: string;
+  /** Which language it is in. A device holds more than one. */
+  lang?: LangId;
   kind?: string;
   tags: string[];
+  /** The card's own word first, then the alternates it carries. */
+  forms: Form[];
+  /** What the card as a whole is about, where the teacher wrote one. */
+  note?: string;
   /** The variable this card stands in for, where it is a value. See Card. */
   fills?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
+  /** What the teacher says the word is — a noun, a verb, a name. See Card. */
+  category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /** Which of the teacher's other cards this one teaches by containing them. */
+  uses?: string[];
   flags?: any[];
-  subs?: Form[];
   lines?: Line[];
   speakers?: string[];
   you?: number | null;
   source?: { courseId: string; deckId: string; cardId: string; rev: number };
   locked?: boolean;
+  /**
+   * The learner has asked for this card.
+   *
+   * Theirs, not the teacher's — it is set from the learner's own card list
+   * and survives a course refresh, which `foldCourses` has to be told
+   * about because that otherwise takes the teacher's card whole. While it
+   * is on, the card is ready whatever its schedule says and comes first in
+   * every session; nothing about the schedule underneath it moves.
+   */
+  priority?: boolean;
   created: Millis;
+  updated?: Millis;
 };
 
 /**
@@ -716,8 +877,10 @@ export type WireDoc = Partial<Doc>;
 
 /* ---- reported problems ---- */
 
-/** Which of the three things a learner said was wrong. */
-export type FlagKind = "strict" | "data" | "other";
+/** Which of the four things a learner said — three complaints, and "too
+    easy", which is a shortcut up the ladder rather than a report and is
+    never sent to the server. */
+export type FlagKind = "strict" | "data" | "easy" | "other";
 
 /**
  * What has become of a flagged card since the report was sent. Worked out

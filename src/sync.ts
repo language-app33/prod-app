@@ -1,5 +1,6 @@
 import type { Doc, ExerciseState, Form, Item, WireDoc } from "./types.ts";
 import { mergeMet } from "./variables.ts";
+import { formsOf } from "./cards.ts";
 /*
  * Sync client.
  *
@@ -84,12 +85,14 @@ function mergeItem(a: Item, b: Item): Item {
   const base = (a.updated || 0) >= (b.updated || 0) ? a : b;
   const other = base === a ? b : a;
 
-  /* The other forms of the card carry their own progress, and it merges the
+  /* Every form of the card carries its own progress, and it merges the
      same way — by form, then by exercise type. Taking the whole list from
-     one side threw away the other device's work on any form it had drilled. */
-  const subs = (base.subs || []).map((sb) => {
-    const twin = (other.subs || []).find((x) => x.id === sb.id);
-    return twin ? { ...sb, s: mergeStates(sb.s, twin.s), ...metOf(sb, twin) } : sb;
+     one side threw away the other device's work on any form it had drilled.
+     The card's own word is the first of them and merges with the rest; it
+     used to be a second piece of code beside this one. */
+  const forms = formsOf(base).map((f) => {
+    const twin = formsOf(other).find((x) => x.id === f.id);
+    return twin ? { ...f, s: mergeStates(f.s, twin.s), ...metOf(f, twin) } : f;
   });
 
   /* The lines of a dialog, for the same reason: each carries its own
@@ -103,9 +106,7 @@ function mergeItem(a: Item, b: Item): Item {
 
   return {
     ...base,
-    s: mergeStates(a.s, b.s),
-    ...metOf(a, b),
-    subs,
+    forms,
     ...(lines.length ? { lines } : null),
   };
 }
@@ -249,8 +250,7 @@ export function compactItem(it: Item): Item {
   const lines = it.lines;
   return {
     ...it,
-    s: compactStates(it.s),
-    subs: (it.subs || []).map((sb) => ({ ...sb, s: compactStates(sb.s) })),
+    forms: formsOf(it).map((f) => ({ ...f, s: compactStates(f.s) })),
     /* A scene's lines carry states the same way, and a scene is several
        forms' worth of them. Left out where there are none, so an ordinary
        card does not start travelling with an empty list. */
@@ -329,8 +329,9 @@ export async function pushClip(token: string, id: string, dataUrl: string) {
 export function clipIdsIn(data: WireDoc) {
   const ids = [];
   for (const it of data.items || []) {
-    for (const r of it.recs || []) ids.push(r.id);
-    for (const sb of it.subs || []) for (const r of sb.recs || []) ids.push(r.id);
+    /* The card's own word and each of its forms, which is what formsOf
+       hands out in one list. */
+    for (const f of formsOf(it)) for (const r of f.recs || []) ids.push(r.id);
     for (const ln of it.lines || []) {
       for (const r of ln.recs || []) ids.push(r.id);
     }

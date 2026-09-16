@@ -34,6 +34,7 @@
  * a test can reach and somewhere nothing can reach back into.
  */
 import type { Form, VerbPerson, VerbSpec, VerbTense } from "./types.ts";
+import { subFormsOf } from "./cards.ts";
 
 /*
  * Everything below takes `unknown` and narrows it here.
@@ -95,9 +96,7 @@ export const isCell = (form: unknown): boolean => !!rowOf(form) && !!colOf(form)
  * is every card written before this existed, and comes back empty.
  */
 export function cellsOf(card: unknown): Form[] {
-  const subs = field(card, "subs");
-  if (!Array.isArray(subs)) return [];
-  return (subs as Form[]).filter((sub) => isCell(sub));
+  return subFormsOf(card).filter((sub) => isCell(sub));
 }
 
 /**
@@ -177,11 +176,26 @@ export const VERB_SLOT = "verb";
  */
 export const isFrame = (form: unknown): boolean => !!rowOf(form) && !colOf(form);
 
+/**
+ * The hole this form fills out of its card's own table, where there is one.
+ *
+ * `{{verb}}` means two things, and which one it means is a fact about the
+ * form the sentence is written on. On a card's own sentence — a frame, so
+ * a row and no column — it is the card's own place, filled from the table
+ * below it by whatever fills the subject, and no card in the deck fills it.
+ * Anywhere else it is an ordinary blank named after a kind of word, filled
+ * by the verbs the teacher has written, exactly as `{{noun}}` is filled by
+ * the nouns.
+ *
+ * Until 0.139 it was always the first, which meant a sentence card could
+ * name every kind of word its language declared except the one a sentence
+ * most needs.
+ */
+export const ownSlot = (form: unknown): string => (isFrame(form) ? VERB_SLOT : "");
+
 /** The sentences a card asks itself in. */
 export function framesOf(card: unknown): Form[] {
-  const subs = field(card, "subs");
-  if (!Array.isArray(subs)) return [];
-  return (subs as Form[]).filter((sub) => isFrame(sub));
+  return subFormsOf(card).filter((sub) => isFrame(sub));
 }
 
 /**
@@ -369,17 +383,70 @@ export function personFor(
   let best: VerbPerson | null = null;
   let bestAt = -1;
   for (const person of personsOf(spec)) {
-    const picks = person.picks;
-    if (!picks) continue;
-    const keys = Object.keys(picks);
-    if (!keys.length) continue;
-    if (!keys.every((key) => str(had[key]) === str(picks[key]))) continue;
-    if (keys.length > bestAt) {
-      best = person;
-      bestAt = keys.length;
+    /* One set of values, or several: each alternative is a match on its
+       own, and counts by its own keys. */
+    for (const picks of picksOf(person)) {
+      const keys = Object.keys(picks);
+      if (!keys.length) continue;
+      if (!keys.every((key) => str(had[key]) === str(picks[key]))) continue;
+      if (keys.length > bestAt) {
+        best = person;
+        bestAt = keys.length;
+      }
     }
   }
   return best;
+}
+
+/** A column's picks as the list they are, whichever way they were written. */
+export const picksOf = (person: VerbPerson | null | undefined): Record<string, string>[] => {
+  const picks = person && person.picks;
+  if (!picks) return [];
+  return Array.isArray(picks) ? picks : [picks];
+};
+
+/**
+ * The slot an agreeing filler reads: the first that is not its own.
+ *
+ * "{{noun}} {{adjective}}" has the adjective agree with the noun, and
+ * "{{name}} {{verb}} {{object}}" has the verb agree with the name, by the
+ * same rule: the one other hole the teacher wrote first. Taken by position
+ * rather than asked for, because a teacher who has just written the
+ * sentence has already said which comes first and should not have to say
+ * it twice in a menu. subjectSlot is this rule for the verb's own place.
+ */
+export const agreeWith = (slots: string[], slot: string): string =>
+  (slots || []).find((s) => s !== slot) || "";
+
+/**
+ * The form an agreeing card stands in a hole as, once what it agrees with
+ * is known.
+ *
+ * `own` is the card's own word, which is what the pool lent; `partner` is
+ * the value in the slot it agrees with, whose grammar picks a column. No
+ * column picking is the word itself — a masculine singular noun beside an
+ * adjective wants the masculine singular, which is the word — and a column whose cell the
+ * teacher left blank is null, which is the caller's cue to ask this
+ * sentence of nobody: the rule a verb's own sentence already follows.
+ *
+ * One row, because that is what an agreeing table is: the pronouns on the
+ * end of a word pick nothing, and a verb's three rows need a sentence to
+ * say which. See agreementOf in languages.ts, which is the one answer to
+ * "does this kind of word agree".
+ */
+export function agreedValue(
+  card: unknown,
+  spec: VerbSpec | null | undefined,
+  own: { id?: string; ar: string; en: string; lat: string },
+  partner: { grammar?: Record<string, string> } | null | undefined,
+): { id?: string; ar: string; en: string; lat: string } | null {
+  const rows = tensesOf(spec);
+  if (rows.length !== 1) return own;
+  const person = personFor(spec, partner ? partner.grammar : null);
+  if (!person) return own;
+  const cell = cellAt(card, rows[0].id, person.id);
+  if (!cell || !String(cell.ar || "").trim()) return null;
+  return { id: cell.id, ar: cell.ar, en: cell.en, lat: cell.lat };
 }
 
 /**

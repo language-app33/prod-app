@@ -31,6 +31,10 @@ import {
   isCell,
   isCitation,
   isFrame,
+  ownSlot,
+  picksOf,
+  agreeWith,
+  agreedValue,
   hasCells,
   cellsIn,
   openRows,
@@ -42,7 +46,7 @@ import {
   tableOf,
   tensesOf,
 } from "../src/verbs.ts";
-import { LANGUAGES, attachedOf, takesAttached, teachesVerbs, verbOf } from "../src/languages.ts";
+import { LANGUAGES, attachedOf, takesAttached, teachesVerbs, verbOf, specOf } from "../src/languages.ts";
 import { slotsOf } from "../src/variables.ts";
 import { must } from "./helpers.mjs";
 
@@ -202,6 +206,24 @@ test("the verb's own hole is the one no card fills", () => {
      position so a teacher does not have to say it twice. */
   assert.equal(subjectSlot(slots), "name");
   assert.equal(subjectSlot([VERB_SLOT]), "");
+});
+
+test("the verb's hole is its own only in its own sentence", () => {
+  /* On the card's own sentence — a row and no column — {{verb}} is filled
+     from the table below it, and no card in the deck fills it. */
+  const own = { id: "f1", row: "past", ar: "{{name}} {{verb}}", en: "", lat: "" };
+  assert.equal(ownSlot(own), VERB_SLOT);
+
+  /* Anywhere else it is an ordinary blank named after a kind of word,
+     filled by the verbs the teacher has written — which is what lets a
+     sentence card ask for one at all. Until 0.139 it was always the
+     card's own, so a sentence could name every kind of word its language
+     declared except the one a sentence most needs. */
+  const sentence = { id: "s1", ar: "{{name}} {{verb}}", en: "", lat: "" };
+  assert.equal(ownSlot(sentence), "");
+  assert.equal(ownSlot({ id: "c1", row: "past", col: "he", ar: "أكل", en: "", lat: "" }), "",
+    "and a cell of the table is not a sentence at all");
+  assert.equal(ownSlot(null), "");
 });
 
 test("a sentence has a row and no column; a cell has both", () => {
@@ -572,4 +594,86 @@ test("a row waits on its own table's cells", () => {
   assert.equal(cellIsOpen(doubled, arabic, theirs, (c) => done.has(c.id)), false);
   const ours = must(cellAt(doubled, "past", "i"), "the card's own past");
   assert.equal(cellIsOpen(doubled, arabic, ours, (c) => done.has(c.id)), true);
+});
+
+/* ------------------------------------------------------------------
+   Agreement out of a one-row table
+
+   An adjective lends its own word into a hole, and the sentence goes back
+   to its card for the form that agrees with the noun beside it. The rule
+   is the verb's — a column picks on the filler's grammar, most specific
+   wins — with two things added: a column may be called for by more than
+   one kind of filler, and "no column" means the word itself.
+   ------------------------------------------------------------------ */
+
+const arAgree = must(specOf(LANGUAGES["ar-PS"], "agreement"), "Arabic agreement");
+const big = {
+  id: "big", ar: "كبير", en: "big", lat: "kbiir",
+  subs: [
+    { id: "big-f", row: "agreement", col: "feminine", ar: "كبيرة", en: "big", lat: "kbiire" },
+    { id: "big-pl", row: "agreement", col: "plural", ar: "كبار", en: "big", lat: "kbaar" },
+  ],
+};
+const own = { id: "big", ar: "كبير", en: "big", lat: "kbiir" };
+/** @param {Record<string, string>} grammar */
+const beside = (grammar) => ({ grammar });
+
+test("a column may be called for by more than one kind of filler", () => {
+  assert.deepEqual(picksOf({ id: "x", label: "" }), []);
+  assert.deepEqual(picksOf({ id: "x", label: "", picks: { a: "1" } }), [{ a: "1" }]);
+  assert.deepEqual(picksOf({ id: "x", label: "", picks: [{ a: "1" }, { b: "2" }] }), [{ a: "1" }, { b: "2" }]);
+  /* Arabic's feminine adjective: a feminine singular noun, or a plural of
+     things. A plural of people goes to the plural column, which asks for
+     two things and so beats the alternative that asks for one. */
+  assert.equal(must(personFor(arAgree, { number: "singular", gender: "feminine" }), "f").id, "feminine");
+  assert.equal(must(personFor(arAgree, { number: "plural", human: "thing", gender: "masculine" }), "pl thing").id, "feminine");
+  assert.equal(must(personFor(arAgree, { number: "plural", human: "person", gender: "masculine" }), "pl person").id, "plural");
+  assert.equal(personFor(arAgree, { number: "singular", gender: "masculine" }), null, "nothing picks the word itself");
+});
+
+test("an agreeing filler reads the first other hole, which is the verb's rule too", () => {
+  assert.equal(agreeWith(["noun", "adjective"], "adjective"), "noun");
+  assert.equal(agreeWith(["adjective", "noun"], "adjective"), "noun");
+  assert.equal(agreeWith(["name", "verb", "object"], "verb"), subjectSlot(["name", "verb", "object"]));
+  assert.equal(agreeWith(["adjective"], "adjective"), "", "nothing to agree with");
+});
+
+test("the form that agrees: the cell a column picks, the word where none does, nothing where the cell is blank", () => {
+  assert.deepEqual(agreedValue(big, arAgree, own, beside({ number: "singular", gender: "feminine", human: "thing" })),
+    { id: "big-f", ar: "كبيرة", en: "big", lat: "kbiire" });
+  assert.deepEqual(agreedValue(big, arAgree, own, beside({ number: "plural", gender: "masculine", human: "thing" })),
+    { id: "big-f", ar: "كبيرة", en: "big", lat: "kbiire" }, "a plural of things takes the feminine singular");
+  assert.deepEqual(agreedValue(big, arAgree, own, beside({ number: "plural", gender: "masculine", human: "person" })),
+    { id: "big-pl", ar: "كبار", en: "big", lat: "kbaar" }, "and a plural of people the plural");
+  assert.equal(agreedValue(big, arAgree, own, beside({ number: "singular", gender: "masculine", human: "thing" })), own,
+    "a masculine singular noun wants the word itself");
+  assert.equal(agreedValue(big, arAgree, own, null), own, "and so does nothing to agree with");
+  /* A cell the teacher left blank is nothing to ask — the rule a verb's
+     own sentence already follows. */
+  const half = { ...big, subs: [big.subs[0], { ...big.subs[1], ar: "" }] };
+  assert.equal(agreedValue(half, arAgree, own, beside({ number: "plural", human: "person" })), null);
+  /* A table with more than one row cannot say which, so nothing agrees
+     out of it here: that is the verb's own sentence's job. */
+  assert.equal(agreedValue(big, arabic, own, beside({ number: "singular", gender: "feminine" })), own);
+});
+
+test("a number agrees by the noun's gender alone, and the cell says the rest", () => {
+  const counted = must(specOf(LANGUAGES["ar-PS"], "counted"), "counted");
+  const three = { id: "3", ar: "ثلاثة", en: "three", lat: "", subs: [{ id: "3-f", row: "counted", col: "feminine", ar: "ثلاث", en: "three", lat: "" }] };
+  const word = { id: "3", ar: "ثلاثة", en: "three", lat: "" };
+  assert.equal(must(agreedValue(three, counted, word, beside({ number: "plural", gender: "feminine", human: "thing" })), "f").ar, "ثلاث");
+  assert.equal(agreedValue(three, counted, word, beside({ number: "plural", gender: "masculine", human: "thing" })), word);
+});
+
+test("Hebrew agrees in number and gender at once", () => {
+  const he = must(specOf(LANGUAGES["he-IL"], "agreement"), "Hebrew agreement");
+  const card = { id: "g", ar: "גדול", en: "big", lat: "", subs: [
+    { id: "g-f", row: "agreement", col: "feminine", ar: "גדולה", en: "big", lat: "" },
+    { id: "g-mp", row: "agreement", col: "masc-plural", ar: "גדולים", en: "big", lat: "" },
+    { id: "g-fp", row: "agreement", col: "fem-plural", ar: "גדולות", en: "big", lat: "" },
+  ] };
+  const word = { id: "g", ar: "גדול", en: "big", lat: "" };
+  assert.equal(must(agreedValue(card, he, word, beside({ number: "plural", gender: "feminine" })), "fp").ar, "גדולות");
+  assert.equal(must(agreedValue(card, he, word, beside({ number: "plural", gender: "masculine" })), "mp").ar, "גדולים");
+  assert.equal(agreedValue(card, he, word, beside({ number: "singular", gender: "masculine" })), word);
 });

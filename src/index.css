@@ -906,6 +906,13 @@ button {
   text-transform:uppercase; color: var(--faint); line-height:1.4; }
 .at-minimeta { font-size:calc(11px * var(--tile, 1)); color: var(--faint); line-height:1.4; margin-top:auto;
   padding-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* The mark on a card the learner asked for. In the meta line because that
+   is the tile's one line of small print, but in brass rather than the
+   faint the rest of it is set in: the point of it is to be picked out of a
+   list you are scanning past. */
+.at-minipri { color: var(--brass); font-weight:700; margin-right:6px; }
+.at-minipri svg { width:calc(11px * var(--tile, 1)); height:calc(11px * var(--tile, 1));
+  vertical-align:-1px; margin-right:2px; }
 .at-minilat { font-size:calc(11px * var(--tile, 1)); color: var(--muted); }
 .at-minidecks .at-flag { font-size:11px; }
 .at-minicard.picked { border-color: var(--accent); }
@@ -1158,12 +1165,7 @@ button {
   margin-top:6px; line-height:1.55; }
 .at-sheetnote { font-family: var(--mono); font-size:10px; letter-spacing:.1em;
   text-transform:uppercase; color: var(--jade); }
-.at-disclosure { display:flex; align-items:center; justify-content:space-between;
-  width:100%; background:none; border:0; padding:0; cursor:pointer; color: var(--text); }
-.at-disclosure:hover .at-chevron { color: var(--text); }
 .at-chevron { color: var(--muted); font-size:12px; }
-.at-advgroup { margin-top:18px; padding-top:16px; border-top:1px solid var(--line); }
-.at-advgroup:first-of-type { margin-top:16px; }
 .at-sub.at-danger { border-color: var(--rose-soft); }
 .at-cliplist { display:flex; flex-direction:column; gap:6px; }
 .at-clip { display:flex; align-items:center; gap:8px; border:1px solid var(--line);
@@ -2061,7 +2063,6 @@ button.at-stat { transition: border-color 140ms ease; }
 /* Rules for classes the markup uses. Previously missing, so these elements
    were rendering unstyled. */
 .at-readout { display:block; }
-.at-advanced { margin-top:18px; padding-top:14px; border-top:2px solid var(--line); }
 /* Two clearly separate parts of the courses page. */
 .at-section { margin-bottom:26px; }
 .at-section:first-of-type { margin-top:20px; }

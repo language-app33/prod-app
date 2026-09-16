@@ -8,6 +8,326 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.144 — 16 September 2026
+
+- **You can ask for a card.** Open any card under Cards and there is a
+  *Mark as high priority* button at the foot of it. A card you mark counts
+  as waiting however far off its next review was: it is in the number on the
+  home screen straight away, it opens your very next session, and it stays
+  in every session until you tap the button again to clear it. The card list
+  shows a star on the ones you have marked, so you can see at a glance which
+  they are.
+
+  Nothing underneath it moves. What you have learnt about the card, and when
+  it would have come round on its own, are both still there when you take
+  the mark off. It works on the cards your teacher sent you as well as your
+  own — what you want to practise is your business, not theirs — and it
+  survives your teacher editing the card.
+
+- **A question you get wrong no longer comes back beside itself.** It still
+  comes back, and it is still the same question, because the point of asking
+  again is to test the thing that went wrong. What has changed is where it
+  goes: it now goes through the same spacing rule the rest of the session
+  was built with, so it never lands next to another question about the same
+  card. Miss both questions about one word and you used to finish the
+  session being asked about that word twice in a row; now the two are spread
+  out like everything else.
+
+- **And the same card no longer turns up twice running.** When the session
+  could not both change the word and change the kind of question, it used to
+  keep the word and change the question — so you got the same card twice in
+  a row, asked two ways. It keeps the question and changes the word instead.
+  Two words in a row asked the same way is barely noticeable; the same word
+  twice running is the thing everybody notices.
+
+## 0.143 — 15 September 2026
+
+- **Settings no longer asks how practice should work.** The Advanced panel
+  is gone, and with it the six controls over how a session is built —
+  exercises per form, exercise types in play, exercises per session, new
+  cards per session, grouping similar cards, order within a session — the
+  row of marking leniencies beside them, and the hints switch above them.
+  The app decides all of it now. Anything you had set is dropped rather
+  than quietly kept, so every device is on the same footing.
+
+  Settings keeps what is genuinely yours: which language you are learning,
+  theme, the on-screen keys, and how loud the answer sounds are.
+
+- **Fewer repeats of the same word in a session.** Two of the old defaults
+  were the reason the same handful of cards kept coming round, and neither
+  is a default any more. Each form is asked two ways in a sitting rather
+  than three, so an ordinary session is nine words instead of six; and a
+  card may bring two of its forms rather than four, so a session of verbs
+  is five words rather than two words asked eighteen times between them.
+  Similar cards are no longer gathered into the same session, which used to
+  reach past what was actually due to find a shared root or a shared tag.
+
+  Nothing about the scheduling changed — what is due is still what is due,
+  and every form is still learnt in its own right. A session simply spends
+  its eighteen questions on more of them.
+
+- **A hint stays closed until you ask for it.** It always could be opened
+  by hand, and there was a setting that opened it on every question
+  instead. That setting was a way to learn less without being told: on the
+  two questions where the nudge spells out the answer another way, having
+  it up by default meant climbing to the top of the ladder without once
+  writing the word from its meaning alone.
+
+- **Two settings that could not show you their own value.** "Exercises per
+  session" and "New cards per session" printed the words
+  `{settings.sessionSize}` and `{settings.newPerSession}` where the number
+  should have been. Both controls are gone, which is one way to fix it.
+
+## 0.142 — 16 September 2026
+
+- **A fourth flag: "This was too easy".** The flag menu on a question now
+  offers it third, with the line *By flagging this exercise as too easy,
+  we'll automatically graduate this card to the next level* — and it does.
+  Choosing it and pressing Send moves the form that was asked — the word,
+  or the one cell of a table the question was about — up one level of its
+  ladder on the spot: every exercise on the level it is standing on is
+  counted as learnt, so the next level opens from the next session. Its
+  other forms keep their own places. A form already on the top level is
+  counted as mastered instead, and the message under the button says which
+  happened.
+
+  The answer you gave to that question is not marked against you: if you
+  got it wrong and then said it was too easy, the too-easy wins. Nothing is
+  sent to the teacher — this one is your own shortcut, not a report — so it
+  needs no account and does not appear in the teacher's list of flags. In
+  a trial of a teacher's own card it does nothing, like everything else
+  there.
+
+## 0.141 — 16 September 2026
+
+- **In a sentence, an adjective agrees with the noun beside it.** A blank
+  filled by an adjective now picks the form its noun calls for: كتاب كبير,
+  سيارة كبيرة, معلمين كبار — and كتب كبيرة, because a plural of things
+  takes the feminine singular, which is what the person-or-thing question
+  on nouns (added last release) is for. A number does the same by gender:
+  ثلاثة كتب, ثلاث سيارات. The form is read off the adjective's own table,
+  so a card with an empty cell is simply not asked in a sentence that needs
+  that cell, rather than being asked with the wrong form.
+
+  Which noun it agrees with is the first other blank in the sentence — the
+  same rule a verb's own sentence has always followed — so "{{noun}}
+  {{adjective}}" needs nothing said.
+
+  One consequence: an adjective or number card lends only its own word
+  into a blank, and its other forms are reached by agreement rather than
+  by turn. So which sentence a given asking lands on will move for those
+  cards. Nothing is lost by that; it is written down because it looks like
+  a change the first time somebody notices.
+
+  A verb standing in a sentence card still cannot agree: nothing on a
+  sentence card says which tense, so its forms go on taking turns as they
+  did. A verb's own sentence, written on the verb card, goes on working.
+
+## 0.140 — 16 September 2026
+
+- **Each kind of word gets the editor its grammar wants.** The editor asks
+  what kind of word a card is, and until now only three answers changed
+  anything. In Palestinian Arabic every answer now does something:
+
+  - **Noun** — as before, plus one new question: **a person or a thing**
+    (animals count as things). It is there because the next release needs
+    it: a plural of things takes the feminine singular adjective, a plural
+    of people the plural.
+  - **Verb** — as before. Any extra form the card carries is no longer
+    asked its number and gender.
+  - **Adjective** — a one-row table of its own: **feminine** and
+    **plural**, each practised in its own right once the word is known. No
+    number or gender on the word, because the table is its number and
+    gender. No *Add a form*: a second spelling is an accepted answer, as
+    on a verb.
+  - **Preposition** — the pronouns on its end, as before, minus number and
+    gender.
+  - **Pronoun** — the word with number and gender. No table.
+  - **Name** — the word with gender **and number**. Number stays because
+    the verb beside it in a sentence reads both to choose between *he* and
+    *she*.
+  - **Number** — the word (the masculine form), then one cell:
+    **feminine**. You type whichever form the noun's gender calls for —
+    ثلاثة in the word, ثلاث in the cell — and the app only ever picks by
+    the noun's gender, so the reversed agreement of three to ten is your
+    typing, not a rule it has to know.
+  - **Something else** — the word only. No grammar, no table.
+
+  Hebrew gets the same, except an adjective's table has three cells
+  (feminine, masculine plural, feminine plural). Huế changes nothing: it
+  lays out neither table, so an adjective there stays a plain word, as a
+  noun does.
+
+  A card written before this keeps everything it has. Hiding a field does
+  not erase what was typed into it; a preposition saved earlier with a
+  gender still shows it in lists. A saved card with a table opens on that
+  table, whichever it is.
+
+- **Housekeeping underneath: a language declares its tables by name.** Two
+  tables used to be built into the app by name, and a third would have been
+  a third special case everywhere the two were told apart. A language now
+  declares as many as it has, and each table says what its cells wait on
+  (the row above, as a verb's do; or the word itself, as pronouns do) and
+  whether every form carries one or the card does. The drilling rules did
+  not change — which rule applies is read off the table.
+
+  One small wording change on the way: in *What is drilled*, the line for a
+  word's pronouns is now "Its attached pronouns".
+
+## 0.139 — 15 September 2026
+
+- **A sentence is now a kind of card you can make, and the words you have
+  already written fill it in.** Write "the {{noun}} is {{adjective}}" once
+  and it is asked as every noun and adjective you have, a different pair
+  each time, rather than being one sentence somebody learns whole.
+
+  The card editor asks what kind of card it is — a word, a sentence, or a
+  conversation — and a sentence gets its own editor: the sentence, the
+  blanks in it, and what each blank will be filled with. Nothing about
+  parts of speech or tables, because a sentence is not a word.
+
+  A card with a blank in it already opens as one, so the sentences you have
+  written are already there. Nothing is stored saying "sentence": the
+  blanks are in the words themselves, so a card that has one is a sentence
+  and a card that loses its last one is a phrase again.
+
+- **A blank named after a kind of word is filled by the words of that
+  kind.** `{{noun}}` takes every card you have called a noun, `{{verb}}`
+  every verb, and so on through whatever the language declares. Nothing has
+  to be written on those cards: they answered the question when you said
+  what they were.
+
+  Until now a blank had to be named on both sides — a blank called `name`,
+  and every card that fills it carrying the word "name" — which is filing
+  rather than teaching. That still works and is still the way to make a
+  narrow blank of your own. It is no longer the only way.
+
+- **Every form of a word can fill a blank, not only the word itself.** A
+  plural stands in a sentence, and so does one cell of a verb's table. Each
+  stands on its own progress: a form only turns up in a sentence a student
+  is far enough along to answer, exactly as the word itself always did.
+
+- **A sentence can ask for a verb.** `{{verb}}` used to mean one thing only
+  — a verb card's own place in its own sentence — so a sentence card could
+  name every kind of word its language has except the one a sentence most
+  needs. It still means the card's own place on a verb card's own sentence,
+  and means "any verb" everywhere else.
+
+  One limit worth stating: a blank is filled from the words the student
+  already has. A sentence in a lesson whose nouns the student has not been
+  given yet is not asked until they have been, and the editor says so
+  rather than leaving you to find out.
+
+- **A card with a blank in it no longer fills anybody else's.** That was
+  always the stated rule and there was one way round it: a card that both
+  had a blank and named one it filled went on standing in other cards'
+  sentences, which puts a sentence inside a sentence. If you have a card
+  doing that, it stops.
+
+## 0.138 — 15 September 2026
+
+- **Housekeeping: a card is now simply the list of forms it holds.** Nothing
+  looks or behaves differently, and nothing you have written changes.
+
+  A card has always been one word together with the alternates it carries —
+  a plural, a feminine, a cell of a verb's table, a word with a pronoun on
+  its end — and every one of those is a thing to learn in its own right,
+  with its own recordings, its own pronunciation and its own place on the
+  ladder. Until now the card's own word was kept apart from the rest: the
+  word was the card, and the alternates sat in a list beside it. That is two
+  shapes for one kind of thing, so every fact about a form had to be
+  written twice, and the two kept drifting apart. An alternate had no name
+  of its own for three releases. A form kept without being asked about
+  needed a second, separate answer for the card's own word. A cell of a
+  pronoun table had to invent a way of saying "I belong to the card's own
+  word".
+
+  One list now, the card's own word first. Every form is the same kind of
+  thing, so anything added to forms from here on is added once. Your cards
+  are read into the new shape the moment the app opens them, and each keeps
+  its recordings, its progress and everything the teacher wrote.
+
+  This is the last of the groundwork. Sentence cards come next, and after
+  them blanks that can be filled by any form of a word.
+
+- **A conversation's read-through and put-it-in-order questions are asked of
+  the scene's own title.** Part of the same change, and worth saying because
+  it is the one place where the new shape had to answer a question the old
+  one answered by accident. Nothing about practising a conversation changes.
+
+## 0.137 — 15 September 2026
+
+- **A card now says what kind of word it is, and the teacher is the one who
+  says it.** Noun, verb, adjective, preposition, pronoun, name, number, or
+  something else — asked once, in the block at the top of the editor, from a
+  list the language itself declares.
+
+  It replaces a question about the app's own machinery. The editor used to
+  ask which *table* a word laid its forms out in — *Just this word*, *A
+  verb*, *Attached pronouns* — and then work out what the card was by
+  looking at which table happened to have something in it. That guess is
+  what let a saved word with pronouns on its end open as a verb and lose
+  them on the next save.
+
+  What follows from the answer is the table: a verb is offered its persons
+  and tenses, a noun and a preposition the pronouns that go on their end,
+  and everything else is the word and whatever forms you write. A card
+  written before this is shown what it looks like — a card with a verb's
+  table reads as a verb — and you can say otherwise before saving.
+
+  Nothing about how a card is drilled changes. This is the first of three
+  steps: sentence cards come next, and after them blanks that can be filled
+  by any form of a word.
+
+## 0.136 — 15 September 2026
+
+- **Housekeeping: there is now one way to ask what forms a card has.**
+  Nothing looks or behaves differently. A card is its own word plus the
+  alternates it carries — a plural, a feminine, a cell of a verb's table —
+  and until now the code joined those two together by hand in around thirty
+  places, each written slightly differently. They are all one question now,
+  asked in one place.
+
+  This is the groundwork for the work planned next: teachers naming what a
+  card is, sentence cards, and blanks that can be filled by any form of a
+  word. Each of those has to walk a card's forms, and it is far safer to do
+  that through one door than thirty.
+
+## 0.135 — 15 September 2026
+
+- **Fixed: the *What is drilled* section was missing from every card that
+  needed no decision.** It was hidden on any card with only one part —
+  which is every ordinary word, and every card at the moment it is
+  created. So the section shipped in 0.134 appeared on none of the cards a
+  teacher opens first, and looked as though it had never arrived.
+
+  It is now on every card. On a plain word it is one line saying the word
+  is asked about, which is worth saying and is the only place anybody
+  would look to change it.
+
+## 0.134 — 15 September 2026
+
+- **A card can now keep a form without being asked about it.** The editor
+  has a *What is drilled* section listing the parts of the card — its word,
+  each further form, the pronouns on the end of each of them, the
+  conjugations — all ticked, and any of them can be unticked.
+
+  An unticked part stays on the card and is still shown. Its recordings are
+  kept, and so is whatever progress a student has already made on it: it is
+  simply never asked about, and ticking it again takes up where it left
+  off. Until now the only way to stop a form being drilled was to delete
+  it, which threw all of that away — so a conjugation table written out for
+  a class to read cost twenty-one questions a day or nothing at all.
+
+  The section is not shown on a card with only one part, which is the
+  ordinary word: there is nothing there to choose between.
+
+  Two of the ticks take something with them, because the app would
+  otherwise be offering a choice that does nothing. A verb whose word is
+  one of the boxes in its own table is one thing, so the two go together;
+  and the pronouns on the end of a form go off with that form, since they
+  are only ever asked once the form itself is known.
+
 ## 0.133 — 15 September 2026
 
 - **The card editor is four editors underneath — word, verb, attached

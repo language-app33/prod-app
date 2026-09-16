@@ -34,6 +34,7 @@
  * can reach and somewhere nothing can reach back into.
  */
 import { splitAlternatives } from "./answers.ts";
+import { formsOf, leadOf } from "./cards.ts";
 
 /*
  * What a slot looks like: {{name}}, and nothing cleverer.
@@ -75,7 +76,8 @@ export const FILLED_FIELDS = ["ar", "en", "lat"];
 export const WORD_SLOT = "word";
 
 /**
- * Which slots a card can stand in: the one it names, and the built-in.
+ * Which slots a card can stand in: the one it names, the kind of word it
+ * is, and the built-in.
  *
  * The kind is passed in rather than worked out here, for the reason
  * answers.ts is handed the fields it may narrow against: what counts as a
@@ -84,15 +86,37 @@ export const WORD_SLOT = "word";
  * knows no language. A caller with no opinion passes nothing and gets the
  * named slot alone, which is what every card did before this existed.
  *
- * A frame is not a filler, whatever kind it reads as. A card with a hole
- * in it dropped into somebody else's hole is a sentence with a gap where
- * the point was, and if the frame is the one being filled it is a sentence
- * inside itself.
+ * **What the card says it is fills a hole of that name.** A teacher writing
+ * "{{noun}} {{adjective}}" has said everything they need to say, and every
+ * noun in the language joins in without being told. That is the same
+ * bargain `{{word}}` makes, narrowed: naming each filler one at a time is
+ * filing rather than teaching, and the card already answered the question
+ * when it said what kind of word it was.
+ *
+ * Which names those are is *not* known here, and deliberately: the
+ * category is a string on the card, the same shape as `fills`, and which
+ * strings a language declares is the language pack's business. So a hole
+ * is filled by a card whose own answer matches its name, and a pack that
+ * declares no categories fills none of them. A teacher whose language has
+ * no `noun` may still name a blank `noun` and write the cards that fill it,
+ * exactly as before.
+ *
+ * **A frame is not a filler**, whatever kind it reads as and whatever it
+ * says it fills. A card with a hole in it dropped into somebody else's
+ * hole is a sentence with a gap where the point was, and if the frame is
+ * the one being filled it is a sentence inside itself. That was the stated
+ * rule from the start and the code kept an exception to it: a frame that
+ * named a slot by hand went on standing in other cards' holes. The
+ * exception is gone as of 0.139, which is the release that made a card of
+ * blanks a thing a teacher sets out to write.
  */
 export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[] {
+  if (hasSlots(card)) return [];
   const named = String((card && card.fills) || "").toLowerCase();
   const out = named ? [named] : [];
-  if (kind === WORD_SLOT && !hasSlots(card) && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
+  if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
+  const said = String((card && card.category) || "").toLowerCase();
+  if (said && !out.includes(said)) out.push(said);
   return out;
 }
 
@@ -165,11 +189,20 @@ export function splitSlots(value: string | null | undefined): { text: string; sl
   return out;
 }
 
-/** Every variable a form names, across the fields it is written in. */
+/**
+ * Every variable a form names, across the fields it is written in.
+ *
+ * Asked of a whole card as well as of a form — "has this card a hole in
+ * it" is what keeps a frame out of a matching grid and out of the words
+ * offered as wrong answers — so it reads the card's own word, which since
+ * 0.138 is the first of its forms rather than the card itself. A plain
+ * form is its own lead, so both kinds of caller read the same.
+ */
 export function slotsOf(form: WithSlots | null | undefined): string[] {
+  const word = leadOf(form) as WithSlots;
   const out: string[] = [];
   for (const field of FILLED_FIELDS) {
-    for (const name of slotsIn(text(form, field))) if (!out.includes(name)) out.push(name);
+    for (const name of slotsIn(text(word, field))) if (!out.includes(name)) out.push(name);
   }
   return out;
 }
@@ -221,6 +254,8 @@ export function valuesFor(
   lang?: string,
   /** What kind of card this is — see fillsOf. Without it, only named slots. */
   kindOf?: (card: WithSlots) => string,
+  /** Which of a card's forms it lends — see lentBy. Without it, all of them. */
+  lends?: (card: WithSlots, form: WithSlots) => boolean,
 ): Record<string, Value[]> {
   const wanted = slotsOf(form);
   const out: Record<string, Value[]> = {};
@@ -230,24 +265,92 @@ export function valuesFor(
     if (lang && card.lang && card.lang !== lang) continue;
     const slots = fillsOf(card, kindOf ? kindOf(card) : "");
     if (!slots.length) continue;
-    const value = valueOf(card);
-    if (!value.ar) continue;
-    /* A card may stand in more than one hole now: the one it names, and
-       the built-in that every word fills. */
-    for (const slot of slots) if (out[slot]) out[slot].push(value);
+    /* Every form of it, not only its own word: a plural is a word a
+       sentence can be about, and so is one cell of a verb's table. */
+    for (const value of valuesOf(card, [], lends ? (f) => lends(card, f) : undefined)) {
+      /* A card may stand in more than one hole now: the one it names, the
+         kind of word it says it is, and the built-in that every word
+         fills. */
+      for (const slot of slots) if (out[slot]) out[slot].push(value);
+    }
   }
   return out;
 }
 
 /*
- * One card, as the words it lends.
+ * Every form of a card, as the words that form lends — with the form it
+ * came from, for a caller that has to ask it something else.
+ *
+ * A card is a word together with its other forms, and every one of them is
+ * a word a sentence could be about: "{{noun}} are heavy" wants the plural,
+ * and "{{verb}} it" wants one cell of the table. Until 0.139 a card lent
+ * its own word and nothing else, so a sentence could never be about any of
+ * them.
+ *
+ * Each lends under **its own name**, which is what makes the rest work: how
+ * far the learner has climbed is a fact about a form, and so is a frame's
+ * record of having met one. The card's own word answers to the card where
+ * it carries no name of its own, because that is what it was called before
+ * forms had names and what every record already written points at.
+ *
+ * A form the teacher keeps without asking about — see `ask` — lends
+ * nothing. It has no ladder to be read, so a hole filled with it would be
+ * filled with a word nobody is ever taught.
+ */
+export function lentBy(
+  card: WithSlots | null | undefined,
+  fields: string[] = [],
+  /**
+   * Which of a card's forms it lends, where a caller has a view. A card
+   * whose forms agree with what they stand beside lends its own word only:
+   * the sentence picks the agreeing form, and a form that arrived by turn
+   * would stand beside the wrong noun. Which cards those are is a
+   * language's answer, so it is passed in; this module knows none.
+   */
+  lends: (form: WithSlots) => boolean = () => true,
+): { form: WithSlots; value: Value }[] {
+  const own = String((card && card.id) || "");
+  const out: { form: WithSlots; value: Value }[] = [];
+  formsOf(card).forEach((form, at) => {
+    if (form && (form as WithSlots).ask === false) return;
+    if (!lends(form as WithSlots)) return;
+    const value = valueOf(form as WithSlots, fields);
+    if (!value.ar) return;
+    /* The card's own word answers to the card where the form carries no
+       name of its own. */
+    const named = value.id || at > 0 ? value : { ...value, id: own };
+    out.push({ form: form as WithSlots, value: named });
+  });
+  return out;
+}
+
+/** The same, as the values alone — which is what a pool wants. */
+export const valuesOf = (
+  card: WithSlots | null | undefined,
+  fields: string[] = [],
+  lends?: (form: WithSlots) => boolean,
+): Value[] => lentBy(card, fields, lends).map((lent) => lent.value);
+
+/*
+ * One form, as the words it lends — or a whole card, as its own word does.
  *
  * The first accepted answer rather than the field as written: a value card
  * may accept two spellings, and "كتاب / سفر" dropped whole into a sentence
  * is not a sentence. The first is the one the teacher wrote first.
+ *
+ * Handed a card, this is its own word: what a list shows and what a
+ * sentence borrowed before any other form could. Handed a form, it is that
+ * form — see lentBy, which is how a card lends all of them.
  */
 export function valueOf(card: WithSlots | null | undefined, fields: string[] = []): Value {
-  const first = (field: string) => (splitAlternatives(text(card, field))[0] || "").trim();
+  /* The words come off the card's own word, which since 0.138 is the first
+     of its forms rather than the card itself. A plain form handed in here
+     — a line of a dialog, a unit the scheduler is holding — is its own
+     lead, so both kinds of caller read the same. The id stays the card's:
+     what a hole is filled with is *this card*, and the ladder a value is
+     gated on is looked up by it. */
+  const word = leadOf(card) as WithSlots;
+  const first = (field: string) => (splitAlternatives(text(word, field))[0] || "").trim();
   /* Which fields hold a grammatical value is the language table's answer
      and not this module's, so the names are passed in, exactly as
      answers.ts is handed the fields it may narrow against. Read off the
@@ -256,7 +359,7 @@ export function valueOf(card: WithSlots | null | undefined, fields: string[] = [
      the editor, an import, the server — actually sets. */
   const grammar: Record<string, string> = {};
   for (const field of fields) {
-    const value = text(card, field).trim();
+    const value = text(word, field).trim();
     if (value) grammar[field] = value;
   }
   return {

@@ -23,6 +23,7 @@
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
 import { TYPES, barAfterLevel, barOf, levelOf } from "./languages.ts";
+import { leadOf, subFormsOf } from "./cards.ts";
 
 export const DAY = 86400000;
 export const MIN = 60000;
@@ -337,6 +338,57 @@ export function graduated(s: ExerciseState): boolean {
   return s.phase === "review";
 }
 
+/**
+ * The states to write so that a form climbs one level of its ladder, and
+ * no further — what "this was too easy" does.
+ *
+ * The bar is the *next* level's, applied to every key below it, because
+ * that is what opens a level (see openTypes): graduated for levels two and
+ * three, mastered for four — so climbing from three re-raises levels one
+ * and two as well. A form with no level above the one asked is counted as
+ * mastered throughout, which is what "done" means at the top. The next
+ * level's own keys are not touched, so the one after it stays shut.
+ *
+ * Written directly rather than through `reschedule` with an "easy": a key
+ * already in review would be pushed far past where it was, and the count
+ * of right answers — which is what rotates a card's spellings and blanks —
+ * would move for questions never answered. A state already at the bar is
+ * left alone; one that is not becomes a review state at the smallest
+ * interval that meets the bar, keeping any larger interval it already had,
+ * and stamped now so a sync keeps it.
+ *
+ * The keys are the form's own ladder, handed in, so a level the form has
+ * no material at is simply absent — the same reading openTypes makes.
+ */
+export function liftLevel(
+  keys: string[],
+  stateOf: (key: string) => ExerciseState | null | undefined,
+  key: string,
+  clock: Clock = REAL_CLOCK,
+): Record<string, ExerciseState> {
+  const at = timeOf(clock);
+  const from = levelOf(key);
+  const levels = [...new Set(keys.map(levelOf))].sort((a, b) => a - b);
+  const next = levels.find((l) => l > from);
+  const bar = next === undefined ? "mastered" : barAfterLevel(next - 1);
+  const under = next === undefined ? keys : keys.filter((k) => levelOf(k) < next);
+  const met = bar === "graduated" ? graduated : mastered;
+  const days = bar === "graduated" ? GRADUATE_DAYS : MASTERED_DAYS;
+  const out: Record<string, ExerciseState> = {};
+  for (const k of under) {
+    const s = stateOf(k) || freshState();
+    if (met(s)) continue;
+    const interval = Math.max(s.interval || 0, days);
+    out[k] = { ...s, phase: "review", step: 0, interval, due: at + interval * DAY, updated: at };
+  }
+  return out;
+}
+
+/** Whether a form has a level above the one this key is on — false at the
+    top, where liftLevel counts it as mastered instead of moving it up. */
+export const hasLevelAbove = (keys: string[], key: string): boolean =>
+  keys.some((k) => levelOf(k) > levelOf(key));
+
 /* ------------------------------------------------------------------
    The ladder
 
@@ -502,18 +554,19 @@ export interface Unit {
 /**
  * A card and its other forms, each drilled in its own right.
  *
- * What comes back are forms, not cards: the card is the first of them, and
- * the rest carry no tags, no lock and no deck. Everything downstream reads
- * the wording and the schedule, which is all a form has and all it needs.
+ * What comes back are forms, not cards: the card's own word is the first
+ * of them, and none of them carries the tags, the lock or the deck those
+ * belong to the card. Everything downstream reads the wording and the
+ * schedule, which is all a form has and all it needs.
  *
  * Takes nothing as well as a card: callers walk whatever they were handed
  * — a card looked up by an id that has since been withdrawn, most often —
- * and the guard below is what makes that a one-entry list rather than a
+ * and a blank lead form is what makes that a one-entry list rather than a
  * crash. The tests cover it, so the signature says it.
  */
 export function unitsOf(item: Item | null | undefined): Unit[] {
-  const units: Unit[] = [{ unit: item as unknown as Form, isSub: false }];
-  for (const sb of (item && item.subs) || []) units.push({ unit: sb, isSub: true });
+  const units: Unit[] = [{ unit: leadOf(item), isSub: false }];
+  for (const sb of subFormsOf(item)) units.push({ unit: sb, isSub: true });
   /* The lines of a dialog, which are drilled in their own right exactly as
      the other forms of a word are: same three fields, same progress, same
      place in a session. They come through here rather than through a
@@ -525,6 +578,25 @@ export function unitsOf(item: Item | null | undefined): Unit[] {
   }
   return units;
 }
+
+/**
+ * Whether a form is asked about at all.
+ *
+ * The teacher's answer, off the form itself: a table of conjugations
+ * written out for a student to read rather than to be drilled on, a rare
+ * plural worth recording and not worth asking for. Absent means yes, which
+ * is what every form written before this said and what anything added to a
+ * card later says.
+ *
+ * It is a fact about the form and not about the schedule, which is why it
+ * is one line: everything that decides what to ask reads it through
+ * `laddered` in the app, and a form switched off comes back with no keys at
+ * all — nothing to deal, nothing outstanding on the progress screen, and
+ * every state it had kept exactly where it was for the day it is switched
+ * back on.
+ */
+export const isAsked = (unit: Form | null | undefined): boolean =>
+  !!unit && unit.ask !== false;
 
 /*
  * A family counts as learnt only when every one of its forms is, so both
