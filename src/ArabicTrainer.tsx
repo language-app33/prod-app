@@ -178,7 +178,6 @@ import {
   openTypes as openTypesOf,
   phaseCounts,
   reachedLevel,
-  reschedule,
   roomForNew,
   standing,
   standings as standingsOf,
@@ -223,7 +222,7 @@ import {
   packAnswers,
   withAnswer as oneAnswer,
 } from "./answers.ts";
-import { fillForm, fillsOf, hasSlots, lentBy, noteMet, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
+import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
 
 /*
@@ -241,6 +240,12 @@ const itemDifficulty = (it: Item, settings: Settings): string =>
    answer said twice rather than two answers that can drift. */
 const cardStandings = (it: Item, settings: Settings): Standing[] =>
   standingsOf(it, (u) => laddered(u, settings));
+
+/* Marking an answer: what it counts as, and what that writes onto the card
+   it was about. A module of its own so the one path that moves a learner's
+   progress can be asked what it does without a browser — see grade.ts. */
+import { gradeInto, verdictOf } from "./grade.ts";
+import type { Mark } from "./grade.ts";
 
 import { applyUpdate, holdUpdates } from "./updates.ts";
 import {
@@ -1061,6 +1066,162 @@ function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
        on being practised as itself. */
     if (citedCell(card, spec)) out.add(card.id);
   }
+}
+
+/* ------------------------------------------------------------------
+   Filling the indexes
+
+   Every one of the maps above is a fact about the *rest* of the deck that a
+   pure function of one form cannot be handed: where each word turns up,
+   what fills each blank and how far the learner has got with it, which
+   scene a line belongs to, how much company a word has, which cells are
+   behind a gate.
+
+   The render works each of them out and installs it, one memo at a time,
+   each with its own dependencies — the context index is expensive and must
+   not be rebuilt because a checkbox moved. What the memos held was the
+   *working out*, written inline; it is named here instead, so that the
+   session builder can be handed a list of cards by something that is not a
+   render. That was the whole of why dealing a session could not be tested:
+   not the builder, which is a plain function, but the half-dozen maps it
+   reads and only a render knew how to fill.
+   ------------------------------------------------------------------ */
+
+/**
+ * Where each word turns up, across every card in hand.
+ *
+ * A language at a time, then merged: finding one word inside another is a
+ * language's own rule — Arabic peels prefixes — and running one language's
+ * rule over another's cards would pair words that have nothing to do with
+ * each other. Nothing collides in the merge: the keys are form ids, and a
+ * form is in one language.
+ */
+export function contextIndexOf(items: Item[], settings: Settings): Map<string, any[]> {
+  const byLang: Map<LangId, Item[]> = new Map();
+  for (const it of items) {
+    const id = langIdOf(it, settings);
+    byLang.set(id, (byLang.get(id) || []).concat([it]));
+  }
+  const merged: Map<string, any[]> = new Map();
+  for (const [id, list] of byLang) {
+    for (const [unitId, found] of buildContextIndex(list, LANGUAGES[id] || langOf(settings))) {
+      merged.set(unitId, found);
+    }
+  }
+  return merged;
+}
+
+/**
+ * What can fill each variable, by language.
+ *
+ * Ordered by when the cards were made rather than by where they happen to
+ * sit in the document: the rotation walks this list, and a list that
+ * reordered itself on a sync would hand somebody a different name for the
+ * same count.
+ *
+ * Every card, not only the ones naming a slot: `{{word}}` is filled by any
+ * word in the language with nothing written on it to say so, so what a
+ * card fills has to be asked of the card rather than read off a field.
+ * And only the forms it lends — an adjective lends its own word, and the
+ * sentence picks the form that agrees. See lendsForm.
+ */
+export function valueIndexOf(items: Item[], settings: Settings): Map<string, Value[]> {
+  const map: Map<string, Value[]> = new Map();
+  const byAge = [...items].sort(
+    (a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id),
+  );
+  for (const it of byAge) {
+    const langId = langIdOf(it, settings);
+    const slots = fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings)));
+    if (!slots.length) continue;
+    const lends = lendsForm(LANGUAGES[langId] || langOf(settings), it);
+    for (const value of valuesOf(it, grammarFields(), lends)) {
+      for (const slot of slots) {
+        const key = valueKey(langId, slot);
+        map.set(key, (map.get(key) || []).concat([value]));
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * And how far the learner has got with each of them, with the form each
+ * was lent by.
+ *
+ * Only the cards that fill something, so this is a walk over the values
+ * rather than over the deck. A value that is drilled on its own carries a
+ * number — the highest level it has climbed to, by the same test the ladder
+ * makes — and a value that is not carries null, because it is never dealt
+ * and has no ladder to read. What each of those means for a hole is
+ * valuesAt's business, not this one's.
+ *
+ * Read off the form itself, which is the word a hole borrows: a plural the
+ * learner can already write stands in a sentence that asks for writing,
+ * whatever the singular beside it has done.
+ */
+export function valueReachOf(
+  items: Item[],
+  settings: Settings,
+): { map: Map<string, number | null>; owner: Map<string, { card: Item; form: Form }> } {
+  const map: Map<string, number | null> = new Map();
+  const owner: Map<string, { card: Item; form: Form }> = new Map();
+  for (const it of items) {
+    const langId = langIdOf(it, settings);
+    const lang = LANGUAGES[langId] || langOf(settings);
+    if (!fillsOf(it, kindOf(it, lang)).length) continue;
+    const drilled = isDrillable(it, settings);
+    for (const { form, value } of lentBy(it, [], lendsForm(lang, it))) {
+      const ref = refOf(value);
+      if (!ref) continue;
+      owner.set(ref, { card: it, form: form as Form });
+      if (!drilled) {
+        map.set(ref, null);
+        continue;
+      }
+      /* Highest first, so the answer is the furthest it has got rather than
+         the first level that happens to be clear. */
+      const keys = laddered(form as Form, settings);
+      const stateAt = (key: string) => statesOf(form as Form)[key];
+      let climbed = 0;
+      for (let level = TOP_LEVEL; level >= 1; level--) {
+        if (reachedLevel(keys, stateAt, level)) {
+          climbed = level;
+          break;
+        }
+      }
+      map.set(ref, climbed);
+    }
+  }
+  return { map, owner };
+}
+
+/**
+ * All of them at once, from a list of cards.
+ *
+ * What a render does across seven memos, in one call and in the order they
+ * depend on each other: the gates read the ladder, and the ladder reads
+ * how much company a word has. The app does not use this — it needs the
+ * separate dependencies, so that typing in a box does not rebuild the
+ * index that walks every phrase against every word — and a test does,
+ * because a session cannot be dealt from a deck nobody has indexed.
+ *
+ * Which makes it a seam rather than a shortcut, and the reason it is worth
+ * having is that the alternative was leaving the whole session layer
+ * untestable: `buildSession` is a plain function of its arguments and
+ * always was, and this is the rest of what it reads.
+ */
+export function installIndexes(items: Item[], settings: Settings): void {
+  setActiveLang(settings.language || DEFAULT_LANGUAGE);
+  setContextIndex(contextIndexOf(items, settings));
+  setDialogIndex(buildDialogIndex(items));
+  setValueIndex(valueIndexOf(items, settings));
+  const reach = valueReachOf(items, settings);
+  setValueReach(reach.map);
+  setValueOwner(reach.owner);
+  setMateCounts(countMates(items, settings));
+  setQuietUnits(quietUnits(items, settings));
+  setEasedUnits(easedUnits(items, settings));
 }
 
 /* ------------------------------------------------------------------
@@ -1993,7 +2154,7 @@ interface Session {
   units?: number;
 }
 
-function buildSession({
+export function buildSession({
   items,
   settings,
   inDeck,
@@ -2396,7 +2557,7 @@ function everyTypeMode(mode: string) {
  * nothing to gain from drilling them — and the caller is told which cards
  * were skipped for that reason so it can say so.
  */
-function buildManualSession({ items, settings, ids, mode, count }: {
+export function buildManualSession({ items, settings, ids, mode, count }: {
   items: Item[];
   settings: Settings;
   ids: Set<string> | string[];
@@ -5319,25 +5480,7 @@ export default function ArabicTrainer() {
      change: it walks every phrase against every word it claims to teach,
      which is not work to repeat on a keystroke. */
   const contextIndex = useMemo(
-    /* A language at a time, then merged: finding one word inside another is
-       a language's own rule — Arabic peels prefixes — and running one
-       language's rule over another's cards would pair words that have
-       nothing to do with each other. Nothing collides in the merge: the
-       keys are form ids, and a form is in one language. */
-    () => {
-      const byLang: Map<LangId, Item[]> = new Map();
-      for (const it of asking) {
-        const id = langIdOf(it, settings);
-        byLang.set(id, (byLang.get(id) || []).concat([it]));
-      }
-      const merged: Map<string, any[]> = new Map();
-      for (const [id, list] of byLang) {
-        for (const [unitId, found] of buildContextIndex(list, LANGUAGES[id] || langOf(settings))) {
-          merged.set(unitId, found);
-        }
-      }
-      return merged;
-    },
+    () => contextIndexOf(asking, settings),
   /* Only the language, not the whole settings object: this walks
      every phrase against every word it claims to teach, which is not
      work to repeat because a checkbox moved. */
@@ -5356,39 +5499,11 @@ export default function ArabicTrainer() {
      were made rather than by where they happen to sit in the document: the
      rotation walks this list, and a list that reordered itself on a sync
      would hand somebody a different name for the same count. */
-  const valueIndex = useMemo(() => {
-    const map: Map<string, Value[]> = new Map();
-    /* Every card, not only the ones naming a slot: `{{word}}` is filled by
-       any word in the language with nothing written on it to say so, so
-       what a card fills has to be asked of the card rather than read off a
-       field. Ordered by when they were made, as before — the rotation
-       walks this list, and a list that reordered itself on a sync would
-       hand somebody a different word for the same count. */
-    const byAge = [...asking].sort(
-      (a, b) => (a.created || 0) - (b.created || 0) || a.id.localeCompare(b.id),
-    );
-    for (const it of byAge) {
-      const langId = langIdOf(it, settings);
-      const slots = fillsOf(it, kindOf(it, LANGUAGES[langId] || langOf(settings)));
-      if (!slots.length) continue;
-      /* Every form of it, each with whatever the language declares about
-         that form — so a verb standing in the same sentence agrees with
-         the plural that filled the subject rather than with the card's own
-         word. A card's forms stay in the order they are written in, which
-         is what keeps the rotation the same sentence twice. */
-      /* And only the forms it lends: an adjective lends its own word, and
-         the sentence picks the form that agrees — see lendsForm. */
-      const lends = lendsForm(LANGUAGES[langId] || langOf(settings), it);
-      for (const value of valuesOf(it, grammarFields(), lends)) {
-        for (const slot of slots) {
-          const key = valueKey(langId, slot);
-          map.set(key, (map.get(key) || []).concat([value]));
-        }
-      }
-    }
-    return map;
+  const valueIndex = useMemo(
+    () => valueIndexOf(asking, settings),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asking, settings.language]);
+    [asking, settings.language],
+  );
   setValueIndex(valueIndex);
 
   /*
@@ -5401,41 +5516,7 @@ export default function ArabicTrainer() {
    * never dealt and has no ladder to read. What each of those means for a
    * hole is valuesAt's business, not this one's.
    */
-  const valueReach = useMemo(() => {
-    const map: Map<string, number | null> = new Map();
-    const owner: Map<string, { card: Item; form: Form }> = new Map();
-    for (const it of asking) {
-      const langId = langIdOf(it, settings);
-      const lang = LANGUAGES[langId] || langOf(settings);
-      if (!fillsOf(it, kindOf(it, lang)).length) continue;
-      const drilled = isDrillable(it, settings);
-      /* Read off the form itself, which is the word a hole borrows: a
-         plural the learner can already write stands in a sentence that
-         asks for writing, whatever the singular beside it has done. */
-      for (const { form, value } of lentBy(it, [], lendsForm(lang, it))) {
-        const ref = refOf(value);
-        if (!ref) continue;
-        owner.set(ref, { card: it, form: form as Form });
-        if (!drilled) {
-          map.set(ref, null);
-          continue;
-        }
-        /* Highest first, so the answer is the furthest it has got rather
-           than the first level that happens to be clear. */
-        const keys = laddered(form as Form, settings);
-        const stateAt = (key: string) => statesOf(form as Form)[key];
-        let climbed = 0;
-        for (let level = TOP_LEVEL; level >= 1; level--) {
-          if (reachedLevel(keys, stateAt, level)) {
-            climbed = level;
-            break;
-          }
-        }
-        map.set(ref, climbed);
-      }
-    }
-    return { map, owner };
-  }, [asking, settings]);
+  const valueReach = useMemo(() => valueReachOf(asking, settings), [asking, settings]);
   setValueReach(valueReach.map);
   setValueOwner(valueReach.owner);
 
@@ -6507,48 +6588,26 @@ export default function ArabicTrainer() {
        next one. Put down once read. */
     const eased = easedFor === exercise;
     setEasedFor(null);
-    // Nothing to grade by hand: the check decides, and a shown answer counts
-    // as a miss. "Too strict" is the one way to overturn it.
     /*
-     * Right, but written with the answer on the screen.
+     * What the answer counts as, and what it marks.
      *
-     * English → {script} with the transliteration up is the question one
-     * level down, so it is marked as that question was nearly answered:
-     * the schedule moves gently, the card is asked again before the
-     * session ends, and the ladder is not climbed on it. The alternative
-     * was what the app did before — count it as knowing the word, and let
-     * a learner with hints switched on graduate writing from the meaning
-     * without ever having done it.
+     * Both are grade.ts's to answer now. What is left here is the half
+     * that is genuinely the screen's: which pieces of it were on when
+     * Continue was pressed, and which words a grid put up.
      */
-    const correct = !toldAnswer && (overridden || (checked && checked.ok && !skipped));
-    /* A near miss — right letters, wrong tone; right word, marks missing;
-       one letter out — is not the same as drawing a blank, and the schedule
-       should not treat it as one. "hard" keeps the card in review with a
-       gentle penalty instead of halving its interval and sending it back to
-       relearning. It is still re-asked before the session ends. */
-    const near =
-      !correct &&
-      !skipped &&
-      checked &&
-      ["near", "harakat", "missing"].includes(checked.reason);
-    const rating = correct ? "good" : near || toldAnswer ? "hard" : "again";
+    const how = { checked, toldAnswer, overridden, skipped, hintAtAnswer };
+    const { correct, rating } = verdictOf(how);
     /*
-     * What is marked, and how. One question marks one form — except the
-     * grid, where every word up is a question of its own and is marked on
-     * the pair put to it, whatever the rest of the grid did.
+     * One question marks one form — except the grid, where every word up
+     * is a question of its own and is marked on the pair put to it,
+     * whatever the rest of the grid did.
      *
      * A word dealt in to fill a grid out may not have been due. A success
-     * on it counts — it is a right answer — but does not move its schedule,
-     * the way practice does not; a miss is a miss wherever it happens. The
-     * first word is marked as any question is.
+     * on it counts — it is a right answer — but does not move its
+     * schedule, the way practice does not; a miss is a miss wherever it
+     * happens. The first word is marked as any question is.
      */
-    const marks: {
-      id: string;
-      subId: string | null;
-      rating: string;
-      correct: boolean;
-      advance: boolean;
-    }[] = [];
+    const marks: Mark[] = [];
     if (spec && spec.picks === "pair") {
       const placeOf = (w: Form) => {
         if (w.id === item.id) return { id: parentItem.id, subId: exercise.subId || null };
@@ -6573,102 +6632,32 @@ export default function ArabicTrainer() {
       marks.push({ id: parentItem.id, subId: exercise.subId || null, rating, correct: !!correct, advance: !practice });
     }
     /* What the question on screen was filled with, as the frame records it.
-       Read off the cast form here rather than inside the loop, because the
-       grid marks several cards off one question and only the one being
-       asked was the frame. */
+       Read off the cast form here rather than per mark, because the grid
+       marks several cards off one question and only the one being asked
+       was the frame. */
     const filledWith = (item as Record<string, any>).filled as Record<string, string> | undefined;
     persist((cur) => {
-      const next = { ...cur, items: cur.items.slice(), log: { ...cur.log } };
-      let any = false;
-      for (const mark of marks) {
-        const idx = next.items.findIndex((i) => i.id === mark.id);
-        if (idx < 0) continue; // withdrawn while it was on screen
-        const it = { ...next.items[idx] };
-        /* Which form was asked: one of the card's — its own word is the
-           first of them — or a turn of a conversation. */
-        const target = mark.subId
-          ? formsOf(it).find((x) => x.id === mark.subId) ||
-            linesOf(it).find((x) => x.id === mark.subId)
-          : leadOf(it);
-        if (!target) continue;
-        /* The learner said this one was too easy and it has already been
-           moved up its ladder: the answer they gave is neither rewarded
-           nor lapsed. Any other word on the same grid is still marked. */
-        if (eased && mark.id === parentItem.id && (mark.subId || null) === (exercise.subId || null)) {
-          any = true;
-          continue;
-        }
-
-        const before = statesOf(target)[exercise.type] || freshState();
-        let s;
-        if (mark.advance || mark.rating !== "good") {
-          s = reschedule(before, mark.rating);
-        } else {
-          // Practice never advances the schedule on a success.
-          s = { ...before };
-          s.right += 1;
-          s.reps += 1;
-        }
-        if (skipped) s.skips = (s.skips || 0) + 1;
-        /* Counted wherever a hint is offered, not only where taking it
-           costs the mark: "answered right" and "answered right with the
-           pronunciation on the screen" are two different numbers, and only
-           one of them was being kept. */
-        if (hintAtAnswer) s.hints = (s.hints || 0) + 1;
-        if (checked && !checked.ok && checked.reason === "near") s.near = (s.near || 0) + 1;
-        if (checked && !checked.ok && (checked.reason === "harakat" || checked.reason === "missing")) {
-          s.near = (s.near || 0) + 1;
-        }
-        s.hist = (s.hist || []).concat([mark.correct ? 1 : 0]).slice(-6);
-        s.updated = now();
-
-        /*
-         * And which of its values this frame has now been met with.
-         *
-         * Written from what the question was actually filled with — fillForm
-         * records that on the form it casts — rather than by working the
-         * values out a second time, which would read a turn count this very
-         * grading is about to move.
-         *
-         * Only for the values that have no ladder of their own: everything
-         * else is gated on its own progress and needs nothing written down,
-         * which is what keeps this small on a frame that draws on the whole
-         * vocabulary. And on any answer rather than only a right one — the
-         * question is whether the learner has seen the word, and getting it
-         * wrong is still having seen it.
-         */
-        const met = noteMet(target.met, filledWith, levelOf(exercise.type), needsMetRecord);
-        const alsoMet = met ? { met } : null;
-
-        /* Written back onto whichever form it was. A turn of a
-           conversation is its own list; everything else is a form of the
-           card, and the card's own word is the first of those — which is
-           why this is one path where it used to be two. */
-        if (mark.subId && linesOf(it).some((x) => x.id === mark.subId)) {
-          it.lines = linesOf(it).map((x) =>
-            x.id === mark.subId
-              ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
-              : x
-          );
-        } else {
-          const asked = mark.subId || leadOf(it).id;
-          it.forms = formsOf(it).map((x) =>
-            x.id === asked
-              ? { ...x, s: { ...x.s, [exercise.type]: s }, ...alsoMet, updated: now() }
-              : x
-          );
-        }
-        it.updated = now();
-        next.items[idx] = it;
-        any = true;
-      }
-      if (!any) return cur;
-
-      /* One question answered, however many words it marked. */
-      next.log[dayKey()] = (next.log[dayKey()] || 0) + 1;
-      return next;
+      const graded = gradeInto(cur.items, marks, {
+        type: exercise.type,
+        level: levelOf(exercise.type),
+        filledWith,
+        keepMet: needsMetRecord,
+        /* The question a lift has already moved up its ladder: answered,
+           and neither rewarded nor lapsed. */
+        spare: eased ? { id: parentItem.id, subId: exercise.subId || null } : null,
+        how,
+      });
+      /* Nothing written — every card named has been withdrawn, or the one
+         mark was the question the lift moved — so the document is left
+         exactly as it was. */
+      if (!graded) return cur;
+      return {
+        ...cur,
+        items: graded,
+        /* One question answered, however many words it marked. */
+        log: { ...cur.log, [dayKey()]: (cur.log[dayKey()] || 0) + 1 },
+      };
     });
-
     setTally((t) => ({
       ok: t.ok + (correct ? 1 : 0),
       no: t.no + (correct ? 0 : 1),

@@ -1500,3 +1500,73 @@ seams were opened here instead — `laddered`, `liftStates`, `merge` and the
 two module-level indexes a frame's behaviour depends on — which is enough
 to assert the rules this release changed and not enough to call the
 question closed.
+
+---
+
+## Marking an answer comes out of the screen
+
+**16 September 2026** · `src/grade.ts`, `contextIndexOf`/`valueIndexOf`/
+`valueReachOf`/`installIndexes` and the exported `buildSession` in
+`src/ArabicTrainer.tsx`, `tests/grade.test.mjs`, the dealing half of
+`tests/session.test.mjs`
+
+The audit above ends with an item it did not do: dealing, marking and the
+load-time lift all lived inside the screen file, so the part of the app
+that decides what you practise and what you have learnt could not be
+tested. This is that item.
+
+**It is the move the scheduler already made.** `scheduler.ts` opens by
+saying the spaced-repetition maths lived inside the screen and therefore
+had no tests at all — "it could not have any: it was unreachable from a
+test, and every function read the clock and the random number generator
+straight out of the global scope." Marking was in the same position for the
+same reason, one floor up, and the fix is the same: a plain module, no
+React, nothing imported from the screen, and the impure things passed in.
+
+**What moved, and what the line is.** `grade.ts` answers three questions —
+what an answer counts as (`verdictOf`), what that writes onto one schedule
+(`markedState`), and where it goes on the card (`gradeInto`, through
+`withMark`). What stayed behind is what is genuinely the screen's: which
+of its pieces were on when Continue was pressed, and which words a grid
+put up. The component now gathers, asks and applies, and the `persist`
+callback is four lines.
+
+`gradeInto` answers **null** where it wrote nothing — every card named
+withdrawn, or the one mark being the question a lift already moved — so the
+caller leaves the document untouched rather than saving a copy that differs
+in nothing. That was a `let any = false` inside the old loop; it is the
+return value now, which is the same fact said where a caller can read it.
+
+**Dealing needed a seam, not a move.** `buildSession` was already a plain
+function of its arguments. What made it unreachable was the half-dozen
+module-level maps it reads — where each word turns up, what fills each
+blank and how far the learner has got with it, which cells are behind a
+gate — each of which only a render knew how to fill, because each was
+worked out inline in a `useMemo`. So the working-out is named
+(`contextIndexOf`, `valueIndexOf`, `valueReachOf`, beside the builders that
+already had names) and `installIndexes` calls all of them in the order they
+depend on each other.
+
+**The memos stay separate.** Collapsing them into one would have been
+tidier and is wrong: the context index walks every phrase against every
+word it claims to teach, and its dependency list deliberately reads
+`settings.language` rather than `settings` so that typing in a box does not
+rebuild it. `installIndexes` is a test seam and says so; the render still
+installs each map on its own terms, from the same functions.
+
+**What the new tests found.** Two things, both in the tests rather than the
+code, which is the honest answer for a move that changed no behaviour.
+Asserting that a session of twelve new cards spreads over four of them
+fails, because it opens three: that is the room kept for new cards doing
+its job, and the assertion was wrong about the app rather than the other
+way round. And a frame with a value in the deck is only dealt reliably when
+it is the one *new* card among cards that are due — otherwise it competes
+for those three places and the test is a coin toss. Both are now written as
+what the rules actually say.
+
+**What is still not covered.** The load-time lift is reachable
+(`liftStates` and `merge` were exported a release ago) and the two builders
+are, but the *wiring* between them is not: nothing asserts that the screen
+hands `applyGrade`'s marks the key that was dealt, because that is the
+component. A jsdom walk is the only thing that can say it, and one does —
+loosely. The gap is narrower than it was and it has not closed.

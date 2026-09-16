@@ -289,9 +289,13 @@ the pure layer — and none is reached by a test. The pure layer is sound.
 
 ## What was done
 
-All eighteen, in 0.145, in the order below. Seven of the eight steps are
-finished; step 8, the structural one, is not, and is the only item here
-still open.
+All eighteen, in 0.145, in the order below. Step 8, the structural one,
+followed in 0.146: marking is its own module and the session builders are
+reachable, so both halves of "what do I practise, and what have I learnt"
+are now asserted directly rather than through one answered question in a
+browser. See *Marking an answer comes out of the screen* in `DECISIONS.md`
+for what moved and what is still uncovered — the wiring between the screen
+and the marking is narrower than it was and has not closed.
 
 Four test seams were opened to make the rules assertable: `laddered`,
 `liftStates` and `merge` are exported, and so are the two module-level

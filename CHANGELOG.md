@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.146 — 16 September 2026
+
+Nothing on any screen changes in this release. It is the last item of the
+audit: the two parts of the app that decide what you practise and what you
+have learnt are now testable, and are tested.
+
+- **No change to how anything works.** The marking of an answer and the
+  dealing of a session do exactly what they did yesterday, on purpose —
+  every rule was moved as it stood and the whole check suite ran green at
+  each step. What is different is that both can now be asked what they do
+  without opening the app, and 48 new tests ask them.
+
+- **Why it was worth a release of its own.** The bugs the audit found were
+  in exactly these two places, and every one of them was green. Marking an
+  answer was a function tangled up with the buttons on the screen, so the
+  only thing watching the one path that writes your progress was a single
+  answered question in a browser test. A mark filed against the wrong form
+  — the wrong spelling of a card that accepts two, the wrong turn of a
+  conversation — would have passed every check the project had.
+
 ## 0.145 — 16 September 2026
 
 An audit of cards, scheduling and progress found work being lost in five
