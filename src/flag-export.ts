@@ -25,6 +25,7 @@
  */
 
 import type { Card, CardForm, CardState, Flag, Millis } from "./types.ts";
+import { formsOf } from "./cards.ts";
 
 /*
  * The names this module cannot work out for itself.
@@ -64,6 +65,22 @@ export interface FlagExportOptions {
   /** Which build took it — the admin's, not the reporter's. */
   release?: string;
 }
+
+/*
+ * The standing instruction at the head of every export.
+ *
+ * Kept here, as its own thing, because it is the one part of the format
+ * that is addressed to the reader rather than describing the reports — and
+ * because the wording is the whole of it. Short on purpose: an instruction
+ * that runs to a paragraph is an instruction that gets skimmed.
+ */
+const BRIEF = [
+  "CLAUDE — READ THIS FIRST. Do not start fixing anything.",
+  "Read all the reports, then reply with a short list of the changes you would",
+  "make: one plain line each, no file names, no code, no jargon. Say which",
+  "reports you think are not worth acting on, and why, in the same plain terms.",
+  "Wait for me to say go before you change a single thing.",
+];
 
 /* Wide enough for the longest label below, so every value starts in the
    same column and the block reads as a table without being one. */
@@ -128,8 +145,22 @@ const hasAudio = (f: CardForm) =>
  */
 function cardBlock(card: Card, when: FlagNames["when"]): string[] {
   const out: string[] = [];
-  const forms = Array.isArray(card.forms) ? card.forms : [];
-  forms.forEach((f, i) => {
+  /*
+   * Through formsOf, never off `card.forms`.
+   *
+   * A card's word used to be stored as fields of the card itself with its
+   * alternates in `subs`, and cards written that way and not re-saved
+   * since are still in the store exactly as they were — the server hands
+   * back what it holds. Reading `forms` directly found nothing on every
+   * one of them, so the most useful part of the export came out as a
+   * revision number and a blank, which is worse than saying nothing.
+   *
+   * formsOf is what every other reader in the app uses and it lifts the
+   * old shape where it meets it. This had no symptom in a test, because a
+   * card saved through the server is normalised on the way in and comes
+   * back new-shaped.
+   */
+  formsOf(card).forEach((f, i) => {
     const said = formLine(f);
     if (!said) return;
     const marks = [
@@ -235,6 +266,18 @@ export function flagsToText(flags: Flag[], opts: FlagExportOptions): string {
   const head = [
     `Problems reported by learners — ${list.length} ${list.length === 1 ? "report" : "reports"}, newest first.`,
     `Exported ${names.when(opts.at)}${opts.release ? ` from app ${opts.release}` : ""}.`,
+    /*
+     * What to do with this, said first and said to the reader.
+     *
+     * An export pasted into an assistant is read as a job to start, and
+     * what comes back is a pile of edits nobody asked for. What is wanted
+     * first is a short list of what would change, in words, to be agreed
+     * or thrown out before any of it is built — so it goes at the very
+     * top, ahead of the reports it is about, where an instruction is read
+     * before the thing it governs rather than after.
+     */
+    "",
+    ...BRIEF,
     "",
     "Each block below is one report sent from the answer screen, followed by",
     "the card it is about as that card stands now. A card may have been edited",

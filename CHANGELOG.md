@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.158 — 17 September 2026
+
+**A copied report shows the card again.**
+
+The export in 0.157 was meant to put each report next to the card it is
+about. For most of the cards actually on the site it printed the heading, a
+revision number, and nothing else — no word, no meaning, no alternates. The
+one part of a report that saves you opening the card was blank.
+
+Cards written before the app stored a word and its alternates as one list
+are still on the site in the older shape, and the export was the only thing
+reading them that did not know about it. It now reads them the way the rest
+of the app does. Nothing about the cards changed, and nothing needs
+re-exporting beyond pressing Copy again.
+
+**A copied export now opens by asking for a plan, not for fixes.** Pasting
+one used to read as a job to start, and what came back was a pile of
+changes nobody had agreed to. The first thing in the text is now a short
+instruction: read them all, come back with a plain-language list of what
+would change and what is not worth doing, and wait to be told to go.
+
 ## 0.157 — 16 September 2026
 
 **Reported problems can be copied out of Admin in one go.**

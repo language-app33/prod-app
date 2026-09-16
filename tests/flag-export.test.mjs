@@ -160,6 +160,27 @@ test("the head counts the thin ones rather than tarring the whole export", () =>
   assert.match(all, /These were all sent by an older version/);
 });
 
+/*
+ * An export pasted into an assistant reads as a job to start, and what
+ * comes back is a pile of edits nobody agreed to. The standing instruction
+ * at the top asks for the plan first, and it has to be at the *top*: an
+ * instruction under the thing it governs is an instruction read second.
+ */
+test("the export opens by asking for a plan in plain words, not for fixes", () => {
+  const out = text([flag()], {});
+  assert.match(out, /Do not start fixing anything/);
+  assert.match(out, /no file names, no code, no jargon/);
+  assert.match(out, /Wait for me to say go/);
+  assert.ok(
+    out.indexOf("READ THIS FIRST") < out.indexOf("── report 1"),
+    "and it comes before the reports it is about"
+  );
+});
+
+test("the instruction is there even when nothing has been reported", () => {
+  assert.match(text([], {}), /Do not start fixing anything/);
+});
+
 /* The head is one paragraph and each report is another. Without that, the
    blank line that separates reports separates every line of the preamble
    too, and a ten-report export opens with a page of double-spaced prose. */
@@ -198,6 +219,34 @@ test("nothing reported says so, rather than producing an empty file", () => {
   const out = text([], {});
   assert.match(out, /Nothing has been reported/);
   assert.doesNotMatch(out, /report 1 of/);
+});
+
+/*
+ * The one that shipped broken.
+ *
+ * A card's word used to live as fields of the card itself with its
+ * alternates in `subs`, and cards written that way and never re-saved are
+ * still in the store exactly like that — the server hands back what it
+ * holds, unmigrated. Reading `card.forms` found nothing on any of them, so
+ * every report about one exported as a heading, a revision number and no
+ * card at all.
+ *
+ * Nothing caught it: a card saved through the server is normalised on the
+ * way in, so every fixture in this file and every card any test could
+ * create came back in the new shape. It took a real export off the real
+ * site. Hence a fixture written by hand, in the shape the store actually
+ * holds.
+ */
+test("a card still stored in the old shape is written out, not left blank", () => {
+  const out = text([flag()], {
+    k1: {
+      id: "k1", lang: "ar-PS", rev: 6,
+      ar: "عندي سؤال", en: "I have a question", lat: "3indi su2al",
+      subs: [{ ar: "عندنا سؤال", en: "we have a question", lat: "3indna su2al" }],
+    },
+  });
+  assert.match(out, /word *عندي سؤال — I have a question — 3indi su2al/);
+  assert.match(out, /form 2 *عندنا سؤال — we have a question — 3indna su2al/);
 });
 
 test("a conversation card is written out by its lines, not by its empty word", () => {
