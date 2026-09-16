@@ -197,6 +197,17 @@ const K = {
 const FLAG_KINDS = ["strict", "data", "other"];
 const FLAG_NOTE_MAX = 500;
 
+/*
+ * How the flagged question had gone for the learner who flagged it.
+ *
+ * Listed here for the same reason the kinds are: this is read on an admin
+ * screen and copied into an export, and a word the app never sends is a
+ * word nothing at the other end can act on. Anything else is stored as
+ * empty, which reads as "not recorded" — which is also what every report
+ * sent before this existed says.
+ */
+const FLAG_VERDICTS = ["right", "near", "wrong", "shown", "skipped", "unanswered"];
+
 /* Enough to keep every flag a real site accumulates between one look and
    the next, and a ceiling so a stuck client cannot fill the disk. The
    oldest go first, which is also the order they stop being worth reading
@@ -585,6 +596,22 @@ export default async (req) => {
         language: String(body.language || "").slice(0, 20),
         prompt: String(body.prompt || "").slice(0, 200),
         meaning: String(body.meaning || "").slice(0, 200),
+        /* Where the card reached the learner from, so a bad batch can be
+           found by the deck rather than one report at a time. Empty on a
+           card the learner made, and on every report sent by a build older
+           than this. */
+        courseId: String(body.courseId || "").slice(0, 64),
+        deckId: String(body.deckId || "").slice(0, 64),
+        /* What they put and what the app made of it. "It marked me wrong"
+           cannot be acted on without the answer it marked; with it, most
+           reports name their own bug.
+
+           The verdict is checked against the list rather than stored as
+           sent: an unknown word here would reach the export as a word
+           nothing can read, exactly as an open `kind` would. */
+        answer: String(body.answer || "").slice(0, 200),
+        verdict: FLAG_VERDICTS.includes(String(body.verdict)) ? String(body.verdict) : "",
+        release: String(body.release || "").slice(0, 40),
         at: Date.now(),
       };
       await writeJson(store, K.flag(flag.id), flag);
@@ -1798,6 +1825,11 @@ export default async (req) => {
         const handles = await readIndex(store, "users");
         const courseIds = await readIndex(store, "courses");
         const deckIds = await readIndex(store, "decks");
+        /* Reports were the one thing on the site a backup did not hold, so
+           a restore quietly threw away every problem anybody had reported
+           and not yet fixed. They are small and they are somebody's words
+           about a card that is in the file beside them. */
+        const flagIds = await readIndex(store, "flags");
 
         /* Card ids come from each owner's list rather than a global index,
            which is where they actually live. */
@@ -1834,6 +1866,7 @@ export default async (req) => {
         batch("deck", deckIds.map(K.deck), 40);
         batch("owncards", handles.map(K.myCards), 60);
         batch("card", cardIds.map(K.card), 25);
+        batch("flag", flagIds.map(K.flag), 60);
         batch("clip", clipHashes.map(K.clip), 3);
 
         return json({
@@ -1846,10 +1879,11 @@ export default async (req) => {
               courses: courseIds.length,
               decks: deckIds.length,
               cards: cardIds.length,
+              flags: flagIds.length,
               clips: clipHashes.length,
               keys: keyHashes.length,
             },
-            indexes: { users: handles, courses: courseIds, decks: deckIds },
+            indexes: { users: handles, courses: courseIds, decks: deckIds, flags: flagIds },
             chunks: chunks.map((c) => ({ id: c.id, kind: c.kind, keys: c.keys.length })),
             /* Repeated so a chunk can be fetched without the client having to
                reconstruct which keys were in it. */
@@ -1892,7 +1926,7 @@ export default async (req) => {
             : {};
         const keys = Object.keys(records).slice(0, 200);
         if (!keys.length) return json({ error: "no-keys" }, 400);
-        const allowed = /^(user|key|course|deck|owncards|mycards|card|clip|code|index):/;
+        const allowed = /^(user|key|course|deck|owncards|mycards|card|flag|clip|code|index):/;
         let written = 0;
         for (const k of keys) {
           if (!allowed.test(k) || k.length > 200) continue;
@@ -1945,7 +1979,20 @@ export default async (req) => {
         const cardIds = [...new Set(cardLists.flatMap((l) => l || []))];
 
         /** @type {Record<string, number>} */
-        const removed = { users: 0, courses: 0, decks: 0, cards: 0, clips: 0 };
+        const removed = { users: 0, courses: 0, decks: 0, cards: 0, flags: 0, clips: 0 };
+
+        /* Reports go on their own say-so rather than with the cards they
+           are about: a report outlives its card by design — that is why it
+           carries a copy of the question — and clearing the cards to start
+           a site again should not silently take the list of what was wrong
+           with the last one. */
+        if (want.has("flags")) {
+          for (const id of await readIndex(store, "flags")) {
+            await store.delete(K.flag(id));
+            removed.flags += 1;
+          }
+          await writeJson(store, K.index("flags"), []);
+        }
 
         /* A recording is only reachable through the cards that use it, so
            they are read before anything is deleted — clearing cards first

@@ -1122,6 +1122,27 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("the card is named by its id on the server, not this device's",
       typeof sentFlag.cardId === "string" && !/^srv/.test(sentFlag.cardId),
       String(sentFlag.cardId));
+    /* And the half of the report the learner cannot be expected to write
+       out: what they put, what the app made of it, and which build they
+       were on. All three are gathered from screen state at the moment the
+       menu is used, so nothing but a walk like this one can tell whether
+       they are actually being read — a unit test would be asserting
+       against its own fixture. */
+    check("it carries what the app made of the answer, and which build they were on",
+      ["right", "near", "wrong", "shown", "skipped", "unanswered"].includes(sentFlag.verdict) &&
+        /^\S+ \(\S+\)$/.test(String(sentFlag.release || "")),
+      `verdict=${sentFlag.verdict} release=${sentFlag.release}`);
+    /* A flag raised on the question rather than on the verdict is the
+       ordinary way to report an unanswerable one, and it must not read as
+       an answer of nothing. */
+    check("a question flagged before it was answered says so, rather than reading as wrong",
+      sentFlag.verdict !== "wrong" || typeof sentFlag.answer === "string",
+      `verdict=${sentFlag.verdict} answer=${JSON.stringify(sentFlag.answer)}`);
+    /* Where the card came from. This one is a course card, so it has a
+       deck behind it; a card the learner made would send neither. */
+    check("and where the card reached them from",
+      !!sentFlag.deckId && !!sentFlag.courseId,
+      `course=${sentFlag.courseId} deck=${sentFlag.deckId}`);
     const flagBtn = document.querySelector('[data-el="flag-button"]');
     check("the menu closes and the button says so",
       !document.querySelector('[data-el="flag-menu"]') &&

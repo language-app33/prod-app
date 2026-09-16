@@ -23,6 +23,24 @@ import { isOffline, watchNet } from "./net.ts";
  */
 export type Node = React.ReactNode;
 
+/*
+ * Which build this is.
+ *
+ * The release — 0.1, 0.2, 0.3 — is the headline, because "which version am
+ * I on?" wants a number that counts rather than a hash. The commit sits
+ * beside it, because "is what I merged actually running?" can only be
+ * answered by the thing that changes on every deploy.
+ *
+ * Both are frozen in at build time (see vite.config.js). Here rather than
+ * in the trainer because two unrelated screens now say which build they
+ * are — the version line, and any report copied out of Admin, where the
+ * build a problem was seen on is half of what makes it reproducible.
+ */
+export const APP_RELEASE = typeof __APP_RELEASE__ === "string" && __APP_RELEASE__ ? __APP_RELEASE__ : "dev";
+export const APP_COMMIT = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
+/** The two together, which is how a build is named anywhere it is written down. */
+export const APP_BUILD = `${APP_RELEASE} (${APP_COMMIT})`;
+
 
 
 /* When to ask, and how hard.

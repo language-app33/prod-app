@@ -1288,6 +1288,75 @@ test("a student's flag reaches the administrator, and says who sent it and when"
   assert.equal(after.find((f) => f.id === sent.json.id), undefined, "and it does not come back");
 });
 
+/*
+ * The half of a report the learner cannot be expected to type out.
+ *
+ * "It marked me wrong" cannot be acted on without the answer it marked, and
+ * a report from a card in a deck nobody can name is a report that has to be
+ * hunted for. Both used to be thrown away at the door: the app never sent
+ * them and the server would not have kept them.
+ */
+test("a report carries what was answered, how it was marked, and where the card came from", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Omar" } });
+
+  const sent = await api("/api/courses?action=report-flag", {
+    method: "POST",
+    key: student.json.key,
+    body: {
+      kind: "strict",
+      cardId: "card-answered",
+      exercise: "ar2en",
+      language: "ar-PS",
+      prompt: "مَدْرَسة",
+      meaning: "school",
+      courseId: "course-7",
+      deckId: "deck-3",
+      answer: "  school ",
+      verdict: "wrong",
+      release: "0.157 (abc1234)",
+    },
+  });
+  assert.equal(sent.status, 200, sent.text);
+
+  const mine = must(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .flags.find((f) => f.id === sent.json.id),
+    "the report just sent"
+  );
+  /* Untrimmed on purpose. A trailing space is exactly the sort of thing
+     that turns a right answer into a wrong one, and it is the one detail a
+     learner writing the report out by hand would never think to mention. */
+  assert.equal(mine.answer, "  school ", "what they put, character for character");
+  assert.equal(mine.verdict, "wrong", "and what the app made of it");
+  assert.equal(mine.courseId, "course-7");
+  assert.equal(mine.deckId, "deck-3");
+  assert.equal(mine.release, "0.157 (abc1234)", "on the build they were running");
+});
+
+test("a verdict the app never sends is stored as nothing, not as itself", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yusra" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const sent = await api("/api/courses?action=report-flag", {
+    method: "POST",
+    key,
+    /* An open field here would put whatever anyone posted onto the admin
+       screen and into an export, exactly as an open `kind` would. */
+    body: { kind: "data", cardId: "c9", verdict: "<script>alert(1)</script>" },
+  });
+  assert.equal(sent.status, 200, sent.text);
+  const mine = must(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .flags.find((f) => f.id === sent.json.id),
+    "the report just sent"
+  );
+  assert.equal(mine.verdict, "", "an unknown verdict reads as 'not recorded'");
+});
+
 test("a flag nobody could act on is refused, and only an administrator reads them", async () => {
   const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Layla" } });
   const key = student.json.key;
@@ -1599,6 +1668,106 @@ test("a backup counts the recordings on a conversation's turns", async () => {
     assert.ok(planned.includes(`clip:${hash}`), `${hash} is in the backup`);
   }
   assert.equal(got.json.manifest.counts.clips, planned.length, "and the count agrees with the plan");
+});
+
+/*
+ * Reported problems were the one thing on the site a backup did not hold.
+ *
+ * A restore is additive, so nothing was actively destroyed — but a site
+ * rebuilt from a file came back without a single outstanding report, and
+ * the file gave no sign that anything was missing. They are small, they are
+ * somebody's words about a card that is in the file beside them, and they
+ * are the list of what is still wrong.
+ */
+test("a backup carries reported problems, and a restore puts them back", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Salma" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const sent = await api("/api/courses?action=report-flag", {
+    method: "POST", key,
+    body: { kind: "data", note: "the recording is silent", cardId: "c-backed-up", exercise: "ar2en" },
+  });
+  assert.equal(sent.status, 200, sent.text);
+
+  const got = await api("/api/courses?action=admin-backup-manifest", { key });
+  const planned = got.json.manifest.plan
+    .filter((/** @type {any} */ c) => c.kind === "flag")
+    .flatMap((/** @type {any} */ c) => c.keys);
+  assert.ok(planned.includes(`flag:${sent.json.id}`), "the report is in the plan");
+  assert.equal(got.json.manifest.counts.flags, planned.length, "and the count agrees with it");
+  assert.ok(
+    (got.json.manifest.indexes.flags || []).includes(sent.json.id),
+    "with the index that makes them findable again"
+  );
+
+  /* And the chunk actually holds it: a plan naming a key nothing fetches is
+     a backup that passes its own check and restores nothing. */
+  const chunk = await api("/api/courses?action=admin-backup-chunk", {
+    method: "POST", key, body: { keys: [`flag:${sent.json.id}`] },
+  });
+  const record = must(chunk.json.records[`flag:${sent.json.id}`], "the report in the chunk");
+  assert.equal(record.note, "the recording is silent");
+
+  /* Cleared from the site, then put back from the file. */
+  await api("/api/courses?action=admin-delete-flags", {
+    method: "POST", key, body: { flagIds: [sent.json.id] },
+  });
+  assert.equal(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .flags.find((f) => f.id === sent.json.id),
+    undefined,
+    "gone from the site"
+  );
+
+  const put = await api("/api/courses?action=admin-restore-chunk", {
+    method: "POST", key,
+    body: { records: { [`flag:${sent.json.id}`]: record, "index:flags": [sent.json.id] } },
+  });
+  assert.equal(put.status, 200, put.text);
+  const back = must(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .flags.find((f) => f.id === sent.json.id),
+    "the restored report"
+  );
+  assert.equal(back.note, "the recording is silent", "and it reads as it did");
+});
+
+/* Clearing the site offers reports as a part of their own. They outlive the
+   cards they are about by design — that is what the copy of the question is
+   for — so clearing the cards must not quietly take the list of what was
+   wrong with them. */
+test("reported problems are cleared on their own say-so, not with the cards", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Hiba" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const sent = await api("/api/courses?action=report-flag", {
+    method: "POST", key, body: { kind: "strict", cardId: "c-kept", exercise: "ar2en" },
+  });
+
+  const cards = await api("/api/courses?action=admin-clear", {
+    method: "POST", key, body: { adminKey: ADMIN_KEY, parts: ["cards"] },
+  });
+  assert.equal(cards.status, 200, cards.text);
+  assert.ok(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .flags.find((f) => f.id === sent.json.id),
+    "clearing the cards leaves the reports about them"
+  );
+
+  /* Every report on the site, not just this one — these tests share a
+     store, so what is counted is "at least the one just made" and what is
+     checked is that this one went. */
+  const asked = await api("/api/courses?action=admin-clear", {
+    method: "POST", key, body: { adminKey: ADMIN_KEY, parts: ["flags"] },
+  });
+  assert.ok(asked.json.removed.flags >= 1, "and asking for them clears them");
+  assert.equal(
+    overviewOf(await api("/api/courses?action=admin-overview", { key }))
+      .flags.find((f) => f.id === sent.json.id),
+    undefined
+  );
 });
 
 /* ------------------------------------------------------------------

@@ -8,6 +8,44 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.157 — 16 September 2026
+
+**Reported problems can be copied out of Admin in one go.**
+
+Learners have always been able to flag a question from the answer screen,
+and what they send has always landed in Admin. Getting it back out again
+was the part that did not exist: you could read the reports one at a time
+on screen, and that was all. Anyone who wanted to sit down and work through
+them somewhere else had to copy them out by hand.
+
+Admin → Flags now has Copy. It takes every report on the list, or only the
+ones you have ticked, or a single one from its own row, and puts them on
+the clipboard as plain text — each report with the card it is about, as
+that card stands right now. Paste it wherever you like.
+
+Reports also carry more than they used to, because most of what makes one
+actionable was being thrown away at the door:
+
+- **What the learner actually typed**, character for character. "It marked
+  my answer wrong" cannot be settled without it, and a trailing space is
+  exactly the sort of thing nobody thinks to mention.
+- **How the app marked it** — right, nearly right, wrong, skipped, or the
+  answer shown. A card flagged after being marked *right* is a different
+  problem from one flagged after being marked wrong, and the two used to
+  read identically.
+- **Which course and deck the card came from**, because a bad card is
+  usually one of a bad batch.
+- **Which build of the app they were on.**
+
+Reports sent before this release carry what they always carried. The export
+says so rather than leaving those lines looking empty.
+
+**Backups now include reported problems**, which were the one thing on the
+site a backup did not hold. A site rebuilt from a file came back with no
+record of anything anyone had reported and not yet fixed, and nothing said
+so. Clearing the site offers them as a part of their own: clearing the
+cards no longer quietly takes the list of what was wrong with them.
+
 ## 0.156 — 16 September 2026
 
 **A session already under way now notices the connection going.**

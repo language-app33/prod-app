@@ -386,6 +386,9 @@ src/
   grade.ts         marking an answer: what it counts as, what that does to
                    the schedule of the form it was about, and where it is
                    written back. Pure, no React, the clock passed in.
+  flag-export.ts   reported problems written out as text to paste elsewhere,
+                   each with the card it is about. Pure: the clock, the
+                   locale and every name it cannot work out are passed in.
   ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
   spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them
