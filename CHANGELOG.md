@@ -8,6 +8,61 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.151 — 16 September 2026
+
+**There is always something to practise.**
+
+Until now a card had to be *due* before you could practise it, and that
+turned the app's own pacing into silence. Ten cards in four minutes, then
+seven minutes with nothing on offer while they came back round, four times
+over — and then, after about forty-five minutes on a new course, nothing at
+all until the next day, with twenty cards of your course still untouched and
+out of reach. Someone who had caught up got the same silence for the
+opposite reason.
+
+Being due now decides what a session *leads with*, not whether you are
+allowed one. Open the app whenever you like and there is a session waiting:
+overdue cards first, then whatever is nearest to coming round.
+
+**Practising early counts, in proportion to how long you actually waited.**
+This is what makes the above safe rather than merely generous. Before, the
+app pushed a card further out by multiplying its existing gap without
+looking at when you last saw it — so drilling a month-long card ten minutes
+after the last time would have thrown it a month and a half into the future
+on the strength of a ten-minute memory. Now:
+
+- Answer on the day it asks for, or later — exactly as before. Nothing
+  about a normal session changes.
+- Answer halfway through the gap — it still grows, by less.
+- Answer minutes after the last time — it stays where it is, and your
+  answer is still counted.
+- Get it wrong — counts in full, whenever you were. Forgetting is news.
+
+So an evening of extra practice can no longer empty your next month.
+
+**New cards still arrive at the same pace.** Three a session, and none at
+all while you already have a lot on the go. Extra practice means more of
+what you hold, not more new words — that limit is there so you do not bury
+yourself, and it has not moved.
+
+**The home screen stops contradicting itself.** At the wall it used to say
+"20 cards ready to practice" above a button that answered "nothing ready to
+practice yet", and the line written to explain the wait could never appear.
+The number now means what the next session will actually deal, the button
+always works, and when nothing is due it says so and tells you when the next
+card is due.
+
+**And the summary at the end says which kind of session it was** — whether
+you got through work that was waiting, or practised ahead and moved very
+little. Practising ahead is welcome; it is not the same as making headway,
+and the app should not imply that it is.
+
+**Offline, the app now tells you about recordings you haven't got.** They
+are the reason a journey can be a quieter session than you expected:
+questions that play a sound you have not downloaded are held back. The home
+screen says how many, while you are offline, and points at the button that
+fetches them.
+
 ## 0.150 — 16 September 2026
 
 **A fix to 0.149's own fix.** Last release said you would no longer be

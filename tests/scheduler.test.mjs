@@ -173,12 +173,22 @@ test("a near miss always moves the interval, however short it is", () => {
      floor, which is where it stays in charge. */
   assert.equal(reschedule(reviewing({ interval: 10 }), "hard", still).interval, 12);
   /* Nearly right over and over does reach the bar, rather than standing
-     still short of it — four near misses from a standing start. */
+     still short of it — four near misses from a standing start.
+
+     Each one is answered when the card asks for it rather than four times
+     in the same instant, because a gap now grows from the time actually
+     waited: four answers in one second are one second's worth of evidence
+     and rightly move the card once. Coming back when asked is what the
+     learner this test is about actually does. */
   let s = reviewing({ interval: 1 });
   const path = [];
+  let at = T;
   for (let i = 0; i < 4; i += 1) {
-    s = reschedule(s, "hard", still);
+    /* Answered on its due date, which is where it was put last time. */
+    const onTime = { now: () => at, random: () => 0.5 };
+    s = reschedule(s, "hard", onTime);
     path.push(s.interval);
+    at = s.due;
   }
   assert.deepEqual(path, [2, 3, 4, 5]);
   assert.equal(mastered(s), true, `nearly right four times reaches the bar: ${path.join(" → ")}`);
@@ -989,4 +999,89 @@ test("a level the form has no exercise at is passed over, as openTypes passes it
   const eased = ["ar2en", "match", "tr2ar", "en2ar"];
   const out = liftLevel(eased, stateIn({}), "match", still);
   assert.deepEqual(Object.keys(out).sort(), ["ar2en", "match"]);
+});
+
+/* ------------------------------------------------------------------
+   A gap grows from the time actually waited
+
+   Practice is no longer gated on a card being due, so a learner with a
+   free hour can answer a card minutes after they last saw it. The rule
+   that makes that safe: you never get credit for waiting longer than you
+   did, and answering early never takes a card backwards.
+   ------------------------------------------------------------------ */
+
+/** A review card last answered `ago` days back, so its gap is `interval`. */
+const waited = (/** @type {number} */ interval, /** @type {number} */ ago) => ({
+  ...freshState(),
+  phase: "review",
+  interval,
+  ease: 2.5,
+  /* Where the last answer put it: the moment it was answered plus its gap. */
+  due: T - ago * DAY + interval * DAY,
+  reps: 4,
+  right: 4,
+});
+
+test("answering on the day it asks for is exactly what it always was", () => {
+  /* The regression that matters most: every learner who uses the app the
+     way it intends must see no change at all from any of this. */
+  for (const interval of [1, 3, 10, 30, 180]) {
+    assert.equal(
+      reschedule(waited(interval, interval), "good", still).interval,
+      /* The ceiling still applies, as it did before: 180 days times the
+         ease is past a year, and a year is as far as anything goes. */
+      Math.min(MAX_DAYS, Math.round(interval * 2.5)),
+      `a ${interval}-day card answered on time`,
+    );
+  }
+});
+
+test("and answering late is worth what answering on time is, not more", () => {
+  /* A collection left for a month is not evidence of a month's retention
+     of every card in it. Treating it as such is how a forgotten pile
+     inflates itself out of reach. */
+  assert.equal(
+    reschedule(waited(10, 90), "good", still).interval,
+    reschedule(waited(10, 10), "good", still).interval,
+  );
+});
+
+test("answering straight after the last time does not move the card", () => {
+  /* The hour on the train: drilling a card you have just seen is welcome,
+     and it is worth nothing towards when the card comes back. */
+  const s = reschedule(waited(30, 0), "good", still);
+  assert.equal(s.interval, 30, "the gap stands");
+  assert.equal(s.right, 5, "but the right answer is counted");
+});
+
+test("answering halfway through the gap grows it, by less", () => {
+  const early = reschedule(waited(20, 10), "good", still).interval;
+  const onTime = reschedule(waited(20, 20), "good", still).interval;
+  assert.ok(early > 20, `it still grows: ${early}`);
+  assert.ok(early < onTime, `but less than the full step: ${early} vs ${onTime}`);
+});
+
+test("no amount of early practice can push a card further out", () => {
+  /* Twenty answers in one sitting used to be twenty multiplications. This
+     is the property that lets the app offer unlimited practice at all. */
+  let s = waited(30, 0);
+  for (let i = 0; i < 20; i += 1) s = reschedule(s, "good", still);
+  assert.equal(s.interval, 30, "still a thirty-day card");
+  assert.equal(s.reps, 24, "and every answer was counted");
+});
+
+test("getting it wrong counts in full, however early it was", () => {
+  /* Forgetting is news whenever it arrives, and it is the one thing that
+     must not be softened by the rule above. */
+  const s = reschedule(waited(30, 0), "again", still);
+  assert.equal(s.phase, "relearning");
+  assert.equal(s.interval, 15, "the gap is halved as it always was");
+  assert.equal(s.lapses, 1);
+});
+
+test("a card with no due date recorded is scheduled as it always was", () => {
+  /* Written by a build before any of this. There is nothing to work a wait
+     out from, so it falls back to the full step rather than to nothing. */
+  const old = { ...freshState(), phase: "review", interval: 10, ease: 2.5, due: 0 };
+  assert.equal(reschedule(old, "good", still).interval, 25);
 });

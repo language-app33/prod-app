@@ -630,3 +630,96 @@ test("a value that is never practised keeps the record the sentence holds", () =
   assert.deepEqual(found.map((/** @type {any} */ f) => f.id), ["n1"],
     "the noun is credited and the name is left to the frame's own record");
 });
+
+/* ------------------------------------------------------------------
+   Being due orders a session; it does not gate one
+
+   The app used to deal only cards that were due, which meant a learner
+   partway through its own pacing of new cards met that pacing as silence:
+   ten cards in four minutes, then seven with nothing on offer, four times
+   over, and then nothing at all for the rest of the day. Somebody who had
+   caught up got the same silence for the opposite reason.
+
+   These are the rules that replaced it. The scheduler's own tests cover
+   what an early answer is worth; these cover what is dealt.
+   ------------------------------------------------------------------ */
+
+const DAY_MS = 86400000;
+
+/** A card already learnt, whose next review is `inDays` away. */
+const settled = (/** @type {string} */ id, /** @type {number} */ inDays) => {
+  const w = word(id, `كلمة${id}`, `word ${id}`);
+  const due = Date.now() + inDays * DAY_MS;
+  const state = { phase: "review", step: 0, ease: 2.5, interval: 10, due,
+    reps: 4, right: 4, wrong: 0, lapses: 0, skips: 0, near: 0, hints: 0,
+    updated: Date.now(), hist: [] };
+  /* Every exercise the card supports, so nothing is merely unopened. */
+  w.forms[0].s = Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, { ...state }]));
+  return w;
+};
+
+test("a learner who is up to date is still dealt a session", () => {
+  /* Twelve cards, none of them due for a week. The old answer was an empty
+     session and a greyed-out button. */
+  const items = Array.from({ length: 12 }, (_, i) => settled(`s${i + 1}`, 7));
+  const got = deal(items);
+  assert.equal(got.reason, null, `still refused: ${got.reason}`);
+  assert.ok(got.exercises.length > 1, `${got.exercises.length} questions`);
+});
+
+test("and the session says how much of it was actually waiting", () => {
+  /* What the screen at the end reads, so practising ahead is never
+     mistaken for getting through the schedule. */
+  const got = deal(Array.from({ length: 12 }, (_, i) => settled(`s${i + 1}`, 7)));
+  assert.equal(got.due, 0, "none of them were due");
+  assert.ok((got.items || 0) > 0, "but cards were dealt");
+});
+
+/* Which cards a session took. The order questions are *asked* in is the
+   interleave's business — it spaces a card's own exercises apart and
+   shuffles what the due list calls equal — so what is asserted here is
+   which cards got in, which is what being due decides. */
+const dealtCards = (/** @type {any} */ got) =>
+  new Set(got.exercises.map((/** @type {any} */ x) => x.id));
+
+test("an overdue card is taken ahead of cards that are not due", () => {
+  /* More cards than a session holds, so getting in is a choice rather than
+     a formality. */
+  const far = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, 30 + i));
+  const got = deal(far.concat([settled("late", -5)]));
+  assert.ok(dealtCards(got).has("late"), "the overdue card was left out");
+  assert.equal(got.due, 1, "and it is counted as the one that was waiting");
+});
+
+test("with nothing due, the nearest to due is taken and the furthest is not", () => {
+  const far = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, 60 + i));
+  const got = deal(far.concat([settled("soon", 1)]));
+  const dealt = dealtCards(got);
+  assert.ok(dealt.has("soon"), "the nearest card was left out");
+  assert.ok(!dealt.has("f30"), "the furthest card was taken anyway");
+});
+
+test("practising ahead never brings in more new cards than the rule allows", () => {
+  /* The other half of the decision: more practice means more of what you
+     hold, never more than you can take on at once. A deck of sixty
+     untouched cards must still open at three. */
+  const got = deal(deckOf(60));
+  const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
+  assert.ok(dealt.size <= 3, `${dealt.size} new cards in one session`);
+});
+
+test("a full hand of new cards does not stop the learning ones being practised", () => {
+  /* The wall itself: ten cards in hand, so no new ones may come in, and
+     twenty untouched behind them. The learner used to be told there was
+     nothing to practise while holding ten cards they were mid-way through
+     learning. */
+  const learning = Array.from({ length: 10 }, (_, i) => settled(`h${i + 1}`, 1));
+  const untouched = deckOf(20);
+  const got = deal(learning.concat(untouched));
+  assert.equal(got.reason, null, `refused: ${got.reason}`);
+  const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
+  assert.ok(
+    [...dealt].some((id) => String(id).startsWith("h")),
+    `dealt none of the cards in hand: ${[...dealt].join(" ")}`,
+  );
+});

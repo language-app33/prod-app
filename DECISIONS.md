@@ -1809,3 +1809,95 @@ that the first screen now says so instead of promising the opposite. And
 the teaching space still writes straight to the server for everything but
 a card save: a general replay of every teacher action needs ids the client
 mints, and nothing yet asks for it.
+
+---
+
+## Being due orders a session; it does not gate one
+
+**16 September 2026** · `src/scheduler.ts` (`reschedule`),
+`src/ArabicTrainer.tsx` (`buildSession`, `countReady`)
+
+The question that started this was how much an offline student can practise.
+The answer was: about twenty minutes out of an hour, in bursts, and then
+nothing until tomorrow. Traced through, a fresh sixty-card course gives four
+minutes of work, seven minutes of silence while those cards come back round,
+four times over, and then a wall — no new cards until the ones in hand have
+settled, with twenty cards of the course unreachable for the rest of the day.
+
+None of it was caused by being offline. Offline was only where it hurt,
+because there is nothing else to do and no way to see why the app has gone
+quiet.
+
+**The fault was that `due` did two jobs.** One is ordering: of everything
+that could be shown, what matters most. That is the valuable one and it
+caused none of the trouble. The other is permission: whether you may
+practise at all. That produced every symptom above.
+
+Permission is very hard to justify for an app people open on their own time.
+Practising a little early is cheap. An empty screen is not — it costs the
+learner who was willing, which is the only kind there is. And it turned away
+exactly the wrong person: someone returning after a fortnight meets a pile of
+overdue cards and never sees the gate, while the new student working through
+a course, and the keen one who has caught up, hit it every time.
+
+**So the due filter is gone and the due *sort* stays**, which it already was
+a few lines above it in the same function. A session takes the front of the
+list whether that is forty overdue cards or the nearest thing to due.
+
+**What makes that safe is in the scheduler, not the session builder.** A
+review interval used to grow by multiplying the interval the card already
+had, with no reference to when it was last answered — so a card answered ten
+minutes after a month-long gap was set would be pushed out six weeks on the
+evidence of a ten-minute memory. Remove the gate without fixing that and a
+keen evening empties the next two months.
+
+Now a gap grows from the time actually waited — `min(interval, elapsed)`,
+where elapsed is read off the card's own `due` and `interval` and so needs
+nothing new stored. Two caps make the whole of the behaviour:
+
+- **Capped above at the interval**, so answering late is worth what
+  answering on time is. A collection left for a month is not evidence of a
+  month's retention of every card in it. This is also what makes every
+  on-time and overdue answer identical to what it was before — the
+  regression that mattered most, and the thing the first new test asserts.
+- **Floored at the current interval**, so an early answer can never take a
+  card backwards. Otherwise drilling something you know well would be
+  punished by having it thrown at you all week.
+
+A wrong answer is untouched by any of this: it lapses in full, whenever it
+arrives, because forgetting is news wherever it happens.
+
+**The limits on new cards were deliberately left where they are.** Three a
+session, none at all once forty are still settling. They answer a different
+question — how much can somebody take on — and the project has already
+decided once that this is the app's call and not a setting. So extra practice
+is more of what a learner holds, never more new words. At the old wall they
+can now drill the ten cards in their hands and still get no new ones.
+
+**What it cost.**
+
+- **One test changed rather than added.** A near-miss test drilled the same
+  card four times in the same instant and expected four advances. Under the
+  new rule that is one second of evidence and rightly moves the card once,
+  so it now answers on each due date instead. Its intent — that being nearly
+  right over and over still reaches the bar — is unchanged and still
+  asserted.
+- **`readyCount` had to stop lying.** Every never-seen card reads as ready to
+  the scheduler, correctly, since nothing is known about it — so a course of
+  sixty new cards reported sixty waiting while the new-card rule would admit
+  three, and at the wall the screen said "20 ready" over a button that
+  answered "nothing ready". It now counts what is genuinely due plus as many
+  new cards as would actually be admitted, which is the promise the number
+  was always making.
+- **A session reports how much of it was waiting** (`due` on the session), so
+  the screen at the end can tell a learner they practised ahead rather than
+  implying they got through their schedule. Practising ahead is welcome; it
+  is not headway, and the app should not suggest otherwise.
+
+**What was left alone, deliberately.** The hand-built session still sets its
+own limits and still advances the schedule, which is now simply consistent
+with everything else rather than the one exception. And the `practice: true`
+mode — which leaves the schedule completely untouched — stays unused by the
+learner's path: it was the obvious lever to reach for here and it is the
+wrong one, because work that counts for nothing is not what somebody with a
+free hour is asking for.

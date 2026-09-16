@@ -55,9 +55,21 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   most two forms of any one card; three new cards at the outside; easiest
   first. Cards are taken in the order they fell due, with chance between
   everything the due list calls equal, and nothing gathers similar words
-  together. The numbers are `SESSION_SIZE`, `PER_UNIT`,
-  `MAX_UNITS_PER_FAMILY` and `NEW_PER_SESSION` in `src/ArabicTrainer.tsx`,
-  beside `buildSession` which is the only thing that reads them.
+  together.
+
+  **Being due settles that order and nothing else.** There is always a
+  session: a learner who is up to date, or who is partway through the
+  three-new-cards rule, is dealt the cards nearest to coming round rather
+  than an empty screen. What makes that safe is in the scheduler — a gap
+  grows from the time actually waited, so a card answered soon after the
+  last time is counted and left where it was, and no amount of practice in
+  one evening can push anything further out. The limits on *new* cards are
+  a different rule and still apply: more practice is more of what the
+  learner holds, never more than they can take on at once.
+
+  The numbers are `SESSION_SIZE`, `PER_UNIT`, `MAX_UNITS_PER_FAMILY` and
+  `NEW_PER_SESSION` in `src/ArabicTrainer.tsx`, beside `buildSession` which
+  is the only thing that reads them.
 
   They were six sliders under an Advanced disclosure, under a sentence
   saying the defaults were sensible — and two of the defaults were why the

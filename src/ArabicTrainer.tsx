@@ -2313,6 +2313,12 @@ interface Session {
   reason: string | null;
   items?: number;
   units?: number;
+  /* How many of the cards in it were actually waiting. The rest are ahead
+     of themselves, which is welcome and worth saying out loud: the screen
+     at the end reports which kind of session this was, so a learner
+     practising for the sake of it is never left thinking they have made
+     more headway through their schedule than they have. */
+  due?: number;
 }
 
 export function buildSession({
@@ -2349,18 +2355,20 @@ export function buildSession({
        yet is not counted as waiting: it would be picked, admitted against
        the room for new cards, and then deal no question at all — a new
        card's place spent on a card that cannot be asked. */
-    /* The learner asked for this one, so it is waiting whatever its
+    /* The learner asked for this one, so it goes to the front whatever its
        schedule says — see isUrgent. */
     const urgent = isUrgent(it, settings);
-    const ready =
-      urgent ||
-      units.some(({ unit }) =>
-        askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
-      );
+    /* Whether the card was *due* used to be worked out here and used to
+       cut the list. Nothing asks it any more: being due decides where a
+       card sits in the order, which `soonest` above already carries, and
+       no longer decides whether it may be practised at all. What is
+       genuinely waiting is still counted, for the number on the home
+       screen — see countReady, which is a question about the learner's
+       day rather than about this session. */
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew, urgent };
+    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -2371,9 +2379,36 @@ export function buildSession({
      above all of it. */
   candidates = inOrder(candidates, (c) => (c.urgent ? -1 : dueRank(c.soonest)));
 
-  // A hand-picked session takes everything chosen, due or not.
+  /*
+   * Being due decides the order, not whether you may practise at all.
+   *
+   * It used to be both, and the second job was the one that hurt. A
+   * learner partway through a course met the app's own pacing as silence:
+   * ten cards learnt in four minutes, then seven minutes with nothing on
+   * offer while they came back round, four times over, and then a wall
+   * for the rest of the day. Somebody up to date got the same silence for
+   * a different reason. And nothing on the screen could explain either,
+   * because "nothing is due" is not a sentence a person accepts from an
+   * app they opened on purpose.
+   *
+   * Practising early is cheap. An empty screen is not: it costs the
+   * learner who was willing, which is the only kind there is. So the list
+   * is no longer cut at the due line — it is simply *sorted* by it, which
+   * it already was a few lines above, and a session takes the front of it
+   * whether that is forty overdue cards or the nearest thing to due.
+   *
+   * What makes this safe rather than merely generous is in the scheduler:
+   * a gap grows from the time actually waited, so a card answered minutes
+   * after its last review is counted, welcomed and left exactly where it
+   * was. Twenty answers in an evening cannot push anything out of reach.
+   *
+   * The limits on *new* cards are a different rule with a different
+   * reason, and they still apply on every path below. More practice means
+   * more of what the learner already holds, never more than they can take
+   * on at once.
+   */
+  // A hand-picked session takes everything chosen, and sets its own limits.
   if (!practice && !includeAll) {
-    candidates = candidates.filter((c) => c.ready);
     /* Nothing new while a pile of cards is already fighting you. */
     const backlog = pool.filter((it) =>
       drillableUnits(it, settings).some(({ unit }) =>
@@ -2525,11 +2560,25 @@ export function buildSession({
   const offered = new Set(plans.flatMap((p) => enabledTypes(p.unit, settings)));
   if (offered.size < 2) return { exercises: [], reason: "no-variety" };
 
+  /* Counted over the cards the session actually took, not over the whole
+     collection: this is a fact about the session on screen. A card the
+     learner asked for counts as waiting, because they said so. */
+  const dealt = new Set(plans.map((p) => p.id));
+  const due = [...dealt].filter((id) => {
+    const it = pool.find((x) => x.id === id);
+    if (!it) return false;
+    if (isUrgent(it, settings)) return true;
+    return drillableUnits(it, settings).some(({ unit }) =>
+      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+    );
+  }).length;
+
   return {
     exercises: withReadThroughs(varied.slice(0, budget), items, settings),
     reason: null,
-    items: new Set(plans.map((p) => p.id)).size,
+    items: dealt.size,
     units: plans.length,
+    due,
   };
 }
 
@@ -6152,6 +6201,13 @@ export default function ArabicTrainer() {
     return ids;
   }, [items]);
 
+  /* How many of them are not here. Read on the home screen while offline,
+     and in Account settings beside the button that fetches them. */
+  const missingClips = useMemo(
+    () => (audible ? [...new Set(allClipIds)].filter((id) => !audible.has(id)).length : 0),
+    [allClipIds, audible],
+  );
+
   const allTags = useMemo(() => {
   const counts: Record<string, number> = {};
     for (const it of items) for (const t of it.tags || []) counts[t] = (counts[t] || 0) + 1;
@@ -6172,22 +6228,50 @@ export default function ArabicTrainer() {
     [items, settings, inDeck]
   );
 
-  /* Over the levels a card has reached, not everything it could one day be
-     asked: a level it has not climbed to is not work waiting to be done,
-     and counting it promised a session that would not include the card. */
+  /*
+   * How much is actually waiting — the number under "Cards ready to
+   * practice", and a promise about the session the button beneath it
+   * builds.
+   *
+   * Over the levels a card has reached, not everything it could one day be
+   * asked: a level it has not climbed to is not work waiting to be done,
+   * and counting it promised a session that would not include the card.
+   *
+   * And a card never seen is only waiting if the app would actually deal
+   * it. Every untouched card counts as ready to the scheduler — correctly,
+   * since nothing is known about it — so a course of sixty new cards
+   * reported sixty waiting while the rule on new cards would admit three.
+   * At the point where that rule admits none at all, the screen said
+   * "20 cards ready to practice" over a button that answered "nothing
+   * ready to practice yet", and the line written to explain the wait could
+   * never appear because the count it was gated on was never zero.
+   */
   const countReady: (pool: Item[]) => number = useCallback(
-    (pool) =>
-      pool.filter(
-        (it) =>
-          /* A card the learner asked for is waiting by their say-so, and
-             the number here is a promise about the session the button
-             beneath it builds — see isUrgent. */
-          isUrgent(it, settings) ||
-          drillableUnits(it, settings).some(({ unit }) =>
-            openTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
-          )
-      ).length,
-    [settings]
+    (pool) => {
+      const waiting = (it: Item, includeNew: boolean) =>
+        /* A card the learner asked for is waiting by their say-so — see
+           isUrgent. */
+        isUrgent(it, settings) ||
+        drillableUnits(it, settings).some(({ unit }) =>
+          openTypes(unit, settings).some((t) => {
+            const st = stateOf(unit, t);
+            return includeNew ? stateReady(st) : st.phase !== "new" && stateReady(st);
+          })
+        );
+      /* Everything genuinely due, which is the honest half of the number. */
+      const met = pool.filter((it) => waiting(it, false)).length;
+      /* Plus as many never-seen cards as the app would let in today, read
+         over everything this learner holds rather than the deck in front
+         of them — the same reckoning buildSession does, so the two cannot
+         come to disagree. */
+      const fresh = pool.filter((it) => !waiting(it, false) && waiting(it, true)).length;
+      const inHand = phaseCounts(
+        items.filter((it) => isDrillable(it, settings)),
+        (u) => reachedTypes(u, settings)
+      );
+      return met + Math.min(fresh, roomForNew(inHand, NEW_PER_SESSION));
+    },
+    [settings, items]
   );
 
   /*
@@ -6609,10 +6693,25 @@ export default function ArabicTrainer() {
          mattered little when the only way to get here was a card list that
          was plainly too thin; with listening switched off it is reachable
          with a deck full of cards, and the reason has to be said. */
+      /*
+       * Why there is no session, which is now a much rarer thing to have
+       * to say — being due no longer keeps anyone out, so reaching here
+       * means the cards themselves cannot carry one.
+       *
+       * The old wording, "nothing ready to practice yet", was the app's
+       * answer to every one of these and was usually untrue: it was said
+       * most often to somebody holding a course of cards that were merely
+       * not due, and it was said over a screen reporting how many were
+       * ready. What is left is genuinely about the material.
+       */
       flash(
         listenOff > Date.now()
           ? "Nothing to practice without sound just now"
-          : "Nothing ready to practice yet"
+          : built.reason === "no-variety"
+          ? "These cards need two kinds of exercise between them"
+          : built.reason === "none-drillable"
+          ? "No card here has enough on it to be practised yet"
+          : "Nothing new to bring in yet — what you're learning comes back shortly"
       );
       return;
     }
@@ -7803,6 +7902,26 @@ export default function ArabicTrainer() {
                 above what they came here to do, once, and gone for good on
                 a tap. See useInstallOffer for why installing is the one
                 thing that keeps an offline app's data safe on iOS. */}
+            {/* Recordings that are not here yet, said at the moment it
+                starts to matter. Offline, a card whose sound was never
+                downloaded sits out its listening questions — so a journey
+                is quietly a quieter session, and the place to find that
+                out is not halfway through it. Only while offline and only
+                while there is something to fetch, so it is never a
+                standing nag. */}
+            {offline && missingClips > 0 && !inExercise && (
+              <div className="at-mb3">
+                <Notice kind="warn">
+                  <span>
+                    {`${plural(missingClips, "recording")} isn't on this device, so questions that
+                      play ${missingClips === 1 ? "it" : "them"} are being held back. `}
+                    <button className="at-linkbtn" onClick={() => setScreen("account")}>
+                      Download when you&apos;re back online
+                    </button>
+                  </span>
+                </Notice>
+              </div>
+            )}
             {install.show && !inExercise && (
               <div className="at-mb3">
                 <Notice kind="info">
@@ -7860,11 +7979,17 @@ Cards ready to practice
                   </Help>
 
                   <div className="at-row">
+                    {/* Always live while there is anything to drill. Being
+                        due decides what a session leads with, not whether
+                        there is one — so a learner who is up to date, or
+                        partway through the app's own pacing of new cards,
+                        is offered more of what they hold rather than a
+                        greyed-out button and silence. */}
                     <Button variant="primary"
                       onClick={() => begin(false)}
-                      disabled={!readyCount}
+                      disabled={!drillable.length}
                     >
-                      Start session
+                      {readyCount ? "Start session" : "Practise anyway"}
                     </Button>
                   </div>
                   <div className="at-row at-mt3">
@@ -7889,7 +8014,10 @@ Cards ready to practice
                   )}
 
                   {!readyCount && drillable.length > 0 && (
-                    <Help>{nextDueLine(drillable, settings)}</Help>
+                    <Help>
+                      {`Nothing is due. ${nextDueLine(drillable, settings)} Practising now is
+                        welcome and won't move your schedule much.`}
+                    </Help>
                   )}
                   {!drillable.length && items.length > 0 && (
                     <Notice kind="warn">
@@ -8505,6 +8633,21 @@ Cards ready to practice
                 <Help>
                   {practice
                     ? "Your schedule is untouched, apart from anything marked Again."
+                    : /*
+                       * Which kind of session this was.
+                       *
+                       * A session may now be dealt from cards that were not
+                       * yet due, so "every gap just got longer" is not true
+                       * of all of them — a card answered soon after the
+                       * last time barely moves, by design. Saying so is
+                       * what keeps the offer honest: practising ahead is
+                       * welcome, and it is not the same as getting through
+                       * your schedule.
+                       */
+                    session.due === 0
+                    ? "None of these were due, so your schedule has barely moved. The practice still counts."
+                    : session.items && session.due && session.due < session.items
+                    ? `${session.items - session.due} of these weren't due yet and have barely moved.`
                     : tally.no === 0
                     ? "Clean run. Every gap just got longer."
                     : `${tally.no} lapsed and will come back shortly.`}
