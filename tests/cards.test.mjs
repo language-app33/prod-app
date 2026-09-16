@@ -733,6 +733,40 @@ test("a form's progress follows the form, not its place in the list", () => {
   assert.equal(out.forms[3].s.ar2en.reps, 9);
 });
 
+test("a card the learner asked for stays asked for when the teacher edits it", () => {
+  /* The mark is the learner's and the card is the teacher's, and a refresh
+     takes the teacher's card whole — so without being told, the
+     forty-five-second poll would quietly clear every card anybody had
+     marked. The schedule was already carried over; this rides beside it. */
+  const had = [
+    { id: "srvk6", source: { cardId: "k6" }, priority: true,
+      forms: [{ id: "srvk6", ar: "a", en: "a", s: { ar2en: { phase: "review", reps: 4 } } }] },
+    { id: "srvk7", source: { cardId: "k7" },
+      forms: [{ id: "srvk7", ar: "b", en: "b", s: {} }] },
+  ];
+  /* The teacher has corrected the wording of both. */
+  const fresh = [
+    { id: "srvk6", source: { cardId: "k6" },
+      forms: [{ id: "srvk6", ar: "a!", en: "a!", s: {} }] },
+    { id: "srvk7", source: { cardId: "k7" },
+      forms: [{ id: "srvk7", ar: "b!", en: "b!", s: {} }] },
+  ];
+  const out = foldCourses(had, fresh).items;
+  assert.equal(out[0].priority, true, "the mark survives the teacher's edit");
+  assert.equal(out[0].forms[0].ar, "a!", "and the teacher's wording still wins");
+  assert.equal(out[0].forms[0].s.ar2en.reps, 4, "beside the progress, as before");
+  assert.equal(out[1].priority, undefined, "a card nobody marked gains nothing");
+});
+
+test("a card marked on this device only is not invented on one that has it too", () => {
+  /* The other way round: the teacher's copy never carries the mark, so a
+     card the learner has not marked must not come back marked. */
+  const had = [{ id: "srvk8", source: { cardId: "k8" }, forms: [{ id: "srvk8", ar: "c", en: "c", s: {} }] }];
+  const fresh = [{ id: "srvk8", source: { cardId: "k8" }, priority: true, forms: [{ id: "srvk8", ar: "c", en: "c", s: {} }] }];
+  const out = foldCourses(had, fresh).items[0];
+  assert.equal(out.priority, true, "what the incoming card says still stands where it says something");
+});
+
 test("and forms that gain names all at once keep the progress they had", () => {
   /* The release that names them renames every form on every card. A card
      whose forms have all been renamed at once is the same card in the same

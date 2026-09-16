@@ -2999,6 +2999,81 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   }
 }
 
+/* ---- a card the learner asks for ----
+   High priority is the one place a learner overrides the schedule: they
+   mark a card in their own card list and it is in the very next session,
+   however far off its review was. Driven through the real screens, because
+   what makes it worth having is that the mark reaches the session — and
+   between the two sit the ready count, the card list and the builder. */
+{
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(150);
+    click(buttonNamed(/^Leave$/));
+    await sleep(300);
+  }
+  click(buttonNamed(/^Cards$/));
+  await sleep(400);
+
+  const tileOf = (/** @type {Element} */ el) => el && el.closest(".at-minicard");
+  const firstTile = must(document.querySelector(".at-cardgrid .at-minicard"), "a card to mark");
+  const marked = (firstTile.textContent || "").slice(0, 24);
+  click(firstTile);
+  await sleep(350);
+
+  const markBtn = buttonNamed(/^Mark as high priority$/);
+  check("a learner can mark a card high priority from their own card list", !!markBtn,
+    (document.body.textContent || "").slice(-160).replace(/\s+/g, " "));
+  click(markBtn);
+  await sleep(300);
+  check("and the button then says how to take it off",
+    !!buttonNamed(/High priority — tap to clear/),
+    (document.body.textContent || "").slice(-120).replace(/\s+/g, " "));
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(350);
+  const priTiles = [...document.querySelectorAll(".at-cardgrid .at-minipri")];
+  check("the list says which card it was", priTiles.length === 1,
+    `${priTiles.length} tiles marked`);
+  const priTile = priTiles.length ? tileOf(priTiles[0]) : null;
+  check("and it is the one that was marked",
+    !!priTile && (priTile.textContent || "").includes(marked.trim().slice(0, 8)),
+    `${(priTile && priTile.textContent) || "none"} vs ${marked}`);
+
+  /* And into a session, which is the whole point of the mark. A marked
+     card opens the session, so the first question is about it. */
+  click(buttonNamed(/^Home$/));
+  await sleep(400);
+  click(buttonNamed(/^Start session$/));
+  await sleep(500);
+  const asked = (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
+  const answers = (document.querySelector(".at-answerbox") || {}).textContent || "";
+  check("a marked card opens the very next session",
+    !!document.querySelector(".at-instruction"),
+    (document.body.textContent || "").slice(0, 100).replace(/\s+/g, " "));
+
+  /* Take the mark off again and the card list agrees. Marked for ever is
+     what the setting says it is, so the way out has to work. */
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(150);
+  click(buttonNamed(/^Leave$/));
+  await sleep(350);
+  click(buttonNamed(/^Cards$/));
+  await sleep(400);
+  click(must(document.querySelector(".at-cardgrid .at-minipri"), "the marked tile").closest(".at-minicard"));
+  await sleep(350);
+  click(must(buttonNamed(/High priority — tap to clear/), "the button that clears it"));
+  await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(350);
+  check("clearing the mark takes it off the card list",
+    document.querySelectorAll(".at-cardgrid .at-minipri").length === 0,
+    `${document.querySelectorAll(".at-cardgrid .at-minipri").length} still marked`);
+  check("and the question it was asked was about a real card",
+    asked.length > 0 || answers.length > 0,
+    `prompt=${asked.slice(0, 40)} answers=${answers.slice(0, 40)}`);
+}
+
 /* ---- every exercise a card could be asked, on the teacher's card ----
    A teacher writing cards could not see what a student is actually asked.
    The foot of a card in the teaching space now lists every exercise that

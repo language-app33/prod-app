@@ -71,6 +71,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   pack states it in `marking` and nobody is asked to rule on harakat
   before they can read one.
 
+- **A learner can ask for a card.** Marking one *high priority* on its own
+  screen, under Cards, is the one place a learner overrides the schedule:
+  the card counts as waiting however far off its next review is, opens the
+  next session, and stays in every session until the mark is taken off.
+  Nothing underneath it moves — what has been learnt, and when the card
+  would have come round anyway, are both still there when the mark goes.
+  `priority` on the card, `isUrgent` in `src/ArabicTrainer.tsx`, which the
+  count of what is ready and the session builder both read so the two
+  cannot come to disagree. It is the learner's and not the teacher's, so it
+  is written through a course card's lock rather than refused by it, and
+  `foldCourses` carries it over a refresh beside the schedule.
+
 - **New cards are introduced only while there is room.** Beyond the three
   a session may open, nothing new is dealt while ten cards are already
   being learnt or forty are young and still coming back for review. A
@@ -176,6 +188,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `turnOf` in the scheduler — so a question that was missed is the one
   asked again, rather than the miss itself turning up a sentence nobody
   has been taught.
+- **A question answered wrong is asked again before the session ends.** The
+  same question, at the back of whatever is left — so the gap is the size of
+  the rest of the sitting, which makes it a retest rather than a copy of an
+  answer still on the screen. It goes through the same spacing rule the
+  queue was built with, so it never lands beside another question about the
+  same card: `requeueMissed` beside `varyTypes`. Where nothing is left but
+  the card's own questions it is asked next, which is what keeps a session
+  of one question from ending the moment it is missed, and is Ultimate's
+  promise to repeat what you miss until you have it right.
+
 - **A matching grid is five questions.** Every word in it is asked, marked
   and scheduled in its own right. Which words stand together is decided
   when the session is built: the grid is filled out from cards already

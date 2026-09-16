@@ -605,9 +605,9 @@ function settingsFor(settings: Settings, unit: Spoken): Settings {
    — the one question a screenshot cannot answer. */
 export function drillableUnits(item: Item, settings: Settings) {
   /* A unit with nothing to ask is left out here rather than further down,
-     where it would take one of the four places a family gets in a session
-     and fill it with no question — so a verb whose word is cited by one of
-     its own cells would be dealt three cells instead of four.
+     where it would take one of the places a family gets in a session and
+     fill it with no question — so a verb whose word is cited by one of its
+     own cells would be dealt one cell instead of two.
 
      And a form the teacher keeps on the card without asking about it — see
      isAsked — for the same reason: it has no question to put, so a place
@@ -1693,6 +1693,29 @@ function isDrillable(it: Item, settings: Settings) {
   return enabledTypes(leadOf(it), settings).length >= 2;
 }
 
+/*
+ * A card the learner has asked for.
+ *
+ * Marking one high priority in the card list is the one way a learner
+ * overrides the schedule, and this is the whole of what it means: the card
+ * counts as waiting however far off its next review is, so it is in the
+ * count on the home screen and in the session that follows. It comes first
+ * there too, which is decided where the session is built.
+ *
+ * "Where there is a question to put" is the part that cannot be left out.
+ * A card asks nothing until it has the material for two exercises, and a
+ * frame with no word to fill its hole asks nothing today; a card admitted
+ * without that would take a place in the session, deal nothing, and be
+ * counted as ready on a screen that then offered a session without it.
+ * Asked once, so the count and the builder cannot come to disagree.
+ */
+export function isUrgent(it: Item, settings: Settings): boolean {
+  if (!it.priority) return false;
+  return drillableUnits(it, settings).some(
+    ({ unit }) => askableTypes(unit, settings).length > 0
+  );
+}
+
 /* One shuffle in the app, and it lives in the scheduler with the rest of
    what decides an order — see "Random among equals" there. */
 const shuffle: <T>(arr: T[]) => T[] = (arr) => shuffled(arr);
@@ -1781,7 +1804,45 @@ const MAX_UNITS_PER_FAMILY = 2;
    first thing anyone would have written is a scene with six lines. */
 const MAX_DIALOG_LINES = 2;
 
-
+/*
+ * A question answered wrong, put back into what is left of the session.
+ *
+ * It is the same question deliberately — the point of asking again is to
+ * test the thing that failed, not to change the subject. And it goes to the
+ * back of the queue, which gives it a gap the size of whatever is left: a
+ * long session re-asks it in fifteen questions' time, a short one in three,
+ * and both are a retest rather than a copy of an answer still on the
+ * screen.
+ *
+ * What was wrong was that it went there *blind*. The queue is spaced out
+ * when it is built — no two questions running about the same card, see
+ * varyTypes — and everything added afterwards skipped that pass, so missing
+ * a card's two questions put its two retries back to back at the end. So
+ * the same rule is applied here: back up over any neighbour about the same
+ * card, and stop short of it.
+ *
+ * `from` is the first question not yet answered; everything before it is
+ * done and is never moved. With nothing left after it the retry is the very
+ * next question, which is the one case this cannot improve on — dropping it
+ * instead would end a session of one question the moment it was got wrong,
+ * having taught nothing, and would break the promise Ultimate makes in as
+ * many words. Standing next to itself is only a fault while there is
+ * something to stand between.
+ */
+export function requeueMissed(list: Question[], from: number, ex: Question): Question[] {
+  const clashes = (q: Question | undefined) => !!q && q.id === ex.id;
+  const put = (at: number) => list.slice(0, at).concat([{ ...ex }], list.slice(at));
+  /* The back of the queue, then forward off any neighbour about the same
+     card — both sides, because stopping in front of one is as bad as
+     stopping behind it. Never as far as `from`: the question there is the
+     miss itself, still on the screen. */
+  for (let at = list.length; at > from; at -= 1) {
+    if (!clashes(list[at - 1]) && !clashes(list[at])) return put(at);
+  }
+  /* Nowhere clean — what is left is the card's own questions, or there is
+     nothing left at all. The end, which is where it used to go. */
+  return put(list.length);
+}
 
 const MODES = {
   regular: {
@@ -1821,17 +1882,25 @@ function hasRecentMistake(unit: Form) {
 }
 
 /*
- * Keep consecutive questions from sharing an exercise type where the
- * material allows it. A greedy pass: take the next exercise whose type
- * differs from the one before, preferring a different item too.
+ * Keep consecutive questions from being about the same card, and from
+ * sharing an exercise type, where the material allows both.
+ *
+ * A greedy pass, and the order of its fallbacks is the whole of it. It used
+ * to ask for a different type first and a different card only as a bonus,
+ * so where it could not have both it took another angle on the word just
+ * asked over a different word asked the same way — and "the same card twice
+ * running" is the thing a learner notices and complains about, while "two
+ * translations in a row" is barely a texture. The card comes first now, and
+ * the type is what gives way.
  */
-function varyTypes(list: Question[]): Question[] {
+export function varyTypes(list: Question[]): Question[] {
   const out: Question[] = [];
   const rest = list.slice();
   let prevType: string | null = null;
   let prevId: string | null = null;
   while (rest.length) {
-    let pick = rest.findIndex((e) => e.type !== prevType && (e.id !== prevId || rest.length === 1));
+    let pick = rest.findIndex((e) => e.id !== prevId && e.type !== prevType);
+    if (pick === -1) pick = rest.findIndex((e) => e.id !== prevId);
     if (pick === -1) pick = rest.findIndex((e) => e.type !== prevType);
     if (pick === -1) pick = 0;
     const [e] = rest.splice(pick, 1);
@@ -1888,21 +1957,27 @@ function buildSession({
        yet is not counted as waiting: it would be picked, admitted against
        the room for new cards, and then deal no question at all — a new
        card's place spent on a card that cannot be asked. */
-    const ready = units.some(({ unit }) =>
-      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
-    );
+    /* The learner asked for this one, so it is waiting whatever its
+       schedule says — see isUrgent. */
+    const urgent = isUrgent(it, settings);
+    const ready =
+      urgent ||
+      units.some(({ unit }) =>
+        askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+      );
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew };
+    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, ready, isNew, urgent };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
      the first few new cards and "the first few" is decided here. Anything
      already due ranks together and is shuffled, so which new cards a
      session opens with, and which of the overdue ones it reaches, differ
-     from one sitting to the next. */
-  candidates = inOrder(candidates, (c) => dueRank(c.soonest));
+     from one sitting to the next — and a card the learner asked for ranks
+     above all of it. */
+  candidates = inOrder(candidates, (c) => (c.urgent ? -1 : dueRank(c.soonest)));
 
   // A hand-picked session takes everything chosen, due or not.
   if (!practice && !includeAll) {
@@ -1917,7 +1992,9 @@ function buildSession({
         )
       )
     ).length;
-    if (backlog >= HARD_BACKLOG_LIMIT) candidates = candidates.filter((c) => !c.isNew);
+    if (backlog >= HARD_BACKLOG_LIMIT) {
+      candidates = candidates.filter((c) => !c.isNew || c.urgent);
+    }
     /* How full the learner's hands are, counted over everything they hold
        in this language and not only the deck in front of them: the deck is
        what they chose to look at, the load is what they carry. */
@@ -1928,7 +2005,12 @@ function buildSession({
     const room = roomForNew(inHand, NEW_PER_SESSION);
     let newSeen = 0;
     candidates = candidates.filter((c) => {
-      if (!c.isNew) return true;
+      /* Except one the learner asked for by name. Both rules above are the
+         app protecting somebody from more new words than they can hold,
+         and neither is worth telling a learner who has just pointed at a
+         card that they cannot have it. It is one card, chosen on purpose,
+         and the way to stop it is the way it started. */
+      if (!c.isNew || c.urgent) return true;
       newSeen += 1;
       return newSeen <= room;
     });
@@ -1943,12 +2025,17 @@ function buildSession({
      * then meant three on the days nothing else was waiting, which is not
      * what it says.
      *
-     * They go to the front instead. The order they are asked in is still
-     * the warm-up's: this decides only that they are in the session at
-     * all.
+     * They go to the front instead, behind the cards the learner asked
+     * for, which are the only thing that outranks them. The order they are
+     * asked in is still the warm-up's: this decides only that they are in
+     * the session at all.
      */
-    const admitted = candidates.filter((c) => c.isNew);
-    if (admitted.length) candidates = admitted.concat(candidates.filter((c) => !c.isNew));
+    candidates = candidates
+      .filter((c) => c.urgent)
+      .concat(
+        candidates.filter((c) => !c.urgent && c.isNew),
+        candidates.filter((c) => !c.urgent && !c.isNew)
+      );
   }
 
   if (!candidates.length) return { exercises: [], reason: "nothing-due" };
@@ -1978,8 +2065,10 @@ function buildSession({
 
   /* Easiest first, and cards of the same difficulty in no particular
      order — which is most of them, since a card nobody has been wrong
-     about yet is unrated. */
-  const warmed = inOrder(chosen, (c) => DIFF_RANK[itemDifficulty(c.it)]);
+     about yet is unrated. A card the learner asked for opens the session
+     ahead of all of it: they went and marked it, and a warm-up that buried
+     it behind eight other words would be the app quietly declining. */
+  const warmed = inOrder(chosen, (c) => (c.urgent ? -1 : DIFF_RANK[itemDifficulty(c.it)]));
 
   /* --- rules 2 and 6: every unit gets several exercise types, and a
          family's sub-items come along in the same session --- */
@@ -5299,10 +5388,15 @@ export default function ArabicTrainer() {
      and counting it promised a session that would not include the card. */
   const countReady: (pool: Item[]) => number = useCallback(
     (pool) =>
-      pool.filter((it) =>
-        drillableUnits(it, settings).some(({ unit }) =>
-          openTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
-        )
+      pool.filter(
+        (it) =>
+          /* A card the learner asked for is waiting by their say-so, and
+             the number here is a promise about the session the button
+             beneath it builds — see isUrgent. */
+          isUrgent(it, settings) ||
+          drillableUnits(it, settings).some(({ unit }) =>
+            openTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+          )
       ).length,
     [settings]
   );
@@ -6446,7 +6540,10 @@ export default function ArabicTrainer() {
     }));
 
     if (!correct) {
-      setSession((s2: any) => ({ ...s2, exercises: s2.exercises.concat([{ ...exercise }]) }));
+      setSession((s2: any) => ({
+        ...s2,
+        exercises: requeueMissed(s2.exercises, qi + 1, exercise),
+      }));
     }
     setQi((i) => i + 1);
     resetExercise();
@@ -6462,6 +6559,26 @@ export default function ArabicTrainer() {
     if (!fresh.length) return 0;
     persist({ ...data, items: items.concat(fresh) });
     return fresh.length;
+  }
+
+  /*
+   * The learner asks for a card, or stops asking.
+   *
+   * Its own path rather than a patch through updateItem, and the reason is
+   * the lock. Cards come from courses and a course card is locked, which is
+   * the app saying the wording is the teacher's — but what a learner wants
+   * to practise is not the wording, and a lock that refused this would be
+   * refusing them the one card they came to the list for. So it is written
+   * straight, on any card, and nothing else about the card moves.
+   */
+  function setPriority(id: string, on: boolean) {
+    persist({
+      ...data,
+      items: items.map((i) =>
+        i.id === id ? { ...i, ...(on ? { priority: true } : { priority: undefined }), updated: now() } : i
+      ),
+    });
+    flash(on ? "Marked — it is in your next session" : "No longer high priority");
   }
 
   /* Editing keeps every existing progress record. Sub-items are matched by
@@ -7535,6 +7652,7 @@ Cards ready to practice
             onExportAll={exportEverything}
             onAdd={addItems}
             onUpdate={updateItem}
+            onPriority={setPriority}
             onRemove={(id) => removeItems([id])}
             onRemoveMany={removeItems}
             onBulkEdit={bulkEdit}
@@ -7820,10 +7938,11 @@ function CardLadder({ card, settings }: { card: Item; settings: Settings }) {
   );
 }
 
-function CardScreen({ card, items, settings, onBack, action }: {
+function CardScreen({ card, items, settings, onPriority, onBack, action }: {
   card: Item;
   items: Item[];
   settings: Settings;
+  onPriority?: (id: string, on: boolean) => void;
   onBack: () => void;
   action?: Node;
 }) {
@@ -7852,6 +7971,29 @@ function CardScreen({ card, items, settings, onBack, action }: {
       />
 
       <CardLadder card={live} settings={settings} />
+
+      {onPriority && (
+        <div className="at-card at-mt4">
+          <p className="at-eyebrow">High priority</p>
+          <Help>
+            For a word you want to get on with. Marked, it joins your very next
+            session whatever its schedule says, and opens it — and it stays in
+            every session until you take the mark off. Nothing else about it
+            changes: what you have learnt, and when it would have come round
+            anyway, are both still there underneath.
+          </Help>
+          <div className="at-row at-mt3">
+            <Button
+              variant={live.priority ? "primary" : "default"}
+              aria-pressed={!!live.priority}
+              icon="star"
+              onClick={() => onPriority(live.id, !live.priority)}
+            >
+              {live.priority ? "High priority — tap to clear" : "Mark as high priority"}
+            </Button>
+          </div>
+        </div>
+      )}
     </Screen>
   );
 }
@@ -7873,6 +8015,7 @@ function ItemsTab({
   onExportAll,
   onAdd,
   onUpdate,
+  onPriority,
   onRemove,
   onRemoveMany,
   onBulkEdit,
@@ -7891,6 +8034,7 @@ function ItemsTab({
   onExportAll: () => void;
   onAdd: (items: any[]) => void;
   onUpdate: (id: string, patch: any) => void;
+  onPriority: (id: string, on: boolean) => void;
   onRemove: (id: string) => void;
   onRemoveMany: (ids: string[]) => void;
   onBulkEdit: (ids: string[], patch: any) => void;
@@ -8030,10 +8174,20 @@ function ItemsTab({
               <CardTile
                 card={it}
                 lang={activeLang()}
+                /* The mark is on the tile, not only inside the card: a list
+                   of forty with no sign of which four you asked for is a
+                   list you have to open forty times to find out. */
                 meta={
-                  isDialog(it)
-                    ? `${plural(linesOf(it).length, "line")} · ${shortDate(it.created)}`
-                    : shortDate(it.created)
+                  <>
+                    {it.priority ? (
+                      <span className="at-minipri">
+                        <Icon name="star" size={12} /> High priority
+                      </span>
+                    ) : null}
+                    {isDialog(it)
+                      ? `${plural(linesOf(it).length, "line")} · ${shortDate(it.created)}`
+                      : shortDate(it.created)}
+                  </>
                 }
                 onClick={() => setSheet({ view: it })}
               />
@@ -8062,6 +8216,7 @@ function ItemsTab({
           card={sheet.view}
           items={items}
           settings={settings}
+          onPriority={onPriority}
           onBack={() => setSheet(null)}
           action={
             OWN && !sheet.view.locked ? (

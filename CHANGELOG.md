@@ -8,6 +8,38 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.144 — 16 September 2026
+
+- **You can ask for a card.** Open any card under Cards and there is a
+  *Mark as high priority* button at the foot of it. A card you mark counts
+  as waiting however far off its next review was: it is in the number on the
+  home screen straight away, it opens your very next session, and it stays
+  in every session until you tap the button again to clear it. The card list
+  shows a star on the ones you have marked, so you can see at a glance which
+  they are.
+
+  Nothing underneath it moves. What you have learnt about the card, and when
+  it would have come round on its own, are both still there when you take
+  the mark off. It works on the cards your teacher sent you as well as your
+  own — what you want to practise is your business, not theirs — and it
+  survives your teacher editing the card.
+
+- **A question you get wrong no longer comes back beside itself.** It still
+  comes back, and it is still the same question, because the point of asking
+  again is to test the thing that went wrong. What has changed is where it
+  goes: it now goes through the same spacing rule the rest of the session
+  was built with, so it never lands next to another question about the same
+  card. Miss both questions about one word and you used to finish the
+  session being asked about that word twice in a row; now the two are spread
+  out like everything else.
+
+- **And the same card no longer turns up twice running.** When the session
+  could not both change the word and change the kind of question, it used to
+  keep the word and change the question — so you got the same card twice in
+  a row, asked two ways. It keeps the question and changes the word instead.
+  Two words in a row asked the same way is barely noticeable; the same word
+  twice running is the thing everybody notices.
+
 ## 0.143 — 15 September 2026
 
 - **Settings no longer asks how practice should work.** The Advanced panel
