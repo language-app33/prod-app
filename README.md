@@ -326,7 +326,9 @@ src/
   index.css        one stylesheet, with the design tokens at the top
 server/
   index.js         the process: routes /api, serves dist/, nothing else
-  store.js         documents on disk, with the conditional writes sync needs
+  store.js         documents on disk, with the conditional writes sync needs.
+                   Flushed, and one version back kept beside each document,
+                   so a host dying mid-write costs nothing
   api/
     sync.js        the per-person sync document
     courses.js     accounts, courses, decks, cards, recordings, reported
@@ -347,6 +349,12 @@ A few rules the code follows, learned the hard way:
   exercise type; states that have never been answered are not stored.
 - **Merging is idempotent.** Sync can run twice with the same input and
   nothing changes.
+- **An absence is not an instruction.** A read that failed, a list that came
+  back short, a schedule with nothing in it — none of them may be acted on
+  as though the learner had asked for something. A request whose read failed
+  fails; a card that has gone leaves its progress behind in case it comes
+  back; anything the learner said and can be undone by silence carries a
+  stamp of its own. DECISIONS.md has the whole of it.
 
 ### Types
 
@@ -391,7 +399,10 @@ contents, and are fetched on demand.
 Course cards carry a `source` pointing back at the deck they came from. The
 teacher owns their wording; the student owns their progress. When a teacher
 withdraws a card it is tombstoned rather than merely deleted, so the next
-sync does not hand it back.
+sync does not hand it back — and the progress that was on it is set aside
+beside the document rather than destroyed, restored if the card returns and
+aged out on the same schedule as the tombstones. A card can go missing for
+reasons nobody decided, and the device cannot tell those from a withdrawal.
 
 A card that fills a variable (`fills: "name"`) belongs to no deck: the server
 sends it with every deck whose phrases leave a hole of that name. It is the

@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis } from "./types.ts";
+import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, LangId, Millis, Parked } from "./types.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
@@ -2944,7 +2944,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
      refresh; the words a line uses are card ids on the server and item
      ids here, the same translation the card's own `uses` gets. */
   const lines = (card.lines || []).map((ln, i) => ({
-    id: `${localIdFor(card.id)}-l${i}`,
+    /* Named the way a form is: off the name the teacher's turn carries
+       where it has one, and off its place where it does not — which is
+       every turn written before they had names. */
+    id: `${localIdFor(card.id)}-l${ln.id ? `~${ln.id}` : i}`,
     who: Number(ln.who) || 0,
     ar: ln.ar || "",
     lat: ln.lat || "",
@@ -3065,15 +3068,18 @@ export interface Folded {
   added: number;
   gone: number;
   goneIds: string[];
+  /* The progress of cards no longer in the material, set aside in case
+     they come back — see foldCourses. */
+  parked: Record<string, Parked>;
 }
 
 export type CoursesPulled = Folded & {
   unchanged?: false;
   decks: Deck[];
   courses: Course[];
-  /* The same fold again, against whatever the cards are by the time the
-     caller adopts the result. */
-  fold: (current: Item[]) => Folded;
+  /* The same fold again, against whatever the cards and the drawer are by
+     the time the caller adopts the result. */
+  fold: (current: Item[], parked?: Record<string, Parked>) => Folded;
   version: string;
   teaches: boolean;
 };
@@ -3082,6 +3088,7 @@ export async function pullCourses(
   items: Item[],
   freshStates: () => Record<string, ExerciseState>,
   knownVersion?: string,
+  parked: Record<string, Parked> = {},
 ): Promise<CoursesUnchanged | CoursesPulled> {
   const r = await API.myMaterial(knownVersion || "");
   if (r.unchanged) {
@@ -3135,14 +3142,15 @@ export async function pullCourses(
     }
   }
 
-  const folded = foldCourses(items, incoming);
+  const folded = foldCourses(items, incoming, parked);
   return {
     ...folded,
     decks,
     courses: enrolled,
     /* The same fold again, against whatever the cards are by the time the
        caller adopts the result. */
-    fold: (current: Item[]) => foldCourses(current, incoming),
+    fold: (current: Item[], drawer: Record<string, Parked> = parked) =>
+      foldCourses(current, incoming, drawer),
     version: r.version || "",
     teaches: !!r.teaches,
   };
@@ -3197,9 +3205,62 @@ function foldForms<T extends Form>(had: T[], fresh: T[]): T[] {
   });
 }
 
+/**
+ * What a card's forms have earned, as the drawer keeps it.
+ *
+ * The schedules and the record of which words a sentence has been asked
+ * with — everything on a form that is the learner's rather than the
+ * teacher's — by the name of the form it belongs to.
+ */
+export function progressOf(item: Item): Parked {
+  const of = (list: Form[]) => {
+    const out: Parked["forms"] = {};
+    for (const f of list) {
+      if (!f || !f.id) continue;
+      const s = compactStates(f.s);
+      if (!Object.keys(s).length && !f.met) continue;
+      out[f.id] = { ...(Object.keys(s).length ? { s } : null), ...(f.met ? { met: f.met } : null) };
+    }
+    return out;
+  };
+  const lines = of(item.lines || []);
+  return {
+    at: Date.now(),
+    forms: of(formsOf(item)),
+    ...(Object.keys(lines).length ? { lines } : null),
+  };
+}
+
+/** And the same, put back onto a card that has come home. */
+export function withProgress(item: Item, saved: Parked | undefined): Item {
+  if (!saved) return item;
+  const put = <T extends Form>(f: T, from: Parked["forms"]): T => {
+    const had = f && f.id ? from[f.id] : null;
+    if (!had) return f;
+    return { ...f, s: { ...f.s, ...(had.s || {}) }, ...(had.met ? { met: had.met } : null) };
+  };
+  const lines = (item.lines || []).map((ln) => put(ln, saved.lines || {}));
+  return {
+    ...item,
+    forms: formsOf(item).map((f) => put(f, saved.forms || {})),
+    ...(lines.length ? { lines } : null),
+  };
+}
+
+/* States that have never been answered are not worth setting aside, the
+   same reading the wire and the disk make of them. */
+const compactStates = (s?: Record<string, ExerciseState>): Record<string, ExerciseState> => {
+  const out: Record<string, ExerciseState> = {};
+  for (const [t, st] of Object.entries(s || {})) {
+    if (st && (st.phase !== "new" || st.reps || st.updated)) out[t] = st;
+  }
+  return out;
+};
+
 /* Fold fresh course cards into the person's cards: progress kept, wording
-   taken from the teacher, withdrawn cards named so they can be tombstoned. */
-export function foldCourses(items: Item[], incoming: Item[]) {
+   taken from the teacher, withdrawn cards named so they can be tombstoned —
+   and their progress set aside rather than thrown away. */
+export function foldCourses(items: Item[], incoming: Item[], parked: Record<string, Parked> = {}) {
   const byId = new Map(items.map((i) => [i.id, i]));
   const kept: Item[] = [];
   for (const fresh of incoming) {
@@ -3225,12 +3286,15 @@ export function foldCourses(items: Item[], incoming: Item[]) {
          written. */
       kept.push({
         ...fresh,
-        ...(existing.priority ? { priority: true } : null),
+        ...(existing.priority ? { priority: true, priorityAt: existing.priorityAt } : null),
+        ...(existing.reset ? { reset: existing.reset } : null),
         forms: foldForms(formsOf(existing), formsOf(fresh)),
         ...(fresh.lines ? { lines: foldForms(existing.lines || [], fresh.lines) } : null),
       });
     } else {
-      kept.push(fresh);
+      /* A card the device has never held — or one that went away and has
+         come back, whose work was set aside rather than thrown out. */
+      kept.push(withProgress(fresh, parked[fresh.id]));
     }
   }
 
@@ -3241,9 +3305,32 @@ export function foldCourses(items: Item[], incoming: Item[]) {
      copy still holds them and the next sync would hand them straight back.
      They have to be marked as deleted, the same as a card the person removed
      themselves. */
-  const goneIds = items.filter((i) => i.source && !incomingIds.has(i.id)).map((i) => i.id);
+  const gone = items.filter((i) => i.source && !incomingIds.has(i.id));
+  const goneIds = gone.map((i) => i.id);
+  /*
+   * And their work, set aside.
+   *
+   * The card is the teacher's to withdraw; the progress on it is not
+   * theirs to destroy, and a card can go missing for reasons that are
+   * nobody's decision — a deck detached and reattached, a student briefly
+   * off a course, one record the server could not read. Each of those used
+   * to wipe a deck's worth of progress on every device the learner owns.
+   *
+   * What comes back is put back, above. What never comes back ages out
+   * with the headstones.
+   */
+  const nextParked = { ...parked };
+  for (const it of gone) {
+    const saved = progressOf(it);
+    if (Object.keys(saved.forms).length || (saved.lines && Object.keys(saved.lines).length)) {
+      nextParked[it.id] = saved;
+    }
+  }
+  /* A card that is here again has nothing left to keep aside. */
+  for (const id of incomingIds) delete nextParked[id];
 
   return {
+    parked: nextParked,
     items: own.concat(kept),
     added: kept.length,
     gone: goneIds.length,

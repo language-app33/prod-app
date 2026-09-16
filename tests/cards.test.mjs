@@ -828,6 +828,91 @@ test("a frame keeps its record of the words it has been filled with", () => {
   assert.equal(plain.forms[0].met, undefined);
 });
 
+/*
+ * A card that goes away, and the work that was on it.
+ *
+ * A course card the device no longer sees is dropped and tombstoned, and
+ * everything the learner had earned on it went with it — on every device
+ * they own, because the tombstone syncs. But a card can go missing for
+ * reasons that are nobody's decision: a deck detached and reattached, a
+ * student briefly off a course, one record the server could not read. So
+ * the work is set aside instead, and put back if the card returns.
+ */
+test("a withdrawn card's work is set aside, and comes back with the card", () => {
+  const had = [
+    { id: "srvkc", source: { cardId: "kc" },
+      forms: [
+        { id: "srvkc", ar: "a", en: "a", s: { ar2en: { phase: "review", reps: 7 } },
+          met: { "name:sarah": 2 } },
+        { id: "srvkc-f~one", ar: "b", en: "b", s: { en2ar: { phase: "review", reps: 3 } } },
+      ],
+      lines: [{ id: "srvkc-l0", ar: "c", en: "c", s: { dlgpick: { phase: "review", reps: 5 } } }] },
+  ];
+  /* The refresh brings back nothing: the course no longer lists the card. */
+  const withdrawn = foldCourses(had, []);
+  assert.deepEqual(withdrawn.goneIds, ["srvkc"], "the card is named as gone, so it can be tombstoned");
+  assert.deepEqual(withdrawn.items, [], "and it is not kept on the device");
+  const saved = withdrawn.parked["srvkc"];
+  assert.ok(saved, "but its work is in the drawer");
+  assert.equal(saved.forms["srvkc"].s.ar2en.reps, 7);
+  assert.deepEqual(saved.forms["srvkc"].met, { "name:sarah": 2 });
+  assert.equal(saved.forms["srvkc-f~one"].s.en2ar.reps, 3, "every form of it, by name");
+  assert.equal(saved.lines["srvkc-l0"].s.dlgpick.reps, 5, "and every turn of it");
+
+  /* The deck is reattached. The teacher's copy has never carried any of
+     this, so the card arrives never-answered — and leaves with its work. */
+  const back = foldCourses([], [
+    { id: "srvkc", source: { cardId: "kc" },
+      forms: [
+        { id: "srvkc", ar: "a", en: "a", s: {} },
+        { id: "srvkc-f~one", ar: "b", en: "b", s: {} },
+      ],
+      lines: [{ id: "srvkc-l0", ar: "c", en: "c", s: {} }] },
+  ], withdrawn.parked);
+  const home = back.items[0];
+  assert.equal(home.forms[0].s.ar2en.reps, 7, "the card's own word has its schedule again");
+  assert.deepEqual(home.forms[0].met, { "name:sarah": 2 });
+  assert.equal(home.forms[1].s.en2ar.reps, 3);
+  assert.equal(home.lines[0].s.dlgpick.reps, 5);
+  assert.equal(back.parked["srvkc"], undefined, "and the drawer is emptied of it");
+});
+
+test("a card that never had any work leaves nothing in the drawer", () => {
+  /* Otherwise every withdrawn card in a course nobody has started would
+     sit in the drawer for a fortnight, in every document that syncs. */
+  const had = [
+    { id: "srvkd", source: { cardId: "kd" }, forms: [{ id: "srvkd", ar: "a", en: "a", s: {} }] },
+  ];
+  assert.deepEqual(foldCourses(had, []).parked, {});
+});
+
+test("a turn taken out of a scene does not cost the others their progress", () => {
+  /* The teacher deletes the middle turn of three. Matching by name means
+     the two that remain keep their own work rather than sliding up a
+     place and taking each other's. */
+  const had = [
+    { id: "srvke", source: { cardId: "ke" },
+      forms: [{ id: "srvke", ar: "t", en: "t", s: {} }],
+      lines: [
+        { id: "srvke-l0", ar: "one", en: "one", s: { dlgpick: { phase: "review", reps: 1 } } },
+        { id: "srvke-l1", ar: "two", en: "two", s: { dlgpick: { phase: "review", reps: 2 } } },
+        { id: "srvke-l2", ar: "three", en: "three", s: { dlgpick: { phase: "review", reps: 3 } } },
+      ] },
+  ];
+  const fresh = [
+    { id: "srvke", source: { cardId: "ke" },
+      forms: [{ id: "srvke", ar: "t", en: "t", s: {} }],
+      lines: [
+        { id: "srvke-l0", ar: "one", en: "one", s: {} },
+        { id: "srvke-l2", ar: "three", en: "three", s: {} },
+      ] },
+  ];
+  const out = foldCourses(had, fresh).items[0];
+  assert.deepEqual(out.lines.map((/** @type {any} */ l) => l.id), ["srvke-l0", "srvke-l2"]);
+  assert.equal(out.lines[0].s.dlgpick.reps, 1, "the first turn keeps its own");
+  assert.equal(out.lines[1].s.dlgpick.reps, 3, "and the last keeps its own, not the deleted one's");
+});
+
 test("a card marked on this device only is not invented on one that has it too", () => {
   /* The other way round: the teacher's copy never carries the mark, so a
      card the learner has not marked must not come back marked. */

@@ -1,4 +1,4 @@
-import type { Doc, ExerciseState, Form, Item, WireDoc } from "./types.ts";
+import type { Doc, ExerciseState, Form, Item, Parked, WireDoc } from "./types.ts";
 import { mergeMet } from "./variables.ts";
 import { formsOf } from "./cards.ts";
 /*
@@ -70,12 +70,26 @@ export function suggestPassphrase() {
 function mergeStates(
   sa: Record<string, ExerciseState> = {},
   sb: Record<string, ExerciseState> = {},
+  /*
+   * When this card was last sent back to the beginning, if it was.
+   *
+   * A reset writes a blank schedule, which is exactly what the app makes
+   * for one that was never stored — so it is left off the wire, and this
+   * kept whatever the other side still held. Anything answered before the
+   * reset is not evidence any more, so it is dropped rather than merged.
+   */
+  since = 0,
 ): Record<string, ExerciseState> {
   const s: Record<string, ExerciseState> = {};
+  const live = (st: ExerciseState | undefined) =>
+    st && (!since || (st.updated || 0) >= since) ? st : undefined;
   for (const t of new Set([...Object.keys(sa), ...Object.keys(sb)])) {
-    if (!sa[t]) s[t] = sb[t];
-    else if (!sb[t]) s[t] = sa[t];
-    else s[t] = (sa[t].updated || 0) >= (sb[t].updated || 0) ? sa[t] : sb[t];
+    const a = live(sa[t]);
+    const b = live(sb[t]);
+    if (!a && !b) continue;
+    if (!a) s[t] = b as ExerciseState;
+    else if (!b) s[t] = a;
+    else s[t] = (a.updated || 0) >= (b.updated || 0) ? a : b;
   }
   return s;
 }
@@ -84,6 +98,22 @@ function mergeItem(a: Item, b: Item): Item {
   // Text fields, tags, kind and note come from whichever was edited last.
   const base = (a.updated || 0) >= (b.updated || 0) ? a : b;
   const other = base === a ? b : a;
+  /* The later of the two resets, which every schedule below is read
+     against: a card sent back to the beginning stays there. */
+  const reset = Math.max(Number(a.reset) || 0, Number(b.reset) || 0);
+  /*
+   * And what the learner said about wanting this card next, which is the
+   * one fact on the card that is theirs rather than the teacher's.
+   *
+   * Taken by its own stamp rather than with the rest of the card. Every
+   * graded answer stamps the card, so the side that merely answered it was
+   * usually the later one — and `...base` then dropped a mark the other
+   * device had just set. Where neither side says when, the card that was
+   * touched last still decides, which is how every mark written before
+   * this reads.
+   */
+  const spoke = (it: Item) => Number(it.priorityAt) || 0;
+  const wants = spoke(a) || spoke(b) ? (spoke(a) >= spoke(b) ? a : b) : base;
 
   /* Every form of the card carries its own progress, and it merges the
      same way — by form, then by exercise type. Taking the whole list from
@@ -92,7 +122,12 @@ function mergeItem(a: Item, b: Item): Item {
      used to be a second piece of code beside this one. */
   const forms = formsOf(base).map((f) => {
     const twin = formsOf(other).find((x) => x.id === f.id);
-    return twin ? { ...f, s: mergeStates(f.s, twin.s), ...metOf(f, twin) } : f;
+    if (!twin && !reset) return f;
+    return {
+      ...f,
+      s: mergeStates(f.s, twin ? twin.s : {}, reset),
+      ...metOf(f, twin || f, reset),
+    };
   });
 
   /* The lines of a dialog, for the same reason: each carries its own
@@ -101,13 +136,26 @@ function mergeItem(a: Item, b: Item): Item {
      as everything else on the card does. */
   const lines = (base.lines || []).map((ln) => {
     const twin = (other.lines || []).find((x) => x.id === ln.id);
-    return twin ? { ...ln, s: mergeStates(ln.s, twin.s), ...metOf(ln, twin) } : ln;
+    if (!twin && !reset) return ln;
+    return {
+      ...ln,
+      s: mergeStates(ln.s, twin ? twin.s : {}, reset),
+      ...metOf(ln, twin || ln, reset),
+    };
   });
 
   return {
     ...base,
     forms,
     ...(lines.length ? { lines } : null),
+    /* Both of the facts that are the learner's own rather than the
+       card's, each taken by its own stamp — see above. */
+    ...(reset ? { reset } : null),
+    ...(wants.priorityAt
+      ? { priority: !!wants.priority, priorityAt: wants.priorityAt }
+      : wants.priority
+      ? { priority: true }
+      : { priority: undefined }),
   };
 }
 
@@ -119,7 +167,17 @@ function mergeItem(a: Item, b: Item): Item {
  * answer whichever device arrives first and the same answer again if it
  * arrives twice. Spread rather than assigned, so a form that has no such
  * record does not start carrying an empty one. */
-const metOf = (a: Form, b: Form): { met?: Record<string, number> } => {
+const metOf = (
+  a: Form,
+  b: Form,
+  /* A reset clears this too — which of a sentence's blanks has been filled
+     with which word is something the app learnt about this learner. There
+     is no stamp inside the record to read, so the whole of it goes: the
+     reset side carries none, and taking the other side's would be putting
+     back what was just cleared. */
+  reset = 0,
+): { met?: Record<string, number> } => {
+  if (reset) return {};
   const met = mergeMet(a && a.met, b && b.met);
   return met ? { met } : {};
 };
@@ -158,6 +216,24 @@ export function mergeData(local: Doc, remote: WireDoc | null): Doc {
     (it) => !(tombstones[it.id] && tombstones[it.id] >= (it.updated || 0))
   );
 
+  /*
+   * --- the drawer of withdrawn work ---
+   *
+   * Union by card, and where both sides have one the later parking wins:
+   * a device that saw the card go away holds what it had, and a device
+   * that never saw it has nothing to add. It is pruned on the same
+   * schedule as the headstones, so a card gone for good does not sit here
+   * for ever.
+   */
+  const parked: Record<string, Parked> = { ...(remote.parked || {}) };
+  for (const [id, saved] of Object.entries(local.parked || {})) {
+    const had = parked[id];
+    if (!had || (saved.at || 0) >= (had.at || 0)) parked[id] = saved;
+  }
+  for (const id of Object.keys(parked)) {
+    if ((parked[id].at || 0) < cutoff) delete parked[id];
+  }
+
   /* --- activity log: max per day, so re-merging can't inflate it --- */
   const log = { ...(remote.log || {}) };
   for (const [day, n] of Object.entries(local.log || {})) {
@@ -174,6 +250,7 @@ export function mergeData(local: Doc, remote: WireDoc | null): Doc {
     ...local,
     items,
     tombstones,
+    parked,
     log,
     settings: { ...local.settings, ...settings },
     settingsUpdated: Math.max(local.settingsUpdated || 0, remote.settingsUpdated || 0),
@@ -208,10 +285,36 @@ async function push(token: string, etag: string | null, data: Doc) {
   const res = await fetchT(ENDPOINT, {
     method: "POST",
     headers: { "x-sync-token": token, "content-type": "application/json" },
-    body: JSON.stringify({ etag, data }),
+    body: JSON.stringify({
+      etag,
+      data,
+      /*
+       * Whether this device means to send nothing.
+       *
+       * The server refuses a push that would empty a document that is not
+       * empty, because the only way to reach that is a merge that lost
+       * everything — a device with nothing on it pulls first, so what it
+       * sends carries whatever was there. A learner who has genuinely
+       * removed every card has the headstones to show for it, and that is
+       * what this says.
+       */
+      allowEmpty:
+        !(data.items || []).length && Object.keys(data.tombstones || {}).length > 0,
+    }),
   });
-  if (res.status === 409) return { conflict: true };
+  if (res.status === 409) {
+    const body = await res.json().catch(() => null);
+    /* Two different refusals share the code. A conflict is retried; a push
+       that would empty the document is a bug on this device and retrying
+       it would only ask again. */
+    if (body && body.error === "would-empty") throw new Error("would-empty");
+    return { conflict: true };
+  }
   if (res.status === 401) throw new Error("bad-passphrase");
+  /* Said by name, so the app can explain it rather than reporting that
+     sync failed for no stated reason. A document past the limit never
+     syncs again until it is smaller, which is worth saying out loud. */
+  if (res.status === 413) throw new Error("too-large");
   if (!res.ok) throw new Error(`push-failed-${res.status}`);
   return res.json();
 }
@@ -265,6 +368,7 @@ function forWire(data: Doc): Doc {
     version: data.version,
     items: (data.items || []).map(compactItem),
     tombstones: data.tombstones || {},
+    parked: data.parked || {},
     log: data.log || {},
     settings: data.settings,
     settingsUpdated: data.settingsUpdated || 0,
@@ -275,8 +379,28 @@ function forWire(data: Doc): Doc {
  * One round trip: pull, merge, push. Returns the merged document and
  * whether it differs from what we had, so the caller can adopt it.
  */
+/*
+ * The limit the server refuses a document past, and the point at which it
+ * is worth saying so.
+ *
+ * Past the limit, sync stops for good: everything a learner does after it
+ * stays on one device, and all they were told was that sync failed. The
+ * warning exists so that the first they hear of it is not the day they lose
+ * a phone. In bytes, which is what the server counts — measured by length
+ * it was counting UTF-16 units, so a document written in Arabic hit the
+ * ceiling at roughly half the size of one written in Latin letters.
+ */
+export const MAX_DOC_BYTES = 4 * 1024 * 1024;
+const WARN_AT = 0.75;
+
+/** How big the document is on the wire, and whether that is worth saying. */
+export function docSize(data: Doc): { bytes: number; limit: number; tight: boolean } {
+  const bytes = new TextEncoder().encode(JSON.stringify(forWire(data))).length;
+  return { bytes, limit: MAX_DOC_BYTES, tight: bytes > MAX_DOC_BYTES * WARN_AT };
+}
+
 export async function syncOnce(local: Doc, token: string) {
-  let { etag, data: remote } = await pull(token);
+  let { etag, data: remote, lost } = await pull(token);
   let merged = mergeData(local, remote);
 
   let result = await push(token, etag, forWire(merged));
@@ -285,12 +409,20 @@ export async function syncOnce(local: Doc, token: string) {
   if (result.conflict) {
     const again = await pull(token);
     merged = mergeData(merged, again.data);
+    if (again.lost) lost = again.lost;
     result = await push(token, again.etag, forWire(merged));
     if (result.conflict) throw new Error("conflict");
   }
 
   const changed = JSON.stringify(forWire(local)) !== JSON.stringify(forWire(merged));
-  return { merged, changed };
+  /*
+   * `lost` where the shared copy could not be read and this sync replaced
+   * it. Worth telling the learner: what was on this device is safe, and
+   * anything another device had synced and this one never pulled went with
+   * it. "recovered" is the copy behind it standing in, "unreadable" is
+   * nothing left to stand in.
+   */
+  return { merged, changed, lost: (lost as string) || "" };
 }
 
 /* ------------------------------------------------------------------
@@ -415,6 +547,32 @@ export async function syncClips(
   };
   await Promise.all(Array.from({ length: Math.min(5, ids.length || 1) }, worker));
   return { pulled, pushed, uploaded: [...known] };
+}
+
+/**
+ * Take in whatever a document holds, then delete it.
+ *
+ * For the one caller: a document left behind under a private key an older
+ * build used, once this device has synced under the shared one. That used
+ * to be deleted on the assumption it held nothing this device lacked —
+ * true of this device's own old key, and not true if another device had
+ * synced progress under the same passphrase that this one never pulled. It
+ * was deleted without ever being read.
+ *
+ * So it is read first and merged in, and the caller is handed the result to
+ * adopt. The delete happens either way: a document that cannot be read is
+ * a document with nothing to lose.
+ */
+export async function drainRemote(token: string, local: Doc): Promise<Doc> {
+  let merged = local;
+  try {
+    const { data } = await pull(token);
+    merged = mergeData(local, data);
+  } catch (e) {
+    /* Nothing readable there, which is the ordinary case. */
+  }
+  await forgetRemote(token);
+  return merged;
 }
 
 export async function forgetRemote(token: string) {

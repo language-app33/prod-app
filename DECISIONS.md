@@ -1640,3 +1640,90 @@ a second rule: `laddered` is the one list every reader goes through. In
 practice the two agree, because an adjective whose own word is unmet
 cannot fill a blank either. A test holds them together rather than leaving
 it to be rediscovered.
+
+---
+
+## An absence is not an instruction
+
+**16 September 2026** · `server/store.js`, `server/api/sync.js`, `src/sync.ts`,
+`src/shared.tsx` (`progressOf`, `withProgress`, `foldCourses`)
+
+Fifteen ways a learner's work could be lost, found by an audit of every
+path progress travels, came down mostly to one reading. Three places in
+the app treated an emptiness as a decision:
+
+- A course refresh that listed fewer cards meant *the teacher withdrew
+  them* — so the cards were dropped, tombstoned, and their progress
+  destroyed on every device the learner owns. It equally meant *the read
+  failed*, *the deck was detached to be reorganised*, or *the enrolment was
+  removed by mistake*, and in each of those the loss was total and
+  irreversible.
+- A stored document the server could not parse meant *nothing has ever
+  been synced* — so the device pushed as a first write, was refused because
+  a file existed, re-pulled, pushed again, and gave up. Permanently, for
+  every device sharing the passphrase.
+- A blank schedule meant *nothing to say* — which is true of a card never
+  answered and false of a card just reset, and they are written
+  identically. The sparse wire that exists to keep documents small left
+  both off, so the other side's old schedules survived a reset by seconds.
+
+**The rule now: where the app cannot tell "nothing" from "not known", it
+must not act on it.**
+
+**On the server, a failed read fails the request.** The course endpoints
+used to swallow an unreadable record and answer with what they could read,
+which is the shape of a complete answer with cards missing — and the device
+could only read that as a withdrawal. A read that fails is now a 500, and
+the device holds what it has.
+
+**Writes are flushed, and one copy back is kept.** The temp-file-and-rename
+was right for a process dying and wrong for a host dying: nothing reached
+the disk. Each write now fsyncs the file and the directory, and hard-links
+the outgoing version aside first. A document that cannot be parsed is
+answered from that copy, and if neither is readable the response says so —
+`lost: "unreadable"` — which is what lets the device offer to overwrite it
+instead of looping.
+
+**On the device, withdrawn work is parked rather than destroyed.** The
+schedules and high-water marks of a card that has gone live beside the
+document under the card's id, are restored the moment it comes back, and
+are pruned on the same two-week schedule as tombstones. The tombstone still
+removes the card; it no longer removes the work.
+
+**A reset is dated, and so is a mark.** Three of the facts on a card are
+the learner's rather than the teacher's — its schedules, whether they asked
+for it, and whether they sent it back to the beginning — and the last two
+now carry their own stamps rather than riding on the card's. The merge
+reads schedules against the later reset and drops anything older, and takes
+the mark from whichever side spoke about it last. Before this the card's own
+`updated` decided, and every graded answer stamps it, so the device that
+merely *answered* a card was almost always the later writer and dropped
+what the other one had just said.
+
+**What it cost.**
+
+- **Two files per document on the server rather than one**, and an fsync
+  per write. The write was never on a hot path — it is one request every
+  few minutes per learner — and the previous copy is the only thing
+  standing between a bad write and total loss.
+- **The drawer of parked work grows the document.** Only forms with real
+  progress go in, and only for cards that have actually gone, so in
+  ordinary use it is empty; a course detached for a fortnight is the case
+  it exists for, and it ages out on its own.
+- **A reset now sends something rather than nothing.** The stamp is one
+  number on the card, which is the cheap half of the alternative: sending
+  every blank schedule stamped "now" would be correct too, and would cost
+  the document size the sparse wire exists to save.
+- **`allowEmpty` is a flag the client sets**, which is a protocol asking a
+  client to say it means it. The server refuses a write that drops a
+  populated collection to nothing without it. A learner deleting their own
+  cards is the one case that legitimately empties a document, and it says
+  so by sending the tombstones that prove it.
+
+**What was left alone, deliberately.** Every merge is still last-writer-wins
+on the device's own clock, so a device whose clock is badly wrong still
+loses: fixing it means a logical clock per device, which is a different
+design, and the failure is rare and visible in a way silent deletion is
+not. And the server's write lock is still in memory — correct for the one
+process on one volume that runs today, and the honest boundary to note
+rather than to build a distributed lock nothing yet needs.

@@ -247,14 +247,15 @@ const cardStandings = (it: Item, settings: Settings): Standing[] =>
 import { fillerMarks, gradeInto, verdictOf } from "./grade.ts";
 import type { Filler, Mark } from "./grade.ts";
 
-import { applyUpdate, holdUpdates } from "./updates.ts";
+import { applyUpdate, beforeReload, holdUpdates } from "./updates.ts";
 import {
   syncClips,
   loadSyncConfig,
   saveSyncConfig,
   tokenFor,
   syncOnce,
-  forgetRemote,
+  docSize,
+  drainRemote,
   compactItem,
   mergeData,
 } from "./sync.ts";
@@ -303,6 +304,9 @@ const EMPTY: Doc = {
   version: 3,
   items: [],
   tombstones: {},
+  /* The work of course cards no longer in the material — see `parked` in
+     types.ts. Empty on a device that has never lost one. */
+  parked: {},
   settingsUpdated: 0,
   log: {},
   settings: {
@@ -3393,6 +3397,7 @@ export function merge(parsedIn: Record<string, any> | null | undefined) {
     settings,
     items: (parsed.items || []).map(liftItem),
     tombstones: parsed.tombstones || {},
+    parked: parsed.parked || {},
     settingsUpdated: parsed.settingsUpdated || 0,
   };
 }
@@ -5278,6 +5283,14 @@ export default function ArabicTrainer() {
   const [tally, setTally] = useState({ ok: 0, no: 0 });
 
   const timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
+  /* How many changes are in memory and not yet on the disk. Zero means the
+     two agree — read by the flush on the way out and by the sync, which
+     runs again when this moves during a round trip. */
+  const unsaved = useRef(0);
+  /* A failed write, backing off. The delay doubles to half a minute and
+     the warning stays up until something lands. */
+  const retryAt: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
+  const retryFor = useRef(500);
   const inputRef: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
   const undoTimer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   const [lastDeleted, setLastDeleted] = useState<Item[] | null>(null);
@@ -5315,6 +5328,9 @@ export default function ArabicTrainer() {
     setSyncCfg(loadSyncConfig());
   }, []);
 
+  /* So that a sync can ask for another one when something was written
+     while it was in flight, without naming itself as its own dependency. */
+  const runSyncRef = useRef<(token?: string) => void>(() => {});
   const runSync = useCallback(
     /* Defaulted rather than required: most callers have no token in hand
        and want whatever this device is already signed in with. */
@@ -5324,8 +5340,25 @@ export default function ArabicTrainer() {
       syncing.current = true;
       setSyncState("syncing");
       setSyncError("");
+      /* What the document stood at going in. If anything is written while
+         the round trip is in flight, this moves, and the sync runs again
+         rather than leaving that change to wait for the next one — which
+         used to be the next answer or the next launch. */
+      const wasAt = unsaved.current;
       try {
-        const { merged, changed } = await syncOnce(dataRef.current, key);
+        const { merged, changed, lost } = await syncOnce(dataRef.current, key);
+        if (lost) {
+          /* The shared copy could not be read and this sync has replaced
+             it. What is on this device is safe; anything another device
+             had put up and this one never pulled went with it, and that is
+             worth saying rather than passing off as an ordinary sync. */
+          flash(
+            lost === "recovered"
+              ? "The shared copy was damaged — an earlier one was used. Sync your other devices."
+              : "The shared copy could not be read and has been replaced from this device. Sync your other devices.",
+            "warn",
+          );
+        }
         if (changed) {
           /* Two things before the merged copy is adopted.
 
@@ -5343,7 +5376,12 @@ export default function ArabicTrainer() {
           const adopted = merge(mergeData(dataRef.current, merged));
           fromSync.current = true;
           commit(adopted);
-          await saveData(adopted);
+          /* Through the one writer, which cancels the debounced save still
+             pending. That save was built from the document before this
+             merge, and letting it fire afterwards wrote the older copy
+             back over the adopted one — memory and the server were right
+             and the disk was behind until the next change. */
+          await writeNow();
         }
 
         // Clips travel separately, one key each, only when missing.
@@ -5375,6 +5413,20 @@ export default function ArabicTrainer() {
         setSyncCfg(cfg);
         setSyncState("ok");
 
+        /* And how close the document is to the size the server refuses.
+           Past that, sync stops for good and everything after it stays on
+           one device — so the first a learner hears of it should not be
+           the day they lose a phone. Said once per sync, and only when it
+           is actually tight. */
+        const size = docSize(dataRef.current);
+        if (size.tight) {
+          flash(
+            `Your cards are ${Math.round((size.bytes / size.limit) * 100)}% of the size this can sync. ` +
+              "Remove some recordings before it stops.",
+            "warn",
+          );
+        }
+
         /* Everything this device holds has now gone up under the shared
            token, so a document left behind by an older build's private key
            carries nothing that isn't here. Remove it rather than leave a
@@ -5382,23 +5434,50 @@ export default function ArabicTrainer() {
         for (const legacy of [...LEGACY_SYNC_KEYS]) {
           LEGACY_SYNC_KEYS.delete(legacy);
           tokenFor(legacy)
-            .then((old) => (old !== key ? forgetRemote(old) : null))
+            .then(async (old) => {
+              if (old === key) return;
+              /* Read before it goes. It used to be deleted outright, on
+                 the assumption it held nothing this device lacked — which
+                 is true of this device's own old key and false if another
+                 device synced under the same passphrase and this one
+                 never pulled it. */
+              const taken = await drainRemote(old, dataRef.current);
+              if (taken === dataRef.current) return;
+              const adopted = merge(taken);
+              fromSync.current = true;
+              commit(adopted);
+              await writeNow();
+            })
             .catch(() => {});
         }
       } catch (err) {
         const msg = String(
     (err && typeof err === "object" && "message" in err && err.message) || err
   );
-        setSyncError(
+        /* Named where the app knows what happened, because two of these
+           never clear by themselves and a learner needs to be told rather
+           than left syncing into a wall. */
+        const said =
           msg === "bad-passphrase"
             ? "Passphrase rejected"
+            : msg === "too-large"
+            ? "Your cards are too big to sync. Remove some recordings or cards."
+            : msg === "would-empty"
+            ? "Sync refused: this device had nothing to send. Your cards on the server are untouched."
             : navigator.onLine === false
             ? "Offline — will retry"
-            : "Sync failed"
-        );
+            : "Sync failed";
+        setSyncError(said);
+        if (msg === "too-large" || msg === "would-empty") flash(said, "warn");
         setSyncState("error");
       } finally {
         syncing.current = false;
+        /* Written to while this was in flight, so it is owed another
+           round trip. One, and only if something moved. */
+        if (unsaved.current !== wasAt) {
+          if (syncTimer.current) clearTimeout(syncTimer.current);
+          syncTimer.current = setTimeout(() => runSyncRef.current(), 1500);
+        }
       }
     },
   /* Deliberately none. This reads and writes through refs so that a
@@ -5407,6 +5486,7 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
+  runSyncRef.current = runSync;
 
   /* The sign-in key is the only secret, so devices find each other without
      anything being set up: every device signed in as this person derives
@@ -5505,6 +5585,51 @@ export default function ArabicTrainer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
+  /*
+   * Write what is in memory, now, and keep trying until it lands.
+   *
+   * The debounce above exists so that a run of changes writes once, and it
+   * was the only path to the disk — so an answer given inside those six
+   * hundred milliseconds was never written at all if the tab closed, the
+   * app was put away, or a deploy reloaded the page. `flushSave` below is
+   * what closes that window; this is the write both paths share.
+   *
+   * And a failed write is retried. It used to be reported once, by a
+   * message that said the last answer might not stick, and then dropped:
+   * with storage full or blocked every later answer failed the same way in
+   * silence while the screen went on showing them, and a reload lost the
+   * lot. Backing off rather than hammering, because the usual cause —
+   * quota, private browsing — does not clear in a hurry, and the warning
+   * stays up while it is unwritten.
+   */
+  const writeNow = useCallback(async (): Promise<boolean> => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const at = unsaved.current;
+    const ok = await saveData(dataRef.current);
+    setSaveFailed(!ok);
+    if (ok) {
+      /* Only if nothing was written while this was in flight; otherwise
+         the newer change is still owed a write. */
+      if (unsaved.current === at) unsaved.current = 0;
+      if (retryAt.current) {
+        clearTimeout(retryAt.current);
+        retryAt.current = null;
+      }
+      return true;
+    }
+    if (!retryAt.current) {
+      retryFor.current = Math.min(Math.max(retryFor.current * 2, 1000), 30000);
+      retryAt.current = setTimeout(() => {
+        retryAt.current = null;
+        void writeNow();
+      }, retryFor.current);
+    }
+    return false;
+  }, []);
+
   /* Takes the next document, or a function of the current one. The
      function form is for anything that can run while a sync or a course
      refresh is in flight — grading, flagging — so it builds on what is
@@ -5514,13 +5639,89 @@ export default function ArabicTrainer() {
       const next = typeof nextOrFn === "function" ? nextOrFn(dataRef.current) : nextOrFn;
       if (!next || next === dataRef.current) return;
       commit(next);
+      /* Something is now in memory that is not on the disk. Read by the
+         flush below and by the sync, which re-runs when this moves while a
+         round trip is in flight. */
+      unsaved.current += 1;
       if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(async () => {
-        setSaveFailed(!(await saveData(next)));
+      timer.current = setTimeout(() => {
+        void writeNow();
       }, 600);
     },
-    [commit]
+    [commit, writeNow]
   );
+
+  /*
+   * Write on the way out.
+   *
+   * `pagehide` is the one event that fires for every way a page goes away
+   * — closed, navigated, swiped out of a phone's app switcher, discarded
+   * by the system — and `visibilitychange` catches the app being put in
+   * the background without being unloaded, which on iOS is where a page
+   * usually dies. Both are registered, and both are cheap when nothing is
+   * owed.
+   *
+   * Storage is synchronous underneath, so a write started here completes
+   * even as the page is being torn down; there is nothing to await and
+   * nothing that can be awaited at that point.
+   */
+  useEffect(() => {
+    const flush = () => {
+      if (unsaved.current) void writeNow();
+    };
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHidden);
+    /* And before any reload the app brings on itself, which is a service
+       worker taking over with a new build — that used to happen inside the
+       debounce and take the last answer with it. */
+    const release = beforeReload(flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHidden);
+      release();
+    };
+  }, [writeNow]);
+
+  /*
+   * What another tab of this app has written.
+   *
+   * Every tab holds the whole document and writes the whole document, so
+   * two of them open was last-save-wins: answer in one, answer in the
+   * other, and whichever saved second had never seen the first's answer
+   * and wrote over it. A learner with no account lost it outright.
+   *
+   * The storage event fires only in the *other* tabs, which is exactly the
+   * signal needed: whatever arrives is merged in the same way a sync
+   * merges — per form, per exercise, by when each was answered — and the
+   * result is written back, so both tabs converge on the union rather than
+   * racing. Merging is idempotent, so doing this on every write from
+   * across the way costs nothing but the merge.
+   */
+  useEffect(() => {
+    if (!ready) return undefined;
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || !e.key.endsWith(KEY) || !e.newValue) return;
+      let theirs = null;
+      try {
+        theirs = JSON.parse(e.newValue);
+      } catch (err) {
+        return;
+      }
+      if (!theirs || !Array.isArray(theirs.items)) return;
+      const merged = merge(mergeData(dataRef.current, theirs));
+      /* Only where it actually adds something, so two tabs do not write
+         each other awake for ever. */
+      if (JSON.stringify(merged) === JSON.stringify(dataRef.current)) return;
+      fromSync.current = true;
+      commit(merged);
+      void writeNow();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [ready, commit, writeNow]);
 
   /*
    * Cards borrowed for a trial run, which are not this device's.
@@ -5864,7 +6065,12 @@ export default function ArabicTrainer() {
       refreshing.current = true;
       setCourseBusy(true);
       try {
-        const r = await pullCourses(dataRef.current.items, freshStates, materialVersion.current);
+        const r = await pullCourses(
+          dataRef.current.items,
+          freshStates,
+          materialVersion.current,
+          dataRef.current.parked || {},
+        );
         setTeaches(r.teaches);
         saveTeaches(r.teaches);
         materialVersion.current = r.version || "";
@@ -5878,7 +6084,7 @@ export default function ArabicTrainer() {
         /* Folded against the cards as they are now, not as they were when
            the request went out: an answer given while the material was
            being fetched used to be lost to the copy that came back. */
-        Object.assign(r, r.fold(dataRef.current.items));
+        Object.assign(r, r.fold(dataRef.current.items, dataRef.current.parked || {}));
 
         /* The trainer teaches one language at a time. If every course a person
            is in teaches the same one, that is the language their cards are in,
@@ -5917,9 +6123,11 @@ export default function ArabicTrainer() {
           /* And anything that has come back — a course rejoined, a deck put
              back — is no longer deleted, so its headstone goes. */
           for (const it of r.items) if (it.source) delete tombstones[it.id];
-          const next = { ...dataRef.current, items: r.items, tombstones };
+          /* The withdrawn cards' work goes in the drawer rather than out
+             with the cards — see foldCourses and `parked` in types.ts. */
+          const next = { ...dataRef.current, items: r.items, tombstones, parked: r.parked };
           commit(next);
-          await saveData(next);
+          await writeNow();
         }
         setCourseError("");
         /* "always" is the Refresh button on the courses screen, which should
@@ -6076,11 +6284,18 @@ export default function ArabicTrainer() {
       const { met: _forgotten, ...rest } = f;
       return { ...rest, s: freshStates() } as T;
     };
+    const at = now();
     const cleared: Item[] = items.map((it) => ({
       ...it,
       forms: formsOf(it).map(wiped),
       ...(it.lines ? { lines: linesOf(it).map(wiped) } : null),
-      updated: now(),
+      /* When it was reset, which is what makes it stick. A blank schedule
+         is indistinguishable from one that was never written, so it is
+         left off the wire — and the merge used to hand back whatever the
+         other side still held, seconds after the message said the reset
+         had worked. See `reset` in types.ts. */
+      reset: at,
+      updated: at,
     }));
     persist({ ...data, items: cleared, log: {} });
     setSession(null);
@@ -6794,7 +7009,13 @@ export default function ArabicTrainer() {
     persist({
       ...data,
       items: items.map((i) =>
-        i.id === id ? { ...i, ...(on ? { priority: true } : { priority: undefined }), updated: now() } : i
+        /* Stamped, and stored as `false` rather than removed when it is
+           cleared: the merge takes whichever device said something about
+           the mark most recently, and "no longer wanted, as of then" has
+           to be able to beat an older yes. Without the stamp the mark was
+           simply lost the next time the other device answered the card —
+           see `priorityAt` in types.ts. */
+        i.id === id ? { ...i, priority: on, priorityAt: now(), updated: now() } : i
       ),
     });
     flash(on ? "Marked — it is in your next session" : "No longer high priority");
@@ -8030,7 +8251,19 @@ Cards ready to practice
           />
         )}
 
-        {saveFailed && <p className="at-toast">Couldn't save — your last answer may not stick</p>}
+        {saveFailed && (
+          /* Kept up while anything is owed to the disk, and retried behind
+             it — this used to be said once and then dropped, so with
+             storage full every later answer was lost in silence while the
+             screen went on showing it. The advice is the one thing that
+             actually saves the work: get it off the device. */
+          <p className="at-toast">
+            Couldn't save to this device —{" "}
+            {account
+              ? "still trying. Your answers are going to the server as you give them."
+              : "still trying. Sign in so your answers are kept somewhere other than this device."}
+          </p>
+        )}
       </div>
 
       {lastDeleted && lastDeleted.length > 0 && (

@@ -825,6 +825,36 @@ export type Item = {
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /**
+   * When the learner last said whether they want this card next, so that
+   * the answer survives a merge.
+   *
+   * `priority` alone did not. A merge takes a card whole from whichever
+   * device touched it last and merges only the schedules underneath, and
+   * every graded answer stamps the card — so a mark set on one device was
+   * dropped the moment the other device merely answered the card, or
+   * answered a sentence the card stood in. With a time on it the merge can
+   * take the later answer instead of the later card.
+   *
+   * Set whenever the mark is turned on *or off*, which is why `priority`
+   * is stored as `false` rather than removed: "no longer wanted, as of
+   * then" is an answer and has to beat an older yes.
+   */
+  priorityAt?: Millis;
+  /**
+   * When every schedule on this card was last sent back to the beginning.
+   *
+   * A reset writes blank schedules, and a blank schedule is exactly what
+   * the app makes for one that was never stored — so it is left off the
+   * wire and off the disk, and the merge kept whatever the other side
+   * still had. The reset was undone seconds later by the server's own
+   * copy, with the message saying it had worked.
+   *
+   * The stamp travels instead, merges by taking the later, and any state
+   * older than it is dropped: a reset is a fact about the card, where the
+   * absence of a schedule is not.
+   */
+  reset?: Millis;
   /** Which of the teacher's other cards this one teaches by containing them. */
   uses?: string[];
   flags?: any[];
@@ -848,6 +878,21 @@ export type Item = {
 };
 
 /**
+ * What was set aside when a course card went away: its schedules and its
+ * record of the words it has been asked with, by the name of the form each
+ * belonged to, and when it was parked.
+ *
+ * Keyed by form name rather than held as forms, because the card that
+ * comes back is the teacher's and may have been edited in the meantime —
+ * what is being restored is the progress, not the wording.
+ */
+export interface Parked {
+  at: Millis;
+  forms: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
+  lines?: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
+}
+
+/**
  * The whole document one person's devices share, as it goes over the wire.
  * Merging two of these is idempotent: the same input twice changes
  * nothing.
@@ -857,6 +902,25 @@ export interface Doc {
   items: Item[];
   /** Withdrawn cards, so a sync does not hand them back. */
   tombstones: Record<string, Millis>;
+  /**
+   * The progress of course cards that are no longer in the material,
+   * kept in case they come back.
+   *
+   * A course refresh treats a card missing from the answer as one the
+   * teacher withdrew: removed, and tombstoned so the next sync removes it
+   * from this learner's other devices too. That is right about the card
+   * and was wrong about the work: a card can be missing for reasons that
+   * have nothing to do with a teacher deciding anything — a deck detached
+   * and reattached, a student briefly removed from a course, one
+   * unreadable record on the server — and every one of those destroyed
+   * the learner's progress on the whole deck, everywhere, for good.
+   *
+   * So the card goes and the work is set aside here, by the card's id,
+   * and put back if the card returns. Nothing else reads this: it is a
+   * drawer, not a second copy of the document. Pruned on the same
+   * schedule as the headstones above.
+   */
+  parked?: Record<string, Parked>;
   log: Record<string, any>;
   /** Every document has them; EMPTY is where the defaults live. */
   settings: Settings;

@@ -90,11 +90,25 @@ function readBody(req) {
     /** @type {Buffer[]} */
     const chunks = [];
     let size = 0;
+    let over = false;
     req.on("data", (/** @type {Buffer} */ chunk) => {
+      if (over) return;
       size += chunk.length;
       if (size > MAX_BODY_BYTES) {
+        over = true;
+        /*
+         * Drained, not destroyed.
+         *
+         * This used to call `req.destroy()` here, which tears the socket
+         * down — so the 413 the caller goes on to write had nowhere to go
+         * and the client saw a connection reset instead of an answer it
+         * could explain. Nothing is buffered past the limit; the rest of
+         * the body is read and thrown away so that the response can be
+         * written on a socket that is still open.
+         */
+        chunks.length = 0;
+        req.resume();
         reject(Object.assign(new Error("too-large"), { tooLarge: true }));
-        req.destroy();
         return;
       }
       chunks.push(chunk);

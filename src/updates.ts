@@ -26,10 +26,38 @@
  * and it is right to keep asking even when nothing here has fired.
  */
 
-/* A reload is cheap: everything a learner has done is written to the device
-   as it happens. The one thing it would interrupt is a question they are
-   part way through answering, so a session in flight holds it back. */
+/* The one thing a reload would interrupt is a question a learner is part
+   way through answering, so a session in flight holds it back. */
 let held = false;
+/*
+ * And what has to happen first, whenever it does happen.
+ *
+ * A reload used to be described here as cheap because everything a learner
+ * does is written to the device as it happens. That was not true: the
+ * write is debounced, so a reload landing in the six hundred milliseconds
+ * after an answer took the answer with it — and the worst case was the
+ * moment a session ended, which releases the hold below and reloads on the
+ * spot, in the same breath as the last answer was recorded.
+ *
+ * So the trainer registers its flush here and this calls it before going.
+ * Synchronous on purpose: the storage write underneath is, and a promise
+ * awaited across `location.reload()` is a promise nobody is left to keep.
+ */
+/** @type {Set<() => void>} */
+const beforeReloads: Set<() => void> = new Set();
+
+/**
+ * Something to do before any reload this module brings on.
+ *
+ * Returns the way to take it back off again, so a component that
+ * registers on mount can drop it on unmount.
+ */
+export function beforeReload(fn: () => void): () => void {
+  beforeReloads.add(fn);
+  return () => {
+    beforeReloads.delete(fn);
+  };
+}
 /* A worker took over while it was being held back. */
 let waiting = false;
 
@@ -57,10 +85,20 @@ function setStamp(key: string) {
   }
 }
 
-/* Go, unless we have just been. */
+/* Go, unless we have just been — and never before what is owed to the
+   disk has been written. */
 function reloadOnce() {
   if (Date.now() - stampOf(STAMP) < GAP_MS) return;
   setStamp(STAMP);
+  for (const fn of beforeReloads) {
+    try {
+      fn();
+    } catch (e) {
+      /* A reload that has been announced has to happen; one registered
+         hook throwing is not a reason to strand the page on an old
+         build. */
+    }
+  }
   window.location.reload();
 }
 

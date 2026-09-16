@@ -8,6 +8,72 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.148 — 16 September 2026
+
+Everything in this release is about one thing: your progress being kept.
+An audit of every path it travels — from pressing Continue to the copy on
+the server and back to a second device — found fifteen ways it could be
+lost or quietly undone. All fifteen are dealt with, and each now has a test
+that fails if it comes back.
+
+The common fault behind most of them: the app read *"nothing here"* as
+*"nothing to keep"*. A refresh that listed fewer cards, a copy the server
+could not read, a schedule with nothing in it — each was taken as an
+instruction rather than as something unknown.
+
+**Sync can no longer be locked out for good.** If the stored copy on the
+server was ever damaged — a machine losing power mid-write was enough — the
+server reported it as "never synced", every device's next upload was
+refused, and it stayed refused for ever behind a bare "Sync failed". From
+that moment nothing you did was backed up and nothing said so. Now: every
+write is flushed to disk and the copy behind it is kept, so a damaged copy
+is recovered from the one before it; if nothing is readable the app says
+what happened and offers to send what it has, rather than failing in a
+loop.
+
+**A course that lists fewer cards no longer destroys your work on the
+ones missing.** Cards do go missing for reasons nobody decided — a deck
+detached to be reorganised, a student taken off a course by mistake, one
+record the server could not read. Any of those used to wipe your progress
+on every card in question, on every device, permanently. Now the card goes
+but its work is set aside, and the moment the card comes back the work
+comes back with it. Work nobody claims ages out on the same two-week
+schedule as deleted cards.
+
+**Reset scheduling sticks.** Resetting a card sent it back to the
+beginning and the next sync, seconds later, put it back exactly where it
+had been — with or without a second device. A reset is now dated, the date
+travels, and nothing older than it is treated as progress.
+
+**A card you asked for stays asked for.** Marking a card for next session
+was dropped as soon as another device merely answered a question about it.
+
+**Turns in a conversation are named.** Deleting one turn used to hand every
+turn below it the schedule of the turn above — on every device.
+
+**The last thing you did before closing the app is saved.** Saves are
+batched a fraction of a second apart, and nothing wrote them out when you
+closed the tab, backgrounded the app, or when the app reloaded itself to
+install an update. That last answer can no longer slip through the gap.
+
+**Two tabs no longer overwrite each other.** Each held its own copy of
+everything and wrote it whole, so whichever saved last won and the other
+tab's answers were gone. They now read each other's writes.
+
+**A device that cannot save says so, and keeps trying.** When storage is
+full or blocked it used to show one message and then fail silently for the
+rest of the session, with the screen showing progress that was going
+nowhere. It now retries, and the warning stays up until a save succeeds.
+
+**The size limit is honest, and arrives early.** Over the limit, sync used
+to fail with "Sync failed" and no way back. The limit is now measured the
+way the server measures it, a warning arrives well before you reach it, and
+the refusal says what it is.
+
+**And the server will no longer let anything wipe your collection.** A
+request that would replace everything with nothing is refused unless it is
+plainly meant — deleting your cards yourself still works.
+
 ## 0.147 — 16 September 2026
 
 - **The words in a sentence now get credit for answering it.** A sentence

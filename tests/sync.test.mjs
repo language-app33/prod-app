@@ -427,3 +427,87 @@ test("which of a frame's values each device has met merges by taking the further
   ).items[0];
   assert.equal("met" in leadOf(plain), false);
 });
+
+/* ------------------------------------------------------------------
+   The three things a merge used to undo
+
+   A card sent back to the beginning, a card the learner asked for next,
+   and the work of a card that went away. Each is the learner's own rather
+   than the teacher's, and each was quietly lost to the other device's
+   copy.
+   ------------------------------------------------------------------ */
+
+test("a card sent back to the beginning stays there, whichever device is asked", () => {
+  /* Pressing reset writes blank schedules — which is exactly what a card
+     that was never answered has, so they are left off the wire, and the
+     other device's old answers were handed straight back. The stamp is
+     what the merge reads instead: anything answered before it is no
+     longer evidence. */
+  const RESET = 1000;
+  const cleared = worded({ updated: RESET, reset: RESET }, { s: {} });
+  const stale = worded({ updated: 500 }, { en: "book" });
+  statesOf(stale).ar2en = { ...fresh(), reps: 6, updated: 500 };
+  leadOf(stale).met = { "name:sarah": 2 };
+
+  for (const [a, b, which] of [[cleared, stale, "reset first"], [stale, cleared, "reset second"]]) {
+    const out = mergeData(doc([a]), doc([b])).items[0];
+    assert.equal(statesOf(out).ar2en, undefined, `the old schedule is gone (${which})`);
+    assert.equal(out.reset, RESET, `and the card still says when (${which})`);
+    assert.equal("met" in leadOf(out), false, `as is what it had been filled with (${which})`);
+  }
+
+  /* What was answered after the reset is work, not history, and stays. */
+  const after = worded({ updated: 1200 }, {});
+  statesOf(after).ar2en = { ...fresh(), reps: 1, updated: 1200 };
+  const kept = mergeData(doc([cleared]), doc([after])).items[0];
+  assert.equal(statesOf(kept).ar2en.reps, 1, "the answer given since the reset is kept");
+});
+
+test("the mark a learner put on a card survives the other device answering it", () => {
+  /* Every graded answer stamps the whole card, so the device that merely
+     answered this one was almost always the later writer — and taking the
+     card whole from it dropped the mark the phone had just set. The mark
+     carries its own stamp now and is read by that. */
+  const marked = shared({ updated: 200, priority: true, priorityAt: 200 });
+  const answered = worded({ updated: 300 }, {});
+  statesOf(answered).ar2en = { ...fresh(), reps: 1, updated: 300 };
+  const out = mergeData(doc([marked]), doc([answered])).items[0];
+  assert.equal(out.priority, true, "the mark stands");
+  assert.equal(out.priorityAt, 200);
+  assert.equal(statesOf(out).ar2en.reps, 1, "and the answer is kept beside it");
+
+  /* And taking the mark off is a thing the learner said too, so the later
+     of the two words wins in both directions. */
+  const unmarked = shared({ updated: 250, priority: false, priorityAt: 400 });
+  const off = mergeData(doc([marked]), doc([unmarked])).items[0];
+  assert.equal(off.priority, false, "the later word wins when it is to clear the mark");
+  assert.equal(off.priorityAt, 400);
+
+  /* A card nobody ever marked does not come back marked. */
+  const plain = mergeData(doc([shared({ updated: 200 })]), doc([shared({ updated: 300 })])).items[0];
+  assert.equal(plain.priority, undefined);
+});
+
+test("work set aside when a card went away is kept by whichever device saw it go last", () => {
+  /* The drawer ages out on the same schedule as the headstones, so these
+     stamps are real ones: a card parked in 1970 is a card already let go. */
+  const today = Date.now();
+  /** @param {number} reps @param {number} at */
+  const saved = (reps, at) => ({ at, forms: { c1: { s: { ar2en: { ...fresh(), reps, updated: at } } } } });
+  const mine = doc([], {
+    parked: { c1: saved(4, today - 1000), gone: { at: 1, forms: { gone: { s: {} } } } },
+  });
+  /** @type {WireDoc} */
+  const theirs = {
+    items: [], tombstones: {}, log: {},
+    parked: { c1: saved(1, today - 3000), c2: saved(2, today - 2000) },
+  };
+  const out = mergeData(mine, theirs);
+  const drawer = /** @type {Record<string, any>} */ (out.parked);
+  assert.equal(drawer.c1.at, today - 1000, "the later parking wins");
+  assert.equal(drawer.c1.forms.c1.s.ar2en.reps, 4);
+  assert.ok(drawer.c2, "a card only the other device saw go is kept too");
+  assert.equal(drawer.gone, undefined,
+    "and one set aside longer ago than a headstone lasts is let go");
+  assert.deepEqual(mergeData(out, theirs).parked, out.parked, "merging is idempotent");
+});

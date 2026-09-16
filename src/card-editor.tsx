@@ -91,7 +91,13 @@ const formName = (taken: { id?: string }[]): string => {
    thing somebody says, and whether it is singular or plural is a question
    about a word. `uses` is per line rather than per card, because a line is
    where a word actually turns up. */
-const blankLine = () => ({ who: 0, ar: "", en: "", lat: "", clips: [], slowClips: [], uses: [] });
+/* A turn nobody has written yet, named so that a student's progress on it
+   can point at something. Named here rather than on save, because a turn
+   added and then moved is the same turn. */
+const blankLine = (taken: { id?: string }[] = []) => ({
+  id: formName(taken),
+  who: 0, ar: "", en: "", lat: "", clips: [], slowClips: [], uses: [],
+});
 
 /* One answer, or several: a field per accepted answer, a + after the last
    to add another and a − on every extra. What is stored is still one
@@ -2029,11 +2035,19 @@ export function useSceneDraft({ card }: { card: Card | null }) {
     card && (card.speakers || []).length ? (card.speakers || []).slice() : ["A", "B"]
   );
   const [you, setYou] = useState<number | null>(card ? namedPart(card) : null);
-  const [lines, setLines] = useState(() =>
-    card && (card.lines || []).length
-      ? (card.lines || []).map((l) => ({ ...blankLine(), ...l }))
-      : [{ ...blankLine(), who: 0 }, { ...blankLine(), who: 1 }]
-  );
+  const [lines, setLines] = useState(() => {
+    /* Each turn named on the way in, the way a form is — and one written
+       before turns had names is given one here, which changes nothing a
+       student has done: an unrecognised name folds back to its position.
+       See foldForms in shared.tsx. */
+    const out: Record<string, any>[] = [];
+    for (const l of card ? card.lines || [] : []) {
+      out.push({ ...blankLine(out), ...l, id: String(l.id || "") || formName(out) });
+    }
+    if (out.length) return out;
+    const first = blankLine();
+    return [{ ...first, who: 0 }, { ...blankLine([first]), who: 1 }];
+  });
   /* The scene's name and its setting are the card's own English and note:
      a conversation has no word of its own to put in either. */
   /* A scene's name and its setting are the card's own English and note: a
@@ -2060,7 +2074,7 @@ export function useSceneDraft({ card }: { card: Card | null }) {
     setLines((x) =>
       x.concat([
         {
-          ...blankLine(),
+          ...blankLine(x),
           who: x.length && speakers.length > 1
             ? ((Number(x[x.length - 1].who) || 0) + 1) % speakers.length
             : 0,

@@ -237,11 +237,29 @@ const EVENTUAL = { consistency: "eventual" };
  * @returns {Promise<any>}
  */
 async function readJson(store, key, opts = {}) {
+  /*
+   * A read that failed is not a record that is absent, and this used to
+   * answer both with null.
+   *
+   * Every list on this endpoint filters out the nulls and answers `ok`, so
+   * one unreadable course, deck or card came back as a complete answer
+   * with that record missing — and on the student's device a course card
+   * missing from the answer is a card the teacher withdrew: deleted, and
+   * marked deleted so the next sync removes it from their other devices
+   * too. A disk hiccup was enough to destroy a learner's progress on a
+   * whole deck, everywhere, with nothing reported.
+   *
+   * So only a record that genuinely is not there reads as null. Anything
+   * else throws, and the handler's own catch turns it into a 500 the
+   * client already knows how to treat as "try again" rather than as
+   * "gone".
+   */
+  const raw = await store.get(key, { type: "text", consistency: opts.consistency || "strong" });
+  if (!raw) return null;
   try {
-    const raw = await store.get(key, { type: "text", consistency: opts.consistency || "strong" });
-    return raw ? JSON.parse(raw) : null;
+    return JSON.parse(raw);
   } catch (e) {
-    return null;
+    throw Object.assign(new Error(`unreadable record: ${key}`), { unreadable: true });
   }
 }
 /** @type {(store: Store, key: string, value: unknown) => Promise<any>} */
@@ -954,6 +972,16 @@ export default async (req) => {
             : Math.max(0, Math.min(3, Math.round(Number(card.you) || 0))),
         lines: Array.isArray(card.lines)
           ? card.lines.slice(0, 12).map((/** @type {Record<string, any>} */ ln) => ({
+              /* What this turn is called, for as long as anything points
+                 at it. A turn is drilled in its own right, with its own
+                 recordings and its own progress, and it was the one kind
+                 of form in the app with nothing to name it — so on a
+                 student's device it was known by its position, and a
+                 teacher removing a turn from the middle of a scene handed
+                 every turn below it the progress of the one above. Forms
+                 were named for that reason in 0.131 and table cells in
+                 0.145; this is the third and last of them. */
+              ...(idish(ln.id) ? { id: idish(ln.id) } : {}),
               who: Math.max(0, Math.min(3, Math.round(Number(ln.who) || 0))),
               ar: String(ln.ar || "").slice(0, 400),
               en: String(ln.en || "").slice(0, 400),
