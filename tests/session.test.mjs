@@ -713,6 +713,53 @@ test("practising ahead never brings in more new words than there is room for", (
   assert.ok(dealt.size <= FRONT_DOOR_CAP, `${dealt.size} new words in one session`);
 });
 
+/*
+ * More cards asked for than a session would ordinarily hold.
+ *
+ * How many cards a session takes is worked out from how long it is and
+ * what a card costs to ask — nine of these, and five where each card
+ * carries a second form. That is the right question about the cards the
+ * app picks and the wrong one about the cards a learner picked: somebody
+ * who marked eight was handed five of them, a different five each sitting,
+ * by a screen that had said each one was in their next session. The
+ * session grows to hold them instead.
+ */
+test("every card the learner asked for is dealt, however many there are", () => {
+  const deck = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, 30 + i));
+  for (const n of [3, 8, 12]) {
+    const asked = Array.from({ length: n }, (_, i) => ({
+      ...settled(`a${i + 1}`, 60),
+      priority: true,
+    }));
+    const dealt = dealtCards(deal(deck.concat(asked)));
+    const missing = asked.map((it) => it.id).filter((id) => !dealt.has(id));
+    assert.equal(missing.length, 0, `${n} marked, and these were left out: ${missing.join(" ")}`);
+  }
+});
+
+test("and a card with a second form on it is no harder to ask for", () => {
+  /* The ordinary shape of a course card, and the one where the old
+     arithmetic bought the fewest places. */
+  /** @param {string} id @param {number} inDays */
+  const pair = (id, inDays) => {
+    const w = settled(id, inDays);
+    return { ...w, forms: w.forms.concat([{ ...w.forms[0], id: `${id}-f1`, ar: `${w.forms[0].ar}ات`, en: `${w.forms[0].en}s` }]) };
+  };
+  const deck = Array.from({ length: 30 }, (_, i) => pair(`f${i + 1}`, 30 + i));
+  const asked = Array.from({ length: 8 }, (_, i) => ({ ...pair(`a${i + 1}`, 60), priority: true }));
+  const dealt = dealtCards(deal(deck.concat(asked)));
+  const missing = asked.map((it) => it.id).filter((id) => !dealt.has(id));
+  assert.equal(missing.length, 0, `left out: ${missing.join(" ")}`);
+});
+
+test("and a session nobody has marked anything in is the size it always was", () => {
+  /* The other half of the rule: the reach above is bought by the marks, so
+     a learner who has made none is dealt exactly what they were before. */
+  const deck = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, -1));
+  const got = deal(deck);
+  assert.ok(got.exercises.length <= 18, `${got.exercises.length} questions with nothing marked`);
+});
+
 /** A word met but not yet recognisable: a gap shorter than the bar. */
 const learningWord = (/** @type {string} */ id) => {
   const w = word(id, `كلمة${id}`, `word ${id}`);

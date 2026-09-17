@@ -1059,6 +1059,19 @@ export interface Parked {
   at: Millis;
   forms: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
   lines?: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
+  /**
+   * And what the learner had said about wanting this card next, which
+   * rides on the card rather than on any of its forms and so is not
+   * covered by the two above.
+   *
+   * A card can go missing for reasons that are nobody's decision — see
+   * `parked` in Doc — and the refresh that brought it home handed back
+   * every schedule and quietly dropped the mark, so a learner whose deck
+   * was detached and reattached found the cards they had asked for no
+   * longer in their sessions and nothing anywhere saying why.
+   */
+  priority?: boolean;
+  priorityAt?: Millis;
 }
 
 /**

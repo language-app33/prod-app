@@ -2588,7 +2588,25 @@ export function buildSession({
   const avgUnits =
     candidates.reduce((n, c) => n + Math.min(c.units.length, MAX_UNITS_PER_FAMILY), 0) /
     candidates.length;
-  const wanted = Math.max(1, Math.round(budget / (PER_UNIT * Math.max(1, avgUnits))));
+  /*
+   * And never fewer than were asked for.
+   *
+   * The arithmetic above is about how many cards a session of this length
+   * holds, which is the right question for the cards the app picks and the
+   * wrong one for the cards the learner did. A deck of ordinary two-form
+   * cards buys five places — so somebody who had marked eight cards was
+   * handed five of them, a different five each sitting, by a screen that
+   * had told them each one was in their next session. They already rank
+   * ahead of everything else, so taking at least as many as there are of
+   * them is the whole of it: the session grows to hold what was asked for
+   * rather than turning the rest away.
+   */
+  const askedFor = candidates.filter((c) => c.urgent).length;
+  const wanted = Math.max(
+    1,
+    askedFor,
+    Math.round(budget / (PER_UNIT * Math.max(1, avgUnits)))
+  );
   const chosen = candidates.slice(0, Math.min(candidates.length, wanted));
 
   /* Easiest first, and cards of the same difficulty in no particular
@@ -2674,8 +2692,27 @@ export function buildSession({
     );
   }).length;
 
+  /*
+   * Where the session ends.
+   *
+   * The budget, ordinarily — and far enough to reach the last card the
+   * learner asked for, where that is further. The second half of the same
+   * fault as the count above: admitting a marked card and then cutting the
+   * queue before its first question is the same as never admitting it, and
+   * it is what a learner who marks more cards than a session holds would
+   * have seen. Questions are dealt a round at a time, so every card is
+   * asked once before any card is asked twice and the reach is a handful
+   * of questions rather than a session of a different size.
+   */
+  const askedIds = new Set(warmed.filter((c) => c.urgent).map((c) => c.it.id));
+  let cut = budget;
+  for (const id of askedIds) {
+    const at = varied.findIndex((e) => e.id === id);
+    if (at >= 0) cut = Math.max(cut, at + 1);
+  }
+
   return {
-    exercises: withReadThroughs(varied.slice(0, budget), items, settings),
+    exercises: withReadThroughs(varied.slice(0, cut), items, settings),
     reason: null,
     items: dealt.size,
     units: plans.length,
@@ -5245,14 +5282,36 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
   onPairs?: (pairs: Record<string, string>) => void;
   checked?: boolean;
 }) {
-  /* Which meaning is against which word. Keyed by word id, so a meaning can
-     be moved and the grid never holds the same one twice. */
-  const [pairs, setPairs] = useState<Record<string, string>>({});
+  /*
+   * Which meaning is against which word. Keyed by word id, so a meaning can
+   * be moved and the grid never holds the same one twice — and holding the
+   * meaning by **where it is** rather than by what it says, which is the
+   * whole of a bug learners reported four times in one evening.
+   *
+   * Two tiles reading alike are refused before the grid is built, so this
+   * should never arise; it did, because the guard read the cards as the
+   * teacher wrote them and the tiles show them narrowed. Held by text, two
+   * such tiles were one tile: pairing a word with either lit up both,
+   * tapping the second freed the first instead of taking it, and the grid
+   * could not be finished at all. Both learners pressed "I don't know".
+   *
+   * So the grid is now proof against it rather than merely spared it. A
+   * place is a place whatever is written on it, and two guards against one
+   * bad question is the right number when the cost of the second is a
+   * number instead of a string.
+   */
+  const [pairs, setPairs] = useState<Record<string, number>>({});
   const [held, setHeld] = useState<string | null>(null);
 
-  const takenBy = (meaning: string) =>
-    words.find((w) => pairs[w.id] === meaning);
-  const done = words.every((w) => pairs[w.id]);
+  /* `undefined` and not falsiness: the first tile is number 0, and a grid
+     whose first meaning counted as "unpaired" would never finish. */
+  const pairedAt = (id: string) => (pairs[id] === undefined ? null : pairs[id]);
+  const takenBy = (at: number) => words.find((w) => pairs[w.id] === at);
+  const done = words.every((w) => pairedAt(w.id) !== null);
+  const meaningFor = (id: string) => {
+    const at = pairedAt(id);
+    return at === null ? "" : String(meanings[at] || "");
+  };
 
   /* Nothing is reported until every word has a meaning: the question is the
      whole grid, and half of one is not an answer to it. What goes up is the
@@ -5260,14 +5319,23 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
      talks about, and the whole pairing beside it, which is what every word
      in the grid is marked on. */
   useEffect(() => {
-    onChange(done ? pairs[askedId] || "" : "");
-    if (onPairs) onPairs(done ? pairs : {});
+    /* What goes out is the meaning itself, not where it sat: the answer
+       screen and the marking talk about words and meanings, and neither
+       has any business knowing the order the tiles came up in. */
+    onChange(done ? meaningFor(askedId) : "");
+    if (onPairs) {
+      onPairs(
+        done
+          ? Object.fromEntries(words.map((w) => [w.id, meaningFor(w.id)]))
+          : {},
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, done, askedId]);
 
   const tapWord = (id: string) => {
     if (checked) return;
-    if (pairs[id]) {
+    if (pairedAt(id) !== null) {
       setPairs((p) => {
         const next = { ...p };
         delete next[id];
@@ -5279,9 +5347,9 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
     setHeld((h) => (h === id ? null : id));
   };
 
-  const tapMeaning = (meaning: string) => {
+  const tapMeaning = (at: number) => {
     if (checked) return;
-    const owner = takenBy(meaning);
+    const owner = takenBy(at);
     /* Tapping a meaning already spoken for frees it, which is the only way
        back from a pairing made by mistake that does not need a third
        gesture to undo. */
@@ -5294,18 +5362,19 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
       return;
     }
     if (!held) return;
-    setPairs((p) => ({ ...p, [held]: meaning }));
+    setPairs((p) => ({ ...p, [held]: at }));
     setHeld(null);
   };
 
-  const numberOf = (id: string) => words.filter((w) => pairs[w.id]).findIndex((w) => w.id === id) + 1;
+  const numberOf = (id: string) =>
+    words.filter((w) => pairedAt(w.id) !== null).findIndex((w) => w.id === id) + 1;
 
   return (
     <div className="at-match" data-el="answer-match">
       <div className="at-matchcol">
         {words.map((w) => {
-          const mine = pairs[w.id];
-          const right = checked && mine === w.en;
+          const mine = meaningFor(w.id);
+          const right = checked && !!mine && mine === w.en;
           return (
             <button
               type="button"
@@ -5330,18 +5399,21 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
         })}
       </div>
       <div className="at-matchcol">
-        {meanings.map((m) => {
-          const owner = takenBy(m);
+        {meanings.map((m, at) => {
+          const owner = takenBy(at);
           const right = checked && owner && owner.en === m;
           return (
             <button
               type="button"
-              key={m}
+              /* By where it is, not by what it says: two tiles reading
+                 alike are two tiles, and keying them on their text made
+                 React treat them as one. */
+              key={at}
               data-el="match-meaning"
               className={`at-matchtile en${owner ? " paired" : ""}${
                 checked && owner ? (right ? " right" : " wrong") : ""
               }`}
-              onClick={() => tapMeaning(m)}
+              onClick={() => tapMeaning(at)}
             >
               {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
               {m}
@@ -7334,6 +7406,14 @@ export default function ArabicTrainer() {
    */
   const grid = useMemo(() => {
     if (!item || !spec || !exercise || spec.picks !== "pair") return { words: [], meanings: [] };
+    /* Two units a learner would read as one tile: the same word, or the
+       same meaning, after both have been narrowed to the one the question
+       shows. matchSet is the gate that refuses them; this is the same
+       question asked while the company is being chosen, so a trial does
+       not spend its four places filling up with them. */
+    const sameTile = (a: Form, b: Form) =>
+      String(a.ar || "").trim() === String(b.ar || "").trim() ||
+      String(a.en || "").trim().toLowerCase() === String(b.en || "").trim().toLowerCase();
     const answers: Form[] = [item];
     for (const mate of exercise.mates || []) {
       const r = resolveUnit(asking, { ...mate, type: exercise.type });
@@ -7355,7 +7435,13 @@ export default function ArabicTrainer() {
     if (!exercise.mates) {
       for (const u of ranked) {
         if (answers.length >= PAIR_WORDS) break;
-        if (!answers.some((a) => a.id === u.id)) answers.push(u);
+        if (answers.some((a) => a.id === u.id)) continue;
+        /* And nothing that reads the same as what is already there. Two
+           tiles a learner cannot tell apart make the pairing a guess —
+           matchSet refuses them below, and a trial that handed it four
+           collisions would be a grid of one word and a lot of spares. */
+        if (answers.some((a) => sameTile(a, u))) continue;
+        answers.push(u);
       }
     }
     return matchSet({
