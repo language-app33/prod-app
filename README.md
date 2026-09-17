@@ -104,6 +104,20 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   pack states it in `marking` and nobody is asked to rule on harakat
   before they can read one.
 
+- **What keeps going wrong can be practised on its own.** *Weak skills*,
+  under Start session on the home screen, deals nothing but the exercises
+  that have been missed — wrong twice running first, because that is the
+  app's own definition of a gap rather than a slip and what shuts a level
+  (`missedTwice`), then anything missed once in its last two outings. It
+  picks per *exercise* and not per card, which is the whole of what the
+  name means: a word that keeps failing when it has to be written from its
+  meaning is drilled on that and not on the reading it has always got
+  right. Everything else a session does still holds — the ladder, the
+  quiet window, what a device can play, two forms of a card at most — with
+  one exception: it is never refused for want of variety, because the one
+  thing you keep failing is a session worth having. `weakness`, `isWeak`
+  and `buildWeakSession` in `src/ArabicTrainer.tsx`; the count beside the
+  button reads `isWeak`, so a number there is a session that builds.
 - **A learner can ask for a card.** Marking one *high priority* on its own
   screen, under Cards, is the one place a learner overrides the schedule:
   the card counts as waiting however far off its next review is, opens the

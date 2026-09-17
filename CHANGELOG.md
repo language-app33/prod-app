@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.168 — 17 September 2026
+
+**Weak skills: a session made only of what you keep getting wrong.**
+
+There is a new button on the home screen, under Start session. Tap it and
+you get a session built from nothing but the questions that have been
+going wrong, worst first — the ones you have missed twice running lead,
+then anything you missed once in its last couple of outings. Beside the
+button is how much is slipping, so you can see whether it is worth a
+sitting before you open one; on a day when nothing is going wrong it says
+so and the button is dim.
+
+The important part is that it picks *questions*, not cards. The app has
+always tracked each way of asking a word separately — reading it is not
+the same skill as writing it from its meaning — so a word that keeps
+failing when you have to write it is drilled on writing it, and not on the
+reading you have never once got wrong. That is why the button says skills.
+
+Everything else about a session still holds: nothing is asked above the
+level you have reached, nothing needs a recording your device doesn't
+have, and no one word is the whole sitting. One rule is deliberately off —
+a normal session is refused if the cards in it can only be asked one way,
+and this one is not, because the single thing you keep failing is a
+session worth having.
+
+This was already possible, in the sense that anyone could open Build a
+session, remember which cards had gone badly, tick them by hand and choose
+Fix mistakes. Anyone who could do that did not need the feature.
+
 ## 0.167 — 17 September 2026
 
 **Open a level on the ladder and each card says how far it has got.**

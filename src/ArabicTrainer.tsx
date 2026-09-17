@@ -191,6 +191,7 @@ import {
   itemDifficulty as itemDifficultyOf,
   mastered,
   maturity,
+  missedTwice,
   openTypes as openTypesOf,
   reachedLevel,
   roomForNew,
@@ -3025,6 +3026,173 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
     learnt,
     items: new Set(exercises.map((e) => e.id)).size,
     units: plans.length,
+  };
+}
+
+/* ------------------------------------------------------------------
+   The weak-skills session
+
+   Everything going wrong, and nothing else.
+
+   The app already knows what a learner keeps missing — it is what shuts
+   the levels above a question and what the Progress screen calls *paused*
+   — and until now the only way to practise it was to remember which cards
+   they were, tick them by hand on the Build screen and choose Fix
+   mistakes. A learner who could do that did not need the feature.
+
+   Two things make this its own builder rather than a preset of the one
+   built by hand:
+
+   **It asks the questions that went wrong**, not a sample of the card's
+   exercises. Progress is kept per exercise, not per card — knowing a word
+   when you read it and knowing it when you hear it are separate — so a
+   card that keeps failing *written from its meaning* is drilled on that,
+   and not on the reading it has always got right. That is what makes the
+   button say skills rather than cards.
+
+   **It is ordered by how badly it is going.** Wrong twice running leads,
+   because that is the app's own definition of a gap rather than a slip —
+   see `missedTwice`, which is what shuts a level — and a single recent
+   miss follows it.
+
+   What it deliberately does not do is refuse for want of variety, which
+   every other session does. A session of one exercise repeated is a poor
+   way to meet new material and exactly the right way to fix the one thing
+   you keep getting wrong.
+   ------------------------------------------------------------------ */
+
+/**
+ * How badly one exercise is going.
+ *
+ * 2 — wrong twice running, with nothing right in between. The gap.
+ * 1 — wrong once in the last two outings. The slip.
+ * 0 — nothing to fix here.
+ *
+ * `hist` is the last six outings, 1 right and 0 wrong, and it is the only
+ * record with an order to it. A card from before it existed carries an
+ * empty one and reads as 0 rather than as never having been right, which
+ * is the same guard `missedTwice` and `hasRecentMistake` both make.
+ */
+export function weakness(s: ExerciseState | null | undefined): number {
+  if (!s) return 0;
+  if (missedTwice(s)) return 2;
+  return (s.hist || []).slice(-2).some((x) => !x) ? 1 : 0;
+}
+
+/**
+ * Has this card anything going wrong on it right now?
+ *
+ * The home screen counts with this and the builder below picks with the
+ * same test, one key at a time, so the number beside the button and the
+ * session it opens cannot come to disagree.
+ *
+ * Read over what may actually be *asked* — the levels the card has
+ * reached, the recordings this device holds, the blanks there is something
+ * to fill — because an exercise the app is not putting to anybody is not
+ * work waiting to be done. A question on a level that a slip further down
+ * has shut is the ordinary case: it is not asked until the level under it
+ * is recovered, which is the very thing this session is for.
+ */
+export function isWeak(it: Item, settings: Settings): boolean {
+  if (!isDrillable(it, settings)) return false;
+  return drillableUnits(it, settings).some(({ unit }) =>
+    askableTypes(unit, settings).some((t) => weakness(stateOf(unit, t)) > 0)
+  );
+}
+
+export function buildWeakSession({ items, settings, inDeck, budget: budgetIn }: {
+  items: Item[];
+  settings: Settings;
+  inDeck: (it: Item) => boolean;
+  budget?: number;
+}) {
+  const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
+  if (!pool.length) return { exercises: [], reason: "none-drillable" };
+
+  const budget = Math.max(4, budgetIn || SESSION_SIZE);
+
+  /* One entry per form with something going wrong on it, carrying the
+     failing exercises worst first. */
+  const failing: {
+    id: string;
+    subId: string | null;
+    unit: Form;
+    keys: string[];
+    worst: number;
+  }[] = [];
+  for (const it of pool) {
+    const here = [];
+    for (const { unit, isSub } of drillableUnits(it, settings)) {
+      const weak = askableTypes(unit, settings).filter((t) => weakness(stateOf(unit, t)) > 0);
+      if (!weak.length) continue;
+      here.push({
+        id: it.id,
+        subId: isSub ? unit.id : null,
+        unit,
+        keys: inOrder(weak, (t) => -weakness(stateOf(unit, t))),
+        worst: Math.max(...weak.map((t) => weakness(stateOf(unit, t)))),
+      });
+    }
+    /* The same cap a dealt session puts on how much of one card a sitting
+       may be about: a verb lays out twenty cells and a scene six lines,
+       and a session spent entirely on one word is the complaint the cap
+       exists for. The worst-going forms are the ones it keeps. */
+    const cap = isDialog(it) ? MAX_DIALOG_LINES : MAX_UNITS_PER_FAMILY;
+    for (const u of inOrder(here, (u) => -u.worst).slice(0, cap)) failing.push(u);
+  }
+  if (!failing.length) return { exercises: [], reason: "nothing-weak" };
+
+  /* Worst first, chance between the ones that are going equally badly. */
+  const order = inOrder(failing, (u) => -u.worst);
+
+  /* Dealt a round at a time, so every form with something wrong on it is
+     asked once before any of them is asked twice. A learner with one card
+     failing in four ways gets all four; a learner with twenty cards
+     failing gets one question each and the worst of them first. */
+  const plans: Question[] = [];
+  const depth = Math.max(...order.map((u) => u.keys.length));
+  for (let round = 0; round < depth && plans.length < budget; round++) {
+    for (const u of order) {
+      const type = u.keys[round];
+      if (!type) continue;
+      const ctx = pickContext(u.unit, type);
+      plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+    }
+  }
+
+  /* The grids, dealt, and the same card kept from being asked twice
+     running — both exactly as a dealt session does them. */
+  const varied = varyTypes(
+    withGrids(plans, items, settings, (unit, queued) =>
+      pickableTypes(unit, settings).find((t) => t !== "match" && !queued.has(t)) || null
+    )
+  );
+  const exercises = withReadThroughs(varied.slice(0, budget), items, settings);
+  const dealt = new Set(exercises.map((e) => e.id));
+
+  /* How many of them were actually waiting, for the line at the end. A
+     missed question comes back within the hour, so most of these are due
+     — but a word missed twice a fortnight ago and not seen since is not,
+     and the summary says so rather than claiming a schedule moved. */
+  const due = [...dealt].filter((id) => {
+    const it = pool.find((x) => x.id === id);
+    if (!it) return false;
+    return drillableUnits(it, settings).some(({ unit }) =>
+      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+    );
+  }).length;
+
+  return {
+    exercises,
+    reason: null,
+    /* Not a dealt session: the screen at the end reads this to know that
+       "Keep going" would be a change of subject rather than more of the
+       same. */
+    manual: true,
+    mode: "weak",
+    items: dealt.size,
+    units: failing.length,
+    due,
   };
 }
 
@@ -6736,6 +6904,14 @@ export default function ArabicTrainer() {
      start at all. */
   const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
 
+  /* And how much is going wrong, which is what the Weak skills button is
+     offered on. The same test the session itself picks with — see isWeak —
+     so a number here is a session that builds. */
+  const weakCount = useMemo(
+    () => drillable.filter((it) => isWeak(it, settings)).length,
+    [drillable, settings]
+  );
+
   /*
    * Why no new words are arriving, when none are.
    *
@@ -7136,6 +7312,31 @@ export default function ArabicTrainer() {
       return;
     }
     setPreview(built.preview);
+    warmSession(built);
+    setSession({ ...built, practice: false, startedAt: now(), endsAt: 0 });
+    setQi(0);
+    setTally({ ok: 0, no: 0 });
+    resetExercise();
+    setTab("home");
+  }
+
+  /*
+   * A sitting of nothing but what is going wrong — see buildWeakSession.
+   *
+   * Out of the same cards a dealt session comes from, so the language
+   * switch and the chosen deck have had their say here too: what is weak
+   * in a language you have switched off is not what you came to fix.
+   */
+  function beginWeak() {
+    const built = buildWeakSession({ items: shown, settings, inDeck });
+    if (!built.exercises.length) {
+      flash(
+        built.reason === "nothing-weak"
+          ? "Nothing is going wrong just now — this fills up when something slips"
+          : "No card here has enough on it to be practised yet"
+      );
+      return;
+    }
     warmSession(built);
     setSession({ ...built, practice: false, startedAt: now(), endsAt: 0 });
     setQi(0);
@@ -8665,6 +8866,33 @@ Cards ready to practice
                     >
                       {readyCount ? "Start session" : "Practise anyway"}
                     </Button>
+                  </div>
+                  {/* And the other kind of session there is a one-tap case
+                      for: everything going wrong, worst first. It sits
+                      directly under Start session because it is the same
+                      offer narrowed — a session, dealt for you — rather
+                      than something to be assembled, and because the
+                      moment to reach for it is the moment you have just
+                      seen the ladder say a level is paused.
+
+                      Always shown, and disabled with the reason beside it
+                      when there is nothing to fix. The app's habit is to
+                      leave out a button that would open on an empty
+                      screen, but a learner has to be able to find this one
+                      to learn what it does, and "nothing slipping" is a
+                      thing worth being told on the days it is true. */}
+                  <div className="at-row at-mt3">
+                    <Button variant="ghost"
+                      onClick={beginWeak}
+                      disabled={!weakCount}
+                    >
+                      Weak skills
+                    </Button>
+                    <Meta>
+                      {weakCount
+                        ? `${plural(weakCount, "card")} slipping`
+                        : "nothing slipping just now"}
+                    </Meta>
                   </div>
                   <div className="at-row at-mt3">
                     <Button variant="ghost"

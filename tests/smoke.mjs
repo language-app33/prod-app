@@ -1943,6 +1943,20 @@ const beforeStates = stateKeys(
   JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "{}").items
     ?.find((/** @type {any} */ i) => i.id === "srv" + card.id)
 ).length;
+/* ---- the weak-skills button sits under Start session ----
+   Its own walk at the foot of this file drives it on a deck with something
+   actually going wrong. Here it is the offer itself: on the ordinary home
+   screen it is there, under the button it narrows, and it says what it
+   holds rather than being a dimmed button with no explanation. */
+{
+  const weakBtn = buttonNamed(/^Weak skills$/);
+  check("the home screen offers a weak-skills session", !!weakBtn,
+    (document.body.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  const row = weakBtn && weakBtn.closest(".at-row");
+  check("and says beside it how much is slipping, dimmed or not",
+    !!row && /(\d+ cards? slipping|nothing slipping just now)/.test(row.textContent || ""),
+    row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
+}
 click(buttonNamed(/^Start session$/));
 await sleep(400);
 const instruction = document.querySelector(".at-instruction");
@@ -5274,6 +5288,84 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!asked, (host2.textContent || "").slice(0, 120).replace(/\s+/g, " "));
   check("and nothing threw while the session was built",
     errors.length === before, errors.slice(before, before + 2).join(" | "));
+  root2.unmount();
+  await sleep(200);
+}
+
+/* ---- a deck with something actually going wrong ----
+   The weak-skills session, end to end: a deck of four ordinary cards, one
+   of which has been missed twice running on reading it into English and is
+   fine at everything else. The button should say one card is slipping,
+   open a session, and that session should be about that card — not the
+   three the learner has never got wrong.
+
+   On its own document at the end, for the same reason the walk above is:
+   nothing here has to be counted against a fixture the rest of the file
+   shares. */
+{
+  const before = errors.length;
+  /* The history is the record with an order to it: 1 right, 0 wrong, most
+     recent last. Two zeros on the end is wrong, seen again, wrong again —
+     which is what the app calls a gap rather than a slip. */
+  const missedTwice = {
+    phase: "review", step: 0, ease: 2.0, interval: 1, due: Date.now() - 86400000,
+    reps: 4, lapses: 1, right: 2, wrong: 2, skips: 0, near: 0, hints: 0,
+    hist: [1, 1, 0, 0], updated: Date.now(),
+  };
+  const plain = (/** @type {string} */ id, /** @type {string} */ ar, /** @type {string} */ en, /** @type {string} */ lat, /** @type {any} */ s) =>
+    ({ id, ar, en, lat, kind: "word", tags: ["Lesson 1"], created: 1, updated: Date.now(), ...(s ? { s } : null) });
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {},
+    settings: { language: "ar-PS" },
+    account,
+    items: [
+      plain("weak1", "كِتاب", "book", "kitaab", { ar2en: missedTwice }),
+      plain("fine1", "قَلَم", "pen", "qalam", null),
+      plain("fine2", "بَيت", "house", "beit", null),
+      plain("fine3", "باب", "door", "baab", null),
+    ],
+  }));
+  /* Mounted offline, which is the only way to hold the deck still: a
+     signed-in device pulls its courses down over what was seeded, and the
+     cards the rest of this file has been answering arrive carrying the
+     histories those answers wrote. The count is the point of the walk, so
+     the deck has to be the four cards written above and no others. */
+  const online = Object.getOwnPropertyDescriptor(w.navigator, "onLine");
+  Object.defineProperty(w.navigator, "onLine", { value: false, configurable: true });
+  const host3 = document.createElement("div");
+  document.body.appendChild(host3);
+  const root3 = createRoot(host3);
+  root3.render(React.createElement(App));
+  await sleep(1500);
+
+  const weakBtn = [...host3.querySelectorAll("button")]
+    .find((b) => /^Weak skills$/.test((b.textContent || "").trim()));
+  check("a card missed twice running lights the weak-skills button",
+    !!weakBtn && !weakBtn.disabled,
+    weakBtn ? "the button is there but dimmed"
+      : (host3.textContent || "").slice(0, 90).replace(/\s+/g, " ") || "nothing rendered");
+  const row = weakBtn && weakBtn.closest(".at-row");
+  check("and the line beside it counts the cards that are slipping",
+    /* No word boundary before the number: the button's own text runs
+       straight into the line beside it in `textContent`. */
+    !!row && /1 card slipping/.test((row.textContent || "").replace(/\s+/g, " ")),
+    row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
+
+  click(weakBtn);
+  await sleep(600);
+  const asked = host3.querySelector(".at-instruction");
+  check("pressing it opens a session", !!asked,
+    (host3.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  /* And the session is about the word that is going wrong. The three cards
+     this learner has never missed are not in it, which is the whole of
+     what the button promises. */
+  const prompt = host3.querySelector('[data-el="question-prompt-text"]');
+  check("and it asks the card that is going wrong, not the ones that are fine",
+    !!prompt && /كِتاب/.test(prompt.textContent || ""),
+    prompt ? (prompt.textContent || "").trim() : (host3.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  check("and nothing threw while the weak session was built",
+    errors.length === before, errors.slice(before, before + 2).join(" | "));
+  if (online) Object.defineProperty(w.navigator, "onLine", online);
 }
 
 report();
