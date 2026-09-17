@@ -621,15 +621,11 @@ button {
    thing is the width of what it says, and the line wraps. */
 .at-blankrow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top: var(--s4); }
 .at-blankrow > * { flex:0 0 auto; max-width:100%; }
-/* The blanks this card fills, one row each: the name, which opens the same
-   list it was chosen from so that changing it is choosing again, and the
-   × that takes it off. A column of rows rather than a wrap of chips,
-   because each name carries a control of its own and a wrapped line put a
-   name on one line and its × on the next. */
-.at-fillrows { display:flex; flex-direction:column; gap:8px; }
-.at-fillrow { margin-top:0; }
 /* The one place a blank is named by hand: the box takes the room, the
-   button takes what it needs. */
+   button takes what it needs. Two of them now — in the picker, for a
+   blank the card leaves, and at the top of the half that says which
+   blanks the card fills, where it is the one thing nobody can do by
+   choosing off a list. */
 .at-blanknew { display:flex; gap:8px; margin-top:10px; }
 .at-blanknew .at-input { flex:1 1 auto; min-width:0; }
 .at-blanknew .at-btn { flex:0 0 auto; }

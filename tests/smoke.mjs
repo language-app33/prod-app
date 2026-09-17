@@ -4011,8 +4011,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        disappeared with nothing naming it, so a teacher looking for where a
        word is offered to other cards found either an unlabelled button or
        nothing at all. They are two named subsections now, both always on
-       screen, and the second holds a list because a word stands in more
-       than one kind of hole as soon as somebody writes a second frame
+       screen, and the second is a list — of blank ids, on the screen, with
+       the box that names a new one above it — because a word stands in
+       more than one kind of hole as soon as somebody writes a second frame
        about it. */
     {
       const groups = () => [...((blanks() || document).querySelectorAll(".at-groupline"))]
@@ -4025,50 +4026,77 @@ check("no console errors during the session", errors.length === 0, errors.slice(
          into somebody else's hole is a sentence with a gap where the point
          was — so the half that offers it says why rather than offering a
          control there is no answer to. */
+      const newBox = () => /** @type {any} */ (
+        [...((blanks() || document).querySelectorAll(".at-blanknew"))]
+          .find((n) => !n.closest(".at-choosemenu")) || null);
       check("and a card that leaves a blank is told why it fills none",
-        /fills none/.test(((blanks() || {}).textContent) || "") && !pickBtn(/^Fills a blank$/),
-        pickBtn(/^Fills a blank$/) ? "offered anyway" : "said, and not offered");
+        /fills none/.test(((blanks() || {}).textContent) || "") && !newBox(),
+        newBox() ? "offered anyway" : "said, and not offered");
 
       /* Out of the frame, and the other half comes alive. */
       typeInto(fieldNamed(/^Arabic script and transliteration$/i), "rafa");
       await sleep(80);
       typeInto(fieldNamed(/^English$/), "Raphael");
       await sleep(300);
-      const fillRows = () => [...((blanks() || document).querySelectorAll(".at-fillrow"))];
-      const fillNamed = (/** @type {RegExp} */ re) => /** @type {any} */ (
-        fillRows().map((r) => r.querySelector(".at-choosebtn"))
-          .find((b) => b && re.test((b.textContent || "").trim())) || null);
-      const chooseBlank = (/** @type {RegExp} */ re) => {
-        const row = [...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
-          .find((r) => re.test(((r.querySelector("b") || {}).textContent || "").trim()));
-        click(row);
-      };
-      check("a card with no blank of its own is asked which it fills",
-        !!pickBtn(/^Fills a blank$/) && fillRows().length === 0,
-        pickBtn(/^Fills a blank$/) ? "offered" : "no button");
-      click(pickBtn(/^Fills a blank$/));
-      await sleep(200);
-      chooseBlank(/^name$/);
+
+      /* The blanks it may fill, as a list on the screen. It was a menu
+         that had to be opened — and a list you have to open to see is a
+         list you answer without reading. */
+      const fillList = () => [...((blanks() || document).querySelectorAll(".at-ticklist .at-tickrow"))];
+      const fillNames = () => fillList()
+        .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+      const fillRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        fillList().find((r) => re.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
+      const ticked = () => fillList()
+        .filter((r) => /** @type {any} */ (r.querySelector("input")).checked)
+        .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+      check("the blanks it can fill are a list on the screen, not a menu to open",
+        fillList().length > 0 &&
+          ![...((blanks() || document).querySelectorAll(".at-choosebtn"))]
+            .some((b) => /Fills a blank/.test((b.textContent || "").trim())),
+        fillNames().join(", ") || "(no list)");
+      /* And blank ids, not kinds of card. A card fills {{noun}} by saying
+         it is a noun, so a tick for it would do nothing — while {{name}},
+         which this language also declares as a kind of word, is the oldest
+         blank in the app and has to stay. Written, not built in. */
+      check("and they are the blank ids somebody wrote, not the kinds of card",
+        fillNames().includes("name") &&
+          !["word", "noun", "verb", "adjective", "pronoun", "preposition"]
+            .some((kind) => fillNames().includes(kind)),
+        fillNames().join(", ") || "(no list)");
+      check("with what each is worth, which is whether to tick it",
+        fillList().every((r) => /\d/.test(((r.querySelector("i") || {}).textContent) || "")),
+        fillList().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
+
+      /* And the box that names a new one, above the list rather than at
+         the bottom of a menu: naming the first blank of a kind is the one
+         thing here nobody can do by choosing. */
+      check("the box that names a new blank is on the screen too",
+        !!newBox() && !!newBox().querySelector("input"),
+        newBox() ? "there" : "still behind a button");
+      check("and above the list, where it is reached without scrolling past it",
+        !!newBox() && !!fillList().length &&
+          !!(newBox().compareDocumentPosition(fillList()[0]) & 4),
+        newBox() && fillList().length ? "above" : "(nothing to compare)");
+
+      /* Ticking one is what says the card fills it. */
+      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
       await sleep(250);
-      check("choosing one lists it as a blank this card fills",
-        fillRows().length === 1 && !!fillNamed(/^name$/),
-        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
+      check("ticking one says this card fills it",
+        JSON.stringify(ticked()) === JSON.stringify(["name"]),
+        ticked().join(", ") || "(none ticked)");
 
       /* And a second, which is the whole reason this is a list: the one
          word is a name and a greeting, rather than two cards carrying it
          and two schedules for the same word. */
-      click(pickBtn(/^\+ Another blank$/));
-      await sleep(200);
-      const madeBox = /** @type {any} */ (
-        (blanks() || document).querySelector('.at-blanknew input'));
-      typeInto(madeBox, "greeting");
+      typeInto(newBox().querySelector("input"), "greeting");
       await sleep(120);
-      click([...((blanks() || document).querySelectorAll(".at-blanknew button"))]
+      click([...newBox().querySelectorAll("button")]
         .find((b) => /^Add$/.test((b.textContent || "").trim())));
-      await sleep(250);
-      check("and a card can fill more than one, which is why it is a list",
-        fillRows().length === 2 && !!fillNamed(/^name$/) && !!fillNamed(/^greeting$/),
-        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
+      await sleep(300);
+      check("a blank nobody has named yet is typed in, and joins the list ticked",
+        JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
+        ticked().join(", ") || "(none ticked)");
       check("with every one of them named in what the card is for",
         /\{\{name\}\}/.test(((blanks() || {}).textContent) || "") &&
           /\{\{greeting\}\}/.test(((blanks() || {}).textContent) || ""),
@@ -4076,30 +4104,17 @@ check("no console errors during the session", errors.length === 0, errors.slice(
           .map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
           .find((t) => /borrow/.test(t))) || "(nothing said)");
 
-      /* Changing one is choosing again, off the same list it came from. */
-      click(fillNamed(/^greeting$/));
-      await sleep(200);
-      chooseBlank(/^noun$/);
+      /* And unticking is how one is taken off. */
+      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
       await sleep(250);
-      check("one of them can be changed without the others being touched",
-        fillRows().length === 2 && !!fillNamed(/^name$/) && !!fillNamed(/^noun$/),
-        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
-      /* And changed onto one the card already fills, the two become the
-         one they both now name rather than it being carried twice. */
-      click(fillNamed(/^noun$/));
-      await sleep(200);
-      chooseBlank(/^name$/);
+      check("and unticking one takes it off, leaving the others",
+        JSON.stringify(ticked()) === JSON.stringify(["greeting"]),
+        ticked().join(", ") || "(none ticked)");
+      click(/** @type {any} */ (fillRow(/^greeting$/).querySelector("input")));
       await sleep(250);
-      check("and changed onto one it already fills, the two become one",
-        fillRows().length === 1 && !!fillNamed(/^name$/),
-        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
-
-      /* And taken off, one at a time. */
-      click(/** @type {any} */ (fillRows()[0].querySelector('button[aria-label^="Stop filling"]')));
-      await sleep(250);
-      check("and any of them taken off again",
-        fillRows().length === 0 && !!pickBtn(/^Fills a blank$/),
-        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none left)");
+      check("down to none, which is what an ordinary card is",
+        ticked().length === 0 && fillNames().includes("name"),
+        ticked().join(", ") || "(none ticked)");
     }
   }
 

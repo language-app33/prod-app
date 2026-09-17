@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.160 — 17 September 2026
+
+**Saying which blanks a card fills is a list you can see.**
+
+0.159 let one card fill several blanks, and put the naming behind a button:
+you opened a menu, read a list, and the box for naming a blank nobody had
+named yet was at the bottom of it. Naming the first blank of a kind is the
+one thing on that screen you cannot do by choosing off a list, so it was the
+one thing hardest to reach — and a list you have to open to see is a list you
+answer without reading.
+
+*Using this card to fill a blank* is now a box and a list, both on the
+screen. Type a new blank name at the top; below it is every blank anybody has
+written, with this card's ticked. Tick one to fill it, untick it to stop.
+
+**And kinds of word are no longer on that list.** A card fills `{{noun}}` by
+saying it is a noun, and `{{word}}` by being a word — so those ticks never
+did anything, and there was a row for every kind of word your language
+declares, burying the handful of blanks anybody had actually written. The
+list is the blank names somebody wrote, and the card says what it fills by
+being what it is in one line underneath.
+
 ## 0.159 — 17 September 2026
 
 **A card with a blank in it now shows what a student will really see.**

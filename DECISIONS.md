@@ -2130,6 +2130,28 @@ field whose filler has nothing to put in it keeps the braces standing, exactly
 as the question would, which is the teacher's answer about the card they have
 written rather than a gap to wonder about.
 
+**The blanks a card fills are a list on the screen, not a menu.** Which
+blanks a word is offered to is the question that half of the section exists to
+ask, and it was behind a button: a list you have to open to see is a list you
+answer without reading. It is a tick list now, and the box that names a new
+blank is above it rather than at the bottom of the menu — naming the first
+blank of a kind is the one thing here nobody can do by choosing off a list, so
+it is the one thing that must never be the hardest to reach.
+
+**What is offered is what somebody wrote, not what is not built in.** A card
+fills `{{noun}}` by saying it is a noun and `{{word}}` by being a word — see
+`fillsOf` — so offering every kind of word the language declares made the
+commonest action on this screen a tick that did nothing. Dropping every
+category id would have been wrong in the other direction, and this is the part
+that took the thinking: Arabic declares `name` as a kind of word *and*
+`{{name}}` is the oldest frame in the app, so the one blank everybody actually
+uses is a category id. So a blank is offered when some card leaves it or some
+card says it fills it, which is what "a blank that exists" has always meant
+here — a blank being a name two cards happen to agree on rather than a thing
+declared. `{{word}}` is never offered, and a card's own kind is said in one
+line beneath the list instead, which is also where "why is `noun` not here?"
+gets answered.
+
 **And a blank says what is behind it.** The chip was the blank's name and
 nothing else, which is the least of what a teacher wants to know about it:
 whether the right words are behind it was answerable only by leaving the card

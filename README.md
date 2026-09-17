@@ -219,11 +219,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   what it means, filled from the words that exist today. Pointing at a
   hole lists the words that will go in it, which is the only place a
   teacher can see whether the right vocabulary is behind a blank without
-  leaving the card. *Using this card to fill a blank* is the other job and
-  the other list: the names this card answers to, each one changed by
-  choosing again and taken off by its own ×. A card that leaves a blank of
-  its own fills none, so on one of those the second half says that rather
-  than offering a control there is no answer to.
+  leaving the card. *Using this card to fill a blank* is the other job:
+  a box that names a new blank, above a list of every blank anybody has
+  written, with this card's ticked — so ticking is how a card comes to
+  fill one and unticking is how it stops. A kind of word is not in that
+  list, because a card fills `{{noun}}` by saying it is a noun and
+  `{{word}}` by being a word, and a tick that changes nothing is worse
+  than no tick; a name a language happens to declare as a kind *and* a
+  teacher writes by hand — Arabic's `name` — is in it, because what is
+  offered is what somebody wrote rather than what is not built in. A card
+  that leaves a blank of its own fills none, so on one of those the second
+  half says that rather than offering a control there is no answer to.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the
