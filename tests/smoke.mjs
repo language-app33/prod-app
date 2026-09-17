@@ -584,7 +584,19 @@ const died = (err) => {
 process.on("uncaughtException", died);
 process.on("unhandledRejection", died);
 
-check("app rendered the home screen", /Cards ready to practice/.test(text), text.slice(0, 80).replace(/\s+/g, " "));
+/* The home screen opens on the climb — the ring and the band beside it —
+   rather than on a count of what is due. */
+const homeCard = () => document.querySelector(".at-card[data-ready]");
+check("app rendered the home screen", !!homeCard() && !!document.querySelector(".at-climb"), text.slice(0, 80).replace(/\s+/g, " "));
+check("and it says how far along the collection is, drawn and in words",
+  /\d+ of \d+ cards? learnt/.test(text.replace(/\s+/g, " ")) &&
+    !!document.querySelector(".at-climbring .fill") &&
+    !!document.querySelector(".at-climbband i"),
+  (document.querySelector(".at-climb")?.textContent || "nothing drawn").replace(/\s+/g, " "));
+/* And none of the lines that used to crowd it. */
+check("and none of the text that used to sit around it",
+  !/Cards ready to practice|Each form is asked|waiting to be introduced|sitting out/.test(text),
+  text.replace(/\s+/g, " ").slice(0, 160));
 check("no console errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 check("whoami asked once", calls.filter((c) => c.includes("whoami")).length === 1);
 check("material fetched via one request, no my-courses/course-decks/deck-cards", !calls.some((c) => /my-courses|course-decks|deck-cards/.test(c)) && materialHits >= 1, calls.join(", "));
@@ -639,7 +651,10 @@ check("untouched states are not stored",
    values are not among them, which is the thing this is here for — and nor
    are the three climbed above, whose next review is tomorrow. A card with
    nothing due is not a card waiting to be practised. */
-check("every card with something due counts, and a value is never one", /Cards ready to practice\s*6/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+/* Counted off the attribute the home card carries rather than off a line of
+   text: the number came off the screen when the climb went on it, and what
+   is being tested here is the counting, not the wording. */
+check("every card with something due counts, and a value is never one", homeCard()?.getAttribute("data-ready") === "6", homeCard()?.getAttribute("data-ready") ?? "no home card");
 const wire = remoteDocs.get(realToken)?.data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
@@ -1961,9 +1976,15 @@ const beforeStates = stateKeys(
   check("the home screen offers a weak-skills session", !!weakBtn,
     (document.body.textContent || "").slice(0, 120).replace(/\s+/g, " "));
   const row = weakBtn && weakBtn.closest(".at-row");
-  check("and says beside it how much is slipping, dimmed or not",
-    !!row && /(\d+ cards? slipping|nothing slipping just now)/.test(row.textContent || ""),
-    row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
+  /* Live, the button is the whole offer and says nothing beside it. Dimmed,
+     it says why — which is the day a learner would otherwise be looking at a
+     greyed-out button with no explanation. */
+  check("and beside it, a reason only on the days there is nothing to fix",
+    !!row &&
+      (weakBtn.disabled
+        ? /nothing slipping just now/.test(row.textContent || "")
+        : !/slipping/.test(row.textContent || "")),
+    row ? `${weakBtn.disabled ? "dimmed" : "live"}: ${(row.textContent || "").replace(/\s+/g, " ")}` : "no row");
 }
 click(buttonNamed(/^Start session$/));
 await sleep(400);
@@ -5386,9 +5407,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 /* ---- a deck with something actually going wrong ----
    The weak-skills session, end to end: a deck of four ordinary cards, one
    of which has been missed twice running on reading it into English and is
-   fine at everything else. The button should say one card is slipping,
-   open a session, and that session should be about that card — not the
-   three the learner has never got wrong.
+   fine at everything else. The button should come up live rather than
+   dimmed, open a session, and that session should be about that card — not
+   the three the learner has never got wrong.
 
    On its own document at the end, for the same reason the walk above is:
    nothing here has to be counted against a fixture the rest of the file
@@ -5436,10 +5457,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     weakBtn ? "the button is there but dimmed"
       : (host3.textContent || "").slice(0, 90).replace(/\s+/g, " ") || "nothing rendered");
   const row = weakBtn && weakBtn.closest(".at-row");
-  check("and the line beside it counts the cards that are slipping",
-    /* No word boundary before the number: the button's own text runs
-       straight into the line beside it in `textContent`. */
-    !!row && /1 card slipping/.test((row.textContent || "").replace(/\s+/g, " ")),
+  check("and says nothing beside it, now that there is something to fix",
+    !!row && !/slipping/.test((row.textContent || "").replace(/\s+/g, " ")),
     row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
 
   click(weakBtn);

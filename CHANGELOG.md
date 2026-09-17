@@ -8,6 +8,32 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.172 — 17 September 2026
+
+**The home screen opens on how far you have got.**
+
+It used to open on a number: how many cards were ready, with four more
+lines around it explaining how a session is put together, how much was
+slipping, how many words were waiting their turn and how many cards were
+sitting out for want of a field. All of it was true and none of it was
+what you came to the screen for, and on the days it all showed at once
+the button you actually wanted was somewhere near the bottom.
+
+All five lines are gone. In their place, above Start session, is your
+climb: a ring of how much of your collection is learnt, and a band beside
+it showing where your cards are on the ladder — one block per level, in
+the same colours the Progress tab uses, so a collection you have just
+joined is one flat colour and one you are nearly through is mostly green.
+Under it, in words, how many cards are learnt out of how many you hold.
+
+Nothing about what a session deals has changed. The counts that came off
+the screen are all still in Progress, which is the tab for them.
+
+*Weak skills* still sits under Start session and still says "nothing
+slipping just now" on the days there is nothing to fix — that is the one
+day the line is worth reading. On every other day the button is simply
+live, and pressing it is the point.
+
 ## 0.171 — 17 September 2026
 
 **In "Match the pairs", two forms of the same card now say which is which.**

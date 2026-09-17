@@ -71,6 +71,14 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   combination to hold them together. `standing` picks the one row to put
   on a card. The Progress tab counts cards by level, and a card's own
   screen lists them.
+
+  **And it is the first thing the home screen shows.** `Climb`, above Start
+  session, draws the same ladder in one line: a ring of how much of the
+  collection is learnt — `deckPercent`, shared with the Progress tab so the
+  two cannot disagree — and a band beside it of every card filed under the
+  level it is on, in the colours Progress gives those levels. It is drawing
+  and not a readout: the home screen answers "how far have I got" in a
+  picture, and the counts behind it live a tab away.
 - **The shape of a session is the app's to decide, not the learner's.**
   Eighteen questions; each form asked two ways where its data allows; at
   most two forms of any one card; easiest first. Cards are taken in the order they fell due, with chance between
@@ -127,8 +135,10 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   quiet window, what a device can play, two forms of a card at most — with
   one exception: it is never refused for want of variety, because the one
   thing you keep failing is a session worth having. `weakness`, `isWeak`
-  and `buildWeakSession` in `src/ArabicTrainer.tsx`; the count beside the
-  button reads `isWeak`, so a number there is a session that builds.
+  and `buildWeakSession` in `src/ArabicTrainer.tsx`; the button is live
+  exactly when `isWeak` finds something, so pressing it is always a session
+  that builds, and on the days it finds nothing the button says so rather
+  than sitting there dimmed and unexplained.
 - **A learner can ask for a card.** Marking one *high priority* on its own
   screen, under Cards, is the one place a learner overrides the schedule:
   the card counts as waiting however far off its next review is, opens the

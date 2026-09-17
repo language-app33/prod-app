@@ -430,6 +430,24 @@ const LEVEL_COLOR: Record<number, string> = {
   4: "var(--jade)",
 };
 
+/* The same five rungs as a band, on the home screen: the four levels, then
+   the cards with nothing above them left to open.
+
+   The ladder's own colours, with one change at the bottom. A tile on the
+   Progress screen writes its count in the level's colour and the bottom
+   level's is the ink the rest of the app is written in, which is right for
+   a numeral and wrong for a bar: a learner whose cards are all on the first
+   level would be shown one solid bar in the brightest colour on the screen,
+   which reads as finished rather than as not started. In a band the bottom
+   rung is the quiet one. */
+const CLIMB_COLOR: string[] = [
+  "var(--muted)",
+  LEVEL_COLOR[2],
+  LEVEL_COLOR[3],
+  LEVEL_COLOR[4],
+  "var(--jade)",
+];
+
 const STATUS_COLOR: Record<string, string> = {
   none: "var(--muted)",
   learning: "var(--brass)",
@@ -7019,23 +7037,6 @@ export default function ArabicTrainer() {
     [drillable, settings]
   );
 
-  /*
-   * Why no new words are arriving, when none are.
-   *
-   * A learner can be practising perfectly happily and still never meet a
-   * new word, because the words they hold have not been learnt yet. That
-   * is the rule doing its job, and until now it did it in silence — which
-   * reads as the app having quietly run out. Named, it is a goal instead:
-   * these are the ones in the way, and more arrive as they go.
-   */
-  const newWordsHeldUp = useMemo(() => {
-    const unmet = drillable.filter(
-      (it) => familyMaturity(it, (u: Form) => reachedTypes(u, settings)) === "new"
-    ).length;
-    if (!unmet) return 0;
-    return roomForNew(handCounts(shown, settings)) === 0 ? unmet : 0;
-  }, [drillable, shown, settings]);
-
   /* ---------------- session ---------------- */
 
   /*
@@ -8834,12 +8835,6 @@ export default function ArabicTrainer() {
   setSounds(settings.sounds);
   const inExercise = !!(session && exercise);
   const kbOpen = kb.open && inExercise;
-  const undrillable = items.filter((it) => !isDrillable(it, settings)).length;
-  /* Whether the quiet window is open, for the one message whose explanation
-     changes while it is: a card can fall below the two-type minimum because
-     its listening exercises are paused, and saying it is missing fields would
-     send someone looking for a fault that isn't there. */
-  const listenQuiet = listenOff > Date.now();
 
   /*
    * What the corner menu says about sync.
@@ -8983,15 +8978,15 @@ export default function ArabicTrainer() {
 
             {items.length > 0 && !session && (
               <>
-                <div className="at-card">
-                  <p className="at-eyebrow">
-Cards ready to practice
-                  </p>
-                  <Stat value={readyCount} big />
-                  <Help>
-                    Each form is asked {PER_UNIT} different ways where its data allows,
-                    spread across the session.
-                  </Help>
+                {/* The count of what is waiting rides on the card as an
+                    attribute rather than a line of text: nothing reads it at
+                    runtime, and it is here so the walk through the app can
+                    still check that the right cards are being counted after
+                    the number came off the screen. */}
+                <div className="at-card" data-ready={readyCount}>
+                  {/* How far along the learner is, above the button that
+                      takes them further. */}
+                  <Climb items={shown} settings={settings} />
 
                   <div className="at-row">
                     {/* Always live while there is anything to drill. Being
@@ -9020,7 +9015,14 @@ Cards ready to practice
                       leave out a button that would open on an empty
                       screen, but a learner has to be able to find this one
                       to learn what it does, and "nothing slipping" is a
-                      thing worth being told on the days it is true. */}
+                      thing worth being told on the days it is true.
+
+                      Only on those days. The count that used to sit here on
+                      every other day said what the button already offers,
+                      in the one place on the home screen where a number is
+                      not the point: what is slipping is a session away, and
+                      how much of it there is changes nothing about pressing
+                      the button. */}
                   <div className="at-row at-mt3">
                     <Button variant="ghost"
                       onClick={beginWeak}
@@ -9028,11 +9030,7 @@ Cards ready to practice
                     >
                       Weak skills
                     </Button>
-                    <Meta>
-                      {weakCount
-                        ? `${plural(weakCount, "card")} slipping`
-                        : "nothing slipping just now"}
-                    </Meta>
+                    {!weakCount && <Meta>nothing slipping just now</Meta>}
                   </div>
                   <div className="at-row at-mt3">
                     <Button variant="ghost"
@@ -9045,7 +9043,7 @@ Cards ready to practice
                   </div>
                   {/* Numbers are built out of the deck's parts rather than
                       dealt from it, so the practice is started by hand and
-                      has no place in the count above. Offered only where
+                      is no part of the climb above. Offered only where
                       there is actually something to build — a deck with no
                       number words in it would open on an empty sitting,
                       which is a promise the app has not kept. */}
@@ -9075,34 +9073,12 @@ Cards ready to practice
                         welcome and won't move your schedule much.`}
                     </Help>
                   )}
-                  {newWordsHeldUp > 0 && (
-                    <Help>
-                      {`${plural(newWordsHeldUp, "word")} waiting to be introduced. New ones arrive
-                        as the words you're learning settle, so practising what you have is what
-                        brings them.`}
-                    </Help>
-                  )}
                   {!drillable.length && items.length > 0 && (
                     <Notice kind="warn">
                       No card here has two usable exercise types. A card needs the{" "}
                       {langOf(settings).scriptLabel} and at least one more field
                       before it can be practiced.
                     </Notice>
-                  )}
-                  {undrillable > 0 && drillable.length > 0 && (
-                    <Help>
-                      {listenQuiet ? (
-                        <>
-                          {plural(undrillable, "item")} sitting out while listening is
-                          off — see Items for anything missing a field.
-                        </>
-                      ) : (
-                        <>
-                          {plural(undrillable, "item")} sitting out — see Items for
-                          which fields are missing.
-                        </>
-                      )}
-                    </Help>
                   )}
                 </div>
               </>
@@ -10027,6 +10003,109 @@ Cards ready to practice
 
       {snack.node}
       </SnackbarProvider>
+    </div>
+  );
+}
+
+/*
+ * How far along the learner is, at the top of the home screen.
+ *
+ * The screen used to open on a count of what was due. That answers "what is
+ * there to do right now" and says nothing at all about the climb: somebody
+ * in their first week and somebody three months in were both told twelve,
+ * and the one thing a learner wants to see when the app opens — that this is
+ * going somewhere — was a tab away.
+ *
+ * Drawn rather than said, because it is a feeling as much as a number. The
+ * ring is the percentage the Progress tab puts on a deck, taken over
+ * everything in play instead of one deck; it shares deckPercent with that
+ * screen, so the two cannot come to disagree, and it is short of a hundred
+ * until every card really is learnt. The band under it is the ladder itself:
+ * every card filed under the level it is on, in the colours Progress gives
+ * those levels, so a collection freshly joined is one flat colour and a
+ * collection nearly finished is mostly jade. The line between them says the
+ * same thing in words, which is what a screen reader gets and what the eye
+ * can check the drawing against.
+ *
+ * Nothing here is pressable. It is the answer to a question, not the start
+ * of a job, and the whole point of the card it sits on is the button
+ * underneath.
+ */
+function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
+  const climb = useMemo(() => {
+    /* The four levels, then the cards with nothing above them left to open
+       — the same five buckets the tiles in Progress count. */
+    const spread = [0, 0, 0, 0, 0];
+    let n = 0;
+    let learnt = 0;
+    let got = 0;
+    for (const it of items) {
+      const rows = cardStandings(it, settings);
+      const at = standing(rows);
+      /* A card with nothing it can be asked yet is on no level, so it is
+         not progress to be short of — the exclusion Progress makes too. */
+      if (!at) continue;
+      n++;
+      /* A level a card has no material for is not a level it is short of,
+         so the denominator is the levels it actually has. */
+      got += rows.filter((r) => r.status === "done").length / rows.length;
+      if (at.status === "done") {
+        learnt++;
+        spread[4]++;
+      } else spread[at.level - 1]++;
+    }
+    return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
+  }, [items, settings]);
+
+  /* Nothing practisable, nothing to draw. The card below still offers what
+     it can, and the reason there is nothing is the Cards tab's to give. */
+  if (!climb.n) return null;
+  const { n, learnt, pct, spread } = climb;
+  /* The ring is a dash drawn along a circle: as much of the way round as
+     the number, and left off for the rest. */
+  const ROUND = 2 * Math.PI * 32;
+  return (
+    <div className="at-climb">
+      <div className="at-climbring">
+        <svg viewBox="0 0 72 72" aria-hidden="true" focusable="false">
+          <circle className="track" cx="36" cy="36" r="32" />
+          {/* Nothing drawn at nothing: a round-ended stroke of no length is
+              a dot at twelve o'clock, which is a mark on a ring that is
+              meant to be empty. */}
+          {pct > 0 && (
+            <circle
+              className="fill"
+              cx="36"
+              cy="36"
+              r="32"
+              strokeDasharray={`${(ROUND * pct) / 100} ${ROUND}`}
+              /* From the top, rather than from three o'clock. */
+              transform="rotate(-90 36 36)"
+            />
+          )}
+        </svg>
+        {/* The number inside the ring is the ring, so it is drawing too:
+            the line beside it is what gets said. */}
+        <b aria-hidden="true">
+          {pct}
+          <i>%</i>
+        </b>
+      </div>
+      <div className="at-climbside">
+        <p className="at-climbsay">
+          {learnt} of {plural(n, "card")} learnt
+        </p>
+        <span className="at-climbband" aria-hidden="true">
+          {spread.map((count, i) =>
+            count ? (
+              <i
+                key={i}
+                style={{ width: `${(count / n) * 100}%`, background: CLIMB_COLOR[i] }}
+              />
+            ) : null
+          )}
+        </span>
+      </div>
     </div>
   );
 }
