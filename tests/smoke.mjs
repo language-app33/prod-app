@@ -3810,9 +3810,29 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   {
     const blanks = () => [...document.querySelectorAll(".at-formblock")]
       .find((b) => /^Blanks$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-    const pickBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
-      [...(blanks() || document).querySelectorAll(".at-choosebtn")]
-        .find((b) => re.test((b.textContent || "").trim())) || null);
+    /* Which half of the section a thing is in. The block is two named
+       halves doing opposite jobs and each has a box and a list, so a
+       selector over the whole block would answer about whichever came
+       first — and "the list under this heading" is the actual claim. */
+    const half = (/** @type {RegExp} */ re) => {
+      const block = blanks();
+      if (!block) return [];
+      const kids = [...block.children];
+      const at = kids.findIndex((k) =>
+        k.classList.contains("at-groupline") && re.test((k.textContent || "").trim()));
+      if (at < 0) return [];
+      const next = kids.findIndex((k, i) => i > at && k.classList.contains("at-groupline"));
+      return kids.slice(at + 1, next < 0 ? kids.length : next);
+    };
+    const inHalf = (/** @type {RegExp} */ re, /** @type {string} */ sel) =>
+      half(re).flatMap((n) => [
+        ...(n.matches(sel) ? [n] : []),
+        ...n.querySelectorAll(sel),
+      ]);
+    const named = (/** @type {any} */ row) =>
+      (((row.querySelector("b") || {}).textContent) || "").trim();
+    const HOLES = /^Blanks in this card$/;
+    const FILLS = /^Using this card to fill a blank$/;
 
     check("the section is called Blanks, not Variables", !!blanks(),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
@@ -3891,49 +3911,77 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         panel() ? "still open" : "closed");
     }
 
-    /* And the button that writes one. It goes into every field at once,
-       which is the whole reason the fields can no longer disagree — so
-       what is checked is all three, not the one that was focused. */
+    /* ---- and the list that writes one, on the screen ----
+
+       It was a button that opened a menu of blank ids — under one heading,
+       while a list of blank ids stood under the other, which read as the
+       same control in two places. It is not: this writes a hole into the
+       card's own words, and that one says the card stands in somebody
+       else's. Both are lists now, so the headings do the telling apart.
+
+       What it writes goes into every field at once, which is the whole
+       reason the fields can no longer disagree — so what is checked is all
+       three, not the one that was focused. */
     typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
     await sleep(80);
     typeInto(fieldNamed(/^English$/), "My name is");
-    await sleep(200);
-    check("a card with no blank is refused none of them", !!pickBtn(/\+ Blank/),
-      pickBtn(/\+ Blank/) ? "offered" : "no button");
-    click(pickBtn(/\+ Blank/));
-    await sleep(200);
-    const rows = [...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))];
-    check("pressing it lists the blanks this language already knows",
-      rows.length > 0 && rows.some((r) => /^name/.test(((r.querySelector("b") || {}).textContent || "").trim())),
-      rows.map((r) => ((r.querySelector("b") || {}).textContent || "").trim()).join(", ") || "(none)");
-    check("with the built-in one among them, where somebody is looking for it",
-      rows.some((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "word"),
-      rows.map((r) => ((r.querySelector("b") || {}).textContent || "").trim()).join(", "));
+    await sleep(250);
+    const holeList = () => inHalf(HOLES, ".at-ticklist .at-tickrow");
+    const holeNames = () => holeList().map(named);
+    const holeRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
+      holeList().find((r) => re.test(named(r))) || null);
+    const holeTicked = () => holeList()
+      .filter((r) => /** @type {any} */ (r.querySelector("input")).checked).map(named);
+    const holeBox = () => /** @type {any} */ (inHalf(HOLES, ".at-blanknew")[0] || null);
+    check("the blanks it can leave are a list on the screen, not a menu to open",
+      holeList().length > 0 &&
+        !inHalf(HOLES, ".at-choosebtn").length,
+      holeNames().join(", ") || "(no list)");
+    check("with the built-in ones among them, where somebody is looking for them",
+      holeNames().includes("word") && holeNames().includes("noun"),
+      holeNames().join(", "));
     /* Each says what it is worth: whether a card using it can be practised
        at all, and whether this is the name everybody else uses. */
     check("and what each one is worth",
-      rows.every((r) => /\d/.test(((r.querySelector("i") || {}).textContent || ""))),
-      rows.map((r) => ((r.querySelector("i") || {}).textContent || "").trim()).join(" | "));
+      holeList().every((r) => /\d/.test(((r.querySelector("i") || {}).textContent || ""))),
+      holeList().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
+    check("and the box that names a new one is above the list here too",
+      !!holeBox() && !!holeList().length &&
+        !!(holeBox().compareDocumentPosition(holeList()[0]) & 4),
+      holeBox() ? "above" : "(no box)");
 
-    click(rows.find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "name"));
+    click(/** @type {any} */ (holeRow(/^name$/).querySelector("input")));
     await sleep(250);
-    const ar = fieldNamed(/^Arabic script and transliteration$/i);
-    const en = fieldNamed(/^English$/);
-    check("choosing one writes it into every field at once",
-      !!ar && ar.value === "ismi {{name}}" && !!en && en.value === "My name is {{name}}",
-      `script "${ar ? ar.value : "—"}", English "${en ? en.value : "—"}"`);
+    /* Re-queried each time rather than held: ticking a blank re-renders the
+       form, so a field kept in a variable is a field no longer on screen. */
+    const ar = () => /** @type {any} */ (fieldNamed(/^Arabic script and transliteration$/i));
+    const en = () => /** @type {any} */ (fieldNamed(/^English$/));
+    check("ticking one writes it into every field at once",
+      !!ar() && ar().value === "ismi {{name}}" && !!en() && en().value === "My name is {{name}}",
+      `script "${ar() ? ar().value : "—"}", English "${en() ? en().value : "—"}"`);
     check("so the fields cannot disagree, and the card saves",
       !!saveBtn() && !saveBtn().disabled && !/is missing \{\{/.test(document.body.textContent || ""),
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
-    /* Pressing it again is not a second copy of the same blank. */
-    click(pickBtn(/\+ Blank/));
-    await sleep(200);
-    click([...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
-      .find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "name"));
+    check("and the list says so, so what the card leaves is read off one place",
+      JSON.stringify(holeTicked()) === JSON.stringify(["name"]),
+      holeTicked().join(", ") || "(none ticked)");
+
+    /* And unticking takes it out of all three, which could only be done by
+       hand before — from three fields, one of which runs the other way,
+       and a card left with the braces in two of them cannot be saved. So
+       the half that could only be done by hand was the half that broke the
+       card. */
+    click(/** @type {any} */ (holeRow(/^name$/).querySelector("input")));
     await sleep(250);
-    check("and choosing it twice does not write it twice",
-      !!en && en.value === "My name is {{name}}",
-      en ? `"${en.value}"` : "no field");
+    check("and unticking it takes it out of every field at once",
+      !!ar() && ar().value === "ismi" && !!en() && en().value === "My name is" &&
+        !/is missing \{\{/.test(document.body.textContent || ""),
+      `script "${ar() ? ar().value : "—"}", English "${en() ? en().value : "—"}"`);
+    click(/** @type {any} */ (holeRow(/^name$/).querySelector("input")));
+    await sleep(250);
+    check("and it can be put back, without the braces ever being typed",
+      !!en() && en().value === "My name is {{name}}",
+      en() ? `"${en().value}"` : "no field");
 
     /* ---- and a sentence is a kind of card in its own right ----
 
@@ -3969,18 +4017,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     /* The blanks a sentence is made of: one per kind of word the language
        declares, so writing "{{noun}} {{adjective}}" is all a teacher has to
        do and every noun they have written joins in. */
-    click(pickBtn(/\+ Blank/));
-    await sleep(250);
-    const kindsOfWord = [...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
-      .map((r) => ((r.querySelector("b") || {}).textContent || "").trim());
+    const kindsOfWord = () => holeNames();
     check("the blanks on offer include every kind of word this language declares",
-      kindsOfWord.includes("noun") && kindsOfWord.includes("verb") &&
-        kindsOfWord.includes("adjective"),
-      kindsOfWord.join(", ") || "(none)");
+      kindsOfWord().includes("noun") && kindsOfWord().includes("verb") &&
+        kindsOfWord().includes("adjective"),
+      kindsOfWord().join(", ") || "(none)");
     check("with the built-in ones first, where somebody is looking for them",
-      kindsOfWord[0] === "word", kindsOfWord.join(", "));
-    click([...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
-      .find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "noun"));
+      kindsOfWord()[0] === "word", kindsOfWord().join(", "));
+    click(/** @type {any} */ (holeRow(/^noun$/).querySelector("input")));
     await sleep(250);
     const sar = fieldNamed(/^Arabic script and transliteration$/i);
     const sen = fieldNamed(/^English$/);
@@ -4026,9 +4070,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
          into somebody else's hole is a sentence with a gap where the point
          was — so the half that offers it says why rather than offering a
          control there is no answer to. */
-      const newBox = () => /** @type {any} */ (
-        [...((blanks() || document).querySelectorAll(".at-blanknew"))]
-          .find((n) => !n.closest(".at-choosemenu")) || null);
+      const newBox = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew")[0] || null);
       check("and a card that leaves a blank is told why it fills none",
         /fills none/.test(((blanks() || {}).textContent) || "") && !newBox(),
         newBox() ? "offered anyway" : "said, and not offered");
@@ -4042,7 +4084,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       /* The blanks it may fill, as a list on the screen. It was a menu
          that had to be opened — and a list you have to open to see is a
          list you answer without reading. */
-      const fillList = () => [...((blanks() || document).querySelectorAll(".at-ticklist .at-tickrow"))];
+      const fillList = () => inHalf(FILLS, ".at-ticklist .at-tickrow");
       const fillNames = () => fillList()
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
       const fillRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
@@ -4051,9 +4093,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         .filter((r) => /** @type {any} */ (r.querySelector("input")).checked)
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
       check("the blanks it can fill are a list on the screen, not a menu to open",
-        fillList().length > 0 &&
-          ![...((blanks() || document).querySelectorAll(".at-choosebtn"))]
-            .some((b) => /Fills a blank/.test((b.textContent || "").trim())),
+        fillList().length > 0 && !inHalf(FILLS, ".at-choosebtn").length,
         fillNames().join(", ") || "(no list)");
       /* And blank ids, not kinds of card. A card fills {{noun}} by saying
          it is a noun, so a tick for it would do nothing — while {{name}},

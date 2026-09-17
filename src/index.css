@@ -557,8 +557,6 @@ button {
   box-shadow: var(--nav-shadow); }
 .at-choosemenu .at-eyebrow { margin:0 0 8px; }
 .at-choosemenu .at-hint { margin:10px 0 0; }
-.at-choosebtn.new { border-style:dashed; border-color: var(--jade); color: var(--jade); }
-.at-blanklist { display:flex; flex-direction:column; gap:7px; }
 /*
  * The sentences a student will be asked, filled with the words that exist
  * today. The section used to explain this in ninety words; three real
@@ -621,11 +619,9 @@ button {
    thing is the width of what it says, and the line wraps. */
 .at-blankrow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top: var(--s4); }
 .at-blankrow > * { flex:0 0 auto; max-width:100%; }
-/* The one place a blank is named by hand: the box takes the room, the
-   button takes what it needs. Two of them now — in the picker, for a
-   blank the card leaves, and at the top of the half that says which
-   blanks the card fills, where it is the one thing nobody can do by
-   choosing off a list. */
+/* Naming a blank by hand: the box takes the room, the button takes what it
+   needs. One in each half of the Blanks section — both name blanks, and
+   neither list can offer a name nobody has written yet. */
 .at-blanknew { display:flex; gap:8px; margin-top:10px; }
 .at-blanknew .at-input { flex:1 1 auto; min-width:0; }
 .at-blanknew .at-btn { flex:0 0 auto; }

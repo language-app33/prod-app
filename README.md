@@ -212,24 +212,36 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
 
-  **The editor's Blanks section is two named halves, and neither explains
-  itself in words where it can show.** *Blanks in this card* draws each
-  hole the card leaves and, under it, the card as a student will actually
-  meet it — three sentences, each in the script, in how it is said and in
-  what it means, filled from the words that exist today. Pointing at a
-  hole lists the words that will go in it, which is the only place a
-  teacher can see whether the right vocabulary is behind a blank without
-  leaving the card. *Using this card to fill a blank* is the other job:
-  a box that names a new blank, above a list of every blank anybody has
-  written, with this card's ticked — so ticking is how a card comes to
-  fill one and unticking is how it stops. A kind of word is not in that
-  list, because a card fills `{{noun}}` by saying it is a noun and
-  `{{word}}` by being a word, and a tick that changes nothing is worse
-  than no tick; a name a language happens to declare as a kind *and* a
-  teacher writes by hand — Arabic's `name` — is in it, because what is
-  offered is what somebody wrote rather than what is not built in. A card
-  that leaves a blank of its own fills none, so on one of those the second
-  half says that rather than offering a control there is no answer to.
+  **The editor's Blanks section is two named halves, each a box above a
+  list, and neither explains itself in words where it can show.** Nothing
+  in it is behind a button: two lists of blank names under two headings
+  read as one control drawn twice, so what tells them apart is the
+  headings, which only works if both are on the screen to be compared.
+
+  *Blanks in this card* draws the card as a student will actually meet it
+  — three sentences, each in the script, in how it is said and in what it
+  means, filled from the words that exist today — then each hole it
+  leaves, then every blank it could leave, with those ticked. Ticking one
+  writes `{{name}}` into every field at once and unticking takes it out of
+  every field at once, which is what makes "every field with words in it
+  leaves the same blanks" a rule the editor keeps rather than one it
+  reports: taking a hole out was the half that could only be done by hand,
+  from three fields, one of which runs the other way. Pointing at a hole
+  lists the words that will go in it, which is the only place a teacher
+  can see whether the right vocabulary is behind a blank without leaving
+  the card.
+
+  *Using this card to fill a blank* is the opposite job and its list is
+  the opposite list: the blanks somebody wrote, with this card's ticked.
+  A kind of word is in the first list and not this one, and that asymmetry
+  is the point — leaving a `{{noun}}` hole is a real thing to write, while
+  *filling* one is what a card does by saying it is a noun, so a tick for
+  it would change nothing. What is offered here is what somebody wrote
+  rather than what is not built in, because a language may declare a kind
+  of word whose name a teacher also uses by hand: Arabic declares `name`
+  and `{{name}}` is the oldest frame in the app. A card that leaves a
+  blank of its own fills none, so on one of those this half says that
+  rather than offering a control there is no answer to.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the

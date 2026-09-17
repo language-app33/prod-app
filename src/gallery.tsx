@@ -174,7 +174,7 @@ const PLACES: Record<string, [string, string]> = {
   BlankChip: [TEACH, "Editing a card · one blank, and the words that fill it"],
   RecordingOverlays: [TEACH, "Editing a card · recording a form"],
   DeckSwitch: [TEACH, "Editing a card · which decks it is in"],
-  BlankPicker: [TEACH, "Editing a card · choosing a blank"],
+  BlankNameBox: [TEACH, "Editing a card · naming a blank nobody has named yet"],
   VerbTable: [TEACH, "Filling in a verb's forms"],
   Alternatives: [TEACH, "Editing a card · several accepted answers"],
   ScriptAnswers: [TEACH, "Editing a card · each answer and how it is said"],

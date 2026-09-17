@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.161 — 17 September 2026
+
+**Nothing in the Blanks section is behind a button any more.**
+
+0.160 put the blanks a card *fills* on the screen as a list, and left the
+blanks a card *leaves* behind a "+ Blank" button that opened a menu of the
+same names. Two lists of blank names under two headings, one of them hidden,
+read as the same control in two places — and they are not: one writes a hole
+into this card's words, the other says this card stands in another card's
+hole.
+
+*Blanks in this card* is now a box and a list too, the same shape as the half
+below it: type a new blank name at the top, and below it every blank you
+could leave, with this card's ticked. The two lists are side by side, so the
+headings can do the telling apart.
+
+**And a blank can be taken out again.** Ticking one writes `{{name}}` into
+every field at once, which is what it always did. Unticking now takes it out
+of every field at once — which you could only do before by deleting the
+braces by hand from all three fields, one of which runs the other way, and a
+card left with them in two fields and not the third cannot be saved. Putting
+a blank in stopped being typing two releases ago; taking one out has now
+caught up.
+
+The two lists are deliberately not identical: kinds of word (`{{noun}}`,
+`{{verb}}`, `{{word}}`) are offered as holes to leave, because "{{noun}} is
+heavy" is a real sentence to write, and are not offered as blanks to fill,
+because a card fills `{{noun}}` by saying it is a noun.
+
 ## 0.160 — 17 September 2026
 
 **Saying which blanks a card fills is a list you can see.**

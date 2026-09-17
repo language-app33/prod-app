@@ -2130,13 +2130,36 @@ field whose filler has nothing to put in it keeps the braces standing, exactly
 as the question would, which is the teacher's answer about the card they have
 written rather than a gap to wonder about.
 
-**The blanks a card fills are a list on the screen, not a menu.** Which
-blanks a word is offered to is the question that half of the section exists to
-ask, and it was behind a button: a list you have to open to see is a list you
-answer without reading. It is a tick list now, and the box that names a new
-blank is above it rather than at the bottom of the menu — naming the first
-blank of a kind is the one thing here nobody can do by choosing off a list, so
-it is the one thing that must never be the hardest to reach.
+**Neither half is behind a button, and that is what makes the headings
+work.** Which blanks a word is offered to, and which holes a card leaves, are
+both questions a list answers, and both were behind buttons — a list you have
+to open to see is a list you answer without reading. Worse, once one half was
+a list on the screen and the other was a button that opened a menu of blank
+names, the two read as the same control in two places: the first thing said
+about the change was "shouldn't that button be under the other heading?",
+which is the correct question to ask about two things that look identical and
+the wrong answer, because they do opposite jobs. Two lists, side by side under
+their two headings, is what lets the headings do the telling apart. The box
+that names a new blank sits above each list rather than at the bottom of a
+menu — naming the first blank of a kind is the one thing here nobody can do by
+choosing, so it is the one thing that must never be hardest to reach.
+
+**Ticking a hole writes it, and unticking takes it out.** Putting a blank into
+a card stopped being typing in 0.139, because typing braces into three fields
+that must agree is exactly the thing a teacher gets wrong — but *taking one
+out* was left as hand-editing all three, one of which runs the other way, and
+a card left with the braces in two fields and not the third cannot be saved.
+So the half that could only be done by hand was the half that broke the card.
+`dropBlank` cuts with `splitSlots` rather than a pattern built out of the
+name: what counts as a slot is variables.ts's answer, and a second copy of it
+in the editor would be a second answer waiting to disagree.
+
+**The two lists are deliberately not the same list.** The holes list carries
+the built-in blanks — `{{word}}` and every kind of word the language declares
+— and the fills list does not. Leaving a `{{noun}}` hole is a real thing to
+write; filling one is what a card does by saying it is a noun, so a tick for
+it would change nothing. Same control, same shape, different contents,
+because the two questions have different answers.
 
 **What is offered is what somebody wrote, not what is not built in.** A card
 fills `{{noun}}` by saying it is a noun and `{{word}}` by being a word — see

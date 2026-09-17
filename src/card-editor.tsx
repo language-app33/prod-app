@@ -36,7 +36,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { fillNames, fillText, hasSlots, MAX_FILLS, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import { fillNames, fillText, hasSlots, MAX_FILLS, slotsIn, slotsOf, slotTrouble, splitSlots, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -987,90 +987,53 @@ function DeckSwitch({ decks, chosen, onToggle }: {
 }
 
 /*
- * A blank, and the cards that fill it: chosen from a list, never spelled.
+ * Naming a blank, which is the one thing here nobody can do by choosing.
  *
  * The name of a blank is the one thing on this screen that has to match
  * something written on another card exactly, and it used to be a free-text
- * box. Typing `names` where every other card says `name` was accepted,
- * saved, and filled nothing for ever, with nothing on screen to notice —
- * the only silent failure the editor had. So the blanks this language
- * already knows about are offered as a list, with what each one is worth,
- * and typing one out is what you do once, for the first of its kind.
+ * box on its own: typing `names` where every other card says `name` was
+ * accepted, saved, and filled nothing for ever, with nothing on screen to
+ * notice — the only silent failure the editor had. So every blank this
+ * language already knows about is a row in a list beside this box, and
+ * typing one out is what you do once, for the first of its kind.
  *
- * `word` is in the list rather than in a paragraph above it. It is the
- * blank every word in the language fills without being told to, which is
- * worth knowing exactly when you are choosing a blank and nowhere else.
+ * Both halves of the section have one, because both name blanks and
+ * neither can offer a name nobody has written yet. What they do with it
+ * differs and is the caller's business: one writes it into the card's
+ * words, the other says the card fills it.
+ *
+ * Narrowed as it is typed to the shape a slot may have — see fillNames,
+ * which narrows the same way on the way to disk. Doing it here is what
+ * stops a teacher typing "Name Is!" and being handed "nameis" by a save
+ * they have already forgotten about.
  */
-function BlankPicker({ label, tone, blanks, current, title, onPick }: {
-  label: Node;
-  tone?: string;
-  blanks: Blank[];
-  current?: string;
-  title?: string;
-  onPick: (name: string) => void;
+function BlankNameBox({ label, placeholder, taken, onName }: {
+  label: string;
+  placeholder: string;
+  /** Names already on this list, which are chosen rather than typed again. */
+  taken: string[];
+  onName: (name: string) => void;
 }) {
-  const { open, setOpen, mine } = usePicker();
   const [made, setMade] = useState("");
-
-  const take = (name: string) => {
-    const clean = name.toLowerCase().replace(/[^a-z0-9_-]/g, "");
-    if (!clean) return;
-    onPick(clean);
+  const name = made.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24);
+  const add = () => {
+    if (!name || taken.includes(name)) return;
+    onName(name);
     setMade("");
-    setOpen(false);
   };
-
   return (
-    <div className="at-chooser" ref={mine}>
-      <button
-        className={`at-choosebtn${tone ? " " + tone : ""}`}
-        aria-expanded={open}
-        aria-label={title}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className="at-choosemark">{label}</span>
-      </button>
-
-      {open && (
-        <div className="at-choosemenu">
-          <p className="at-eyebrow">Blanks</p>
-          <div className="at-blanklist">
-            {blanks.map((b) => (
-              <button
-                key={b.name}
-                className={`at-ck${current === b.name ? " on" : ""}`}
-                onClick={() => take(b.name)}
-              >
-                <span className="at-cktext">
-                  <b>{b.name}</b>
-                  <i>
-                    {b.built === "any"
-                      ? `built in · any of ${plural(b.words, "word")} in this language`
-                      : b.built === "category"
-                        ? `built in · ${plural(b.words, "card")} said to be one`
-                        : `${plural(b.words, "word")} to fill it · left by ${plural(b.used, "card")}`}
-                  </i>
-                </span>
-              </button>
-            ))}
-          </div>
-          {/* The first blank of its kind has to be named by somebody, and
-              this is where they are already looking. */}
-          <div className="at-blanknew">
-            <input
-              className="at-input"
-              value={made}
-              placeholder="A new blank"
-              aria-label="Name a new blank"
-              onChange={(e) => setMade(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
-              onKeyDown={(e) => e.key === "Enter" && take(made)}
-            />
-            <Button variant="ghost" size="sm" disabled={!made} onClick={() => take(made)}>
-              Add
-            </Button>
-          </div>
-        </div>
-      )}
+    <div className="at-blanknew">
+      <input
+        className="at-input"
+        value={made}
+        placeholder={placeholder}
+        aria-label={label}
+        onChange={(e) => setMade(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24))}
+        onKeyDown={(e) => e.key === "Enter" && add()}
+      />
+      <Button variant="ghost" size="sm" disabled={!name || taken.includes(name)} onClick={add}>
+        Add
+      </Button>
     </div>
   );
 }
@@ -1894,6 +1857,27 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   }, [allCards, lang]);
 
   /*
+   * The blanks this card could leave, ticked where it leaves them.
+   *
+   * Every blank there is, built-in ones included — which is the difference
+   * between this list and the one below it, and the reason they are two
+   * lists rather than one control drawn twice. Leaving a `{{noun}}` hole
+   * is a real thing to write: "{{noun}} is heavy" is a frame met with
+   * every noun in the deck. *Filling* one is not, because a card fills
+   * `{{noun}}` by saying it is a noun and there is nothing to tick.
+   *
+   * Plus any hole the card already has that nothing else uses yet — one
+   * just written here, which no saved card has heard of — because a list
+   * that hides what the card holds is a list you cannot take it out in.
+   */
+  const holesOffer = useMemo(() => {
+    const held = holes
+      .filter((name) => !blanksAround.some((b) => b.name === name))
+      .map((name) => ({ name, words: 0, used: 0, wrote: 0 }));
+    return blanksAround.concat(held);
+  }, [blanksAround, holes]);
+
+  /*
    * The blanks this card can be offered to fill: the ones somebody wrote.
    *
    * A kind of word is not one of them. A card fills `{{noun}}` by saying
@@ -2016,6 +2000,41 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
       f.map((form, i) =>
         i === 0
           ? { ...form, ar: grown(form.ar), en: grown(form.en), lat: grown(form.lat) }
+          : form,
+      ),
+    );
+  };
+  /*
+   * Take a blank out of the card, in every field at once.
+   *
+   * The other half of putBlank, and it exists for the same reason: taking
+   * a hole out meant deleting the braces by hand from three fields, one of
+   * which runs the other way — which is exactly the thing that could not be
+   * done reliably and is why putting one in stopped being typing. A card
+   * left with the braces in two fields and not the third cannot be saved,
+   * so the half that could only be done by hand was the half that broke
+   * the card.
+   *
+   * Cut with splitSlots rather than a pattern built out of the name: what
+   * counts as a slot is variables.ts's answer, and a second copy of it
+   * here would be a second answer waiting to disagree. A slot comes back
+   * lower-cased, so {{Name}} goes with {{name}}.
+   */
+  const dropBlank = (name: string) => {
+    const gone = (had: string) =>
+      splitSlots(String(had || ""))
+        .filter((run) => run.slot !== name)
+        .map((run) => run.text)
+        .join("")
+        /* The space that stood between the words and the hole is left
+           behind by taking the hole out, and two spaces in the middle of a
+           sentence is a card that reads as a mistake. */
+        .replace(/[ \t]{2,}/g, " ")
+        .trim();
+    setForms((f) =>
+      f.map((form, i) =>
+        i === 0
+          ? { ...form, ar: gone(form.ar), en: gone(form.en), lat: gone(form.lat) }
           : form,
       ),
     );
@@ -2152,12 +2171,14 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     tableCells,
     trouble,
     blanksAround,
+    holesOffer,
     asked,
     starved,
     fillers,
     canSave,
     setForm,
     putBlank,
+    dropBlank,
     parts,
     setAskPart,
   };
@@ -3045,8 +3066,8 @@ function BlankChip({ slot, values, lang }: {
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, asked, fillers, fills, fillsOffer, addFill, dropFill,
-    main, standsIn, blanksAround, putBlank, trouble, drill, setDrillChoice,
-    category,
+    main, standsIn, holesOffer, putBlank, dropBlank, trouble, drill,
+    setDrillChoice, category,
   } = word;
   /* A card with a blank of its own fills none — see fillsOf, which is the
      one answer to that and which this only reports. So the second
@@ -3057,19 +3078,6 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
      and nothing else can be added to a list that fills nothing. */
   const offered = holes.length ? fillsOffer.filter((b) => fills.includes(b.name)) : fillsOffer;
   const full = fills.length >= MAX_FILLS;
-  /* Naming the first blank of a kind is the one thing here nobody can do
-     by choosing, so it is a box of its own. Narrowed as it is typed to
-     what a slot may be named — see fillNames, which narrows the same way
-     on the way to disk; doing it here is what stops a teacher typing
-     "Name Is!" and being handed "nameis" by a later save. */
-  const [made, setMade] = useState("");
-  const clean = (typed: string) => typed.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24);
-  const nameOne = () => {
-    const name = clean(made);
-    if (!name) return;
-    addFill(name);
-    setMade("");
-  };
   return (
     <>
     {/* ---- blanks ----
@@ -3146,22 +3154,18 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </>
         )}
 
-        <div className="at-blankrow">
-          {holes.map((slot) => (
-            <BlankChip key={slot} slot={slot} values={fillers[slot] || []} lang={lang} />
-          ))}
-          {/* Not where the table stands in for the card's own word:
-              there is no field on this screen for it to write into. */}
-          {!standsIn && (
-            <BlankPicker
-              label="+ Blank"
-              tone="new"
-              title="Add a blank to this card"
-              blanks={blanksAround}
-              onPick={putBlank}
-            />
-          )}
-        </div>
+        {/* The holes the card has, as facts about it — each one saying,
+            when it is pointed at, what will be put in it. The list below
+            is where they are put in and taken out; this is what they are
+            worth, which is a different question and the one the section
+            was written to answer. */}
+        {holes.length > 0 && (
+          <div className="at-blankrow">
+            {holes.map((slot) => (
+              <BlankChip key={slot} slot={slot} values={fillers[slot] || []} lang={lang} />
+            ))}
+          </div>
+        )}
 
         {/* Still possible on a card written before the button, or by
             typing the braces by hand, so still said — in one line. */}
@@ -3177,10 +3181,54 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </p>
         )}
 
+        {/* Putting a blank in and taking it out, on the screen rather than
+            behind a button.
+
+            It was a menu, and a menu of blank ids opening under one
+            heading while a list of blank ids stood under the other read as
+            the same control in two places — which it is not: this writes a
+            hole into the card's own words, and the list below says the
+            card stands in somebody else's. Both are lists now, which is
+            what makes the headings do their work.
+
+            And taking one out is here at all, which it never was: a hole
+            could only be removed by deleting the braces by hand from three
+            fields, one of which runs the other way, and a card left with
+            them in two fields and not the third cannot be saved. The half
+            that could only be done by hand was the half that broke the
+            card. */}
+        {!standsIn && (
+          <>
+            <BlankNameBox
+              label="Name a blank to put in this card"
+              placeholder="A new blank, like name-is"
+              taken={holesOffer.map((b) => b.name)}
+              onName={putBlank}
+            />
+            <CheckList
+              options={holesOffer.map((b) => ({
+                id: b.name,
+                title: b.name,
+                note:
+                  b.built === "any"
+                    ? `built in · any of ${plural(b.words, "word")} in this language`
+                    : b.built === "category"
+                      ? `built in · ${plural(b.words, "card")} said to be one`
+                      : `${plural(b.words, "word")} to fill it · left by ${plural(b.used, "card")}`,
+              }))}
+              chosen={holes}
+              onToggle={(id, wasOn) => (wasOn ? dropBlank(id) : putBlank(id))}
+              empty="No blank has been named yet. Type one above — the first of its kind has to be named by somebody."
+            />
+          </>
+        )}
+
         {holes.length === 0 && (
           <Help>
             None yet. A blank is a hole this card leaves for another word to
-            fill, so that one card is met as a sentence about anybody.
+            fill, so that one card is met as a sentence about anybody. Tick
+            one above and it is written into every field at once, which is
+            the whole reason the fields cannot come to disagree about them.
           </Help>
         )}
 
@@ -3219,25 +3267,13 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                 a list — so naming the first blank of a kind, which is the
                 one thing on this screen nobody can do by choosing, was the
                 hardest thing on it to reach. */}
-            {!holes.length && (
-              <div className="at-blanknew">
-                <input
-                  className="at-input"
-                  value={made}
-                  placeholder="A new blank, like name-is"
-                  aria-label="Name a blank this card fills"
-                  onChange={(e) => setMade(clean(e.target.value))}
-                  onKeyDown={(e) => e.key === "Enter" && nameOne()}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={!made || full || fills.includes(made)}
-                  onClick={nameOne}
-                >
-                  Add
-                </Button>
-              </div>
+            {!holes.length && !full && (
+              <BlankNameBox
+                label="Name a blank this card fills"
+                placeholder="A new blank, like name-is"
+                taken={offered.map((b) => b.name)}
+                onName={addFill}
+              />
             )}
 
             {/* And every blank there is, on the screen rather than behind a
