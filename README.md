@@ -35,6 +35,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
   the scheduler reads both.
 
+  **A misspelt answer says which letter.** "Not quite" and the word
+  underneath is a true thing to say and a poor thing to learn from: on a
+  script a learner is still reading letter by letter, finding the one that
+  differs is most of the work and the part they are least able to do. So a
+  question answered by typing in the language's own script comes back with
+  the two spellings lined up — the letters that do not belong marked in
+  what they wrote, and the ones they left out marked in the answer, which
+  is the only mark there is when a letter is missing rather than wrong.
+  `spellRuns` in `src/spelling.ts` does the lining up and knows no
+  language: **what counts as a letter is the pack's own fold**, `letter` on
+  the language, and it is the same fold the marking measures its skeleton
+  on. That is what keeps a mark from contradicting the verdict beside it —
+  a word right in its letters and wrong in its harakat has nothing
+  highlighted, because the line that already says so is the one that should
+  say it. Nothing is marked either when not one letter belongs: that is a
+  word nobody knew rather than a word misspelt, and painting all of it adds
+  nothing to "wrong".
+
   A nudge — the pronunciation, or the meaning — is beside every question
   that has one, closed until it is asked for. Two questions ask for the
   word in the script and offer its transliteration: *English → script* and
@@ -227,6 +245,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   writing it into the fields, where it lives; every field with words in it
   must leave the same blanks, and `slotTrouble` refuses the save and names
   the field that is short of one.
+
+  **And the card list narrows by a blank, from either side of it.** Teaching
+  → Cards has a *Blanks* filter: which side a card is on — it leaves one,
+  it fills one, or it fills none — and, for the first two, a list of every
+  blank anybody has written, each saying how many cards leave it and how
+  many fill it. The two sides are never the same card, because a card with
+  a hole in it fills nothing; ticking `{{name}}` and switching sides is
+  therefore how "what is going on with this blank" is answered — the
+  sentences that ask for a name, and the names. `filterCards` and
+  `blanksInUse` in `src/spaces.tsx`, both read off the cards in hand, so a
+  blank appears the moment a card writes it and goes when the last one
+  stops.
 
   *Using this card to fill a blank* is the opposite job, and there a list
   is right: what a card fills is nowhere in its words and nothing can be
@@ -421,6 +451,10 @@ src/
   grade.ts         marking an answer: what it counts as, what that does to
                    the schedule of the form it was about, and where it is
                    written back. Pure, no React, the clock passed in.
+  spelling.ts      where a misspelt answer went wrong: the two spellings
+                   lined up letter by letter, as runs a screen can mark.
+                   Knows no language — what counts as a letter is a fold
+                   the pack hands in. Pure, imports nothing.
   flag-export.ts   reported problems written out as text to paste elsewhere,
                    each with the card it is about. Pure: the clock, the
                    locale and every name it cannot work out are passed in.

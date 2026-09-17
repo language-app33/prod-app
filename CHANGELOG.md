@@ -8,6 +8,61 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.164 — 17 September 2026
+
+**The card list narrows by a blank, from either side of it.**
+
+Teaching → Cards could already show you the words that fill a blank. It
+could not show you the cards that *leave* one — so "what is going on with
+{{name}}?" had half an answer: here are the names, and you work out for
+yourself which sentences ask for one.
+
+The filter is now called **Blanks** and asks which side a card is on: it
+leaves one, it fills one, or it fills none. Tick a blank and you get that
+side of it; switch sides with the tick still set and you get the other. The
+two are never the same card, because a card with a hole in it fills
+nothing.
+
+Each blank in the list says what it is worth on both sides — *left by 3
+cards · filled by 12 cards* — which is where two problems become visible
+before you go looking for them: a blank with sentences and nothing to fill
+them is a card that cannot be practised, and a blank with words and no
+sentence is vocabulary nobody has written a use for.
+
+The filter used to be called *Variables*, which is the word the code uses
+and was the last place in the app still saying it out loud.
+
+## 0.163 — 17 September 2026
+
+**A misspelt answer now shows you which letter.**
+
+Type a word in the language's own script, get one letter wrong, and the app
+said "Not quite" and printed the right word underneath. That is true, and it
+leaves you to find the difference yourself — which, on a script you are still
+reading letter by letter, is most of the work and the part you are least able
+to do.
+
+Now the letter is pointed at. What you wrote comes back with the letters that
+do not belong marked, and the answer underneath comes back with the letters
+you left out marked. Both, because they are not the same thing: write the
+wrong letter and it shows on both sides; leave a letter out and there is
+nothing wrong with anything you typed — the only place to show it is the
+answer.
+
+It is deliberately quiet in two cases:
+
+- **A word that was right in its letters** and marked down for its harakat,
+  its tones or its niqqud has nothing highlighted. The line that already says
+  so is the one that should say it, and a red letter under it would be the app
+  arguing with itself.
+- **A word with nothing of the answer in it** is not highlighted either. That
+  is a word you did not know rather than one you misspelt, and colouring all
+  of it adds nothing.
+
+It works in every language the app teaches, and what counts as a letter is
+each language's own rule — the same one its marking uses, so the highlight and
+the verdict can never disagree.
+
 ## 0.162 — 17 September 2026
 
 **"Blanks in this card" now shows the blanks in this card.**

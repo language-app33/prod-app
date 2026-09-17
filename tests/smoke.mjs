@@ -3434,6 +3434,83 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   }
 }
 
+/* ---- a misspelt answer says which letter ----
+
+   "Not quite" and the word underneath was the whole of what a misspelling
+   came back with, and on a script a learner is still learning to read,
+   finding the one letter that differs is most of the work and the part
+   they are least able to do. One letter is wrong; the screen now says
+   which — in what they wrote, and in the answer, because a letter left
+   out has no mark on their side at all. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  const bookTile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => /book/.test(t.textContent || ""));
+  click(bookTile);
+  await sleep(450);
+  const tryScript = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try English → Arabic script$/.test(b.getAttribute("aria-label") || ""));
+  check("the card offers writing it from its meaning, to try a misspelling on",
+    !!tryScript,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(tryScript);
+  await sleep(600);
+
+  const box = document.querySelector('[data-el="answer-input"]');
+  const setValue = must(
+    Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+    "the input's value descriptor",
+  ).set;
+  /* كتاب with its last letter written wrong: one letter out of four, which
+     is what a real misspelling looks like and what the marking calls a near
+     miss. */
+  must(setValue, "the input's value setter").call(box, "كتاف");
+  if (box) box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(60);
+  click(buttonNamed(/^Check$/));
+  await sleep(350);
+
+  const spelt = () => /** @type {any} */ (document.querySelector('[data-el="answer-spelt"]'));
+  const marksIn = (/** @type {Element | null} */ el) =>
+    [...(el ? el.querySelectorAll("mark.at-spellwrong") : [])]
+      .map((m) => (m.textContent || "").trim());
+  check("a misspelt answer is marked wrong, as it was before",
+    /Not quite|Very close/.test(
+      ((document.querySelector('[data-el="verdict"]') || {}).textContent || "") +
+        ((document.querySelector('[data-el="verdict-reason"]') || {}).textContent || "")),
+    (document.querySelector('[data-el="verdict"]') || {}).textContent || "(no verdict)");
+  check("and what they wrote comes back with the wrong letter highlighted",
+    !!spelt() && JSON.stringify(marksIn(spelt())) === JSON.stringify(["ف"]),
+    spelt() ? `${(spelt().textContent || "").trim()} · marked ${marksIn(spelt()).join(", ") || "nothing"}` : "(not shown)");
+  /* The whole word, not just the letter: the runs are what is drawn in
+     place of what they typed, so anything missing from them is a letter
+     they wrote and can no longer see. */
+  check("with the rest of the word still there around it",
+    !!spelt() && (spelt().textContent || "").trim() === "كتاف",
+    spelt() ? `"${(spelt().textContent || "").trim()}"` : "(not shown)");
+  /* And the box is not shown twice: the answer they wrote is already the
+     thing on the screen, so the marked one stands where it stood. */
+  check("and stands where the answer box stood, rather than under it",
+    !document.querySelector('[data-el="answer-input"]'),
+    document.querySelector('[data-el="answer-input"]') ? "both are on screen" : "in its place");
+  /* The other half. A letter written wrong is marked on both sides; a
+     letter left out can only be marked here. */
+  const right = document.querySelector('[data-el="answer-value-text"]');
+  check("and the answer underneath marks the letter that should have been there",
+    !!right && JSON.stringify(marksIn(right)) === JSON.stringify(["ب"]),
+    right ? `${(right.textContent || "").trim()} · marked ${marksIn(right).join(", ") || "nothing"}` : "(no answer shown)");
+
+  click(buttonNamed(/^Continue$/));
+  await sleep(700);
+  if (document.querySelector('[data-el="leave-session"]')) {
+    click(document.querySelector('[data-el="leave-session"]'));
+    await sleep(500);
+  }
+}
+
 /* ---- a conversation, opened by the teacher who wrote it ----
    Opening one from Teaching > Cards put the word editor up: one script
    box, one meaning, and the whole scene out of reach behind it. A stored
@@ -4919,48 +4996,72 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks | Variables",
+      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
 
-  /* ---- and by whether a card is a value ----
-     A teacher who has written forty names wants two things of this list: the
-     names, to check them, and everything that is not a name, to get their
-     material back. */
+  /* ---- and by a blank, from either side of it ----
+     A blank has two sides and a teacher wants both: the sentences it is a
+     hole in, and the words that go in the hole. The filter could name only
+     the second — it could say which words fill {{name}} and not which cards
+     ask for one — which is half an answer to "what is going on with this
+     blank". */
   const all = tiles();
   check("every card is listed before either filter is used", all >= 3, `${all} tiles`);
-  const fillsMode = (/** @type {RegExp} */ re) =>
-    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
-      .find((b) => re.test((b.textContent || "").trim()));
-  check("the filter asks whether a card fills a variable, or none",
-    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
-      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any card | Fills one | Fills none",
-    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
-      .map((b) => (b.textContent || "").trim()).join(" | ") || "(no variables filter)");
-  click(fillsMode(/^Fills one$/));
+  const sideLabel = '[role="group"][aria-label="Which side of a blank a card is on"] .at-seg';
+  const sides = () => [...frame.querySelectorAll(sideLabel)]
+    .map((b) => (b.textContent || "").trim());
+  const blankSide = (/** @type {RegExp} */ re) =>
+    [...frame.querySelectorAll(sideLabel)].find((b) => re.test((b.textContent || "").trim()));
+  check("the filter asks which side of a blank a card is on",
+    sides().join(" | ") === "Any card | Leaves one | Fills one | Fills none",
+    sides().join(" | ") || "(no blanks filter)");
+
+  /* The words other cards borrow. */
+  click(blankSide(/^Fills one$/));
   await sleep(250);
   const values = tiles();
-  check("choosing it shows the values and nothing else",
+  check("choosing the filling side shows the values and nothing else",
     values > 0 && values < all, `${values} of ${all}`);
-  /* The variables themselves are listed, read off the cards that fill them,
-     with how many fill each. */
-  const nameRow = [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
-    .find((r) => /\{\{name\}\}/.test(r.textContent || ""));
-  check("and the variables are there to pick from, named and counted",
-    !!nameRow && /card/.test(nameRow.textContent || ""),
-    nameRow ? (nameRow.textContent || "").replace(/\s+/g, " ").trim()
+  /* The blanks themselves are listed, read off the cards that wrote them,
+     each saying what it is worth on both sides. */
+  const blankRow = () => /** @type {any} */ (
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
+      .find((r) => /\{\{name\}\}/.test(r.textContent || "")) || null);
+  check("and the blanks are there to pick from, named and counted from both sides",
+    !!blankRow() && /left by .*card/.test(blankRow().textContent || "") &&
+      /filled by .*card/.test(blankRow().textContent || ""),
+    blankRow() ? (blankRow().textContent || "").replace(/\s+/g, " ").trim()
       : [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
-          .map((r) => (r.textContent || "").slice(0, 12)).join(" | ") || "no variables listed");
-  click(nameRow && nameRow.querySelector("input"));
+          .map((r) => (r.textContent || "").slice(0, 12)).join(" | ") || "no blanks listed");
+  click(blankRow() && blankRow().querySelector("input"));
   await sleep(250);
+  const filling = tiles();
   check("ticking one narrows to the cards that fill it",
-    tiles() > 0 && tiles() <= values, `${tiles()} of ${values} values`);
+    filling > 0 && filling <= values, `${filling} of ${values} values`);
+
+  /* And the same blank from the other side: the sentences with the hole in
+     them, which is the half that did not exist. The tick stays put, because
+     it is the same blank being asked about either way. */
+  click(blankSide(/^Leaves one$/));
+  await sleep(250);
+  const leaving = tiles();
+  check("and the same blank the other way round shows the cards that leave it",
+    leaving > 0 && leaving < all, `${leaving} of ${all}`);
+  /* Never the same card: one with a hole in it fills nothing, whatever it
+     says, so the two sides of a blank cannot both hold one. */
+  const leftText = [...frame.querySelectorAll(".at-minicard")]
+    .map((t) => (t.textContent || "").replace(/\s+/g, " ").trim());
+  check("and they are the sentences, not the words — never both",
+    leftText.every((t) => /\{\{name\}\}/.test(t)),
+    leftText.join(" | ").slice(0, 120) || "(nothing listed)");
+
   /* And the other way: everything that is not a value, which is the
      material a student is actually asked about. */
-  click(fillsMode(/^Fills none$/));
+  click(blankSide(/^Fills none$/));
   await sleep(250);
-  check("and the other way leaves the values out",
+  check("and fills-none leaves the values out",
     tiles() === all - values, `${tiles()} ordinary, ${values} values, ${all} in all`);
-  click(fillsMode(/^Any card$/));
+  click(blankSide(/^Any card$/));
   await sleep(250);
   check("and putting it back shows every card again", tiles() === all, `${tiles()} of ${all}`);
 

@@ -31,7 +31,7 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, fillsInUse, CARD_SORTS } =
+const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, blanksInUse, CARD_SORTS } =
   await import(path.join(out, "spaces.js"));
 
 /* The editor's own rules live in card-editor.tsx now, bundled the same way:
@@ -220,12 +220,13 @@ test("filtering by which decks a card is in, and which it is not", () => {
   );
 });
 
-test("filtering by whether a card fills a variable, and which one", () => {
-  /* A teacher who has written forty names wants two things of this list: the
-     names, to check them, and everything that is not a name, to get their
-     material back. */
+test("filtering by which side of a blank a card is on, and which blank", () => {
+  /* A teacher who has written forty names wants three things of this list:
+     the names, to check them; the sentences the names go into; and
+     everything that is neither, to get their material back. */
   const list = [
     card({ id: "frame", ar: "ismi {{name}}", en: "My name is {{name}}" }),
+    card({ id: "colours", ar: "{{colour}} kbiir", en: "a big {{colour}}" }),
     card({ id: "rafa", en: "Raphael", fills: "name", drill: false }),
     card({ id: "viktor", en: "Victor", fills: "name", drill: false }),
     card({ id: "blue", en: "blue", fills: "colour", drill: false }),
@@ -234,46 +235,77 @@ test("filtering by whether a card fills a variable, and which one", () => {
   const ids = (/** @type {Record<string, any>} */ f) =>
     filterCards(list, f).map((/** @type {any} */ c) => c.id);
 
-  assert.deepEqual(ids({ fillsMode: "yes" }), ["rafa", "viktor", "blue"], "every value");
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["name"] }), ["rafa", "viktor"]);
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["colour"] }), ["blue"]);
-  /* Several variables read as "show me these", the way several decks do. */
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["name", "colour"] }), ["rafa", "viktor", "blue"]);
-  /* A variable nothing fills any more — a name left ticked while the last
-     card filling it was deleted — empties the list rather than ignoring the
-     tick, which is the honest answer to what was asked. */
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["gone"] }), []);
+  /* The words other cards borrow. */
+  assert.deepEqual(ids({ blankMode: "fills" }), ["rafa", "viktor", "blue"], "every value");
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["name"] }), ["rafa", "viktor"]);
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["colour"] }), ["blue"]);
+  /* Several blanks read as "show me these", the way several decks do. */
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["name", "colour"] }),
+    ["rafa", "viktor", "blue"]);
+  /* A blank nothing fills any more — a name left ticked while the last card
+     filling it was deleted — empties the list rather than ignoring the tick,
+     which is the honest answer to what was asked. */
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["gone"] }), []);
 
-  /* And the other way: the frame is not a value, so it stays. */
-  assert.deepEqual(ids({ fillsMode: "no" }), ["frame", "house"]);
-  /* The names do not narrow "no" — the list is not offered there, and a
+  /* And the other side of the same blank: the sentences it is a hole in.
+     This is the half that did not exist — the list could say which words
+     fill {{name}} and not which cards ask for one. */
+  assert.deepEqual(ids({ blankMode: "leaves" }), ["frame", "colours"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["name"] }), ["frame"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["colour"] }), ["colours"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["name", "colour"] }),
+    ["frame", "colours"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["gone"] }), []);
+
+  /* The two sides are never the same card: a card with a hole in it fills
+     nothing, whatever it says — see fillsOf. */
+  assert.deepEqual(
+    ids({ blankMode: "leaves" }).filter((/** @type {string} */ id) =>
+      ids({ blankMode: "fills" }).includes(id)),
+    []
+  );
+
+  /* And what is left when the values are put aside. The frame stays: it is
+     not a value, it is a card with a hole in it. */
+  assert.deepEqual(ids({ blankMode: "none" }), ["frame", "colours", "house"]);
+  /* The names do not narrow "none" — the list is not offered there, and a
      stale one must not quietly change what it means. */
-  assert.deepEqual(ids({ fillsMode: "no", fillsNames: ["name"] }), ["frame", "house"]);
-  assert.deepEqual(ids({ fillsMode: "any" }).length, list.length);
+  assert.deepEqual(ids({ blankMode: "none", blankNames: ["name"] }),
+    ["frame", "colours", "house"]);
+  assert.deepEqual(ids({ blankMode: "any" }).length, list.length);
   assert.deepEqual(ids({}).length, list.length);
 
   /* And it narrows alongside the others rather than instead of them. */
   assert.deepEqual(
-    filterCards(list, { fillsMode: "yes", forms: "one" }).map((/** @type {any} */ c) => c.id),
+    filterCards(list, { blankMode: "fills", forms: "one" }).map((/** @type {any} */ c) => c.id),
     ["rafa", "viktor", "blue"]
   );
 });
 
-test("the variables on offer are read off the cards that fill them", () => {
-  /* The filter's list. A variable exists because some card says it fills
-     one; a list kept beside them would be a second place to be wrong. */
+test("the blanks on offer are read off the cards that wrote them", () => {
+  /* The filter's list, and both sides of it. A blank exists because some
+     card leaves one or says it fills one; a list kept beside them would be
+     a second place to be wrong. */
   const list = [
+    card({ id: "frame", ar: "ismi {{name}}", en: "My name is {{name}}" }),
     card({ id: "a", fills: "name" }),
     card({ id: "b", fills: "NAME" }),
     card({ id: "c", fills: "colour" }),
     card({ id: "d" }),
   ];
-  assert.deepEqual(fillsInUse(list), [
-    { name: "colour", count: 1 },
+  assert.deepEqual(blanksInUse(list), [
+    /* Words and no sentence: vocabulary nobody has written a use for. */
+    { name: "colour", leaves: 0, fills: 1 },
     /* Folded and counted together: {{Name}} and {{name}} are one hole. */
-    { name: "name", count: 2 },
+    { name: "name", leaves: 1, fills: 2 },
   ]);
-  assert.deepEqual(fillsInUse([]), []);
+  /* And a blank with sentences and nothing to put in them, which is the
+     card that cannot be practised — visible here before it is discovered. */
+  assert.deepEqual(
+    blanksInUse([card({ id: "starved", ar: "{{fruit}}", en: "{{fruit}}" })]),
+    [{ name: "fruit", leaves: 1, fills: 0 }]
+  );
+  assert.deepEqual(blanksInUse([]), []);
 });
 
 test("every order offered has a label and a way to read a card", () => {

@@ -2371,6 +2371,12 @@ export const LANGUAGES: Record<LangId, Lang> = {
       '"Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", serif',
     keys: { rows: AR_KEY_ROWS, extras: AR_EXTRAS, marks: AR_MARKS, marksLabel: "ً ٌ ٍ" },
     check: (given, expected, settings) => checkAr(given, expected, settings),
+    /* The skeleton, one character at a time — the same fold compareAr
+       measures its letters on, so what is highlighted and what is marked
+       are the same answer. A harakat, a tatweel and a space all fold to
+       nothing, which is what keeps them out of the lining-up. */
+    letter: (ch, settings) =>
+      tight(normAr(ch, { stripTashkeel: true, ignoreHamza: !!(settings || {}).ignoreHamza })),
     /*
      * How strictly typing is marked.
      *
@@ -2526,6 +2532,11 @@ export const LANGUAGES: Record<LangId, Lang> = {
     fontStack: '"Be Vietnam Pro", "Noto Sans", system-ui, sans-serif',
     keys: { rows: VI_KEY_ROWS, extras: VI_EXTRAS, marks: VI_MARKS, marksLabel: "◌̀ ◌́ ◌̉" },
     check: (given, expected, settings) => checkViet(given, expected, settings),
+    /* Tones off, as the skeleton is: a word written with the wrong tone is
+       the right letters, and the verdict already has a sentence for it.
+       The spaces stay out of it — every syllable here is its own word, so
+       what they separate is words and not letters. */
+    letter: (ch) => normViet(ch, { stripTones: true }).replace(/\s+/g, ""),
     /* The word is accepted with or without its tone marks — but a tone
        that is typed has to be the right one. */
     marking: { tones: "either" },
@@ -2616,6 +2627,12 @@ export const LANGUAGES: Record<LangId, Lang> = {
       '"Noto Serif Hebrew", "Noto Sans Hebrew", "Frank Ruehl CLM", "David CLM", "David", "Arial Hebrew", "Times New Roman", serif',
     keys: { rows: HE_KEY_ROWS, extras: HE_EXTRAS, marks: HE_MARKS, marksLabel: "◌ָ ◌ַ ◌ִ" },
     check: (given, expected, settings) => checkHe(given, expected, settings),
+    /* The bare letters, with a final folded to its ordinary shape where
+       the learner has said that is how they want to be marked — the same
+       skeleton compareHe measures on. */
+    letter: (ch, settings) =>
+      normHe(ch, { stripNiqqud: true, foldFinals: !!(settings || {}).foldFinals })
+        .replace(/\s+/g, ""),
     /* The bare letters or the fully pointed spelling, from one stored
        entry — but typed niqqud have to be the right ones; and the ordinary
        shape of a letter is accepted at the end of a word for its final
