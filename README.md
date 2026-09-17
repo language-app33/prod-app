@@ -346,6 +346,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   met, the most alike first, and a word dealt in to fill it that was not
   due is credited for a right answer without its schedule moving.
 
+  **No word and no meaning stands in one twice**, and `matchSet` in
+  `src/chance.ts` is the gate that decides it — after the narrowing, where
+  the meanings are final. `matchGroups` asks the same question when it
+  chooses who stands together and cannot be the last word on it: it reads
+  a card as the teacher wrote it, and what reaches a tile has been cut
+  down to one accepted spelling and one meaning, so two cards that differ
+  to that guard can be one tile twice to a learner. An answer that cannot
+  stand is left out and a spare takes its place, so the grid keeps its
+  size; it is simply not asked this time. Two tiles reading alike is not a
+  hard question but an unanswerable one, and the grid holds its pairings
+  by *where* a tile is rather than by what it says, so that it stays
+  answerable even if one ever gets through.
+
 ## Running it
 
 ```bash
