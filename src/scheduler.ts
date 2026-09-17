@@ -206,6 +206,35 @@ export function dueRank(due: number, clock: Clock = REAL_CLOCK): number {
   return (due || 0) <= timeOf(clock) ? 0 : due;
 }
 
+/*
+ * How long a card counts as just practised.
+ *
+ * Two hours, and it decides one thing only: the order cards are reached
+ * for once there is nothing actually due. A session that reaches past the
+ * due line takes the nearest thing to due first, which is right on the
+ * first sitting of a day and wrong on the tenth — the nearest thing to due
+ * is the same handful of cards all day, so somebody who practises again
+ * and again is handed the same words while the rest of what they are
+ * learning sits untouched.
+ *
+ * So a card answered within the window goes behind one that has not been,
+ * and nothing else about the order changes. Long enough that a run of
+ * sittings works through what the learner holds rather than looping over
+ * nine cards; short enough that an evening's practice is not still shaping
+ * what they are offered the next morning.
+ */
+export const JUST_PRACTISED = 120 * MIN;
+
+/**
+ * Whether this card was answered inside that window.
+ *
+ * `lastSeen` is when any of its exercises was last answered — nought for a
+ * card never touched, which is never "just practised".
+ */
+export function justPractised(lastSeen: number, clock: Clock = REAL_CLOCK): boolean {
+  return !!lastSeen && timeOf(clock) - lastSeen < JUST_PRACTISED;
+}
+
 /* ------------------------------------------------------------------
    Spaced repetition (SM-2)
    ------------------------------------------------------------------ */
@@ -270,6 +299,37 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
     return s;
   }
 
+  /*
+   * A card answered before it asks to be is counted, and moves nothing.
+   *
+   * This is the rule that lets the app offer practice whenever somebody
+   * wants it. Everything above still applies — the answer is counted, and
+   * getting it wrong still pulls the card back, in the branch above this
+   * one — but a right answer given early leaves the gap and the date
+   * exactly where the last real answer put them. The card comes back when
+   * it was always going to.
+   *
+   * What stood here instead was a gap that grew from the time actually
+   * waited, and it had a hole in it that got worse the harder somebody
+   * practised. Answering early set the next date to *now* plus the gap, so
+   * the wait already banked was thrown away and started again; and the
+   * wait it grew from had a floor of one day, so a card drilled every
+   * twenty minutes was credited with a day's retention it had not earned.
+   * The two together held a card at a gap of about three days for ever:
+   * every answer re-dated it, no answer ever grew it, and three days is
+   * under the four-day bar that says a word is recognised. A learner
+   * practising thirty times a day therefore never mastered a single word,
+   * never emptied the front door, and was dealt the same ten words for
+   * ever — which is exactly what they reported.
+   *
+   * The invariant the lines below depend on is the other half of why this
+   * is the right place to stop: a review card's last answer is read back
+   * out of `due` minus `interval`, so moving one of them without the
+   * other would make every later reading of "how long did they wait" a
+   * lie. Leaving both is what keeps that sound.
+   */
+  if ((s.due || 0) > at) return s;
+
   let mult;
   if (rating === "hard") {
     s.ease = clampEase(s.ease - 0.15);
@@ -288,6 +348,10 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
    * the foot of this branch set them. So this needs nothing stored that
    * was not already there, and a card from an older build reads the same.
    *
+   * Only an answer given on time or late reaches this, so what it works
+   * out is never less than the interval — the cap below is what it is
+   * for. An early answer returned above.
+   *
    * Capped at the interval, so answering late is worth exactly what
    * answering on time is: a card left for three weeks when it asked for
    * one is not evidence of three weeks' retention of anything, and
@@ -297,15 +361,14 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
    */
   const waited = s.interval - (s.due - at) / DAY;
   /*
-   * And the gap only grows from what was actually waited out.
+   * And the gap grows from what was actually waited out, which by here is
+   * the interval itself or more.
    *
-   * Practice is no longer gated on a card being due, so a learner with a
-   * free hour can answer a card minutes after they last saw it. Multiplying
-   * its existing month by the ease then would push it out to six weeks on
-   * the evidence of a ten-minute memory — and a keen evening would empty
-   * the next two months. Growing from what was waited instead means an
-   * early answer is worth what it is worth: something when the card was
-   * nearly due, almost nothing when it was not.
+   * The floor of one day is what a card carrying no usable date falls back
+   * on — an older build wrote no `due`, and there is nothing to work a
+   * wait out from. It used to catch early answers too, and crediting a
+   * card drilled twenty minutes ago with a day's retention is how the
+   * three-day ceiling above came about. Early answers no longer reach it.
    */
   const base = Math.max(1, Math.min(s.interval || 1, waited));
   let next = Math.round(base * mult * fuzz(clock));
@@ -326,16 +389,9 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
    * one; what it cannot do any more is stand still.
    */
   if (rating === "hard") next = Math.max(next, base + 1);
-  /*
-   * An early answer can help or do nothing. It can never take a card
-   * backwards.
-   *
-   * Without this, drilling a card the day after a month-long gap was set
-   * would grow from one day and hand back an interval of two or three —
-   * so practising something you know well would be punished by having it
-   * thrown at you all week. Getting it *wrong* still pulls it back, up
-   * above, because that is real news whenever it arrives.
-   */
+  /* And an answer can never take a card backwards: a gap that has been
+     earned stands until the card is actually missed, which is handled far
+     above and is the one thing that shortens one. */
   next = Math.max(next, s.interval || 1);
   s.interval = Math.min(MAX_DAYS, Math.max(1, next));
   s.due = inDays(s.interval);

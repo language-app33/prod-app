@@ -80,12 +80,23 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   **Being due settles that order and nothing else.** There is always a
   session: a learner who is up to date, or who is holding as many new
   words as the rule below allows, is dealt the cards nearest to coming
-  round rather than an empty screen. What makes that safe is in the scheduler — a gap
-  grows from the time actually waited, so a card answered soon after the
-  last time is counted and left where it was, and no amount of practice in
-  one evening can push anything further out. The limits on *new* cards are
-  a different rule and still apply: more practice is more of what the
-  learner holds, never more than they can take on at once.
+  round rather than an empty screen. What makes that safe is in the
+  scheduler — **an answer given before a card is due is counted and moves
+  nothing**, so the card comes back exactly when it was always going to
+  and grows its gap then. Practising more can neither push a card out of
+  reach nor hold one short of the bar. Getting it *wrong* early still
+  pulls it back, because forgetting is news whenever it arrives. The
+  limits on *new* cards are a different rule and still apply: more
+  practice is more of what the learner holds, never more than they can
+  take on at once.
+
+  **And past the due line, what was just practised gives way.** Once
+  nothing is waiting, the order is still nearest-to-due — but a card
+  answered in the last couple of hours sorts behind one that was not, so a
+  run of sittings works through the collection instead of circling the
+  same nine cards. `JUST_PRACTISED` in `src/scheduler.ts`. It touches only
+  the reach past the due line: anything genuinely due, and anything the
+  learner marked, still comes first.
 
   The numbers are `SESSION_SIZE`, `PER_UNIT` and `MAX_UNITS_PER_FAMILY` in
   `src/ArabicTrainer.tsx`, beside `buildSession` which is the only thing

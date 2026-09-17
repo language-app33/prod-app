@@ -189,6 +189,7 @@ import {
   freshStates,
   isAsked,
   itemDifficulty as itemDifficultyOf,
+  justPractised,
   mastered,
   maturity,
   missedTwice,
@@ -2452,8 +2453,16 @@ export function buildSession({
        states, and a fresh state is ready by definition — counted, it would
        have every card in the deck due at once. */
     const dues: number[] = [];
+    /* And when any of it was last answered, which decides nothing until
+       the learner has run out of cards that are actually due — see
+       justPractised. */
+    let lastSeen = 0;
     for (const { unit } of units) {
-      for (const t of askableTypes(unit, settings)) dues.push(stateOf(unit, t).due || 0);
+      for (const t of askableTypes(unit, settings)) {
+        const st = stateOf(unit, t);
+        dues.push(st.due || 0);
+        lastSeen = Math.max(lastSeen, st.updated || 0);
+      }
     }
     /* Askable rather than merely open, so a frame with nothing to fill it
        yet is not counted as waiting: it would be picked, admitted against
@@ -2472,7 +2481,7 @@ export function buildSession({
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent };
+    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent, lastSeen };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -2482,6 +2491,35 @@ export function buildSession({
      from one sitting to the next — and a card the learner asked for ranks
      above all of it. */
   candidates = inOrder(candidates, (c) => (c.urgent ? -1 : dueRank(c.soonest)));
+
+  /*
+   * And among what is *not* due, a card just practised gives way to one
+   * that was not.
+   *
+   * Only among what is not due, which is the whole of the care needed
+   * here: everything genuinely waiting still comes first, in the order
+   * above, and a card the learner asked for still outranks all of it. What
+   * this decides is the order a session reaches past the due line in, and
+   * that order used to be "nearest to due" and nothing else — so the
+   * second sitting of an afternoon reached for the same cards as the
+   * first, and the thirtieth for the same cards as the twenty-ninth. A
+   * learner practising all day was handed nine words and never the rest of
+   * what they were learning.
+   *
+   * Written as a partition rather than another rank because the order
+   * inside each half is one already settled above, and shuffling it again
+   * would throw away the nearest-first reach that a practice session is
+   * for.
+   */
+  const waitingNow = (c: { urgent: boolean; soonest: number }) =>
+    c.urgent || dueRank(c.soonest) === 0;
+  const ahead = candidates.filter((c) => !waitingNow(c));
+  candidates = candidates
+    .filter(waitingNow)
+    .concat(
+      ahead.filter((c) => !justPractised(c.lastSeen)),
+      ahead.filter((c) => justPractised(c.lastSeen))
+    );
 
   /*
    * Being due decides the order, not whether you may practise at all.

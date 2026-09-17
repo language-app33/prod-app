@@ -8,6 +8,48 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.169 — 17 September 2026
+
+**Practising a lot no longer stops you learning anything new.**
+
+If you sat down many times a day, the app quietly stopped working. The
+same handful of words came round every session, no word ever counted as
+learnt, and no new word ever arrived — for as long as you kept it up. The
+harder you practised, the more firmly it held.
+
+Here is what was happening. Every word carries a gap: the time the app
+waits before asking you again, which grows each time you get it right and
+is how it decides you have learnt something. Answering a word *before* it
+was due used to reset that gap's clock to the moment you answered. So if
+you came back every twenty minutes, the wait started again every twenty
+minutes and never actually ran. The gap could never grow past about three
+days, and a word needs four to count as recognised — so nothing was ever
+recognised, and the ten-word queue the app uses to pace new material never
+emptied.
+
+Now an early answer is counted, and leaves the word exactly where it was.
+It still comes back when it was always going to, and it grows then. Answer
+a word early as often as you like: it costs nothing and it no longer
+blocks anything.
+
+A simulated learner practising thirty times a day met ten words in a
+fortnight before this and never a word more. The same learner now meets
+forty-one, with gaps stretching out to three weeks. Somebody sitting down
+once or twice a day was never caught by this and will see no change.
+
+**And a session reaches for what you have not just done.** Once nothing is
+actually due, the app deals the words nearest to coming round — which, on
+your tenth sitting of the day, was the same words as on your ninth. A word
+you answered in the last couple of hours now gives way to one you did not,
+so a run of sessions works through what you are learning instead of
+circling the same nine cards. Anything genuinely due still comes first, and
+a card you marked as high priority still leads.
+
+One thing this release does not change: a word you keep getting *wrong*
+still goes back to the start each time, however early the attempt. If you
+drill one word hundreds of times a day, the occasional slip will still hold
+it back. Worth a look on its own if it bites.
+
 ## 0.168 — 17 September 2026
 
 **Weak skills: a session made only of what you keep getting wrong.**
