@@ -110,11 +110,21 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   next session, and stays in every session until the mark is taken off.
   Nothing underneath it moves — what has been learnt, and when the card
   would have come round anyway, are both still there when the mark goes.
+  **Every** card that is marked, not as many as a session has room for: how
+  many cards a session takes is worked out from its length and what a card
+  costs to ask, and that arithmetic is about the cards the app picks. The
+  session is as long as it needs to be to hold the cards the learner picked,
+  and exactly the length it always was when they have picked none.
   `priority` on the card, `isUrgent` in `src/ArabicTrainer.tsx`, which the
   count of what is ready and the session builder both read so the two
   cannot come to disagree. It is the learner's and not the teacher's, so it
-  is written through a course card's lock rather than refused by it, and
-  `foldCourses` carries it over a refresh beside the schedule.
+  is written through a course card's lock rather than refused by it;
+  `foldCourses` carries it over a refresh beside the schedule, and `parked`
+  keeps it while a card is away, so a card that leaves the material and
+  comes back comes back asked for. Carried *cleared* as well as set, with
+  the time on it: "no longer wanted, as of then" only beats an older yes on
+  another device while it keeps its stamp — see `priorityAt` in
+  `src/types.ts`.
 
 - **A new word is earned by learning one.** Two pools decide it and
   nothing else: at most ten words the learner cannot yet recognise, and at

@@ -8,6 +8,44 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.165 — 17 September 2026
+
+**Cards you mark high priority now actually turn up — all of them.**
+
+A student reported marking several cards and then not seeing them in their
+practice. They were right, and there were three separate ways it could
+happen.
+
+The first, and the one most people would hit: a session takes a fixed
+number of cards, worked out from how long it is and what a card costs to
+ask. That is about five cards where each card carries a second form, nine
+where it does not. Marking cards did not change that number, so anyone who
+marked more than a handful got the first five or so and a different five
+each sitting — against a screen that had just promised each one was in
+their next session. A session now grows to hold everything you asked for.
+Mark three cards and nothing changes; mark twelve and the session is a few
+questions longer and has all twelve in it. A session with nothing marked
+is exactly the size it always was.
+
+The second: a card can vanish from your material for reasons that are
+nobody's decision — a deck detached and reattached, a spell off a course, a
+record the server could not read that minute. When that happens the app
+sets your work aside and puts it back when the card returns. It was setting
+aside the schedules and dropping the mark, so cards you had asked for came
+home no longer asked for, silently. The mark now goes in the drawer with
+everything else.
+
+The third is the other direction, and would have shown as a card you had
+*let go of* stubbornly leading every session: clearing a mark records when
+you cleared it, which is what lets your other device know your change of
+mind is the newer word. A course refresh — every forty-five seconds — was
+throwing that away, so the next sync handed back the old yes and the card
+came back marked.
+
+Underneath all of it, the check that was supposed to be watching this only
+ever asked whether a session had started, not whether the marked card was
+in it. It asks the real question now.
+
 ## 0.164 — 17 September 2026
 
 **The card list narrows by a blank, from either side of it.**

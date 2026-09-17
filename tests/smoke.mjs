@@ -3176,9 +3176,18 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(500);
   const asked = (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
   const answers = (document.querySelector(".at-answerbox") || {}).textContent || "";
+  /* Which card the first question is about, not merely that there is one.
+     This used to check that a session had started at all — which it would
+     have done with or without the mark, so the one thing the mark is for
+     was the one thing nobody was asking about. The card's own script is
+     what names it: it is on the tile that was marked and on the screen it
+     is asked on, whichever way round the question goes. */
+  const scriptOf = (/** @type {string} */ s) =>
+    (s.match(/[؀-ۿݐ-ݿЀ-ӿ]+/) || [""])[0];
+  const markedScript = scriptOf(marked);
   check("a marked card opens the very next session",
-    !!document.querySelector(".at-instruction"),
-    (document.body.textContent || "").slice(0, 100).replace(/\s+/g, " "));
+    !!markedScript && `${asked} ${answers}`.includes(markedScript),
+    `marked ${markedScript || marked} · asked ${asked.slice(0, 40)} · ${answers.slice(0, 60)}`);
 
   /* Take the mark off again and the card list agrees. Marked for ever is
      what the setting says it is, so the way out has to work. */

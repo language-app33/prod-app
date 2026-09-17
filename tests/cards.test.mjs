@@ -792,6 +792,65 @@ test("a card the learner asked for stays asked for when the teacher edits it", (
   assert.equal(out[1].priority, undefined, "a card nobody marked gains nothing");
 });
 
+test("a card the learner asked for comes home asked for", () => {
+  /*
+   * A course card can go missing for reasons that are nobody's decision —
+   * a deck detached and reattached, a student briefly off a course, one
+   * record the server could not read — which is what the drawer is for.
+   * The schedules went into it and the mark did not, so a learner whose
+   * deck came back found the cards they had asked for quietly no longer in
+   * their sessions, with nothing anywhere to say why.
+   */
+  const had = [
+    { id: "srvk20", source: { cardId: "k20" }, priority: true, priorityAt: 500,
+      forms: [{ id: "srvk20", ar: "a", en: "a", s: { ar2en: { phase: "review", reps: 4, updated: 1 } } }] },
+  ];
+  const away = foldCourses(had, []);
+  assert.equal(away.items.length, 0, "the card went away with the material");
+  const back = foldCourses(away.items, [
+    { id: "srvk20", source: { cardId: "k20" }, forms: [{ id: "srvk20", ar: "a", en: "a", s: {} }] },
+  ], away.parked);
+  const out = back.items[0];
+  assert.equal(out.priority, true, "the mark came home with the card");
+  assert.equal(out.priorityAt, 500, "and so did the time it was set");
+  assert.equal(out.forms[0].s.ar2en.reps, 4, "beside the progress, as before");
+});
+
+test("and a card marked the day it arrived is not set aside empty-handed", () => {
+  /* The drawer used to keep only cards with a schedule in them, and a card
+     marked before it was ever answered has none — which is exactly the card
+     a learner would notice going missing. */
+  const had = [
+    { id: "srvk21", source: { cardId: "k21" }, priority: true, priorityAt: 500,
+      forms: [{ id: "srvk21", ar: "a", en: "a", s: {} }] },
+  ];
+  const away = foldCourses(had, []);
+  const back = foldCourses(away.items, [
+    { id: "srvk21", source: { cardId: "k21" }, forms: [{ id: "srvk21", ar: "a", en: "a", s: {} }] },
+  ], away.parked);
+  assert.equal(back.items[0].priority, true, "the mark was thrown out with the card");
+});
+
+test("a mark the learner cleared stays cleared through a refresh", () => {
+  /*
+   * "No longer wanted, as of then" is an answer, and it only beats an older
+   * yes on another device while it carries its time — which is why the card
+   * stores `false` rather than dropping the field. The fold carried a yes
+   * and nothing else, so clearing a mark and waiting forty-five seconds
+   * left a card that said nothing at all: the next sync handed back the
+   * other device's yes, and the card the learner had just let go of was
+   * back at the front of every session.
+   */
+  const had = [
+    { id: "srvk22", source: { cardId: "k22" }, priority: false, priorityAt: 900,
+      forms: [{ id: "srvk22", ar: "a", en: "a", s: {} }] },
+  ];
+  const fresh = [{ id: "srvk22", source: { cardId: "k22" }, forms: [{ id: "srvk22", ar: "a", en: "a", s: {} }] }];
+  const out = foldCourses(had, fresh).items[0];
+  assert.equal(out.priority, false, "the card still says the learner let it go");
+  assert.equal(out.priorityAt, 900, "and when they did, which is what makes it stick");
+});
+
 /*
  * And the two things the fold used to leave behind.
  *

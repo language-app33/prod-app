@@ -3372,6 +3372,14 @@ export function progressOf(item: Item): Parked {
     at: Date.now(),
     forms: of(formsOf(item)),
     ...(Object.keys(lines).length ? { lines } : null),
+    /* The mark goes in the drawer with the schedules. Stored whenever the
+       learner has said anything at all, cleared as well as set, so that
+       what comes back out is their last word and not an older one — the
+       same reason it is stored as `false` rather than removed on the card
+       itself. See `priorityAt` in types.ts. */
+    ...(item.priorityAt || item.priority
+      ? { priority: !!item.priority, ...(item.priorityAt ? { priorityAt: item.priorityAt } : null) }
+      : null),
   };
 }
 
@@ -3388,6 +3396,11 @@ export function withProgress(item: Item, saved: Parked | undefined): Item {
     ...item,
     forms: formsOf(item).map((f) => put(f, saved.forms || {})),
     ...(lines.length ? { lines } : null),
+    /* And the mark the learner had put on it, with its stamp, so a card
+       that has been away comes home asked for. */
+    ...(saved.priorityAt || saved.priority
+      ? { priority: !!saved.priority, ...(saved.priorityAt ? { priorityAt: saved.priorityAt } : null) }
+      : null),
   };
 }
 
@@ -3430,7 +3443,20 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
          written. */
       kept.push({
         ...fresh,
-        ...(existing.priority ? { priority: true, priorityAt: existing.priorityAt } : null),
+        /* Whatever the learner last said about wanting this card next,
+           and when they said it — not only a yes. Keeping the yes alone
+           dropped the stamp off a card whose mark had just been cleared,
+           and a stamp is what lets the merge tell "no longer wanted, as
+           of then" from an older yes still held on another device: the
+           card came back marked on the next sync, went to the front of
+           every session, and clearing it again did the same thing. See
+           `priorityAt` in types.ts. */
+        ...(existing.priorityAt || existing.priority
+          ? {
+              priority: !!existing.priority,
+              ...(existing.priorityAt ? { priorityAt: existing.priorityAt } : null),
+            }
+          : null),
         ...(existing.reset ? { reset: existing.reset } : null),
         forms: foldForms(formsOf(existing), formsOf(fresh)),
         ...(fresh.lines ? { lines: foldForms(existing.lines || [], fresh.lines) } : null),
@@ -3466,7 +3492,15 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
   const nextParked = { ...parked };
   for (const it of gone) {
     const saved = progressOf(it);
-    if (Object.keys(saved.forms).length || (saved.lines && Object.keys(saved.lines).length)) {
+    /* The mark counts as something worth keeping in its own right: a card
+       marked the day it arrived has no schedules yet, and it is exactly
+       the card a learner would notice going missing. */
+    if (
+      Object.keys(saved.forms).length ||
+      (saved.lines && Object.keys(saved.lines).length) ||
+      saved.priorityAt ||
+      saved.priority
+    ) {
       nextParked[it.id] = saved;
     }
   }

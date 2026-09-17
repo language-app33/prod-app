@@ -2588,7 +2588,25 @@ export function buildSession({
   const avgUnits =
     candidates.reduce((n, c) => n + Math.min(c.units.length, MAX_UNITS_PER_FAMILY), 0) /
     candidates.length;
-  const wanted = Math.max(1, Math.round(budget / (PER_UNIT * Math.max(1, avgUnits))));
+  /*
+   * And never fewer than were asked for.
+   *
+   * The arithmetic above is about how many cards a session of this length
+   * holds, which is the right question for the cards the app picks and the
+   * wrong one for the cards the learner did. A deck of ordinary two-form
+   * cards buys five places — so somebody who had marked eight cards was
+   * handed five of them, a different five each sitting, by a screen that
+   * had told them each one was in their next session. They already rank
+   * ahead of everything else, so taking at least as many as there are of
+   * them is the whole of it: the session grows to hold what was asked for
+   * rather than turning the rest away.
+   */
+  const askedFor = candidates.filter((c) => c.urgent).length;
+  const wanted = Math.max(
+    1,
+    askedFor,
+    Math.round(budget / (PER_UNIT * Math.max(1, avgUnits)))
+  );
   const chosen = candidates.slice(0, Math.min(candidates.length, wanted));
 
   /* Easiest first, and cards of the same difficulty in no particular
@@ -2674,8 +2692,27 @@ export function buildSession({
     );
   }).length;
 
+  /*
+   * Where the session ends.
+   *
+   * The budget, ordinarily — and far enough to reach the last card the
+   * learner asked for, where that is further. The second half of the same
+   * fault as the count above: admitting a marked card and then cutting the
+   * queue before its first question is the same as never admitting it, and
+   * it is what a learner who marks more cards than a session holds would
+   * have seen. Questions are dealt a round at a time, so every card is
+   * asked once before any card is asked twice and the reach is a handful
+   * of questions rather than a session of a different size.
+   */
+  const askedIds = new Set(warmed.filter((c) => c.urgent).map((c) => c.it.id));
+  let cut = budget;
+  for (const id of askedIds) {
+    const at = varied.findIndex((e) => e.id === id);
+    if (at >= 0) cut = Math.max(cut, at + 1);
+  }
+
   return {
-    exercises: withReadThroughs(varied.slice(0, budget), items, settings),
+    exercises: withReadThroughs(varied.slice(0, cut), items, settings),
     reason: null,
     items: dealt.size,
     units: plans.length,
