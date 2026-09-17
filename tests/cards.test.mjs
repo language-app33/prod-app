@@ -84,7 +84,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits,
+const { leadSpeed, deckPercent, levelPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits,
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
@@ -601,6 +601,30 @@ test("and is held at 99 until the last card is in", () => {
   assert.equal(deckPercent({ n: 3, learnt: 0, got: 2 }), 66);
   /* An empty deck is nought rather than a division by nothing. */
   assert.equal(deckPercent({ n: 0, learnt: 0, got: 0 }), 0);
+});
+
+/*
+ * And how far one card has got on the level it is on, which is what the
+ * bar on each tile under a level tile draws.
+ *
+ * The two numbers are the standing's own — what has to hold for the next
+ * level to open, and how much of it does — so the only thing to check here
+ * is that the proportion cannot say a thing the counts do not: a hundred
+ * per cent means the level is done and nothing short of it does.
+ */
+test("a card's bar on a level is how much of what that level needs is behind it", () => {
+  assert.equal(levelPercent({ done: 3, of: 8 }), 37);
+  assert.equal(levelPercent({ done: 0, of: 4 }), 0);
+  /* Full exactly when the level is done, which is `done === of` — the same
+     test the scheduler opens the level above on. */
+  assert.equal(levelPercent({ done: 8, of: 8 }), 100);
+  /* And never a moment before it: rounded down, so the last exercise of a
+     long level cannot be rounded away. */
+  assert.equal(levelPercent({ done: 199, of: 200 }), 99);
+  /* A card with nothing to practise has no bar to fill rather than a
+     division by nothing. */
+  assert.equal(levelPercent(null), 0);
+  assert.equal(levelPercent({ done: 0, of: 0 }), 0);
 });
 
 /*

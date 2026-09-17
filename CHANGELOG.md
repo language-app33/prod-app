@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.165 — 17 September 2026
+
+**Open a level on the ladder and each card says how far it has got.**
+
+Learning → Progress → the ladder: tap a level and you get the cards on it,
+sorted into paused, learning and not started. That says whether a card has
+been begun. It does not say how far it has come — so a word one question
+away from moving up and a word that was opened this morning sat side by
+side and looked the same.
+
+Each card now carries a small bar with a percentage: how much of what that
+level needs is behind it. It fills as you practise and reaches a hundred at
+exactly the moment the level opens the one above — the same "3 of 8" the
+card's own screen already showed, said as a proportion so a list of them
+can be read at a glance.
+
+Two places deliberately have no bar. **Cards** holds every card at once, on
+every level, where one card's 40% and another's would be forty per cent of
+different climbs. **Learnt** is cards with nothing left to open, where every
+bar would be full.
+
 ## 0.164 — 17 September 2026
 
 **The card list narrows by a blank, from either side of it.**

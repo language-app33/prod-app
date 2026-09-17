@@ -11960,6 +11960,31 @@ export function deckPercent({ n, learnt, got }: { n: number; learnt: number; got
   return Math.max(0, Math.min(99, Math.floor((got / n) * 100)));
 }
 
+/**
+ * How far a card has got on the level it is on, as a percentage.
+ *
+ * A standing already carries the two numbers — how many of the exercises
+ * that have to hold for the next level to open are there yet, and how many
+ * there are — and a card's own screen says them as "3 of 8". This is the
+ * same fact as a proportion, for the tiles under a level, where a bar
+ * across a list of cards is read at a glance and a pair of counts is not.
+ *
+ * It counts this level *and everything under it*, because that is what the
+ * scheduler's gate asks: writing a word wants four days from reading it
+ * too, not only from the level below. So a card that has just arrived on a
+ * level starts partway along rather than at nought, and the bar reaches a
+ * hundred at exactly the moment the level opens the next one — the screen
+ * and the scheduler cannot come to disagree about when a level is done,
+ * which is the whole reason the counts are kept that way.
+ *
+ * Rounded down, so a level still short of its last exercise can never read
+ * as a finished one.
+ */
+export function levelPercent(at: { done: number; of: number } | null | undefined): number {
+  if (!at || !at.of) return 0;
+  return Math.max(0, Math.min(100, Math.floor((at.done / at.of) * 100)));
+}
+
 /*
  * How far along a card is: which level it is on and how it is going there.
  *
@@ -12031,6 +12056,14 @@ function ProgressTab({ items, myCourses = [], settings }: {
      same cards, and two open at once is a screen you have to scroll past
      rather than read. */
   const [showing, setShowing] = useState<string>("");
+  /* Whether what is open is one of the four levels, rather than every card
+     at once or the ones with nothing left to open. Two things below turn on
+     it: the cards are told apart by how they are going, and each says how
+     far it has got on that level. Neither means anything under the other
+     two tiles — "Cards" is spread over every level, so one card's 40% and
+     another's would be forty per cent of different climbs, and under
+     "Learnt" every bar would be full. */
+  const onLevel = /^l\d$/.test(showing);
 
   /*
    * How far each deck is from being learnt outright.
@@ -12144,7 +12177,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
              every level and there is nothing one run would mean, and
              under "Learnt" they are all in the one state, which the list
              notices for itself and draws without headings. */
-          groups={/^l\d$/.test(showing) ? STATUS_RUNS : undefined}
+          groups={onLevel ? STATUS_RUNS : undefined}
           groupOf={(it: Item) => {
             const at = progressOf.get(it.id);
             return at ? at.status : "none";
@@ -12164,6 +12197,13 @@ function ProgressTab({ items, myCourses = [], settings }: {
                  which tile you pressed — and under a level the headings
                  say how it is going there as well. */
               meta={showing === "all" ? standingShort(progressOf.get(it.id) || null) : undefined}
+              /* And under a level, how far the card has got on it. The
+                 headings say which of three states it is in, which is the
+                 difference between started and not; this says how much of
+                 the level is behind it, which is the difference between a
+                 card that is nearly through and one that has just begun —
+                 and those look identical under "Learning" without it. */
+              bar={onLevel ? { pct: levelPercent(progressOf.get(it.id)) } : undefined}
               onClick={() => setViewing(it)}
             />
           )}

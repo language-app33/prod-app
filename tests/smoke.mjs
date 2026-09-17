@@ -1650,6 +1650,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   const shown = document.querySelectorAll(".at-cardgrid .at-minicard");
   check("pressing it shows that many cards, at the size they come smallest",
     shown.length === said, `said ${said}, showed ${shown.length}`);
+  /* And this one — every card at once — carries no bars: its cards are
+     spread over every level, so one card's 40% and another's would be
+     forty per cent of different climbs. The bars belong under a level,
+     where they measure the same thing on every tile. */
+  check("but the list of every card carries no bars, which would compare different climbs",
+    !/All cards/.test((live || {}).textContent || "") ||
+      ![...shown].some((t) => t.querySelector(".at-minibar")),
+    `${[...shown].filter((t) => t.querySelector(".at-minibar")).length} of ${shown.length} barred`);
   /* On a screen of its own, titled by the tile that opened it. They used
      to open as a strip under the grid, which put a list of any length
      between the tiles and everything below them — reading it meant
@@ -1801,6 +1809,42 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("and each heading is a status, with how many are in it",
     heads.length > 0 && headed.every((h) => /^(Paused|Learning|Not started)\s*\d+$/.test(h)),
     headed.join(" · ") || "no headings");
+  /* ---- and each of them says how far it has got on that level ----
+     The headings say which of three states a card is in, which is the
+     difference between started and not. This is the difference between a
+     card nearly through the level and one that has just begun, and those
+     look identical under "Learning" without it. */
+  {
+    const tiles = [...document.querySelectorAll(".at-cardgrid .at-minicard")];
+    const pctOf = (/** @type {Element} */ t) =>
+      ((t.querySelector(".at-minibar b") || {}).textContent || "").trim();
+    check("every card under a level says how far it has got on it, as a percentage",
+      tiles.length > 0 && tiles.every((t) => /^\d+%$/.test(pctOf(t))),
+      tiles.map(pctOf).map((p) => p || "(none)").join(" · ") || "no tiles");
+    /* Read off the bar itself rather than the tile's text, the way the
+       deck bars are: a number beside a word runs into it. */
+    check("and the bar beside it is drawn to the width of that number",
+      tiles.every((t) => {
+        const fill = /** @type {any} */ (t.querySelector(".at-minibarrail > span"));
+        return !!fill && fill.style.width === pctOf(t);
+      }),
+      tiles.map((t) => {
+        const fill = /** @type {any} */ (t.querySelector(".at-minibarrail > span"));
+        return fill ? fill.style.width : "no bar";
+      }).join(" · "));
+    /* The bar is the number again, so a screen reader is told once. */
+    check("the bar is drawing, and not read out twice",
+      tiles.every((t) => {
+        const rail = t.querySelector(".at-minibarrail");
+        return !!rail && rail.getAttribute("aria-hidden") === "true";
+      }));
+    /* And it is never full: a card whose level is done has moved up and is
+       under the next tile along. */
+    check("and none of them is full, because a finished level is the next tile",
+      tiles.every((t) => Number(pctOf(t).replace("%", "")) < 100),
+      tiles.map(pctOf).join(" · "));
+  }
+
   /* The counts are of the whole run, so they add up to the number on the
      tile whichever page the list is showing. */
   const inRuns = headed.reduce((n, h) => n + Number(h.match(/\d+$/)), 0);

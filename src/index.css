@@ -947,6 +947,22 @@ button {
   text-transform:uppercase; color: var(--faint); line-height:1.4; }
 .at-minimeta { font-size:calc(11px * var(--tile, 1)); color: var(--faint); line-height:1.4; margin-top:auto;
   padding-top:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* How far along the card is, where the list it is in is a list about
+   progress — a bar and the number it draws. Brass and rounded, the same as
+   the deck bars further up Progress: one kind of drawing for one kind of
+   fact, so a bar always means the same thing wherever it turns up.
+
+   Pinned to the foot of the tile, so the bars in a row line up however
+   long or short the words above them are. The meta line is pinned there
+   too, so where a tile carries both, the meta keeps the bottom and the bar
+   sits under it. */
+.at-minibar { margin-top:auto; padding-top:8px; display:flex; align-items:center; gap:6px; }
+.at-minimeta + .at-minibar { margin-top:0; padding-top:4px; }
+.at-minibarrail { flex:1; min-width:0; height:6px; border-radius:999px;
+  background: var(--well); overflow:hidden; }
+.at-minibarrail > span { display:block; height:100%; border-radius:999px; background: var(--brass); }
+.at-minibar b { font-family: var(--ui); font-size:calc(11px * var(--tile, 1)); font-weight:800;
+  color: var(--muted); font-variant-numeric: tabular-nums; }
 /* The mark on a card the learner asked for. In the meta line because that
    is the tile's one line of small print, but in brass rather than the
    faint the rest of it is set in: the point of it is to be picked out of a
