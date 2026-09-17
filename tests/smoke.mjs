@@ -3829,8 +3829,6 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         ...(n.matches(sel) ? [n] : []),
         ...n.querySelectorAll(sel),
       ]);
-    const named = (/** @type {any} */ row) =>
-      (((row.querySelector("b") || {}).textContent) || "").trim();
     const HOLES = /^Blanks in this card$/;
     const FILLS = /^Using this card to fill a blank$/;
 
@@ -3911,77 +3909,51 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         panel() ? "still open" : "closed");
     }
 
-    /* ---- and the list that writes one, on the screen ----
+    /* ---- and what the card leaves is read off the card ----
 
-       It was a button that opened a menu of blank ids — under one heading,
-       while a list of blank ids stood under the other, which read as the
-       same control in two places. It is not: this writes a hole into the
-       card's own words, and that one says the card stands in somebody
-       else's. Both are lists now, so the headings do the telling apart.
-
-       What it writes goes into every field at once, which is the whole
-       reason the fields can no longer disagree — so what is checked is all
-       three, not the one that was focused. */
-    typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
-    await sleep(80);
-    typeInto(fieldNamed(/^English$/), "My name is");
-    await sleep(250);
-    const holeList = () => inHalf(HOLES, ".at-ticklist .at-tickrow");
-    const holeNames = () => holeList().map(named);
-    const holeRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
-      holeList().find((r) => re.test(named(r))) || null);
-    const holeTicked = () => holeList()
-      .filter((r) => /** @type {any} */ (r.querySelector("input")).checked).map(named);
-    const holeBox = () => /** @type {any} */ (inHalf(HOLES, ".at-blanknew")[0] || null);
-    check("the blanks it can leave are a list on the screen, not a menu to open",
-      holeList().length > 0 &&
-        !inHalf(HOLES, ".at-choosebtn").length,
-      holeNames().join(", ") || "(no list)");
-    check("with the built-in ones among them, where somebody is looking for them",
-      holeNames().includes("word") && holeNames().includes("noun"),
-      holeNames().join(", "));
-    /* Each says what it is worth: whether a card using it can be practised
-       at all, and whether this is the name everybody else uses. */
-    check("and what each one is worth",
-      holeList().every((r) => /\d/.test(((r.querySelector("i") || {}).textContent || ""))),
-      holeList().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
-    check("and the box that names a new one is above the list here too",
-      !!holeBox() && !!holeList().length &&
-        !!(holeBox().compareDocumentPosition(holeList()[0]) & 4),
-      holeBox() ? "above" : "(no box)");
-
-    click(/** @type {any} */ (holeRow(/^name$/).querySelector("input")));
-    await sleep(250);
-    /* Re-queried each time rather than held: ticking a blank re-renders the
-       form, so a field kept in a variable is a field no longer on screen. */
+       This half went through a menu and then a tick list before it was a
+       readout, and the tick list was the instructive mistake: it was every
+       blank in the language with the card's two ticked, so a tick sat
+       beside {{verb}} on a card with no verb in it, under a heading saying
+       these are the blanks in this card. What a card leaves is in its own
+       words — the braces are in the text — so there is nothing to decide
+       and nothing to tick. It says what is there. */
     const ar = () => /** @type {any} */ (fieldNamed(/^Arabic script and transliteration$/i));
     const en = () => /** @type {any} */ (fieldNamed(/^English$/));
-    check("ticking one writes it into every field at once",
-      !!ar() && ar().value === "ismi {{name}}" && !!en() && en().value === "My name is {{name}}",
-      `script "${ar() ? ar().value : "—"}", English "${en() ? en().value : "—"}"`);
-    check("so the fields cannot disagree, and the card saves",
+    const chips = () => inHalf(HOLES, ".at-blankchip")
+      .map((c) => (c.textContent || "").trim());
+    check("this half decides nothing: no list of blanks, and nothing to tick",
+      !inHalf(HOLES, ".at-ticklist").length && !inHalf(HOLES, "input[type=checkbox]").length,
+      `${inHalf(HOLES, ".at-tickrow").length} ticks, ${inHalf(HOLES, ".at-choosebtn").length} menus`);
+
+    /* Taken out of the card's words, it is gone from here — and the half
+       says what to write instead of listing what could be written. */
+    typeInto(ar(), "ismi");
+    await sleep(80);
+    typeInto(en(), "My name is");
+    await sleep(250);
+    check("a card with no blank in its words shows none",
+      chips().length === 0,
+      chips().join(", ") || "(none)");
+    check("and says how one is written, since there is nothing here to press",
+      /\{\{name\}\}/.test(((half(HOLES).map((n) => n.textContent || "").join(" ")) || "")),
+      (half(HOLES).map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /None yet/.test(t))) || "(nothing said)");
+
+    /* And written back into the words, it is read off them again. Into
+       every field, because a card whose English has a hole and whose
+       script has not cannot be saved — which this half is where you find
+       out about. */
+    typeInto(ar(), "ismi {{name}}");
+    await sleep(80);
+    typeInto(en(), "My name is {{name}}");
+    await sleep(300);
+    check("and a blank written into the words is read off them",
+      JSON.stringify(chips()) === JSON.stringify(["name"]),
+      chips().join(", ") || "(none)");
+    check("so the fields agree, and the card saves",
       !!saveBtn() && !saveBtn().disabled && !/is missing \{\{/.test(document.body.textContent || ""),
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
-    check("and the list says so, so what the card leaves is read off one place",
-      JSON.stringify(holeTicked()) === JSON.stringify(["name"]),
-      holeTicked().join(", ") || "(none ticked)");
-
-    /* And unticking takes it out of all three, which could only be done by
-       hand before — from three fields, one of which runs the other way,
-       and a card left with the braces in two of them cannot be saved. So
-       the half that could only be done by hand was the half that broke the
-       card. */
-    click(/** @type {any} */ (holeRow(/^name$/).querySelector("input")));
-    await sleep(250);
-    check("and unticking it takes it out of every field at once",
-      !!ar() && ar().value === "ismi" && !!en() && en().value === "My name is" &&
-        !/is missing \{\{/.test(document.body.textContent || ""),
-      `script "${ar() ? ar().value : "—"}", English "${en() ? en().value : "—"}"`);
-    click(/** @type {any} */ (holeRow(/^name$/).querySelector("input")));
-    await sleep(250);
-    check("and it can be put back, without the braces ever being typed",
-      !!en() && en().value === "My name is {{name}}",
-      en() ? `"${en().value}"` : "no field");
 
     /* ---- and a sentence is a kind of card in its own right ----
 
@@ -4014,23 +3986,19 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       [...document.querySelectorAll("button")].map((b) => (b.textContent || "").trim())
         .filter((t) => /another form/i.test(t)).join(" | ") || "no such button");
 
-    /* The blanks a sentence is made of: one per kind of word the language
-       declares, so writing "{{noun}} {{adjective}}" is all a teacher has to
-       do and every noun they have written joins in. */
-    const kindsOfWord = () => holeNames();
-    check("the blanks on offer include every kind of word this language declares",
-      kindsOfWord().includes("noun") && kindsOfWord().includes("verb") &&
-        kindsOfWord().includes("adjective"),
-      kindsOfWord().join(", ") || "(none)");
-    check("with the built-in ones first, where somebody is looking for them",
-      kindsOfWord()[0] === "word", kindsOfWord().join(", "));
-    click(/** @type {any} */ (holeRow(/^noun$/).querySelector("input")));
-    await sleep(250);
-    const sar = fieldNamed(/^Arabic script and transliteration$/i);
-    const sen = fieldNamed(/^English$/);
-    check("choosing one writes it into every field of the sentence at once",
-      !!sar && /\{\{noun\}\}/.test(sar.value) && !!sen && /\{\{noun\}\}/.test(sen.value),
-      `script "${sar ? sar.value : "—"}", English "${sen ? sen.value : "—"}"`);
+    /* A blank named after a kind of word — "{{noun}} {{adjective}}" is all
+       a teacher has to write and every noun they have made joins in — and
+       the section reads it off the words like any other. */
+    typeInto(ar(), "ismi {{name}} {{noun}}");
+    await sleep(80);
+    typeInto(en(), "My name is {{name}} {{noun}}");
+    await sleep(300);
+    check("a blank named after a kind of word is read off the words too",
+      JSON.stringify(chips()) === JSON.stringify(["name", "noun"]),
+      chips().join(", ") || "(none)");
+    check("and the sentence saves, because every field leaves the same two",
+      !!saveBtn() && !saveBtn().disabled && !/is missing \{\{/.test(document.body.textContent || ""),
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
     /* And it is filled by the words that say they are nouns, with nothing
        written on any of them to say so — which is the whole bargain: a
        teacher writes the sentence, and the vocabulary joins in. */

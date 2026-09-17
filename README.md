@@ -212,36 +212,34 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
 
-  **The editor's Blanks section is two named halves, each a box above a
-  list, and neither explains itself in words where it can show.** Nothing
-  in it is behind a button: two lists of blank names under two headings
-  read as one control drawn twice, so what tells them apart is the
-  headings, which only works if both are on the screen to be compared.
+  **The editor's Blanks section is two named halves, and they are not the
+  same shape, because the two questions are not the same question.**
 
-  *Blanks in this card* draws the card as a student will actually meet it
-  — three sentences, each in the script, in how it is said and in what it
-  means, filled from the words that exist today — then each hole it
-  leaves, then every blank it could leave, with those ticked. Ticking one
-  writes `{{name}}` into every field at once and unticking takes it out of
-  every field at once, which is what makes "every field with words in it
-  leaves the same blanks" a rule the editor keeps rather than one it
-  reports: taking a hole out was the half that could only be done by hand,
-  from three fields, one of which runs the other way. Pointing at a hole
-  lists the words that will go in it, which is the only place a teacher
-  can see whether the right vocabulary is behind a blank without leaving
-  the card.
+  *Blanks in this card* is a **readout**, and has nothing to decide. What
+  a card leaves is written in its own words — the braces are in the text —
+  so the holes are a fact about the card and the section's whole job is to
+  say what that fact is worth: the card as a student will actually meet it
+  (three sentences, each in the script, in how it is said and in what it
+  means, filled from the words that exist today), then each hole, and,
+  when one is pointed at, the words that will go in it. That last is the
+  only place a teacher can see whether the right vocabulary is behind a
+  blank without leaving the card. A blank is put in and taken out by
+  writing it into the fields, where it lives; every field with words in it
+  must leave the same blanks, and `slotTrouble` refuses the save and names
+  the field that is short of one.
 
-  *Using this card to fill a blank* is the opposite job and its list is
-  the opposite list: the blanks somebody wrote, with this card's ticked.
-  A kind of word is in the first list and not this one, and that asymmetry
-  is the point — leaving a `{{noun}}` hole is a real thing to write, while
-  *filling* one is what a card does by saying it is a noun, so a tick for
-  it would change nothing. What is offered here is what somebody wrote
-  rather than what is not built in, because a language may declare a kind
-  of word whose name a teacher also uses by hand: Arabic declares `name`
-  and `{{name}}` is the oldest frame in the app. A card that leaves a
-  blank of its own fills none, so on one of those this half says that
-  rather than offering a control there is no answer to.
+  *Using this card to fill a blank* is the opposite job, and there a list
+  is right: what a card fills is nowhere in its words and nothing can be
+  read off, so it is the teacher's answer and this is where they give it —
+  a box that names a new blank, above the blanks somebody has written,
+  with this card's ticked. A kind of word is not among them, because a
+  card fills `{{noun}}` by saying it is a noun and `{{word}}` by being a
+  word: a tick for either would change nothing. What is offered is what
+  somebody *wrote* rather than what is not built in, because a language
+  may declare a kind of word whose name a teacher also uses by hand —
+  Arabic declares `name`, and `{{name}}` is the oldest frame in the app. A
+  card that leaves a blank of its own fills none, so on one of those this
+  half says that rather than offering a control there is no answer to.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the

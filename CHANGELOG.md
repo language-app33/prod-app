@@ -8,6 +8,29 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.162 — 17 September 2026
+
+**"Blanks in this card" now shows the blanks in this card.**
+
+0.161 made it a tick list of every blank the language knows about, with the
+card's own ticked. On a card with one blank in it that was a list of a dozen
+rows, eleven of which are not in the card at all — with a checkbox beside
+each, under a heading saying these are the blanks in this card. Neither the
+heading nor the ticks were true.
+
+It is a readout now. It reads the blanks out of the card's own words and
+shows those: the sentences a student will be asked, the holes themselves,
+and — when you point at one — the words that will go in it. Nothing in it to
+tick, because there is nothing there to decide: a blank is in the card
+because it is written in the card.
+
+Putting one in and taking one out is done where it lives, by writing
+`{{name}}` into the fields. If a field is short of one the card still will
+not save, and the editor still names the field.
+
+The other half, *Using this card to fill a blank*, is unchanged: what a card
+fills is nowhere in its words, so it stays the list where you say so.
+
 ## 0.161 — 17 September 2026
 
 **Nothing in the Blanks section is behind a button any more.**

@@ -2130,36 +2130,36 @@ field whose filler has nothing to put in it keeps the braces standing, exactly
 as the question would, which is the teacher's answer about the card they have
 written rather than a gap to wonder about.
 
-**Neither half is behind a button, and that is what makes the headings
-work.** Which blanks a word is offered to, and which holes a card leaves, are
-both questions a list answers, and both were behind buttons — a list you have
-to open to see is a list you answer without reading. Worse, once one half was
-a list on the screen and the other was a button that opened a menu of blank
-names, the two read as the same control in two places: the first thing said
-about the change was "shouldn't that button be under the other heading?",
-which is the correct question to ask about two things that look identical and
-the wrong answer, because they do opposite jobs. Two lists, side by side under
-their two headings, is what lets the headings do the telling apart. The box
-that names a new blank sits above each list rather than at the bottom of a
-menu — naming the first blank of a kind is the one thing here nobody can do by
-choosing, so it is the one thing that must never be hardest to reach.
+**One half is a readout and the other is a list, and making them match was
+the mistake.** Which blanks a word is offered to, and which holes a card
+leaves, look like the same question and are not. What a card fills is nowhere
+in its words: it is the teacher's answer, nothing can be read off, and a list
+is where they give it. What a card leaves is *written in its own words* — the
+braces are in the text — so it is a fact about the card, already decided by
+the time the section is drawn.
 
-**Ticking a hole writes it, and unticking takes it out.** Putting a blank into
-a card stopped being typing in 0.139, because typing braces into three fields
-that must agree is exactly the thing a teacher gets wrong — but *taking one
-out* was left as hand-editing all three, one of which runs the other way, and
-a card left with the braces in two fields and not the third cannot be saved.
-So the half that could only be done by hand was the half that broke the card.
-`dropBlank` cuts with `splitSlots` rather than a pattern built out of the
-name: what counts as a slot is variables.ts's answer, and a second copy of it
-in the editor would be a second answer waiting to disagree.
+Two releases went into learning that. 0.160 made the fills half a list on the
+screen and left the holes half behind a "+ Blank" menu; the two then read as
+the same control in two places, and the first thing asked was whether the
+button belonged under the other heading — the right question about two things
+that look identical, and the wrong answer, since they do opposite jobs. 0.161
+answered it by making both tick lists, which is where the shape broke: the
+holes half became every blank in the language with the card's two ticked, so
+a checkbox sat beside `{{verb}}` on a card with no verb in it, under a heading
+saying *these are the blanks in this card*. Neither the heading nor the tick
+was true. Symmetry between the halves was never the goal; what the section had
+to do was make the two jobs impossible to confuse, and a readout beside a list
+does that better than two lists ever did.
 
-**The two lists are deliberately not the same list.** The holes list carries
-the built-in blanks — `{{word}}` and every kind of word the language declares
-— and the fills list does not. Leaving a `{{noun}}` hole is a real thing to
-write; filling one is what a card does by saying it is a noun, so a tick for
-it would change nothing. Same control, same shape, different contents,
-because the two questions have different answers.
+**What it costs.** Putting a blank into a card is typing braces again, and
+typing braces into three fields that must agree is exactly the thing a teacher
+gets wrong — which is what the button was for in 0.139. The guard that
+remains is `slotTrouble`: a card whose English has a hole and whose script has
+not cannot be saved, and the editor names the field that is short of one. That
+is a worse place to catch it than not being able to make the mistake, and it
+is the price of a heading that is true. A control that writes a blank into the
+fields can come back, but it belongs beside the fields it writes into, not
+under a heading that says what the card already has.
 
 **What is offered is what somebody wrote, not what is not built in.** A card
 fills `{{noun}}` by saying it is a noun and `{{word}}` by being a word — see

@@ -36,7 +36,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { fillNames, fillText, hasSlots, MAX_FILLS, slotsIn, slotsOf, slotTrouble, splitSlots, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import { fillNames, fillText, hasSlots, MAX_FILLS, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -1857,27 +1857,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   }, [allCards, lang]);
 
   /*
-   * The blanks this card could leave, ticked where it leaves them.
-   *
-   * Every blank there is, built-in ones included — which is the difference
-   * between this list and the one below it, and the reason they are two
-   * lists rather than one control drawn twice. Leaving a `{{noun}}` hole
-   * is a real thing to write: "{{noun}} is heavy" is a frame met with
-   * every noun in the deck. *Filling* one is not, because a card fills
-   * `{{noun}}` by saying it is a noun and there is nothing to tick.
-   *
-   * Plus any hole the card already has that nothing else uses yet — one
-   * just written here, which no saved card has heard of — because a list
-   * that hides what the card holds is a list you cannot take it out in.
-   */
-  const holesOffer = useMemo(() => {
-    const held = holes
-      .filter((name) => !blanksAround.some((b) => b.name === name))
-      .map((name) => ({ name, words: 0, used: 0, wrote: 0 }));
-    return blanksAround.concat(held);
-  }, [blanksAround, holes]);
-
-  /*
    * The blanks this card can be offered to fill: the ones somebody wrote.
    *
    * A kind of word is not one of them. A card fills `{{noun}}` by saying
@@ -1968,77 +1947,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   );
   const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
-  /*
-   * Put a blank into the card, in every field at once.
-   *
-   * The rule the editor spent its longest sentence on is that every field
-   * with words in it leaves the same holes — and the only reason a teacher
-   * could break it was that they were typing the holes by hand, three
-   * times. Written from here they cannot disagree, and the error stops
-   * being reachable rather than being explained better.
-   *
-   * Appended rather than dropped at the caret. Where it goes in the
-   * sentence is the teacher's business and a drag away; guessing at it
-   * across three fields, one of which runs the other way, would be the app
-   * being clever about something it cannot see.
-   */
-  const putBlank = (name: string) => {
-    const mark = `{{${name}}}`;
-    /* A field nobody has filled in is not a field that disagrees — a card
-       with no transliteration is an ordinary card, not a broken one — and
-       a field that already leaves this blank is left alone rather than
-       given it twice. */
-    const grown = (had: string) => {
-      const was = String(had || "");
-      if (!was.trim() || slotsIn(was).includes(name)) return was;
-      return `${was.replace(/\s+$/, "")} ${mark}`;
-    };
-    /* The three FILLED_FIELDS, written out: they are what a draft form is
-       made of here, and reaching them by name through a list of strings
-       would only be true for as long as the two agreed. */
-    setForms((f) =>
-      f.map((form, i) =>
-        i === 0
-          ? { ...form, ar: grown(form.ar), en: grown(form.en), lat: grown(form.lat) }
-          : form,
-      ),
-    );
-  };
-  /*
-   * Take a blank out of the card, in every field at once.
-   *
-   * The other half of putBlank, and it exists for the same reason: taking
-   * a hole out meant deleting the braces by hand from three fields, one of
-   * which runs the other way — which is exactly the thing that could not be
-   * done reliably and is why putting one in stopped being typing. A card
-   * left with the braces in two fields and not the third cannot be saved,
-   * so the half that could only be done by hand was the half that broke
-   * the card.
-   *
-   * Cut with splitSlots rather than a pattern built out of the name: what
-   * counts as a slot is variables.ts's answer, and a second copy of it
-   * here would be a second answer waiting to disagree. A slot comes back
-   * lower-cased, so {{Name}} goes with {{name}}.
-   */
-  const dropBlank = (name: string) => {
-    const gone = (had: string) =>
-      splitSlots(String(had || ""))
-        .filter((run) => run.slot !== name)
-        .map((run) => run.text)
-        .join("")
-        /* The space that stood between the words and the hole is left
-           behind by taking the hole out, and two spaces in the middle of a
-           sentence is a card that reads as a mistake. */
-        .replace(/[ \t]{2,}/g, " ")
-        .trim();
-    setForms((f) =>
-      f.map((form, i) =>
-        i === 0
-          ? { ...form, ar: gone(form.ar), en: gone(form.en), lat: gone(form.lat) }
-          : form,
-      ),
-    );
-  };
   const canSave = canSaveWord(main, trouble);
 
   /* Another form, named so that its own cells can point at it. No number
@@ -2171,14 +2079,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     tableCells,
     trouble,
     blanksAround,
-    holesOffer,
     asked,
     starved,
     fillers,
     canSave,
     setForm,
-    putBlank,
-    dropBlank,
     parts,
     setAskPart,
   };
@@ -3066,8 +2971,7 @@ function BlankChip({ slot, values, lang }: {
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, asked, fillers, fills, fillsOffer, addFill, dropFill,
-    main, standsIn, holesOffer, putBlank, dropBlank, trouble, drill,
-    setDrillChoice, category,
+    main, trouble, drill, setDrillChoice, category,
   } = word;
   /* A card with a blank of its own fills none — see fillsOf, which is the
      one answer to that and which this only reports. So the second
@@ -3086,17 +2990,25 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         stands on its own rather than beside a field.
 
         It was called Variables, which is the word the code uses, and
-        it did two opposite jobs in one block: a card that leaves a
-        blank and a card that fills somebody else's. Both were shown
-        to everybody, under ninety words explaining a syntax the
-        teacher had to type by hand into three fields that must
-        agree. The syntax is now written by a button, the explaining
-        is done by showing the sentences a student will actually be
-        asked, and the two jobs are two named subsections — which they
-        had to become the moment a card could fill more than one blank,
-        because the second job then has a list of its own and a heading
-        is what tells a teacher which of the two lists they are looking
-        at. Only the one that applies carries controls. */}
+        it did two opposite jobs in one block under ninety words of
+        explanation. They are two named subsections now, and the
+        explaining is done by showing the sentences a student will
+        actually be asked.
+
+        **The two halves are not the same shape, and that is the
+        point.** What a card *leaves* is read off its own words — the
+        braces are in the text, so the holes are a fact about the card
+        and there is nothing to decide. That half is a readout: the
+        sentences, the holes, and what will go in each of them. What a
+        card *fills* is nowhere in its words and nothing can be read
+        off: it is the teacher's answer, so that half is the list they
+        answer it on.
+
+        0.161 had both as tick lists, which made the first one a list
+        of every blank in the language with two of them ticked — and a
+        tick beside `{{verb}}` on a card that has no verb in it says
+        the card has something to do with verbs, under a heading that
+        says these are the blanks in this card. Neither was true. */}
       <div className="at-formblock at-mt5">
         <div className="at-formhead">
           <span className="at-formnum">Blanks</span>
@@ -3155,10 +3067,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         )}
 
         {/* The holes the card has, as facts about it — each one saying,
-            when it is pointed at, what will be put in it. The list below
-            is where they are put in and taken out; this is what they are
-            worth, which is a different question and the one the section
-            was written to answer. */}
+            when it is pointed at, what will be put in it. */}
         {holes.length > 0 && (
           <div className="at-blankrow">
             {holes.map((slot) => (
@@ -3181,54 +3090,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </p>
         )}
 
-        {/* Putting a blank in and taking it out, on the screen rather than
-            behind a button.
-
-            It was a menu, and a menu of blank ids opening under one
-            heading while a list of blank ids stood under the other read as
-            the same control in two places — which it is not: this writes a
-            hole into the card's own words, and the list below says the
-            card stands in somebody else's. Both are lists now, which is
-            what makes the headings do their work.
-
-            And taking one out is here at all, which it never was: a hole
-            could only be removed by deleting the braces by hand from three
-            fields, one of which runs the other way, and a card left with
-            them in two fields and not the third cannot be saved. The half
-            that could only be done by hand was the half that broke the
-            card. */}
-        {!standsIn && (
-          <>
-            <BlankNameBox
-              label="Name a blank to put in this card"
-              placeholder="A new blank, like name-is"
-              taken={holesOffer.map((b) => b.name)}
-              onName={putBlank}
-            />
-            <CheckList
-              options={holesOffer.map((b) => ({
-                id: b.name,
-                title: b.name,
-                note:
-                  b.built === "any"
-                    ? `built in · any of ${plural(b.words, "word")} in this language`
-                    : b.built === "category"
-                      ? `built in · ${plural(b.words, "card")} said to be one`
-                      : `${plural(b.words, "word")} to fill it · left by ${plural(b.used, "card")}`,
-              }))}
-              chosen={holes}
-              onToggle={(id, wasOn) => (wasOn ? dropBlank(id) : putBlank(id))}
-              empty="No blank has been named yet. Type one above — the first of its kind has to be named by somebody."
-            />
-          </>
-        )}
-
         {holes.length === 0 && (
           <Help>
             None yet. A blank is a hole this card leaves for another word to
-            fill, so that one card is met as a sentence about anybody. Tick
-            one above and it is written into every field at once, which is
-            the whole reason the fields cannot come to disagree about them.
+            fill, so that one card is met as a sentence about anybody. Write
+            one into the card&rsquo;s words — <code>{`{{name}}`}</code>, in
+            every field that has words in it — and it appears here.
           </Help>
         )}
 
