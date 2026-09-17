@@ -8,6 +8,41 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.159 — 17 September 2026
+
+**A card with a blank in it now shows what a student will really see.**
+
+Writing "My name is {{name}}" meant trusting that the hole would be filled
+with the right sort of word. The editor showed three example sentences, and
+showed them in English only — which on a card written in Arabic is a preview
+of everything except the Arabic. Each example is now three lines: the
+sentence in the script, how it is said, and what it means, filled from the
+words you actually have.
+
+**And pointing at a blank says which words will go in it.** A blank used to
+be a name on a chip and nothing more, so "is the right vocabulary behind
+this?" could only be answered by leaving the card and reading the list.
+Hover one — or tap it on a phone, or reach it with the keyboard — and it
+lists the words that will fill it, each in the script, in how it is said and
+in what it means. Eight of them, then a count, because `{{word}}` is filled
+by every word you have.
+
+**The Blanks section is now two named halves.** It was doing two opposite
+jobs in one block, and showing only the half that applied: *Blanks in this
+card* is the holes this card leaves, and *Using this card to fill a blank*
+is the names this card answers to when another card leaves one. On a card
+that leaves a blank of its own, the second half now says why it fills none
+instead of simply not being there.
+
+**A card can fill more than one blank.** A word is a name and a greeting as
+soon as you write a second sentence about it, and until now saying so took a
+second card carrying the same word — the same word to learn twice, with two
+sets of recordings and two schedules. One card can now answer to as many
+names as you like: add them one at a time, change any of them by choosing
+again, and take one off with the × beside it. Nothing you have already
+written changes, and a card that fills one name goes on filling exactly that
+one.
+
 ## 0.158 — 17 September 2026
 
 **A copied report shows the card again.**

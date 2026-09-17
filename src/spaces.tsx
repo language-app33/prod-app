@@ -67,7 +67,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
-import { hasSlots, valuesFor } from "./variables.ts";
+import { fillNames, hasSlots, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -4059,9 +4059,13 @@ export function filterCards(
       if (deckMode === "in" ? !inOne : inOne) return false;
     }
     if (fillsMode === "yes" || fillsMode === "no") {
-      const fills = String(c.fills || "").toLowerCase();
-      if (fillsMode === "no" ? !!fills : !fills) return false;
-      if (fillsMode === "yes" && fillsNames.length && !fillsNames.includes(fills)) return false;
+      /* Every blank the card says it fills, because a card may say several
+         — "fills one" is any of them, and a named filter is met by a card
+         that fills that blank among others. */
+      const fills = fillNames(c);
+      if (fillsMode === "no" ? !!fills.length : !fills.length) return false;
+      if (fillsMode === "yes" && fillsNames.length &&
+          !fills.some((name) => fillsNames.includes(name))) return false;
     }
     return true;
   });
@@ -4079,9 +4083,7 @@ export function filterCards(
 export function fillsInUse(cards: Card[]): { name: string; count: number }[] {
   const counts: Map<string, number> = new Map();
   for (const c of cards) {
-    const name = String((c && c.fills) || "").toLowerCase();
-    if (!name) continue;
-    counts.set(name, (counts.get(name) || 0) + 1);
+    for (const name of fillNames(c)) counts.set(name, (counts.get(name) || 0) + 1);
   }
   return [...counts.entries()]
     .map(([name, count]) => ({ name, count }))
@@ -4811,7 +4813,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
             note: (was && was.note) || "",
             name: (was && was.name) || "",
             uses: (was && was.uses) || [],
-            fills: (was && was.fills) || "",
+            fills: fillNames(was),
             drill: true,
           },
           /* A card already in decks stays in them; a new one is made the
@@ -5105,10 +5107,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            drilled reads it. */
                         category,
                         uses,
-                        /* Which variable it fills, and whether it is a
-                           question of its own. A conversation is neither:
-                           its turns are the cards, and the editor does not
-                           offer either field on one. */
+                        /* Which blanks it fills — one name or several —
+                           and whether it is a question of its own. A
+                           conversation is neither: its turns are the cards,
+                           and the editor does not offer either field on
+                           one. */
                         fills,
                         drill,
                       }),

@@ -171,6 +171,7 @@ const PLACES: Record<string, [string, string]> = {
   AddFormButton: [TEACH, "Editing a card · adding a form"],
   AskBlock: [TEACH, "Editing a card · which of its forms are drilled"],
   BlanksBlock: [TEACH, "Editing a card · its blanks"],
+  BlankChip: [TEACH, "Editing a card · one blank, and the words that fill it"],
   RecordingOverlays: [TEACH, "Editing a card · recording a form"],
   DeckSwitch: [TEACH, "Editing a card · which decks it is in"],
   BlankPicker: [TEACH, "Editing a card · choosing a blank"],

@@ -694,6 +694,90 @@ test("a deck's phrases are sent with the cards that fill their variables", async
 });
 
 /*
+ * One word, more than one hole.
+ *
+ * A word stands in more than one kind of hole as soon as a teacher writes
+ * a second frame about it — a name that is also a greeting — and saying so
+ * used to take a second card carrying the same word, which is the same
+ * word learnt twice and two schedules for it. So `fills` is a list, a card
+ * written when it was one name is read as the list of one it always meant,
+ * and a card that fills none carries the field not at all — which is what
+ * every reader of it still tests for.
+ */
+test("a card can say it fills several blanks, and reaches every deck that leaves one", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dana" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Greetings", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Arabic 1", language: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key, body: { deckId, courseId: course.json.course.id },
+  });
+  /* One frame leaving each of the two holes. */
+  for (const [ar, en] of [["اسمي {{name}}", "My name is {{name}}"], ["{{greeting}}!", "{{greeting}}!"]]) {
+    await api("/api/courses?action=save-card", {
+      method: "POST", key, body: { card: carded({ ar, en, lat: "" }), decks: [deckId] },
+    });
+  }
+
+  /* The word that stands in both, named once on one card. */
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: carded({ ar: "مرحبا", en: "Marhaba", lat: "marhaba" }, [],
+        { fills: ["Name", "greeting", "name"], drill: false }),
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.deepEqual(saved.json.card.fills, ["name", "greeting"],
+    "the names were not narrowed, lowered and said once");
+
+  /* A card written when this was one name is stored as the list of one. */
+  const older = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "سارة", en: "Sarah", lat: "" }, [], { fills: "name", drill: false }), decks: [] },
+  });
+  assert.deepEqual(older.json.card.fills, ["name"]);
+
+  /* And a card that fills none carries the field not at all, which is what
+     it has always been on an ordinary card. */
+  const plain = await api("/api/courses?action=save-card", {
+    method: "POST", key, body: { card: carded({ ar: "شمس", en: "sun", lat: "" }), decks: [deckId] },
+  });
+  assert.equal("fills" in plain.json.card, false, "an ordinary card started carrying an empty one");
+
+  /* Taking a name off puts the card back to being an ordinary one rather
+     than leaving what it used to fill standing. */
+  const off = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: { ...carded({ ar: "سارة", en: "Sarah", lat: "" }, [], { fills: [], drill: false }), id: older.json.card.id },
+      decks: [],
+    },
+  });
+  assert.equal("fills" in off.json.card, false, "what it used to fill was left standing");
+
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Ziad" } });
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key, body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+  const mine = await api("/api/courses?action=my-material", { key: student.json.key });
+  const sent = (mine.json.cards || []).flatMap((/** @type {any} */ d) => d.cards);
+  assert.deepEqual(
+    sent.filter((/** @type {any} */ c) => c.fills).map((/** @type {any} */ c) => lead(c).en).sort(),
+    ["Marhaba"],
+    "the word standing in both holes did not travel with the deck"
+  );
+});
+
+/*
  * An ordinary card is not changed by passing through a server that knows
  * about conversations: it comes back with no turns and nobody in it.
  */

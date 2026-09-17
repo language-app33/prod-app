@@ -25,6 +25,8 @@ import {
   valuesFor,
   valuesForTurn,
   fillsOf,
+  fillNames,
+  MAX_FILLS,
   valuesAt,
   metKey,
   metAt,
@@ -261,6 +263,63 @@ test("only a word fills it, and never a card with a hole of its own", () => {
      is what every card did before this existed. */
   assert.deepEqual(fillsOf({ ar: "Raphael", en: "Raphael", fills: "name" }, ""), ["name"]);
   assert.deepEqual(fillsOf({ ar: "kitaab", en: "book" }, ""), []);
+});
+
+/*
+ * A card may fill more than one blank.
+ *
+ * It began as one name, because one is what a value is usually for. But a
+ * word stands in more than one kind of hole as soon as a teacher writes a
+ * second frame about it, and the only way to say so was a second card
+ * carrying the same word — the same word learnt twice, with two schedules
+ * for it.
+ */
+test("a card says which blanks it fills, one name or several", () => {
+  /* Every card ever stored carries the one name as a plain string, and is
+     read as the list of one it always meant. Nothing is migrated. */
+  assert.deepEqual(fillNames({ fills: "name" }), ["name"]);
+  assert.deepEqual(fillNames({ fills: ["name", "greeting"] }), ["name", "greeting"]);
+  assert.deepEqual(fillNames({}), []);
+  assert.deepEqual(fillNames(null), []);
+  assert.deepEqual(fillNames({ fills: "" }), []);
+  assert.deepEqual(fillNames({ fills: [] }), []);
+
+  /* Narrowed to what a slot may be named and lowered, so {{Name}} and
+     {{name}} are one blank rather than two that look alike — the same
+     narrowing the server stores by, because it reads this. */
+  assert.deepEqual(fillNames({ fills: "Name" }), ["name"]);
+  assert.deepEqual(fillNames({ fills: ["Name Is!", "greeting"] }), ["nameis", "greeting"]);
+  assert.deepEqual(fillNames({ fills: ["name-is"] }), ["name-is"]);
+  assert.equal(fillNames({ fills: ["x".repeat(40)] })[0].length, 24);
+
+  /* Said twice is said once, and no card carries more than the cap. */
+  assert.deepEqual(fillNames({ fills: ["name", "NAME", "name"] }), ["name"]);
+  assert.equal(
+    fillNames({ fills: Array.from({ length: MAX_FILLS + 5 }, (_, i) => `b${i}`) }).length,
+    MAX_FILLS
+  );
+
+  /* And every one of them is a hole this card can stand in, beside what
+     the card says it is and the blank every word fills. */
+  const both = { id: "n1", ar: "Raphael", en: "Raphael", lat: "", fills: ["name", "greeting"] };
+  assert.deepEqual(fillsOf(both, ""), ["name", "greeting"]);
+  assert.deepEqual(fillsOf(both, "word"), ["name", "greeting", WORD_SLOT]);
+  assert.deepEqual(fillsOf({ ...both, category: "noun" }, ""), ["name", "greeting", "noun"]);
+
+  /* A frame still fills none of them, however many it names. */
+  const frame = { id: "f1", ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" };
+  assert.deepEqual(fillsOf({ ...frame, fills: ["name", "greeting"] }, "word"), []);
+});
+
+test("a word that fills two blanks stands in both of them", () => {
+  const frames = { ar: "{{name}} {{greeting}}", en: "{{name}} {{greeting}}", lat: "" };
+  const pool = [
+    { id: "v1", ar: "رافائيل", en: "Raphael", lat: "rafa", lang: "ar-PS", fills: ["name", "greeting"] },
+    { id: "v2", ar: "مرحبا", en: "hello", lat: "marhaba", lang: "ar-PS", fills: "greeting" },
+  ];
+  const have = valuesFor(frames, pool, "ar-PS");
+  assert.deepEqual(have.name.map((v) => v.en), ["Raphael"]);
+  assert.deepEqual(have.greeting.map((v) => v.en), ["Raphael", "hello"]);
 });
 
 test("a frame with {{word}} in it is filled from the whole vocabulary", () => {

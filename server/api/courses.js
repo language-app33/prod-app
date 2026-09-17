@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
    that adding an axis to a language does not silently drop it here. */
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
-import { slotsOf } from "../../src/variables.ts";
+import { fillNames, slotsOf } from "../../src/variables.ts";
 import { formsOf } from "../../src/cards.ts";
 
 /*
@@ -803,7 +803,7 @@ export default async (req) => {
         }
         /* A value that has gone has to reach the devices holding it, and
            nothing else about it moves — see bumpFills. */
-        if (card.fills) filledOwners.add(card.owner || "");
+        if (fillNames(card).length) filledOwners.add(card.owner || "");
         result.deleted.push(id);
       }
       await pullFromDecks(removals);
@@ -882,6 +882,10 @@ export default async (req) => {
     if (action === "save-card") {
       const card = body.card || {};
       const id = String(card.id || "").replace(/[^A-Za-z0-9_-]/g, "");
+      /* Which blanks this card says it fills, through the one answer to
+         that — see fillNames, which narrows each name to the shape a slot
+         can have, lowers it, and caps how many one card may carry. */
+      const filling = fillNames(card);
       const fields = {
         /* What to call the card in a list, where its own words do not name
            it — a verb saved as the form a dictionary lists. Stored as given
@@ -912,15 +916,17 @@ export default async (req) => {
           : {}),
         note: String(card.note || "").slice(0, 500),
         lang: String(card.lang || "").slice(0, 12),
-        /* Which variable this card fills, where it is a value rather than
-           something to learn. Narrowed to the shape a slot can name — the
-           braces in a card are matched on exactly these characters — and
-           lowered, so {{Name}} and {{name}} are one variable rather than
-           two that look alike. */
-        fills: String(card.fills || "")
-          .toLowerCase()
-          .replace(/[^a-z0-9_-]/g, "")
-          .slice(0, 24),
+        /* Which blanks this card fills, where it is a value rather than
+           something to learn. A list since a word may stand in more than
+           one kind of hole; a card written when it was one name arrives as
+           a string and is stored as the list of one it always meant.
+           Absent where it fills none rather than stored empty, which is
+           what `fills` has always been on an ordinary card and what every
+           reader of it still tests for — and undefined rather than left
+           out, because this object is spread over the card as it stood and
+           a missing key would keep whatever it used to fill. JSON drops
+           the undefined on the way to disk. */
+        fills: filling.length ? filling : undefined,
         /* Whether it is practised in its own right. Stored as a boolean
            either way rather than only when false: a card that has been
            turned off and on again must come back as on, and an absent field
@@ -1157,11 +1163,11 @@ export default async (req) => {
       let current = [];
       /* Whether this card was a value before this save, so that turning one
          back into an ordinary card reaches the devices holding it too. */
-      let wasFilling = "";
+      let wasFilling = false;
       if (id) {
         const existing = await loadCard(id);
         if (!existing) return json({ error: "no-card" }, 404);
-        wasFilling = String(existing.fills || "");
+        wasFilling = fillNames(existing).length > 0;
         current = await decksHolding(existing);
         if (existing.owner !== mine && !me.admin) {
           /* A card in a deck I teach is mine to correct — a deck it is
@@ -1254,7 +1260,7 @@ export default async (req) => {
       }
       saved.inDecks = final;
       await writeJson(store, K.card(saved.id), saved);
-      if (fields.fills || wasFilling) await bumpFills(saved.owner || "");
+      if (filling.length || wasFilling) await bumpFills(saved.owner || "");
       await taught();
       /* `trimmed` only where something was — an ordinary save says nothing,
          and the client has nothing to report. */
@@ -1608,7 +1614,7 @@ export default async (req) => {
           const ids = (await readJson(store, K.myCards(owner), EVENTUAL)) || [];
           const rows = await readManyJson(store, ids.map((id) => K.card(id)), EVENTUAL);
           for (const c of rows) {
-            if (!c || !c.fills || !wanted.has(String(c.fills).toLowerCase())) continue;
+            if (!c || !fillNames(c).some((name) => wanted.has(name))) continue;
             if (d.lang && c.lang && c.lang !== d.lang) continue;
             if (held.has(c.id)) continue;
             held.add(c.id);

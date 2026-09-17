@@ -696,11 +696,17 @@ export type Card = {
    */
   value?: number;
   /**
-   * The variable this card can stand in for, where it is a value rather
+   * The variables this card can stand in for, where it is a value rather
    * than something to learn: a card saying `name` fills every {{name}} in
    * every phrase of the same language. Empty on an ordinary card.
+   *
+   * One name or several — a word stands in more than one kind of hole as
+   * soon as a teacher writes a second frame about it. A card written
+   * before that carries the one name as a plain string, and is read
+   * exactly the same: see `fillNames`, which is the one answer and which
+   * the server reads it through too.
    */
-  fills?: string;
+  fills?: string | string[];
   /**
    * What to call the card in a list, where its own words do not name it.
    *
@@ -949,8 +955,8 @@ export type Item = {
   forms: Form[];
   /** What the card as a whole is about, where the teacher wrote one. */
   note?: string;
-  /** The variable this card stands in for, where it is a value. See Card. */
-  fills?: string;
+  /** The variables this card stands in for, where it is a value. See Card. */
+  fills?: string | string[];
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */

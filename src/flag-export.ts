@@ -26,6 +26,7 @@
 
 import type { Card, CardForm, CardState, Flag, Millis } from "./types.ts";
 import { formsOf } from "./cards.ts";
+import { fillNames } from "./variables.ts";
 
 /*
  * The names this module cannot work out for itself.
@@ -187,7 +188,7 @@ function cardBlock(card: Card, when: FlagNames["when"]): string[] {
     ["category", card.category],
     ["called", card.name],
     ["worth", card.value],
-    ["fills", card.fills],
+    ["fills", fillNames(card).map((name) => `{{${name}}}`).join(" ")],
     ["note", card.note],
     ["drilled", card.drill === false ? "no — this card is a value, not a question" : ""],
     [

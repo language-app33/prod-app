@@ -602,7 +602,8 @@ check("both course cards and every old card landed in storage", stored.items.len
    arrive because a phrase leaves a hole of their name, carrying what makes
    them values rather than cards to learn. */
 check("the cards that fill a variable arrive with the deck that needs them",
-  !!byId["srv" + rafa.id] && byId["srv" + rafa.id].fills === "name" &&
+  !!byId["srv" + rafa.id] &&
+    JSON.stringify(byId["srv" + rafa.id].fills) === JSON.stringify(["name"]) &&
     byId["srv" + rafa.id].drill === false,
   JSON.stringify(byId["srv" + rafa.id] ? { fills: byId["srv" + rafa.id].fills, drill: byId["srv" + rafa.id].drill } : "not here"));
 check("and the phrase with the hole in it arrives as written",
@@ -3816,18 +3817,79 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("the section is called Blanks, not Variables", !!blanks(),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
     /* The sentences a student will be asked, filled from the cards that
-       exist — the explanation that replaced the paragraphs. */
-    const asked = () => [...((blanks() || document).querySelectorAll(".at-askedline span"))]
-      .map((s) => (s.textContent || "").trim());
+       exist — the explanation that replaced the paragraphs. Each is three
+       lines and not one: the sentence in the script, how it is said, and
+       what it means. So the transliteration is written here too, because
+       an example is only all three where the card has all three. */
+    typeInto(saidFields()[0], "ismi {{name}}");
+    await sleep(200);
+    const examples = () => [...((blanks() || document).querySelectorAll(".at-askedline"))]
+      .map((line) => ({
+        ar: (((line.querySelector(".at-askedscript") || {}).textContent) || "").trim(),
+        lat: (((line.querySelector(".at-askedsaid") || {}).textContent) || "").trim(),
+        en: (((line.querySelector(".at-askedmeans") || {}).textContent) || "").trim(),
+      }));
+    const asked = () => examples().map((e) => [e.ar, e.lat, e.en].join(" · "));
     check("and shows the sentences a student will actually be asked",
       asked().length > 0 && asked().every((line) => !/\{\{/.test(line)),
       asked().join(" / ") || "(none shown)");
     check("each one a different word, so one card does not print three times",
       new Set(asked()).size === asked().length, asked().join(" / "));
+    /* The English alone is the one line of the question a learner is never
+       asked to produce, so a preview of an Arabic frame that showed it
+       alone was a preview of everything except the Arabic. */
+    check("each one in the script, in how it is said, and in what it means",
+      examples().length > 0 && examples().every((e) =>
+        /\u0631\u0627\u0641|\u0641\u064a\u0643/.test(e.ar) && /^ismi /.test(e.lat) && /^My name is /.test(e.en)),
+      asked().join(" / ") || "(none shown)");
+    /* And back out, so the walk below goes on from the card it had. */
+    typeInto(saidFields()[0], "");
+    await sleep(200);
     check("the blank is named as a fact about the card",
       [...(blanks() || document).querySelectorAll(".at-blankchip")]
         .map((c) => (c.textContent || "").trim()).includes("name"),
       [...(blanks() || document).querySelectorAll(".at-blankchip")].map((c) => c.textContent).join(", ") || "(none)");
+
+    /* ---- and pointing at one says what will be put in it ----
+
+       The chip said the blank's name and stopped there, which is the least
+       of what a teacher wants to know about it: the three sentences above
+       show three of its words standing in the frame, and every other word
+       behind it was a question only answerable by leaving the card. */
+    {
+      const chip = () => /** @type {any} */ (
+        [...(blanks() || document).querySelectorAll(".at-blankchip")]
+          .find((c) => (c.textContent || "").trim() === "name") || null);
+      const panel = () => (blanks() || document).querySelector(".at-blankfills");
+      check("a blank is something to point at, not a label",
+        !!chip() && chip().tagName === "BUTTON",
+        chip() ? chip().tagName.toLowerCase() : "(no chip)");
+      check("and says nothing until it is pointed at", !panel(),
+        panel() ? "already open" : "closed");
+      chip().dispatchEvent(new w.MouseEvent("mouseover", { bubbles: true }));
+      await sleep(200);
+      const words = () => [...((panel() || document).querySelectorAll(".at-filllist li"))]
+        .map((li) => ({
+          ar: (((li.querySelector("b") || {}).textContent) || "").trim(),
+          lat: (((li.querySelector("em") || {}).textContent) || "").trim(),
+          en: (((li.querySelector("i") || {}).textContent) || "").trim(),
+        }));
+      check("hovering it lists the words that will fill it", !!panel() && words().length > 0,
+        words().map((v) => v.en).join(", ") || "(nothing shown)");
+      check("each in the script, in how it is said, and in what it means",
+        words().length > 0 && words().every((v) => v.ar && v.lat && v.en),
+        words().map((v) => `${v.ar} ${v.lat} ${v.en}`).join(" | ") || "(nothing shown)");
+      check("which is every card that says it fills the blank, not only the three above",
+        words().some((v) => /^Raphael$/.test(v.en)) && words().some((v) => /^Victor$/.test(v.en)),
+        words().map((v) => v.en).join(", ") || "(nothing shown)");
+      check("and how many fill it, which is whether the blank has the right words behind it",
+        /\b2 words fill it\b/.test(((panel() || {}).textContent) || ""),
+        (((panel() || document).querySelector(".at-eyebrow") || {}).textContent || "").trim() || "(nothing said)");
+      chip().dispatchEvent(new w.MouseEvent("mouseout", { bubbles: true }));
+      await sleep(200);
+      check("and it goes away again on the way out", !panel(),
+        panel() ? "still open" : "closed");
+    }
 
     /* And the button that writes one. It goes into every field at once,
        which is the whole reason the fields can no longer disagree — so
@@ -3928,7 +3990,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     /* And it is filled by the words that say they are nouns, with nothing
        written on any of them to say so — which is the whole bargain: a
        teacher writes the sentence, and the vocabulary joins in. */
-    const nounLines = () => [...((blanks() || document).querySelectorAll(".at-askedline span"))]
+    const nounLines = () => [...((blanks() || document).querySelectorAll(".at-askedline .at-askedmeans"))]
       .map((n) => (n.textContent || "").trim());
     check("and a blank named after a kind of word is filled by the words of that kind",
       nounLines().length > 0 && nounLines().every((line) => /teacher/.test(line)),
@@ -3942,6 +4004,103 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("and it can be called a word again, with what was typed still there",
       blockNames().includes("Form 1") && !!backEn && /\{\{noun\}\}/.test(backEn.value),
       blockNames().join(" | "));
+
+    /* ---- the section's other half: this card filling somebody else's ----
+
+       Two jobs in one block, and until 0.159 the second appeared and
+       disappeared with nothing naming it, so a teacher looking for where a
+       word is offered to other cards found either an unlabelled button or
+       nothing at all. They are two named subsections now, both always on
+       screen, and the second holds a list because a word stands in more
+       than one kind of hole as soon as somebody writes a second frame
+       about it. */
+    {
+      const groups = () => [...((blanks() || document).querySelectorAll(".at-groupline"))]
+        .map((g) => (g.textContent || "").trim());
+      check("the section is two named halves, not one block doing two jobs",
+        groups().includes("Blanks in this card") &&
+          groups().includes("Using this card to fill a blank"),
+        groups().join(" | ") || "(no headings)");
+      /* A card with a blank of its own fills none — a sentence dropped
+         into somebody else's hole is a sentence with a gap where the point
+         was — so the half that offers it says why rather than offering a
+         control there is no answer to. */
+      check("and a card that leaves a blank is told why it fills none",
+        /fills none/.test(((blanks() || {}).textContent) || "") && !pickBtn(/^Fills a blank$/),
+        pickBtn(/^Fills a blank$/) ? "offered anyway" : "said, and not offered");
+
+      /* Out of the frame, and the other half comes alive. */
+      typeInto(fieldNamed(/^Arabic script and transliteration$/i), "rafa");
+      await sleep(80);
+      typeInto(fieldNamed(/^English$/), "Raphael");
+      await sleep(300);
+      const fillRows = () => [...((blanks() || document).querySelectorAll(".at-fillrow"))];
+      const fillNamed = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        fillRows().map((r) => r.querySelector(".at-choosebtn"))
+          .find((b) => b && re.test((b.textContent || "").trim())) || null);
+      const chooseBlank = (/** @type {RegExp} */ re) => {
+        const row = [...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
+          .find((r) => re.test(((r.querySelector("b") || {}).textContent || "").trim()));
+        click(row);
+      };
+      check("a card with no blank of its own is asked which it fills",
+        !!pickBtn(/^Fills a blank$/) && fillRows().length === 0,
+        pickBtn(/^Fills a blank$/) ? "offered" : "no button");
+      click(pickBtn(/^Fills a blank$/));
+      await sleep(200);
+      chooseBlank(/^name$/);
+      await sleep(250);
+      check("choosing one lists it as a blank this card fills",
+        fillRows().length === 1 && !!fillNamed(/^name$/),
+        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
+
+      /* And a second, which is the whole reason this is a list: the one
+         word is a name and a greeting, rather than two cards carrying it
+         and two schedules for the same word. */
+      click(pickBtn(/^\+ Another blank$/));
+      await sleep(200);
+      const madeBox = /** @type {any} */ (
+        (blanks() || document).querySelector('.at-blanknew input'));
+      typeInto(madeBox, "greeting");
+      await sleep(120);
+      click([...((blanks() || document).querySelectorAll(".at-blanknew button"))]
+        .find((b) => /^Add$/.test((b.textContent || "").trim())));
+      await sleep(250);
+      check("and a card can fill more than one, which is why it is a list",
+        fillRows().length === 2 && !!fillNamed(/^name$/) && !!fillNamed(/^greeting$/),
+        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
+      check("with every one of them named in what the card is for",
+        /\{\{name\}\}/.test(((blanks() || {}).textContent) || "") &&
+          /\{\{greeting\}\}/.test(((blanks() || {}).textContent) || ""),
+        ([...((blanks() || document).querySelectorAll(".at-hint"))]
+          .map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
+          .find((t) => /borrow/.test(t))) || "(nothing said)");
+
+      /* Changing one is choosing again, off the same list it came from. */
+      click(fillNamed(/^greeting$/));
+      await sleep(200);
+      chooseBlank(/^noun$/);
+      await sleep(250);
+      check("one of them can be changed without the others being touched",
+        fillRows().length === 2 && !!fillNamed(/^name$/) && !!fillNamed(/^noun$/),
+        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
+      /* And changed onto one the card already fills, the two become the
+         one they both now name rather than it being carried twice. */
+      click(fillNamed(/^noun$/));
+      await sleep(200);
+      chooseBlank(/^name$/);
+      await sleep(250);
+      check("and changed onto one it already fills, the two become one",
+        fillRows().length === 1 && !!fillNamed(/^name$/),
+        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none)");
+
+      /* And taken off, one at a time. */
+      click(/** @type {any} */ (fillRows()[0].querySelector('button[aria-label^="Stop filling"]')));
+      await sleep(250);
+      check("and any of them taken off again",
+        fillRows().length === 0 && !!pickBtn(/^Fills a blank$/),
+        fillRows().map((r) => (r.textContent || "").trim()).join(" | ") || "(none left)");
+    }
   }
 
   /* ---- a verb, where the dictionary form is a cell of its own table ----
@@ -4664,8 +4823,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const stored = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
   const held = (stored.items || []).find((/** @type {any} */ i) => i.id === "srv" + viktor.id);
   check("a value is held like any card, and practised like none",
-    !!held && held.fills === "name" && held.drill === false,
-    held ? `fills=${held.fills} drill=${held.drill}` : "not on the device");
+    !!held && JSON.stringify(held.fills) === JSON.stringify(["name"]) && held.drill === false,
+    held ? `fills=${JSON.stringify(held.fills)} drill=${held.drill}` : "not on the device");
 }
 
 /* ---- one set of controls over every card list ----

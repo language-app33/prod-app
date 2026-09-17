@@ -36,7 +36,8 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { fillText, hasSlots, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import { fillNames, fillText, hasSlots, MAX_FILLS, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
   Button,
@@ -1601,6 +1602,17 @@ export const ownerLabel = (i: number, count: number): string =>
    The hooks own state and the rules over it; the editors below draw it.
    ------------------------------------------------------------------ */
 
+/**
+ * One example of a card with a blank in it, as a student will meet it: the
+ * frame with its holes filled, in each of the three fields it is written
+ * in. A field the card leaves empty comes back empty.
+ */
+export interface Asked {
+  ar: string;
+  lat: string;
+  en: string;
+}
+
 /** The word, its forms, its tables and everything asked of them. */
 export function useWordDraft({ card, lang, allCards, draft, shape }: {
   card: Card | null;
@@ -1703,10 +1715,38 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   /* What to call the card in a list. Only asked of a verb whose own word is
      a cell of its table — see the block that asks for it. */
   const [name, setName] = useState(((card && card.name) || "") as string);
-  /* Which variable this card fills, where it is a value rather than
+  /* Which blanks this card fills, where it is a value rather than
      something to learn: "Raphael" fills `name`, and every phrase with a
-     {{name}} in it can borrow it. */
-  const [fills, setFills] = useState(((card && card.fills) || "").toLowerCase());
+     {{name}} in it can borrow it. A list, because a word stands in more
+     than one kind of hole as soon as a teacher writes a second frame about
+     it; a card written when it was one name reads as a list of one, which
+     fillNames is the one answer to. */
+  const [fills, setFills] = useState<string[]>(() => fillNames(card));
+  /*
+   * Naming a blank this card fills, renaming one, and taking one off.
+   *
+   * Three one-liners rather than the screen reaching into the list,
+   * because the same two rules hold for all of them and holding them in
+   * one place is how they cannot be kept differently by whoever draws the
+   * next control: a name appears once — choosing a blank the card already
+   * fills is not a second copy of it, it is the teacher saying it again —
+   * and no card carries more than MAX_FILLS of them, which is the cap the
+   * server stores by, read from the same constant so the two cannot
+   * disagree.
+   */
+  const addFill = (name: string) =>
+    setFills((was) =>
+      !name || was.includes(name) || was.length >= MAX_FILLS ? was : was.concat([name]),
+    );
+  const dropFill = (at: number) => setFills((was) => was.filter((_, i) => i !== at));
+  const renameFill = (at: number, name: string) =>
+    setFills((was) => {
+      if (!name) return was.filter((_, i) => i !== at);
+      const next = was.map((had, i) => (i === at ? name : had));
+      /* Renamed onto one the card already fills: the two become the one
+         they both now name, rather than it being carried twice. */
+      return next.filter((had, i) => next.indexOf(had) === i);
+    });
   /*
    * Whether it is practised in its own right — and null where nobody has
    * said, which is every new card.
@@ -1720,7 +1760,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const [drillChoice, setDrillChoice] = useState<boolean | null>(
     card ? card.drill !== false : null
   );
-  const drill = drillChoice === null ? !fills.trim() : drillChoice;
+  const drill = drillChoice === null ? !fills.length : drillChoice;
   /* Which words this phrase teaches. Confirmed, never assumed: the matcher
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
@@ -1783,11 +1823,13 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
       if (lang && c.lang && c.lang !== lang.id) continue;
       /* What a card fills — see fillsOf, which is the one answer and which
          this has to agree with. A card with a blank in it fills nothing at
-         all: it is a sentence, not a word. */
-      const f = String(c.fills || "").toLowerCase();
+         all: it is a sentence, not a word. Every name it gives, because a
+         card may now say it fills several and each of them is a blank with
+         one more word behind it. */
+      const named = fillNames(c);
       if (!hasSlots(c)) {
-        if (f) words.set(f, (words.get(f) || 0) + 1);
-        else if (kindOf(c, lang) === "word") anyWord++;
+        for (const name of named) words.set(name, (words.get(name) || 0) + 1);
+        if (!named.length && kindOf(c, lang) === "word") anyWord++;
         const category = String(c.category || "").toLowerCase();
         if (category) said.set(category, (said.get(category) || 0) + 1);
       }
@@ -1819,6 +1861,19 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   }, [allCards, lang]);
 
   /*
+   * The words each of this card's blanks can be filled with, today.
+   *
+   * Worked out once and read three ways — the example sentences below, the
+   * blanks nothing fills yet, and the list a teacher gets by hovering a
+   * blank. It was worked out twice, identically, by the first two of those,
+   * which is two answers to one question waiting to disagree.
+   */
+  const fillers = useMemo(() => {
+    if (scene || !holes.length) return {} as Record<string, Value[]>;
+    return valuesFor(main, allCards || [], lang && lang.id, (c) => kindOf(c, lang), (c, f) => lendsForm(lang, c)(f));
+  }, [scene, holes, main, allCards, lang]);
+
+  /*
    * The sentences a student will be asked, filled from the words that
    * exist today.
    *
@@ -1827,27 +1882,39 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * fourth adds nothing; distinct, because a blank with one word in it
    * would otherwise print the same sentence three times and look broken.
    * Empty where nothing fills a blank yet, which is its own answer.
+   *
+   * All three fields, because a teacher writing an Arabic frame is owed
+   * the Arabic sentence: the preview showed the English alone, which is
+   * the one line of the question the learner is never asked to produce.
+   * A field the card does not use — a card with no transliteration — comes
+   * back empty and is not drawn; a field whose filler has nothing to put
+   * in it keeps the braces standing, exactly as the question would, which
+   * is the teacher's answer about the card they have written.
    */
   const asked = useMemo(() => {
     if (scene || !holes.length) return [];
-    const have = valuesFor(main, allCards || [], lang && lang.id, (c) => kindOf(c, lang), (c, f) => lendsForm(lang, c)(f));
-    const out: string[] = [];
+    const out: Asked[] = [];
     for (let turn = 0; turn < 12 && out.length < 3; turn++) {
-      const took = valuesForTurn(holes, have, turn);
+      const took = valuesForTurn(holes, fillers, turn);
       if (!took) break;
-      const line = fillText(main.en, took, "en").trim();
-      if (line && !out.includes(line)) out.push(line);
+      const line = {
+        ar: fillText(main.ar, took, "ar").trim(),
+        lat: fillText(main.lat, took, "lat").trim(),
+        en: fillText(main.en, took, "en").trim(),
+      };
+      if (!line.ar && !line.lat && !line.en) continue;
+      if (out.some((had) => had.ar === line.ar && had.lat === line.lat && had.en === line.en)) continue;
+      out.push(line);
     }
     return out;
-  }, [scene, holes, main, allCards, lang]);
+  }, [scene, holes, main, fillers]);
 
   /* Which blanks have nothing to put in them — the reason a card with a
      hole in it is never asked, named rather than left to be discovered. */
-  const starved = useMemo(() => {
-    if (scene || !holes.length) return [];
-    const have = valuesFor(main, allCards || [], lang && lang.id, (c) => kindOf(c, lang), (c, f) => lendsForm(lang, c)(f));
-    return holes.filter((slot) => !(have[slot] || []).length);
-  }, [scene, holes, main, allCards, lang]);
+  const starved = useMemo(
+    () => holes.filter((slot) => !(fillers[slot] || []).length),
+    [holes, fillers],
+  );
   const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
   /*
@@ -2003,6 +2070,9 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setName,
     fills,
     setFills,
+    addFill,
+    dropFill,
+    renameFill,
     setDrillChoice,
     drill,
     uses,
@@ -2017,6 +2087,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     blanksAround,
     asked,
     starved,
+    fillers,
     canSave,
     setForm,
     putBlank,
@@ -2813,8 +2884,107 @@ function AskBlock({ word }: { word: WordDraft }) {
   );
 }
 
+/*
+ * How many fillers a hovered blank lists before it stops counting them out.
+ *
+ * `{{word}}` is filled by every word in the language, so the list is as
+ * long as the vocabulary and a panel that printed all of it would cover
+ * the card. Eight is enough to recognise what is behind the blank — that
+ * these are the names, or the colours, or the wrong list entirely — and
+ * the rest are counted rather than named.
+ */
+const FILLERS_SHOWN = 8;
+
+/*
+ * A blank the card leaves, and the words that will be put in it.
+ *
+ * The chip said the blank's name and stopped there, and the name is the
+ * least of what a teacher wants to know about it. Whether anything fills
+ * it at all is answered below, in one line, for the blanks where the
+ * answer is nothing; which words those are was answerable only by leaving
+ * the card and reading the list of every card in the language. The
+ * sentences above show three of them standing in the frame; this shows
+ * them as the words they are, on the thing already named after them.
+ *
+ * Hover, keyboard focus and a tap all open it, because a chip on a phone
+ * has no hover and a chip reached by keyboard has no pointer. Nothing in
+ * it can be chosen — it is something to read, not another control — so it
+ * goes away on the way out and takes nothing with it.
+ */
+function BlankChip({ slot, values, lang }: {
+  slot: string;
+  values: Value[];
+  lang: Lang;
+}) {
+  const [open, setOpen] = useState(false);
+  const shown = values.slice(0, FILLERS_SHOWN);
+  const said = values.length
+    ? `${plural(values.length, "word")} fill it`
+    : "nothing fills it yet";
+  return (
+    <span
+      className="at-blankwrap"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        className="at-blankchip"
+        aria-expanded={open}
+        /* The name alone, to a screen reader, is the chip saying nothing a
+           sighted teacher is not also told by what opens under it. */
+        aria-label={`${slot} · ${said}`}
+        onClick={() => setOpen((v) => !v)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+      >
+        {slot}
+      </button>
+      {open && (
+        <div className="at-blankfills" role="tooltip">
+          <p className="at-eyebrow">{`{{${slot}}} · ${said}`}</p>
+          {shown.length > 0 && (
+            <ul className="at-filllist">
+              {shown.map((value, i) => (
+                <li key={`${value.id || value.ar}-${i}`}>
+                  <b
+                    lang={lang.id}
+                    dir={lang.direction}
+                    style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                  >
+                    {value.ar}
+                  </b>
+                  {value.lat ? <em>{value.lat}</em> : null}
+                  {value.en ? <i>{value.en}</i> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+          {values.length > shown.length && (
+            <Help>and {plural(values.length - shown.length, "word")} more.</Help>
+          )}
+          {!values.length && (
+            <Help>
+              Write a card that says it fills this blank, and it joins in
+              without this card being touched.
+            </Help>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
-  const { holes, starved, asked, fills, setFills, main, standsIn, blanksAround, putBlank, trouble, drill, setDrillChoice } = word;
+  const {
+    holes, starved, asked, fillers, fills, addFill, dropFill, renameFill,
+    main, standsIn, blanksAround, putBlank, trouble, drill, setDrillChoice,
+  } = word;
+  /* A card with a blank of its own fills none — see fillsOf, which is the
+     one answer to that and which this only reports. So the second
+     subsection has nothing to offer such a card, except where it already
+     carries names, which it has to go on showing or they are stranded. */
+  const canFill = !holes.length || fills.length > 0;
   return (
     <>
     {/* ---- blanks ----
@@ -2827,10 +2997,13 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         blank and a card that fills somebody else's. Both were shown
         to everybody, under ninety words explaining a syntax the
         teacher had to type by hand into three fields that must
-        agree. The syntax is now written by a button, the two jobs
-        are two panels and only the one that applies is on screen,
-        and the explaining is done by showing the sentences a student
-        will actually be asked. */}
+        agree. The syntax is now written by a button, the explaining
+        is done by showing the sentences a student will actually be
+        asked, and the two jobs are two named subsections — which they
+        had to become the moment a card could fill more than one blank,
+        because the second job then has a list of its own and a heading
+        is what tells a teacher which of the two lists they are looking
+        at. Only the one that applies carries controls. */}
       <div className="at-formblock at-mt5">
         <div className="at-formhead">
           <span className="at-formnum">Blanks</span>
@@ -2839,21 +3012,36 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               ? `${plural(holes.length, "blank")} · ${
                   starved.length ? "nothing fills it yet" : `met as ${plural(asked.length, "sentence")}`
                 }`
-              : fills
-                ? "this card fills one"
+              : fills.length
+                ? `this card fills ${plural(fills.length, "blank")}`
                 : "a gap this card leaves for another word"}
           </span>
         </div>
+
+        <p className="at-groupline">Blanks in this card</p>
 
         {holes.length > 0 && (
           <>
             {asked.length > 0 && (
               <div className="at-asked">
                 {asked.map((line, i) => (
-                  <p className="at-askedline" key={i}>
+                  <div className="at-askedline" key={i}>
                     <b>{i === 0 ? "asks" : "then"}</b>
-                    <span>{line}</span>
-                  </p>
+                    <span className="at-askedsays">
+                      {line.ar && (
+                        <span
+                          className="at-askedscript"
+                          lang={lang.id}
+                          dir={lang.direction}
+                          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                        >
+                          {line.ar}
+                        </span>
+                      )}
+                      {line.lat && <span className="at-askedsaid">{line.lat}</span>}
+                      {line.en && <span className="at-askedmeans">{line.en}</span>}
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
@@ -2875,9 +3063,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
 
         <div className="at-blankrow">
           {holes.map((slot) => (
-            <span className="at-blankchip" key={slot}>
-              {slot}
-            </span>
+            <BlankChip key={slot} slot={slot} values={fillers[slot] || []} lang={lang} />
           ))}
           {/* Not where the table stands in for the card's own word:
               there is no field on this screen for it to write into. */}
@@ -2906,6 +3092,13 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </p>
         )}
 
+        {holes.length === 0 && (
+          <Help>
+            None yet. A blank is a hole this card leaves for another word to
+            fill, so that one card is met as a sentence about anybody.
+          </Help>
+        )}
+
         {holes.length > 0 && (main.clips || []).length > 0 && (
           <Help>
             Listening exercises are not offered on a card with a blank in it:
@@ -2914,33 +3107,82 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </Help>
         )}
 
-        {/* The other job, and only where it is the card's job. A card
-            with a blank of its own never fills one — so the two are
-            never both on screen unless a card already carries both,
-            in which case hiding this would strand what it carries. */}
-        {(!holes.length || !!fills) && (
+        {/* The other job. Named and always on screen, so that a teacher
+            looking for where a word is offered to other cards finds the
+            question rather than the absence of it — on a card that leaves
+            a blank of its own, what they find is the reason there is
+            nothing to answer. */}
+        <p className="at-groupline">Using this card to fill a blank</p>
+
+        {!canFill ? (
+          <Help>
+            This card leaves a blank of its own, so it fills none: a sentence
+            dropped into somebody else&rsquo;s hole is a sentence with a gap
+            where the point was.
+          </Help>
+        ) : (
           <>
-            {holes.length > 0 && <p className="at-groupline">And it fills one</p>}
+            {fills.length > 0 && (
+              <>
+                {holes.length > 0 && (
+                  <p className="at-formneed unmet">
+                    This card leaves a blank of its own, so it fills none while
+                    it does — these names do nothing until the blank above goes.
+                  </p>
+                )}
+                {/* One row per name: the name itself opens the same list it
+                    was chosen from, so changing it is choosing again, and the
+                    × beside it takes it off. */}
+                <div className="at-fillrows">
+                  {fills.map((name, i) => (
+                    <div className="at-blankrow at-fillrow" key={`${name}-${i}`}>
+                      <BlankPicker
+                        label={name}
+                        tone="on"
+                        title={`This card fills {{${name}}}. Choose another.`}
+                        blanks={blanksAround}
+                        current={name}
+                        onPick={(picked) => renameFill(i, picked)}
+                      />
+                      <IconButton
+                        icon="remove"
+                        label={`Stop filling {{${name}}}`}
+                        onClick={() => dropFill(i)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {/* Not on a card that leaves a blank of its own: what it
+                already carries is shown above so it can be taken off, and
+                naming another would be filing that fills nothing. */}
             <div className="at-blankrow">
-              <BlankPicker
-                label={fills ? `Fills ${fills}` : "Fills a blank"}
-                tone={fills ? "on" : ""}
-                title={fills ? `This card fills ${fills}. Choose another.` : "Choose a blank this card fills"}
-                blanks={blanksAround}
-                current={fills}
-                onPick={(name) => setFills(name === fills ? "" : name)}
-              />
-              {fills && (
-                <Button variant="ghost" size="sm" onClick={() => setFills("")}>
-                  It fills none
-                </Button>
+              {!holes.length && fills.length < MAX_FILLS && (
+                <BlankPicker
+                  label={fills.length ? "+ Another blank" : "Fills a blank"}
+                  tone={fills.length ? "new" : ""}
+                  title={
+                    fills.length
+                      ? "Choose another blank this card fills"
+                      : "Choose a blank this card fills"
+                  }
+                  blanks={blanksAround}
+                  onPick={addFill}
+                />
               )}
             </div>
-            {fills ? (
+            {fills.length ? (
               <>
                 <Help>
-                  Every card with a <code>{`{{${fills}}}`}</code> blank in it can borrow
-                  this word.
+                  Every card with{" "}
+                  {fills.map((name, i) => (
+                    <React.Fragment key={name}>
+                      {i > 0 ? (i === fills.length - 1 ? " or " : ", ") : ""}
+                      <code>{`{{${name}}}`}</code>
+                    </React.Fragment>
+                  ))}{" "}
+                  in it can borrow this word.
                 </Help>
                 <label className="at-tickrow">
                   <input
@@ -3059,7 +3301,7 @@ export function writtenCard({ word, talk, shape, chosen }: {
     name: standsIn ? name.trim() : "",
     decks: chosen,
     uses,
-    fills: fills.trim(),
+    fills,
     drill,
     scene: scene
       ? { title: talk.title.trim(), setting: talk.setting.trim(), speakers: talk.speakers, you: talk.you, lines: talk.written }
@@ -3392,7 +3634,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, decks: string[], uses: string[], fills: string, drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, decks: string[], uses: string[], fills: string[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;

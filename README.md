@@ -190,7 +190,13 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   that say they are one, which they already did when they said what they
   were. And a blank with a name of the teacher's own takes the cards that
   name it back, in `fills`, which is the only case left where anything has
-  to be written twice. Every form of a filler lends itself, not only its
+  to be written twice — and which is a **list**, because a word stands in
+  more than one kind of hole as soon as somebody writes a second frame
+  about it, and saying so used to take a second card carrying the same
+  word. A card written when it was one name reads as the list of one it
+  always meant; `fillNames` in `src/variables.ts` is the one answer to
+  what a card fills, and the server reads it through the same function.
+  Every form of a filler lends itself, not only its
   own word: a plural stands in a sentence its singular does not, gated on
   what that form itself has climbed. A card with a blank in it never fills
   one — a sentence dropped into somebody else's hole is a sentence with a
@@ -205,6 +211,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   it is: a word, a sentence, or a conversation. Nothing is stored saying
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
+
+  **The editor's Blanks section is two named halves, and neither explains
+  itself in words where it can show.** *Blanks in this card* draws each
+  hole the card leaves and, under it, the card as a student will actually
+  meet it — three sentences, each in the script, in how it is said and in
+  what it means, filled from the words that exist today. Pointing at a
+  hole lists the words that will go in it, which is the only place a
+  teacher can see whether the right vocabulary is behind a blank without
+  leaving the card. *Using this card to fill a blank* is the other job and
+  the other list: the names this card answers to, each one changed by
+  choosing again and taken off by its own ×. A card that leaves a blank of
+  its own fills none, so on one of those the second half says that rather
+  than offering a control there is no answer to.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the
