@@ -132,7 +132,24 @@ export const claimAdmin = (adminKey: string) => call("claim-admin", { body: { ad
  * perfectly well at the call site, was accepted here, and arrived at the
  * server as "[object Object]".
  */
-export type FlagReport = Pick<Flag, "kind" | "note" | "cardId" | "exercise" | "subId" | "prompt" | "meaning"> & {
+export type FlagReport = Pick<
+  Flag,
+  | "kind"
+  | "note"
+  | "cardId"
+  | "exercise"
+  | "subId"
+  | "prompt"
+  | "meaning"
+  /* What the question did to them, where the card came from, and which
+     build they were on. All optional: a report queued offline by an older
+     build arrives without them, and it is still a report. */
+  | "courseId"
+  | "deckId"
+  | "answer"
+  | "verdict"
+  | "release"
+> & {
   language: LangId;
 };
 

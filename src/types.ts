@@ -696,11 +696,17 @@ export type Card = {
    */
   value?: number;
   /**
-   * The variable this card can stand in for, where it is a value rather
+   * The variables this card can stand in for, where it is a value rather
    * than something to learn: a card saying `name` fills every {{name}} in
    * every phrase of the same language. Empty on an ordinary card.
+   *
+   * One name or several — a word stands in more than one kind of hole as
+   * soon as a teacher writes a second frame about it. A card written
+   * before that carries the one name as a plain string, and is read
+   * exactly the same: see `fillNames`, which is the one answer and which
+   * the server reads it through too.
    */
-  fills?: string;
+  fills?: string | string[];
   /**
    * What to call the card in a list, where its own words do not name it.
    *
@@ -949,8 +955,8 @@ export type Item = {
   forms: Form[];
   /** What the card as a whole is about, where the teacher wrote one. */
   note?: string;
-  /** The variable this card stands in for, where it is a value. See Card. */
-  fills?: string;
+  /** The variables this card stands in for, where it is a value. See Card. */
+  fills?: string | string[];
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
@@ -1102,6 +1108,20 @@ export type FlagKind = "strict" | "data" | "easy" | "other";
 export type CardState = "here" | "edited" | "gone" | "absent";
 
 /**
+ * How the question the learner flagged had gone for them.
+ *
+ * The report says a card is wrong; this says what the card did to the
+ * person who said so, which is most of what "wrong" meant. A card marked
+ * "right" and flagged is a different bug from one marked "wrong" and
+ * flagged, and without this the two read identically.
+ *
+ * "unanswered" is a flag raised before the answer was sent — the menu is
+ * open on the question as well as on the verdict — and is not the same as
+ * "skipped", which is an answer of a kind.
+ */
+export type FlagVerdict = "right" | "near" | "wrong" | "shown" | "skipped" | "unanswered";
+
+/**
  * A problem a learner reported from the answer screen.
  *
  * It carries a copy of the question rather than a pointer to it, because
@@ -1132,6 +1152,30 @@ export interface Flag {
   prompt: string;
   meaning: string;
   at: Millis;
+  /**
+   * Where the card reached the learner from: the course and the deck it
+   * arrived in. Absent on a card the learner made themselves, which came
+   * through neither, and on every report sent before this was recorded.
+   *
+   * Worth having because a bad card is usually a bad *batch* of cards, and
+   * the deck is the thing to go and look at.
+   */
+  courseId?: string;
+  deckId?: string;
+  /**
+   * What the learner put, and what the app made of it.
+   *
+   * The half of a report the learner cannot be expected to type out. "It
+   * marked me wrong" is unanswerable without knowing what they wrote; with
+   * it, the report usually names its own bug.
+   *
+   * `answer` is empty where there was nothing typed — a question answered
+   * by tapping, or flagged before it was answered at all.
+   */
+  answer?: string;
+  verdict?: FlagVerdict;
+  /** Which build of the app they were on: release, then commit. */
+  release?: string;
   /** Added when the report is read, never stored. */
   cardState?: CardState;
 }

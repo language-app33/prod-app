@@ -67,7 +67,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
-import { hasSlots, valuesFor } from "./variables.ts";
+import { fillNames, hasSlots, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -79,8 +79,10 @@ import { drainOutbox, keep as keepPending, waiting as waitingToSend } from "./ou
    what keeps a teacher's cards and a learner's reports apart. */
 const CARD_OUTBOX = "card";
 import { buildDialogIndex } from "./dialogs.ts";
+import { flagsToText } from "./flag-export.ts";
 import { freshStates, unitsOf } from "./scheduler.ts";
 import {
+  APP_BUILD,
   Button,
   CardReadout,
   CardTile,
@@ -638,6 +640,16 @@ const BACKUP_PARTS: {
     unit: "card",
   },
   {
+    key: "flags",
+    title: "Reported problems",
+    what: "What learners flagged from the answer screen, and which question each was about.",
+    kinds: ["flag"],
+    prefixes: ["flag:"],
+    index: "flags",
+    count: "flags",
+    unit: "report",
+  },
+  {
     key: "clips",
     title: "Recordings",
     what: "The audio itself, which is nearly all of the size of a backup.",
@@ -707,7 +719,9 @@ async function buildBackup(onProgress: (done: number, total: number) => void, pa
   const digests: Record<string, string> = {};
   const seen = new Set<string>();
   const refs = { decks: new Set<string>(), clips: new Set<string>() };
-  const counts: Record<string, number> = { "user:": 0, "course:": 0, "deck:": 0, "card:": 0, "clip:": 0 };
+  const counts: Record<string, number> = {
+    "user:": 0, "course:": 0, "deck:": 0, "card:": 0, "flag:": 0, "clip:": 0,
+  };
 
   let blob = new Blob(
     [`{"format":"language-app-backup","manifest":${JSON.stringify(kept)},"records":{`],
@@ -767,6 +781,7 @@ async function buildBackup(onProgress: (done: number, total: number) => void, pa
     ["courses", "course:", kept.counts && kept.counts.courses],
     ["decks", "deck:", kept.counts && kept.counts.decks],
     ["cards", "card:", kept.counts && kept.counts.cards],
+    ["reports", "flag:", kept.counts && kept.counts.flags],
     ["clips", "clip:", kept.counts && kept.counts.clips],
   ];
   for (const [label, prefix, want] of expect) {
@@ -1415,6 +1430,14 @@ export function AdminSpace({ account, languages, onClose }: {
      rather than after — a blank second on a tap is what a spinner is
      for. */
   const [openCard, setOpenCard] = useState<{ flag: Flag, card: Card | null, error: string } | null>(null);
+  /* An export in progress, or one the clipboard refused.
+     `text` is empty while the cards are still being fetched and holds the
+     finished export afterwards; it is only shown when the copy itself
+     failed, which is the one case where there is nothing else to do with
+     it. A browser will refuse the clipboard outright when the page is not
+     on https, and a feature whose whole point is a paste cannot answer
+     that with "sorry". */
+  const [exporting, setExporting] = useState<{ done: number, total: number, text: string } | null>(null);
   const [deckAction, setDeckAction] = useState<"add" | "remove" | null>(null); // "add" | "remove"
   /* Whose decks to show: a handle, or "" for everyone's. Search already
      matches the maker's name, but only if you know whose name to type —
@@ -1512,6 +1535,77 @@ export function AdminSpace({ account, languages, onClose }: {
   const decks = (data && data.decks) || [];
   /* Newest first, as the server sends them. */
   const flags = (data && data.flags) || [];
+
+  /*
+   * Take some reports out of the app as text.
+   *
+   * The reports themselves are already here — they came with the overview.
+   * The cards are not: admin holds decks rather than cards, and fetches one
+   * only when somebody opens it. So the cards the chosen reports are about
+   * are fetched now, one request each, a few at a time; a card that cannot
+   * be fetched is reported as not being there, which for these purposes is
+   * what it is.
+   *
+   * Only the distinct ones. Several reports about one bad card is the
+   * ordinary case — it is most of the reason reports are read together at
+   * all — and fetching it once per report would turn the common case into
+   * the slow one.
+   */
+  async function copyFlags(chosen: Flag[]) {
+    if (!chosen.length) return;
+    /* One at a time. Two exports at once would each count the other's
+       cards on the progress line and race each other to the clipboard,
+       where only the loser's text survives. The toolbar button says so by
+       going dim; the tile buttons and the bulk action cannot, so it is
+       said here for all three. */
+    if (exporting) return;
+    const ids = [...new Set(chosen.map((f) => f.cardId).filter(Boolean))];
+    setExporting({ done: 0, total: ids.length, text: "" });
+    const cards: Record<string, Card | null> = {};
+    let cursor = 0;
+    const worker = async () => {
+      for (;;) {
+        const i = cursor++;
+        if (i >= ids.length) return;
+        const id = ids[i];
+        try {
+          cards[id] = (await API.adminCard(id)).card || null;
+        } catch {
+          /* Deleted, or a card this site does not hold. The report says so
+             on its own line either way, and one that could not be fetched
+             is not a reason to abandon the other forty. */
+          cards[id] = null;
+        }
+        setExporting((cur) => (cur ? { ...cur, done: cur.done + 1 } : cur));
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, ids.length || 1) }, worker));
+
+    const text = flagsToText(chosen, {
+      at: Date.now(),
+      release: APP_BUILD,
+      cards,
+      names: {
+        kind: flagTitle,
+        exercise: (language, type) => exerciseLabel(languages, language, type),
+        course: (id) => (courses.find((c: Course) => c.id === id) || {}).title || "",
+        deck: (id) => (decks.find((d: Deck) => d.id === id) || {}).title || "",
+        when: dateTime,
+      },
+    });
+
+    try {
+      if (!navigator.clipboard) throw new Error("no-clipboard");
+      await navigator.clipboard.writeText(text);
+      setExporting(null);
+      snack(`${plural(chosen.length, "report")} copied`, "good");
+    } catch {
+      /* Blocked, which is what a browser does on a page that is not on
+         https. The text is put on screen to be selected by hand instead —
+         slower, and still the whole export. */
+      setExporting({ done: ids.length, total: ids.length, text });
+    }
+  }
 
   /* Everyone who has actually made a deck, with how many — read off the
      decks rather than off the people, so the menu never offers a name that
@@ -2225,8 +2319,30 @@ export function AdminSpace({ account, languages, onClose }: {
             <>
               <Lede>
                 Problems learners reported from the answer screen — what was wrong, on which
-                question, and who said so. Fix the card, then clear the report.
+                question, and who said so. Fix the card, then clear the report. Copy takes the
+                reports out as text, each one with the card it is about, ready to paste
+                somewhere that can work out what went wrong.
               </Lede>
+              {/* The export, when the clipboard would not take it. Not a
+                  failure worth an error line: everything worked except the
+                  last step, and the thing that step was carrying is right
+                  here to be selected by hand. */}
+              {exporting && exporting.text && (
+                <Screen title="Copy the reports" onBack={() => setExporting(null)}>
+                  <Lede>
+                    This browser wouldn't let the app reach the clipboard — which is what
+                    happens on a page that isn't on https. Select all of this and copy it
+                    yourself.
+                  </Lede>
+                  <textarea
+                    className="at-input"
+                    readOnly
+                    rows={20}
+                    value={exporting.text}
+                    onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => e.target.select()}
+                  />
+                </Screen>
+              )}
               {/* Read-only: what to change about a card is a teacher's
                   judgement and the teaching space is where it is made. This
                   is the shortest way from "somebody said this is wrong" to
@@ -2258,6 +2374,25 @@ export function AdminSpace({ account, languages, onClose }: {
               <ItemList
                 noun="flag"
                 items={flags}
+                /* In the toolbar rather than at the head of the tab: it
+                   acts on the list, and the list is what the toolbar is
+                   for. Everything, because that is the ordinary thing to
+                   want — the ticked ones are a bulk action below, and one
+                   at a time is a button on the tile. */
+                tools={
+                  flags.length ? (
+                    <Button
+                      size="sm"
+                      icon="copy"
+                      disabled={!!exporting && !exporting.text}
+                      onClick={() => copyFlags(flags)}
+                    >
+                      {exporting && !exporting.text
+                        ? `Reading the cards… ${exporting.done}/${exporting.total}`
+                        : `Copy all ${plural(flags.length, "report")}`}
+                    </Button>
+                  ) : null
+                }
                 /* Full width, one to a row. A report is three or four lines
                    of somebody's words and a word in a script you may not
                    read quickly; in a grid of narrow tiles every one of them
@@ -2275,6 +2410,14 @@ export function AdminSpace({ account, languages, onClose }: {
                 selected={selFlags}
                 onSelectedChange={setSelFlags}
                 bulkActions={[
+                  {
+                    label: "Copy",
+                    icon: "copy",
+                    /* In the order the list has them, not the order they
+                       were ticked: an export read top to bottom should
+                       match the screen it was taken from. */
+                    onClick: (ids) => copyFlags(flags.filter((f: Flag) => ids.includes(f.id))),
+                  },
                   {
                     label: "Clear",
                     danger: true,
@@ -2333,6 +2476,14 @@ export function AdminSpace({ account, languages, onClose }: {
                               Open card
                             </Button>
                           )}
+                          <IconButton
+                            icon="copy"
+                            label="Copy this report"
+                            onClick={(e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              copyFlags([f]);
+                            }}
+                          />
                           <IconButton
                             icon="delete"
                             label="Clear this report"
@@ -3908,9 +4059,13 @@ export function filterCards(
       if (deckMode === "in" ? !inOne : inOne) return false;
     }
     if (fillsMode === "yes" || fillsMode === "no") {
-      const fills = String(c.fills || "").toLowerCase();
-      if (fillsMode === "no" ? !!fills : !fills) return false;
-      if (fillsMode === "yes" && fillsNames.length && !fillsNames.includes(fills)) return false;
+      /* Every blank the card says it fills, because a card may say several
+         — "fills one" is any of them, and a named filter is met by a card
+         that fills that blank among others. */
+      const fills = fillNames(c);
+      if (fillsMode === "no" ? !!fills.length : !fills.length) return false;
+      if (fillsMode === "yes" && fillsNames.length &&
+          !fills.some((name) => fillsNames.includes(name))) return false;
     }
     return true;
   });
@@ -3928,9 +4083,7 @@ export function filterCards(
 export function fillsInUse(cards: Card[]): { name: string; count: number }[] {
   const counts: Map<string, number> = new Map();
   for (const c of cards) {
-    const name = String((c && c.fills) || "").toLowerCase();
-    if (!name) continue;
-    counts.set(name, (counts.get(name) || 0) + 1);
+    for (const name of fillNames(c)) counts.set(name, (counts.get(name) || 0) + 1);
   }
   return [...counts.entries()]
     .map(([name, count]) => ({ name, count }))
@@ -4660,7 +4813,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
             note: (was && was.note) || "",
             name: (was && was.name) || "",
             uses: (was && was.uses) || [],
-            fills: (was && was.fills) || "",
+            fills: fillNames(was),
             drill: true,
           },
           /* A card already in decks stays in them; a new one is made the
@@ -4954,10 +5107,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            drilled reads it. */
                         category,
                         uses,
-                        /* Which variable it fills, and whether it is a
-                           question of its own. A conversation is neither:
-                           its turns are the cards, and the editor does not
-                           offer either field on one. */
+                        /* Which blanks it fills — one name or several —
+                           and whether it is a question of its own. A
+                           conversation is neither: its turns are the cards,
+                           and the editor does not offer either field on
+                           one. */
                         fills,
                         drill,
                       }),

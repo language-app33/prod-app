@@ -190,7 +190,13 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   that say they are one, which they already did when they said what they
   were. And a blank with a name of the teacher's own takes the cards that
   name it back, in `fills`, which is the only case left where anything has
-  to be written twice. Every form of a filler lends itself, not only its
+  to be written twice — and which is a **list**, because a word stands in
+  more than one kind of hole as soon as somebody writes a second frame
+  about it, and saying so used to take a second card carrying the same
+  word. A card written when it was one name reads as the list of one it
+  always meant; `fillNames` in `src/variables.ts` is the one answer to
+  what a card fills, and the server reads it through the same function.
+  Every form of a filler lends itself, not only its
   own word: a plural stands in a sentence its singular does not, gated on
   what that form itself has climbed. A card with a blank in it never fills
   one — a sentence dropped into somebody else's hole is a sentence with a
@@ -205,6 +211,35 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   it is: a word, a sentence, or a conversation. Nothing is stored saying
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
+
+  **The editor's Blanks section is two named halves, and they are not the
+  same shape, because the two questions are not the same question.**
+
+  *Blanks in this card* is a **readout**, and has nothing to decide. What
+  a card leaves is written in its own words — the braces are in the text —
+  so the holes are a fact about the card and the section's whole job is to
+  say what that fact is worth: the card as a student will actually meet it
+  (three sentences, each in the script, in how it is said and in what it
+  means, filled from the words that exist today), then each hole, and,
+  when one is pointed at, the words that will go in it. That last is the
+  only place a teacher can see whether the right vocabulary is behind a
+  blank without leaving the card. A blank is put in and taken out by
+  writing it into the fields, where it lives; every field with words in it
+  must leave the same blanks, and `slotTrouble` refuses the save and names
+  the field that is short of one.
+
+  *Using this card to fill a blank* is the opposite job, and there a list
+  is right: what a card fills is nowhere in its words and nothing can be
+  read off, so it is the teacher's answer and this is where they give it —
+  a box that names a new blank, above the blanks somebody has written,
+  with this card's ticked. A kind of word is not among them, because a
+  card fills `{{noun}}` by saying it is a noun and `{{word}}` by being a
+  word: a tick for either would change nothing. What is offered is what
+  somebody *wrote* rather than what is not built in, because a language
+  may declare a kind of word whose name a teacher also uses by hand —
+  Arabic declares `name`, and `{{name}}` is the oldest frame in the app. A
+  card that leaves a blank of its own fills none, so on one of those this
+  half says that rather than offering a control there is no answer to.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the
@@ -386,6 +421,9 @@ src/
   grade.ts         marking an answer: what it counts as, what that does to
                    the schedule of the form it was about, and where it is
                    written back. Pure, no React, the clock passed in.
+  flag-export.ts   reported problems written out as text to paste elsewhere,
+                   each with the card it is about. Pure: the clock, the
+                   locale and every name it cannot work out are passed in.
   ArabicTrainer.tsx  the learner's app: scheduler, session builder, screens
   spaces.tsx       the teaching and admin spaces, loaded lazily so a student
                    never downloads them

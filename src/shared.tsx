@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { mergeMet, splitSlots } from "./variables.ts";
+import { fillNames, mergeMet, splitSlots } from "./variables.ts";
 import { isOffline, watchNet } from "./net.ts";
 
 /*
@@ -22,6 +22,24 @@ import { isOffline, watchNet } from "./net.ts";
  * TypeScript file is the DOM's Node and accepts none of those things.
  */
 export type Node = React.ReactNode;
+
+/*
+ * Which build this is.
+ *
+ * The release — 0.1, 0.2, 0.3 — is the headline, because "which version am
+ * I on?" wants a number that counts rather than a hash. The commit sits
+ * beside it, because "is what I merged actually running?" can only be
+ * answered by the thing that changes on every deploy.
+ *
+ * Both are frozen in at build time (see vite.config.js). Here rather than
+ * in the trainer because two unrelated screens now say which build they
+ * are — the version line, and any report copied out of Admin, where the
+ * build a problem was seen on is half of what makes it reproducible.
+ */
+export const APP_RELEASE = typeof __APP_RELEASE__ === "string" && __APP_RELEASE__ ? __APP_RELEASE__ : "dev";
+export const APP_COMMIT = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
+/** The two together, which is how a build is named anywhere it is written down. */
+export const APP_BUILD = `${APP_RELEASE} (${APP_COMMIT})`;
 
 
 
@@ -2054,7 +2072,11 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
               reaches students with every deck whose phrases have a hole of
               its name, whatever deck it is filed in — which is the one case
               where "in no deck" above is not the whole story. */}
-          {card.fills ? <Row label="Fills">{`{{${card.fills}}}`}</Row> : null}
+          {fillNames(card).length ? (
+            <Row label="Fills">
+              {fillNames(card).map((name) => `{{${name}}}`).join(" · ")}
+            </Row>
+          ) : null}
           {card.drill === false ? (
             <Row label="Practised">Not on its own — it fills other cards</Row>
           ) : null}
@@ -3109,7 +3131,7 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        which variable it stands in for, and whether it is practised in its
        own right. Carried rather than derived, because both are the
        teacher's decision and neither can be read off the words. */
-    ...(card.fills ? { fills: String(card.fills) } : null),
+    ...(fillNames(card).length ? { fills: fillNames(card) } : null),
     ...(card.drill === false ? { drill: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same

@@ -557,8 +557,6 @@ button {
   box-shadow: var(--nav-shadow); }
 .at-choosemenu .at-eyebrow { margin:0 0 8px; }
 .at-choosemenu .at-hint { margin:10px 0 0; }
-.at-choosebtn.new { border-style:dashed; border-color: var(--jade); color: var(--jade); }
-.at-blanklist { display:flex; flex-direction:column; gap:7px; }
 /*
  * The sentences a student will be asked, filled with the words that exist
  * today. The section used to explain this in ninety words; three real
@@ -566,25 +564,64 @@ button {
  * doing the explaining deserves.
  */
 .at-asked { background: var(--jade-bg); border:1px solid var(--jade-soft);
-  border-radius: var(--r-sm); padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+  border-radius: var(--r-sm); padding:10px 12px; display:flex; flex-direction:column; gap:10px; }
 .at-askedline { display:flex; gap:10px; align-items:baseline; margin:0; min-width:0;
   font-size: var(--fs-sm); }
 .at-askedline b { flex:0 0 3.4em; font-size: var(--fs-xs); font-weight:800; color: var(--jade);
   letter-spacing:.05em; text-transform:uppercase; }
-.at-askedline span { min-width:0; overflow-wrap:anywhere; color: var(--text); }
-/* A blank the card leaves, as a fact rather than a control: what it is
-   named, which is what another card has to say it fills. */
+/* One example is three lines, not one: the sentence in the script, how it
+   is said, and what it means. The English alone was the one line of the
+   question a learner is never asked to produce, which made the preview of
+   an Arabic frame a preview of everything except the Arabic. Stacked
+   rather than strung along the line, because a sentence in a script that
+   runs the other way cannot share a line with its own translation. */
+.at-askedsays { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.at-askedsays > * { min-width:0; overflow-wrap:anywhere; }
+.at-askedscript { color: var(--text); font-size:calc(19px * var(--sscale, 1));
+  line-height:calc(1.5 * var(--sleading, 1)); font-weight:600; }
+.at-askedsaid { color: var(--text-soft); font-size: var(--fs-sm); font-weight:600; }
+.at-askedmeans { color: var(--text); font-size: var(--fs-sm); }
+/* A blank the card leaves: what it is named — which is what another card
+   has to say it fills — and, on hovering it, the words that will be put in
+   it. The name alone was the least of what a teacher wants to know about
+   a blank, so the chip is something to press or point at; it still reads
+   as the fact it was, because nothing in what opens can be chosen. */
+.at-blankwrap { position:relative; display:inline-flex; max-width:100%; }
 .at-blankchip { display:inline-flex; align-items:center; min-height:38px; padding:0 13px;
   border-radius:999px; background: var(--tag-bg); border:2px solid var(--tag-line);
-  color: var(--brass); font-family: var(--mono); font-size: var(--fs-sm); font-weight:700; }
+  color: var(--brass); font-family: var(--mono); font-size: var(--fs-sm); font-weight:700;
+  cursor:help; -webkit-appearance:none; appearance:none; }
+.at-blankchip:hover, .at-blankchip:focus-visible { border-color: var(--brass); }
+/* Hangs off the chip and travels with it, the way the blank picker's menu
+   hangs off its button — and opens from the chip's leading edge, so it
+   grows the way the page reads and cannot reach the far gutter. */
+.at-blankfills { position:absolute; top:calc(100% + 6px); inset-inline-start:0;
+  z-index: var(--z-over);
+  width: max(240px, 100%); max-width: min(340px, calc(100vw - 32px));
+  max-height:min(320px, calc(100dvh - 160px)); overflow-y:auto;
+  background: var(--surface); border:2px solid var(--line); border-radius:18px;
+  padding:12px; box-shadow: var(--nav-shadow); text-align:start; }
+.at-blankfills .at-eyebrow { margin:0 0 8px; font-family: var(--mono); text-transform:none;
+  letter-spacing:0; }
+.at-blankfills .at-hint { margin:8px 0 0; }
+.at-filllist { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:7px; }
+.at-filllist li { display:flex; flex-direction:column; gap:1px; min-width:0; }
+.at-filllist b { font-size:calc(19px * var(--sscale, 1));
+  line-height:calc(1.4 * var(--sleading, 1)); font-weight:600;
+  overflow-wrap:anywhere; }
+.at-filllist em { font-style:normal; font-size:12px; font-weight:600; color: var(--muted);
+  overflow-wrap:anywhere; }
+.at-filllist i { font-style:normal; font-size:13px; font-weight:600; color: var(--text-soft);
+  overflow-wrap:anywhere; }
 /* Not .at-row: that one hands every child an equal share of the line,
    which is right for a row of buttons and wrong for a name beside the
    button that adds another — it squashed both to a few letters. Here each
    thing is the width of what it says, and the line wraps. */
 .at-blankrow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top: var(--s4); }
 .at-blankrow > * { flex:0 0 auto; max-width:100%; }
-/* The one place a blank is named by hand: the box takes the room, the
-   button takes what it needs. */
+/* Naming a blank by hand: the box takes the room, the button takes what it
+   needs. One in each half of the Blanks section — both name blanks, and
+   neither list can offer a name nobody has written yet. */
 .at-blanknew { display:flex; gap:8px; margin-top:10px; }
 .at-blanknew .at-input { flex:1 1 auto; min-width:0; }
 .at-blanknew .at-btn { flex:0 0 auto; }

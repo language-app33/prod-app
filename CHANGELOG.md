@@ -8,6 +8,174 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.162 — 17 September 2026
+
+**"Blanks in this card" now shows the blanks in this card.**
+
+0.161 made it a tick list of every blank the language knows about, with the
+card's own ticked. On a card with one blank in it that was a list of a dozen
+rows, eleven of which are not in the card at all — with a checkbox beside
+each, under a heading saying these are the blanks in this card. Neither the
+heading nor the ticks were true.
+
+It is a readout now. It reads the blanks out of the card's own words and
+shows those: the sentences a student will be asked, the holes themselves,
+and — when you point at one — the words that will go in it. Nothing in it to
+tick, because there is nothing there to decide: a blank is in the card
+because it is written in the card.
+
+Putting one in and taking one out is done where it lives, by writing
+`{{name}}` into the fields. If a field is short of one the card still will
+not save, and the editor still names the field.
+
+The other half, *Using this card to fill a blank*, is unchanged: what a card
+fills is nowhere in its words, so it stays the list where you say so.
+
+## 0.161 — 17 September 2026
+
+**Nothing in the Blanks section is behind a button any more.**
+
+0.160 put the blanks a card *fills* on the screen as a list, and left the
+blanks a card *leaves* behind a "+ Blank" button that opened a menu of the
+same names. Two lists of blank names under two headings, one of them hidden,
+read as the same control in two places — and they are not: one writes a hole
+into this card's words, the other says this card stands in another card's
+hole.
+
+*Blanks in this card* is now a box and a list too, the same shape as the half
+below it: type a new blank name at the top, and below it every blank you
+could leave, with this card's ticked. The two lists are side by side, so the
+headings can do the telling apart.
+
+**And a blank can be taken out again.** Ticking one writes `{{name}}` into
+every field at once, which is what it always did. Unticking now takes it out
+of every field at once — which you could only do before by deleting the
+braces by hand from all three fields, one of which runs the other way, and a
+card left with them in two fields and not the third cannot be saved. Putting
+a blank in stopped being typing two releases ago; taking one out has now
+caught up.
+
+The two lists are deliberately not identical: kinds of word (`{{noun}}`,
+`{{verb}}`, `{{word}}`) are offered as holes to leave, because "{{noun}} is
+heavy" is a real sentence to write, and are not offered as blanks to fill,
+because a card fills `{{noun}}` by saying it is a noun.
+
+## 0.160 — 17 September 2026
+
+**Saying which blanks a card fills is a list you can see.**
+
+0.159 let one card fill several blanks, and put the naming behind a button:
+you opened a menu, read a list, and the box for naming a blank nobody had
+named yet was at the bottom of it. Naming the first blank of a kind is the
+one thing on that screen you cannot do by choosing off a list, so it was the
+one thing hardest to reach — and a list you have to open to see is a list you
+answer without reading.
+
+*Using this card to fill a blank* is now a box and a list, both on the
+screen. Type a new blank name at the top; below it is every blank anybody has
+written, with this card's ticked. Tick one to fill it, untick it to stop.
+
+**And kinds of word are no longer on that list.** A card fills `{{noun}}` by
+saying it is a noun, and `{{word}}` by being a word — so those ticks never
+did anything, and there was a row for every kind of word your language
+declares, burying the handful of blanks anybody had actually written. The
+list is the blank names somebody wrote, and the card says what it fills by
+being what it is in one line underneath.
+
+## 0.159 — 17 September 2026
+
+**A card with a blank in it now shows what a student will really see.**
+
+Writing "My name is {{name}}" meant trusting that the hole would be filled
+with the right sort of word. The editor showed three example sentences, and
+showed them in English only — which on a card written in Arabic is a preview
+of everything except the Arabic. Each example is now three lines: the
+sentence in the script, how it is said, and what it means, filled from the
+words you actually have.
+
+**And pointing at a blank says which words will go in it.** A blank used to
+be a name on a chip and nothing more, so "is the right vocabulary behind
+this?" could only be answered by leaving the card and reading the list.
+Hover one — or tap it on a phone, or reach it with the keyboard — and it
+lists the words that will fill it, each in the script, in how it is said and
+in what it means. Eight of them, then a count, because `{{word}}` is filled
+by every word you have.
+
+**The Blanks section is now two named halves.** It was doing two opposite
+jobs in one block, and showing only the half that applied: *Blanks in this
+card* is the holes this card leaves, and *Using this card to fill a blank*
+is the names this card answers to when another card leaves one. On a card
+that leaves a blank of its own, the second half now says why it fills none
+instead of simply not being there.
+
+**A card can fill more than one blank.** A word is a name and a greeting as
+soon as you write a second sentence about it, and until now saying so took a
+second card carrying the same word — the same word to learn twice, with two
+sets of recordings and two schedules. One card can now answer to as many
+names as you like: add them one at a time, change any of them by choosing
+again, and take one off with the × beside it. Nothing you have already
+written changes, and a card that fills one name goes on filling exactly that
+one.
+
+## 0.158 — 17 September 2026
+
+**A copied report shows the card again.**
+
+The export in 0.157 was meant to put each report next to the card it is
+about. For most of the cards actually on the site it printed the heading, a
+revision number, and nothing else — no word, no meaning, no alternates. The
+one part of a report that saves you opening the card was blank.
+
+Cards written before the app stored a word and its alternates as one list
+are still on the site in the older shape, and the export was the only thing
+reading them that did not know about it. It now reads them the way the rest
+of the app does. Nothing about the cards changed, and nothing needs
+re-exporting beyond pressing Copy again.
+
+**A copied export now opens by asking for a plan, not for fixes.** Pasting
+one used to read as a job to start, and what came back was a pile of
+changes nobody had agreed to. The first thing in the text is now a short
+instruction: read them all, come back with a plain-language list of what
+would change and what is not worth doing, and wait to be told to go.
+
+## 0.157 — 16 September 2026
+
+**Reported problems can be copied out of Admin in one go.**
+
+Learners have always been able to flag a question from the answer screen,
+and what they send has always landed in Admin. Getting it back out again
+was the part that did not exist: you could read the reports one at a time
+on screen, and that was all. Anyone who wanted to sit down and work through
+them somewhere else had to copy them out by hand.
+
+Admin → Flags now has Copy. It takes every report on the list, or only the
+ones you have ticked, or a single one from its own row, and puts them on
+the clipboard as plain text — each report with the card it is about, as
+that card stands right now. Paste it wherever you like.
+
+Reports also carry more than they used to, because most of what makes one
+actionable was being thrown away at the door:
+
+- **What the learner actually typed**, character for character. "It marked
+  my answer wrong" cannot be settled without it, and a trailing space is
+  exactly the sort of thing nobody thinks to mention.
+- **How the app marked it** — right, nearly right, wrong, skipped, or the
+  answer shown. A card flagged after being marked *right* is a different
+  problem from one flagged after being marked wrong, and the two used to
+  read identically.
+- **Which course and deck the card came from**, because a bad card is
+  usually one of a bad batch.
+- **Which build of the app they were on.**
+
+Reports sent before this release carry what they always carried. The export
+says so rather than leaving those lines looking empty.
+
+**Backups now include reported problems**, which were the one thing on the
+site a backup did not hold. A site rebuilt from a file came back with no
+record of anything anyone had reported and not yet fixed, and nothing said
+so. Clearing the site offers them as a part of their own: clearing the
+cards no longer quietly takes the list of what was wrong with them.
+
 ## 0.156 — 16 September 2026
 
 **A session already under way now notices the connection going.**

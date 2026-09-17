@@ -112,11 +112,58 @@ export const WORD_SLOT = "word";
  */
 export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[] {
   if (hasSlots(card)) return [];
-  const named = String((card && card.fills) || "").toLowerCase();
-  const out = named ? [named] : [];
+  const out = fillNames(card);
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
+  return out;
+}
+
+/**
+ * How many blanks one card may say it fills.
+ *
+ * A limit rather than none, because `fills` is written by a teacher and
+ * stored by a server, and neither wants a card carrying a thousand names.
+ * Twelve is past anything a word plausibly stands in — a name that is also
+ * a greeting and a subject is three — and short enough to draw as chips on
+ * a phone without the section becoming the card.
+ */
+export const MAX_FILLS = 12;
+
+/**
+ * The blanks a card *says* it fills, in the order the teacher named them.
+ *
+ * One name or several. It began as one, because one is what a value is
+ * usually for: Raphael fills `name` and nothing else. But a word stands in
+ * more than one kind of hole as soon as a teacher writes a second frame
+ * about it — a city is a `place` and a `name-is`, a colour is a `colour`
+ * and a `describes` — and the only way to say so was a second card
+ * carrying the same word, which is the same word learnt twice and two
+ * schedules for it.
+ *
+ * So `fills` is a list. A card written before this carries a single
+ * string, which is that list with one name in it, and is read here without
+ * anything being migrated: every card ever stored goes through this
+ * function and comes back as the same shape.
+ *
+ * Narrowed to what a slot may be named — the braces in a card are matched
+ * on exactly these characters — and lowered, so {{Name}} and {{name}} are
+ * one blank rather than two that look alike. Deduplicated and capped, so
+ * what the editor draws and what the server stores cannot come apart.
+ * The server reads it through this too, which is what keeps that true.
+ */
+export function fillNames(card: WithSlots | null | undefined): string[] {
+  const said = card ? card.fills : null;
+  const raw: unknown[] = Array.isArray(said) ? said : [said];
+  const out: string[] = [];
+  for (const one of raw) {
+    const name = String(one == null ? "" : one)
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "")
+      .slice(0, 24);
+    if (name && !out.includes(name)) out.push(name);
+    if (out.length >= MAX_FILLS) break;
+  }
   return out;
 }
 

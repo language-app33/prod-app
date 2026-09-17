@@ -2055,3 +2055,132 @@ The lower levels have no such bar and always get the full two.
   — the front-door cap from 0.154 — and `quietRows` call `mastered` directly
   and need the strict reading. A word you have just missed should still cost a
   place at the front door: that is work in hand.
+
+---
+
+## A card fills a list of blanks, not one
+
+**17 September 2026** · `src/variables.ts` (`fillNames`), `src/card-editor.tsx`,
+`server/api/courses.js`
+
+`fills` was one name. That is the right shape for what a value usually is —
+Raphael fills `name` and nothing else — and it stops being the right shape the
+moment a teacher writes a second frame about the same word. *Marhaba* is a
+greeting and a name; a city is a place and a name; a colour is a colour and a
+thing that describes. The only way to say so was a second card carrying the
+same word, which is the same word learnt twice, with two schedules and two
+sets of recordings for it.
+
+It is a list. Every card ever stored carries the one name as a plain string
+and is read as the list of one it always meant, so nothing is migrated and no
+release has to be taken in order.
+
+**One reader, and the server uses it too.** `fillNames` is the only thing that
+answers "what does this card say it fills": it takes either shape, lowers each
+name, narrows it to the characters a slot may be named with, drops the
+duplicates and caps the count. The server imports it rather than keeping its
+own copy of those rules, which is what makes "what the editor draws is what
+the server stores" a fact rather than an intention — the old copy lived in the
+save handler and had already drifted apart from the client's idea of a name
+being lowered.
+
+**Absent when it fills none, not stored empty.** A stored card is built by
+spreading a field object over the card as it stood, so a key left out keeps
+whatever it used to hold — which would make taking the last name off do
+nothing. And an empty array is truthy, so storing one would quietly turn
+`if (card.fills)` true on every ordinary card in the app; there are a dozen
+such readers and they all mean "is this a value". So the field is written as
+`undefined` when the list is empty: JSON drops it on the way to disk, every
+reader goes on testing what it always tested, and taking the last name off
+still reaches the card.
+
+**What it costs.** `Card.fills` is `string | string[]`, which is a union at
+the storage boundary and one more thing a reader could get wrong by reading
+the field instead of calling the function. The alternative — migrating every
+card on the site in one pass — is a worse trade for a field this small: it
+would need a release nobody could roll back past.
+
+---
+
+## The editor's Blanks section is two named halves
+
+**17 September 2026** · `src/card-editor.tsx` (`BlanksBlock`, `BlankChip`)
+
+The section does two opposite jobs: a card that leaves a blank, and a card
+that fills somebody else's. They were one block, and only the half that
+applied was drawn — so a teacher looking for where a word is offered to other
+cards found either an unlabelled button or nothing at all, with no way to tell
+which of the two they were looking at.
+
+Both halves are now named and both are always on screen. On a card that leaves
+a blank of its own, the second half says why it fills none — a sentence
+dropped into somebody else's hole is a sentence with a gap where the point was
+— rather than offering a control there is no answer to. A heading became
+necessary rather than merely nice the moment a card could fill more than one
+blank, because the second half then has a list of its own and two unlabelled
+lists in one block is a puzzle.
+
+**Showing beats explaining, and the examples are all three fields.** The
+preview of what a student will be asked showed the English alone, which is the
+one line of the question a learner is never asked to produce: a preview of an
+Arabic frame that shows only "My name is Raphael" is a preview of everything
+except the Arabic. Each example is now the sentence in the script, in how it
+is said, and in what it means. A field the card does not use is not drawn; a
+field whose filler has nothing to put in it keeps the braces standing, exactly
+as the question would, which is the teacher's answer about the card they have
+written rather than a gap to wonder about.
+
+**One half is a readout and the other is a list, and making them match was
+the mistake.** Which blanks a word is offered to, and which holes a card
+leaves, look like the same question and are not. What a card fills is nowhere
+in its words: it is the teacher's answer, nothing can be read off, and a list
+is where they give it. What a card leaves is *written in its own words* — the
+braces are in the text — so it is a fact about the card, already decided by
+the time the section is drawn.
+
+Two releases went into learning that. 0.160 made the fills half a list on the
+screen and left the holes half behind a "+ Blank" menu; the two then read as
+the same control in two places, and the first thing asked was whether the
+button belonged under the other heading — the right question about two things
+that look identical, and the wrong answer, since they do opposite jobs. 0.161
+answered it by making both tick lists, which is where the shape broke: the
+holes half became every blank in the language with the card's two ticked, so
+a checkbox sat beside `{{verb}}` on a card with no verb in it, under a heading
+saying *these are the blanks in this card*. Neither the heading nor the tick
+was true. Symmetry between the halves was never the goal; what the section had
+to do was make the two jobs impossible to confuse, and a readout beside a list
+does that better than two lists ever did.
+
+**What it costs.** Putting a blank into a card is typing braces again, and
+typing braces into three fields that must agree is exactly the thing a teacher
+gets wrong — which is what the button was for in 0.139. The guard that
+remains is `slotTrouble`: a card whose English has a hole and whose script has
+not cannot be saved, and the editor names the field that is short of one. That
+is a worse place to catch it than not being able to make the mistake, and it
+is the price of a heading that is true. A control that writes a blank into the
+fields can come back, but it belongs beside the fields it writes into, not
+under a heading that says what the card already has.
+
+**What is offered is what somebody wrote, not what is not built in.** A card
+fills `{{noun}}` by saying it is a noun and `{{word}}` by being a word — see
+`fillsOf` — so offering every kind of word the language declares made the
+commonest action on this screen a tick that did nothing. Dropping every
+category id would have been wrong in the other direction, and this is the part
+that took the thinking: Arabic declares `name` as a kind of word *and*
+`{{name}}` is the oldest frame in the app, so the one blank everybody actually
+uses is a category id. So a blank is offered when some card leaves it or some
+card says it fills it, which is what "a blank that exists" has always meant
+here — a blank being a name two cards happen to agree on rather than a thing
+declared. `{{word}}` is never offered, and a card's own kind is said in one
+line beneath the list instead, which is also where "why is `noun` not here?"
+gets answered.
+
+**And a blank says what is behind it.** The chip was the blank's name and
+nothing else, which is the least of what a teacher wants to know about it:
+whether the right words are behind it was answerable only by leaving the card
+and reading the whole list. Pointing at one now lists the words that will fill
+it, each in the same three fields. It opens on hover, on keyboard focus and on
+a tap, because a chip on a phone has no hover and one reached by keyboard has
+no pointer; nothing in it can be chosen, so it closes on the way out and takes
+nothing with it. Eight words, then a count — `{{word}}` is filled by the whole
+vocabulary and a panel that printed all of it would cover the card.

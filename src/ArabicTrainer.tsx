@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type {
-  Course, Deck, Doc, ExerciseState, FlagKind, Form, Item,
+  Course, Deck, Doc, ExerciseState, FlagKind, FlagVerdict, Form, Item,
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
 import type { Node } from "./shared.tsx";
 import {
+  APP_COMMIT,
+  APP_RELEASE,
+  APP_BUILD,
   Button,
   CardReadout,
   CardTile,
@@ -7606,6 +7609,26 @@ export default function ArabicTrainer() {
   }
 
   /*
+   * How the flagged question had actually gone, in one word.
+   *
+   * Told apart rather than rolled into right-or-wrong, because the
+   * difference is the report: a card flagged after being marked *right* is
+   * a card that accepts something it should not, and one flagged after the
+   * answer was shown is usually a card whose answer is unguessable. Both
+   * read as "wrong" if only the grader's boolean is kept.
+   *
+   * "unanswered" is the flag menu opened on the question rather than on
+   * the verdict, which is the ordinary way to report an unanswerable one.
+   */
+  function flagVerdict(): FlagVerdict {
+    if (!checked) return "unanswered";
+    if (skipped) return "skipped";
+    if (toldAnswer) return "shown";
+    const { correct, near } = verdictOf({ checked, toldAnswer, overridden, skipped, hintAtAnswer });
+    return correct ? "right" : near ? "near" : "wrong";
+  }
+
+  /*
    * Record a problem against the item, so it can be found and fixed later.
    *
    * Twice over, because the two copies answer different questions. The one
@@ -7678,6 +7701,25 @@ export default function ArabicTrainer() {
          a report that says only "card k3f2" is then unreadable. */
       prompt: leadOf(parentItem).ar || "",
       meaning: leadOf(parentItem).en || "",
+      /* Where the card reached this device from. A bad card is usually one
+         of a bad batch, and the deck is what somebody goes and looks at.
+         Absent on a card the learner made, which came through neither. */
+      courseId: (parentItem.source && parentItem.source.courseId) || "",
+      deckId: (parentItem.source && parentItem.source.deckId) || "",
+      /* What they put, and what the app made of it — the half of "it
+         marked me wrong" that the learner cannot be expected to type out
+         and that usually names the bug on its own.
+
+         Character for character, untrimmed: a trailing space or a stray
+         mark is exactly the sort of thing that makes a right answer come
+         back wrong, and it is the one thing a learner writing the report
+         out by hand would never think to mention. Trimming here would
+         throw away the answer this field exists to give. */
+      answer: String(typed || "").slice(0, 200),
+      verdict: flagVerdict(),
+      /* Which build, so a report can be matched against what was running.
+         The release alone is two or three deploys. */
+      release: APP_BUILD,
     };
 
     /*
@@ -12498,8 +12540,9 @@ function SpaceSwitch({ space, spaces, onSpace }: {
  * landed *and* you are looking at it, and anything else says so plainly
  * rather than leaving a good deploy looking like a failed one.
  */
-const APP_RELEASE = typeof __APP_RELEASE__ === "string" && __APP_RELEASE__ ? __APP_RELEASE__ : "dev";
-const APP_COMMIT = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
+/* The release and the commit are shared.tsx's now: Admin writes the same
+   pair into every report it copies out, and two definitions of "which
+   build is this" is one too many. */
 const APP_BUILT_AT = typeof __BUILT_AT__ === "string" ? __BUILT_AT__ : "";
 
 /* Short and local: enough to tell two deploys on the same day apart. */
