@@ -4996,48 +4996,72 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks | Variables",
+      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
 
-  /* ---- and by whether a card is a value ----
-     A teacher who has written forty names wants two things of this list: the
-     names, to check them, and everything that is not a name, to get their
-     material back. */
+  /* ---- and by a blank, from either side of it ----
+     A blank has two sides and a teacher wants both: the sentences it is a
+     hole in, and the words that go in the hole. The filter could name only
+     the second — it could say which words fill {{name}} and not which cards
+     ask for one — which is half an answer to "what is going on with this
+     blank". */
   const all = tiles();
   check("every card is listed before either filter is used", all >= 3, `${all} tiles`);
-  const fillsMode = (/** @type {RegExp} */ re) =>
-    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
-      .find((b) => re.test((b.textContent || "").trim()));
-  check("the filter asks whether a card fills a variable, or none",
-    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
-      .map((b) => (b.textContent || "").trim()).join(" | ") === "Any card | Fills one | Fills none",
-    [...frame.querySelectorAll('[role="group"][aria-label="Whether a card fills a variable"] .at-seg')]
-      .map((b) => (b.textContent || "").trim()).join(" | ") || "(no variables filter)");
-  click(fillsMode(/^Fills one$/));
+  const sideLabel = '[role="group"][aria-label="Which side of a blank a card is on"] .at-seg';
+  const sides = () => [...frame.querySelectorAll(sideLabel)]
+    .map((b) => (b.textContent || "").trim());
+  const blankSide = (/** @type {RegExp} */ re) =>
+    [...frame.querySelectorAll(sideLabel)].find((b) => re.test((b.textContent || "").trim()));
+  check("the filter asks which side of a blank a card is on",
+    sides().join(" | ") === "Any card | Leaves one | Fills one | Fills none",
+    sides().join(" | ") || "(no blanks filter)");
+
+  /* The words other cards borrow. */
+  click(blankSide(/^Fills one$/));
   await sleep(250);
   const values = tiles();
-  check("choosing it shows the values and nothing else",
+  check("choosing the filling side shows the values and nothing else",
     values > 0 && values < all, `${values} of ${all}`);
-  /* The variables themselves are listed, read off the cards that fill them,
-     with how many fill each. */
-  const nameRow = [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
-    .find((r) => /\{\{name\}\}/.test(r.textContent || ""));
-  check("and the variables are there to pick from, named and counted",
-    !!nameRow && /card/.test(nameRow.textContent || ""),
-    nameRow ? (nameRow.textContent || "").replace(/\s+/g, " ").trim()
+  /* The blanks themselves are listed, read off the cards that wrote them,
+     each saying what it is worth on both sides. */
+  const blankRow = () => /** @type {any} */ (
+    [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
+      .find((r) => /\{\{name\}\}/.test(r.textContent || "")) || null);
+  check("and the blanks are there to pick from, named and counted from both sides",
+    !!blankRow() && /left by .*card/.test(blankRow().textContent || "") &&
+      /filled by .*card/.test(blankRow().textContent || ""),
+    blankRow() ? (blankRow().textContent || "").replace(/\s+/g, " ").trim()
       : [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
-          .map((r) => (r.textContent || "").slice(0, 12)).join(" | ") || "no variables listed");
-  click(nameRow && nameRow.querySelector("input"));
+          .map((r) => (r.textContent || "").slice(0, 12)).join(" | ") || "no blanks listed");
+  click(blankRow() && blankRow().querySelector("input"));
   await sleep(250);
+  const filling = tiles();
   check("ticking one narrows to the cards that fill it",
-    tiles() > 0 && tiles() <= values, `${tiles()} of ${values} values`);
+    filling > 0 && filling <= values, `${filling} of ${values} values`);
+
+  /* And the same blank from the other side: the sentences with the hole in
+     them, which is the half that did not exist. The tick stays put, because
+     it is the same blank being asked about either way. */
+  click(blankSide(/^Leaves one$/));
+  await sleep(250);
+  const leaving = tiles();
+  check("and the same blank the other way round shows the cards that leave it",
+    leaving > 0 && leaving < all, `${leaving} of ${all}`);
+  /* Never the same card: one with a hole in it fills nothing, whatever it
+     says, so the two sides of a blank cannot both hold one. */
+  const leftText = [...frame.querySelectorAll(".at-minicard")]
+    .map((t) => (t.textContent || "").replace(/\s+/g, " ").trim());
+  check("and they are the sentences, not the words — never both",
+    leftText.every((t) => /\{\{name\}\}/.test(t)),
+    leftText.join(" | ").slice(0, 120) || "(nothing listed)");
+
   /* And the other way: everything that is not a value, which is the
      material a student is actually asked about. */
-  click(fillsMode(/^Fills none$/));
+  click(blankSide(/^Fills none$/));
   await sleep(250);
-  check("and the other way leaves the values out",
+  check("and fills-none leaves the values out",
     tiles() === all - values, `${tiles()} ordinary, ${values} values, ${all} in all`);
-  click(fillsMode(/^Any card$/));
+  click(blankSide(/^Any card$/));
   await sleep(250);
   check("and putting it back shows every card again", tiles() === all, `${tiles()} of ${all}`);
 

@@ -246,6 +246,18 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   must leave the same blanks, and `slotTrouble` refuses the save and names
   the field that is short of one.
 
+  **And the card list narrows by a blank, from either side of it.** Teaching
+  → Cards has a *Blanks* filter: which side a card is on — it leaves one,
+  it fills one, or it fills none — and, for the first two, a list of every
+  blank anybody has written, each saying how many cards leave it and how
+  many fill it. The two sides are never the same card, because a card with
+  a hole in it fills nothing; ticking `{{name}}` and switching sides is
+  therefore how "what is going on with this blank" is answered — the
+  sentences that ask for a name, and the names. `filterCards` and
+  `blanksInUse` in `src/spaces.tsx`, both read off the cards in hand, so a
+  blank appears the moment a card writes it and goes when the last one
+  stops.
+
   *Using this card to fill a blank* is the opposite job, and there a list
   is right: what a card fills is nowhere in its words and nothing can be
   read off, so it is the teacher's answer and this is where they give it —

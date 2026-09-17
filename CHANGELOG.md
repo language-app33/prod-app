@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.164 — 17 September 2026
+
+**The card list narrows by a blank, from either side of it.**
+
+Teaching → Cards could already show you the words that fill a blank. It
+could not show you the cards that *leave* one — so "what is going on with
+{{name}}?" had half an answer: here are the names, and you work out for
+yourself which sentences ask for one.
+
+The filter is now called **Blanks** and asks which side a card is on: it
+leaves one, it fills one, or it fills none. Tick a blank and you get that
+side of it; switch sides with the tick still set and you get the other. The
+two are never the same card, because a card with a hole in it fills
+nothing.
+
+Each blank in the list says what it is worth on both sides — *left by 3
+cards · filled by 12 cards* — which is where two problems become visible
+before you go looking for them: a blank with sentences and nothing to fill
+them is a card that cannot be practised, and a blank with words and no
+sentence is vocabulary nobody has written a use for.
+
+The filter used to be called *Variables*, which is the word the code uses
+and was the last place in the app still saying it out loud.
+
 ## 0.163 — 17 September 2026
 
 **A misspelt answer now shows you which letter.**
