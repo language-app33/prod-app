@@ -104,17 +104,41 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   pack states it in `marking` and nobody is asked to rule on harakat
   before they can read one.
 
+- **What keeps going wrong can be practised on its own.** *Weak skills*,
+  under Start session on the home screen, deals nothing but the exercises
+  that have been missed — wrong twice running first, because that is the
+  app's own definition of a gap rather than a slip and what shuts a level
+  (`missedTwice`), then anything missed once in its last two outings. It
+  picks per *exercise* and not per card, which is the whole of what the
+  name means: a word that keeps failing when it has to be written from its
+  meaning is drilled on that and not on the reading it has always got
+  right. Everything else a session does still holds — the ladder, the
+  quiet window, what a device can play, two forms of a card at most — with
+  one exception: it is never refused for want of variety, because the one
+  thing you keep failing is a session worth having. `weakness`, `isWeak`
+  and `buildWeakSession` in `src/ArabicTrainer.tsx`; the count beside the
+  button reads `isWeak`, so a number there is a session that builds.
 - **A learner can ask for a card.** Marking one *high priority* on its own
   screen, under Cards, is the one place a learner overrides the schedule:
   the card counts as waiting however far off its next review is, opens the
   next session, and stays in every session until the mark is taken off.
   Nothing underneath it moves — what has been learnt, and when the card
   would have come round anyway, are both still there when the mark goes.
+  **Every** card that is marked, not as many as a session has room for: how
+  many cards a session takes is worked out from its length and what a card
+  costs to ask, and that arithmetic is about the cards the app picks. The
+  session is as long as it needs to be to hold the cards the learner picked,
+  and exactly the length it always was when they have picked none.
   `priority` on the card, `isUrgent` in `src/ArabicTrainer.tsx`, which the
   count of what is ready and the session builder both read so the two
   cannot come to disagree. It is the learner's and not the teacher's, so it
-  is written through a course card's lock rather than refused by it, and
-  `foldCourses` carries it over a refresh beside the schedule.
+  is written through a course card's lock rather than refused by it;
+  `foldCourses` carries it over a refresh beside the schedule, and `parked`
+  keeps it while a card is away, so a card that leaves the material and
+  comes back comes back asked for. Carried *cleared* as well as set, with
+  the time on it: "no longer wanted, as of then" only beats an older yes on
+  another device while it keeps its stamp — see `priorityAt` in
+  `src/types.ts`.
 
 - **A new word is earned by learning one.** Two pools decide it and
   nothing else: at most ten words the learner cannot yet recognise, and at
@@ -345,6 +369,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   when the session is built: the grid is filled out from cards already
   met, the most alike first, and a word dealt in to fill it that was not
   due is credited for a right answer without its schedule moving.
+
+  **No word and no meaning stands in one twice**, and `matchSet` in
+  `src/chance.ts` is the gate that decides it — after the narrowing, where
+  the meanings are final. `matchGroups` asks the same question when it
+  chooses who stands together and cannot be the last word on it: it reads
+  a card as the teacher wrote it, and what reaches a tile has been cut
+  down to one accepted spelling and one meaning, so two cards that differ
+  to that guard can be one tile twice to a learner. An answer that cannot
+  stand is left out and a spare takes its place, so the grid keeps its
+  size; it is simply not asked this time. Two tiles reading alike is not a
+  hard question but an unanswerable one, and the grid holds its pairings
+  by *where* a tile is rather than by what it says, so that it stays
+  answerable even if one ever gets through.
 
 ## Running it
 

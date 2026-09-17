@@ -191,6 +191,7 @@ import {
   itemDifficulty as itemDifficultyOf,
   mastered,
   maturity,
+  missedTwice,
   openTypes as openTypesOf,
   reachedLevel,
   roomForNew,
@@ -2588,7 +2589,25 @@ export function buildSession({
   const avgUnits =
     candidates.reduce((n, c) => n + Math.min(c.units.length, MAX_UNITS_PER_FAMILY), 0) /
     candidates.length;
-  const wanted = Math.max(1, Math.round(budget / (PER_UNIT * Math.max(1, avgUnits))));
+  /*
+   * And never fewer than were asked for.
+   *
+   * The arithmetic above is about how many cards a session of this length
+   * holds, which is the right question for the cards the app picks and the
+   * wrong one for the cards the learner did. A deck of ordinary two-form
+   * cards buys five places — so somebody who had marked eight cards was
+   * handed five of them, a different five each sitting, by a screen that
+   * had told them each one was in their next session. They already rank
+   * ahead of everything else, so taking at least as many as there are of
+   * them is the whole of it: the session grows to hold what was asked for
+   * rather than turning the rest away.
+   */
+  const askedFor = candidates.filter((c) => c.urgent).length;
+  const wanted = Math.max(
+    1,
+    askedFor,
+    Math.round(budget / (PER_UNIT * Math.max(1, avgUnits)))
+  );
   const chosen = candidates.slice(0, Math.min(candidates.length, wanted));
 
   /* Easiest first, and cards of the same difficulty in no particular
@@ -2674,8 +2693,27 @@ export function buildSession({
     );
   }).length;
 
+  /*
+   * Where the session ends.
+   *
+   * The budget, ordinarily — and far enough to reach the last card the
+   * learner asked for, where that is further. The second half of the same
+   * fault as the count above: admitting a marked card and then cutting the
+   * queue before its first question is the same as never admitting it, and
+   * it is what a learner who marks more cards than a session holds would
+   * have seen. Questions are dealt a round at a time, so every card is
+   * asked once before any card is asked twice and the reach is a handful
+   * of questions rather than a session of a different size.
+   */
+  const askedIds = new Set(warmed.filter((c) => c.urgent).map((c) => c.it.id));
+  let cut = budget;
+  for (const id of askedIds) {
+    const at = varied.findIndex((e) => e.id === id);
+    if (at >= 0) cut = Math.max(cut, at + 1);
+  }
+
   return {
-    exercises: withReadThroughs(varied.slice(0, budget), items, settings),
+    exercises: withReadThroughs(varied.slice(0, cut), items, settings),
     reason: null,
     items: dealt.size,
     units: plans.length,
@@ -2988,6 +3026,173 @@ export function buildManualSession({ items, settings, ids, mode, count }: {
     learnt,
     items: new Set(exercises.map((e) => e.id)).size,
     units: plans.length,
+  };
+}
+
+/* ------------------------------------------------------------------
+   The weak-skills session
+
+   Everything going wrong, and nothing else.
+
+   The app already knows what a learner keeps missing — it is what shuts
+   the levels above a question and what the Progress screen calls *paused*
+   — and until now the only way to practise it was to remember which cards
+   they were, tick them by hand on the Build screen and choose Fix
+   mistakes. A learner who could do that did not need the feature.
+
+   Two things make this its own builder rather than a preset of the one
+   built by hand:
+
+   **It asks the questions that went wrong**, not a sample of the card's
+   exercises. Progress is kept per exercise, not per card — knowing a word
+   when you read it and knowing it when you hear it are separate — so a
+   card that keeps failing *written from its meaning* is drilled on that,
+   and not on the reading it has always got right. That is what makes the
+   button say skills rather than cards.
+
+   **It is ordered by how badly it is going.** Wrong twice running leads,
+   because that is the app's own definition of a gap rather than a slip —
+   see `missedTwice`, which is what shuts a level — and a single recent
+   miss follows it.
+
+   What it deliberately does not do is refuse for want of variety, which
+   every other session does. A session of one exercise repeated is a poor
+   way to meet new material and exactly the right way to fix the one thing
+   you keep getting wrong.
+   ------------------------------------------------------------------ */
+
+/**
+ * How badly one exercise is going.
+ *
+ * 2 — wrong twice running, with nothing right in between. The gap.
+ * 1 — wrong once in the last two outings. The slip.
+ * 0 — nothing to fix here.
+ *
+ * `hist` is the last six outings, 1 right and 0 wrong, and it is the only
+ * record with an order to it. A card from before it existed carries an
+ * empty one and reads as 0 rather than as never having been right, which
+ * is the same guard `missedTwice` and `hasRecentMistake` both make.
+ */
+export function weakness(s: ExerciseState | null | undefined): number {
+  if (!s) return 0;
+  if (missedTwice(s)) return 2;
+  return (s.hist || []).slice(-2).some((x) => !x) ? 1 : 0;
+}
+
+/**
+ * Has this card anything going wrong on it right now?
+ *
+ * The home screen counts with this and the builder below picks with the
+ * same test, one key at a time, so the number beside the button and the
+ * session it opens cannot come to disagree.
+ *
+ * Read over what may actually be *asked* — the levels the card has
+ * reached, the recordings this device holds, the blanks there is something
+ * to fill — because an exercise the app is not putting to anybody is not
+ * work waiting to be done. A question on a level that a slip further down
+ * has shut is the ordinary case: it is not asked until the level under it
+ * is recovered, which is the very thing this session is for.
+ */
+export function isWeak(it: Item, settings: Settings): boolean {
+  if (!isDrillable(it, settings)) return false;
+  return drillableUnits(it, settings).some(({ unit }) =>
+    askableTypes(unit, settings).some((t) => weakness(stateOf(unit, t)) > 0)
+  );
+}
+
+export function buildWeakSession({ items, settings, inDeck, budget: budgetIn }: {
+  items: Item[];
+  settings: Settings;
+  inDeck: (it: Item) => boolean;
+  budget?: number;
+}) {
+  const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
+  if (!pool.length) return { exercises: [], reason: "none-drillable" };
+
+  const budget = Math.max(4, budgetIn || SESSION_SIZE);
+
+  /* One entry per form with something going wrong on it, carrying the
+     failing exercises worst first. */
+  const failing: {
+    id: string;
+    subId: string | null;
+    unit: Form;
+    keys: string[];
+    worst: number;
+  }[] = [];
+  for (const it of pool) {
+    const here = [];
+    for (const { unit, isSub } of drillableUnits(it, settings)) {
+      const weak = askableTypes(unit, settings).filter((t) => weakness(stateOf(unit, t)) > 0);
+      if (!weak.length) continue;
+      here.push({
+        id: it.id,
+        subId: isSub ? unit.id : null,
+        unit,
+        keys: inOrder(weak, (t) => -weakness(stateOf(unit, t))),
+        worst: Math.max(...weak.map((t) => weakness(stateOf(unit, t)))),
+      });
+    }
+    /* The same cap a dealt session puts on how much of one card a sitting
+       may be about: a verb lays out twenty cells and a scene six lines,
+       and a session spent entirely on one word is the complaint the cap
+       exists for. The worst-going forms are the ones it keeps. */
+    const cap = isDialog(it) ? MAX_DIALOG_LINES : MAX_UNITS_PER_FAMILY;
+    for (const u of inOrder(here, (u) => -u.worst).slice(0, cap)) failing.push(u);
+  }
+  if (!failing.length) return { exercises: [], reason: "nothing-weak" };
+
+  /* Worst first, chance between the ones that are going equally badly. */
+  const order = inOrder(failing, (u) => -u.worst);
+
+  /* Dealt a round at a time, so every form with something wrong on it is
+     asked once before any of them is asked twice. A learner with one card
+     failing in four ways gets all four; a learner with twenty cards
+     failing gets one question each and the worst of them first. */
+  const plans: Question[] = [];
+  const depth = Math.max(...order.map((u) => u.keys.length));
+  for (let round = 0; round < depth && plans.length < budget; round++) {
+    for (const u of order) {
+      const type = u.keys[round];
+      if (!type) continue;
+      const ctx = pickContext(u.unit, type);
+      plans.push({ id: u.id, subId: u.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+    }
+  }
+
+  /* The grids, dealt, and the same card kept from being asked twice
+     running — both exactly as a dealt session does them. */
+  const varied = varyTypes(
+    withGrids(plans, items, settings, (unit, queued) =>
+      pickableTypes(unit, settings).find((t) => t !== "match" && !queued.has(t)) || null
+    )
+  );
+  const exercises = withReadThroughs(varied.slice(0, budget), items, settings);
+  const dealt = new Set(exercises.map((e) => e.id));
+
+  /* How many of them were actually waiting, for the line at the end. A
+     missed question comes back within the hour, so most of these are due
+     — but a word missed twice a fortnight ago and not seen since is not,
+     and the summary says so rather than claiming a schedule moved. */
+  const due = [...dealt].filter((id) => {
+    const it = pool.find((x) => x.id === id);
+    if (!it) return false;
+    return drillableUnits(it, settings).some(({ unit }) =>
+      askableTypes(unit, settings).some((t) => stateReady(stateOf(unit, t)))
+    );
+  }).length;
+
+  return {
+    exercises,
+    reason: null,
+    /* Not a dealt session: the screen at the end reads this to know that
+       "Keep going" would be a change of subject rather than more of the
+       same. */
+    manual: true,
+    mode: "weak",
+    items: dealt.size,
+    units: failing.length,
+    due,
   };
 }
 
@@ -5245,14 +5450,36 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
   onPairs?: (pairs: Record<string, string>) => void;
   checked?: boolean;
 }) {
-  /* Which meaning is against which word. Keyed by word id, so a meaning can
-     be moved and the grid never holds the same one twice. */
-  const [pairs, setPairs] = useState<Record<string, string>>({});
+  /*
+   * Which meaning is against which word. Keyed by word id, so a meaning can
+   * be moved and the grid never holds the same one twice — and holding the
+   * meaning by **where it is** rather than by what it says, which is the
+   * whole of a bug learners reported four times in one evening.
+   *
+   * Two tiles reading alike are refused before the grid is built, so this
+   * should never arise; it did, because the guard read the cards as the
+   * teacher wrote them and the tiles show them narrowed. Held by text, two
+   * such tiles were one tile: pairing a word with either lit up both,
+   * tapping the second freed the first instead of taking it, and the grid
+   * could not be finished at all. Both learners pressed "I don't know".
+   *
+   * So the grid is now proof against it rather than merely spared it. A
+   * place is a place whatever is written on it, and two guards against one
+   * bad question is the right number when the cost of the second is a
+   * number instead of a string.
+   */
+  const [pairs, setPairs] = useState<Record<string, number>>({});
   const [held, setHeld] = useState<string | null>(null);
 
-  const takenBy = (meaning: string) =>
-    words.find((w) => pairs[w.id] === meaning);
-  const done = words.every((w) => pairs[w.id]);
+  /* `undefined` and not falsiness: the first tile is number 0, and a grid
+     whose first meaning counted as "unpaired" would never finish. */
+  const pairedAt = (id: string) => (pairs[id] === undefined ? null : pairs[id]);
+  const takenBy = (at: number) => words.find((w) => pairs[w.id] === at);
+  const done = words.every((w) => pairedAt(w.id) !== null);
+  const meaningFor = (id: string) => {
+    const at = pairedAt(id);
+    return at === null ? "" : String(meanings[at] || "");
+  };
 
   /* Nothing is reported until every word has a meaning: the question is the
      whole grid, and half of one is not an answer to it. What goes up is the
@@ -5260,14 +5487,23 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
      talks about, and the whole pairing beside it, which is what every word
      in the grid is marked on. */
   useEffect(() => {
-    onChange(done ? pairs[askedId] || "" : "");
-    if (onPairs) onPairs(done ? pairs : {});
+    /* What goes out is the meaning itself, not where it sat: the answer
+       screen and the marking talk about words and meanings, and neither
+       has any business knowing the order the tiles came up in. */
+    onChange(done ? meaningFor(askedId) : "");
+    if (onPairs) {
+      onPairs(
+        done
+          ? Object.fromEntries(words.map((w) => [w.id, meaningFor(w.id)]))
+          : {},
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, done, askedId]);
 
   const tapWord = (id: string) => {
     if (checked) return;
-    if (pairs[id]) {
+    if (pairedAt(id) !== null) {
       setPairs((p) => {
         const next = { ...p };
         delete next[id];
@@ -5279,9 +5515,9 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
     setHeld((h) => (h === id ? null : id));
   };
 
-  const tapMeaning = (meaning: string) => {
+  const tapMeaning = (at: number) => {
     if (checked) return;
-    const owner = takenBy(meaning);
+    const owner = takenBy(at);
     /* Tapping a meaning already spoken for frees it, which is the only way
        back from a pairing made by mistake that does not need a third
        gesture to undo. */
@@ -5294,18 +5530,19 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
       return;
     }
     if (!held) return;
-    setPairs((p) => ({ ...p, [held]: meaning }));
+    setPairs((p) => ({ ...p, [held]: at }));
     setHeld(null);
   };
 
-  const numberOf = (id: string) => words.filter((w) => pairs[w.id]).findIndex((w) => w.id === id) + 1;
+  const numberOf = (id: string) =>
+    words.filter((w) => pairedAt(w.id) !== null).findIndex((w) => w.id === id) + 1;
 
   return (
     <div className="at-match" data-el="answer-match">
       <div className="at-matchcol">
         {words.map((w) => {
-          const mine = pairs[w.id];
-          const right = checked && mine === w.en;
+          const mine = meaningFor(w.id);
+          const right = checked && !!mine && mine === w.en;
           return (
             <button
               type="button"
@@ -5330,18 +5567,21 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
         })}
       </div>
       <div className="at-matchcol">
-        {meanings.map((m) => {
-          const owner = takenBy(m);
+        {meanings.map((m, at) => {
+          const owner = takenBy(at);
           const right = checked && owner && owner.en === m;
           return (
             <button
               type="button"
-              key={m}
+              /* By where it is, not by what it says: two tiles reading
+                 alike are two tiles, and keying them on their text made
+                 React treat them as one. */
+              key={at}
               data-el="match-meaning"
               className={`at-matchtile en${owner ? " paired" : ""}${
                 checked && owner ? (right ? " right" : " wrong") : ""
               }`}
-              onClick={() => tapMeaning(m)}
+              onClick={() => tapMeaning(at)}
             >
               {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
               {m}
@@ -6664,6 +6904,14 @@ export default function ArabicTrainer() {
      start at all. */
   const readyCount = useMemo(() => countReady(drillable), [drillable, countReady]);
 
+  /* And how much is going wrong, which is what the Weak skills button is
+     offered on. The same test the session itself picks with — see isWeak —
+     so a number here is a session that builds. */
+  const weakCount = useMemo(
+    () => drillable.filter((it) => isWeak(it, settings)).length,
+    [drillable, settings]
+  );
+
   /*
    * Why no new words are arriving, when none are.
    *
@@ -7072,6 +7320,31 @@ export default function ArabicTrainer() {
     setTab("home");
   }
 
+  /*
+   * A sitting of nothing but what is going wrong — see buildWeakSession.
+   *
+   * Out of the same cards a dealt session comes from, so the language
+   * switch and the chosen deck have had their say here too: what is weak
+   * in a language you have switched off is not what you came to fix.
+   */
+  function beginWeak() {
+    const built = buildWeakSession({ items: shown, settings, inDeck });
+    if (!built.exercises.length) {
+      flash(
+        built.reason === "nothing-weak"
+          ? "Nothing is going wrong just now — this fills up when something slips"
+          : "No card here has enough on it to be practised yet"
+      );
+      return;
+    }
+    warmSession(built);
+    setSession({ ...built, practice: false, startedAt: now(), endsAt: 0 });
+    setQi(0);
+    setTally({ ok: 0, no: 0 });
+    resetExercise();
+    setTab("home");
+  }
+
   function begin(practice?: boolean) {
     const built = buildSession({ items: shown, settings, inDeck, practice });
     if (!built.exercises.length) {
@@ -7334,6 +7607,14 @@ export default function ArabicTrainer() {
    */
   const grid = useMemo(() => {
     if (!item || !spec || !exercise || spec.picks !== "pair") return { words: [], meanings: [] };
+    /* Two units a learner would read as one tile: the same word, or the
+       same meaning, after both have been narrowed to the one the question
+       shows. matchSet is the gate that refuses them; this is the same
+       question asked while the company is being chosen, so a trial does
+       not spend its four places filling up with them. */
+    const sameTile = (a: Form, b: Form) =>
+      String(a.ar || "").trim() === String(b.ar || "").trim() ||
+      String(a.en || "").trim().toLowerCase() === String(b.en || "").trim().toLowerCase();
     const answers: Form[] = [item];
     for (const mate of exercise.mates || []) {
       const r = resolveUnit(asking, { ...mate, type: exercise.type });
@@ -7355,7 +7636,13 @@ export default function ArabicTrainer() {
     if (!exercise.mates) {
       for (const u of ranked) {
         if (answers.length >= PAIR_WORDS) break;
-        if (!answers.some((a) => a.id === u.id)) answers.push(u);
+        if (answers.some((a) => a.id === u.id)) continue;
+        /* And nothing that reads the same as what is already there. Two
+           tiles a learner cannot tell apart make the pairing a guess —
+           matchSet refuses them below, and a trial that handed it four
+           collisions would be a grid of one word and a lot of spares. */
+        if (answers.some((a) => sameTile(a, u))) continue;
+        answers.push(u);
       }
     }
     return matchSet({
@@ -8579,6 +8866,33 @@ Cards ready to practice
                     >
                       {readyCount ? "Start session" : "Practise anyway"}
                     </Button>
+                  </div>
+                  {/* And the other kind of session there is a one-tap case
+                      for: everything going wrong, worst first. It sits
+                      directly under Start session because it is the same
+                      offer narrowed — a session, dealt for you — rather
+                      than something to be assembled, and because the
+                      moment to reach for it is the moment you have just
+                      seen the ladder say a level is paused.
+
+                      Always shown, and disabled with the reason beside it
+                      when there is nothing to fix. The app's habit is to
+                      leave out a button that would open on an empty
+                      screen, but a learner has to be able to find this one
+                      to learn what it does, and "nothing slipping" is a
+                      thing worth being told on the days it is true. */}
+                  <div className="at-row at-mt3">
+                    <Button variant="ghost"
+                      onClick={beginWeak}
+                      disabled={!weakCount}
+                    >
+                      Weak skills
+                    </Button>
+                    <Meta>
+                      {weakCount
+                        ? `${plural(weakCount, "card")} slipping`
+                        : "nothing slipping just now"}
+                    </Meta>
                   </div>
                   <div className="at-row at-mt3">
                     <Button variant="ghost"
@@ -11960,6 +12274,31 @@ export function deckPercent({ n, learnt, got }: { n: number; learnt: number; got
   return Math.max(0, Math.min(99, Math.floor((got / n) * 100)));
 }
 
+/**
+ * How far a card has got on the level it is on, as a percentage.
+ *
+ * A standing already carries the two numbers — how many of the exercises
+ * that have to hold for the next level to open are there yet, and how many
+ * there are — and a card's own screen says them as "3 of 8". This is the
+ * same fact as a proportion, for the tiles under a level, where a bar
+ * across a list of cards is read at a glance and a pair of counts is not.
+ *
+ * It counts this level *and everything under it*, because that is what the
+ * scheduler's gate asks: writing a word wants four days from reading it
+ * too, not only from the level below. So a card that has just arrived on a
+ * level starts partway along rather than at nought, and the bar reaches a
+ * hundred at exactly the moment the level opens the next one — the screen
+ * and the scheduler cannot come to disagree about when a level is done,
+ * which is the whole reason the counts are kept that way.
+ *
+ * Rounded down, so a level still short of its last exercise can never read
+ * as a finished one.
+ */
+export function levelPercent(at: { done: number; of: number } | null | undefined): number {
+  if (!at || !at.of) return 0;
+  return Math.max(0, Math.min(100, Math.floor((at.done / at.of) * 100)));
+}
+
 /*
  * How far along a card is: which level it is on and how it is going there.
  *
@@ -12031,6 +12370,14 @@ function ProgressTab({ items, myCourses = [], settings }: {
      same cards, and two open at once is a screen you have to scroll past
      rather than read. */
   const [showing, setShowing] = useState<string>("");
+  /* Whether what is open is one of the four levels, rather than every card
+     at once or the ones with nothing left to open. Two things below turn on
+     it: the cards are told apart by how they are going, and each says how
+     far it has got on that level. Neither means anything under the other
+     two tiles — "Cards" is spread over every level, so one card's 40% and
+     another's would be forty per cent of different climbs, and under
+     "Learnt" every bar would be full. */
+  const onLevel = /^l\d$/.test(showing);
 
   /*
    * How far each deck is from being learnt outright.
@@ -12144,7 +12491,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
              every level and there is nothing one run would mean, and
              under "Learnt" they are all in the one state, which the list
              notices for itself and draws without headings. */
-          groups={/^l\d$/.test(showing) ? STATUS_RUNS : undefined}
+          groups={onLevel ? STATUS_RUNS : undefined}
           groupOf={(it: Item) => {
             const at = progressOf.get(it.id);
             return at ? at.status : "none";
@@ -12164,6 +12511,13 @@ function ProgressTab({ items, myCourses = [], settings }: {
                  which tile you pressed — and under a level the headings
                  say how it is going there as well. */
               meta={showing === "all" ? standingShort(progressOf.get(it.id) || null) : undefined}
+              /* And under a level, how far the card has got on it. The
+                 headings say which of three states it is in, which is the
+                 difference between started and not; this says how much of
+                 the level is behind it, which is the difference between a
+                 card that is nearly through and one that has just begun —
+                 and those look identical under "Learning" without it. */
+              bar={onLevel ? { pct: levelPercent(progressOf.get(it.id)) } : undefined}
               onClick={() => setViewing(it)}
             />
           )}

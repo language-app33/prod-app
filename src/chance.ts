@@ -214,9 +214,26 @@ export function matchGroups<T extends { id: string }>({
  * that keep elimination from finishing the job, taken from the pool in the
  * order the caller thinks best, and the order the two columns stand in.
  *
- * A meaning reading the same as one already up is not drawn, for the
- * reason optionsFor drops a repeated word: it would make a pairing that is
- * right and marked wrong.
+ * **No word and no meaning stands twice, and this is the gate that
+ * decides it.** matchGroups asks the same question when it chooses who
+ * stands together, and it is not enough on its own: it reads a card as the
+ * teacher wrote it, and what reaches a tile has been narrowed to one of
+ * its accepted spellings and one of its meanings. A card meaning
+ * "Everything is good / All good" and a card meaning "All good" are two
+ * different cards to that guard and one tile twice to a learner. So the
+ * last word on it is here, where the meanings are final.
+ *
+ * A grid with the same meaning in it twice is not a hard question, it is
+ * an unanswerable one: two tiles that read alike cannot be told apart by
+ * anybody, a right pairing is as likely to be marked wrong as right, and
+ * the learner is left thinking they misread the word. Learners reported
+ * exactly that, twice in four minutes, and both times gave up and pressed
+ * "I don't know".
+ *
+ * An answer that cannot stand is left out rather than drawn, and its place
+ * is taken by one more spare, so the grid is the size it was meant to be
+ * and elimination is no easier. It is simply not asked this time: a
+ * question nobody can answer is worth less than one that waits.
  */
 export function matchSet<T extends { id: string }>({
   answers,
@@ -233,12 +250,29 @@ export function matchSet<T extends { id: string }>({
   textOf: (x: T) => string;
   meaningOf: (x: T) => string;
 }): { words: T[]; meanings: string[] } {
-  const saidText = new Set(answers.map((a) => plain(textOf(a))));
-  const saidMeaning = new Set(answers.map((a) => plain(meaningOf(a)).toLowerCase()));
+  const saidText = new Set<string>();
+  const saidMeaning = new Set<string>();
   const asked = new Set(answers.map((a) => a.id));
+  /* The first of a colliding pair stands, so the word the question is
+     actually about — which the caller puts first — is never the one put
+     aside for the sake of its company. */
+  const words: T[] = [];
+  let spilled = 0;
+  for (const a of answers) {
+    const text = plain(textOf(a));
+    const meaning = plain(meaningOf(a)).toLowerCase();
+    if (!text || !meaning || saidText.has(text) || saidMeaning.has(meaning)) {
+      spilled += 1;
+      continue;
+    }
+    saidText.add(text);
+    saidMeaning.add(meaning);
+    words.push(a);
+  }
+  const want = Math.max(0, decoys) + spilled;
   const spare: T[] = [];
   for (const cand of pool) {
-    if (spare.length >= Math.max(0, decoys)) break;
+    if (spare.length >= want) break;
     if (!cand || asked.has(cand.id)) continue;
     const text = plain(textOf(cand));
     const meaning = plain(meaningOf(cand));
@@ -249,10 +283,10 @@ export function matchSet<T extends { id: string }>({
     spare.push(cand);
   }
   return {
-    words: shuffledBy(answers, seed, (x) => x.id),
+    words: shuffledBy(words, seed, (x) => x.id),
     /* Shuffled on their own seed, or a word and its meaning would come up
        in the same place on both sides and the grid would read itself. */
-    meanings: shuffledBy(answers.concat(spare), `${seed} meanings`, (x) => x.id).map(meaningOf),
+    meanings: shuffledBy(words.concat(spare), `${seed} meanings`, (x) => x.id).map(meaningOf),
   };
 }
 

@@ -697,6 +697,9 @@ async function playGrid() {
     /* What it put up, so a caller can say what was in it and not only how
        many: which words stand together is the exercise. */
     text: [...words(), ...meanings()].map((el) => (el.textContent || "").trim()).join(" · "),
+    /* Each meaning on its own, to be told apart from the others: two tiles
+       reading alike make a pairing nobody can get right. */
+    meaningText: meanings().map((el) => (el.textContent || "").trim()),
     /* And how it is laid out: two columns, the language being learnt first.
        The stylesheet puts them side by side; this is the order they are
        written in, which is what decides which side each lands on. */
@@ -1650,6 +1653,14 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   const shown = document.querySelectorAll(".at-cardgrid .at-minicard");
   check("pressing it shows that many cards, at the size they come smallest",
     shown.length === said, `said ${said}, showed ${shown.length}`);
+  /* And this one — every card at once — carries no bars: its cards are
+     spread over every level, so one card's 40% and another's would be
+     forty per cent of different climbs. The bars belong under a level,
+     where they measure the same thing on every tile. */
+  check("but the list of every card carries no bars, which would compare different climbs",
+    !/All cards/.test((live || {}).textContent || "") ||
+      ![...shown].some((t) => t.querySelector(".at-minibar")),
+    `${[...shown].filter((t) => t.querySelector(".at-minibar")).length} of ${shown.length} barred`);
   /* On a screen of its own, titled by the tile that opened it. They used
      to open as a strip under the grid, which put a list of any length
      between the tiles and everything below them — reading it meant
@@ -1801,6 +1812,42 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   check("and each heading is a status, with how many are in it",
     heads.length > 0 && headed.every((h) => /^(Paused|Learning|Not started)\s*\d+$/.test(h)),
     headed.join(" · ") || "no headings");
+  /* ---- and each of them says how far it has got on that level ----
+     The headings say which of three states a card is in, which is the
+     difference between started and not. This is the difference between a
+     card nearly through the level and one that has just begun, and those
+     look identical under "Learning" without it. */
+  {
+    const tiles = [...document.querySelectorAll(".at-cardgrid .at-minicard")];
+    const pctOf = (/** @type {Element} */ t) =>
+      ((t.querySelector(".at-minibar b") || {}).textContent || "").trim();
+    check("every card under a level says how far it has got on it, as a percentage",
+      tiles.length > 0 && tiles.every((t) => /^\d+%$/.test(pctOf(t))),
+      tiles.map(pctOf).map((p) => p || "(none)").join(" · ") || "no tiles");
+    /* Read off the bar itself rather than the tile's text, the way the
+       deck bars are: a number beside a word runs into it. */
+    check("and the bar beside it is drawn to the width of that number",
+      tiles.every((t) => {
+        const fill = /** @type {any} */ (t.querySelector(".at-minibarrail > span"));
+        return !!fill && fill.style.width === pctOf(t);
+      }),
+      tiles.map((t) => {
+        const fill = /** @type {any} */ (t.querySelector(".at-minibarrail > span"));
+        return fill ? fill.style.width : "no bar";
+      }).join(" · "));
+    /* The bar is the number again, so a screen reader is told once. */
+    check("the bar is drawing, and not read out twice",
+      tiles.every((t) => {
+        const rail = t.querySelector(".at-minibarrail");
+        return !!rail && rail.getAttribute("aria-hidden") === "true";
+      }));
+    /* And it is never full: a card whose level is done has moved up and is
+       under the next tile along. */
+    check("and none of them is full, because a finished level is the next tile",
+      tiles.every((t) => Number(pctOf(t).replace("%", "")) < 100),
+      tiles.map(pctOf).join(" · "));
+  }
+
   /* The counts are of the whole run, so they add up to the number on the
      tile whichever page the list is showing. */
   const inRuns = headed.reduce((n, h) => n + Number(h.match(/\d+$/)), 0);
@@ -1896,6 +1943,20 @@ const beforeStates = stateKeys(
   JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "{}").items
     ?.find((/** @type {any} */ i) => i.id === "srv" + card.id)
 ).length;
+/* ---- the weak-skills button sits under Start session ----
+   Its own walk at the foot of this file drives it on a deck with something
+   actually going wrong. Here it is the offer itself: on the ordinary home
+   screen it is there, under the button it narrows, and it says what it
+   holds rather than being a dimmed button with no explanation. */
+{
+  const weakBtn = buttonNamed(/^Weak skills$/);
+  check("the home screen offers a weak-skills session", !!weakBtn,
+    (document.body.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  const row = weakBtn && weakBtn.closest(".at-row");
+  check("and says beside it how much is slipping, dimmed or not",
+    !!row && /(\d+ cards? slipping|nothing slipping just now)/.test(row.textContent || ""),
+    row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
+}
 click(buttonNamed(/^Start session$/));
 await sleep(400);
 const instruction = document.querySelector(".at-instruction");
@@ -2988,8 +3049,17 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!grid && grid.meanings > grid.words, grid ? `${grid.words} words, ${grid.meanings} meanings` : "never dealt");
   check("a half-paired grid is not an answer to it",
     !!grid && grid.checkedEarly, String(grid && grid.checkedEarly));
+  /* Pairing runs from the first tile down, so this is also the guard on
+     the first one: the tiles are held by where they are, and a grid whose
+     first meaning counted as "unpaired" could never be finished. */
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  /* Reported four times in one evening: two tiles reading alike cannot be
+     told apart by anybody, a right pairing is as likely to be marked wrong
+     as right, and both learners gave up and pressed "I don't know". */
+  check("no two meanings in a grid read alike, which would make it a guess",
+    !!grid && new Set(grid.meaningText || []).size === (grid.meaningText || []).length,
+    grid ? (grid.meaningText || []).join(" · ") : "never dealt");
   /* The two lists are two columns, the language being learnt first and
      English second — which the stylesheet lays side by side at every width.
      jsdom has no layout to measure, so what is checked here is the order
@@ -3176,9 +3246,18 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(500);
   const asked = (document.querySelector('[data-el="question-prompt"]') || {}).textContent || "";
   const answers = (document.querySelector(".at-answerbox") || {}).textContent || "";
+  /* Which card the first question is about, not merely that there is one.
+     This used to check that a session had started at all — which it would
+     have done with or without the mark, so the one thing the mark is for
+     was the one thing nobody was asking about. The card's own script is
+     what names it: it is on the tile that was marked and on the screen it
+     is asked on, whichever way round the question goes. */
+  const scriptOf = (/** @type {string} */ s) =>
+    (s.match(/[؀-ۿݐ-ݿЀ-ӿ]+/) || [""])[0];
+  const markedScript = scriptOf(marked);
   check("a marked card opens the very next session",
-    !!document.querySelector(".at-instruction"),
-    (document.body.textContent || "").slice(0, 100).replace(/\s+/g, " "));
+    !!markedScript && `${asked} ${answers}`.includes(markedScript),
+    `marked ${markedScript || marked} · asked ${asked.slice(0, 40)} · ${answers.slice(0, 60)}`);
 
   /* Take the mark off again and the card list agrees. Marked for ever is
      what the setting says it is, so the way out has to work. */
@@ -5209,6 +5288,84 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!asked, (host2.textContent || "").slice(0, 120).replace(/\s+/g, " "));
   check("and nothing threw while the session was built",
     errors.length === before, errors.slice(before, before + 2).join(" | "));
+  root2.unmount();
+  await sleep(200);
+}
+
+/* ---- a deck with something actually going wrong ----
+   The weak-skills session, end to end: a deck of four ordinary cards, one
+   of which has been missed twice running on reading it into English and is
+   fine at everything else. The button should say one card is slipping,
+   open a session, and that session should be about that card — not the
+   three the learner has never got wrong.
+
+   On its own document at the end, for the same reason the walk above is:
+   nothing here has to be counted against a fixture the rest of the file
+   shares. */
+{
+  const before = errors.length;
+  /* The history is the record with an order to it: 1 right, 0 wrong, most
+     recent last. Two zeros on the end is wrong, seen again, wrong again —
+     which is what the app calls a gap rather than a slip. */
+  const missedTwice = {
+    phase: "review", step: 0, ease: 2.0, interval: 1, due: Date.now() - 86400000,
+    reps: 4, lapses: 1, right: 2, wrong: 2, skips: 0, near: 0, hints: 0,
+    hist: [1, 1, 0, 0], updated: Date.now(),
+  };
+  const plain = (/** @type {string} */ id, /** @type {string} */ ar, /** @type {string} */ en, /** @type {string} */ lat, /** @type {any} */ s) =>
+    ({ id, ar, en, lat, kind: "word", tags: ["Lesson 1"], created: 1, updated: Date.now(), ...(s ? { s } : null) });
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {},
+    settings: { language: "ar-PS" },
+    account,
+    items: [
+      plain("weak1", "كِتاب", "book", "kitaab", { ar2en: missedTwice }),
+      plain("fine1", "قَلَم", "pen", "qalam", null),
+      plain("fine2", "بَيت", "house", "beit", null),
+      plain("fine3", "باب", "door", "baab", null),
+    ],
+  }));
+  /* Mounted offline, which is the only way to hold the deck still: a
+     signed-in device pulls its courses down over what was seeded, and the
+     cards the rest of this file has been answering arrive carrying the
+     histories those answers wrote. The count is the point of the walk, so
+     the deck has to be the four cards written above and no others. */
+  const online = Object.getOwnPropertyDescriptor(w.navigator, "onLine");
+  Object.defineProperty(w.navigator, "onLine", { value: false, configurable: true });
+  const host3 = document.createElement("div");
+  document.body.appendChild(host3);
+  const root3 = createRoot(host3);
+  root3.render(React.createElement(App));
+  await sleep(1500);
+
+  const weakBtn = [...host3.querySelectorAll("button")]
+    .find((b) => /^Weak skills$/.test((b.textContent || "").trim()));
+  check("a card missed twice running lights the weak-skills button",
+    !!weakBtn && !weakBtn.disabled,
+    weakBtn ? "the button is there but dimmed"
+      : (host3.textContent || "").slice(0, 90).replace(/\s+/g, " ") || "nothing rendered");
+  const row = weakBtn && weakBtn.closest(".at-row");
+  check("and the line beside it counts the cards that are slipping",
+    /* No word boundary before the number: the button's own text runs
+       straight into the line beside it in `textContent`. */
+    !!row && /1 card slipping/.test((row.textContent || "").replace(/\s+/g, " ")),
+    row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
+
+  click(weakBtn);
+  await sleep(600);
+  const asked = host3.querySelector(".at-instruction");
+  check("pressing it opens a session", !!asked,
+    (host3.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  /* And the session is about the word that is going wrong. The three cards
+     this learner has never missed are not in it, which is the whole of
+     what the button promises. */
+  const prompt = host3.querySelector('[data-el="question-prompt-text"]');
+  check("and it asks the card that is going wrong, not the ones that are fine",
+    !!prompt && /كِتاب/.test(prompt.textContent || ""),
+    prompt ? (prompt.textContent || "").trim() : (host3.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  check("and nothing threw while the weak session was built",
+    errors.length === before, errors.slice(before, before + 2).join(" | "));
+  if (online) Object.defineProperty(w.navigator, "onLine", online);
 }
 
 report();

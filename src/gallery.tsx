@@ -783,6 +783,12 @@ export function ComponentGallery() {
             showLat
           />
         </V>
+        {/* And a tile in a list about progress: Learning → Progress → a
+            level, where each card says how far it has got on that level.
+            The number is written out and the bar draws it. */}
+        <V label="card + bar" wide>
+          <CardTile card={SAMPLE_CARD} lang={SAMPLE_LANG} bar={{ pct: 40 }} />
+        </V>
       </Row>
 
       <Row name="CardReadout" what="A card and its forms, read-only. Falls back to the default language pack when lang is left off.">

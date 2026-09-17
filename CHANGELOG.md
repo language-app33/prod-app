@@ -8,6 +8,127 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.168 — 17 September 2026
+
+**Weak skills: a session made only of what you keep getting wrong.**
+
+There is a new button on the home screen, under Start session. Tap it and
+you get a session built from nothing but the questions that have been
+going wrong, worst first — the ones you have missed twice running lead,
+then anything you missed once in its last couple of outings. Beside the
+button is how much is slipping, so you can see whether it is worth a
+sitting before you open one; on a day when nothing is going wrong it says
+so and the button is dim.
+
+The important part is that it picks *questions*, not cards. The app has
+always tracked each way of asking a word separately — reading it is not
+the same skill as writing it from its meaning — so a word that keeps
+failing when you have to write it is drilled on writing it, and not on the
+reading you have never once got wrong. That is why the button says skills.
+
+Everything else about a session still holds: nothing is asked above the
+level you have reached, nothing needs a recording your device doesn't
+have, and no one word is the whole sitting. One rule is deliberately off —
+a normal session is refused if the cards in it can only be asked one way,
+and this one is not, because the single thing you keep failing is a
+session worth having.
+
+This was already possible, in the sense that anyone could open Build a
+session, remember which cards had gone badly, tick them by hand and choose
+Fix mistakes. Anyone who could do that did not need the feature.
+
+## 0.167 — 17 September 2026
+
+**Open a level on the ladder and each card says how far it has got.**
+
+Learning → Progress → the ladder: tap a level and you get the cards on it,
+sorted into paused, learning and not started. That says whether a card has
+been begun. It does not say how far it has come — so a word one question
+away from moving up and a word that was opened this morning sat side by
+side and looked the same.
+
+Each card now carries a small bar with a percentage: how much of what that
+level needs is behind it. It fills as you practise and reaches a hundred at
+exactly the moment the level opens the one above — the same "3 of 8" the
+card's own screen already showed, said as a proportion so a list of them
+can be read at a glance.
+
+Two places deliberately have no bar. **Cards** holds every card at once, on
+every level, where one card's 40% and another's would be forty per cent of
+different climbs. **Learnt** is cards with nothing left to open, where every
+bar would be full.
+
+## 0.166 — 17 September 2026
+
+**Cards you mark high priority now actually turn up — all of them.**
+
+A student reported marking several cards and then not seeing them in their
+practice. They were right, and there were three separate ways it could
+happen.
+
+The first, and the one most people would hit: a session takes a fixed
+number of cards, worked out from how long it is and what a card costs to
+ask. That is about five cards where each card carries a second form, nine
+where it does not. Marking cards did not change that number, so anyone who
+marked more than a handful got the first five or so and a different five
+each sitting — against a screen that had just promised each one was in
+their next session. A session now grows to hold everything you asked for.
+Mark three cards and nothing changes; mark twelve and the session is a few
+questions longer and has all twelve in it. A session with nothing marked
+is exactly the size it always was.
+
+The second: a card can vanish from your material for reasons that are
+nobody's decision — a deck detached and reattached, a spell off a course, a
+record the server could not read that minute. When that happens the app
+sets your work aside and puts it back when the card returns. It was setting
+aside the schedules and dropping the mark, so cards you had asked for came
+home no longer asked for, silently. The mark now goes in the drawer with
+everything else.
+
+The third is the other direction, and would have shown as a card you had
+*let go of* stubbornly leading every session: clearing a mark records when
+you cleared it, which is what lets your other device know your change of
+mind is the newer word. A course refresh — every forty-five seconds — was
+throwing that away, so the next sync handed back the old yes and the card
+came back marked.
+
+Underneath all of it, the check that was supposed to be watching this only
+ever asked whether a session had started, not whether the marked card was
+in it. It asks the real question now.
+
+## 0.165 — 17 September 2026
+
+**Three fixes from problems learners reported.**
+
+**A "Match the pairs" question can no longer contain the same thing twice.**
+If two cards ended up in one grid reading the same — the same word, or the
+same English — the question had no right answer: nobody can tell two
+identical tiles apart, so a correct pairing was as likely to be marked
+wrong as right. Worse, the grid could not be finished at all, because
+pairing a word with one of the look-alike tiles lit up both and tapping the
+other undid the pairing you had just made. Both learners who hit it gave up
+and pressed "I don't know".
+
+There was a guard against this, and it was in the wrong place: it read
+cards as the teacher wrote them, while what reaches a tile has been cut
+down to one accepted spelling and one meaning. A card meaning "Everything
+is good / All good" and a card meaning "All good" were two different cards
+to that guard and one tile twice to a learner. The check now happens last,
+where the tiles are final, and a spare takes the place of anything left
+out so the question stays the size it was.
+
+The grid also holds its pairings by *where* a tile is rather than by what
+it says, so it stays answerable even if a look-alike ever gets through
+again.
+
+**Typing some of the harakat correctly is no longer marked wrong.** Type no
+harakat at all and your answer was accepted; type one of three correctly
+and it was refused — so every step towards the full spelling made your
+answer worse until the last one. A mark you type still has to be right; a
+mark you leave off is forgiven, whether you left off all of them or some.
+This is what the app's own stated rule always said. The same fix applies to
+Hebrew niqqud.
+
 ## 0.164 — 17 September 2026
 
 **The card list narrows by a blank, from either side of it.**
