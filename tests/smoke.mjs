@@ -4929,6 +4929,83 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(300);
 }
 
+/* ---- and two forms of one card in a grid say which each is ----
+
+   The instruction can only speak for the word the question is *about*, and
+   in a matching grid every word is asked: what a learner has to do is put
+   the right English against each of five words. Two forms of one card
+   standing in the same grid is the pairing they cannot reason out — كبير
+   and كبيرة are both "big", however differently the two meanings are
+   written — so those tiles, and only those, carry their own grammar, on
+   the meanings as well as on the words.
+
+   Driven through the teacher's trial for the reason the block above is: it
+   asks one named exercise on one named card, and the adjective's feminine
+   is the word in this material most like it, so it is the company the grid
+   is filled with. Which tiles get a tag is checked over every combination
+   in tests/cards.test.mjs; what is checked here is that the grid on screen
+   carries them. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  /* The word itself, not the phrase that happens to contain it. */
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كبير");
+  click(tile);
+  await sleep(450);
+
+  const toGrid = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try Match the pairs$/.test(b.getAttribute("aria-label") || ""));
+  check("a card with company can be tried on the matching grid", !!toGrid,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(toGrid);
+  await sleep(700);
+
+  /** @param {string} sel */
+  const tiles = (sel) => [...document.querySelectorAll(sel)];
+  /** @param {Element} el */
+  const tagOn = (el) =>
+    ((el.querySelector('[data-el="match-form-tag"]') || {}).textContent || "").trim();
+  /** @param {string} word */
+  const wordTile = (word) =>
+    tiles('[data-el="match-word"]').find(
+      (el) => ((el.querySelector(".at-arabic") || {}).textContent || "").replace(/\s+/g, "") === word);
+  /** @param {RegExp} re */
+  const meaningTile = (re) =>
+    tiles('[data-el="match-meaning"]').find((el) => re.test((el.textContent || "").trim()));
+
+  const both = !!wordTile("كبير") && !!wordTile("كبيرة");
+  check("the grid stands a card's two forms beside each other", both,
+    tiles('[data-el="match-word"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
+  check("and each of the two says which form it is",
+    both && /m\./.test(tagOn(must(wordTile("كبير"), "the masculine tile"))) &&
+      /f\./.test(tagOn(must(wordTile("كبيرة"), "the feminine tile"))),
+    both
+      ? `كبير: "${tagOn(must(wordTile("كبير"), "the masculine tile"))}" · ` +
+        `كبيرة: "${tagOn(must(wordTile("كبيرة"), "the feminine tile"))}"`
+      : "the two forms were not both dealt");
+  /* The half that matters most: a tag on the words alone names the form
+     without saying which English belongs to it, which is the whole of what
+     was being asked for. */
+  check("and so does the meaning each of them belongs to",
+    !!meaningTile(/^big\b/) && !!meaningTile(/^big \(f\)/) &&
+      !!tagOn(must(meaningTile(/^big\b/), "the meaning tile for big")) &&
+      !!tagOn(must(meaningTile(/^big \(f\)/), "the meaning tile for big (f)")),
+    tiles('[data-el="match-meaning"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
+  /* And nobody else: a grid of five labelled words is a reading exercise
+     about labels. */
+  check("while a word with nothing to be confused with stays bare",
+    tiles('[data-el="match-word"]').some((el) => !tagOn(el)),
+    tiles('[data-el="match-word"]').map((el) => `${(el.textContent || "").replace(/\s+/g, " ").trim()}`).join(" · "));
+
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(500);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
 /* ---- a hole in a card, filled ----
    "My name is {{name}}" is a frame, not a sentence: the question fills it
    with one of the cards that say they fill `name`, and fills every field

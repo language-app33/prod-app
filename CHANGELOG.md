@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.169 — 17 September 2026
+
+**In "Match the pairs", two forms of the same card now say which is which.**
+
+A card's forms are practised on their own, so two of them can turn up in
+one grid — the masculine and the feminine, the singular and its plural.
+When that happened there was no way to finish the question honestly: the
+two mean the same thing, however differently the two English tiles happen
+to be worded, so which meaning went with which word was a coin toss, and
+half of a correct answer came back marked wrong.
+
+Those tiles now carry their own grammar — *sg. m.*, *pl.* — in small print
+under the word, **and under the meaning**, which is the half that actually
+settles it: naming the word without naming its English leaves the pairing
+exactly as unguessable as it was.
+
+Only those tiles. A word with nothing in the grid to be confused with stays
+bare, because a grid of five labelled words is a reading exercise about
+labels rather than a question about the words. Nothing is said either where
+saying it would not help: two forms whose tags read alike are not told apart
+by them, and a language that declares no grammar — Huế — has nothing to say.
+
 ## 0.168 — 17 September 2026
 
 **Weak skills: a session made only of what you keep getting wrong.**

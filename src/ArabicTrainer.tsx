@@ -5440,9 +5440,27 @@ function SceneOrder({ card, lang, value, onChange, disabled }: {
  * them: a line between two columns is a thing to draw, to redraw on every
  * resize, and to get wrong in a language that reads right to left.
  */
-function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked }: {
+function MatchGrid({
+  words,
+  meanings,
+  wordTags = [],
+  meaningTags = [],
+  lang,
+  askedId,
+  onChange,
+  onPairs,
+  checked,
+}: {
   words: Form[];
   meanings: string[];
+  /**
+   * What a tile says it is — "f.", "pl." — where anything. One per tile, in
+   * the order of the column it belongs to, and empty on nearly all of them:
+   * only two forms of one card in the same grid are told apart this way.
+   * See kinTags.
+   */
+  wordTags?: string[];
+  meaningTags?: string[];
   lang: Lang;
   askedId: string;
   onChange: (v: string) => void;
@@ -5540,7 +5558,7 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
   return (
     <div className="at-match" data-el="answer-match">
       <div className="at-matchcol">
-        {words.map((w) => {
+        {words.map((w, i) => {
           const mine = meaningFor(w.id);
           const right = checked && !!mine && mine === w.en;
           return (
@@ -5557,6 +5575,12 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
               {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
               <span className="at-matchword">
                 <Arabic text={w.ar} kind="word" lang={lang} />
+                {/* Which form of its card this is, where another form of
+                    the same card is in the grid and nothing else would say
+                    which meaning belongs to which. */}
+                {wordTags[i] ? (
+                  <span className="at-matchtag" data-el="match-form-tag">{wordTags[i]}</span>
+                ) : null}
                 {/* What it should have been, under a word paired wrong: the
                     verdict below speaks of the first word only, and a grid
                     of five has four others to be told about. */}
@@ -5584,7 +5608,19 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
               onClick={() => tapMeaning(at)}
             >
               {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
-              {m}
+              {/* The meaning, and — only where two forms of one card are up
+                  — which of them it belongs to. Said on this side as well
+                  as on the words, because it is the meanings a learner
+                  cannot tell apart: the tag on the word alone would name
+                  the form without saying which English is its. */}
+              {meaningTags[at] ? (
+                <span className="at-matchword">
+                  <span>{m}</span>
+                  <span className="at-matchtag" data-el="match-form-tag">{meaningTags[at]}</span>
+                </span>
+              ) : (
+                m
+              )}
             </button>
           );
         })}
@@ -7606,7 +7642,9 @@ export default function ArabicTrainer() {
    * whatever of it is still here.
    */
   const grid = useMemo(() => {
-    if (!item || !spec || !exercise || spec.picks !== "pair") return { words: [], meanings: [] };
+    if (!item || !spec || !exercise || spec.picks !== "pair") {
+      return { words: [] as Form[], meanings: [] as string[], said: [] as Form[] };
+    }
     /* Two units a learner would read as one tile: the same word, or the
        same meaning, after both have been narrowed to the one the question
        shows. matchSet is the gate that refuses them; this is the same
@@ -7654,6 +7692,37 @@ export default function ArabicTrainer() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item && item.id, exercise && exercise.type, exercise && exercise.mates, asking, qLang.id]);
+
+  /*
+   * What each tile of the grid says about itself, beside its word.
+   *
+   * Nothing, nearly always — see kinTags, which is where the rule is. The
+   * one case it speaks in is two forms of the same card standing in the
+   * one grid, which a learner cannot pair by reading alone.
+   *
+   * Which card a form came from is not on the form: a grid's words are
+   * drawn from the whole of what this learner has, and arrive narrowed to
+   * one spelling and one meaning. So the cards are asked, once, and the
+   * answer is a tag per tile in the order the two columns stand in.
+   */
+  const gridTags = useMemo(() => {
+    const said = grid.said || [];
+    if (!grid.words.length) return { words: [] as string[], meanings: [] as string[] };
+    const ownerOf = new Map<string, string>();
+    for (const card of asking) {
+      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
+    }
+    const tags = kinTags({
+      units: (grid.words as Record<string, any>[]).concat(said),
+      cardOf: (u) => ownerOf.get(u.id) || "",
+      labelOf: (u) => labelFor(u, qLang),
+    });
+    return {
+      words: grid.words.map((w) => tags[w.id] || ""),
+      meanings: said.map((u) => tags[u.id] || ""),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grid, asking, qLang.id]);
 
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
@@ -9201,6 +9270,8 @@ Cards ready to practice
                           key={`${(item && item.id) || ""}-${qi}`}
                           words={grid.words}
                           meanings={grid.meanings}
+                          wordTags={gridTags.words}
+                          meaningTags={gridTags.meanings}
                           lang={qLang}
                           askedId={(item && item.id) || ""}
                           checked={!!checked}
@@ -12238,6 +12309,65 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
     String((x && x[promptField]) || "").trim().toLowerCase();
   const asked = said(unit);
   return !!asked && kin.some((k) => said(k) === asked);
+}
+
+/**
+ * Which tiles of a grid have to say what form they are.
+ *
+ * The instruction above says which form is being *asked*, and in a grid
+ * that is not enough: every word in a grid is asked, and what a learner
+ * has to do is decide which English goes with which word. Two forms of one
+ * card standing in the same grid is the one pairing they cannot reason
+ * out — a masculine teacher and a feminine one are both *teacher*, and
+ * even where the two meanings are written differently they are the same
+ * thing said twice. The pairing is then a coin toss, and half of it is
+ * marked wrong for knowing the word.
+ *
+ * So where one card has more than one form up, each of those forms carries
+ * its own grammar — "f.", "pl." — and **both columns carry it**: a tag on
+ * the words alone leaves the meanings exactly as unanswerable as they
+ * were. Every other tile stays bare, because a grid of five labelled words
+ * is a reading exercise about labels.
+ *
+ * Nothing is said where saying it would not help. Forms whose tags read
+ * alike are not told apart by them; a language that declares no grammar —
+ * Huế — has nothing to say at all; and a form standing on its own is not
+ * ambiguous with anybody.
+ *
+ * Keyed by form id, so the caller looks a tile up by which form is on it
+ * rather than by what it reads.
+ */
+export function kinTags({ units, cardOf, labelOf }: {
+  /** Every form on the grid: its words, and the forms its meanings are of. */
+  units: (Record<string, any> | null | undefined)[];
+  /** Which card a form belongs to. Empty where it is not known. */
+  cardOf: (unit: Record<string, any>) => string;
+  /** What the form is, in the language's own terms — see labelFor. */
+  labelOf: (unit: Record<string, any>) => string;
+}): Record<string, string> {
+  /* A word and its own meaning are one form on two tiles, so the forms are
+     taken once each before anything is counted. */
+  const seen = new Map<string, Record<string, any>>();
+  for (const unit of units || []) {
+    if (unit && unit.id && !seen.has(unit.id)) seen.set(unit.id, unit);
+  }
+  const byCard = new Map<string, Record<string, any>[]>();
+  for (const [id, unit] of seen) {
+    /* A form whose card nobody could name stands on its own rather than
+       joining a crowd of others in the same condition. */
+    const card = cardOf(unit) || `#${id}`;
+    byCard.set(card, (byCard.get(card) || []).concat([unit]));
+  }
+  const tags: Record<string, string> = {};
+  for (const kin of byCard.values()) {
+    if (kin.length < 2) continue;
+    const labels = kin.map((unit) => String(labelOf(unit) || "").trim());
+    if (new Set(labels).size < 2) continue;
+    kin.forEach((unit, i) => {
+      if (labels[i]) tags[unit.id] = labels[i];
+    });
+  }
+  return tags;
 }
 
 /* ==================================================================
