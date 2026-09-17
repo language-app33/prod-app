@@ -5507,7 +5507,21 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
    * number instead of a string.
    */
   const [pairs, setPairs] = useState<Record<string, number>>({});
-  const [held, setHeld] = useState<string | null>(null);
+  /*
+   * Which tile is picked up and waiting for its other half — a side and a
+   * place on it, never merely a word.
+   *
+   * A pair is started from either column. A learner reading down the
+   * meanings and spotting the one they know should be able to tap it and
+   * then its word; making them cross to the other side first is a rule
+   * about the grid's insides rather than about the language, and nothing on
+   * the screen ever said it was there. Which column a pair was begun from
+   * makes no difference to what it is or how it is marked.
+   */
+  type Held = { col: "word"; id: string } | { col: "meaning"; at: number };
+  const [held, setHeld] = useState<Held | null>(null);
+  const heldWord = held && held.col === "word" ? held.id : null;
+  const heldMeaning = held && held.col === "meaning" ? held.at : null;
 
   /* `undefined` and not falsiness: the first tile is number 0, and a grid
      whose first meaning counted as "unpaired" would never finish. */
@@ -5539,6 +5553,10 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, done, askedId]);
 
+  /* The two taps are one gesture written twice, once for each column: a
+     tile already paired is freed and left held, a tile tapped while the
+     other column holds one completes the pair, and anything else is picked
+     up — or put down again, where it was already held. */
   const tapWord = (id: string) => {
     if (checked) return;
     if (pairedAt(id) !== null) {
@@ -5547,10 +5565,16 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
         delete next[id];
         return next;
       });
-      setHeld(id);
+      setHeld({ col: "word", id });
       return;
     }
-    setHeld((h) => (h === id ? null : id));
+    if (heldMeaning !== null) {
+      const at = heldMeaning;
+      setPairs((p) => ({ ...p, [id]: at }));
+      setHeld(null);
+      return;
+    }
+    setHeld((h) => (h && h.col === "word" && h.id === id ? null : { col: "word", id }));
   };
 
   const tapMeaning = (at: number) => {
@@ -5558,18 +5582,24 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
     const owner = takenBy(at);
     /* Tapping a meaning already spoken for frees it, which is the only way
        back from a pairing made by mistake that does not need a third
-       gesture to undo. */
+       gesture to undo — and leaves it held, as freeing a word does, so the
+       meaning can be given to another word with the next tap. */
     if (owner) {
       setPairs((p) => {
         const next = { ...p };
         delete next[owner.id];
         return next;
       });
+      setHeld({ col: "meaning", at });
       return;
     }
-    if (!held) return;
-    setPairs((p) => ({ ...p, [held]: at }));
-    setHeld(null);
+    if (heldWord !== null) {
+      const id = heldWord;
+      setPairs((p) => ({ ...p, [id]: at }));
+      setHeld(null);
+      return;
+    }
+    setHeld((h) => (h && h.col === "meaning" && h.at === at ? null : { col: "meaning", at }));
   };
 
   const numberOf = (id: string) =>
@@ -5586,10 +5616,10 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
               type="button"
               key={w.id}
               data-el="match-word"
-              className={`at-matchtile${held === w.id ? " on" : ""}${mine ? " paired" : ""}${
+              className={`at-matchtile${heldWord === w.id ? " on" : ""}${mine ? " paired" : ""}${
                 checked ? (right ? " right" : " wrong") : ""
               }`}
-              aria-pressed={held === w.id}
+              aria-pressed={heldWord === w.id}
               onClick={() => tapWord(w.id)}
             >
               {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
@@ -5616,9 +5646,12 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
                  React treat them as one. */
               key={at}
               data-el="match-meaning"
-              className={`at-matchtile en${owner ? " paired" : ""}${
-                checked && owner ? (right ? " right" : " wrong") : ""
-              }`}
+              /* Held looks the same on both sides, because it is the same
+                 thing: a tile waiting for its other half. */
+              className={`at-matchtile en${heldMeaning === at ? " on" : ""}${
+                owner ? " paired" : ""
+              }${checked && owner ? (right ? " right" : " wrong") : ""}`}
+              aria-pressed={heldMeaning === at}
               onClick={() => tapMeaning(at)}
             >
               {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}

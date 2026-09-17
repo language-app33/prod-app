@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.169 — 17 September 2026
+## 0.170 — 17 September 2026
 
 **Practising a lot no longer stops you learning anything new.**
 
@@ -49,6 +49,23 @@ One thing this release does not change: a word you keep getting *wrong*
 still goes back to the start each time, however early the attempt. If you
 drill one word hundreds of times a day, the occasional slip will still hold
 it back. Worth a look on its own if it bites.
+
+## 0.169 — 17 September 2026
+
+**Match the pairs can be started from either column.**
+
+In the matching grid, a pair had to begin with a word on the left: tapping
+a meaning on the right did nothing until a word was picked up first.
+Nothing on the screen said so, and a learner reading down the meanings —
+which is what you do when you are looking for the one you recognise — had
+to cross to the other side before their tap counted for anything.
+
+Now a tap on either side picks that tile up, and a tap on the far side
+completes the pair. Word then meaning, or meaning then word: the same
+pair, made either way round, marked the same. A tile you have picked up is
+outlined on whichever side it sits, tapping it again puts it down, and
+tapping a meaning that is already spoken for still frees it — only now it
+stays in your hand, so it can be given straight to another word.
 
 ## 0.168 — 17 September 2026
 
