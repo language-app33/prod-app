@@ -46,6 +46,38 @@ test("Arabic: bare letters accepted, wrong harakat rejected, missing harakat dep
   assert.equal(checkAr("كُتَاب", "كِتَاب", { tashkeel: "either" }).reason, "harakat");
 });
 
+test("a mark you type has to be right; a mark you leave off is forgiven", () => {
+  /* Reported by a learner: all or nothing punished knowing more. Typing no
+     harakat at all was accepted and typing one of them correctly was
+     refused, so every step towards the full spelling made the answer worse
+     until the last one. Leaving a mark off is not typing a wrong one. */
+  const word = "طَبْعاً";
+  const either = { tashkeel: "either" };
+  assert.equal(checkAr("طبعا", word, either).ok, true, "none of them, as before");
+  assert.equal(checkAr("طبعاً", word, either).ok, true, "one of them, and right");
+  assert.equal(checkAr("طَبعاً", word, either).ok, true, "two of them, and right");
+  assert.equal(checkAr(word, word, either).reason, "exact", "all of them");
+  /* Marked the way a word typed bare is, because that is what it is:
+     fewer marks than the word carries, and none of them wrong. */
+  assert.equal(checkAr("طبعاً", word, either).reason, "bare");
+
+  /* And the rule it must not swallow: a mark that is actually wrong. */
+  assert.equal(checkAr("طُبْعاً", word, either).reason, "harakat", "a damma for a fatha");
+  assert.equal(checkAr("كُتَاب", "كِتَاب", either).reason, "harakat");
+  /* Nor the letters underneath, which are judged first and on their own. */
+  assert.equal(checkAr("طبعان", word, either).ok, false);
+
+  /* `required` is the mode that asks for the whole vocalisation, and part
+     of it is still short of the whole. */
+  assert.equal(checkAr("طبعاً", word, { tashkeel: "required" }).ok, false);
+
+  /* Hebrew reads the same rule out of the same function, because it is one
+     rule about marked scripts and not two. */
+  assert.equal(checkHe("סֵפר", "סֵפֶר", { niqqud: "either" }).ok, true, "one point, and right");
+  assert.equal(checkHe("סָפֶר", "סֵפֶר", { niqqud: "either" }).reason, "harakat", "a wrong point");
+  assert.equal(checkHe("סֵפר", "סֵפֶר", { niqqud: "required" }).ok, false);
+});
+
 test("Arabic: where the words are split is convention, not spelling", () => {
   /* الحمد لله is written joined at least as often as it is written apart,
      and the joined form was one character short of the stored one — inside

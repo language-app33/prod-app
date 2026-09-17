@@ -134,6 +134,55 @@ test("the same seed deals the same grid, and another seed another", () => {
   assert.notDeepEqual(ids(a.words), ids(c.words), "another asking, another order");
 });
 
+test("two words a learner would read as one tile are never both dealt", () => {
+  /* Reported four times in one evening, and the same grid each time. The
+     guard that chooses who stands together reads a card as the teacher
+     wrote it — "Everything is good / All good" — and what reaches a tile
+     has been narrowed to one of those. Two cards that differ to that guard
+     can be one tile twice to a learner, so the last word on it is here,
+     where the meanings are final.
+
+     Two tiles reading alike is not a hard question, it is an unanswerable
+     one: nobody can tell them apart, and a right pairing is as likely to
+     be marked wrong as right. */
+  const dealt = [
+    word("asked", "مِن وين إِنتَ؟", "Where are you from?"),
+    word("twin", "مِن وين إِنتِ؟", "Where are you from?"),
+    word("c", "باب", "door"),
+  ];
+  const pool = [word("p0", "شمس", "sun"), word("p1", "قمر", "moon"), word("p2", "بحر", "sea")];
+  const grid = matchSet({ answers: dealt, pool, seed: "x", textOf, meaningOf });
+  assert.equal(
+    grid.meanings.filter((m) => m === "Where are you from?").length,
+    1,
+    "the second reading of it is not dealt",
+  );
+  assert.ok(!ids(grid.words).includes("twin"));
+  /* The word the question is actually about is never the one put aside:
+     the caller puts it first, and the first of a colliding pair stands. */
+  assert.ok(ids(grid.words).includes("asked"));
+  /* And a spare takes its place, so the grid is the size it was meant to
+     be and elimination is no easier than it was. */
+  assert.equal(grid.meanings.length, 2 + PAIR_DECOYS + 1, "one more spare for the one put aside");
+  assert.equal(new Set(grid.meanings).size, grid.meanings.length, "no meaning twice");
+});
+
+test("and the same for two readings of one word", () => {
+  /* The other half of it: a card narrowed to one of its accepted spellings
+     can read the same as another card's. Two identical words with
+     different meanings is the same unanswerable question seen from the
+     other side — and the one matchGroups already names. */
+  const dealt = [
+    word("asked", "كتاب", "book"),
+    word("twin", "كتاب", "volume"),
+    word("c", "باب", "door"),
+  ];
+  const pool = [word("p0", "شمس", "sun"), word("p1", "قمر", "moon"), word("p2", "بحر", "sea")];
+  const grid = matchSet({ answers: dealt, pool, seed: "x", textOf, meaningOf });
+  assert.deepEqual(ids(grid.words).sort(), ["asked", "c"]);
+  assert.ok(!grid.meanings.includes("volume"));
+});
+
 test("a spare meaning never repeats one already up", () => {
   const dealt = [word("a", "كتاب", "book"), word("b", "قلم", "pen"), word("c", "باب", "door")];
   const pool = [word("p0", "مجلد", "book"), word("p1", "كتاب", "volume"), word("p2", "شمس", "sun"), word("p3", "قمر", "moon")];

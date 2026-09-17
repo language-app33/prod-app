@@ -697,6 +697,9 @@ async function playGrid() {
     /* What it put up, so a caller can say what was in it and not only how
        many: which words stand together is the exercise. */
     text: [...words(), ...meanings()].map((el) => (el.textContent || "").trim()).join(" · "),
+    /* Each meaning on its own, to be told apart from the others: two tiles
+       reading alike make a pairing nobody can get right. */
+    meaningText: meanings().map((el) => (el.textContent || "").trim()),
     /* And how it is laid out: two columns, the language being learnt first.
        The stylesheet puts them side by side; this is the order they are
        written in, which is what decides which side each lands on. */
@@ -2988,8 +2991,17 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!grid && grid.meanings > grid.words, grid ? `${grid.words} words, ${grid.meanings} meanings` : "never dealt");
   check("a half-paired grid is not an answer to it",
     !!grid && grid.checkedEarly, String(grid && grid.checkedEarly));
+  /* Pairing runs from the first tile down, so this is also the guard on
+     the first one: the tiles are held by where they are, and a grid whose
+     first meaning counted as "unpaired" could never be finished. */
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  /* Reported four times in one evening: two tiles reading alike cannot be
+     told apart by anybody, a right pairing is as likely to be marked wrong
+     as right, and both learners gave up and pressed "I don't know". */
+  check("no two meanings in a grid read alike, which would make it a guess",
+    !!grid && new Set(grid.meaningText || []).size === (grid.meaningText || []).length,
+    grid ? (grid.meaningText || []).join(" · ") : "never dealt");
   /* The two lists are two columns, the language being learnt first and
      English second — which the stylesheet lays side by side at every width.
      jsdom has no layout to measure, so what is checked here is the order

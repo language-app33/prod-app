@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.165 — 17 September 2026
+## 0.166 — 17 September 2026
 
 **Cards you mark high priority now actually turn up — all of them.**
 
@@ -45,6 +45,39 @@ came back marked.
 Underneath all of it, the check that was supposed to be watching this only
 ever asked whether a session had started, not whether the marked card was
 in it. It asks the real question now.
+
+## 0.165 — 17 September 2026
+
+**Three fixes from problems learners reported.**
+
+**A "Match the pairs" question can no longer contain the same thing twice.**
+If two cards ended up in one grid reading the same — the same word, or the
+same English — the question had no right answer: nobody can tell two
+identical tiles apart, so a correct pairing was as likely to be marked
+wrong as right. Worse, the grid could not be finished at all, because
+pairing a word with one of the look-alike tiles lit up both and tapping the
+other undid the pairing you had just made. Both learners who hit it gave up
+and pressed "I don't know".
+
+There was a guard against this, and it was in the wrong place: it read
+cards as the teacher wrote them, while what reaches a tile has been cut
+down to one accepted spelling and one meaning. A card meaning "Everything
+is good / All good" and a card meaning "All good" were two different cards
+to that guard and one tile twice to a learner. The check now happens last,
+where the tiles are final, and a spare takes the place of anything left
+out so the question stays the size it was.
+
+The grid also holds its pairings by *where* a tile is rather than by what
+it says, so it stays answerable even if a look-alike ever gets through
+again.
+
+**Typing some of the harakat correctly is no longer marked wrong.** Type no
+harakat at all and your answer was accepted; type one of three correctly
+and it was refused — so every step towards the full spelling made your
+answer worse until the last one. A mark you type still has to be right; a
+mark you leave off is forgiven, whether you left off all of them or some.
+This is what the app's own stated rule always said. The same fix applies to
+Hebrew niqqud.
 
 ## 0.164 — 17 September 2026
 
