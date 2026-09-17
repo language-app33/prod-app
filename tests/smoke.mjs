@@ -712,14 +712,22 @@ async function playGrid() {
     })(),
     checkedEarly: false,
     marked: false,
+    /* How many pairs were made meaning first. A grid is started from
+       whichever column the learner is reading, so half the pairs below are
+       made the other way round, and this is what says they took. */
+    fromRight: 0,
   };
   const early = document.querySelector('[data-el="check-button"]');
   seen.checkedEarly = !!early && /** @type {HTMLButtonElement} */ (early).disabled;
   for (let k = 0; k < seen.words; k++) {
-    click(words()[k]);
+    /* Every other pair begun from the meanings side, which is the same
+       pairing made by the other gesture: tap the meaning, then its word. */
+    const rightFirst = k % 2 === 1;
+    click(rightFirst ? meanings()[k] : words()[k]);
     await sleep(25);
-    click(meanings()[k]);
+    click(rightFirst ? words()[k] : meanings()[k]);
     await sleep(25);
+    if (rightFirst && words()[k].classList.contains("paired")) seen.fromRight += 1;
   }
   click(document.querySelector('[data-el="check-button"]'));
   await sleep(250);
@@ -3054,6 +3062,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      first meaning counted as "unpaired" could never be finished. */
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  /* Half the pairs above were begun from the meanings, and the grid was
+     finished and marked all the same: a learner reading down the right-hand
+     column starts there rather than crossing the screen first. */
+  check("a pair in the grid can be begun from either side",
+    !!grid && grid.fromRight > 0,
+    grid ? `${grid.fromRight} of ${Math.floor(grid.words / 2)} pairs made meaning first` : "never dealt");
   /* Reported four times in one evening: two tiles reading alike cannot be
      told apart by anybody, a right pairing is as likely to be marked wrong
      as right, and both learners gave up and pressed "I don't know". */

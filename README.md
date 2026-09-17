@@ -383,6 +383,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   by *where* a tile is rather than by what it says, so that it stays
   answerable even if one ever gets through.
 
+  **A pair is begun from either column.** Tap a word then its meaning, or a
+  meaning then its word: whichever side the learner is reading is where
+  they start, and the pair that comes of it is the same pair either way.
+  `MatchGrid` holds the tile picked up as a side and a place on it, so the
+  two columns are one gesture written twice and cannot drift apart.
+
 ## Running it
 
 ```bash
