@@ -243,6 +243,8 @@ import {
 } from "./answers.ts";
 import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
+import { spellRuns } from "./spelling.ts";
+import type { Run } from "./spelling.ts";
 
 /*
  * The two that need to know which exercise types a form supports. That
@@ -4805,6 +4807,47 @@ function Arabic({ text, kind, lang, name }: { text?: string; kind?: string; lang
   );
 }
 
+/*
+ * A spelling with the mistakes marked on it.
+ *
+ * The same paragraph Arabic draws, cut into the stretches spellRuns came
+ * back with — so the word keeps its typeface, its size and its direction,
+ * and what changes is only that some of its letters are pointed at. Drawn
+ * as <mark>, which is what marking a run of text for attention is, so the
+ * highlight reaches a screen reader as well as an eye.
+ *
+ * `className` rather than `kind`: this stands in for two different things
+ * on the answer screen — the box the learner typed into, and the answer
+ * printed underneath — and each keeps the look of what it replaces.
+ */
+function Spelt({ runs, lang, name, className }: {
+  runs: Run[];
+  lang?: Lang;
+  name?: string;
+  className: string;
+}) {
+  const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
+  return (
+    <p
+      className={className}
+      data-el={name}
+      lang={L.id}
+      dir={L.direction}
+      style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}
+    >
+      {runs.map((run, i) =>
+        run.wrong ? (
+          <mark className="at-spellwrong" key={i}>
+            {run.text}
+          </mark>
+        ) : (
+          <span key={i}>{run.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
 /* One shared empty array, so a card with no recordings hands the player
    the same value every render and does not restart it. */
 const NO_RECS: any[] = [];
@@ -7462,6 +7505,45 @@ export default function ArabicTrainer() {
      where the language declares no grammar, or the answer carries none. */
   const gaveLabel = gaveAnswer ? labelFor(gaveAnswer, qLang) : "";
 
+  /*
+   * Where the spelling went wrong, where it did.
+   *
+   * "Not quite", and the word underneath — that was the whole of what a
+   * misspelt answer came back with, and on a script a learner is still
+   * learning to read, finding the one letter that differs is most of the
+   * work and the part they are least able to do. One letter is wrong;
+   * saying which is the difference between a correction and a verdict.
+   *
+   * Only where the answer was typed in the script, because that is where
+   * spelling is the thing being asked: a meaning typed in English is
+   * marked on an edit distance that forgives far more than a letter, and a
+   * question answered by tapping one of four has no spelling in it.
+   *
+   * Null where there is nothing to point at, which is three cases and each
+   * of them matters. A right answer, obviously. An answer marked down for
+   * its harakat or its tones — right letters, and the verdict already has
+   * a sentence for it, so highlighting a letter would contradict the line
+   * beside it. And a miss so wide that the two words share nothing, where
+   * every letter would come back marked and the marking would be saying
+   * only what "wrong" already said.
+   */
+  const spelling = useMemo(() => {
+    if (!item || !checked || !spec || skipped || overridden) return null;
+    if (checked.ok || spec.answerMode !== "ar" || spec.answerField !== "ar") return null;
+    const fold = qLang.letter;
+    if (!fold) return null;
+    /* Every spelling the card accepts, because on this one question the
+       card keeps all of them — see castAnswer. The closest is the one the
+       learner was reaching for, and the one spellRuns marks against. */
+    const accepted = answersOf(item, answerFields())
+      .map((a) => a.text)
+      .filter(Boolean);
+    const marked = spellRuns(typed, accepted, (ch) => fold(ch, qSettings));
+    if (!marked.wrong) return null;
+    return { ...marked, one: accepted.length === 1 };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item && item.id, checked, typed, skipped, overridden, spec && spec.answerMode]);
+
   /* What the answer screen has to say, once there is one.
      `answerRepeated` is whether the right answer is shown under the
      verdict: it is not, when the answer was right and typed in full —
@@ -8852,6 +8934,20 @@ Cards ready to practice
                             : undefined
                         }
                       >
+                        {spelling ? (
+                          /* In the box's place rather than under it: the
+                             answer they wrote is already the thing on the
+                             screen, and a second copy of it with the marks
+                             on would be the same word twice with only one
+                             of them worth reading. The box is read-only by
+                             now, so nothing is taken away. */
+                          <Spelt
+                            runs={spelling.yours}
+                            lang={qLang}
+                            name="answer-spelt"
+                            className="at-input ar no at-spelt"
+                          />
+                        ) : (
                         <input
                           ref={inputRef}
                           /* "ar" here means the language's own script, so the
@@ -8872,6 +8968,7 @@ Cards ready to practice
                             if (e.key === "Enter" && !checked && typed.trim()) submit();
                           }}
                         />
+                        )}
                         {!checked && spec.answerMode === "ar" && (
                           /* Keeps the caret where it was: tapping the button
                              would otherwise blur the field first, and the
@@ -8945,6 +9042,24 @@ Cards ready to practice
                                 linesOf(dialog).map((l, i) => [l.id, i + 1])
                               )}
                               meanings
+                            />
+                          ) : spelling && spelling.one ? (
+                            /* The answer with the letters they did not
+                               write marked — which is the only mark there
+                               is when a letter was left out rather than
+                               written wrong, and so the half that a word
+                               typed one letter short depends on entirely.
+
+                               Only where the card accepts one spelling.
+                               Where it accepts several the point of the
+                               line is that any of them is right, and
+                               pointing at the letters of one would be
+                               quietly withdrawing the others. */
+                            <Spelt
+                              runs={spelling.theirs}
+                              lang={qLang}
+                              name="answer-value-text"
+                              className={`at-arabic ${item.kind || "word"}`}
                             />
                           ) : (
                             <Field

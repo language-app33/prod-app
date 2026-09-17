@@ -493,6 +493,23 @@ export interface Lang {
   fontStack: string;
   keys: LangKeys;
   check: (given: string, expected: string, settings?: any) => any;
+  /**
+   * One character, folded the way this language's marking folds it when it
+   * is deciding whether two spellings are the same word.
+   *
+   * What it is for is showing a learner *which* letter they got wrong —
+   * see `spellRuns` in src/spelling.ts, which lines the two spellings up
+   * and can only do it in letters the language agrees are letters. Two
+   * characters are the same letter when they fold the same; a character
+   * that folds to nothing is not a letter to get wrong, which is how a
+   * harakat, a tone mark and a space stay out of it.
+   *
+   * The same fold the check itself uses for its skeleton, so the marks on
+   * the screen cannot contradict the verdict beside them. A pack that
+   * declares none has its answers marked exactly as before and nothing
+   * highlighted.
+   */
+  letter?: (ch: string, settings?: any) => string;
   marking: LangMarking;
   rules: string[];
   /** Only where the language has one. */

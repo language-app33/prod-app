@@ -2184,3 +2184,56 @@ a tap, because a chip on a phone has no hover and one reached by keyboard has
 no pointer; nothing in it can be chosen, so it closes on the way out and takes
 nothing with it. Eight words, then a count — `{{word}}` is filled by the whole
 vocabulary and a panel that printed all of it would cover the card.
+
+---
+
+## A misspelling is marked in letters the language agrees are letters
+
+**17 September 2026** · `src/spelling.ts`, `letter` on each pack
+
+A wrong answer came back as "Not quite" and the right word underneath. That is
+true and nearly useless: on a script a learner is still reading letter by
+letter, spotting which of four characters differs is most of the work, and the
+part they are least equipped for. One letter is wrong. Saying which is the
+difference between a correction and a verdict.
+
+The lining-up is an ordinary edit distance kept as a table so the path can be
+walked back out of it — the distance says a word is one letter out, and what
+is wanted is *which* letter. The walk prefers the diagonal, so a letter
+written in place of another reads as that rather than as one missing and one
+too many: the same number of edits, and the first is what happened.
+
+**What counts as a letter is the pack's answer, not the module's.** The
+caller hands in `letter`, a fold of one character, and two characters are the
+same letter when they fold the same. It is the same fold the pack's own check
+measures its skeleton on, and that is the whole design: a mark on the screen
+can never contradict the verdict beside it. A word right in its letters and
+wrong in its harakat folds identically and gets no highlight — the verdict
+already has a sentence for it, and a red letter under that sentence would be
+the app arguing with itself. The same holds for a Vietnamese tone, a Hebrew
+niqqud, an Arabic space, and a hamza the learner has said they are not being
+tested on.
+
+**Two sides, because one of them is often empty.** A letter written in place
+of another is marked in both words. A letter *left out* is marked in nothing
+the learner wrote — every character of their answer is in the word — so
+without the answer's side, the commonest misspelling of all would come back
+with no mark at all.
+
+**Nothing is marked when nothing of the answer is there.** Every letter wrong
+is a word they did not know rather than a word they misspelt, and painting all
+of it says nothing "wrong" has not said. That rule lives in the module and not
+in the screen, because it is a fact about the marking and a test can reach it
+there.
+
+**What it costs.** The fold is applied one character at a time, which is not
+the same thing as normalising the whole string — a normaliser that reorders
+marks or collapses a run of spaces does something per-character folding cannot
+see. It is used only to decide *which characters are the same letter*, never
+to reproduce the comparison, and the verdict stays the pack's; but a pack
+whose normalisation is not per-character would need its own `letter` written
+deliberately rather than derived from its normaliser, and the field is
+optional so that one can decline. The marked answer replaces the read-only
+box the learner typed into rather than appearing beneath it: an input cannot
+hold a highlighted letter, and the same word twice with only one of them
+worth reading is worse than either.

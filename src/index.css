@@ -1698,6 +1698,34 @@ button {
    keeps its own type size; a single-line field centres its text
    vertically, so the height is set outright and the padding goes. */
 .at-answerbox .at-input { height:64px; box-sizing:border-box; padding-top:0; padding-bottom:0; line-height:normal; }
+/*
+ * What the learner wrote, once it has been marked, standing where the box
+ * they wrote it in stood.
+ *
+ * Same box, same border, same type: the field is read-only by the time
+ * this replaces it, so nothing is taken away and nothing on the screen
+ * moves — what changes is that an input cannot hold a highlighted letter
+ * and this can. A paragraph rather than a line of text, so it is centred
+ * in the height the box is fixed at the way the input's own text is.
+ */
+.at-spelt { margin:0; display:flex; align-items:center; overflow:hidden; white-space:pre-wrap; }
+/*
+ * The letters that went wrong, in the word as it was written and in the
+ * word as it should have been.
+ *
+ * "Not quite" and the right answer underneath leaves the learner to find
+ * the letter themselves, which on a script they are still learning to read
+ * is most of the work. This is the pointing finger, and it is drawn as
+ * one: a wash of the colour a wrong answer is already marked in, tight
+ * round the letters and not round the gaps, and underlined as well as
+ * coloured so that it is not colour alone that carries it.
+ *
+ * <mark> keeps its own background in some browsers, so both are set here.
+ */
+.at-spellwrong { background: var(--rose-soft); color: var(--text);
+  border-radius:5px; padding:0 .08em;
+  text-decoration: underline; text-decoration-color: var(--rose);
+  text-decoration-thickness:2px; text-underline-offset:.16em; }
 textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:vertical; min-height:140px; }
 
 /* A field with the on-screen keys button in its corner.
