@@ -189,6 +189,7 @@ import {
   freshStates,
   isAsked,
   itemDifficulty as itemDifficultyOf,
+  justPractised,
   mastered,
   maturity,
   missedTwice,
@@ -2452,8 +2453,16 @@ export function buildSession({
        states, and a fresh state is ready by definition — counted, it would
        have every card in the deck due at once. */
     const dues: number[] = [];
+    /* And when any of it was last answered, which decides nothing until
+       the learner has run out of cards that are actually due — see
+       justPractised. */
+    let lastSeen = 0;
     for (const { unit } of units) {
-      for (const t of askableTypes(unit, settings)) dues.push(stateOf(unit, t).due || 0);
+      for (const t of askableTypes(unit, settings)) {
+        const st = stateOf(unit, t);
+        dues.push(st.due || 0);
+        lastSeen = Math.max(lastSeen, st.updated || 0);
+      }
     }
     /* Askable rather than merely open, so a frame with nothing to fill it
        yet is not counted as waiting: it would be picked, admitted against
@@ -2472,7 +2481,7 @@ export function buildSession({
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent };
+    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent, lastSeen };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -2482,6 +2491,35 @@ export function buildSession({
      from one sitting to the next — and a card the learner asked for ranks
      above all of it. */
   candidates = inOrder(candidates, (c) => (c.urgent ? -1 : dueRank(c.soonest)));
+
+  /*
+   * And among what is *not* due, a card just practised gives way to one
+   * that was not.
+   *
+   * Only among what is not due, which is the whole of the care needed
+   * here: everything genuinely waiting still comes first, in the order
+   * above, and a card the learner asked for still outranks all of it. What
+   * this decides is the order a session reaches past the due line in, and
+   * that order used to be "nearest to due" and nothing else — so the
+   * second sitting of an afternoon reached for the same cards as the
+   * first, and the thirtieth for the same cards as the twenty-ninth. A
+   * learner practising all day was handed nine words and never the rest of
+   * what they were learning.
+   *
+   * Written as a partition rather than another rank because the order
+   * inside each half is one already settled above, and shuffling it again
+   * would throw away the nearest-first reach that a practice session is
+   * for.
+   */
+  const waitingNow = (c: { urgent: boolean; soonest: number }) =>
+    c.urgent || dueRank(c.soonest) === 0;
+  const ahead = candidates.filter((c) => !waitingNow(c));
+  candidates = candidates
+    .filter(waitingNow)
+    .concat(
+      ahead.filter((c) => !justPractised(c.lastSeen)),
+      ahead.filter((c) => justPractised(c.lastSeen))
+    );
 
   /*
    * Being due decides the order, not whether you may practise at all.
@@ -5487,7 +5525,21 @@ function MatchGrid({
    * number instead of a string.
    */
   const [pairs, setPairs] = useState<Record<string, number>>({});
-  const [held, setHeld] = useState<string | null>(null);
+  /*
+   * Which tile is picked up and waiting for its other half — a side and a
+   * place on it, never merely a word.
+   *
+   * A pair is started from either column. A learner reading down the
+   * meanings and spotting the one they know should be able to tap it and
+   * then its word; making them cross to the other side first is a rule
+   * about the grid's insides rather than about the language, and nothing on
+   * the screen ever said it was there. Which column a pair was begun from
+   * makes no difference to what it is or how it is marked.
+   */
+  type Held = { col: "word"; id: string } | { col: "meaning"; at: number };
+  const [held, setHeld] = useState<Held | null>(null);
+  const heldWord = held && held.col === "word" ? held.id : null;
+  const heldMeaning = held && held.col === "meaning" ? held.at : null;
 
   /* `undefined` and not falsiness: the first tile is number 0, and a grid
      whose first meaning counted as "unpaired" would never finish. */
@@ -5519,6 +5571,10 @@ function MatchGrid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, done, askedId]);
 
+  /* The two taps are one gesture written twice, once for each column: a
+     tile already paired is freed and left held, a tile tapped while the
+     other column holds one completes the pair, and anything else is picked
+     up — or put down again, where it was already held. */
   const tapWord = (id: string) => {
     if (checked) return;
     if (pairedAt(id) !== null) {
@@ -5527,10 +5583,16 @@ function MatchGrid({
         delete next[id];
         return next;
       });
-      setHeld(id);
+      setHeld({ col: "word", id });
       return;
     }
-    setHeld((h) => (h === id ? null : id));
+    if (heldMeaning !== null) {
+      const at = heldMeaning;
+      setPairs((p) => ({ ...p, [id]: at }));
+      setHeld(null);
+      return;
+    }
+    setHeld((h) => (h && h.col === "word" && h.id === id ? null : { col: "word", id }));
   };
 
   const tapMeaning = (at: number) => {
@@ -5538,18 +5600,24 @@ function MatchGrid({
     const owner = takenBy(at);
     /* Tapping a meaning already spoken for frees it, which is the only way
        back from a pairing made by mistake that does not need a third
-       gesture to undo. */
+       gesture to undo — and leaves it held, as freeing a word does, so the
+       meaning can be given to another word with the next tap. */
     if (owner) {
       setPairs((p) => {
         const next = { ...p };
         delete next[owner.id];
         return next;
       });
+      setHeld({ col: "meaning", at });
       return;
     }
-    if (!held) return;
-    setPairs((p) => ({ ...p, [held]: at }));
-    setHeld(null);
+    if (heldWord !== null) {
+      const id = heldWord;
+      setPairs((p) => ({ ...p, [id]: at }));
+      setHeld(null);
+      return;
+    }
+    setHeld((h) => (h && h.col === "meaning" && h.at === at ? null : { col: "meaning", at }));
   };
 
   const numberOf = (id: string) =>
@@ -5566,10 +5634,10 @@ function MatchGrid({
               type="button"
               key={w.id}
               data-el="match-word"
-              className={`at-matchtile${held === w.id ? " on" : ""}${mine ? " paired" : ""}${
+              className={`at-matchtile${heldWord === w.id ? " on" : ""}${mine ? " paired" : ""}${
                 checked ? (right ? " right" : " wrong") : ""
               }`}
-              aria-pressed={held === w.id}
+              aria-pressed={heldWord === w.id}
               onClick={() => tapWord(w.id)}
             >
               {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
@@ -5602,9 +5670,12 @@ function MatchGrid({
                  React treat them as one. */
               key={at}
               data-el="match-meaning"
-              className={`at-matchtile en${owner ? " paired" : ""}${
-                checked && owner ? (right ? " right" : " wrong") : ""
-              }`}
+              /* Held looks the same on both sides, because it is the same
+                 thing: a tile waiting for its other half. */
+              className={`at-matchtile en${heldMeaning === at ? " on" : ""}${
+                owner ? " paired" : ""
+              }${checked && owner ? (right ? " right" : " wrong") : ""}`}
+              aria-pressed={heldMeaning === at}
               onClick={() => tapMeaning(at)}
             >
               {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
