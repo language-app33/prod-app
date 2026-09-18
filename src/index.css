@@ -559,16 +559,25 @@ button {
 .at-choosemenu .at-hint { margin:10px 0 0; }
 /*
  * The sentences a student will be asked, filled with the words that exist
- * today. The section used to explain this in ninety words; three real
+ * today. The section used to explain this in ninety words; five real
  * sentences do it without any, so they are given the room a thing that is
  * doing the explaining deserves.
+ *
+ * A numbered list, ruled between its rows: five examples of one frame
+ * differ in a word or two, so what the eye needs is the line each example
+ * starts on. The number is drawn by the list rather than written into the
+ * row — it is the list counting itself, and nothing a screen reader has to
+ * read out before the sentence.
  */
-.at-asked { background: var(--jade-bg); border:1px solid var(--jade-soft);
-  border-radius: var(--r-sm); padding:10px 12px; display:flex; flex-direction:column; gap:10px; }
-.at-askedline { display:flex; gap:10px; align-items:baseline; margin:0; min-width:0;
-  font-size: var(--fs-sm); }
-.at-askedline b { flex:0 0 3.4em; font-size: var(--fs-xs); font-weight:800; color: var(--jade);
-  letter-spacing:.05em; text-transform:uppercase; }
+.at-asked { list-style:none; margin:0; padding:2px 12px; counter-reset: asked;
+  background: var(--jade-bg); border:1px solid var(--jade-soft);
+  border-radius: var(--r-sm); display:flex; flex-direction:column; }
+.at-askedline { counter-increment: asked; display:flex; gap:10px; align-items:baseline;
+  margin:0; min-width:0; font-size: var(--fs-sm); padding:10px 0;
+  border-top:1px solid var(--jade-soft); }
+.at-askedline:first-child { border-top:0; }
+.at-askedline::before { content: counter(asked); flex:0 0 1.5em; font-size: var(--fs-xs);
+  font-weight:800; color: var(--jade); font-variant-numeric: tabular-nums; }
 /* One example is three lines, not one: the sentence in the script, how it
    is said, and what it means. The English alone was the one line of the
    question a learner is never asked to produce, which made the preview of
@@ -619,12 +628,109 @@ button {
    thing is the width of what it says, and the line wraps. */
 .at-blankrow { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top: var(--s4); }
 .at-blankrow > * { flex:0 0 auto; max-width:100%; }
+/* ---- putting a blank into a sentence ----
+
+   The bar under each of a sentence's fields: a chip per blank the card
+   knows, and the button for one it does not. A chip that is already in
+   this field reads as a fact about it — filled in, the way the readout
+   above does — and one that is not reads as a thing to press, because
+   that is what it is: one tap and the field has it too.
+
+   The whole bar is quiet by design. It sits under a field the teacher is
+   typing into, so it may not compete with the words; what it costs is one
+   line of small type, and it disappears entirely on a card that is not a
+   sentence. */
+.at-blankbar { margin-top:6px; }
+.at-blankpills { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.at-blankpill, .at-blankadd { display:inline-flex; align-items:center; gap:4px;
+  min-height:30px; padding:0 10px; border-radius:999px; font-family: var(--mono);
+  font-size:12px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none;
+  /* A chip is dragged, so the browser must not take the gesture for a
+     scroll or a text selection first. */
+  touch-action:none; user-select:none; -webkit-user-select:none; }
+.at-blankpill { background: var(--well); border:2px dashed var(--line); color: var(--muted); }
+.at-blankpill:hover, .at-blankpill:focus-visible { border-color: var(--brass); color: var(--brass); }
+/* In this field already: solid, and in the colour the readout above gives
+   a blank, so the two say the same thing about the same name. */
+.at-blankpill.in { background: var(--tag-bg); border-style:solid; border-color: var(--tag-line);
+  color: var(--brass); cursor:grab; }
+.at-blankpill.lifted { opacity:.45; cursor:grabbing; }
+.at-blankadd { background: var(--raised); border:2px solid var(--line); color: var(--text-soft); }
+.at-blankadd:hover, .at-blankadd:focus-visible { border-color: var(--brass); color: var(--brass); }
+
+/* The rail, up only while a chip is being dragged: the sentence as its
+   words, with a target in each gap. It is laid out by the browser in the
+   language's own direction, which is the whole reason the drop point is a
+   gap between words rather than a measured character — see dropRail. */
+.at-blankrail { display:flex; flex-wrap:wrap; align-items:center; gap:2px;
+  padding:7px 8px; margin-bottom:6px; border-radius:12px;
+  background: var(--well); border:2px solid var(--tag-line); }
+.at-blankgap { flex:0 0 auto; width:16px; align-self:stretch; min-height:26px;
+  border-radius:4px; border:2px dashed transparent; }
+.at-blankgap.on { border-color: var(--brass); background: var(--tag-bg); }
+.at-blankword { flex:0 1 auto; font-size:calc(16px * var(--sscale, 1));
+  line-height:calc(1.4 * var(--sleading, 1)); font-weight:600; overflow-wrap:anywhere; }
+.at-blankword.slot { font-family: var(--mono); font-size:12px; font-weight:700;
+  color: var(--brass); background: var(--tag-bg); border-radius:999px; padding:1px 8px; }
+
+/* The sheet a blank is chosen in. A bottom sheet on a phone, because the
+   list is long and the thumb is at the bottom; it stops growing and
+   centres itself once there is room for that to read as a panel. */
+.at-modalback.sheet { padding:0; align-items:flex-end; }
+.at-sheet { width:100%; max-width:520px;
+  max-height:min(76dvh, 640px); overflow-y:auto;
+  background: var(--surface); border:2px solid var(--line);
+  border-radius: var(--r-lg) var(--r-lg) 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom));
+  box-shadow: var(--nav-shadow); }
+@media (min-width: 560px) {
+  .at-modalback.sheet { padding:20px; align-items:center; }
+  .at-sheet { border-radius: var(--r-lg); padding-bottom:18px; }
+}
+.at-sheettop { display:flex; align-items:center; gap:8px; }
+.at-sheettop .at-modaltitle { flex:1; min-width:0; margin:0; }
+.at-sheet > .at-hint { margin:4px 0 12px; }
+.at-sheet > .at-input { width:100%; }
+.at-blankmake, .at-blanklist button { display:flex; flex-direction:column; gap:2px;
+  width:100%; text-align:start; padding:11px 12px; margin-top:8px; cursor:pointer;
+  background: var(--well); border:2px solid var(--line); border-radius:12px; color: var(--text); }
+.at-blankmake:hover, .at-blanklist button:hover,
+.at-blankmake:focus-visible, .at-blanklist button:focus-visible { border-color: var(--brass); }
+.at-blankmake b, .at-blanklist b { font-family: var(--mono); font-size:14px; font-weight:700;
+  color: var(--brass); overflow-wrap:anywhere; }
+.at-blankmake span, .at-blanklist span { font-size:13px; font-weight:500; color: var(--text-soft);
+  line-height:1.5; overflow-wrap:anywhere; }
+.at-blanklist { list-style:none; margin:10px 0 0; padding:0; }
+.at-blanklist em { font-style:normal; font-size:12px; font-weight:700; color: var(--muted); }
+.at-blanklist em.unmet { color: var(--rose); }
+
 /* Naming a blank by hand: the box takes the room, the button takes what it
    needs. One in each half of the Blanks section — both name blanks, and
    neither list can offer a name nobody has written yet. */
 .at-blanknew { display:flex; gap:8px; margin-top:10px; }
 .at-blanknew .at-input { flex:1 1 auto; min-width:0; }
 .at-blanknew .at-btn { flex:0 0 auto; }
+/* The card's ID: a box with the tick that shuts it, then the name with the
+   pencil that opens it again. One row either way, so the control does not
+   move down the screen when the box closes.
+
+   The icon buttons are sized rather than left to .at-icon's flex:1, which
+   is right in a row of icons and wrong beside a field: the field takes the
+   room and the button takes a thumb. */
+.at-idrow { display:flex; align-items:center; gap:8px; margin-top:10px; }
+.at-idrow .at-input { flex:1 1 auto; min-width:0; }
+.at-idrow .at-icon { flex:0 0 auto; width:48px; min-height:48px; padding:0; }
+.at-idrow.shut { border:2px solid var(--line); border-radius: var(--r);
+  background: var(--well-deep); padding:6px 6px 6px 14px; }
+.at-idrow.shut .at-ic { flex:0 0 auto; color: var(--muted); }
+.at-idname { flex:1 1 auto; min-width:0; font-family: var(--mono); font-size:17px;
+  font-weight:700; color: var(--text-soft); overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; }
+/* One group tag: the tick that joins it, and the pencil that renames it.
+   Two questions about one row, so they are two controls — a row that
+   renamed the group when you meant to join it would be unusable. */
+.at-tagrow { display:flex; align-items:center; gap:8px; }
+.at-tagrow > .at-tickrow, .at-tagrow > .at-input { flex:1 1 auto; min-width:0; }
+.at-tagrow .at-icon { flex:0 0 auto; width:48px; min-height:48px; padding:0; }
 .at-cellrow { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .at-cellrow:last-child { margin-bottom:0; }
 .at-celllabel { flex:0 0 5.5em; min-width:0; font-size:12px; font-weight:800;

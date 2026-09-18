@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { fillNames, mergeMet, splitSlots } from "./variables.ts";
+import { cardRef, fillNames, mergeMet, splitSlots } from "./variables.ts";
 import { isOffline, watchNet } from "./net.ts";
 
 /*
@@ -2193,6 +2193,25 @@ function useAppHost() {
   return host;
 }
 
+/*
+ * Anything that has to sit over the whole app rather than inside whatever
+ * drew it.
+ *
+ * A confirmation and a screen each portal themselves for the same reason —
+ * a z-index is only compared against siblings, so a thing raised from
+ * inside a space frame competes from inside that frame's layer and loses
+ * to anything portalled. A sheet raised from inside the card editor has
+ * exactly that problem, and copying the four lines a third time is how the
+ * three would come to disagree about where the app's root is.
+ *
+ * Nothing until the host is found, which is one render: there is no root
+ * to portal into before the first effect runs.
+ */
+export function Overlay({ children }: { children?: Node }) {
+  const host = useAppHost();
+  return host ? createPortal(children, host) : null;
+}
+
 /* ==================================================================
    The snackbar
    ==================================================================
@@ -2619,6 +2638,8 @@ export function ConfirmModal({
   body,
   confirmLabel,
   confirmWord,
+  altLabel,
+  onAlt,
   busy,
   danger = true,
   onCancel,
@@ -2628,6 +2649,18 @@ export function ConfirmModal({
   body?: Node;
   confirmLabel?: string;
   /** Makes the person type a word before the button enables — for the things that cannot be undone. */ confirmWord?: string;
+  /**
+   * A second answer, beside the first.
+   *
+   * Most questions here have one — do it, or don't — and a second button
+   * would be a third thing to read. A few have two real answers, though,
+   * and a rename is the one this was added for: change the name
+   * everywhere it is written, or change it only here. Neither of those is
+   * cancelling and neither is the safe default, so both are said in words
+   * and the way out is still Cancel.
+   */
+  altLabel?: string;
+  onAlt?: () => void;
   busy?: boolean;
   danger?: boolean;
   onCancel: () => void;
@@ -2698,6 +2731,11 @@ export function ConfirmModal({
           <button className="at-btn ghost" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
+          {altLabel && onAlt && (
+            <button className="at-btn" disabled={!ready || busy} onClick={onAlt}>
+              {altLabel}
+            </button>
+          )}
           <button
             className={`at-btn ${danger ? "danger" : "primary"}`}
             disabled={!ready || busy}
@@ -3167,6 +3205,19 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        own right. Carried rather than derived, because both are the
        teacher's decision and neither can be read off the words. */
     ...(fillNames(card).length ? { fills: fillNames(card) } : null),
+    /* And the ID the teacher gave it, which is the other name a blank can
+       ask for: a sentence writing {{colour-red}} wants this card and no
+       other, so a device that dropped it would meet that sentence with a
+       hole nothing fills. Left off where the card has none, like the two
+       above. */
+    ...(cardRef(card) ? { ref: cardRef(card) } : null),
+    /* And whether it is a sentence, which decides whether it may be
+       dropped into somebody else's hole. Carried because a sentence with
+       no blank in it yet cannot be told from a phrase by looking at it,
+       and a device that had to guess would lend it out — see isSentence,
+       and fillsOf, which is where the guess used to be made. Left off
+       where the teacher has not said, which reads as it always did. */
+    ...(typeof card.sentence === "boolean" ? { sentence: card.sentence } : null),
     ...(card.drill === false ? { drill: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same

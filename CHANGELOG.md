@@ -8,6 +8,121 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.176 — 18 September 2026
+
+**A card is a sentence because you said so, and only a sentence can have a
+blank in it.**
+
+The editor has always asked what kind of card you are writing — a word, a
+sentence, or a conversation — and then thrown the answer away. It worked the
+answer out again from your words every time you opened the card: braces in
+the text meant a sentence, and nothing else did. So a sentence you had typed
+out but not yet put a blank into came back as a word, and a blank typed into
+a word turned it into a sentence whether you meant that or not.
+
+Your answer is kept now. A sentence stays a sentence while you write it,
+before its first blank and after its last one goes.
+
+And the other half of the same rule: **a blank belongs in a sentence, so a
+word carrying one is refused rather than quietly renamed.** The card says
+which blanks are the problem and names both ways out — call it a sentence,
+or take the braces out — because those are opposite intentions with the same
+symptom and only you know which it was.
+
+That matters most on a card with a table. A blank typed into a verb used to
+reopen it as a sentence, put its table away, and tell you every box in it
+would be dropped the next time you saved. That cannot happen now.
+
+**Nothing you have written changes.** A card with a blank in it was a
+sentence before this and is one still; it simply writes the answer down the
+next time you save it. Nothing needs converting and nothing needs checking.
+
+**And a blank is put into a sentence rather than typed into it.**
+
+Under each of a sentence's three fields there is now a bar: a chip for every
+blank the card has, and a **Blank** button for one it has not. A chip on the
+field that already has it reads as a fact; a chip on a field that has not is
+one tap from putting it there. That is the whole of keeping the three fields
+in step, which the app has been telling you off for getting wrong since
+blanks existed.
+
+**Drag a chip and the field opens up underneath it** — your sentence as its
+words, with a target in each gap. Drop the blank where it goes, or pick up
+one that is already in the sentence and move it. It is spaced like a word
+either way: one space each side, none left hanging, and never two.
+
+**The Blank button opens a sheet of every blank your language has** — any
+word at all, each kind of word, each group tag, and each card by the ID it
+answers to. Each one says what would stand in the hole and how many words
+are behind it today, so you can see before you write it whether the blank
+has anything to fill it. Type a name nobody has used and it is offered as a
+new group tag.
+
+## 0.175 — 18 September 2026
+
+**Every card now has an ID you choose, and a sentence can ask for one card
+by it.**
+
+Until now a word was borrowed by a sentence through a name you ticked on
+both — "Raphael fills `{{name}}`" — which is the right answer when the hole
+takes any of a set of words, and no answer at all when you want that one
+word in it. So a card now carries an ID of its own, typed by you when you
+write it: put `{{colour-red}}` in a sentence and the card called
+`colour-red` is what goes in the hole.
+
+It is asked for in the Blanks section, under *The card's ID*, and it has to
+be free: while you type, the app checks it against every other card's ID
+and every group tag anybody has written, and says which card has it when
+one does. Nothing is said when the name is free — the field simply turns
+green — and the tick beside it shuts the box, because an ID is written once
+and read a hundred times. The pencil opens it again, which is how a card
+you come back to arrives.
+
+A new card is not saved without one. A card written before this release has
+none, so opening an old card to fix a recording is not a demand to name it
+— but a name that is already taken stops a save whatever the card's age.
+
+**The blanks you tick are now called group tags, which is what they always
+were.**
+
+*Using this card to fill a blank* is *The card's group tags*, with the same
+list in it: tick the groups this card belongs to, and it fills the blank
+each group is named after. Nothing about your cards changed — every tick
+you have made still means what it meant.
+
+**And renaming either one asks what should follow it.**
+
+Rename an ID, or a group tag from the pencil on its row, and the app asks
+one question: change it everywhere, or only here. *Everywhere* rewrites the
+name in every card that writes it — the braces in every field, of every
+form, of every turn — and retags every card in the group. *Only here*
+leaves them alone, which for an ID means the old sentences go on asking for
+a name nothing answers to, and for a tag means this card leaves the group
+for one of the new name. Both are real answers, so neither is the default,
+and the toast afterwards says how many other cards the new name went into.
+
+## 0.174 — 18 September 2026
+
+**A card with blanks in it now shows five filled examples, under a heading
+of their own.**
+
+The Blanks section of the card screen already filled the card in and
+showed it — three sentences, sitting at the top of *Blanks in this card*
+with nothing saying what they were. They are their own subsection now,
+*Examples of this card with filled blanks*, and there are up to five of
+them: the card as a student will actually meet it, with every blank
+standing as one of the words really behind it.
+
+Each example is the whole card and not a line of it — the sentence in the
+script, how it is said, and what it means — in a numbered list, ruled
+between its rows, and nothing else on the line. Five rather than three
+because the list is for reading down: five askings of one frame is where
+you see how much the card varies, and whether the words dropping into it
+are the ones you meant.
+
+A card whose blank has no word behind it says so in a line instead, which
+is the same answer it always gave.
+
 ## 0.173 — 18 September 2026
 
 **"Weak skills" now answers for itself.**

@@ -725,6 +725,38 @@ export type Card = {
    */
   fills?: string | string[];
   /**
+   * Whether this card is a sentence — a frame with holes in it that other
+   * cards are dropped into — rather than a word.
+   *
+   * The teacher's answer, given in the editor and kept. Until 0.176 it was
+   * worked out from the braces in the card's own words instead, so the
+   * question the editor asked was thrown away the moment it was answered:
+   * a sentence written before its first blank came back as a word, and a
+   * blank typed into a word made it a sentence whether or not anybody
+   * meant that.
+   *
+   * Absent on every card written before this, and read then as it always
+   * was — a card with a hole in it is a sentence. That is the whole of the
+   * migration; see `isSentence`, which is the one answer. Stored only
+   * where it is true, because a word may not carry a blank and so has
+   * nothing to say here.
+   */
+  sentence?: boolean;
+  /**
+   * The ID the teacher gave this card, so another card can borrow *this*
+   * word by name: "{{colour-red}} is heavy".
+   *
+   * Not the `id` above, which the app mints and nobody types. This is the
+   * teacher's, chosen when the card is written, unique across the cards
+   * they can see, and the same shape as anything else that goes between
+   * braces — see cardRef, which is the one answer to what it says.
+   *
+   * Absent on a card written before it was asked for. Such a card is
+   * borrowed the way it always was, through the tags it carries, and is
+   * simply not reachable by name until somebody gives it an ID.
+   */
+  ref?: string;
+  /**
    * What to call the card in a list, where its own words do not name it.
    *
    * A verb in a language with no infinitive is saved as the form a
@@ -974,6 +1006,8 @@ export type Item = {
   note?: string;
   /** The variables this card stands in for, where it is a value. See Card. */
   fills?: string | string[];
+  /** The ID the teacher gave it, which a blank may ask for by name. See Card. */
+  ref?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
