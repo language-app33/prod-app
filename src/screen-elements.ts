@@ -46,6 +46,7 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["answer-match", "The matching grid: the words on one side, the meanings on the other.", ""],
     ["match-word", "One word in it, waiting to be paired.", "كِتاب"],
     ["match-meaning", "One meaning in it. Two of them match no word at all.", "book"],
+    ["match-form-tag", "On a tile, which form of its card it is. Only where two forms of one card are in the grid, and on both the word and the meaning.", "pl."],
     ["answer-self", "The two answers to \"could you follow all of it\". Nobody else was in the room, so the reader marks it.", ""],
     ["question-context-meaning", "On a gap-fill, which word is wanted — the word's own meaning, never the phrase's.", "book"],
     ["hint-button", "The question-mark button in the bar at the foot. Reveals the nudge, and puts it away again.", "Show meaning"],

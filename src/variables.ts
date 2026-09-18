@@ -101,7 +101,7 @@ export const WORD_SLOT = "word";
  * no `noun` may still name a blank `noun` and write the cards that fill it,
  * exactly as before.
  *
- * **A frame is not a filler**, whatever kind it reads as and whatever it
+ * **A sentence is not a filler**, whatever kind it reads as and whatever it
  * says it fills. A card with a hole in it dropped into somebody else's
  * hole is a sentence with a gap where the point was, and if the frame is
  * the one being filled it is a sentence inside itself. That was the stated
@@ -109,14 +109,358 @@ export const WORD_SLOT = "word";
  * named a slot by hand went on standing in other cards' holes. The
  * exception is gone as of 0.139, which is the release that made a card of
  * blanks a thing a teacher sets out to write.
+ *
+ * Asked of the card and not of its braces, since 0.176: a sentence written
+ * before its first blank is still a sentence, and lending it out would be
+ * the one thing this rule exists to stop. See isSentence.
  */
 export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[] {
-  if (hasSlots(card)) return [];
-  const named = String((card && card.fills) || "").toLowerCase();
-  const out = named ? [named] : [];
+  if (isSentence(card)) return [];
+  const out = fillNames(card);
+  /* And the card's own ID, which is the one name that reaches this card
+     and no other: `{{colour-red}}` is a sentence asking for that word
+     rather than for any word of a kind. See cardRef — the ID is the
+     teacher's, and the same shape as everything else that goes in braces,
+     which is what lets it be written into one. */
+  const own = cardRef(card);
+  if (own && !out.includes(own)) out.push(own);
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
+  return out;
+}
+
+/*
+ * A name that can go between braces, narrowed to what a slot may be.
+ *
+ * One rule, in one place: the blanks a card fills, the ID it answers to
+ * and the name a teacher is typing are all the same kind of string, and
+ * they are all matched against the braces in somebody else's card. Lower
+ * case, letters, digits, dash and underscore, and short enough to read on
+ * a phone. Written before it is stored and again on the way in, so what
+ * the editor shows and what the server keeps cannot come apart.
+ */
+export const slotName = (raw: unknown): string =>
+  String(raw == null ? "" : raw)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 24);
+
+/**
+ * The ID a teacher gave this card, as anything asking for it by name
+ * reads it.
+ *
+ * A card has always had an id the app minted, which nobody types and
+ * nobody sees. This is the other one: the name the teacher chooses, so
+ * that a sentence can borrow *this* word rather than a word of a kind —
+ * "{{colour-red}} is heavy". It is narrowed like every other name that
+ * goes in braces and is empty on a card written before the ID was asked
+ * for, which simply fills nothing by name.
+ */
+export const cardRef = (card: WithSlots | null | undefined): string =>
+  slotName(card ? card.ref : "");
+
+/*
+ * Whether a name is already answered to by something else.
+ *
+ * Both halves of the Blanks section put a name between braces — a card's
+ * ID and a group tag — so the two share one namespace and a name has to be
+ * free of both. Comes back as what holds it, so the editor can say which
+ * card that is rather than "taken"; null where the name is free.
+ *
+ * `self` is the card being edited, which is never a clash with itself.
+ * `{{word}}` is spoken for by every word in the language, so nothing may
+ * be called it.
+ */
+export function refClash(
+  name: string,
+  pool: WithSlots[],
+  self = "",
+): { kind: "card" | "group"; card?: WithSlots } | null {
+  const want = slotName(name);
+  if (!want) return null;
+  if (want === WORD_SLOT) return { kind: "group" };
+  for (const card of pool || []) {
+    if (String((card && card.id) || "") === self) continue;
+    if (cardRef(card) === want) return { kind: "card", card };
+    if (fillNames(card).includes(want)) return { kind: "group", card };
+  }
+  return null;
+}
+
+/*
+ * One card, with a name rewritten wherever it is written or ticked.
+ *
+ * What "everywhere" means when a teacher renames an ID or a group tag: the
+ * sentences that ask for it by that name are asking for something that no
+ * longer answers, and a tag renamed on one card is a group of one. So both
+ * are rewritten by the same walk — the braces in every field of every form
+ * and every turn, and the tags a card carries.
+ *
+ * Null where nothing moved, which is the answer for almost every card in
+ * the collection: the caller saves what comes back and lets the rest
+ * alone.
+ */
+export function renamedIn<T extends WithSlots>(card: T, from: string, to: string): T | null {
+  const was = slotName(from);
+  const now = slotName(to);
+  if (!was || !now || was === now || !card) return null;
+  let moved = false;
+  const rewrite = (form: WithSlots): WithSlots => {
+    let next: WithSlots | null = null;
+    for (const field of FILLED_FIELDS) {
+      const written = text(form, field);
+      if (!written) continue;
+      const after = renameSlot(written, was, now);
+      if (after === written) continue;
+      next = next || { ...form };
+      next[field] = after;
+    }
+    if (next) moved = true;
+    return next || form;
+  };
+  const out: Record<string, unknown> = { ...card };
+  if (Array.isArray(card.forms)) out.forms = (card.forms as WithSlots[]).map(rewrite);
+  else {
+    const lead = rewrite(card as WithSlots);
+    if (lead !== card) for (const field of FILLED_FIELDS) out[field] = lead[field];
+  }
+  if (Array.isArray(card.lines)) out.lines = (card.lines as WithSlots[]).map(rewrite);
+  const tags = fillNames(card);
+  if (tags.includes(was)) {
+    const swapped: string[] = [];
+    for (const tag of tags) {
+      const one = tag === was ? now : tag;
+      if (!swapped.includes(one)) swapped.push(one);
+    }
+    out.fills = swapped;
+    moved = true;
+  }
+  return moved ? (out as T) : null;
+}
+
+/** One string, with one slot renamed — `{{name}}` to `{{name-is}}`. */
+export function renameSlot(value: string | null | undefined, from: string, to: string): string {
+  const was = slotName(from);
+  const now = slotName(to);
+  if (!was || !now || was === now) return String(value || "");
+  return String(value || "").replace(SLOT, (whole, name) =>
+    String(name).toLowerCase() === was ? `{{${now}}}` : whole,
+  );
+}
+
+/* ------------------------------------------------------------------
+   Putting a blank into a field, and moving it about in one
+
+   A blank used to be typed: you wrote the braces yourself, into each of
+   the three fields, and a name that did not match the one on the other
+   cards matched nothing for ever. The editor puts them in now — tapped in
+   at the caret, or dragged to where they belong — and these are the three
+   string operations that takes. Here rather than in the editor because
+   they are about a string and a name, a test can ask them without a
+   screen, and the same rule then holds however the blank arrives.
+
+   **A blank is a word, and is spaced like one.** Dropped between two
+   letters it takes a space on each side; taken out, it leaves one space
+   rather than two, and none at all where it was the whole field. Getting
+   that wrong is not cosmetic: the script is what a student's answer is
+   marked against, so a doubled space is a sentence nobody can type.
+   ------------------------------------------------------------------ */
+
+/**
+ * Where each blank sits in one string, in the order they are written.
+ *
+ * Every occurrence, not one per name — "{{a}} and {{a}}" is two places a
+ * thing can be moved from, where `slotsIn` is right to call it one hole
+ * filled twice. Start and end are the braces themselves, so the text
+ * between them can be cut out whole.
+ */
+export function slotSpans(
+  value: string | null | undefined,
+): { name: string; start: number; end: number }[] {
+  const out: { name: string; start: number; end: number }[] = [];
+  for (const m of String(value || "").matchAll(SLOT)) {
+    const start = m.index || 0;
+    out.push({ name: m[1].toLowerCase(), start, end: start + m[0].length });
+  }
+  return out;
+}
+
+/* Two halves of a string put back together where something between them
+   has gone: one space where each half offered one, and no space left
+   hanging off either end. */
+const rejoin = (before: string, after: string): string => {
+  if (!before) return after.replace(/^\s+/, "");
+  if (!after) return before.replace(/\s+$/, "");
+  if (/\s$/.test(before) && /^\s/.test(after)) return before + after.replace(/^\s+/, "");
+  return before + after;
+};
+
+/**
+ * One string with a blank written into it, at a character offset.
+ *
+ * The offset is where the teacher put it — a caret, or the point a chip
+ * was dropped at — so it can land anywhere, including inside the braces of
+ * a blank that is already there. **A blank never lands inside another**:
+ * an offset within one snaps to whichever end of it is nearer, because
+ * "{{na{{me}}me}}" is not a thing anybody meant and is not a thing any
+ * reader here could make sense of.
+ */
+export function withSlotAt(
+  value: string | null | undefined,
+  name: string,
+  at: number,
+): string {
+  const slot = slotName(name);
+  const whole = String(value || "");
+  if (!slot) return whole;
+  let cut = Math.max(0, Math.min(whole.length, Math.round(Number(at) || 0)));
+  for (const span of slotSpans(whole)) {
+    if (cut > span.start && cut < span.end) {
+      cut = cut - span.start < span.end - cut ? span.start : span.end;
+      break;
+    }
+  }
+  const before = whole.slice(0, cut);
+  const after = whole.slice(cut);
+  const lead = before && !/\s$/.test(before) ? " " : "";
+  const tail = after && !/^\s/.test(after) ? " " : "";
+  return `${before}${lead}{{${slot}}}${tail}${after}`;
+}
+
+/** The same string with a blank's first appearance taken out of it. */
+export function withoutSlot(value: string | null | undefined, name: string): string {
+  const slot = slotName(name);
+  const whole = String(value || "");
+  if (!slot) return whole;
+  const span = slotSpans(whole).find((s) => s.name === slot);
+  if (!span) return whole;
+  return rejoin(whole.slice(0, span.start), whole.slice(span.end));
+}
+
+/** One field, cut into what is written in it and the places a blank may go. */
+export interface DropRail {
+  /** Each word, and each blank already standing, in the order written. */
+  pieces: { text: string; slot?: string }[];
+  /**
+   * The offsets a blank may be put down at: before the first piece, after
+   * each of them. One more than there are pieces, always — an empty field
+   * has the one place, which is the start of it.
+   */
+  points: number[];
+}
+
+/**
+ * The places in a field a blank can be dropped, as things on a screen.
+ *
+ * A blank is dragged to where it belongs, and **the unit it is dragged
+ * between is a word, not a character.** Two reasons, and the second is the
+ * one that settles it. A gap between words is what a teacher is aiming
+ * for — nobody puts a hole in the middle of a word — so word-sized targets
+ * ask for the accuracy a thumb actually has. And working out which
+ * character a point on the screen is over means measuring text the browser
+ * has already laid out, which for a script that runs right to left and
+ * joins its letters is measuring it a second way and getting a second
+ * answer. Handing the browser real elements to lay out, and asking which
+ * one the finger is on, has one answer and it is the right one in every
+ * script.
+ *
+ * A blank already in the field is one piece, not the six characters of its
+ * braces: it is a thing that can be dragged, and a drop point inside
+ * `{{name}}` is not a place.
+ */
+export function dropRail(value: string | null | undefined): DropRail {
+  const whole = String(value || "");
+  const pieces: { text: string; slot?: string; start: number; end: number }[] = [];
+  let at = 0;
+  for (const run of splitSlots(whole)) {
+    if (run.slot) {
+      pieces.push({ text: run.text, slot: run.slot, start: at, end: at + run.text.length });
+      at += run.text.length;
+      continue;
+    }
+    const words = /\S+/g;
+    let found = words.exec(run.text);
+    while (found) {
+      pieces.push({ text: found[0], start: at + found.index, end: at + found.index + found[0].length });
+      found = words.exec(run.text);
+    }
+    at += run.text.length;
+  }
+  return {
+    pieces: pieces.map((p) => (p.slot ? { text: p.text, slot: p.slot } : { text: p.text })),
+    points: pieces.length ? [pieces[0].start, ...pieces.map((p) => p.end)] : [0],
+  };
+}
+
+/**
+ * And the same blank picked up and put down somewhere else in the string.
+ *
+ * The offset is read against the string as it stands *now* — with the
+ * blank still in it, which is what the teacher is looking at while they
+ * drag — so a drop past where it came from is shifted by what taking it
+ * out removes. Dropping it on itself leaves the string alone, which is
+ * what a drag that goes nowhere should cost.
+ */
+export function movedSlot(
+  value: string | null | undefined,
+  name: string,
+  at: number,
+): string {
+  const slot = slotName(name);
+  const whole = String(value || "");
+  if (!slot) return whole;
+  const span = slotSpans(whole).find((s) => s.name === slot);
+  if (!span) return withSlotAt(whole, slot, at);
+  const cut = Math.max(0, Math.min(whole.length, Math.round(Number(at) || 0)));
+  if (cut >= span.start && cut <= span.end) return whole;
+  const gone = withoutSlot(whole, slot);
+  const shrank = whole.length - gone.length;
+  return withSlotAt(gone, slot, cut < span.start ? cut : cut - shrank);
+}
+
+/**
+ * How many blanks one card may say it fills.
+ *
+ * A limit rather than none, because `fills` is written by a teacher and
+ * stored by a server, and neither wants a card carrying a thousand names.
+ * Twelve is past anything a word plausibly stands in — a name that is also
+ * a greeting and a subject is three — and short enough to draw as chips on
+ * a phone without the section becoming the card.
+ */
+export const MAX_FILLS = 12;
+
+/**
+ * The blanks a card *says* it fills, in the order the teacher named them.
+ *
+ * One name or several. It began as one, because one is what a value is
+ * usually for: Raphael fills `name` and nothing else. But a word stands in
+ * more than one kind of hole as soon as a teacher writes a second frame
+ * about it — a city is a `place` and a `name-is`, a colour is a `colour`
+ * and a `describes` — and the only way to say so was a second card
+ * carrying the same word, which is the same word learnt twice and two
+ * schedules for it.
+ *
+ * So `fills` is a list. A card written before this carries a single
+ * string, which is that list with one name in it, and is read here without
+ * anything being migrated: every card ever stored goes through this
+ * function and comes back as the same shape.
+ *
+ * Narrowed to what a slot may be named — the braces in a card are matched
+ * on exactly these characters — and lowered, so {{Name}} and {{name}} are
+ * one blank rather than two that look alike. Deduplicated and capped, so
+ * what the editor draws and what the server stores cannot come apart.
+ * The server reads it through this too, which is what keeps that true.
+ */
+export function fillNames(card: WithSlots | null | undefined): string[] {
+  const said = card ? card.fills : null;
+  const raw: unknown[] = Array.isArray(said) ? said : [said];
+  const out: string[] = [];
+  for (const one of raw) {
+    const name = slotName(one);
+    if (name && !out.includes(name)) out.push(name);
+    if (out.length >= MAX_FILLS) break;
+  }
   return out;
 }
 
@@ -209,6 +553,35 @@ export function slotsOf(form: WithSlots | null | undefined): string[] {
 
 export const hasSlots = (form: WithSlots | null | undefined): boolean => slotsOf(form).length > 0;
 
+/**
+ * Whether this card is a sentence — a frame other cards are dropped into —
+ * or a word.
+ *
+ * **The teacher's answer, and stored.** It used to be read off the braces
+ * and nothing else, which made "is this a sentence" a fact about the text
+ * rather than a decision anybody had made. The editor asked which kind of
+ * card it was, offered three answers, stored none of them and worked the
+ * answer out again from the words next time: a sentence written before its
+ * first blank reopened as a word, and a blank typed into a word turned it
+ * into a sentence whether or not that was meant. Neither is the teacher's
+ * to be overruled on.
+ *
+ * **Absent means read it the old way**, which is the whole of the
+ * migration and costs nothing: a card with a hole in it was a sentence
+ * before this and is one now, and pins the answer the next time it is
+ * saved. Nothing has to be rewritten, and a collection half-migrated reads
+ * exactly like one that is not.
+ *
+ * Only `true` is ever stored. A word cannot have a blank in it — see
+ * `strayHoles` in the editor, which is where a save is refused — so a card
+ * carrying no holes and no answer has already said it is a word, and a
+ * stored `false` would be a second way of saying the same thing.
+ */
+export const isSentence = (card: WithSlots | null | undefined): boolean => {
+  const said = card ? card.sentence : undefined;
+  return said === undefined || said === null ? hasSlots(card) : !!said;
+};
+
 /*
  * Whether the fields agree about their holes.
  *
@@ -287,7 +660,7 @@ export function valuesFor(
  * out for a student to read may be worth neither; and an ordinary word is
  * worth both.
  *
- * Until 0.159 `ask` answered both at once, so a form kept without being
+ * Until 0.178 `ask` answered both at once, so a form kept without being
  * asked lent nothing either — which was the only thing it could mean when
  * there was one answer between them. That is exactly what an absent
  * `lend` still means, so every card written before this is read as it was

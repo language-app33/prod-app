@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.159 — 18 September 2026
+## 0.178 — 18 September 2026
 
 **Each part of a card now says for itself what it is drilled as.** The
 create and edit screen used to ask that once, in a list at the very bottom
@@ -35,11 +35,557 @@ the Blanks section is gone — it asked the same question in different words,
 somewhere else on the screen — and what it said is now the first tick under
 the form itself.
 
-**Subsections are easier to tell apart.** Inside a block, the split between
-the word, the reference fields beside it and the table on the end of it was
-a single small coloured line that read as a label on the field under it.
-Each is now a panel of its own, named across the top, inside the block it
-belongs to.
+**Subsections are easier to tell apart.** Inside a block — the word, the
+reference fields beside it, the table on the end of it; the blanks a
+sentence leaves, the examples of it filled in, the card's ID, the groups it
+is in — the split between one and the next was a single small coloured line
+that read as a label on the field under it. Each is now a panel of its own,
+named across the top, inside the block it belongs to.
+
+## 0.177 — 18 September 2026
+
+**A sentence can be given a name to be listed under.**
+
+A sentence is saved as the frame you wrote, hole and all, and that is what
+every list showed. So a deck of them read as a column of braces — "{{name}}
+is heavy" names the shape of the card rather than what it is for, and
+telling two of them apart at a glance meant reading past the blank in each.
+Nothing was wrong with the cards. They simply had no name of their own.
+
+**What to call it** is now the first thing on a sentence, exactly as it is
+on a verb, and it says the same about itself: how the card is listed and
+searched, and that nobody is ever asked it — what is practised is the
+sentence with its blanks filled in. Leave it blank and nothing changes; the
+card is listed as it was.
+
+A named sentence reads as its name in a list, with the sentence itself
+underneath. Its English gives way to the name, as a verb's does: the name is
+what the card is about now. It is searched by it too, so a sentence you
+called *saying where you live* is found under that.
+
+## 0.176 — 18 September 2026
+
+**A card is a sentence because you said so, and only a sentence can have a
+blank in it.**
+
+The editor has always asked what kind of card you are writing — a word, a
+sentence, or a conversation — and then thrown the answer away. It worked the
+answer out again from your words every time you opened the card: braces in
+the text meant a sentence, and nothing else did. So a sentence you had typed
+out but not yet put a blank into came back as a word, and a blank typed into
+a word turned it into a sentence whether you meant that or not.
+
+Your answer is kept now. A sentence stays a sentence while you write it,
+before its first blank and after its last one goes.
+
+And the other half of the same rule: **a blank belongs in a sentence, so a
+word carrying one is refused rather than quietly renamed.** The card says
+which blanks are the problem and names both ways out — call it a sentence,
+or take the braces out — because those are opposite intentions with the same
+symptom and only you know which it was.
+
+That matters most on a card with a table. A blank typed into a verb used to
+reopen it as a sentence, put its table away, and tell you every box in it
+would be dropped the next time you saved. That cannot happen now.
+
+**Nothing you have written changes.** A card with a blank in it was a
+sentence before this and is one still; it simply writes the answer down the
+next time you save it. Nothing needs converting and nothing needs checking.
+
+**And a blank is put into a sentence rather than typed into it.**
+
+Under each of a sentence's three fields there is now a bar: a chip for every
+blank the card has, and a **Blank** button for one it has not. A chip on the
+field that already has it reads as a fact; a chip on a field that has not is
+one tap from putting it there. That is the whole of keeping the three fields
+in step, which the app has been telling you off for getting wrong since
+blanks existed.
+
+**Drag a chip and the field opens up underneath it** — your sentence as its
+words, with a target in each gap. Drop the blank where it goes, or pick up
+one that is already in the sentence and move it. It is spaced like a word
+either way: one space each side, none left hanging, and never two.
+
+**The Blank button opens a sheet of every blank your language has** — any
+word at all, each kind of word, each group tag, and each card by the ID it
+answers to. Each one says what would stand in the hole and how many words
+are behind it today, so you can see before you write it whether the blank
+has anything to fill it. Type a name nobody has used and it is offered as a
+new group tag.
+
+## 0.175 — 18 September 2026
+
+**Every card now has an ID you choose, and a sentence can ask for one card
+by it.**
+
+Until now a word was borrowed by a sentence through a name you ticked on
+both — "Raphael fills `{{name}}`" — which is the right answer when the hole
+takes any of a set of words, and no answer at all when you want that one
+word in it. So a card now carries an ID of its own, typed by you when you
+write it: put `{{colour-red}}` in a sentence and the card called
+`colour-red` is what goes in the hole.
+
+It is asked for in the Blanks section, under *The card's ID*, and it has to
+be free: while you type, the app checks it against every other card's ID
+and every group tag anybody has written, and says which card has it when
+one does. Nothing is said when the name is free — the field simply turns
+green — and the tick beside it shuts the box, because an ID is written once
+and read a hundred times. The pencil opens it again, which is how a card
+you come back to arrives.
+
+A new card is not saved without one. A card written before this release has
+none, so opening an old card to fix a recording is not a demand to name it
+— but a name that is already taken stops a save whatever the card's age.
+
+**The blanks you tick are now called group tags, which is what they always
+were.**
+
+*Using this card to fill a blank* is *The card's group tags*, with the same
+list in it: tick the groups this card belongs to, and it fills the blank
+each group is named after. Nothing about your cards changed — every tick
+you have made still means what it meant.
+
+**And renaming either one asks what should follow it.**
+
+Rename an ID, or a group tag from the pencil on its row, and the app asks
+one question: change it everywhere, or only here. *Everywhere* rewrites the
+name in every card that writes it — the braces in every field, of every
+form, of every turn — and retags every card in the group. *Only here*
+leaves them alone, which for an ID means the old sentences go on asking for
+a name nothing answers to, and for a tag means this card leaves the group
+for one of the new name. Both are real answers, so neither is the default,
+and the toast afterwards says how many other cards the new name went into.
+
+## 0.174 — 18 September 2026
+
+**A card with blanks in it now shows five filled examples, under a heading
+of their own.**
+
+The Blanks section of the card screen already filled the card in and
+showed it — three sentences, sitting at the top of *Blanks in this card*
+with nothing saying what they were. They are their own subsection now,
+*Examples of this card with filled blanks*, and there are up to five of
+them: the card as a student will actually meet it, with every blank
+standing as one of the words really behind it.
+
+Each example is the whole card and not a line of it — the sentence in the
+script, how it is said, and what it means — in a numbered list, ruled
+between its rows, and nothing else on the line. Five rather than three
+because the list is for reading down: five askings of one frame is where
+you see how much the card varies, and whether the words dropping into it
+are the ones you meant.
+
+A card whose blank has no word behind it says so in a line instead, which
+is the same answer it always gave.
+
+## 0.173 — 18 September 2026
+
+**"Weak skills" now answers for itself.**
+
+The line beside it is gone. On the days there is nothing going wrong the
+button is simply dimmed, and pressing it says so: *There is no weak skill
+to fix right now*, at the foot of the screen, gone a moment later.
+
+That is the difference between a caption and an answer. "Nothing slipping
+just now" sat there every one of those days, explaining a button nobody
+had reached for yet; the same sentence said the instant somebody presses
+the button is the one they were actually asking for. And a dimmed button
+that does nothing at all when you press it teaches you nothing — you are
+left guessing whether the app is broken or you are.
+
+Nothing else about the button has changed: when something is slipping it
+is live, and pressing it deals the session it always did.
+
+## 0.172 — 17 September 2026
+
+**The home screen opens on how far you have got.**
+
+It used to open on a number: how many cards were ready, with four more
+lines around it explaining how a session is put together, how much was
+slipping, how many words were waiting their turn and how many cards were
+sitting out for want of a field. All of it was true and none of it was
+what you came to the screen for, and on the days it all showed at once
+the button you actually wanted was somewhere near the bottom.
+
+All five lines are gone. In their place, above Start session, is your
+climb: a ring of how much of your collection is learnt, and a band beside
+it showing where your cards are on the ladder — one block per level, in
+the same colours the Progress tab uses, so a collection you have just
+joined is one flat colour and one you are nearly through is mostly green.
+Under it, in words, how many cards are learnt out of how many you hold.
+
+Nothing about what a session deals has changed. The counts that came off
+the screen are all still in Progress, which is the tab for them.
+
+*Weak skills* still sits under Start session and still says "nothing
+slipping just now" on the days there is nothing to fix — that is the one
+day the line is worth reading. On every other day the button is simply
+live, and pressing it is the point.
+
+## 0.171 — 17 September 2026
+
+**In "Match the pairs", two forms of the same card now say which is which.**
+
+A card's forms are practised on their own, so two of them can turn up in
+one grid — the masculine and the feminine, the singular and its plural.
+When that happened there was no way to finish the question honestly: the
+two mean the same thing, however differently the two English tiles happen
+to be worded, so which meaning went with which word was a coin toss, and
+half of a correct answer came back marked wrong.
+
+Those tiles now carry their own grammar — *sg. m.*, *pl.* — in small print
+under the word, **and under the meaning**, which is the half that actually
+settles it: naming the word without naming its English leaves the pairing
+exactly as unguessable as it was.
+
+Only those tiles. A word with nothing in the grid to be confused with stays
+bare, because a grid of five labelled words is a reading exercise about
+labels rather than a question about the words. Nothing is said either where
+saying it would not help: two forms whose tags read alike are not told apart
+by them, and a language that declares no grammar — Huế — has nothing to say.
+## 0.170 — 17 September 2026
+
+**Practising a lot no longer stops you learning anything new.**
+
+If you sat down many times a day, the app quietly stopped working. The
+same handful of words came round every session, no word ever counted as
+learnt, and no new word ever arrived — for as long as you kept it up. The
+harder you practised, the more firmly it held.
+
+Here is what was happening. Every word carries a gap: the time the app
+waits before asking you again, which grows each time you get it right and
+is how it decides you have learnt something. Answering a word *before* it
+was due used to reset that gap's clock to the moment you answered. So if
+you came back every twenty minutes, the wait started again every twenty
+minutes and never actually ran. The gap could never grow past about three
+days, and a word needs four to count as recognised — so nothing was ever
+recognised, and the ten-word queue the app uses to pace new material never
+emptied.
+
+Now an early answer is counted, and leaves the word exactly where it was.
+It still comes back when it was always going to, and it grows then. Answer
+a word early as often as you like: it costs nothing and it no longer
+blocks anything.
+
+A simulated learner practising thirty times a day met ten words in a
+fortnight before this and never a word more. The same learner now meets
+forty-one, with gaps stretching out to three weeks. Somebody sitting down
+once or twice a day was never caught by this and will see no change.
+
+**And a session reaches for what you have not just done.** Once nothing is
+actually due, the app deals the words nearest to coming round — which, on
+your tenth sitting of the day, was the same words as on your ninth. A word
+you answered in the last couple of hours now gives way to one you did not,
+so a run of sessions works through what you are learning instead of
+circling the same nine cards. Anything genuinely due still comes first, and
+a card you marked as high priority still leads.
+
+One thing this release does not change: a word you keep getting *wrong*
+still goes back to the start each time, however early the attempt. If you
+drill one word hundreds of times a day, the occasional slip will still hold
+it back. Worth a look on its own if it bites.
+
+## 0.169 — 17 September 2026
+
+**Match the pairs can be started from either column.**
+
+In the matching grid, a pair had to begin with a word on the left: tapping
+a meaning on the right did nothing until a word was picked up first.
+Nothing on the screen said so, and a learner reading down the meanings —
+which is what you do when you are looking for the one you recognise — had
+to cross to the other side before their tap counted for anything.
+
+Now a tap on either side picks that tile up, and a tap on the far side
+completes the pair. Word then meaning, or meaning then word: the same
+pair, made either way round, marked the same. A tile you have picked up is
+outlined on whichever side it sits, tapping it again puts it down, and
+tapping a meaning that is already spoken for still frees it — only now it
+stays in your hand, so it can be given straight to another word.
+
+## 0.168 — 17 September 2026
+
+**Weak skills: a session made only of what you keep getting wrong.**
+
+There is a new button on the home screen, under Start session. Tap it and
+you get a session built from nothing but the questions that have been
+going wrong, worst first — the ones you have missed twice running lead,
+then anything you missed once in its last couple of outings. Beside the
+button is how much is slipping, so you can see whether it is worth a
+sitting before you open one; on a day when nothing is going wrong it says
+so and the button is dim.
+
+The important part is that it picks *questions*, not cards. The app has
+always tracked each way of asking a word separately — reading it is not
+the same skill as writing it from its meaning — so a word that keeps
+failing when you have to write it is drilled on writing it, and not on the
+reading you have never once got wrong. That is why the button says skills.
+
+Everything else about a session still holds: nothing is asked above the
+level you have reached, nothing needs a recording your device doesn't
+have, and no one word is the whole sitting. One rule is deliberately off —
+a normal session is refused if the cards in it can only be asked one way,
+and this one is not, because the single thing you keep failing is a
+session worth having.
+
+This was already possible, in the sense that anyone could open Build a
+session, remember which cards had gone badly, tick them by hand and choose
+Fix mistakes. Anyone who could do that did not need the feature.
+
+## 0.167 — 17 September 2026
+
+**Open a level on the ladder and each card says how far it has got.**
+
+Learning → Progress → the ladder: tap a level and you get the cards on it,
+sorted into paused, learning and not started. That says whether a card has
+been begun. It does not say how far it has come — so a word one question
+away from moving up and a word that was opened this morning sat side by
+side and looked the same.
+
+Each card now carries a small bar with a percentage: how much of what that
+level needs is behind it. It fills as you practise and reaches a hundred at
+exactly the moment the level opens the one above — the same "3 of 8" the
+card's own screen already showed, said as a proportion so a list of them
+can be read at a glance.
+
+Two places deliberately have no bar. **Cards** holds every card at once, on
+every level, where one card's 40% and another's would be forty per cent of
+different climbs. **Learnt** is cards with nothing left to open, where every
+bar would be full.
+
+## 0.166 — 17 September 2026
+
+**Cards you mark high priority now actually turn up — all of them.**
+
+A student reported marking several cards and then not seeing them in their
+practice. They were right, and there were three separate ways it could
+happen.
+
+The first, and the one most people would hit: a session takes a fixed
+number of cards, worked out from how long it is and what a card costs to
+ask. That is about five cards where each card carries a second form, nine
+where it does not. Marking cards did not change that number, so anyone who
+marked more than a handful got the first five or so and a different five
+each sitting — against a screen that had just promised each one was in
+their next session. A session now grows to hold everything you asked for.
+Mark three cards and nothing changes; mark twelve and the session is a few
+questions longer and has all twelve in it. A session with nothing marked
+is exactly the size it always was.
+
+The second: a card can vanish from your material for reasons that are
+nobody's decision — a deck detached and reattached, a spell off a course, a
+record the server could not read that minute. When that happens the app
+sets your work aside and puts it back when the card returns. It was setting
+aside the schedules and dropping the mark, so cards you had asked for came
+home no longer asked for, silently. The mark now goes in the drawer with
+everything else.
+
+The third is the other direction, and would have shown as a card you had
+*let go of* stubbornly leading every session: clearing a mark records when
+you cleared it, which is what lets your other device know your change of
+mind is the newer word. A course refresh — every forty-five seconds — was
+throwing that away, so the next sync handed back the old yes and the card
+came back marked.
+
+Underneath all of it, the check that was supposed to be watching this only
+ever asked whether a session had started, not whether the marked card was
+in it. It asks the real question now.
+
+## 0.165 — 17 September 2026
+
+**Three fixes from problems learners reported.**
+
+**A "Match the pairs" question can no longer contain the same thing twice.**
+If two cards ended up in one grid reading the same — the same word, or the
+same English — the question had no right answer: nobody can tell two
+identical tiles apart, so a correct pairing was as likely to be marked
+wrong as right. Worse, the grid could not be finished at all, because
+pairing a word with one of the look-alike tiles lit up both and tapping the
+other undid the pairing you had just made. Both learners who hit it gave up
+and pressed "I don't know".
+
+There was a guard against this, and it was in the wrong place: it read
+cards as the teacher wrote them, while what reaches a tile has been cut
+down to one accepted spelling and one meaning. A card meaning "Everything
+is good / All good" and a card meaning "All good" were two different cards
+to that guard and one tile twice to a learner. The check now happens last,
+where the tiles are final, and a spare takes the place of anything left
+out so the question stays the size it was.
+
+The grid also holds its pairings by *where* a tile is rather than by what
+it says, so it stays answerable even if a look-alike ever gets through
+again.
+
+**Typing some of the harakat correctly is no longer marked wrong.** Type no
+harakat at all and your answer was accepted; type one of three correctly
+and it was refused — so every step towards the full spelling made your
+answer worse until the last one. A mark you type still has to be right; a
+mark you leave off is forgiven, whether you left off all of them or some.
+This is what the app's own stated rule always said. The same fix applies to
+Hebrew niqqud.
+
+## 0.164 — 17 September 2026
+
+**The card list narrows by a blank, from either side of it.**
+
+Teaching → Cards could already show you the words that fill a blank. It
+could not show you the cards that *leave* one — so "what is going on with
+{{name}}?" had half an answer: here are the names, and you work out for
+yourself which sentences ask for one.
+
+The filter is now called **Blanks** and asks which side a card is on: it
+leaves one, it fills one, or it fills none. Tick a blank and you get that
+side of it; switch sides with the tick still set and you get the other. The
+two are never the same card, because a card with a hole in it fills
+nothing.
+
+Each blank in the list says what it is worth on both sides — *left by 3
+cards · filled by 12 cards* — which is where two problems become visible
+before you go looking for them: a blank with sentences and nothing to fill
+them is a card that cannot be practised, and a blank with words and no
+sentence is vocabulary nobody has written a use for.
+
+The filter used to be called *Variables*, which is the word the code uses
+and was the last place in the app still saying it out loud.
+
+## 0.163 — 17 September 2026
+
+**A misspelt answer now shows you which letter.**
+
+Type a word in the language's own script, get one letter wrong, and the app
+said "Not quite" and printed the right word underneath. That is true, and it
+leaves you to find the difference yourself — which, on a script you are still
+reading letter by letter, is most of the work and the part you are least able
+to do.
+
+Now the letter is pointed at. What you wrote comes back with the letters that
+do not belong marked, and the answer underneath comes back with the letters
+you left out marked. Both, because they are not the same thing: write the
+wrong letter and it shows on both sides; leave a letter out and there is
+nothing wrong with anything you typed — the only place to show it is the
+answer.
+
+It is deliberately quiet in two cases:
+
+- **A word that was right in its letters** and marked down for its harakat,
+  its tones or its niqqud has nothing highlighted. The line that already says
+  so is the one that should say it, and a red letter under it would be the app
+  arguing with itself.
+- **A word with nothing of the answer in it** is not highlighted either. That
+  is a word you did not know rather than one you misspelt, and colouring all
+  of it adds nothing.
+
+It works in every language the app teaches, and what counts as a letter is
+each language's own rule — the same one its marking uses, so the highlight and
+the verdict can never disagree.
+
+## 0.162 — 17 September 2026
+
+**"Blanks in this card" now shows the blanks in this card.**
+
+0.161 made it a tick list of every blank the language knows about, with the
+card's own ticked. On a card with one blank in it that was a list of a dozen
+rows, eleven of which are not in the card at all — with a checkbox beside
+each, under a heading saying these are the blanks in this card. Neither the
+heading nor the ticks were true.
+
+It is a readout now. It reads the blanks out of the card's own words and
+shows those: the sentences a student will be asked, the holes themselves,
+and — when you point at one — the words that will go in it. Nothing in it to
+tick, because there is nothing there to decide: a blank is in the card
+because it is written in the card.
+
+Putting one in and taking one out is done where it lives, by writing
+`{{name}}` into the fields. If a field is short of one the card still will
+not save, and the editor still names the field.
+
+The other half, *Using this card to fill a blank*, is unchanged: what a card
+fills is nowhere in its words, so it stays the list where you say so.
+
+## 0.161 — 17 September 2026
+
+**Nothing in the Blanks section is behind a button any more.**
+
+0.160 put the blanks a card *fills* on the screen as a list, and left the
+blanks a card *leaves* behind a "+ Blank" button that opened a menu of the
+same names. Two lists of blank names under two headings, one of them hidden,
+read as the same control in two places — and they are not: one writes a hole
+into this card's words, the other says this card stands in another card's
+hole.
+
+*Blanks in this card* is now a box and a list too, the same shape as the half
+below it: type a new blank name at the top, and below it every blank you
+could leave, with this card's ticked. The two lists are side by side, so the
+headings can do the telling apart.
+
+**And a blank can be taken out again.** Ticking one writes `{{name}}` into
+every field at once, which is what it always did. Unticking now takes it out
+of every field at once — which you could only do before by deleting the
+braces by hand from all three fields, one of which runs the other way, and a
+card left with them in two fields and not the third cannot be saved. Putting
+a blank in stopped being typing two releases ago; taking one out has now
+caught up.
+
+The two lists are deliberately not identical: kinds of word (`{{noun}}`,
+`{{verb}}`, `{{word}}`) are offered as holes to leave, because "{{noun}} is
+heavy" is a real sentence to write, and are not offered as blanks to fill,
+because a card fills `{{noun}}` by saying it is a noun.
+
+## 0.160 — 17 September 2026
+
+**Saying which blanks a card fills is a list you can see.**
+
+0.159 let one card fill several blanks, and put the naming behind a button:
+you opened a menu, read a list, and the box for naming a blank nobody had
+named yet was at the bottom of it. Naming the first blank of a kind is the
+one thing on that screen you cannot do by choosing off a list, so it was the
+one thing hardest to reach — and a list you have to open to see is a list you
+answer without reading.
+
+*Using this card to fill a blank* is now a box and a list, both on the
+screen. Type a new blank name at the top; below it is every blank anybody has
+written, with this card's ticked. Tick one to fill it, untick it to stop.
+
+**And kinds of word are no longer on that list.** A card fills `{{noun}}` by
+saying it is a noun, and `{{word}}` by being a word — so those ticks never
+did anything, and there was a row for every kind of word your language
+declares, burying the handful of blanks anybody had actually written. The
+list is the blank names somebody wrote, and the card says what it fills by
+being what it is in one line underneath.
+
+## 0.159 — 17 September 2026
+
+**A card with a blank in it now shows what a student will really see.**
+
+Writing "My name is {{name}}" meant trusting that the hole would be filled
+with the right sort of word. The editor showed three example sentences, and
+showed them in English only — which on a card written in Arabic is a preview
+of everything except the Arabic. Each example is now three lines: the
+sentence in the script, how it is said, and what it means, filled from the
+words you actually have.
+
+**And pointing at a blank says which words will go in it.** A blank used to
+be a name on a chip and nothing more, so "is the right vocabulary behind
+this?" could only be answered by leaving the card and reading the list.
+Hover one — or tap it on a phone, or reach it with the keyboard — and it
+lists the words that will fill it, each in the script, in how it is said and
+in what it means. Eight of them, then a count, because `{{word}}` is filled
+by every word you have.
+
+**The Blanks section is now two named halves.** It was doing two opposite
+jobs in one block, and showing only the half that applied: *Blanks in this
+card* is the holes this card leaves, and *Using this card to fill a blank*
+is the names this card answers to when another card leaves one. On a card
+that leaves a blank of its own, the second half now says why it fills none
+instead of simply not being there.
+
+**A card can fill more than one blank.** A word is a name and a greeting as
+soon as you write a second sentence about it, and until now saying so took a
+second card carrying the same word — the same word to learn twice, with two
+sets of recordings and two schedules. One card can now answer to as many
+names as you like: add them one at a time, change any of them by choosing
+again, and take one off with the × beside it. Nothing you have already
+written changes, and a card that fills one name goes on filling exactly that
+one.
 
 ## 0.158 — 17 September 2026
 

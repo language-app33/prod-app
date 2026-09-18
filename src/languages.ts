@@ -2164,7 +2164,14 @@ export function compareHe(given: string, expected: string, settings: Settings) {
 
   const fullG = normHe(given, { stripNiqqud: false, foldFinals: fold });
   const fullE = normHe(expected, { stripNiqqud: false, foldFinals: fold });
-  return fullG === fullE ? { ok: true, reason: "exact" } : { ok: false, reason: "harakat" };
+  if (fullG === fullE) return { ok: true, reason: "exact" };
+  /* Some of the niqqud, all of them right — the same rule Arabic reads,
+     out of the same function, because it is one rule about marked scripts
+     and not two. */
+  if (mode !== "required" && typedMarksRight(fullG, fullE, HAS_NIQQUD)) {
+    return { ok: true, reason: "bare" };
+  }
+  return { ok: false, reason: "harakat" };
 }
 
 /* The four tiers rank the same way in every marked script, so Arabic's
@@ -2371,13 +2378,24 @@ export const LANGUAGES: Record<LangId, Lang> = {
       '"Noto Naskh Arabic", "Amiri", "Scheherazade New", "Traditional Arabic", "Geeza Pro", "Al Bayan", serif',
     keys: { rows: AR_KEY_ROWS, extras: AR_EXTRAS, marks: AR_MARKS, marksLabel: "ً ٌ ٍ" },
     check: (given, expected, settings) => checkAr(given, expected, settings),
+    /* The skeleton, one character at a time — the same fold compareAr
+       measures its letters on, so what is highlighted and what is marked
+       are the same answer. A harakat, a tatweel and a space all fold to
+       nothing, which is what keeps them out of the lining-up. */
+    letter: (ch, settings) =>
+      tight(normAr(ch, { stripTashkeel: true, ignoreHamza: !!(settings || {}).ignoreHamza })),
     /*
      * How strictly typing is marked.
      *
      * `tashkeel: "either"` takes the bare letters or the fully vocalised
      * spelling from one stored entry — but typed harakat have to be the
      * right ones, so a wrong vowel is wrong and a missing one is merely
-     * incomplete. `ignoreHamza` accepts ا for أ إ آ, و for ؤ, ي for ى and
+     * incomplete. **Missing means missing, however many:** a word typed
+     * with one of its three harakat, and that one right, is judged on the
+     * one it has. Until 0.165 it was all or nothing, so typing none of
+     * them was accepted and typing one correctly was refused — the rule
+     * these packs have always stated, read the wrong way round by the
+     * code that enforced it. `ignoreHamza` accepts ا for أ إ آ, و for ؤ, ي for ى and
      * ئ, ه for ة, and a dropped ء, because those distinctions are learnt
      * later than the words that carry them.
      */
@@ -2526,6 +2544,11 @@ export const LANGUAGES: Record<LangId, Lang> = {
     fontStack: '"Be Vietnam Pro", "Noto Sans", system-ui, sans-serif',
     keys: { rows: VI_KEY_ROWS, extras: VI_EXTRAS, marks: VI_MARKS, marksLabel: "◌̀ ◌́ ◌̉" },
     check: (given, expected, settings) => checkViet(given, expected, settings),
+    /* Tones off, as the skeleton is: a word written with the wrong tone is
+       the right letters, and the verdict already has a sentence for it.
+       The spaces stay out of it — every syllable here is its own word, so
+       what they separate is words and not letters. */
+    letter: (ch) => normViet(ch, { stripTones: true }).replace(/\s+/g, ""),
     /* The word is accepted with or without its tone marks — but a tone
        that is typed has to be the right one. */
     marking: { tones: "either" },
@@ -2616,10 +2639,17 @@ export const LANGUAGES: Record<LangId, Lang> = {
       '"Noto Serif Hebrew", "Noto Sans Hebrew", "Frank Ruehl CLM", "David CLM", "David", "Arial Hebrew", "Times New Roman", serif',
     keys: { rows: HE_KEY_ROWS, extras: HE_EXTRAS, marks: HE_MARKS, marksLabel: "◌ָ ◌ַ ◌ִ" },
     check: (given, expected, settings) => checkHe(given, expected, settings),
+    /* The bare letters, with a final folded to its ordinary shape where
+       the learner has said that is how they want to be marked — the same
+       skeleton compareHe measures on. */
+    letter: (ch, settings) =>
+      normHe(ch, { stripNiqqud: true, foldFinals: !!(settings || {}).foldFinals })
+        .replace(/\s+/g, ""),
     /* The bare letters or the fully pointed spelling, from one stored
-       entry — but typed niqqud have to be the right ones; and the ordinary
-       shape of a letter is accepted at the end of a word for its final
-       form, כ מ נ פ צ for ך ם ן ף ץ. */
+       entry — but typed niqqud have to be the right ones, and a point left
+       off is a point left off whether it is one of them or all of them;
+       and the ordinary shape of a letter is accepted at the end of a word
+       for its final form, כ מ נ פ צ for ך ם ן ף ץ. */
     marking: { niqqud: "either", foldFinals: true },
     rules: [
       "Cards hold the Hebrew, an English meaning, and a transliteration. Any two of the three are enough to practice it.",
@@ -2881,6 +2911,54 @@ export const HAS_TASHKEEL = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/;
  * own word and the spaces carry the meaning. Hebrew is built like Arabic
  * and could take the same rule, but nothing has asked for it yet.
  */
+/*
+ * Whether every mark the learner actually typed is one the word carries.
+ *
+ * The rule the two marked scripts share, and the one a learner reported:
+ * **a mark you type has to be right; a mark you leave off is forgiven.**
+ * It used to be all or nothing — type no harakat at all and the answer is
+ * accepted, type one of the three correctly and the answer is refused —
+ * so a learner who knew more of the word than the one beside them was
+ * marked down for it, and the closer they got to the full spelling the
+ * worse they did until the moment they got all of it.
+ *
+ * That was never anybody's intention. "The marks you type have to be the
+ * right ones" is what the rules have always said, and leaving one off is
+ * not typing a wrong one; it is the same thing as leaving them all off,
+ * which has always been accepted.
+ *
+ * Both strings arrive normalised, and the caller has already found their
+ * letters equal — that is the first stage of the judgement and this is the
+ * second — so walking the two in step pairs each letter with itself. A
+ * letter the learner left bare is passed over; a letter they marked is
+ * held to what the word carries there, and *subset* rather than equal, for
+ * the same reason: a letter with a shadda and a fatha on it, typed with
+ * the shadda alone, has had nothing wrong written on it.
+ */
+function typedMarksRight(given: string, expected: string, marks: RegExp): boolean {
+  const at = (s: string) => {
+    const out: { base: string; marks: Set<string> }[] = [];
+    for (const ch of s) {
+      if (marks.test(ch)) {
+        if (out.length) out[out.length - 1].marks.add(ch);
+        continue;
+      }
+      out.push({ base: ch, marks: new Set<string>() });
+    }
+    return out;
+  };
+  const mine = at(given);
+  const theirs = at(expected);
+  /* Letters equal is the caller's finding, so this cannot differ — and if
+     it ever did, the old all-or-nothing answer is the safe one. */
+  if (mine.length !== theirs.length) return given === expected;
+  for (let i = 0; i < mine.length; i++) {
+    if (mine[i].base !== theirs[i].base) return false;
+    for (const mark of mine[i].marks) if (!theirs[i].marks.has(mark)) return false;
+  }
+  return true;
+}
+
 export function compareAr(given: string, expected: string, settings: Settings) {
   const mode = settings.tashkeel || "either";
   const hamza = settings.ignoreHamza;
@@ -2903,7 +2981,15 @@ export function compareAr(given: string, expected: string, settings: Settings) {
 
   const fullG = tight(normAr(given, { stripTashkeel: false, ignoreHamza: hamza }));
   const fullE = tight(normAr(expected, { stripTashkeel: false, ignoreHamza: hamza }));
-  return fullG === fullE ? { ok: true, reason: "exact" } : { ok: false, reason: "harakat" };
+  if (fullG === fullE) return { ok: true, reason: "exact" };
+  /* Some of the harakat, all of them right. Marked the way a word typed
+     bare is, because that is what it is: fewer marks than the word
+     carries, and none of them wrong. `required` is the mode that asks for
+     the whole vocalisation, and there this is still short of it. */
+  if (mode !== "required" && typedMarksRight(fullG, fullE, HAS_TASHKEEL)) {
+    return { ok: true, reason: "bare" };
+  }
+  return { ok: false, reason: "harakat" };
 }
 
 export const AR_RANK: Record<string, number> = { wrong: 0, near: 1, missing: 2, harakat: 3 };

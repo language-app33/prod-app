@@ -67,7 +67,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
-import { hasSlots, valuesFor } from "./variables.ts";
+import { cardRef, fillNames, hasSlots, renamedIn, slotsOf, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -4030,22 +4030,26 @@ export function sortCards(cards: Card[], key: string, newestFirst: boolean = tru
  * in for as long as it takes to tick the first box, and hiding every card
  * until then would read as a list that had emptied itself.
  *
- * `fillsMode` is the same question about variables. "yes" keeps the values —
- * the cards that stand in for {{name}} — narrowed to particular variables
- * where any are named; "no" keeps everything that is not a value, which is
- * how a teacher gets their material back after forty names have been added
- * to it. The names do not narrow "no": "cards that do not fill {{name}}" is
- * a question nobody asks, and the list is not offered there.
+ * `blankMode` is the same question about blanks, and it has a side to it
+ * because a blank has two. "leaves" keeps the cards with a hole in their
+ * own words — the sentences {{name}} is written into; "fills" keeps the
+ * cards that stand in for one; "none" keeps everything that fills nothing,
+ * which is how a teacher gets their material back after forty names have
+ * been added to it. `blankNames` narrows the first two to particular
+ * blanks and is the answer to "show me everything to do with {{name}}",
+ * asked from whichever side. It does not narrow "none": "cards that do not
+ * fill {{name}}" is a question nobody asks, and the list is not offered
+ * there.
  */
 export function filterCards(
   cards: Card[],
-  { audio = "any", forms = "any", deckMode = "any", deckIds = [], fillsMode = "any", fillsNames = [] }: {
+  { audio = "any", forms = "any", deckMode = "any", deckIds = [], blankMode = "any", blankNames = [] }: {
     audio?: string;
     forms?: string;
     deckMode?: string;
     deckIds?: string[];
-    fillsMode?: string;
-    fillsNames?: string[];
+    blankMode?: string;
+    blankNames?: string[];
   } = {},
 ) {
   const byDeck = deckIds.length && (deckMode === "in" || deckMode === "out");
@@ -4058,34 +4062,64 @@ export function filterCards(
       const inOne = (c.decks || []).some((id) => deckIds.includes(id));
       if (deckMode === "in" ? !inOne : inOne) return false;
     }
-    if (fillsMode === "yes" || fillsMode === "no") {
-      const fills = String(c.fills || "").toLowerCase();
-      if (fillsMode === "no" ? !!fills : !fills) return false;
-      if (fillsMode === "yes" && fillsNames.length && !fillsNames.includes(fills)) return false;
+    /* The blanks a card leaves and the blanks it fills are two lists and
+       never both: fillsOf gives a card with a hole in it nothing to fill,
+       because a sentence dropped into somebody else's hole is a sentence
+       with a gap where the point was. So the side is the mode's to say. */
+    if (blankMode === "leaves") {
+      const holes = slotsOf(c);
+      if (!holes.length) return false;
+      if (blankNames.length && !holes.some((name) => blankNames.includes(name))) return false;
+    }
+    if (blankMode === "fills" || blankMode === "none") {
+      /* Every blank the card says it fills, because a card may say several
+         — "fills one" is any of them, and a named filter is met by a card
+         that fills that blank among others. */
+      const fills = fillNames(c);
+      if (blankMode === "none" ? !!fills.length : !fills.length) return false;
+      if (blankMode === "fills" && blankNames.length &&
+          !fills.some((name) => blankNames.includes(name))) return false;
     }
     return true;
   });
 }
 
 /*
- * The variables a teacher's cards stand in for, with how many cards fill
- * each.
+ * Every blank a teacher's cards have written, with what each is worth.
  *
- * Read off the cards rather than kept anywhere: a variable exists because
- * some card says it fills one, and a list held beside them would be a
- * second place for the answer to be wrong. Sorted by name, so the list does
- * not reorder itself as cards are written.
+ * Two numbers, because a blank has two sides and a teacher choosing one
+ * wants both: how many cards leave it — the sentences it is a hole in —
+ * and how many fill it. A blank with sentences and nothing to put in them
+ * is a card that cannot be practised, and a blank with words and no
+ * sentence is vocabulary nobody has written a use for; the filter's list
+ * is where both are visible at a glance.
+ *
+ * Read off the cards rather than kept anywhere: a blank is not a thing
+ * that is declared, it is a name two cards happen to agree on, and a list
+ * held beside them would be a second place for the answer to be wrong.
+ * Sorted by name, so it does not reorder itself as cards are written.
  */
-export function fillsInUse(cards: Card[]): { name: string; count: number }[] {
-  const counts: Map<string, number> = new Map();
+export function blanksInUse(cards: Card[]): { name: string; leaves: number; fills: number }[] {
+  const rows: Map<string, { name: string; leaves: number; fills: number }> = new Map();
+  const row = (name: string) => {
+    let had = rows.get(name);
+    if (!had) rows.set(name, (had = { name, leaves: 0, fills: 0 }));
+    return had;
+  };
   for (const c of cards) {
-    const name = String((c && c.fills) || "").toLowerCase();
-    if (!name) continue;
-    counts.set(name, (counts.get(name) || 0) + 1);
+    for (const name of slotsOf(c)) row(name).leaves += 1;
+    for (const name of fillNames(c)) row(name).fills += 1;
   }
-  return [...counts.entries()]
-    .map(([name, count]) => ({ name, count }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  /* A card's own ID fills the blank of that name too — but it is not a
+     blank until some sentence asks for it. Counted only where a row
+     already exists, or every card in the collection would be a line in a
+     list of blanks. */
+  for (const c of cards) {
+    const own = cardRef(c);
+    const had = own ? rows.get(own) : null;
+    if (had) had.fills += 1;
+  }
+  return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /* ---- the numbers a deck can build ----
@@ -4532,10 +4566,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
        nothing until a deck is ticked. */
     deckMode: "any",
     deckIds: [] as string[],
-    /* And whether it is a value — a card that fills a variable — with the
-       variables to keep, where the teacher has named any. */
-    fillsMode: "any",
-    fillsNames: [] as string[],
+    /* And which side of a blank it is on — the sentence that leaves one,
+       or the word that fills it — with the blanks to keep, where the
+       teacher has named any. */
+    blankMode: "any",
+    blankNames: [] as string[],
   });
   /* Narrowed then ordered. ItemList's own search runs after this, over what
      is left, so a search inside a filter behaves the way it reads. */
@@ -4544,10 +4579,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     [cards, cardFilter, sortKey, newestFirst]
   );
 
-  /* Which variables the teacher's cards stand in for, for the filter to
-     offer. Read off the cards, so a variable appears in the list the moment
-     a card says it fills one and goes when the last of them stops. */
-  const variablesInUse = useMemo(() => fillsInUse(cards), [cards]);
+  /* Every blank the teacher's cards have written, for the filter to offer.
+     Read off the cards, so a blank appears in the list the moment a card
+     leaves one or says it fills one, and goes when the last of them
+     stops. */
+  const blanksHere = useMemo(() => blanksInUse(cards), [cards]);
 
   /*
    * The menus over a list of cards: how to order it, and what to leave out.
@@ -4662,61 +4698,68 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
       ),
     },
     {
-      key: "fills",
-      label: "Variables",
-      /* Narrowing from the moment a mode is picked, whether or not a
-         variable is named: "every value" is already a narrower list than
-         every card. */
-      value: cardFilter.fillsMode,
+      key: "blanks",
+      label: "Blanks",
+      /* Narrowing from the moment a side is picked, whether or not a blank
+         is named: "every sentence with a hole in it" is already a narrower
+         list than every card. */
+      value: cardFilter.blankMode,
       quiet: "any",
       wide: true,
-      /* Which variable is a list as long as the variables a teacher has
-         invented, so it is ticked rather than pressed — the same shape as
-         the decks above it, learned once. */
+      /* Which blank is a list as long as the blanks a teacher has written,
+         so it is ticked rather than pressed — the same shape as the decks
+         above it, learned once. */
       custom: (
         <div className="at-deckfilter">
           <Segmented
             size={null}
-            label="Whether a card fills a variable"
+            label="Which side of a blank a card is on"
             options={[
               { value: "any", label: "Any card" },
-              { value: "yes", label: "Fills one" },
-              { value: "no", label: "Fills none" },
+              { value: "leaves", label: "Leaves one" },
+              { value: "fills", label: "Fills one" },
+              { value: "none", label: "Fills none" },
             ]}
-            value={cardFilter.fillsMode}
-            onChange={(v) => setCardFilter((f) => ({ ...f, fillsMode: v }))}
+            value={cardFilter.blankMode}
+            onChange={(v: string) => setCardFilter((f) => ({ ...f, blankMode: v }))}
           />
-          {cardFilter.fillsMode === "yes" && (
+          {(cardFilter.blankMode === "leaves" || cardFilter.blankMode === "fills") && (
             <>
+              {/* One list for both sides, because a blank is one name
+                  whichever side of it a card is on — and each row says what
+                  the name is worth on both, which is where "this blank has
+                  four sentences and nothing to put in them" is visible. */}
               <CheckList
-                options={variablesInUse.map((v) => ({
-                  id: v.name,
-                  title: `{{${v.name}}}`,
-                  note: plural(v.count, "card"),
+                options={blanksHere.map((b) => ({
+                  id: b.name,
+                  title: `{{${b.name}}}`,
+                  note: `left by ${plural(b.leaves, "card")} · filled by ${plural(b.fills, "card")}`,
                 }))}
-                chosen={cardFilter.fillsNames}
+                chosen={cardFilter.blankNames}
                 onToggle={(name, on) =>
                   setCardFilter((f) => ({
                     ...f,
-                    fillsNames: on
-                      ? f.fillsNames.filter((x) => x !== name)
-                      : f.fillsNames.concat([name]),
+                    blankNames: on
+                      ? f.blankNames.filter((x) => x !== name)
+                      : f.blankNames.concat([name]),
                   }))
                 }
-                empty="No card fills a variable yet. Write one in a card's “Fills a variable” field."
+                empty="No blank has been written yet — neither a card with a hole in it nor a card that says it fills one."
               />
               <p className="at-hint">
-                {!cardFilter.fillsNames.length
-                  ? "Every value, whichever variable it fills. Tick one to narrow it."
-                  : `Cards that fill ${cardFilter.fillsNames
-                      .map((n) => `{{${n}}}`)
-                      .join(" or ")}.`}
+                {!cardFilter.blankNames.length
+                  ? cardFilter.blankMode === "leaves"
+                    ? "Every card with a hole in it, whichever blank. Tick one to narrow it."
+                    : "Every word other cards borrow, whichever blank it fills. Tick one to narrow it."
+                  : `${
+                      cardFilter.blankMode === "leaves" ? "Cards that leave" : "Cards that fill"
+                    } ${cardFilter.blankNames.map((n) => `{{${n}}}`).join(" or ")}.`}
               </p>
             </>
           )}
-          {cardFilter.fillsMode === "no" && (
+          {cardFilter.blankMode === "none" && (
             <p className="at-hint">
-              Everything that is not a value — the cards a student is actually
+              Everything that fills no blank — the cards a student is actually
               asked about.
             </p>
           )}
@@ -4811,7 +4854,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
             note: (was && was.note) || "",
             name: (was && was.name) || "",
             uses: (was && was.uses) || [],
-            fills: (was && was.fills) || "",
+            fills: fillNames(was),
             drill: true,
           },
           /* A card already in decks stays in them; a new one is made the
@@ -5040,7 +5083,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, category, decks: inDecks, uses, fills, drill, scene: written }) =>
+        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5104,18 +5147,62 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            follows from it; nothing about how the card is
                            drilled reads it. */
                         category,
+                        /* And whether it is a sentence — a frame other
+                           cards are dropped into — which is the teacher's
+                           answer and not something to be worked out from
+                           the braces afterwards. A conversation is asked
+                           nothing here: its turns are the cards. */
+                        sentence,
                         uses,
-                        /* Which variable it fills, and whether it is a
-                           question of its own. A conversation is neither:
-                           its turns are the cards, and the editor does not
-                           offer either field on one. */
+                        /* Which blanks it fills — one name or several —
+                           and whether it is a question of its own. A
+                           conversation is neither: its turns are the cards,
+                           and the editor does not offer either field on
+                           one. */
                         fills,
+                        /* The ID the teacher gave it, which another
+                           card's blank may ask for by name. */
+                        ref,
                         drill,
                       }),
                 },
                 inDecks
               );
               absorbSaved(r);
+              /*
+               * And the renames the teacher said should follow the name.
+               *
+               * The editor holds one card, so it carries the answer out
+               * rather than reaching for the rest: what it hands back is
+               * the names that moved, and this is where every other card
+               * that writes one is rewritten. No bulk write — the same
+               * `sendOrKeep` every card goes through, in a loop, so a
+               * rename made on a train is kept and sent like anything
+               * else.
+               *
+               * Worked out over a pool rather than the list in hand, so
+               * two renames in one sitting reach the same card twice and
+               * it is saved once, with both.
+               */
+              const saved0 = r && r.card;
+              const pool = new Map(cards.map((c) => [c.id, c] as [string, Card]));
+              const moved = new Set<string>();
+              for (const { from, to } of spread || []) {
+                for (const [id, other] of pool) {
+                  if (saved0 && id === saved0.id) continue;
+                  const next = renamedIn(other, from, to);
+                  if (!next) continue;
+                  pool.set(id, next);
+                  moved.add(id);
+                }
+              }
+              for (const id of moved) {
+                const one = pool.get(id);
+                if (!one) continue;
+                absorbSaved(
+                  await sendOrKeep({ ...one, id, lang: one.lang || "" }, one.decks || []),
+                );
+              }
               setEditing(null);
               /* Whether the card just saved turns up in phrases already
                  written. Counted against the list with the new card in
@@ -5135,6 +5222,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                    promise and has to read as one. */
                 kept: !!(r && r.kept),
                 waiting,
+                /* And how many other cards a rename followed the name
+                   into, which is the one thing about this save that
+                   happened somewhere the teacher was not looking. */
+                moved: moved.size,
                 /* And whatever the server had to cut to store it — a
                    thirteenth turn, a fifth speaker. Every one of those
                    caps used to apply in silence, so the only way to find
@@ -5150,9 +5241,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                already written, say so — that is the moment the link is
                worth making, and the alternative is a deck whose coverage
                quietly falls as it grows. */
-            (done: { name: string, kept: boolean, waiting: number, trimmed: string[] }) =>
+            (done: { name: string, kept: boolean, waiting: number, trimmed: string[], moved: number }) =>
               done.kept
                 ? `${done.name} saved on this device — it goes up when you're back online`
+                : done.moved
+                ? `${done.name} saved · the new name went into ${plural(done.moved, "other card")}`
                 : done.trimmed.length
                 ? `${done.name} saved — but ${done.trimmed.join(" and ")} did not fit and ${done.trimmed.length === 1 ? "was" : "were"} left out`
                 : done.waiting

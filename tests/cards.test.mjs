@@ -31,7 +31,7 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, fillsInUse, CARD_SORTS } =
+const { cardHasAudio, cardFormCount, cardAdded, cardChanged, sortCards, filterCards, blanksInUse, CARD_SORTS } =
   await import(path.join(out, "spaces.js"));
 
 /* The editor's own rules live in card-editor.tsx now, bundled the same way:
@@ -85,7 +85,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits,
+const { leadSpeed, deckPercent, levelPercent, formIsAmbiguous, kinTags, onePerLevel, quietUnits, easedUnits,
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
@@ -221,12 +221,13 @@ test("filtering by which decks a card is in, and which it is not", () => {
   );
 });
 
-test("filtering by whether a card fills a variable, and which one", () => {
-  /* A teacher who has written forty names wants two things of this list: the
-     names, to check them, and everything that is not a name, to get their
-     material back. */
+test("filtering by which side of a blank a card is on, and which blank", () => {
+  /* A teacher who has written forty names wants three things of this list:
+     the names, to check them; the sentences the names go into; and
+     everything that is neither, to get their material back. */
   const list = [
     card({ id: "frame", ar: "ismi {{name}}", en: "My name is {{name}}" }),
+    card({ id: "colours", ar: "{{colour}} kbiir", en: "a big {{colour}}" }),
     card({ id: "rafa", en: "Raphael", fills: "name", drill: false }),
     card({ id: "viktor", en: "Victor", fills: "name", drill: false }),
     card({ id: "blue", en: "blue", fills: "colour", drill: false }),
@@ -235,46 +236,77 @@ test("filtering by whether a card fills a variable, and which one", () => {
   const ids = (/** @type {Record<string, any>} */ f) =>
     filterCards(list, f).map((/** @type {any} */ c) => c.id);
 
-  assert.deepEqual(ids({ fillsMode: "yes" }), ["rafa", "viktor", "blue"], "every value");
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["name"] }), ["rafa", "viktor"]);
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["colour"] }), ["blue"]);
-  /* Several variables read as "show me these", the way several decks do. */
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["name", "colour"] }), ["rafa", "viktor", "blue"]);
-  /* A variable nothing fills any more — a name left ticked while the last
-     card filling it was deleted — empties the list rather than ignoring the
-     tick, which is the honest answer to what was asked. */
-  assert.deepEqual(ids({ fillsMode: "yes", fillsNames: ["gone"] }), []);
+  /* The words other cards borrow. */
+  assert.deepEqual(ids({ blankMode: "fills" }), ["rafa", "viktor", "blue"], "every value");
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["name"] }), ["rafa", "viktor"]);
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["colour"] }), ["blue"]);
+  /* Several blanks read as "show me these", the way several decks do. */
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["name", "colour"] }),
+    ["rafa", "viktor", "blue"]);
+  /* A blank nothing fills any more — a name left ticked while the last card
+     filling it was deleted — empties the list rather than ignoring the tick,
+     which is the honest answer to what was asked. */
+  assert.deepEqual(ids({ blankMode: "fills", blankNames: ["gone"] }), []);
 
-  /* And the other way: the frame is not a value, so it stays. */
-  assert.deepEqual(ids({ fillsMode: "no" }), ["frame", "house"]);
-  /* The names do not narrow "no" — the list is not offered there, and a
+  /* And the other side of the same blank: the sentences it is a hole in.
+     This is the half that did not exist — the list could say which words
+     fill {{name}} and not which cards ask for one. */
+  assert.deepEqual(ids({ blankMode: "leaves" }), ["frame", "colours"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["name"] }), ["frame"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["colour"] }), ["colours"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["name", "colour"] }),
+    ["frame", "colours"]);
+  assert.deepEqual(ids({ blankMode: "leaves", blankNames: ["gone"] }), []);
+
+  /* The two sides are never the same card: a card with a hole in it fills
+     nothing, whatever it says — see fillsOf. */
+  assert.deepEqual(
+    ids({ blankMode: "leaves" }).filter((/** @type {string} */ id) =>
+      ids({ blankMode: "fills" }).includes(id)),
+    []
+  );
+
+  /* And what is left when the values are put aside. The frame stays: it is
+     not a value, it is a card with a hole in it. */
+  assert.deepEqual(ids({ blankMode: "none" }), ["frame", "colours", "house"]);
+  /* The names do not narrow "none" — the list is not offered there, and a
      stale one must not quietly change what it means. */
-  assert.deepEqual(ids({ fillsMode: "no", fillsNames: ["name"] }), ["frame", "house"]);
-  assert.deepEqual(ids({ fillsMode: "any" }).length, list.length);
+  assert.deepEqual(ids({ blankMode: "none", blankNames: ["name"] }),
+    ["frame", "colours", "house"]);
+  assert.deepEqual(ids({ blankMode: "any" }).length, list.length);
   assert.deepEqual(ids({}).length, list.length);
 
   /* And it narrows alongside the others rather than instead of them. */
   assert.deepEqual(
-    filterCards(list, { fillsMode: "yes", forms: "one" }).map((/** @type {any} */ c) => c.id),
+    filterCards(list, { blankMode: "fills", forms: "one" }).map((/** @type {any} */ c) => c.id),
     ["rafa", "viktor", "blue"]
   );
 });
 
-test("the variables on offer are read off the cards that fill them", () => {
-  /* The filter's list. A variable exists because some card says it fills
-     one; a list kept beside them would be a second place to be wrong. */
+test("the blanks on offer are read off the cards that wrote them", () => {
+  /* The filter's list, and both sides of it. A blank exists because some
+     card leaves one or says it fills one; a list kept beside them would be
+     a second place to be wrong. */
   const list = [
+    card({ id: "frame", ar: "ismi {{name}}", en: "My name is {{name}}" }),
     card({ id: "a", fills: "name" }),
     card({ id: "b", fills: "NAME" }),
     card({ id: "c", fills: "colour" }),
     card({ id: "d" }),
   ];
-  assert.deepEqual(fillsInUse(list), [
-    { name: "colour", count: 1 },
+  assert.deepEqual(blanksInUse(list), [
+    /* Words and no sentence: vocabulary nobody has written a use for. */
+    { name: "colour", leaves: 0, fills: 1 },
     /* Folded and counted together: {{Name}} and {{name}} are one hole. */
-    { name: "name", count: 2 },
+    { name: "name", leaves: 1, fills: 2 },
   ]);
-  assert.deepEqual(fillsInUse([]), []);
+  /* And a blank with sentences and nothing to put in them, which is the
+     card that cannot be practised — visible here before it is discovered. */
+  assert.deepEqual(
+    blanksInUse([card({ id: "starved", ar: "{{fruit}}", en: "{{fruit}}" })]),
+    [{ name: "fruit", leaves: 1, fills: 0 }]
+  );
+  assert.deepEqual(blanksInUse([]), []);
 });
 
 test("every order offered has a label and a way to read a card", () => {
@@ -573,6 +605,30 @@ test("and is held at 99 until the last card is in", () => {
 });
 
 /*
+ * And how far one card has got on the level it is on, which is what the
+ * bar on each tile under a level tile draws.
+ *
+ * The two numbers are the standing's own — what has to hold for the next
+ * level to open, and how much of it does — so the only thing to check here
+ * is that the proportion cannot say a thing the counts do not: a hundred
+ * per cent means the level is done and nothing short of it does.
+ */
+test("a card's bar on a level is how much of what that level needs is behind it", () => {
+  assert.equal(levelPercent({ done: 3, of: 8 }), 37);
+  assert.equal(levelPercent({ done: 0, of: 4 }), 0);
+  /* Full exactly when the level is done, which is `done === of` — the same
+     test the scheduler opens the level above on. */
+  assert.equal(levelPercent({ done: 8, of: 8 }), 100);
+  /* And never a moment before it: rounded down, so the last exercise of a
+     long level cannot be rounded away. */
+  assert.equal(levelPercent({ done: 199, of: 200 }), 99);
+  /* A card with nothing to practise has no bar to fill rather than a
+     division by nothing. */
+  assert.equal(levelPercent(null), 0);
+  assert.equal(levelPercent({ done: 0, of: 0 }), 0);
+});
+
+/*
  * When the prompt has to say which form of a card it wants.
  *
  * A card's forms are drilled on their own and two of them can answer the
@@ -654,6 +710,73 @@ test("and nothing is said where the question already settles it", () => {
   );
   /* And nothing at all on nothing, which is a question still being cast. */
   assert.equal(formIsAmbiguous({ unit: null, kin: [many], shown: [], promptField: "en" }), false);
+});
+
+/*
+ * And which tiles of a matching grid say what form they are.
+ *
+ * The instruction says which form is being asked; in a grid every word is
+ * asked, and the work is deciding which English goes with which word. Two
+ * forms of one card in the same grid is the pairing nobody can reason out
+ * — the two mean the same thing however differently the meanings are
+ * written — so those tiles, and only those, carry their own grammar.
+ */
+/** @type {Record<string, string>} */
+const owner = { a: "card", "a-f0": "card", z: "other", "z-f0": "other" };
+const tagsFor = (/** @type {any[]} */ units) =>
+  kinTags({
+    units,
+    cardOf: (/** @type {any} */ u) => owner[u.id] || "",
+    labelOf: (/** @type {any} */ u) => u.tag || "",
+  });
+
+test("two forms of one card in a grid each say which they are", () => {
+  const masc = form({ id: "a", ar: "مبسوط", en: "happy", tag: "sg. m." });
+  const fem = form({ id: "a-f0", ar: "مبسوطة", en: "glad", tag: "sg. f." });
+  const other = form({ id: "z", ar: "باب", en: "door", tag: "sg. m." });
+  /* Both of them, and nobody else: a grid of five labelled words is a
+     reading exercise about labels. */
+  assert.deepEqual(tagsFor([masc, fem, other]), { a: "sg. m.", "a-f0": "sg. f." });
+});
+
+test("a form counted once however many tiles it is on", () => {
+  /* A word and its own meaning are two tiles and one form. Handed in
+     twice, it must not read as a card with two forms up. */
+  const one = form({ id: "a", ar: "باب", en: "door", tag: "sg. m." });
+  assert.deepEqual(tagsFor([one, one]), {});
+});
+
+test("and nothing is said where saying it would not help", () => {
+  const one = form({ id: "a", ar: "كتاب", en: "book", tag: "sg. m." });
+  const two = form({ id: "a-f0", ar: "كتب", en: "books", tag: "sg. m." });
+  /* Tags that read alike tell nothing apart. */
+  assert.deepEqual(tagsFor([one, two]), {});
+  /* Nor does a language that declares no grammar — Huế has none, and a
+     tile with an empty tag on it would be a mark with nothing to say. */
+  assert.deepEqual(tagsFor([{ ...one, tag: "" }, { ...two, tag: "" }]), {});
+  /* One of the pair named and the other not is worth saying: "book · pl."
+     beside a bare "book" is still two tiles told apart. */
+  assert.deepEqual(tagsFor([{ ...one, tag: "" }, { ...two, tag: "pl." }]), { "a-f0": "pl." });
+  /* A form standing on its own is ambiguous with nobody. */
+  assert.deepEqual(tagsFor([one, form({ id: "z", ar: "باب", en: "door", tag: "sg. f." })]), {});
+});
+
+test("forms of two different cards are two crowds, not one", () => {
+  const a1 = form({ id: "a", tag: "sg. m." });
+  const a2 = form({ id: "a-f0", tag: "pl." });
+  const z1 = form({ id: "z", tag: "sg. f." });
+  assert.deepEqual(tagsFor([a1, z1]), {}, "one form apiece says nothing");
+  assert.deepEqual(tagsFor([a1, a2, z1]), { a: "sg. m.", "a-f0": "pl." });
+});
+
+test("and a form whose card nobody can name stands on its own", () => {
+  /* Otherwise every form the lookup missed would join one crowd of
+     strangers and get tagged for the company it never kept. */
+  const x = form({ id: "x", tag: "sg. m." });
+  const y = form({ id: "y", tag: "pl." });
+  assert.deepEqual(tagsFor([x, y]), {});
+  /* Nothing at all on nothing, which is a grid still being dealt. */
+  assert.deepEqual(tagsFor([null, undefined, form({ id: "", tag: "pl." })]), {});
 });
 
 /*
@@ -759,6 +882,65 @@ test("a card the learner asked for stays asked for when the teacher edits it", (
   assert.equal(out[0].forms[0].ar, "a!", "and the teacher's wording still wins");
   assert.equal(out[0].forms[0].s.ar2en.reps, 4, "beside the progress, as before");
   assert.equal(out[1].priority, undefined, "a card nobody marked gains nothing");
+});
+
+test("a card the learner asked for comes home asked for", () => {
+  /*
+   * A course card can go missing for reasons that are nobody's decision —
+   * a deck detached and reattached, a student briefly off a course, one
+   * record the server could not read — which is what the drawer is for.
+   * The schedules went into it and the mark did not, so a learner whose
+   * deck came back found the cards they had asked for quietly no longer in
+   * their sessions, with nothing anywhere to say why.
+   */
+  const had = [
+    { id: "srvk20", source: { cardId: "k20" }, priority: true, priorityAt: 500,
+      forms: [{ id: "srvk20", ar: "a", en: "a", s: { ar2en: { phase: "review", reps: 4, updated: 1 } } }] },
+  ];
+  const away = foldCourses(had, []);
+  assert.equal(away.items.length, 0, "the card went away with the material");
+  const back = foldCourses(away.items, [
+    { id: "srvk20", source: { cardId: "k20" }, forms: [{ id: "srvk20", ar: "a", en: "a", s: {} }] },
+  ], away.parked);
+  const out = back.items[0];
+  assert.equal(out.priority, true, "the mark came home with the card");
+  assert.equal(out.priorityAt, 500, "and so did the time it was set");
+  assert.equal(out.forms[0].s.ar2en.reps, 4, "beside the progress, as before");
+});
+
+test("and a card marked the day it arrived is not set aside empty-handed", () => {
+  /* The drawer used to keep only cards with a schedule in them, and a card
+     marked before it was ever answered has none — which is exactly the card
+     a learner would notice going missing. */
+  const had = [
+    { id: "srvk21", source: { cardId: "k21" }, priority: true, priorityAt: 500,
+      forms: [{ id: "srvk21", ar: "a", en: "a", s: {} }] },
+  ];
+  const away = foldCourses(had, []);
+  const back = foldCourses(away.items, [
+    { id: "srvk21", source: { cardId: "k21" }, forms: [{ id: "srvk21", ar: "a", en: "a", s: {} }] },
+  ], away.parked);
+  assert.equal(back.items[0].priority, true, "the mark was thrown out with the card");
+});
+
+test("a mark the learner cleared stays cleared through a refresh", () => {
+  /*
+   * "No longer wanted, as of then" is an answer, and it only beats an older
+   * yes on another device while it carries its time — which is why the card
+   * stores `false` rather than dropping the field. The fold carried a yes
+   * and nothing else, so clearing a mark and waiting forty-five seconds
+   * left a card that said nothing at all: the next sync handed back the
+   * other device's yes, and the card the learner had just let go of was
+   * back at the front of every session.
+   */
+  const had = [
+    { id: "srvk22", source: { cardId: "k22" }, priority: false, priorityAt: 900,
+      forms: [{ id: "srvk22", ar: "a", en: "a", s: {} }] },
+  ];
+  const fresh = [{ id: "srvk22", source: { cardId: "k22" }, forms: [{ id: "srvk22", ar: "a", en: "a", s: {} }] }];
+  const out = foldCourses(had, fresh).items[0];
+  assert.equal(out.priority, false, "the card still says the learner let it go");
+  assert.equal(out.priorityAt, 900, "and when they did, which is what makes it stick");
 });
 
 /*
@@ -1385,7 +1567,7 @@ test("a form switched off is dealt nothing, and the rest of the card still is", 
 });
 
 test("whether a part is asked and whether it is lent are two answers", () => {
-  /* One tick answered both until 0.159, so keeping a form without asking
+  /* One tick answered both until 0.178, so keeping a form without asking
      it also took it out of every sentence card that could have borrowed
      it. What a stored card means is unchanged: an absent `lend` still
      reads as whatever `ask` says. */
@@ -1677,6 +1859,42 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
   assert.equal(written.forms[2].row, "attached", "and the cell still placed");
   assert.equal(written.category, "noun");
   assert.equal(written.note, "about the book");
+});
+
+test("a sentence keeps what the teacher calls it, and a word is named by its own words", () => {
+  /*
+   * A sentence is saved as a frame with a hole in it, so a list of them
+   * reads as a list of holes: "{{name}} is heavy" names the shape of the
+   * card rather than what it is for. What to call it is asked of a
+   * sentence for the reason it is asked of a verb — what is on the card is
+   * not what the card is about — and the save has to carry it, which is
+   * the half a screen cannot show.
+   *
+   * And only where it is asked. Every other card is named by its own word,
+   * so a name typed while the card briefly was a sentence does not follow
+   * it out.
+   */
+  const draft = {
+    shownSpec: null,
+    ownForms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }],
+    tableCells: [],
+    forms: [],
+    note: "",
+    standsIn: false,
+    name: "  introducing yourself  ",
+    uses: [],
+    fills: "",
+    drill: true,
+    category: "",
+    refName: "",
+    spread: [],
+  };
+  const asSentence = writtenCard({ word: draft, talk: {}, shape: "sentence", chosen: [] });
+  assert.equal(asSentence.name, "introducing yourself",
+    "a sentence carries what it is called, trimmed");
+  assert.equal(asSentence.sentence, true, "and is still saved as a sentence");
+  const asWord = writtenCard({ word: draft, talk: {}, shape: "word", chosen: [] });
+  assert.equal(asWord.name, "", "and a word is named by its own words");
 });
 
 /* ---- what a document keeps on its way in ---- */

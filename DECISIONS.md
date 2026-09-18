@@ -2058,6 +2058,464 @@ The lower levels have no such bar and always get the full two.
 
 ---
 
+## A card fills a list of blanks, not one
+
+**17 September 2026** · `src/variables.ts` (`fillNames`), `src/card-editor.tsx`,
+`server/api/courses.js`
+
+`fills` was one name. That is the right shape for what a value usually is —
+Raphael fills `name` and nothing else — and it stops being the right shape the
+moment a teacher writes a second frame about the same word. *Marhaba* is a
+greeting and a name; a city is a place and a name; a colour is a colour and a
+thing that describes. The only way to say so was a second card carrying the
+same word, which is the same word learnt twice, with two schedules and two
+sets of recordings for it.
+
+It is a list. Every card ever stored carries the one name as a plain string
+and is read as the list of one it always meant, so nothing is migrated and no
+release has to be taken in order.
+
+**One reader, and the server uses it too.** `fillNames` is the only thing that
+answers "what does this card say it fills": it takes either shape, lowers each
+name, narrows it to the characters a slot may be named with, drops the
+duplicates and caps the count. The server imports it rather than keeping its
+own copy of those rules, which is what makes "what the editor draws is what
+the server stores" a fact rather than an intention — the old copy lived in the
+save handler and had already drifted apart from the client's idea of a name
+being lowered.
+
+**Absent when it fills none, not stored empty.** A stored card is built by
+spreading a field object over the card as it stood, so a key left out keeps
+whatever it used to hold — which would make taking the last name off do
+nothing. And an empty array is truthy, so storing one would quietly turn
+`if (card.fills)` true on every ordinary card in the app; there are a dozen
+such readers and they all mean "is this a value". So the field is written as
+`undefined` when the list is empty: JSON drops it on the way to disk, every
+reader goes on testing what it always tested, and taking the last name off
+still reaches the card.
+
+**What it costs.** `Card.fills` is `string | string[]`, which is a union at
+the storage boundary and one more thing a reader could get wrong by reading
+the field instead of calling the function. The alternative — migrating every
+card on the site in one pass — is a worse trade for a field this small: it
+would need a release nobody could roll back past.
+
+---
+
+## The editor's Blanks section is two named halves
+
+**17 September 2026** · `src/card-editor.tsx` (`BlanksBlock`, `BlankChip`)
+
+The section does two opposite jobs: a card that leaves a blank, and a card
+that fills somebody else's. They were one block, and only the half that
+applied was drawn — so a teacher looking for where a word is offered to other
+cards found either an unlabelled button or nothing at all, with no way to tell
+which of the two they were looking at.
+
+Both halves are now named and both are always on screen. On a card that leaves
+a blank of its own, the second half says why it fills none — a sentence
+dropped into somebody else's hole is a sentence with a gap where the point was
+— rather than offering a control there is no answer to. A heading became
+necessary rather than merely nice the moment a card could fill more than one
+blank, because the second half then has a list of its own and two unlabelled
+lists in one block is a puzzle.
+
+**Showing beats explaining, and the examples are all three fields.** The
+preview of what a student will be asked showed the English alone, which is the
+one line of the question a learner is never asked to produce: a preview of an
+Arabic frame that shows only "My name is Raphael" is a preview of everything
+except the Arabic. Each example is now the sentence in the script, in how it
+is said, and in what it means. A field the card does not use is not drawn; a
+field whose filler has nothing to put in it keeps the braces standing, exactly
+as the question would, which is the teacher's answer about the card they have
+written rather than a gap to wonder about.
+
+**One half is a readout and the other is a list, and making them match was
+the mistake.** Which blanks a word is offered to, and which holes a card
+leaves, look like the same question and are not. What a card fills is nowhere
+in its words: it is the teacher's answer, nothing can be read off, and a list
+is where they give it. What a card leaves is *written in its own words* — the
+braces are in the text — so it is a fact about the card, already decided by
+the time the section is drawn.
+
+Two releases went into learning that. 0.160 made the fills half a list on the
+screen and left the holes half behind a "+ Blank" menu; the two then read as
+the same control in two places, and the first thing asked was whether the
+button belonged under the other heading — the right question about two things
+that look identical, and the wrong answer, since they do opposite jobs. 0.161
+answered it by making both tick lists, which is where the shape broke: the
+holes half became every blank in the language with the card's two ticked, so
+a checkbox sat beside `{{verb}}` on a card with no verb in it, under a heading
+saying *these are the blanks in this card*. Neither the heading nor the tick
+was true. Symmetry between the halves was never the goal; what the section had
+to do was make the two jobs impossible to confuse, and a readout beside a list
+does that better than two lists ever did.
+
+**What it costs.** Putting a blank into a card is typing braces again, and
+typing braces into three fields that must agree is exactly the thing a teacher
+gets wrong — which is what the button was for in 0.139. The guard that
+remains is `slotTrouble`: a card whose English has a hole and whose script has
+not cannot be saved, and the editor names the field that is short of one. That
+is a worse place to catch it than not being able to make the mistake, and it
+is the price of a heading that is true. A control that writes a blank into the
+fields can come back, but it belongs beside the fields it writes into, not
+under a heading that says what the card already has.
+
+**What is offered is what somebody wrote, not what is not built in.** A card
+fills `{{noun}}` by saying it is a noun and `{{word}}` by being a word — see
+`fillsOf` — so offering every kind of word the language declares made the
+commonest action on this screen a tick that did nothing. Dropping every
+category id would have been wrong in the other direction, and this is the part
+that took the thinking: Arabic declares `name` as a kind of word *and*
+`{{name}}` is the oldest frame in the app, so the one blank everybody actually
+uses is a category id. So a blank is offered when some card leaves it or some
+card says it fills it, which is what "a blank that exists" has always meant
+here — a blank being a name two cards happen to agree on rather than a thing
+declared. `{{word}}` is never offered, and a card's own kind is said in one
+line beneath the list instead, which is also where "why is `noun` not here?"
+gets answered.
+
+**And a blank says what is behind it.** The chip was the blank's name and
+nothing else, which is the least of what a teacher wants to know about it:
+whether the right words are behind it was answerable only by leaving the card
+and reading the whole list. Pointing at one now lists the words that will fill
+it, each in the same three fields. It opens on hover, on keyboard focus and on
+a tap, because a chip on a phone has no hover and one reached by keyboard has
+no pointer; nothing in it can be chosen, so it closes on the way out and takes
+nothing with it. Eight words, then a count — `{{word}}` is filled by the whole
+vocabulary and a panel that printed all of it would cover the card.
+
+---
+
+## A misspelling is marked in letters the language agrees are letters
+
+**17 September 2026** · `src/spelling.ts`, `letter` on each pack
+
+A wrong answer came back as "Not quite" and the right word underneath. That is
+true and nearly useless: on a script a learner is still reading letter by
+letter, spotting which of four characters differs is most of the work, and the
+part they are least equipped for. One letter is wrong. Saying which is the
+difference between a correction and a verdict.
+
+The lining-up is an ordinary edit distance kept as a table so the path can be
+walked back out of it — the distance says a word is one letter out, and what
+is wanted is *which* letter. The walk prefers the diagonal, so a letter
+written in place of another reads as that rather than as one missing and one
+too many: the same number of edits, and the first is what happened.
+
+**What counts as a letter is the pack's answer, not the module's.** The
+caller hands in `letter`, a fold of one character, and two characters are the
+same letter when they fold the same. It is the same fold the pack's own check
+measures its skeleton on, and that is the whole design: a mark on the screen
+can never contradict the verdict beside it. A word right in its letters and
+wrong in its harakat folds identically and gets no highlight — the verdict
+already has a sentence for it, and a red letter under that sentence would be
+the app arguing with itself. The same holds for a Vietnamese tone, a Hebrew
+niqqud, an Arabic space, and a hamza the learner has said they are not being
+tested on.
+
+**Two sides, because one of them is often empty.** A letter written in place
+of another is marked in both words. A letter *left out* is marked in nothing
+the learner wrote — every character of their answer is in the word — so
+without the answer's side, the commonest misspelling of all would come back
+with no mark at all.
+
+**Nothing is marked when nothing of the answer is there.** Every letter wrong
+is a word they did not know rather than a word they misspelt, and painting all
+of it says nothing "wrong" has not said. That rule lives in the module and not
+in the screen, because it is a fact about the marking and a test can reach it
+there.
+
+**What it costs.** The fold is applied one character at a time, which is not
+the same thing as normalising the whole string — a normaliser that reorders
+marks or collapses a run of spaces does something per-character folding cannot
+see. It is used only to decide *which characters are the same letter*, never
+to reproduce the comparison, and the verdict stays the pack's; but a pack
+whose normalisation is not per-character would need its own `letter` written
+deliberately rather than derived from its normaliser, and the field is
+optional so that one can decline. The marked answer replaces the read-only
+box the learner typed into rather than appearing beneath it: an input cannot
+hold a highlighted letter, and the same word twice with only one of them
+worth reading is worse than either.
+
+---
+
+## An early answer is counted and moves nothing
+
+**17 September 2026** · `src/scheduler.ts` (`reschedule`), `tests/pace.test.mjs`
+
+Practice is not gated on a card being due, so a learner may answer a card
+minutes after they last saw it. What that answer should do to the card's
+schedule has now been decided twice, and this entry is here because the
+first answer looked right and was wrong in a way nothing caught for several
+releases.
+
+**What it was.** A gap grew from the time actually waited. Answer a card
+halfway through its gap and it grew by half as much; answer it straight
+away and it grew by nothing. The reasoning was that half a wait is half the
+evidence, which is true, and it read well.
+
+**What was wrong with it.** The half it did not say out loud was that an
+early answer also re-dated the card — the next review was set to *now* plus
+the gap. So the wait already banked was not merely discounted, it was
+thrown away and started again. A learner coming back every twenty minutes
+re-dated every card every twenty minutes, and no card ever fell due. The
+wait the growth was computed from was therefore always about nought, and it
+had a floor of one day, so every card was credited with a day's retention it
+had not earned and grew to roughly two and a half days and stopped. The bar
+that says a word is recognised is four days. Nothing ever reached it, the
+front door never emptied, and no new word was ever released — permanently,
+for as long as the learner kept practising. The measured case: thirty
+sittings a day, every answer correct, ten words met in a fortnight and never
+an eleventh.
+
+It is worth naming the shape of this, because it is the second time the same
+shape has bitten. Both of the rules that ration new words have now had a
+version under which *practising harder made a learner learn less*. A rule
+about pacing should be checked against the learner who does far too much,
+not only against the one the design imagines.
+
+**What it is now.** An answer given before a card is due is counted — the
+reps, the right and wrong, the history, the difficulty reading, everything
+the progress screen is made of — and moves neither the gap nor the date.
+The card comes back when it was always going to, and grows then, from a
+wait it genuinely served. A miss is untouched by this and still lapses the
+card in full, above the early return, because forgetting is news whenever it
+arrives.
+
+**What it costs.** Two things. An early answer now earns nothing at all
+towards the schedule, where before it earned a little when the card was
+nearly due; a card answered an hour before it asks comes back in an hour
+rather than growing then and there. That is a real loss and a small one,
+and it buys a rule that can be stated in one sentence and cannot rot in the
+way the last one did.
+
+The second is the one to watch. Early *successes* now move nothing while
+early *misses* still move everything, so for somebody drilling one card
+hundreds of times a day the schedule only ratchets downward: at thirty
+sittings a day a simulated learner who is right nine times in ten still
+never masters a word, because the tenth answer lapses it. Whether a miss on
+a card nobody asked about should count in full is a genuine question and it
+is deliberately not settled here — "a miss is a miss wherever it happens" is
+a rule with its own good reasons, and trading it away wants its own
+decision rather than being smuggled in beside this one.
+
+**Where it is measured.** `tests/pace.test.mjs` plays out a simulated
+learner and reports what a course costs in days. It did not catch this,
+because every case in it sat down once or twice a day. It now has one that
+sits down thirty times.
+
+---
+
+## A card's ID is a second name, not the id it is stored under
+
+**18 September 2026** · `src/variables.ts` (`cardRef`, `refClash`,
+`renamedIn`), `src/card-editor.tsx`, `server/api/courses.js`
+
+A teacher can now name a card and have a sentence ask for it: write
+`{{colour-red}}` in a frame and that one card fills the hole. The obvious
+implementation is to let the teacher type the card's `id` — the app already
+mints one, the server already takes whatever id the client sends, and a
+document key is unique by construction.
+
+**Why it is a separate field.** Because the name has to be *changeable*, and
+the id cannot be. A card's id is written into the decks that hold it, into
+the `uses` of every phrase that teaches it, and into every student's
+schedule on every device they own — none of which the server can rewrite
+and the last of which it cannot even read. Renaming a stored document would
+therefore either lose a learner's progress or need a migration reaching into
+private documents the server has no key for. `ref` is a field like any
+other: renaming it costs one save, and the only thing pointing at it is the
+braces in other teachers' cards, which are the teacher's own text and can be
+rewritten with their consent.
+
+The cost is two identifiers for one card, and the confusion that invites.
+It is held down by nobody ever seeing the first: the id appears in no
+screen, and `cardRef` is the one answer to "what does this card answer to".
+
+**Why uniqueness is checked in the editor and not enforced by the server.**
+The check the teacher needs is the one made while they are still looking at
+the name, and that is a client check — the editor already holds every card
+they can see. A server check would mean reading the whole collection on
+every card save, and the failure it prevents is mild: two cards answering
+to one name is two cards filling one blank, which is what a group tag
+already is. So the server narrows the string and stores it, and the editor
+is where a name is refused.
+
+**Why an ID and a group tag share one namespace.** Both are what a sentence
+writes between braces, so `{{x}}` has to have one answer. `refClash` refuses
+a name that either an ID or a tag already answers to — which means the
+editor can say *which* card has it, rather than "taken".
+
+**Why a rename asks rather than deciding.** Changing a name in one place and
+not the other is a real intention — a card leaving a group, or a card being
+given a new name while the old sentences are meant to break loudly — and so
+is changing it everywhere. Guessing either way silently edits cards the
+teacher was not looking at, or silently leaves sentences pointing at
+nothing. So both answers are offered in words, on the modal, and neither is
+the default. `renamedIn` does the rewriting, returns null for a card nothing
+moved in, and is a plain function so a test can ask it without a screen; the
+editor carries the answer out with the card being saved, because an editor
+that could save other people's cards is an editor with the whole collection
+in scope.
+
+**What it costs.** A rename of a common tag is one save per card that
+carries it, in a loop, through the same offline-safe path a single save
+takes — so a rename made on a train is dozens of kept requests. That is
+accepted: the alternative is a bulk endpoint, which is a second way to write
+a card and a second place for the rules about what a card may contain to
+live.
+
+---
+
+## What kind of card it is, is the teacher's answer
+
+**18 September 2026** · `sentence` on `Card` in `src/types.ts`; `isSentence`
+in `src/variables.ts`; `shapeOf`, `strayHoles` and `writtenCard` in
+`src/card-editor.tsx`; `save-card` in `server/api/courses.js`
+
+The editor asked which kind of card this was, offered three answers, and
+stored none of them. The kind was worked out again from the card's own words
+each time it was opened: braces in the text meant a sentence, and nothing
+else did.
+
+That reads as economy — nothing stored, nothing to keep in step — and the
+comment defending it said the braces were unambiguous where two tables that
+look alike had to be asked about (0.137). Both halves of that are true and
+neither is the point. **Reading a card is not the same as being told.** A
+question a person answers, which is then discarded and re-derived, is not a
+question: it is an animation of a fact the app had already decided.
+
+What it actually cost, in the order somebody would meet it:
+
+- **A sentence written before its first blank was a word.** That is the
+  state every sentence passes through — you type the sentence, then you put
+  the hole in — and for the length of it the card was vocabulary: dealt in a
+  matching grid, offered as a wrong answer beside real words, and lent out
+  to fill somebody else's hole. `fillsOf` refused a card with braces in it,
+  which is not the same rule as refusing a sentence, and the gap between
+  those two rules was exactly that window.
+- **A blank typed into a word made it a sentence.** On a plain word that is
+  merely presumptuous. On a word with a table under it — a verb — the card
+  reopened in the sentence editor, the table was not drawn, and the line
+  under the kind said every box in it would be dropped on the next save. A
+  verb's whole conjugation and every student's progress on it, one save away,
+  because of two braces.
+- **And the way back was not offered either.** A card that lost its last
+  blank stopped being a sentence, whatever it had been called.
+
+**So it is stored, and only `true` is stored.** A word may not carry a
+blank, so a card with no holes and nothing stored has already said it is a
+word; a stored `false` would be a second way of saying the same thing, and
+this codebase keeps having to remove those. Absent means read it the old
+way, which is the whole of the migration: every card ever written reads as
+it always did, a half-migrated collection reads like one that is not, and a
+card pins its answer the next time somebody saves it. Nothing is rewritten
+and no pass over the collection is needed.
+
+**The rule that makes it safe to store is the refusal.** Only a sentence
+may have a blank, and `strayHoles` stops the save of any other card with
+braces in one of its own forms. Without that, a stored kind and the braces
+in the text are two facts that can disagree, and something would have to
+decide which wins — which is the problem the derived reading was avoiding,
+moved rather than solved. With it, they cannot disagree on anything that
+saves, and the two readings agree everywhere else by construction.
+
+The refusal names both ways out rather than picking one. "I meant to write
+a sentence" and "I typed braces into a word" are opposite intentions with
+the same symptom, the fix for one destroys the other's work, and the app has
+no way to tell them apart. It had been guessing, and it had been guessing
+the more destructive way.
+
+**The card's own forms, not its cells.** A sentence a card asks *itself* in
+is written on a cell — a row and no column — and `{{verb}}` there is the
+card's own place, filled from its own table. That is a blank on a word card
+and it is the one that belongs there, so the refusal looks at `ownForms`
+and leaves the table alone.
+
+**What it costs.**
+
+- **A conversation is not covered.** A turn with braces in it is neither
+  offered nor refused, exactly as before. Enforcing it there would make an
+  existing scene with braces unsaveable, with no way to answer the
+  complaint, because a scene cannot be called a sentence. Whether a turn
+  should be able to carry a blank is a real question and a separate one.
+- **The kind travels to the student.** `fillsOf` now asks the card rather
+  than its braces, so a device has to know: `cardToItem` carries `sentence`
+  and the server stores it as a boolean either way, for the reason `drill`
+  is stored that way — a card turned back into a word must come back as one,
+  and an absent field would leave every reader falling back to the braces
+  for ever.
+
+---
+
+## A blank is put into a sentence, not typed into it
+
+**18 September 2026** · `dropRail`, `withSlotAt`, `withoutSlot` and
+`movedSlot` in `src/variables.ts`; `BlankField`, `BlankBar` and `BlankSheet`
+in `src/card-editor.tsx`; `Overlay` in `src/shared.tsx`
+
+Writing a blank meant typing it: the braces, the name, the spelling, and
+then the same name again in each of the other two fields. A name half a
+letter out from what the other cards call it matched nothing, for ever, and
+looked exactly like a name that matched. Every other silent failure on this
+screen has been closed; this was the last one, and it was the one the
+feature is actually made of.
+
+**The bar under each field.** A chip per blank the card knows, and a button
+for one it does not. Two states, because there are two facts: this field has
+it, or it does not and one tap puts it there. That is the whole of keeping
+the three fields in step — the rule `slotTrouble` has enforced since blanks
+existed, and which until now the editor would only ever tell you off for
+breaking.
+
+**Why the drop target is a gap between words.** A blank is dragged to where
+it belongs, and the obvious reading of that is a character offset: work out
+which character of the field the finger is over, and put it there. That
+means measuring text the browser has already laid out — building a mirror
+element with the same font, padding and direction, and asking it where each
+character landed — which for a script that runs right to left and joins its
+letters is measuring it a *second* way and getting a second answer. Handing
+the browser real elements and asking `elementFromPoint` which one the finger
+is on has one answer, and it is the right one in every script.
+
+It is also the better target. Nobody puts a hole in the middle of a word, so
+the gaps between words are the places a teacher is actually aiming at, and
+they are thumb-sized rather than glyph-sized. `dropRail` cuts a field into
+its words and the points between them; a blank already standing is one
+piece and not the six characters of its braces, so there is no place inside
+one.
+
+**The tap is a click; the drag reads the pointer.** These are split, and the
+reason is not tidiness: a chip is a button, and Enter or the space bar raise
+a click and no pointer event at all. A chip that acted on `pointerup` would
+have been a control nobody could reach without a mouse. `dropped` stops a
+completed drag counting twice, because a pointer released over the chip it
+started on raises a click afterwards.
+
+**The string rules are pure and tested.** A blank is spaced like the word it
+stands in for — a space on each side in the middle of a sentence, none
+hanging off either end, one space and not two where it is taken out. That is
+not cosmetic: the script is what a student's answer is marked against, so a
+doubled space is a sentence nobody can type. And an offset inside an
+existing blank snaps to whichever end is nearer, because `{{na{{me}}me}}` is
+not something any reader here could make sense of.
+
+**What it costs.**
+
+- **The sheet counts through `fillsOf`.** The rows the editor already had
+  keep the two halves of a name apart — how many cards *say* they are a
+  noun, and how many *tag* themselves with the word — and a name can be
+  both: Arabic declares `name` as a kind of word and `{{name}}` is the
+  oldest frame in the app, filled by the names a teacher has tagged.
+  Counting one half told a teacher that the blank they were about to write
+  had nothing behind it while two cards stood ready to fill it.
+- **Moving a blank between two fields is not a drag.** A chip drags onto its
+  own field only. Tapping is how a blank reaches another field, which is the
+  gesture that matters — the fields are meant to agree, not to trade.
+
+---
+
 ## Being asked and being lent are two answers, and `drill` is read off them
 
 **18 September 2026** · `src/types.ts` (`lend`), `src/variables.ts`
@@ -2095,10 +2553,14 @@ read off them: a card is a question exactly while something on it is asked
 on its own, and a card stored with it off opens with nothing asked and
 everything still lent.
 
-**What it costs.** The "a new card that fills a blank is not drilled by
+**What it costs.** The "a new card that joins a group is not drilled by
 default" rule was a third state of that toggle — `null`, meaning "whatever
-this card looks like". A hidden state cannot survive being spread over one
-tick per part, so it is now a visible side effect: naming a blank on a card
-nobody has saved yet unticks "on its own" everywhere, once, and the teacher
-can say otherwise. The default is unchanged; what changed is that it
-happens in front of them.
+this card looks like" — and a hidden state cannot survive being spread over
+one tick per part. It is written into the ticks instead: joining a first
+group on a card nobody has saved unticks "on its own" everywhere, and
+leaving the last one ticks it back, so the guess is as reversible as it was
+while it was derived. What stops it is the teacher touching any tick, which
+is them answering; from there the app stops answering for them. The default
+is unchanged. What changed is that it happens in front of them, which is
+the point: a card-wide toggle nobody was shown could hold a state nobody
+could see.
