@@ -8,6 +8,25 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.182 — 18 September 2026
+
+**A card no longer needs an ID to be saved.** The ID is the name one card
+answers to, so that another card's blank can ask for *that* word —
+`{{colour-red}}` rather than any colour. Most cards are never pointed at
+that way, and the name is usually wanted later, while you are writing the
+sentence that points at them.
+
+Every new card was being made to have one first, so the commonest job on
+the screen — write a word, save it — waited on a decision about a card that
+did not exist yet, behind a Save button that stayed grey with nothing
+saying why. The box is still there, first thing in the Blanks section, and
+now says it is optional; a card can be given one whenever it needs one.
+
+What has not changed is the part that was doing real work: a name that
+something else already answers to — another card's ID, or a group tag —
+still stops the save and says which card has it. Two cards answering to one
+`{{x}}` is the one thing an ID is there to prevent.
+
 ## 0.181 — 18 September 2026
 
 **A blank sits in the sentence now, not under it.**

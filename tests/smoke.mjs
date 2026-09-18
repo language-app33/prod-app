@@ -4038,10 +4038,15 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
      The other way a blank is filled. A group tag is a set of words a
      sentence will take any of; a card's own ID is the name that reaches
-     that one word — "{{colour-red}} is heavy". So every new card is asked
-     for one, it is checked against everything else that answers to a name
-     while the teacher is still looking at it, and it is shut with a tick
-     once it is free. */
+     that one word — "{{colour-red}} is heavy". Offered on every new card,
+     checked against everything else that answers to a name while the
+     teacher is still looking at it, and shut with a tick once it is free.
+
+     Offered, not demanded. Until 0.182 a new card could not be saved
+     without one, so the commonest job on this screen — write a word, save
+     it — waited on a decision about a card that did not exist yet, behind
+     a Save that stayed grey with nothing saying why. Most cards are never
+     pointed at by name. */
   {
     const idBox = () => /** @type {any} */ (
       [...document.querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === "The card's ID") || null);
@@ -4049,11 +4054,23 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === label) || null);
     const idName = () => (((document.querySelector(".at-idname") || {}).textContent) || "").trim();
 
-    check("a new card is asked for an ID", !!idBox(),
-      idBox() ? "asked" : "no such field");
-    check("and is not saved without one",
-      !!saveBtn() && saveBtn().disabled,
-      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+    check("a new card is offered an ID", !!idBox(),
+      idBox() ? "offered" : "no such field");
+    check("and says it is optional",
+      /Optional\./.test(((document.querySelector(".at-part") && document.body.textContent) || "")) &&
+        /needs to point at this card by name/.test(document.body.textContent || ""),
+      ([...document.querySelectorAll(".at-hint")].map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /^Optional\./.test(t))) || "(nothing said)");
+
+    /* A card is its words, and with those written it can be saved —
+       nameless, which is what nearly every card is. */
+    typeInto(fieldNamed(/^Arabic script and transliteration$/i), "شمس");
+    await sleep(80);
+    typeInto(fieldNamed(/^English$/), "sun");
+    await sleep(200);
+    check("and a card with its words is saved without one",
+      !!saveBtn() && !saveBtn().disabled && !idBox().value,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"} with the ID box empty`);
 
     /* Narrowed as it is typed to what can go between braces, so a teacher
        typing "Name Is!" is not handed "nameis" by a save they have already
@@ -4582,7 +4599,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       const idHalf = () => inHalf(CARDID, ".at-hint, .at-idrow")
         .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
       check("the ID is one of them, with the line saying what it is for",
-        /fill a blank in another card/.test(idHalf()) && /name-is/.test(idHalf()),
+        /reaching this one card from another card/.test(idHalf()) && /name-is/.test(idHalf()),
         idHalf() || "(nothing there)");
       /* A card with a blank of its own fills none — a sentence dropped
          into somebody else's hole is a sentence with a gap where the point

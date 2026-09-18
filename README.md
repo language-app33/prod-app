@@ -277,8 +277,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   answer to what a card fills, and the server reads it through the same
   function. And a blank named after **one card's ID** takes that card and
   no other: `{{colour-red}}` asks for that word where `{{colour}}` asks for
-  any of a group. The ID is the teacher's, typed when the card is written
-  and stored in `ref`; `cardRef` reads it and narrows it the way every
+  any of a group. The ID is the teacher's, optional, given whenever they
+  want one and stored in `ref`; `cardRef` reads it and narrows it the way every
   other name that goes between braces is narrowed, so what the editor
   checked and what the server stored cannot come apart. Both kinds of name
   are one namespace, because both are what a sentence writes between
@@ -406,14 +406,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   blank appears the moment a card writes it and goes when the last one
   stops.
 
-  *The card's ID* is the name this one card answers to, and the only field
-  in the editor a card cannot be saved without. It is asked of a new card,
-  because that is the moment the teacher is naming the thing and the moment
-  nothing else points at it yet; a card written before IDs existed carries
-  none until somebody opens it and gives it one, so editing a recording on
-  an old card is not a demand to name it. What it says back is as short as
-  it can be: a name that is free gets a green rim and no sentence, and the
-  only line here is for a name something else answers to, which names what
+  *The card's ID* is the name this one card answers to, and it is
+  **optional** — a card is its words, and a name for pointing at it is a
+  thing a teacher wants while writing the sentence that points, which is
+  usually another day. It is offered on every card and demanded of none;
+  what a save does refuse is a name something else already answers to,
+  whatever the card's age, because two cards answering to one `{{x}}` is
+  the one thing an ID is for preventing (`refOk` in
+  `src/card-editor.tsx`). What it says back is as short as it can be: a
+  name that is free gets a green rim and no sentence, and the only line
+  here is for a name something else answers to, which names what
   has it. It is typed once and then **shut** — the tick beside the box,
   which lights only on a free name — because an ID is written once and read
   a hundred times, and a box you can type in is a box you can type in by

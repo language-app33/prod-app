@@ -3358,17 +3358,23 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   };
 
   /*
-   * And the ID, which a card cannot be saved without.
+   * And the ID, which a card may have and does not need.
    *
-   * Asked of a new card, because that is the moment the teacher is naming
-   * the thing and the moment nothing else points at it yet. An older card
-   * carries none until somebody opens it and gives it one, so editing a
-   * recording on a card written last year is not a demand to name it —
-   * but a name that is *taken* stops a save whatever the card's age,
-   * because two cards answering to one name is the one thing the ID is
-   * for preventing.
+   * It is a name for reaching *this one card* from somebody else's blank —
+   * `{{colour-red}}` rather than any colour — and most cards are never
+   * reached that way. A card is its words; a name for pointing at it is a
+   * thing a teacher wants when they are writing the sentence that points,
+   * which is usually another day.
+   *
+   * Every new card was made to have one, which made the commonest job on
+   * the screen — write a word, save it — wait on a decision about a card
+   * that did not exist yet, with a Save that stayed grey and nothing
+   * saying why. The one part of this that was ever load-bearing is the
+   * other half: a name that is **taken** stops a save whatever the card's
+   * age, because two cards answering to one `{{x}}` is the one thing an ID
+   * is for preventing. That half stands.
    */
-  const refOk = (!refName || refFree) && (!!card || scene || refFree);
+  const refOk = !refName || refFree;
   const canSave = canSaveWord(main, trouble) && refOk && !strayHoles.length;
 
   /* Another form, named so that its own cells can point at it. No number
@@ -4665,7 +4671,10 @@ function IdBox({ word }: { word: WordDraft }) {
   return (
     <>
       <Help>
-        This ID will be used to use this card to fill a blank in another card.
+        Optional. A name for reaching <i>this one card</i> from another
+        card&rsquo;s blank — <code>{"{{colour-red}}"}</code> rather than any
+        colour. Leave it empty unless something needs to point at this card by
+        name; it can be given one later.
       </Help>
       {refOpen ? (
         <>
