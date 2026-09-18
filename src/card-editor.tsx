@@ -36,7 +36,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { fillText, hasSlots, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import { fillText, hasSlots, slotsIn, slotsOf, slotTrouble, splitSlots, tidySlots, valuesFor, valuesForTurn, withoutSlot, WORD_SLOT } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
   Button,
@@ -50,6 +50,7 @@ import {
   Help,
   Icon,
   IconButton,
+  iconNode,
   KeysButton,
   RadioGroup,
   Notice,
@@ -177,7 +178,7 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
  * most cards accept one answer and want the language's default, and four
  * pickers under every row would bury the words the card is actually about.
  */
-function ScriptAnswers({ lang, dims, form, onChange }: {
+function ScriptAnswers({ lang, dims, form, onChange, blanks = false, onRemoveBlank }: {
   lang: Lang;
   /* The axes this word is asked about — the kind of word's own list, not
      the pack's: a preposition has neither number nor gender, and a form
@@ -186,6 +187,10 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
   dims: GrammarDim[];
   form: Record<string, any>;
   onChange: (next: { ar: string; lat: string; answers: Record<string, any>[] }) => void;
+  /** Whether the holes in these two boxes are drawn as blanks — see ScriptInput. */
+  blanks?: boolean;
+  /** What the cross on a blank means here — see BlankText. */
+  onRemoveBlank?: (name: string) => void;
 }) {
   const fields = answerFields();
   const [rows, setRows] = useState(() => answerRows(form, fields));
@@ -215,7 +220,13 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
       {rows.map((row, i) => (
         <div className="at-answerpair" key={i}>
           <div className="at-altfield">
-            <ScriptInput lang={lang} value={row.text} onChange={(v) => edit(i, { text: v })} />
+            <ScriptInput
+              lang={lang}
+              value={row.text}
+              onChange={(v) => edit(i, { text: v })}
+              blanks={blanks}
+              onRemoveBlank={onRemoveBlank}
+            />
           </div>
           {/* The buttons take a column of their own so that the answer and
               its pronunciation, stacked in the column beside them, line up
@@ -236,17 +247,35 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
               />
             )}
           </div>
-          <input
-            className="at-input at-answersaid"
-            value={row.lat}
-            aria-label={
-              rows.length > 1
-                ? `${lang.translitLabel} of accepted answer ${i + 1}`
-                : lang.translitLabel
-            }
-            placeholder={lang.translitLabel.toLowerCase()}
-            onChange={(e) => edit(i, { lat: e.target.value })}
-          />
+          {/* The pronunciation leaves the same holes as the answer above
+              it — every field with words in it does — so it draws them
+              the same way. */}
+          {blanks ? (
+            <BlankText
+              className="at-input at-answersaid"
+              value={row.lat}
+              label={
+                rows.length > 1
+                  ? `${lang.translitLabel} of accepted answer ${i + 1}`
+                  : lang.translitLabel
+              }
+              placeholder={lang.translitLabel.toLowerCase()}
+              onChange={(v) => edit(i, { lat: v })}
+              onRemoveBlank={onRemoveBlank}
+            />
+          ) : (
+            <input
+              className="at-input at-answersaid"
+              value={row.lat}
+              aria-label={
+                rows.length > 1
+                  ? `${lang.translitLabel} of accepted answer ${i + 1}`
+                  : lang.translitLabel
+              }
+              placeholder={lang.translitLabel.toLowerCase()}
+              onChange={(e) => edit(i, { lat: e.target.value })}
+            />
+          )}
           {dims.length > 0 && (
             <div className="at-answergrammar">
               <Button
@@ -282,15 +311,487 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
   );
 }
 
+/* ------------------------------------------------------------------
+   A blank, inside the sentence it is part of
+
+   A card leaves a hole in itself by carrying `{{name}}` in its text —
+   see variables.ts, which is where that string is read and filled. That
+   is how a card is *stored*, and until 0.159 it was also how a card was
+   *edited*: the Blanks block drew a pill for every hole, the field drew
+   the braces, and the two were different pictures of the same thing
+   sitting one above the other. The pill could not be moved, because it
+   was not where the blank was; the braces could, by dragging four
+   characters of Latin punctuation through Arabic text.
+
+   So the pill is the blank now, and it is in the field. It can be
+   dropped anywhere in the sentence by dragging it, and taken off the
+   card by the cross on its end. The braces are still what is stored and
+   what every other reader of a card understands; they are simply not
+   something anybody has to look at or type.
+   ------------------------------------------------------------------ */
+
+/*
+ * A width-less space, kept on both sides of a pill.
+ *
+ * A box you can type in cannot put the caret after something it is not
+ * allowed to edit unless there is somewhere for the caret to be. With a
+ * pill at the end of the field and nothing behind it there is nowhere,
+ * and the sentence cannot be carried on — which is the state a teacher
+ * lands in every time they add a blank, since a new one goes on the end.
+ * One of these behind every pill is the room to stand; it is invisible,
+ * it is not a space, and readOut takes it back out again so that nothing
+ * beyond this box ever sees one.
+ */
+const PARK = "\u200B";
+
+/**
+ * What is written in a field, with its pills read back as the braces they
+ * stand for — the one direction that has to be exactly right, because it
+ * is what gets saved.
+ */
+function readOut(from: HTMLElement | DocumentFragment | null): string {
+  if (!from) return "";
+  let out = "";
+  const walk = (node: ChildNode) => {
+    if (node.nodeType === 3) {
+      out += String(node.nodeValue || "");
+      return;
+    }
+    const el = node as HTMLElement;
+    const slot = el.getAttribute ? el.getAttribute("data-slot") : null;
+    if (slot) {
+      out += `{{${slot}}}`;
+      return;
+    }
+    /* A browser puts a <br> in an emptied box, and a pasted line can
+       arrive wrapped in anything at all. Neither is a thing this field
+       holds: it is one line of a card. */
+    if (el.tagName === "BR") return;
+    Array.from(el.childNodes).forEach(walk);
+  };
+  Array.from(from.childNodes).forEach(walk);
+  /* A no-break space is what a browser leaves where you typed a space at
+     the end of a line. Saved as one it is a character the answer checker
+     would have to know about, so it never leaves this box. */
+  return out.split(PARK).join("").replace(/\u00A0/g, " ");
+}
+
+/** One blank, as it is drawn inside the field: its name, and its cross. */
+function pillNode(name: string): HTMLElement {
+  const pill = document.createElement("span");
+  pill.className = "at-blankpill";
+  pill.setAttribute("data-slot", name);
+  pill.setAttribute("contenteditable", "false");
+  pill.setAttribute("aria-label", `Blank: ${name}`);
+  const word = document.createElement("span");
+  word.className = "at-blankpillname";
+  word.textContent = name;
+  pill.appendChild(word);
+  const off = document.createElement("button");
+  off.type = "button";
+  off.className = "at-blankpilloff";
+  off.setAttribute("data-off", name);
+  /* Out of the tab order on purpose: inside a box you type in, the way
+     to take the thing beside the caret off is the key that has always
+     done it, and onKeyDown below makes backspace mean this. */
+  off.setAttribute("tabindex", "-1");
+  off.setAttribute("aria-label", `Remove the ${name} blank`);
+  const cross = iconNode("close", 14);
+  if (cross) off.appendChild(cross);
+  pill.appendChild(off);
+  return pill;
+}
+
+/** The field, drawn from the string it holds. */
+function paint(host: HTMLElement, value: string) {
+  host.textContent = "";
+  splitSlots(value).forEach((run, i) => {
+    if (!run.slot) {
+      host.appendChild(document.createTextNode(run.text));
+      return;
+    }
+    if (i === 0) host.appendChild(document.createTextNode(PARK));
+    host.appendChild(pillNode(run.slot));
+    host.appendChild(document.createTextNode(PARK));
+  });
+}
+
+/*
+ * Where in the string a place in the box is.
+ *
+ * Every edit below is worked out on the string and not on the nodes — a
+ * blank is eight characters of `{{name}}` wherever it is drawn as a pill
+ * — so the caret has to be able to say where it stands in those terms.
+ * Read by cutting the box off at that point and asking what is written
+ * in the piece, which is the same question readOut already answers, so
+ * there is one place that knows how a pill counts.
+ */
+function offsetAt(host: HTMLElement, node: ChildNode | null, at: number): number {
+  if (!node || !host.contains(node)) return readOut(host).length;
+  const range = document.createRange();
+  range.selectNodeContents(host);
+  try {
+    range.setEnd(node, at);
+  } catch {
+    return readOut(host).length;
+  }
+  return readOut(range.cloneContents()).length;
+}
+
+/** Where the caret stands, in the same terms. */
+function caretOffset(host: HTMLElement): number {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return readOut(host).length;
+  const range = sel.getRangeAt(0);
+  return offsetAt(host, range.startContainer as ChildNode, range.startOffset);
+}
+
+/** And back: the caret put where a place in the string says. */
+function placeCaret(host: HTMLElement, offset: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  range.selectNodeContents(host);
+  range.collapse(false);
+  /* A box rather than a variable: it is written inside the walk, and a
+     narrowing that was true before the walk ran would not be after. */
+  const found: { node: ChildNode | null; at: number } = { node: null, at: 0 };
+  let at = 0;
+  const walk = (parent: HTMLElement) => {
+    for (const node of Array.from(parent.childNodes)) {
+      if (at > offset) return;
+      if (node.nodeType === 3) {
+        const raw = String(node.nodeValue || "");
+        /* Every place inside this run that answers to the offset; the
+           last of them wins, so the caret lands after a parking space
+           rather than in front of it. */
+        for (let i = 0; i <= raw.length; i++) {
+          if (at + raw.slice(0, i).split(PARK).join("").length === offset) { found.node = node; found.at = i; }
+        }
+        at += raw.split(PARK).join("").length;
+        continue;
+      }
+      const el = node as HTMLElement;
+      const slot = el.getAttribute ? el.getAttribute("data-slot") : null;
+      if (slot) {
+        at += slot.length + 4;
+        continue;
+      }
+      walk(el);
+    }
+  };
+  walk(host);
+  if (found.node) {
+    range.setStart(found.node, found.at);
+    range.collapse(true);
+  }
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+/**
+ * The place in the text under a point on the screen — where a dragged
+ * pill would land if it were let go here.
+ *
+ * Two names for one thing, and no browser has both: the standard one and
+ * the one Chrome and Safari have always had. Neither exists in the
+ * harness's DOM, where nothing is dragged anyway, so a missing answer is
+ * "nowhere" rather than a crash.
+ */
+function caretAt(x: number, y: number): Range | null {
+  const doc = document as unknown as {
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: ChildNode; offset: number } | null;
+  };
+  if (doc.caretRangeFromPoint) return doc.caretRangeFromPoint(x, y);
+  if (doc.caretPositionFromPoint) {
+    const spot = doc.caretPositionFromPoint(x, y);
+    if (!spot) return null;
+    const range = document.createRange();
+    try {
+      range.setStart(spot.offsetNode, spot.offset);
+    } catch {
+      return null;
+    }
+    range.collapse(true);
+    return range;
+  }
+  return null;
+}
+
+/** The pill a place in the box is inside, where it is inside one. */
+function pillAt(node: ChildNode | null): HTMLElement | null {
+  const el = node && node.nodeType === 3 ? node.parentElement : (node as HTMLElement | null);
+  return el && el.closest ? (el.closest("[data-slot]") as HTMLElement | null) : null;
+}
+
+/**
+ * A field of a card, with the blanks in it drawn as blanks.
+ *
+ * Stands where an `<input>` stood, and is one everywhere it matters:
+ * the same class, the same label, one line, and what it hands up is the
+ * string the card is saved with. What it is instead is a box the app
+ * draws the contents of, because a pill is not a thing an input can
+ * hold.
+ *
+ * Nothing is repainted while somebody types. The string read back off
+ * the box is compared against the string that was painted into it, and
+ * they agree on every keystroke — so the caret is never moved out from
+ * under anybody. A repaint happens when the card changes from outside
+ * (the Blank button writes into three fields at once), when a blank is
+ * dropped somewhere else or taken off, and when braces are typed out by
+ * hand, which turn into the pill they name.
+ */
+function BlankText({ value, onChange, onRemoveBlank, className = "", style, dir, lang, label, placeholder, boxRef }: {
+  value?: string;
+  onChange: (value: string) => void;
+  /**
+   * What taking this blank off the card means, where the card has a
+   * say. A blank belongs to the card rather than to one of its fields —
+   * it is written into all three at once and every field with words in
+   * it leaves the same holes — so the cross hands the name up and the
+   * card takes it out of all of them. Left out, the field takes it out
+   * of itself, which is all a field on its own can mean by it.
+   */
+  onRemoveBlank?: (name: string) => void;
+  className?: string;
+  style?: React.CSSProperties;
+  dir?: string;
+  lang?: string;
+  label?: string;
+  placeholder?: string;
+  boxRef?: React.MutableRefObject<HTMLElement | null>;
+}) {
+  const mine: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
+  /* What was last drawn into the box, so that a change from outside can
+     be told from what somebody has just typed into it. */
+  const painted = useRef<string | null>(null);
+  const lifted = useRef<HTMLElement | null>(null);
+  const [moving, setMoving] = useState(false);
+  const text = value || "";
+  /* The same string as the box draws it: a hole written `{{ Name }}` is
+     one pill named `name`, and every offset below is counted against
+     what is on the screen rather than against what was stored. */
+  const shown = splitSlots(text).map((run) => (run.slot ? `{{${run.slot}}}` : run.text)).join("");
+
+  useEffect(() => {
+    const host = mine.current;
+    if (!host || painted.current === text) return;
+    const focused = document.activeElement === host;
+    const at = focused ? caretOffset(host) : 0;
+    painted.current = text;
+    paint(host, text);
+    if (focused) placeCaret(host, Math.min(at, text.length));
+  }, [text]);
+
+  const commit = (next: string) => {
+    painted.current = next;
+    if (next !== text) onChange(next);
+  };
+
+  /* Drawn again and handed up, for the edits the app makes itself —
+     a blank moved, dropped, or a paste flattened to one line. */
+  const rewrite = (next: string, caret: number) => {
+    const host = mine.current;
+    if (host) {
+      paint(host, next);
+      if (document.activeElement === host) placeCaret(host, caret);
+    }
+    commit(next);
+  };
+
+  const remove = (name: string) => {
+    const next = withoutSlot(shown, name);
+    const host = mine.current;
+    if (host) paint(host, next);
+    painted.current = next;
+    /* The card's answer, where it has one: the same blank comes out of
+       the other fields too, and this field's own new value arrives back
+       down the same way every other outside change does. */
+    if (onRemoveBlank) onRemoveBlank(name);
+    else if (next !== text) onChange(next);
+  };
+
+  const onInput = () => {
+    const host = mine.current;
+    if (!host) return;
+    const next = readOut(host);
+    const pills = host.querySelectorAll("[data-slot]").length;
+    const holes = splitSlots(next).filter((run) => run.slot).length;
+    /* Braces somebody typed out by hand, and the <br> a browser leaves
+       in a box that has just been emptied — which would otherwise keep
+       the placeholder from coming back. */
+    if (holes !== pills || (!next && host.childNodes.length > 0)) {
+      const at = caretOffset(host);
+      paint(host, next);
+      placeCaret(host, at);
+    }
+    commit(next);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    /* One line: a card's field is one line wherever else it is shown. */
+    if (e.key === "Enter") {
+      e.preventDefault();
+      return;
+    }
+    if (e.key !== "Backspace" && e.key !== "Delete") return;
+    const host = mine.current;
+    const sel = window.getSelection();
+    if (!host || !sel || !sel.isCollapsed) return;
+    const at = caretOffset(host);
+    let pos = 0;
+    for (const run of splitSlots(text)) {
+      const len = run.slot ? run.slot.length + 4 : run.text.length;
+      /* Backspace with a pill in front of the caret, or delete with one
+         behind it, means the blank — not the four characters of one
+         brace. It takes it off the card, which is what the cross on it
+         does and the only thing either can sensibly mean. */
+      if (run.slot && at === (e.key === "Backspace" ? pos + len : pos)) {
+        e.preventDefault();
+        remove(run.slot);
+        return;
+      }
+      pos += len;
+    }
+  };
+
+  const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const host = mine.current;
+    if (!host) return;
+    e.preventDefault();
+    const flat = String((e.clipboardData && e.clipboardData.getData("text/plain")) || "").replace(/\s+/g, " ");
+    const at = caretOffset(host);
+    rewrite(shown.slice(0, at) + flat + shown.slice(at), at + flat.length);
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest) return;
+    /* The cross acts on the tap rather than on the press, like every
+       other button; what the press must not do is put the caret in the
+       middle of a pill. */
+    if (target.closest("[data-off]")) {
+      e.preventDefault();
+      return;
+    }
+    const pill = target.closest("[data-slot]") as HTMLElement | null;
+    if (!pill) return;
+    e.preventDefault();
+    lifted.current = pill;
+    pill.classList.add("lifting");
+    setMoving(true);
+  };
+
+  const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const off = target.closest ? target.closest("[data-off]") : null;
+    if (!off) return;
+    e.preventDefault();
+    remove(off.getAttribute("data-off") || "");
+  };
+
+  /*
+   * Dragging a blank along the sentence.
+   *
+   * The pill itself is moved through the text as the finger goes, rather
+   * than a line being drawn where it would land: what it will read like
+   * is the thing being decided, so the sentence shows it. Where the
+   * finger is becomes a place in the text through the same caret the
+   * browser would put there if you tapped, so a blank lands between two
+   * words the way anything else does.
+   *
+   * Pointer events, not the drag-and-drop the desktop has: a teacher
+   * writing cards is as likely to be on a phone, and a thumb generates
+   * no dragstart at all.
+   */
+  useEffect(() => {
+    const host = mine.current;
+    const pill = lifted.current;
+    if (!moving || !host || !pill) return;
+    const move = (e: PointerEvent) => {
+      const place = caretAt(e.clientX, e.clientY);
+      if (!place || !host.contains(place.startContainer)) return;
+      if (pill.contains(place.startContainer)) return;
+      const inside = pillAt(place.startContainer as ChildNode);
+      /* Never inside another blank: two pills are two words of the
+         sentence, and one dropped into the middle of the other's name
+         would be a hole inside a hole. */
+      if (inside === pill) return;
+      if (inside && inside.parentNode) inside.parentNode.insertBefore(pill, inside);
+      else place.insertNode(pill);
+    };
+    const end = (keep: boolean) => {
+      pill.classList.remove("lifting");
+      lifted.current = null;
+      setMoving(false);
+      const next = keep ? tidySlots(readOut(host)) : text;
+      rewrite(next, next.length);
+    };
+    const drop = () => end(true);
+    const stop = () => end(false);
+    const key = (e: KeyboardEvent) => {
+      if (e.key === "Escape") end(false);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", drop);
+    window.addEventListener("pointercancel", stop);
+    window.addEventListener("keydown", key);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", drop);
+      window.removeEventListener("pointercancel", stop);
+      window.removeEventListener("keydown", key);
+    };
+  });
+
+  return (
+    <div
+      ref={(el) => {
+        mine.current = el;
+        if (boxRef) boxRef.current = el;
+      }}
+      className={`at-blanktext${className ? " " + className : ""}${moving ? " moving" : ""}`}
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      aria-multiline="false"
+      aria-label={label}
+      data-placeholder={placeholder || ""}
+      spellCheck={false}
+      dir={dir}
+      lang={lang}
+      style={style}
+      onInput={onInput}
+      onKeyDown={onKeyDown}
+      onPaste={onPaste}
+      onPointerDown={onPointerDown}
+      onClick={onClick}
+    />
+  );
+}
+
 /* Exported for the Numbers screen, which is fifty-five of these boxes in a
    grid and has exactly the same need: a field in the language's script,
    laid out by its direction, with the on-screen keys a click away. A
    second implementation of it there would be a second place for the caret
    handling and the direction rule to drift. */
-export function ScriptInput({ lang, value, onChange, compact = false, label }: {
+export function ScriptInput({ lang, value, onChange, compact = false, label, blanks = false, onRemoveBlank }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
+  /**
+   * Whether a hole in this field is drawn as the blank it is.
+   *
+   * On a card's own fields, yes: that is where a sentence is written and
+   * where its blanks belong. Not in a verb's table or on the Numbers
+   * screen, which are grids of words — a cell of a table cannot leave a
+   * blank, and a box that could would be offering something the card has
+   * no way to save.
+   */
+  blanks?: boolean;
+  /** What the cross on a blank means here — see BlankText. */
+  onRemoveBlank?: (name: string) => void;
   /**
    * What to call this box where the label above it does not say — in a
    * table, where one heading stands over twenty-one boxes and only the row
@@ -310,7 +811,43 @@ export function ScriptInput({ lang, value, onChange, compact = false, label }: {
   compact?: boolean;
 }) {
   const [keys, setKeys] = useState(false);
-  const ref: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
+  /* Either kind of box: an input, or the one the blanks are drawn in.
+     All this holds it for is to put the focus back after an on-screen
+     key, which both answer to. */
+  const ref: React.MutableRefObject<HTMLElement | null> = useRef(null);
+  /* The two are the same box to look at and to lay out, so what says so
+     is written once and handed to whichever is drawn. */
+  const look = {
+    className: "at-input",
+    lang: lang.id,
+    /* The text decides, once there is any: dir="auto" lays the field out
+       by its own first strong character, so a pasted Arabic phrase reads
+       right-to-left even if the deck is labelled with another language.
+       Trusting the deck's direction is what put pasted words in the
+       wrong order. While the field is empty there is nothing to go on,
+       so the language's own direction places the caret. */
+    dir: value ? "auto" : lang.direction,
+    /* The room for the keys button is reserved by .at-inputwrap in the
+       stylesheet — physical right, not logical, because the button is
+       at right:8px whichever way the text runs. */
+    style: {
+      fontFamily: lang.fontStack,
+      fontSize: compact ? 18 : 22,
+      textAlign: "start" as const,
+      ...scriptVars(lang),
+    },
+  };
+
+  /* An on-screen key writes on the end of the field, which is where the
+     caret is in the case it exists for — a box just typed into. A field
+     that ends with a blank is the one place that would read wrong: the
+     letter would land against the pill and fuse with it, so it is given
+     the space it needs. */
+  const append = (key: string) => {
+    const had = String(value || "");
+    onChange(blanks && /\}\}$/.test(had) ? `${had} ${key}` : `${had}${key}`);
+    if (ref.current) ref.current.focus();
+  };
 
   return (
     <>
@@ -319,30 +856,26 @@ export function ScriptInput({ lang, value, onChange, compact = false, label }: {
           would send the button across the field as soon as an English word
           was typed into an Arabic deck. */}
       <div className={`at-inputwrap${lang.direction === "rtl" ? " rtl" : ""}`}>
-        <input
-          ref={ref}
-          className="at-input"
-          lang={lang.id}
-          aria-label={label}
-          /* The text decides, once there is any: dir="auto" lays the field out
-             by its own first strong character, so a pasted Arabic phrase reads
-             right-to-left even if the deck is labelled with another language.
-             Trusting the deck's direction is what put pasted words in the
-             wrong order. While the field is empty there is nothing to go on,
-             so the language's own direction places the caret. */
-          dir={value ? "auto" : lang.direction}
-          /* The room for the keys button is reserved by .at-inputwrap in the
-             stylesheet — physical right, not logical, because the button is
-             at right:8px whichever way the text runs. */
-          style={{
-            fontFamily: lang.fontStack,
-            fontSize: compact ? 18 : 22,
-            textAlign: "start",
-            ...scriptVars(lang),
-          }}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
+        {blanks ? (
+          <BlankText
+            {...look}
+            boxRef={ref}
+            label={label}
+            value={value}
+            onChange={onChange}
+            onRemoveBlank={onRemoveBlank}
+          />
+        ) : (
+          <input
+            {...look}
+            ref={(el) => {
+              ref.current = el;
+            }}
+            aria-label={label}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        )}
         <KeysButton on={keys} onClick={() => setKeys((v) => !v)} />
       </div>
       {keys && (
@@ -355,10 +888,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label }: {
                 key={i}
                 className="at-key"
                 style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                onClick={() => {
-                  onChange(value + k);
-                  if (ref.current) ref.current.focus();
-                }}
+                onClick={() => append(k)}
               >
                 {k}
               </button>
@@ -367,10 +897,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label }: {
             <button
               key={"m" + i}
               className="at-key mark"
-              onClick={() => {
-                onChange(value + m);
-                if (ref.current) ref.current.focus();
-              }}
+              onClick={() => append(m)}
             >
               {"\u25CC" + m}
             </button>
@@ -1886,6 +2413,33 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
       ),
     );
   };
+  /*
+   * Take a blank off the card, in every field at once.
+   *
+   * The other half of putBlank, and for the same reason: a blank that
+   * came out of the English and stayed in the script would be exactly
+   * the disagreement the button exists to make unreachable. So the cross
+   * on a pill, and backspace beside one, mean the card rather than the
+   * field somebody happened to be looking at — see BlankText, which
+   * hands the name up here.
+   *
+   * The gap it leaves closes behind it: withoutSlot is where that is
+   * written down, with the rest of what a hole in a sentence is.
+   */
+  const dropBlank = (name: string) => {
+    setForms((f) =>
+      f.map((form, i) =>
+        i === 0
+          ? {
+              ...form,
+              ar: withoutSlot(form.ar, name),
+              en: withoutSlot(form.en, name),
+              lat: withoutSlot(form.lat, name),
+            }
+          : form,
+      ),
+    );
+  };
   const canSave = canSaveWord(main, trouble);
 
   /* Another form, named so that its own cells can point at it. No number
@@ -2020,6 +2574,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     canSave,
     setForm,
     putBlank,
+    dropBlank,
     parts,
     setAskPart,
   };
@@ -2558,7 +3113,18 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
   role: string;
   children?: Node;
 }) {
-  const { canSave, drillsTranslit, setForm, duplicateForm, removeForm, setRecording } = word;
+  const { canSave, drillsTranslit, setForm, duplicateForm, removeForm, setRecording, dropBlank } = word;
+  /*
+   * The cross on a blank takes it off the card, not out of one field.
+   *
+   * A blank is written into the card's three fields at once, and every
+   * field with words in it leaves the same holes — so taking one out of
+   * the English and leaving it in the script is the one state the editor
+   * spends a paragraph refusing. The card answers for the card's own
+   * word; a second form's fields, which the Blank button never wrote
+   * into, answer for themselves.
+   */
+  const takeOff = i === 0 ? dropBlank : undefined;
   return (
     <>
   <div className={`at-formblock${i === 0 ? " main" : ""}`}>
@@ -2606,6 +3172,8 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
         dims={dimsFor(lang, word.category)}
         form={f}
         onChange={(next) => setForm(i, { ...f, ...next })}
+        blanks
+        onRemoveBlank={takeOff}
       />
       {!drillsTranslit && (
         <Help>
@@ -2621,7 +3189,13 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
         value={f.en}
         onChange={(v) => setForm(i, { ...f, en: v })}
         render={(v, set) => (
-          <input className="at-input" value={v} onChange={(e) => set(e.target.value)} />
+          <BlankText
+            className="at-input"
+            label="English"
+            value={v}
+            onChange={set}
+            onRemoveBlank={takeOff}
+          />
         )}
       />
     </Field>
@@ -2790,7 +3364,7 @@ function AskBlock({ word }: { word: WordDraft }) {
         </span>
       </div>
       <CheckList
-        options={parts.map((p) => ({ id: p.id, title: p.title, note: p.note }))}
+        options={parts.map((p) => ({ id: p.id, title: p.title, note: <WithBlanks text={p.note} /> }))}
         chosen={on.map((p) => p.id)}
         onToggle={(id, wasOn) => setAskPart(id, !wasOn)}
       />
@@ -2813,13 +3387,61 @@ function AskBlock({ word }: { word: WordDraft }) {
   );
 }
 
+/*
+ * A blank named in a sentence about it, drawn as the thing it names.
+ *
+ * The editor used to print the braces — "English is missing {{name}}" —
+ * which was the only way to say which hole it meant while the braces were
+ * what a teacher saw in the field. They are not any more, so a line that
+ * still printed them would be naming the blank in a notation that appears
+ * nowhere else on the screen.
+ */
+function BlankName({ name }: { name: string }) {
+  return <span className="at-blankname">{name}</span>;
+}
+
+/*
+ * A card's own words, wherever the editor shows them back rather than
+ * holds them: the list of what is drilled, which prints the form it is
+ * about. Written as it is stored — braces and all — until 0.159, which
+ * is the last place they could appear once the field itself stopped
+ * showing them.
+ */
+function WithBlanks({ text }: { text: string }) {
+  return (
+    <>
+      {splitSlots(text).map((run, i) =>
+        run.slot ? (
+          <BlankName key={i} name={run.slot} />
+        ) : (
+          <React.Fragment key={i}>{run.text}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
+/** Several of them, in a sentence: "name and food". */
+function BlankNames({ names }: { names: string[] }) {
+  return (
+    <>
+      {names.map((name, i) => (
+        <React.Fragment key={name}>
+          {i > 0 ? " and " : ""}
+          <BlankName name={name} />
+        </React.Fragment>
+      ))}
+    </>
+  );
+}
+
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const { holes, starved, asked, fills, setFills, main, standsIn, blanksAround, putBlank, trouble, drill, setDrillChoice } = word;
   return (
     <>
     {/* ---- blanks ----
-        A card with a gap in it — "My name is {{name}}" — and the
-        cards that fill the gap. One fact about the whole card, so it
+        A card with a gap in it — "My name is ___" — and the cards
+        that fill the gap. One fact about the whole card, so it
         stands on its own rather than beside a field.
 
         It was called Variables, which is the word the code uses, and
@@ -2830,7 +3452,16 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         agree. The syntax is now written by a button, the two jobs
         are two panels and only the one that applies is on screen,
         and the explaining is done by showing the sentences a student
-        will actually be asked. */}
+        will actually be asked.
+
+        The blanks themselves are no longer listed here. They were a
+        second picture of the card's own words — a row of pills under
+        a field that showed the same holes as braces — and a teacher
+        looking at two pictures of one thing has to work out which of
+        them they can act on. They are in the sentence now, where
+        they can be moved and taken off; what is left here is the
+        button that adds one, and everything about the blanks that is
+        not in the sentence: what fills them, and what does not. */}
       <div className="at-formblock at-mt5">
         <div className="at-formhead">
           <span className="at-formnum">Blanks</span>
@@ -2862,8 +3493,14 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             {starved.length > 0 && (
               <p className="at-formneed unmet">
                 Nothing fills{" "}
-                {starved.map((s) => `{{${s}}}`).join(" or ")} yet, so this card
-                cannot be practised. Write a card that says it fills it.
+                {starved.map((s, i) => (
+                  <React.Fragment key={s}>
+                    {i > 0 ? " or " : ""}
+                    <BlankName name={s} />
+                  </React.Fragment>
+                ))}{" "}
+                yet, so this card cannot be practised. Write a card that says it
+                fills it.
               </p>
             )}
             <Help>
@@ -2874,11 +3511,6 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         )}
 
         <div className="at-blankrow">
-          {holes.map((slot) => (
-            <span className="at-blankchip" key={slot}>
-              {slot}
-            </span>
-          ))}
           {/* Not where the table stands in for the card's own word:
               there is no field on this screen for it to write into. */}
           {!standsIn && (
@@ -2896,13 +3528,18 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             typing the braces by hand, so still said — in one line. */}
         {trouble && (
           <p className="at-formneed unmet">
-            {trouble.missing.length
-              ? `${fieldName(trouble.field, lang)} is missing ${trouble.missing
-                  .map((v) => `{{${v}}}`)
-                  .join(" and ")} — every field with words in it leaves the same blanks.`
-              : `${fieldName(trouble.field, lang)} names ${trouble.extra
-                  .map((v) => `{{${v}}}`)
-                  .join(" and ")}, which no other field does.`}
+            {trouble.missing.length ? (
+              <>
+                {fieldName(trouble.field, lang)} is missing{" "}
+                <BlankNames names={trouble.missing} /> — every field with words
+                in it leaves the same blanks.
+              </>
+            ) : (
+              <>
+                {fieldName(trouble.field, lang)} names{" "}
+                <BlankNames names={trouble.extra} />, which no other field does.
+              </>
+            )}
           </p>
         )}
 
@@ -2939,8 +3576,8 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             {fills ? (
               <>
                 <Help>
-                  Every card with a <code>{`{{${fills}}}`}</code> blank in it can borrow
-                  this word.
+                  Every card with a <BlankName name={fills} /> blank in it can
+                  borrow this word.
                 </Help>
                 <label className="at-tickrow">
                   <input

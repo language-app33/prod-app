@@ -929,7 +929,9 @@ button {
    whose script is Latin the two are equal, the ratio is one, and a slot is
    left the size of the words beside it. Muted for the same reason it is
    shrunk — it is the shape of the card, not a word to read. */
-.at-slot { font-size:calc(1em * var(--lscale, 1) / var(--sscale, 1)); color: var(--muted); }
+.at-slot { font-size:calc(.85em * var(--lscale, 1) / var(--sscale, 1)); color: var(--muted);
+  display:inline-block; padding:0 .4em; border-radius:999px; background: var(--tag-bg);
+  border:1px solid var(--tag-line); font-family: var(--mono); }
 /* Room for the descenders the clamp would otherwise shave off an Arabic
    line — the box crops to the line height, which sits above the tail of a
    ب or a ج. */
@@ -1662,6 +1664,55 @@ button {
    vertically, so the height is set outright and the padding goes. */
 .at-answerbox .at-input { height:64px; box-sizing:border-box; padding-top:0; padding-bottom:0; line-height:normal; }
 textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:vertical; min-height:140px; }
+
+/* ---- a field with the card's blanks in it --------------------------
+   A box you type in, which is also where the blanks of a sentence
+   live: each one a pill, moved by dragging it and taken off the card
+   by the cross on its end. It is not an <input> — an input holds
+   characters and nothing else — so everything an input would have been
+   given for free is here: the height of one line of text, a wrap that
+   breaks a long word rather than scrolling sideways, and a placeholder.
+
+   The box grows rather than scrolling. A sentence with two blanks in it
+   is longer than the word a card usually holds, and a field that keeps
+   its own text out of sight is a field you cannot check. */
+.at-blanktext { display:block; min-height:calc(1.35em + 34px); white-space:pre-wrap;
+  overflow-wrap:anywhere; line-height:1.35; cursor:text; }
+.at-blanktext:focus { outline:none; border-color: var(--brass); }
+.at-blanktext:empty::before { content:attr(data-placeholder); color: var(--faint);
+  font-weight:500; pointer-events:none; }
+/* While one is being carried, nothing under the finger is selected and
+   the page does not scroll out from under the gesture. */
+.at-blanktext.moving { user-select:none; -webkit-user-select:none; }
+/* The blank itself. Sized from the em of the box it sits in, so it is the
+   height of the line in a 22px script field and in a 15px Latin one
+   without either being told about the other; the name is Latin in the
+   middle of the taught script, and takes the same --lscale correction
+   every other Latin word in a script field takes. */
+.at-blankpill { display:inline-flex; align-items:center; gap:.15em; vertical-align:baseline;
+  margin:0 .08em; padding:.05em .1em .05em .5em; border-radius:999px;
+  background: var(--tag-bg); border:2px solid var(--tag-line); color: var(--brass);
+  font-family: var(--mono); font-weight:700; white-space:nowrap;
+  font-size:calc(.72em * var(--lscale, 1) / var(--sscale, 1));
+  cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
+.at-blankpillname { padding:0; }
+/* Lifted: it follows the sentence it is being dragged through, so it has
+   to read as picked up rather than as sitting where it was. */
+.at-blankpill.lifting { cursor:grabbing; background: var(--brass); color: var(--onbrass);
+  border-color: var(--brass); box-shadow:0 6px 16px rgba(0,0,0,.28); }
+/* The cross that takes the blank off the card. A thumb's worth of target
+   inside a pill that is only as tall as a line of text, which is what the
+   padding around the glyph is for. */
+.at-blankpilloff { display:inline-flex; align-items:center; justify-content:center;
+  width:1.5em; height:1.5em; padding:0; border:0; border-radius:999px; cursor:pointer;
+  background:transparent; color:inherit; opacity:.75; }
+.at-blankpilloff:hover, .at-blankpilloff:focus-visible { opacity:1; background: var(--tag-line); }
+.at-blankpilloff .at-ic { width:1em; height:1em; }
+/* A blank named in a line of prose about it — "English is missing name".
+   The pill's colours at the size of the text it is set in. */
+.at-blankname { display:inline-block; padding:0 .45em; border-radius:999px;
+  background: var(--tag-bg); border:1px solid var(--tag-line); color: var(--brass);
+  font-family: var(--mono); font-weight:700; font-size:.92em; }
 
 /* A field with the on-screen keys button in its corner.
 

@@ -189,6 +189,71 @@ export function splitSlots(value: string | null | undefined): { text: string; sl
   return out;
 }
 
+/*
+ * A letter or a digit — a character a hole must not be allowed to fuse
+ * with.
+ *
+ * The teacher moves a blank about inside the sentence by dragging it, and
+ * a thumb lands between two letters as often as it lands in the space
+ * between two words. "ismi{{name}}" is not a mistake anybody would make on
+ * purpose, and it is not a thing to refuse either: it is a space, and the
+ * app can put it there. Punctuation is left alone — "where is the
+ * {{word}}?" wants no space before the question mark — which is the whole
+ * of the difference between the two.
+ */
+const WORDY = /[\p{L}\p{N}]/u;
+
+/*
+ * The same string, with what a blank moving about leaves behind tidied up.
+ *
+ * Two edits make a mess of the spacing and both of them are gestures
+ * rather than typing: a blank dragged out from between two words leaves
+ * the two spaces that were either side of it, and one dropped between two
+ * letters leaves none. So it is put right here, where the gesture ends,
+ * rather than being something a teacher has to look at the sentence and
+ * notice.
+ *
+ * Only for those. Typing is left exactly as it is typed — a rule that
+ * trimmed the ends while somebody was in the middle of a sentence would
+ * eat the space they had just pressed.
+ */
+export function tidySlots(value: string | null | undefined): string {
+  let out = "";
+  for (const run of splitSlots(value)) {
+    if (run.slot) {
+      if (out && WORDY.test(out.slice(-1))) out += " ";
+      out += `{{${run.slot}}}`;
+      continue;
+    }
+    const text = out.endsWith("}}") && run.text && WORDY.test(run.text[0]) ? " " + run.text : run.text;
+    out += text;
+  }
+  return out.replace(/[ \t]{2,}/g, " ").trim();
+}
+
+/*
+ * The same string with a blank taken out of it, and the gap closed.
+ *
+ * The other half of writing one in. A blank is put into a card's fields
+ * from one button and taken out of them from one cross, so neither is a
+ * thing a teacher does three times and gets wrong once — see putBlank and
+ * dropBlank in the editor, which are what call this.
+ *
+ * Every occurrence goes: a name is one hole however often the sentence
+ * names it, which is what slotsIn has always said, so taking it off the
+ * card takes all of it.
+ */
+export function withoutSlot(value: string | null | undefined, name: string): string {
+  const want = String(name || "").toLowerCase();
+  if (!want) return String(value || "");
+  return tidySlots(
+    splitSlots(value)
+      .filter((run) => run.slot !== want)
+      .map((run) => run.text)
+      .join(""),
+  );
+}
+
 /**
  * Every variable a form names, across the fields it is written in.
  *

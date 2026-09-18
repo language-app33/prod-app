@@ -19,6 +19,8 @@ import {
   slotsIn,
   slotsOf,
   splitSlots,
+  tidySlots,
+  withoutSlot,
   valueOf,
   valuesOf,
   lentBy,
@@ -452,6 +454,40 @@ test("a card with nothing in it is one plain piece, or none", () => {
   assert.deepEqual(splitSlots(""), []);
   assert.deepEqual(splitSlots(null), []);
   assert.deepEqual(splitSlots(undefined), []);
+});
+
+test("a blank taken off a card takes the gap it left with it", () => {
+  /* The cross on the pill, in one function. What is checked is the
+     spacing either side of it: a hole lifted out of the middle of a
+     sentence used to leave the two spaces that were around it. */
+  assert.equal(withoutSlot("My name is {{name}}", "name"), "My name is");
+  assert.equal(withoutSlot("{{name}} is here", "name"), "is here");
+  assert.equal(withoutSlot("I like {{food}} a lot", "food"), "I like a lot");
+  assert.equal(withoutSlot("{{name}}", "name"), "");
+  /* One hole however often it is named, which is what slotsIn says too. */
+  assert.equal(withoutSlot("{{a}} meets {{a}} again", "a"), "meets again");
+  /* And the holes it is not about are left exactly where they were. */
+  assert.equal(withoutSlot("{{a}} meets {{b}}", "a"), "meets {{b}}");
+  /* Named the way every other reader names it: folded and trimmed. */
+  assert.equal(withoutSlot("hello {{ Name }}", "name"), "hello");
+  assert.equal(withoutSlot("hello {{name}}", ""), "hello {{name}}", "no name, no change");
+});
+
+test("a blank dropped between two letters is given the space it needs", () => {
+  /* Where the drag ends is where the thumb was, which is as likely to be
+     the middle of a word as the gap between two. */
+  assert.equal(tidySlots("ismi{{name}}"), "ismi {{name}}");
+  assert.equal(tidySlots("{{name}}bḥibb"), "{{name}} bḥibb");
+  assert.equal(tidySlots("ismi {{name}}"), "ismi {{name}}", "already spaced");
+  /* Punctuation is not a word, and a space in front of it is wrong. */
+  assert.equal(tidySlots("where is the {{word}}?"), "where is the {{word}}?");
+  assert.equal(tidySlots("«{{word}}»"), "«{{word}}»");
+  /* The two spaces a hole leaves behind close up, and the ends come off. */
+  assert.equal(tidySlots("I like  a lot"), "I like a lot");
+  assert.equal(tidySlots("  {{name}} "), "{{name}}");
+  /* A card with no holes in it is not something this touches beyond that. */
+  assert.equal(tidySlots("kitaab"), "kitaab");
+  assert.equal(tidySlots(""), "");
 });
 
 test("a hole is named the way every other reader of it names it", () => {

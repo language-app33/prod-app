@@ -1558,24 +1558,27 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     !!tile && !tile.querySelector(".at-minidecks, .at-flag") && !/form|♪|Arabic/i.test(shown),
     shown.replace(/\s+/g, " ").trim() || "(no tile)");
 
-  /* A frame is listed as it was written, holes and all — so the braces are
-     on screen, in Latin, inside a line sized for the taught script. Left
-     plain they came out larger and heavier than the Arabic beside them and
-     a two-hole frame pushed the words off the tile. The hole is marked so
-     the stylesheet can size it as the Latin it is; what it is marked with
-     is checked here, and what that costs in size in layers.test.mjs. */
+  /* A frame is listed as it was written, holes and all — as the editor
+     draws them since 0.159: the blank's name in a pill, and not the
+     braces it is stored as, which are a storage format and are on no
+     screen any more. The name is Latin inside a line sized for the
+     taught script, so it is marked for the stylesheet to size as the
+     Latin it is; what it is marked with is checked here, and what that
+     costs in size in layers.test.mjs. */
   {
-    const frameTile = tiles.find((t) =>
-      ((t.querySelector(".ar") || {}).textContent || "").includes("{{"));
+    const frameTile = tiles.find((t) => !!t.querySelector(".ar .at-slot"));
     const face = frameTile && frameTile.querySelector(".ar");
     const holes = face ? [...face.querySelectorAll(".at-slot")] : [];
     check("a frame's tile marks the hole in it",
-      holes.length === 1 && holes[0].textContent === "{{name}}",
+      holes.length === 1 && holes[0].textContent === "name",
       face ? `${holes.length} marked in "${face.textContent}"` : "no frame tile");
     /* The words around it are left alone: marking the whole line would
-       shrink the card's own script to the size of its braces. */
+       shrink the card's own script to the size of its blank. */
     check("and marks only the hole",
-      !!face && face.textContent.replace("{{name}}", "").trim() === "اسمي",
+      !!face && face.textContent.replace("name", "").trim() === "اسمي",
+      face ? face.textContent : "no frame tile");
+    check("and the braces the frame is stored with are not on the tile",
+      !!face && !/[{}]/.test(face.textContent || ""),
       face ? face.textContent : "no frame tile");
   }
 
@@ -3707,8 +3710,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      show one pronunciation and mark the other spelling right. */
   click(kinds[0]);
   await sleep(250);
+  /* Boxes rather than inputs: a card's own fields hold the blanks of a
+     sentence, which an input cannot — see fieldNamed below. */
   const saidFields = () =>
-    [...document.querySelectorAll("input")].filter((i) =>
+    [...document.querySelectorAll("input, [contenteditable]")].filter((i) =>
       /^Transliteration$|^Transliteration of accepted answer \d+$/.test(i.getAttribute("aria-label") || "")
     );
   check("a card written in a script asks how its answer is said, beside it",
@@ -3766,16 +3771,50 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      than discovered in a session. */
   /* The fields are labelled by the text above them rather than by an
      aria-label, so they are found the way the eye finds them: the block
-     holding that label, and the input in it. */
+     holding that label, and the box in it.
+
+     A card's own fields are not <input>s since 0.159 — they hold the
+     blanks of a sentence as pills, which an input cannot — so the box is
+     whichever of the two is there, and what it holds is read rather than
+     taken off .value. Everything else on this screen, a verb's table and
+     the numbers among them, is still an input. */
+  const boxIn = (/** @type {any} */ field) =>
+    field ? field.querySelector("[contenteditable], input") : null;
   const fieldNamed = (/** @type {RegExp} */ re) => {
     const field = [...document.querySelectorAll(".at-formblock.main .at-field")].find((f) =>
       re.test(((f.querySelector(".at-label") || {}).textContent || "").trim())
     );
-    return field ? field.querySelector("input") : null;
+    return boxIn(field);
+  };
+  /** What a box holds, with its blanks read back as what they are stored as. */
+  const readField = (/** @type {any} */ el) => {
+    if (!el) return "";
+    if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") return el.value;
+    let out = "";
+    /** @param {any} node */
+    const walk = (node) => {
+      if (node.nodeType === 3) {
+        out += node.nodeValue || "";
+        return;
+      }
+      const slot = node.getAttribute && node.getAttribute("data-slot");
+      if (slot) {
+        out += `{{${slot}}}`;
+        return;
+      }
+      [...node.childNodes].forEach(walk);
+    };
+    [...el.childNodes].forEach(walk);
+    return out.split("\u200B").join("");
   };
   /** The React-controlled value setter, the way a keystroke sets one. */
   const typeInto = (/** @type {any} */ el, /** @type {string} */ value) => {
     if (!el) return false;
+    if (el.getAttribute && el.getAttribute("contenteditable") === "true") {
+      el.textContent = value;
+      el.dispatchEvent(new w.Event("input", { bubbles: true }));
+      return true;
+    }
     const proto = el.tagName === "TEXTAREA" ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype;
     const setter = must(Object.getOwnPropertyDescriptor(proto, "value"), "the value descriptor").set;
     must(setter, "the value setter").call(el, value);
@@ -3791,7 +3830,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !!saveBtn() && saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
   check("and the editor says which field is short of it",
-    /is missing \{\{name\}\}/.test(document.body.textContent || ""),
+    /is missing\s+name\b/.test(document.body.textContent || ""),
     ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
   typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi {{name}}");
   await sleep(200);
@@ -3824,10 +3863,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       asked().join(" / ") || "(none shown)");
     check("each one a different word, so one card does not print three times",
       new Set(asked()).size === asked().length, asked().join(" / "));
-    check("the blank is named as a fact about the card",
-      [...(blanks() || document).querySelectorAll(".at-blankchip")]
-        .map((c) => (c.textContent || "").trim()).includes("name"),
-      [...(blanks() || document).querySelectorAll(".at-blankchip")].map((c) => c.textContent).join(", ") || "(none)");
+    /* And the blank itself is named where it stands, in the sentence —
+       the braces a teacher used to type having become the pill they
+       name the moment they are typed. */
+    check("a blank typed out by hand becomes the pill it names",
+      [...(fieldNamed(/^English$/) || document).querySelectorAll("[data-slot]")]
+        .map((c) => c.getAttribute("data-slot")).includes("name"),
+      readField(fieldNamed(/^English$/)) || "(no field)");
 
     /* And the button that writes one. It goes into every field at once,
        which is the whole reason the fields can no longer disagree — so
@@ -3858,8 +3900,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     const ar = fieldNamed(/^Arabic script and transliteration$/i);
     const en = fieldNamed(/^English$/);
     check("choosing one writes it into every field at once",
-      !!ar && ar.value === "ismi {{name}}" && !!en && en.value === "My name is {{name}}",
-      `script "${ar ? ar.value : "—"}", English "${en ? en.value : "—"}"`);
+      readField(ar) === "ismi {{name}}" && readField(en) === "My name is {{name}}",
+      `script "${readField(ar)}", English "${readField(en)}"`);
     check("so the fields cannot disagree, and the card saves",
       !!saveBtn() && !saveBtn().disabled && !/is missing \{\{/.test(document.body.textContent || ""),
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
@@ -3870,8 +3912,45 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       .find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "name"));
     await sleep(250);
     check("and choosing it twice does not write it twice",
-      !!en && en.value === "My name is {{name}}",
-      en ? `"${en.value}"` : "no field");
+      readField(en) === "My name is {{name}}",
+      en ? `"${readField(en)}"` : "no field");
+
+    /* ---- and the blank is in the sentence, not beside it ----
+
+       The braces were what the teacher saw and what they had to type; a
+       pill under the field drew the same holes a second time, and could
+       not be touched. The pill is the blank now and it is in the text:
+       drag it to move it, and the cross on its end takes it off the
+       card. What is left below is the button that adds one. */
+    const pillsIn = (/** @type {any} */ el) =>
+      el ? [...el.querySelectorAll("[data-slot]")].map((n) => n.getAttribute("data-slot")) : [];
+    check("the blank is a pill inside the field itself",
+      pillsIn(en).length === 1 && pillsIn(en)[0] === "name" && pillsIn(ar)[0] === "name",
+      `English ${JSON.stringify(pillsIn(en))}, script ${JSON.stringify(pillsIn(ar))}`);
+    check("and the braces it is stored as are nowhere on the screen",
+      !/\{\{/.test(document.body.textContent || ""),
+      ((document.body.textContent || "").match(/[\s\S]{80}\{\{[\s\S]{40}/) || ["none"])[0]);
+    check("the blanks are no longer listed under the field as well",
+      !document.querySelector(".at-blankchip"),
+      `${document.querySelectorAll(".at-blankchip").length} chips`);
+    /* The cross takes it off the card rather than out of the field it
+       was tapped in: every field with words in it leaves the same
+       blanks, so one that came out of the English alone would be the
+       disagreement the Blank button exists to make unreachable. */
+    click(en.querySelector("[data-off]"));
+    await sleep(250);
+    check("the cross on a blank takes it out of every field at once",
+      readField(ar) === "ismi" && readField(en) === "My name is",
+      `script "${readField(ar)}", English "${readField(en)}"`);
+    check("and the card is a word again, with no blank left in it",
+      !!saveBtn() && !saveBtn().disabled && pillsIn(en).length === 0,
+      `${pillsIn(en).length} pills left`);
+    /* Back in, for the walk below to go on from. */
+    click(pickBtn(/\+ Blank/));
+    await sleep(200);
+    click([...((blanks() || document).querySelectorAll(".at-blanklist .at-ck"))]
+      .find((r) => ((r.querySelector("b") || {}).textContent || "").trim() === "name"));
+    await sleep(250);
 
     /* ---- and a sentence is a kind of card in its own right ----
 
@@ -3923,8 +4002,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     const sar = fieldNamed(/^Arabic script and transliteration$/i);
     const sen = fieldNamed(/^English$/);
     check("choosing one writes it into every field of the sentence at once",
-      !!sar && /\{\{noun\}\}/.test(sar.value) && !!sen && /\{\{noun\}\}/.test(sen.value),
-      `script "${sar ? sar.value : "—"}", English "${sen ? sen.value : "—"}"`);
+      /\{\{noun\}\}/.test(readField(sar)) && /\{\{noun\}\}/.test(readField(sen)),
+      `script "${readField(sar)}", English "${readField(sen)}"`);
     /* And it is filled by the words that say they are nouns, with nothing
        written on any of them to say so — which is the whole bargain: a
        teacher writes the sentence, and the vocabulary joins in. */
@@ -3940,7 +4019,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(300);
     const backEn = fieldNamed(/^English$/);
     check("and it can be called a word again, with what was typed still there",
-      blockNames().includes("Form 1") && !!backEn && /\{\{noun\}\}/.test(backEn.value),
+      blockNames().includes("Form 1") && /\{\{noun\}\}/.test(readField(backEn)),
       blockNames().join(" | "));
   }
 
@@ -4080,8 +4159,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(300);
     const back = fieldNamed(/^Arabic script and transliteration$/i);
     check("choosing an ordinary word again brings the block back with the word still in it",
-      !!block(/^Form 1$|^The verb$/) && !!back && back.value === "akal",
-      back ? `"${back.value}"` : "no field");
+      !!block(/^Form 1$|^The verb$/) && readField(back) === "akal",
+      back ? `"${readField(back)}"` : "no field");
     check("and an ordinary card is still offered another form", !!addForm(),
       addForm() ? (addForm().textContent || "").trim() : "no button");
 
@@ -4401,9 +4480,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const mainField = /** @type {any} */ ([...document.querySelectorAll(".at-formblock.main .at-field")]
     .find((f) => /^Arabic script and transliteration$/i.test(
       ((f.querySelector(".at-label") || {}).textContent || "").trim())) || null);
-  const own = mainField ? mainField.querySelector("input") : null;
+  const own = mainField ? mainField.querySelector("[contenteditable], input") : null;
   check("and calling it a word again leaves the word where it was",
-    !!own && own.value === "كتاب", own ? `"${own.value}"` : "no field");
+    !!own && (own.value || (own.textContent || "")) === "كتاب",
+    own ? `"${own.value || own.textContent}"` : "no field");
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);

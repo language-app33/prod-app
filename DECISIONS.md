@@ -2055,3 +2055,54 @@ The lower levels have no such bar and always get the full two.
   — the front-door cap from 0.154 — and `quietRows` call `mastered` directly
   and need the strict reading. A word you have just missed should still cost a
   place at the front door: that is work in hand.
+
+---
+
+## A card's own fields are not `<input>`s
+
+**18 September 2026** · `src/card-editor.tsx` (`BlankText`), `src/variables.ts`
+
+A card may leave a hole in itself, stored as `{{name}}` in each of its three
+fields. Until now that string was also the editing interface: the field showed
+the braces, a row of pills under the field showed the same holes again, and
+the pills could not be touched because they were not where the blank was.
+Moving one meant dragging four characters of Latin punctuation through a line
+of Arabic; removing one meant deleting them from three fields by hand, and
+getting one of the three wrong was the disagreement the editor spends a
+paragraph refusing.
+
+The blank is now a pill inside the field it is part of. An `<input>` holds
+characters and nothing else, so the field is a `contenteditable` box the app
+draws the contents of.
+
+**What that costs, and why it was still the cheaper side.** A box the app
+draws is a box the app has to keep from fighting the caret. The rule that
+makes it tractable is that *nothing is repainted while anybody types*: what is
+read back off the box is compared against what was last painted into it, and
+on a keystroke they agree, so the caret is never moved out from under the
+person typing. A repaint happens only where the app itself changed the text —
+the Blank button writing into three fields, a pill dropped somewhere else,
+a blank crossed off, braces typed out by hand becoming the pill they name —
+and each of those puts the caret back by offset, counted in the same terms
+everything else is: `{{name}}` is eight characters wherever it is drawn as a
+pill. There is one zero-width space behind every pill, because a box you type
+in cannot put the caret after something it may not edit unless there is
+somewhere for the caret to be, and a new blank always lands on the end.
+
+**Dragging is pointer events, not the desktop's drag and drop.** A teacher
+writing cards is as likely to be holding a phone, and a thumb generates no
+`dragstart` at all. The pill is moved through the text as the finger goes
+rather than a line being drawn where it would land: what the sentence will
+read like is the thing being decided, so the sentence shows it.
+
+**Removing a blank means the card, not the field.** The cross on a pill and
+backspace beside one both take the blank out of all three fields, because that
+is what putting one in has always done. A field that could drop a blank on its
+own would put the card straight back into the state the Blank button exists to
+make unreachable.
+
+**The braces did not change.** They are what is stored, what the server holds,
+what every other reader of a card understands, and what an older build still
+reads. What changed is that no screen shows them any more — not the field, not
+the tiles a card is listed on, not the lines that name a blank in passing —
+so there is one picture of a blank in the app instead of two.

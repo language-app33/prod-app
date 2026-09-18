@@ -97,10 +97,13 @@ test("every icon name used in the app is one the set has", () => {
   const unknown = [];
   for (const file of files) {
     const src = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
-    /* `icon="x"` on a button, and `<Icon name="x" />` directly. Literals
+    /* `icon="x"` on a button, `<Icon name="x" />` directly, and the one
+       place an icon is built as a DOM node rather than rendered — the
+       cross on a blank, inside a field the app draws by hand. Literals
        only: a name built at runtime is not something a file can check. */
-    for (const m of src.matchAll(/(?:\bicon|<Icon\s+name)=["']([a-zA-Z][a-zA-Z0-9]*)["']/g)) {
-      if (!set.has(m[1])) unknown.push(`${file}: ${m[1]}`);
+    for (const m of src.matchAll(/(?:\bicon|<Icon\s+name)=["']([a-zA-Z][a-zA-Z0-9]*)["']|iconNode\(["']([a-zA-Z][a-zA-Z0-9]*)["']/g)) {
+      const name = m[1] || m[2];
+      if (!set.has(name)) unknown.push(`${file}: ${name}`);
     }
   }
   assert.deepEqual(unknown, [], `icons that render as nothing: ${unknown.join(", ")}`);

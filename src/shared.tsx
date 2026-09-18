@@ -175,6 +175,34 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
   );
 }
 
+/*
+ * The same icon, built as a DOM node rather than rendered.
+ *
+ * One place draws an icon outside React: the blank inside a card's text
+ * field, which is a pill in a contenteditable box and so is put together
+ * by hand — see BlankText in the editor. Drawing its cross as a text
+ * glyph would be a second icon set of one character, setting at a weight
+ * of its own beside every other control in the app. This is the same
+ * `ICONS` entry `Icon` renders, through the same viewBox.
+ */
+export function iconNode(name: string, size = 20): SVGSVGElement | null {
+  const d = ICONS[name];
+  if (!d) return null;
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "at-ic");
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "currentColor");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  const path = document.createElementNS(NS, "path");
+  path.setAttribute("d", d);
+  svg.appendChild(path);
+  return svg;
+}
+
 /* ------------------------------------------------------------------
    Playing a clip
 
@@ -774,8 +802,14 @@ export function LanguageTag({ languages, id }: {
 /*
  * A card's own words, with any holes in them drawn as holes.
  *
- * A frame is listed as it was written — ismi {{name}} — so the braces are
- * on the screen, and they are Latin sitting in the middle of the taught
+ * A frame is listed as the card was written — a hole where a word goes —
+ * and the hole is drawn the way the editor draws it, as a small pill with
+ * the blank's name in it. The braces it is stored with are not shown: they
+ * are a storage format, and 0.159 took them off the one screen a teacher
+ * used to have to type them on, so a list that still printed them would be
+ * the only place left in the app they appear.
+ *
+ * The name inside the pill is Latin sitting in the middle of the taught
  * script. Every size in the stylesheet was tuned by eye against Arabic,
  * and Latin fills far more of its em box than Arabic does, so Latin left
  * at a script-tuned size reads as the louder of the two. In a tile that is
@@ -803,7 +837,7 @@ function Written({ text }: { text?: string | null }) {
       {runs.map((run, i) =>
         run.slot ? (
           <span className="at-slot" key={i}>
-            {run.text}
+            {run.slot}
           </span>
         ) : (
           <React.Fragment key={i}>{run.text}</React.Fragment>

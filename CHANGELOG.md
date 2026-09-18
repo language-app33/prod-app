@@ -8,6 +8,37 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.159 — 18 September 2026
+
+**A blank is now part of the sentence you write it into.**
+
+Adding a blank to a card used to leave you with two pictures of the same
+thing. There was a pill under the field, which named the blank and could
+not be touched, and there was `{{name}}` sitting in the middle of the
+words in the field itself — which was the thing you actually had to move,
+by dragging four characters of punctuation through your own sentence.
+
+The pill is the blank now, and it is in the field, in all three of them:
+
+- **Drag it** to anywhere in the sentence, with a finger or a mouse. It
+  moves through the words as you go, so what the card will read like is
+  on the screen while you decide. Dropping it in the middle of a word
+  gives it the space it needs; taking it out from between two closes the
+  gap behind it.
+- **Tap the cross on its end** to take it off the card. It comes out of
+  every field at once, exactly as adding one puts it into every field at
+  once, so the two can never fall out of step. Backspace next to a blank
+  means the same thing.
+- The braces are gone from the screen. They are still how a card is
+  stored and nothing about any card has changed, but nothing asks you to
+  read or type them any more — in the field, in the lists where a card is
+  shown, or in the lines that name a blank in passing. Type them out by
+  hand anyway and they turn into the blank they name as you finish it.
+
+The Blanks section under the card no longer lists the blanks a second
+time. What is left there is the button that adds one, the sentences a
+student will actually be asked, and what fills them.
+
 ## 0.158 — 17 September 2026
 
 **A copied report shows the card again.**

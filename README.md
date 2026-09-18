@@ -206,6 +206,17 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
 
+  **The braces are how a card is stored and not how one is written.** A
+  blank is drawn where it stands in the sentence, as a pill inside the
+  field: dragged to move it, crossed off to take it off the card, and put
+  into all three fields at once by the one button — `BlankText` in
+  `src/card-editor.tsx` is the field, `putBlank` and `dropBlank` beside it
+  are the two halves of the card's answer, and `withoutSlot` and
+  `tidySlots` in `src/variables.ts` are what a blank leaving or landing
+  does to the spaces around it. Nothing outside that field deals in
+  braces: a card listed anywhere shows its blanks the same way, through
+  `splitSlots`.
+
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the
   word it came from. Three limits, in `fillerMarks` in `src/grade.ts`: only
