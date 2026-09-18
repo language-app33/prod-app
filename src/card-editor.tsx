@@ -1015,18 +1015,22 @@ function Recordings({ form, onOpen }: {
   const made = clipsOf(form);
   return (
     <Field label="Recordings">
+      {/* What the field is for, under the name of it and above the button
+          that does it — rather than under the button, where it read as a
+          note about what had just been pressed. The speeds are not named
+          here: choosing between them is done on the screen the button
+          opens, and that screen says so. */}
+      {!made.length && (
+        <Help>
+          A recording lets this form be practiced by ear as well as by sight.
+        </Help>
+      )}
       <ClipList clips={made} />
       <div className="at-chips" style={{ marginTop: made.length ? 10 : 0 }}>
         <Button size="sm" onClick={onOpen} icon="mic">
           {made.length ? "Record or upload" : "Add a recording"}
         </Button>
       </div>
-      {!made.length && (
-        <Help>
-          A recording lets this form be practiced by ear as well as by sight.
-          You can make one at regular speed, a slow one, or both.
-        </Help>
-      )}
     </Field>
   );
 }
@@ -1117,8 +1121,9 @@ function RecordingScreen({ title, form, onChange, onClose }: {
   return (
     <Screen title={title} onBack={onClose} rise backLabel="Back to the card">
       <Help>
-        Record either, both or neither. A card with no recording is still a
-        card — it just cannot be practiced by ear.
+        You can make one at regular speed, a slow one, or both — or neither:
+        a card with no recording is still a card, it just cannot be
+        practiced by ear.
       </Help>
       <Notice kind="error">{error}</Notice>
 
@@ -3822,14 +3827,6 @@ function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, ch
             onChange={onShape}
           />
           <Help>{shapeHelp(shape)}</Help>
-          {/* Said while it can still be answered, because after the save it
-              cannot. Not a warning: three answers, none of them wrong, and
-              the one thing worth knowing is that this is the moment to
-              pick. */}
-          <Help>
-            Choose now: a card keeps the kind it is made as. To have one of
-            the others, make another card.
-          </Help>
         </>
       ) : (
         <>
@@ -4548,6 +4545,17 @@ function DrillChecks({ word, part }: { word: WordDraft; part: AskPart }) {
   return (
     <div className="at-drills">
       <span className="at-drillhead">What is drilled</span>
+      {/* What a tick means, above the ticks: it is what somebody about to
+          switch one off needs to know, and under them it was an answer to
+          a question already asked. The sentence the whole control exists
+          for — deleting a form was the only way to stop it being asked,
+          and deleting it took its recordings and every student's progress
+          on it too. */}
+      <Help>
+        Switched off, it stays on the card and is still shown — its
+        recordings, and whatever progress a student has made on it, are
+        kept. It is simply never asked.
+      </Help>
       <CheckList
         options={[
           {
@@ -4568,16 +4576,10 @@ function DrillChecks({ word, part }: { word: WordDraft; part: AskPart }) {
           (id === "ask" ? setAskPart : setLendPart)(part.id, !wasOn)
         }
       />
-      {part.on || (canLend && part.lends) ? (
-        /* The sentence the ticks exist for. Deleting a form was the only
-           way to stop it being asked, and deleting it took its recordings
-           and every student's progress on it too. */
-        <Help>
-          Switched off, it stays on the card and is still shown — its
-          recordings, and whatever progress a student has made on it, are
-          kept. It is simply never asked.
-        </Help>
-      ) : (
+      {/* And where the ticks between them have switched this part off
+          altogether, what that leaves — a state rather than an
+          explanation, so it is said under the ticks that made it. */}
+      {!part.on && !(canLend && part.lends) && (
         <Help>
           Kept and shown, and never asked or lent anywhere.
         </Help>

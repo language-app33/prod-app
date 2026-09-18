@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.184 — 18 September 2026
+
+**Three lines in the card editor, said where they are wanted.**
+
+*What is drilled* explains itself above its ticks rather than under them:
+that switching one off keeps the form on the card, with its recordings and
+whatever progress a student has made on it, and only stops it being asked.
+That is what somebody about to switch one off needs to know, and under the
+ticks it was an answer to a question already asked.
+
+*Recordings* says what a recording gets you between the heading and the
+button — "a recording lets this form be practiced by ear as well as by
+sight" — instead of under the button, where it read as a note about what
+had just been pressed. Which speeds you can record is no longer said here
+at all: it is said on the screen where you choose between them.
+
+And the line telling you to choose the kind of card now rather than later
+is gone. The block already says what each kind is and that the answer is
+settled when the card is made.
+
 ## 0.183 — 18 September 2026
 
 **What kind of word a card is, is now a drop-down that shuts on the
