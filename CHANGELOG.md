@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.174 — 18 September 2026
+
+**A card with blanks in it now shows five filled examples, under a heading
+of their own.**
+
+The Blanks section of the card screen already filled the card in and
+showed it — three sentences, sitting at the top of *Blanks in this card*
+with nothing saying what they were. They are their own subsection now,
+*Examples of this card with filled blanks*, and there are up to five of
+them: the card as a student will actually meet it, with every blank
+standing as one of the words really behind it.
+
+Each example is the whole card and not a line of it — the sentence in the
+script, how it is said, and what it means — in a numbered list, ruled
+between its rows, and nothing else on the line. Five rather than three
+because the list is for reading down: five askings of one frame is where
+you see how much the card varies, and whether the words dropping into it
+are the ones you meant.
+
+A card whose blank has no word behind it says so in a line instead, which
+is the same answer it always gave.
+
 ## 0.173 — 18 September 2026
 
 **"Weak skills" now answers for itself.**

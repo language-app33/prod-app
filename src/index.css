@@ -559,16 +559,25 @@ button {
 .at-choosemenu .at-hint { margin:10px 0 0; }
 /*
  * The sentences a student will be asked, filled with the words that exist
- * today. The section used to explain this in ninety words; three real
+ * today. The section used to explain this in ninety words; five real
  * sentences do it without any, so they are given the room a thing that is
  * doing the explaining deserves.
+ *
+ * A numbered list, ruled between its rows: five examples of one frame
+ * differ in a word or two, so what the eye needs is the line each example
+ * starts on. The number is drawn by the list rather than written into the
+ * row — it is the list counting itself, and nothing a screen reader has to
+ * read out before the sentence.
  */
-.at-asked { background: var(--jade-bg); border:1px solid var(--jade-soft);
-  border-radius: var(--r-sm); padding:10px 12px; display:flex; flex-direction:column; gap:10px; }
-.at-askedline { display:flex; gap:10px; align-items:baseline; margin:0; min-width:0;
-  font-size: var(--fs-sm); }
-.at-askedline b { flex:0 0 3.4em; font-size: var(--fs-xs); font-weight:800; color: var(--jade);
-  letter-spacing:.05em; text-transform:uppercase; }
+.at-asked { list-style:none; margin:0; padding:2px 12px; counter-reset: asked;
+  background: var(--jade-bg); border:1px solid var(--jade-soft);
+  border-radius: var(--r-sm); display:flex; flex-direction:column; }
+.at-askedline { counter-increment: asked; display:flex; gap:10px; align-items:baseline;
+  margin:0; min-width:0; font-size: var(--fs-sm); padding:10px 0;
+  border-top:1px solid var(--jade-soft); }
+.at-askedline:first-child { border-top:0; }
+.at-askedline::before { content: counter(asked); flex:0 0 1.5em; font-size: var(--fs-xs);
+  font-weight:800; color: var(--jade); font-variant-numeric: tabular-nums; }
 /* One example is three lines, not one: the sentence in the script, how it
    is said, and what it means. The English alone was the one line of the
    question a learner is never asked to produce, which made the preview of

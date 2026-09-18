@@ -4036,6 +4036,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         ...n.querySelectorAll(sel),
       ]);
     const HOLES = /^Blanks in this card$/;
+    const SHOWN = /^Examples of this card with filled blanks$/;
     const FILLS = /^Using this card to fill a blank$/;
 
     check("the section is called Blanks, not Variables", !!blanks(),
@@ -4044,21 +4045,34 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        exist — the explanation that replaced the paragraphs. Each is three
        lines and not one: the sentence in the script, how it is said, and
        what it means. So the transliteration is written here too, because
-       an example is only all three where the card has all three. */
+       an example is only all three where the card has all three.
+
+       They are a named subsection of their own since 0.174: they are not a
+       fact about the holes but the card itself, as a student meets it, and
+       a list worth reading down is worth a heading saying what it is. */
     typeInto(saidFields()[0], "ismi {{name}}");
     await sleep(200);
-    const examples = () => [...((blanks() || document).querySelectorAll(".at-askedline"))]
+    const examples = () => inHalf(SHOWN, ".at-askedline")
       .map((line) => ({
         ar: (((line.querySelector(".at-askedscript") || {}).textContent) || "").trim(),
         lat: (((line.querySelector(".at-askedsaid") || {}).textContent) || "").trim(),
         en: (((line.querySelector(".at-askedmeans") || {}).textContent) || "").trim(),
       }));
     const asked = () => examples().map((e) => [e.ar, e.lat, e.en].join(" · "));
+    check("the filled examples are a named subsection, not a preface to the holes",
+      examples().length > 0 && !inHalf(HOLES, ".at-askedline").length,
+      [...((blanks() || document).querySelectorAll(".at-groupline"))]
+        .map((g) => (g.textContent || "").trim()).join(" | ") || "(no headings)");
     check("and shows the sentences a student will actually be asked",
       asked().length > 0 && asked().every((line) => !/\{\{/.test(line)),
       asked().join(" / ") || "(none shown)");
     check("each one a different word, so one card does not print three times",
       new Set(asked()).size === asked().length, asked().join(" / "));
+    /* As many as there are words behind the blank, up to five: a teacher
+       reading five examples of one frame sees what the card varies by. */
+    check("as many as the blank has words, and never more than five",
+      asked().length === 2 && asked().length <= 5,
+      `${asked().length} shown`);
     /* The English alone is the one line of the question a learner is never
        asked to produce, so a preview of an Arabic frame that showed it
        alone was a preview of everything except the Arabic. */

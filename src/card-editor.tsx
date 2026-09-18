@@ -1585,6 +1585,17 @@ export interface Blank {
   built?: "any" | "category";
 }
 
+/*
+ * How many filled examples of a card with blanks the editor prints.
+ *
+ * Five rather than three: three is enough to read as "and so on", and the
+ * examples are now a subsection of their own rather than a preface to the
+ * holes, so what they are for is being read down — how much the card
+ * actually varies, and whether the words standing in it are the ones the
+ * teacher meant. Five is that, and still short enough to take in at once.
+ */
+const EXAMPLES_SHOWN = 5;
+
 /**
  * One example of a card with a blank in it, as a student will meet it: the
  * frame with its holes filled, in each of the three fields it is written
@@ -1908,10 +1919,12 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * exist today.
    *
    * This is the explanation the section used to attempt in ninety words.
-   * Three of them, because three is enough to read as "and so on" and a
-   * fourth adds nothing; distinct, because a blank with one word in it
-   * would otherwise print the same sentence three times and look broken.
-   * Empty where nothing fills a blank yet, which is its own answer.
+   * Five of them, in a subsection of their own: three read as "and so on",
+   * and a teacher reading down a list of five sees the variety behind the
+   * blanks — that these are the names, or that two of the three words
+   * behind it are the same word twice. Distinct, because a blank with one
+   * word in it would otherwise print the same sentence five times and look
+   * broken. Empty where nothing fills a blank yet, which is its own answer.
    *
    * All three fields, because a teacher writing an Arabic frame is owed
    * the Arabic sentence: the preview showed the English alone, which is
@@ -1920,11 +1933,17 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * back empty and is not drawn; a field whose filler has nothing to put
    * in it keeps the braces standing, exactly as the question would, which
    * is the teacher's answer about the card they have written.
+   *
+   * The turns are walked well past the five wanted: `valuesForTurn` counts
+   * through the combinations, so a card whose blanks repeat a sentence —
+   * two holes filled from one word each — spends turns without adding a
+   * line, and stopping at five turns would show two examples where five
+   * exist.
    */
   const asked = useMemo(() => {
     if (scene || !holes.length) return [];
     const out: Asked[] = [];
-    for (let turn = 0; turn < 12 && out.length < 3; turn++) {
+    for (let turn = 0; turn < 40 && out.length < EXAMPLES_SHOWN; turn++) {
       const took = valuesForTurn(holes, fillers, turn);
       if (!took) break;
       const line = {
@@ -2991,18 +3010,20 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
 
         It was called Variables, which is the word the code uses, and
         it did two opposite jobs in one block under ninety words of
-        explanation. They are two named subsections now, and the
+        explanation. They are named subsections now, and the
         explaining is done by showing the sentences a student will
         actually be asked.
 
-        **The two halves are not the same shape, and that is the
+        **The subsections are not the same shape, and that is the
         point.** What a card *leaves* is read off its own words — the
         braces are in the text, so the holes are a fact about the card
-        and there is nothing to decide. That half is a readout: the
-        sentences, the holes, and what will go in each of them. What a
-        card *fills* is nowhere in its words and nothing can be read
-        off: it is the teacher's answer, so that half is the list they
-        answer it on.
+        and there is nothing to decide. That one is a readout: the
+        holes, and what will go in each of them. What the card *is*
+        once they are filled — five of it, as a student meets it — is
+        the third, and a list to read down rather than a preface to the
+        holes it was appended to. What a card *fills* is nowhere in its
+        words and nothing can be read off: it is the teacher's answer,
+        so that one is the list they answer it on.
 
         0.161 had both as tick lists, which made the first one a list
         of every blank in the language with two of them ticked — and a
@@ -3027,29 +3048,6 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
 
         {holes.length > 0 && (
           <>
-            {asked.length > 0 && (
-              <div className="at-asked">
-                {asked.map((line, i) => (
-                  <div className="at-askedline" key={i}>
-                    <b>{i === 0 ? "asks" : "then"}</b>
-                    <span className="at-askedsays">
-                      {line.ar && (
-                        <span
-                          className="at-askedscript"
-                          lang={lang.id}
-                          dir={lang.direction}
-                          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                        >
-                          {line.ar}
-                        </span>
-                      )}
-                      {line.lat && <span className="at-askedsaid">{line.lat}</span>}
-                      {line.en && <span className="at-askedmeans">{line.en}</span>}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
             {/* Named, because it is the reason the card is never
                 asked and the teacher cannot see it from here. */}
             {starved.length > 0 && (
@@ -3105,6 +3103,53 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             the recording says one of the words, and the next asking wants another.
             The recording is kept, and comes back if the blank goes.
           </Help>
+        )}
+
+        {/* ---- the card with its blanks filled ----
+
+            Its own named subsection, because it is not a fact about the
+            holes: it is the card itself, as a student will meet it, with
+            every blank standing as one of the words actually behind it.
+            It sat above the holes as a wordless preface to them, which is
+            where the one thing on this screen worth reading down was
+            hardest to recognise as a thing to read. Five of them, each in
+            the script, in how it is said and in what it means, and
+            nothing else on the line — so the list is read as a list.
+
+            Only on a card that leaves a blank: a card with no hole in it
+            is met as what it says, and a heading offering examples of it
+            would be a heading over the card's own words. */}
+        {holes.length > 0 && (
+          <>
+            <p className="at-groupline">Examples of this card with filled blanks</p>
+            {asked.length > 0 ? (
+              <ol className="at-asked">
+                {asked.map((line, i) => (
+                  <li className="at-askedline" key={i}>
+                    <span className="at-askedsays">
+                      {line.ar && (
+                        <span
+                          className="at-askedscript"
+                          lang={lang.id}
+                          dir={lang.direction}
+                          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                        >
+                          {line.ar}
+                        </span>
+                      )}
+                      {line.lat && <span className="at-askedsaid">{line.lat}</span>}
+                      {line.en && <span className="at-askedmeans">{line.en}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <Help>
+                None yet. A blank in this card has no word behind it, so there
+                is nothing to stand in it and no filled sentence to show.
+              </Help>
+            )}
+          </>
         )}
 
         {/* The other job. Named and always on screen, so that a teacher

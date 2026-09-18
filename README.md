@@ -278,21 +278,30 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
 
-  **The editor's Blanks section is two named halves, and they are not the
-  same shape, because the two questions are not the same question.**
+  **The editor's Blanks section is three named subsections, and they are
+  not the same shape, because they are not the same question.**
 
   *Blanks in this card* is a **readout**, and has nothing to decide. What
   a card leaves is written in its own words — the braces are in the text —
-  so the holes are a fact about the card and the section's whole job is to
-  say what that fact is worth: the card as a student will actually meet it
-  (three sentences, each in the script, in how it is said and in what it
-  means, filled from the words that exist today), then each hole, and,
-  when one is pointed at, the words that will go in it. That last is the
-  only place a teacher can see whether the right vocabulary is behind a
-  blank without leaving the card. A blank is put in and taken out by
-  writing it into the fields, where it lives; every field with words in it
-  must leave the same blanks, and `slotTrouble` refuses the save and names
-  the field that is short of one.
+  so the holes are a fact about the card and this subsection's whole job
+  is to say what that fact is worth: each hole, and, when one is pointed
+  at, the words that will go in it. That last is the only place a teacher
+  can see whether the right vocabulary is behind a blank without leaving
+  the card. A blank is put in and taken out by writing it into the fields,
+  where it lives; every field with words in it must leave the same blanks,
+  and `slotTrouble` refuses the save and names the field that is short of
+  one.
+
+  *Examples of this card with filled blanks* is the card as a student will
+  actually meet it: up to five of it, every hole standing as one of the
+  words behind it, each in the script, in how it is said and in what it
+  means, filled from the words that exist today. It is a list to be read
+  down — how much the card varies, and whether the words standing in it
+  are the ones the teacher meant — which is why it is named and on its own
+  rather than a wordless preface to the holes, and why five rather than
+  the three it showed while it was one. Empty where a blank has nothing
+  behind it, which is its own answer, and said in a line. `EXAMPLES_SHOWN`
+  in `src/card-editor.tsx`.
 
   **And the card list narrows by a blank, from either side of it.** Teaching
   → Cards has a *Blanks* filter: which side a card is on — it leaves one,
@@ -317,7 +326,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   may declare a kind of word whose name a teacher also uses by hand —
   Arabic declares `name`, and `{{name}}` is the oldest frame in the app. A
   card that leaves a blank of its own fills none, so on one of those this
-  half says that rather than offering a control there is no answer to.
+  subsection says that rather than offering a control there is no answer
+  to.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the
