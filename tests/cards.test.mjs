@@ -1567,7 +1567,7 @@ test("a form switched off is dealt nothing, and the rest of the card still is", 
 });
 
 test("whether a part is asked and whether it is lent are two answers", () => {
-  /* One tick answered both until 0.178, so keeping a form without asking
+  /* One tick answered both until 0.179, so keeping a form without asking
      it also took it out of every sentence card that could have borrowed
      it. What a stored card means is unchanged: an absent `lend` still
      reads as whatever `ask` says. */

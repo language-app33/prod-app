@@ -354,15 +354,25 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   are in it.
 
   *Examples of this card with filled blanks* is the card as a student will
-  actually meet it: up to five of it, every hole standing as one of the
-  words behind it, each in the script, in how it is said and in what it
-  means, filled from the words that exist today. It is a list to be read
-  down — how much the card varies, and whether the words standing in it
-  are the ones the teacher meant — which is why it is named and on its own
-  rather than a wordless preface to the holes, and why five rather than
-  the three it showed while it was one. Empty where a blank has nothing
-  behind it, which is its own answer, and said in a line. `EXAMPLES_SHOWN`
-  in `src/card-editor.tsx`.
+  actually meet it, and **all of it**: every word behind one blank, every
+  pair of words behind two, each in the script, in how it is said and in
+  what it means, filled from the words that exist today. It is a list to
+  be read down — whether the right vocabulary is behind a blank, and
+  whether every one of those sentences says something — and that question
+  is asked of the whole list or not at all, which is why it stopped being
+  the three examples it printed as a preface to the holes.
+
+  **It is folded away until it is asked for**, on every card, because what
+  a frame the whole collection fills is met as is hundreds of sentences,
+  and a section that opened on them would put the rest of the card below
+  them. Its heading says how many are in there, which is the answer a
+  teacher wants oftener than the sentences, and so does the section's own
+  line — `combos` in `src/card-editor.tsx`, counted rather than built, so
+  it is there while the list is still folded. `EXAMPLES_CEILING` is the
+  only thing that shortens the list, and only on a card met as more
+  sentences than a screen will draw at once, where the foot of the list
+  says so and says how many there are. Empty where a blank has nothing
+  behind it, which is its own answer, and said in a line.
 
   **And the card list narrows by a blank, from either side of it.** Teaching
   → Cards has a *Blanks* filter: which side a card is on — it leaves one,

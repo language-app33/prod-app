@@ -680,7 +680,7 @@ export interface CardForm {
    * *the {{adjective}} book*, "Raphael" in *my name is {{name}}*.
    *
    * The other half of the same question, and a separate answer since
-   * 0.178: a word can be worth meeting inside somebody else's sentence
+   * 0.179: a word can be worth meeting inside somebody else's sentence
    * without being a question of its own, and worth asking on its own
    * without being dropped into every frame that has a hole of its name.
    * Until then `ask` answered both, so the only way to stop a form being

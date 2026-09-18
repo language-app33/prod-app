@@ -1698,7 +1698,7 @@ export const askedAgain = (f: Record<string, any>): Record<string, any> =>
  * Raphael, and *what does Raphael mean* is not a question". It used to be
  * a tick of its own in the Blanks block — one answer for the whole card,
  * in a different place from the per-form ticks and asking a question that
- * read like theirs. Since 0.178 there is one question, asked of each part
+ * read like theirs. Since 0.179 there is one question, asked of each part
  * where that part is edited, so what the card carries is read back into
  * those ticks on the way in: nothing asked on its own, everything still
  * lent. Saving writes the card's flag back out the same way — see
@@ -1938,7 +1938,7 @@ export function tableCellsOf(
    card written before this and a form added after are both asked — see
    `ask` in types.ts.
 
-   Two questions, since 0.178, because they were always two: whether a
+   Two questions, since 0.179, because they were always two: whether a
    form is asked **on its own** — what does it mean, how is it written —
    and whether it is lent **inside sentence cards**, standing in the blank
    another card leaves. A name is worth the second and is no question at
@@ -2141,15 +2141,19 @@ export interface Blank {
 }
 
 /*
- * How many filled examples of a card with blanks the editor prints.
+ * The most filled examples of a card the editor will draw at once.
  *
- * Five rather than three: three is enough to read as "and so on", and the
- * examples are now a subsection of their own rather than a preface to the
- * holes, so what they are for is being read down — how much the card
- * actually varies, and whether the words standing in it are the ones the
- * teacher meant. Five is that, and still short enough to take in at once.
+ * Not a taste about how many are worth reading — every filling the card has
+ * is listed, which is the point of the subsection — but the one number that
+ * keeps a frame from taking the screen down with it. What a card is met as
+ * is every combination of the words behind its blanks, and that multiplies:
+ * `{{name}} {{verb}} {{object}}` over a collection of any size is tens of
+ * thousands of sentences, and drawing them would be a hung phone rather
+ * than an answer. A thousand is past every real card — a blank with a
+ * thousand words behind it is a collection nobody has — and where a card
+ * does go past it, the list says so and says how many there are.
  */
-const EXAMPLES_SHOWN = 5;
+const EXAMPLES_CEILING = 1000;
 
 /**
  * One example of a card with a blank in it, as a student will meet it: the
@@ -2294,7 +2298,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * value: lent, and not asked on its own. Leaving that group again makes
    * it look like an ordinary word once more.
    *
-   * That has been the default since values existed. What changed in 0.178
+   * That has been the default since values existed. What changed in 0.179
    * is where it is kept. It used to be a third state of one card-wide
    * toggle — `null`, meaning "whatever this card looks like" — which
    * nobody was ever shown; now it is written into the ticks under each
@@ -2719,16 +2723,34 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   }, [scene, holes, main, allCards, lang]);
 
   /*
+   * How many sentences this card is met as: every word behind one blank,
+   * every pair of words behind two, and so on — which is what `{{noun}}
+   * {{adjective}}` costs a teacher who writes it, in one number, and the
+   * one thing the section could never say while it printed three examples
+   * and stopped. Counted rather than built, so it is there while the list
+   * below it is still folded away.
+   */
+  const combos = useMemo(() => {
+    if (scene || !holes.length) return 0;
+    return holes.reduce((n, slot) => n * ((fillers[slot] || []).length), 1);
+  }, [scene, holes, fillers]);
+
+  /*
    * The sentences a student will be asked, filled from the words that
    * exist today.
    *
    * This is the explanation the section used to attempt in ninety words.
-   * Five of them, in a subsection of their own: three read as "and so on",
-   * and a teacher reading down a list of five sees the variety behind the
-   * blanks — that these are the names, or that two of the three words
-   * behind it are the same word twice. Distinct, because a blank with one
-   * word in it would otherwise print the same sentence five times and look
-   * broken. Empty where nothing fills a blank yet, which is its own answer.
+   * All of them, in a subsection of their own that opens folded: three
+   * examples read as "and so on" and answered nothing beyond it, and the
+   * question a teacher actually has — is the right vocabulary behind this
+   * blank, and does every one of these sentences say something — is asked
+   * of the whole list or not at all. `EXAMPLES_CEILING` is the only thing
+   * that shortens it, and only where a card is met as more sentences than
+   * a screen can hold.
+   *
+   * Distinct, because two cards carrying one word would otherwise print
+   * the same sentence twice and read as a bug. Empty where nothing fills a
+   * blank yet, which is its own answer.
    *
    * All three fields, because a teacher writing an Arabic frame is owed
    * the Arabic sentence: the preview showed the English alone, which is
@@ -2738,16 +2760,20 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * in it keeps the braces standing, exactly as the question would, which
    * is the teacher's answer about the card they have written.
    *
-   * The turns are walked well past the five wanted: `valuesForTurn` counts
-   * through the combinations, so a card whose blanks repeat a sentence —
-   * two holes filled from one word each — spends turns without adding a
-   * line, and stopping at five turns would show two examples where five
-   * exist.
+   * `valuesForTurn` counts through the combinations in order, so walking
+   * the turns from nothing to `combos` is every filling the card has,
+   * exactly once each.
    */
   const asked = useMemo(() => {
     if (scene || !holes.length) return [];
     const out: Asked[] = [];
-    for (let turn = 0; turn < 40 && out.length < EXAMPLES_SHOWN; turn++) {
+    /* Kept as keys rather than compared against what is already out: a
+       thousand examples asked "have I printed this one" a thousand times
+       is a million string comparisons, on every keystroke in the field
+       above. */
+    const had = new Set<string>();
+    const turns = Math.min(combos, EXAMPLES_CEILING);
+    for (let turn = 0; turn < turns; turn++) {
       const took = valuesForTurn(holes, fillers, turn);
       if (!took) break;
       const line = {
@@ -2756,11 +2782,13 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
         en: fillText(main.en, took, "en").trim(),
       };
       if (!line.ar && !line.lat && !line.en) continue;
-      if (out.some((had) => had.ar === line.ar && had.lat === line.lat && had.en === line.en)) continue;
+      const key = JSON.stringify([line.ar, line.lat, line.en]);
+      if (had.has(key)) continue;
+      had.add(key);
       out.push(line);
     }
     return out;
-  }, [scene, holes, main, fillers]);
+  }, [scene, holes, main, fillers, combos]);
 
   /* Which blanks have nothing to put in them — the reason a card with a
      hole in it is never asked, named rather than left to be discovered. */
@@ -2953,6 +2981,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     blanksAround,
     blankOffer,
     asked,
+    combos,
     starved,
     fillers,
     canSave,
@@ -3593,7 +3622,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, blanks, childre
     {/* ---- the word itself ----
         A subsection rather than a run of fields under a coloured line:
         a form block holds two or three different questions, and until
-        0.178 the only thing saying where one ended was that line,
+        0.179 the only thing saying where one ended was that line,
         which read as a label on the field beneath it. */}
     <div className="at-part">
     <p className="at-groupline">The word itself</p>
@@ -3715,7 +3744,7 @@ function PronounTable({ word, lang, index: i, form: f }: {
       is the order they are learnt in — the word first, and each
       of these once the word is known.
 
-      A subsection of that form's block since 0.178, with its name
+      A subsection of that form's block since 0.179, with its name
       across the top and its own ticks at the foot: it is one of the
       things on the card that is drilled or not, and the answer belongs
       where the table is rather than in a list at the bottom of the
@@ -4211,9 +4240,19 @@ function RenameAsk({ word }: { word: WordDraft }) {
 
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
-    holes, starved, asked, fillers, fills, fillsOffer, addFill,
+    holes, starved, asked, combos, fillers, fills, fillsOffer, addFill,
     main, trouble, category, sentence, strayHoles,
   } = word;
+  /*
+   * Whether the filled examples are open. Folded away to start with, and
+   * on every card: the list is now as long as the vocabulary behind the
+   * blanks — hundreds of sentences on a card the whole collection fills —
+   * and a section that opened on it would put the rest of the card, and
+   * the half that offers this word to other blanks, below the fold on a
+   * screen nobody asked to scroll. The heading says how many are in there,
+   * which is the thing worth knowing without opening it.
+   */
+  const [examplesOpen, setExamplesOpen] = useState(false);
   /* A sentence fills nothing — see fillsOf, which is the one answer to
      that and which this only reports. So the second subsection has nothing
      to offer one, except where it already carries names, which it has to go
@@ -4245,11 +4284,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         braces are in the text, so the holes are a fact about the card
         and there is nothing to decide. That one is a readout: the
         holes, and what will go in each of them. What the card *is*
-        once they are filled — five of it, as a student meets it — is
-        the third, and a list to read down rather than a preface to the
-        holes it was appended to. What a card *fills* is nowhere in its
-        words and nothing can be read off: it is the teacher's answer,
-        so that one is the list they answer it on.
+        once they are filled — all of it, as a student meets it, folded
+        away until it is asked for — is the third, and a list to read
+        down rather than a preface to the holes it was appended to.
+        What a card *fills* is nowhere in its words and nothing can be
+        read off: it is the teacher's answer, so that one is the list
+        they answer it on.
 
         0.161 had both as tick lists, which made the first one a list
         of every blank in the language with two of them ticked — and a
@@ -4264,7 +4304,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               ? "only a sentence can have a blank"
               : sentence && holes.length
                 ? `${plural(holes.length, "blank")} · ${
-                    starved.length ? "nothing fills it yet" : `met as ${plural(asked.length, "sentence")}`
+                    /* Every filling the card has, counted — not the examples
+                       drawn, which the list below says for itself and which
+                       stop at a ceiling. "Met as three sentences" was what
+                       this said while three were printed, on a card met as
+                       two hundred. */
+                    starved.length ? "nothing fills it yet" : `met as ${plural(combos, "sentence")}`
                   }`
                 : sentence
                   ? "no blank in it yet"
@@ -4387,43 +4432,77 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             every blank standing as one of the words actually behind it.
             It sat above the holes as a wordless preface to them, which is
             where the one thing on this screen worth reading down was
-            hardest to recognise as a thing to read. Five of them, each in
+            hardest to recognise as a thing to read. All of them, each in
             the script, in how it is said and in what it means, and
             nothing else on the line — so the list is read as a list.
+
+            Folded, and the heading is what opens it: all of them is as
+            many sentences as there are words behind the blanks, which is
+            a screenful on the smallest card that has any, and the rest of
+            the section is underneath it.
 
             Only on a card that leaves a blank: a card with no hole in it
             is met as what it says, and a heading offering examples of it
             would be a heading over the card's own words. */}
         {sentence && holes.length > 0 && (
           <div className="at-part">
-            <p className="at-groupline">Examples of this card with filled blanks</p>
-            {asked.length > 0 ? (
-              <ol className="at-asked">
-                {asked.map((line, i) => (
-                  <li className="at-askedline" key={i}>
-                    <span className="at-askedsays">
-                      {line.ar && (
-                        <span
-                          className="at-askedscript"
-                          lang={lang.id}
-                          dir={lang.direction}
-                          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
-                        >
-                          {line.ar}
-                        </span>
-                      )}
-                      {line.lat && <span className="at-askedsaid">{line.lat}</span>}
-                      {line.en && <span className="at-askedmeans">{line.en}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ol>
+            {/* The one heading here that is a control, because it is the
+                one that has something behind it: what it says while it is
+                shut is how many sentences the card is met as, which is the
+                answer a teacher wants oftener than the sentences
+                themselves. */}
+            <button
+              type="button"
+              className="at-groupline at-groupfold"
+              aria-expanded={examplesOpen}
+              onClick={() => setExamplesOpen((v) => !v)}
+            >
+              <span>Examples of this card with filled blanks</span>
+              <span className="at-groupcount">
+                {combos ? plural(combos, "example") : "none yet"}
+              </span>
+              <Icon name={examplesOpen ? "chevronUp" : "chevronDown"} size={16} />
+            </button>
+            {examplesOpen && (asked.length > 0 ? (
+              <>
+                <ol className="at-asked">
+                  {asked.map((line, i) => (
+                    <li className="at-askedline" key={i}>
+                      <span className="at-askedsays">
+                        {line.ar && (
+                          <span
+                            className="at-askedscript"
+                            lang={lang.id}
+                            dir={lang.direction}
+                            style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                          >
+                            {line.ar}
+                          </span>
+                        )}
+                        {line.lat && <span className="at-askedsaid">{line.lat}</span>}
+                        {line.en && <span className="at-askedmeans">{line.en}</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                {/* Only where a card is met as more sentences than a screen
+                    will draw — see EXAMPLES_CEILING. Said rather than left
+                    to be counted, because a list that stopped without
+                    saying so is a list a teacher would read as all of them. */}
+                {combos > EXAMPLES_CEILING && (
+                  <Help>
+                    The first {plural(asked.length, "example")} of{" "}
+                    {plural(combos, "example")}, which is as many as one screen
+                    will draw. The rest are this card with other words in it.
+                  </Help>
+                )}
+              </>
             ) : (
               <Help>
                 None yet. A blank in this card has no word behind it, so there
                 is nothing to stand in it and no filled sentence to show.
               </Help>
-            )}
+            ))}
           </div>
         )}
 

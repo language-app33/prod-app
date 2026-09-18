@@ -1005,7 +1005,7 @@ export default async (req) => {
             ...(f.ask === false ? { ask: false } : {}),
             /* And whether it may be lent to a card with a blank in it,
                which is the other half of the same question and since
-               0.178 a separate answer — see `lend` in src/types.ts.
+               0.179 a separate answer — see `lend` in src/types.ts.
                Stored only where the client has an answer to store: absent
                means whatever `ask` says, which is what every card written
                before this meant. */

@@ -4120,7 +4120,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        subsections doing opposite jobs and each has a box and a list, so a
        selector over the whole block would answer about whichever came
        first — and "the list under this heading" is the actual claim.
-       Each subsection is a panel of its own since 0.178, so the claim is
+       Each subsection is a panel of its own since 0.179, so the claim is
        "inside the panel this heading names". */
     const half = (/** @type {RegExp} */ re) => {
       const block = blanks();
@@ -4137,7 +4137,10 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         ...n.querySelectorAll(sel),
       ]);
     const HOLES = /^Blanks in this card$/;
-    const SHOWN = /^Examples of this card with filled blanks$/;
+    /* The heading of the folded half carries the count of what is behind
+       it — "Examples of this card with filled blanks · 2 examples" — so it
+       is matched from the front rather than whole. */
+    const SHOWN = /^Examples of this card with filled blanks/;
     const CARDID = /^The card’s ID$/;
     const FILLS = /^The card’s group tags$/;
 
@@ -4151,7 +4154,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
        They are a named subsection of their own since 0.174: they are not a
        fact about the holes but the card itself, as a student meets it, and
-       a list worth reading down is worth a heading saying what it is. */
+       a list worth reading down is worth a heading saying what it is. It
+       is folded away until it is asked for, because the list is now every
+       filling the card has rather than the first few of them. */
     typeInto(saidFields()[0], "ismi {{name}}");
     await sleep(200);
     const examples = () => inHalf(SHOWN, ".at-askedline")
@@ -4161,20 +4166,39 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         en: (((line.querySelector(".at-askedmeans") || {}).textContent) || "").trim(),
       }));
     const asked = () => examples().map((e) => [e.ar, e.lat, e.en].join(" · "));
+    const fold = () => /** @type {any} */ (
+      [...((blanks() || document).querySelectorAll(".at-groupfold"))]
+        .find((b) => SHOWN.test(((b.querySelector("span") || {}).textContent) || "")) || null);
     check("the filled examples are a named subsection, not a preface to the holes",
-      examples().length > 0 && !inHalf(HOLES, ".at-askedline").length,
+      !!fold() && !inHalf(HOLES, ".at-askedline").length,
       [...((blanks() || document).querySelectorAll(".at-groupline"))]
-        .map((g) => (g.textContent || "").trim()).join(" | ") || "(no headings)");
+        .map((g) => (g.textContent || "").replace(/\s+/g, " ").trim()).join(" | ") || "(no headings)");
+    /* Folded to start with, and the heading is the thing that opens it:
+       every filling of a frame the whole vocabulary fills is a list nobody
+       asked to scroll past to reach the rest of the card. */
+    check("and it is folded away until it is asked for",
+      !!fold() && fold().getAttribute("aria-expanded") === "false" && !examples().length,
+      fold() ? `${fold().getAttribute("aria-expanded")} · ${examples().length} lines` : "(no heading)");
+    check("with the heading saying how many are in there, so it need not be opened to be answered",
+      !!fold() && /2 examples/.test((fold().textContent || "").replace(/\s+/g, " ")),
+      fold() ? (fold().textContent || "").replace(/\s+/g, " ").trim() : "(no heading)");
+    click(fold());
+    await sleep(200);
+    check("and pressing it opens the list",
+      !!fold() && fold().getAttribute("aria-expanded") === "true" && examples().length > 0,
+      `${examples().length} shown`);
     check("and shows the sentences a student will actually be asked",
       asked().length > 0 && asked().every((line) => !/\{\{/.test(line)),
       asked().join(" / ") || "(none shown)");
-    check("each one a different word, so one card does not print three times",
+    check("each one a different word, so one card does not print the same sentence twice",
       new Set(asked()).size === asked().length, asked().join(" / "));
-    /* As many as there are words behind the blank, up to five: a teacher
-       reading five examples of one frame sees what the card varies by. */
-    check("as many as the blank has words, and never more than five",
-      asked().length === 2 && asked().length <= 5,
-      `${asked().length} shown`);
+    /* All of them, not the first few: the question a teacher has — is the
+       right vocabulary behind this blank — is asked of the whole list. */
+    check("as many examples as the card has fillings, not a handful of them",
+      asked().length === 2, `${asked().length} shown`);
+    check("and the section says the same number as what the card is met as",
+      /\b2 sentences\b/.test((((blanks() || document).querySelector(".at-formrole") || {}).textContent) || ""),
+      ((((blanks() || document).querySelector(".at-formrole") || {}).textContent) || "").trim() || "(nothing said)");
     /* The English alone is the one line of the question a learner is never
        asked to produce, so a preview of an Arabic frame that showed it
        alone was a preview of everything except the Arabic. */
@@ -4423,7 +4447,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
     /* And it is filled by the words that say they are nouns, with nothing
        written on any of them to say so — which is the whole bargain: a
-       teacher writes the sentence, and the vocabulary joins in. */
+       teacher writes the sentence, and the vocabulary joins in. Asked for
+       again, because calling the card a sentence built the editor afresh
+       and the examples fold away on every card until somebody opens them. */
+    if (fold() && fold().getAttribute("aria-expanded") === "false") {
+      click(fold());
+      await sleep(200);
+    }
     const nounLines = () => [...((blanks() || document).querySelectorAll(".at-askedline .at-askedmeans"))]
       .map((n) => (n.textContent || "").trim());
     check("and a blank named after a kind of word is filled by the words of that kind",
@@ -4673,7 +4703,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        the word itself, which is what the ticks are about. 0.134 hid the
        question altogether on a card with one part, which is every
        ordinary word; 0.158 put it back as a list at the foot of the
-       screen naming parts in the editor's own words; 0.178 asks it where
+       screen naming parts in the editor's own words; 0.179 asks it where
        the thing being drilled is. */
     {
       const formBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
@@ -5203,7 +5233,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      A card is a word and a pile of forms of it, and until 0.134 all of it
      was asked about: the only way to stop a form being drilled was to
      delete it, which took its recordings and every student's progress with
-     it. Until 0.178 the answer was given in one list at the foot of the
+     it. Until 0.179 the answer was given in one list at the foot of the
      screen naming each part in the editor's own words — so a teacher
      looking at the pronoun table they had just filled in had to scroll
      past everything else to a line called "Its attached pronouns" and work

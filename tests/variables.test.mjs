@@ -453,7 +453,7 @@ test("every form of a card lends itself, each under its own name", () => {
 });
 
 test("being asked and being lent are two answers on one form", () => {
-  /* Since 0.178 a form says both, because a word can be worth meeting
+  /* Since 0.179 a form says both, because a word can be worth meeting
      inside somebody else's sentence without being a question of its own —
      that is what a value card is — and worth asking on its own without
      being dropped into every frame with a hole of its name. */

@@ -660,7 +660,7 @@ export function valuesFor(
  * out for a student to read may be worth neither; and an ordinary word is
  * worth both.
  *
- * Until 0.178 `ask` answered both at once, so a form kept without being
+ * Until 0.179 `ask` answered both at once, so a form kept without being
  * asked lent nothing either — which was the only thing it could mean when
  * there was one answer between them. That is exactly what an absent
  * `lend` still means, so every card written before this is read as it was
