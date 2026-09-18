@@ -584,7 +584,19 @@ const died = (err) => {
 process.on("uncaughtException", died);
 process.on("unhandledRejection", died);
 
-check("app rendered the home screen", /Cards ready to practice/.test(text), text.slice(0, 80).replace(/\s+/g, " "));
+/* The home screen opens on the climb — the ring and the band beside it —
+   rather than on a count of what is due. */
+const homeCard = () => document.querySelector(".at-card[data-ready]");
+check("app rendered the home screen", !!homeCard() && !!document.querySelector(".at-climb"), text.slice(0, 80).replace(/\s+/g, " "));
+check("and it says how far along the collection is, drawn and in words",
+  /\d+ of \d+ cards? learnt/.test(text.replace(/\s+/g, " ")) &&
+    !!document.querySelector(".at-climbring .fill") &&
+    !!document.querySelector(".at-climbband i"),
+  (document.querySelector(".at-climb")?.textContent || "nothing drawn").replace(/\s+/g, " "));
+/* And none of the lines that used to crowd it. */
+check("and none of the text that used to sit around it",
+  !/Cards ready to practice|Each form is asked|waiting to be introduced|sitting out/.test(text),
+  text.replace(/\s+/g, " ").slice(0, 160));
 check("no console errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 check("whoami asked once", calls.filter((c) => c.includes("whoami")).length === 1);
 check("material fetched via one request, no my-courses/course-decks/deck-cards", !calls.some((c) => /my-courses|course-decks|deck-cards/.test(c)) && materialHits >= 1, calls.join(", "));
@@ -639,7 +651,10 @@ check("untouched states are not stored",
    values are not among them, which is the thing this is here for — and nor
    are the three climbed above, whose next review is tomorrow. A card with
    nothing due is not a card waiting to be practised. */
-check("every card with something due counts, and a value is never one", /Cards ready to practice\s*6/.test(text.replace(/\s+/g, " ")), text.replace(/\s+/g, " ").match(/Cards ready to practice\s*\d+/)?.[0]);
+/* Counted off the attribute the home card carries rather than off a line of
+   text: the number came off the screen when the climb went on it, and what
+   is being tested here is the counting, not the wording. */
+check("every card with something due counts, and a value is never one", homeCard()?.getAttribute("data-ready") === "6", homeCard()?.getAttribute("data-ready") ?? "no home card");
 const wire = remoteDocs.get(realToken)?.data;
 /* Sparse means one thing: no state written out for an exercise type that was
    never answered. Keys from an older schema — v2's mean/read/write — ride
@@ -712,14 +727,22 @@ async function playGrid() {
     })(),
     checkedEarly: false,
     marked: false,
+    /* How many pairs were made meaning first. A grid is started from
+       whichever column the learner is reading, so half the pairs below are
+       made the other way round, and this is what says they took. */
+    fromRight: 0,
   };
   const early = document.querySelector('[data-el="check-button"]');
   seen.checkedEarly = !!early && /** @type {HTMLButtonElement} */ (early).disabled;
   for (let k = 0; k < seen.words; k++) {
-    click(words()[k]);
+    /* Every other pair begun from the meanings side, which is the same
+       pairing made by the other gesture: tap the meaning, then its word. */
+    const rightFirst = k % 2 === 1;
+    click(rightFirst ? meanings()[k] : words()[k]);
     await sleep(25);
-    click(meanings()[k]);
+    click(rightFirst ? words()[k] : meanings()[k]);
     await sleep(25);
+    if (rightFirst && words()[k].classList.contains("paired")) seen.fromRight += 1;
   }
   click(document.querySelector('[data-el="check-button"]'));
   await sleep(250);
@@ -1946,16 +1969,37 @@ const beforeStates = stateKeys(
 /* ---- the weak-skills button sits under Start session ----
    Its own walk at the foot of this file drives it on a deck with something
    actually going wrong. Here it is the offer itself: on the ordinary home
-   screen it is there, under the button it narrows, and it says what it
-   holds rather than being a dimmed button with no explanation. */
+   screen it is there, nothing is written beside it, and when there is
+   nothing to fix it is dimmed and says so on being pressed rather than
+   swallowing the press. */
 {
   const weakBtn = buttonNamed(/^Weak skills$/);
   check("the home screen offers a weak-skills session", !!weakBtn,
     (document.body.textContent || "").slice(0, 120).replace(/\s+/g, " "));
   const row = weakBtn && weakBtn.closest(".at-row");
-  check("and says beside it how much is slipping, dimmed or not",
-    !!row && /(\d+ cards? slipping|nothing slipping just now)/.test(row.textContent || ""),
+  check("and nothing is written beside it either way",
+    !!row && !/slipping/.test(row.textContent || ""),
     row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
+  /* Dimmed here — this learner has nothing going wrong — and dimmed is not
+     dead: the press arrives and comes back with the reason. */
+  const dimmed = !!weakBtn && weakBtn.getAttribute("aria-disabled") === "true";
+  check("with nothing slipping, the button is dimmed and still takes a press",
+    dimmed && !weakBtn.disabled,
+    weakBtn ? `aria-disabled=${weakBtn.getAttribute("aria-disabled")} disabled=${weakBtn.disabled}` : "no button");
+  if (dimmed) {
+    click(weakBtn);
+    await sleep(200);
+    const said = document.querySelector(".at-snack");
+    check("and pressing it says why nothing happened, rather than nothing at all",
+      !!said && /no weak skill to fix right now/i.test(said.textContent || ""),
+      said ? (said.textContent || "").replace(/\s+/g, " ") : "nothing said");
+    /* And it started no session: the whole point of the dimming. */
+    check("and no session starts from it", !document.querySelector(".at-instruction"),
+      (document.querySelector(".at-instruction") || {}).textContent || "none");
+    const shut = document.querySelector(".at-snackx");
+    if (shut) click(shut);
+    await sleep(200);
+  }
 }
 click(buttonNamed(/^Start session$/));
 await sleep(400);
@@ -3054,6 +3098,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      first meaning counted as "unpaired" could never be finished. */
   check("and pairing them all is, and gets marked",
     !!grid && grid.marked, String(grid && grid.marked));
+  /* Half the pairs above were begun from the meanings, and the grid was
+     finished and marked all the same: a learner reading down the right-hand
+     column starts there rather than crossing the screen first. */
+  check("a pair in the grid can be begun from either side",
+    !!grid && grid.fromRight > 0,
+    grid ? `${grid.fromRight} of ${Math.floor(grid.words / 2)} pairs made meaning first` : "never dealt");
   /* Reported four times in one evening: two tiles reading alike cannot be
      told apart by anybody, a right pairing is as likely to be marked wrong
      as right, and both learners gave up and pressed "I don't know". */
@@ -4929,6 +4979,83 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(300);
 }
 
+/* ---- and two forms of one card in a grid say which each is ----
+
+   The instruction can only speak for the word the question is *about*, and
+   in a matching grid every word is asked: what a learner has to do is put
+   the right English against each of five words. Two forms of one card
+   standing in the same grid is the pairing they cannot reason out — كبير
+   and كبيرة are both "big", however differently the two meanings are
+   written — so those tiles, and only those, carry their own grammar, on
+   the meanings as well as on the words.
+
+   Driven through the teacher's trial for the reason the block above is: it
+   asks one named exercise on one named card, and the adjective's feminine
+   is the word in this material most like it, so it is the company the grid
+   is filled with. Which tiles get a tag is checked over every combination
+   in tests/cards.test.mjs; what is checked here is that the grid on screen
+   carries them. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  const teachTabs = [...frame.querySelectorAll("button")].filter((b) => /^Cards$/.test(b.textContent || ""));
+  click(teachTabs[teachTabs.length - 1]);
+  await sleep(500);
+  /* The word itself, not the phrase that happens to contain it. */
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".ar") || {}).textContent || "").trim() === "كبير");
+  click(tile);
+  await sleep(450);
+
+  const toGrid = [...document.querySelectorAll(".at-try")]
+    .find((b) => /^Try Match the pairs$/.test(b.getAttribute("aria-label") || ""));
+  check("a card with company can be tried on the matching grid", !!toGrid,
+    [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
+  click(toGrid);
+  await sleep(700);
+
+  /** @param {string} sel */
+  const tiles = (sel) => [...document.querySelectorAll(sel)];
+  /** @param {Element} el */
+  const tagOn = (el) =>
+    ((el.querySelector('[data-el="match-form-tag"]') || {}).textContent || "").trim();
+  /** @param {string} word */
+  const wordTile = (word) =>
+    tiles('[data-el="match-word"]').find(
+      (el) => ((el.querySelector(".at-arabic") || {}).textContent || "").replace(/\s+/g, "") === word);
+  /** @param {RegExp} re */
+  const meaningTile = (re) =>
+    tiles('[data-el="match-meaning"]').find((el) => re.test((el.textContent || "").trim()));
+
+  const both = !!wordTile("كبير") && !!wordTile("كبيرة");
+  check("the grid stands a card's two forms beside each other", both,
+    tiles('[data-el="match-word"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
+  check("and each of the two says which form it is",
+    both && /m\./.test(tagOn(must(wordTile("كبير"), "the masculine tile"))) &&
+      /f\./.test(tagOn(must(wordTile("كبيرة"), "the feminine tile"))),
+    both
+      ? `كبير: "${tagOn(must(wordTile("كبير"), "the masculine tile"))}" · ` +
+        `كبيرة: "${tagOn(must(wordTile("كبيرة"), "the feminine tile"))}"`
+      : "the two forms were not both dealt");
+  /* The half that matters most: a tag on the words alone names the form
+     without saying which English belongs to it, which is the whole of what
+     was being asked for. */
+  check("and so does the meaning each of them belongs to",
+    !!meaningTile(/^big\b/) && !!meaningTile(/^big \(f\)/) &&
+      !!tagOn(must(meaningTile(/^big\b/), "the meaning tile for big")) &&
+      !!tagOn(must(meaningTile(/^big \(f\)/), "the meaning tile for big (f)")),
+    tiles('[data-el="match-meaning"]').map((el) => (el.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
+  /* And nobody else: a grid of five labelled words is a reading exercise
+     about labels. */
+  check("while a word with nothing to be confused with stays bare",
+    tiles('[data-el="match-word"]').some((el) => !tagOn(el)),
+    tiles('[data-el="match-word"]').map((el) => `${(el.textContent || "").replace(/\s+/g, " ").trim()}`).join(" · "));
+
+  click(document.querySelector('[data-el="leave-session"]'));
+  await sleep(500);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
 /* ---- a hole in a card, filled ----
    "My name is {{name}}" is a frame, not a sentence: the question fills it
    with one of the cards that say they fill `name`, and fills every field
@@ -5295,9 +5422,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 /* ---- a deck with something actually going wrong ----
    The weak-skills session, end to end: a deck of four ordinary cards, one
    of which has been missed twice running on reading it into English and is
-   fine at everything else. The button should say one card is slipping,
-   open a session, and that session should be about that card — not the
-   three the learner has never got wrong.
+   fine at everything else. The button should come up live rather than
+   dimmed, open a session, and that session should be about that card — not
+   the three the learner has never got wrong.
 
    On its own document at the end, for the same reason the walk above is:
    nothing here has to be counted against a fixture the rest of the file
@@ -5341,14 +5468,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const weakBtn = [...host3.querySelectorAll("button")]
     .find((b) => /^Weak skills$/.test((b.textContent || "").trim()));
   check("a card missed twice running lights the weak-skills button",
-    !!weakBtn && !weakBtn.disabled,
+    !!weakBtn && weakBtn.getAttribute("aria-disabled") !== "true",
     weakBtn ? "the button is there but dimmed"
       : (host3.textContent || "").slice(0, 90).replace(/\s+/g, " ") || "nothing rendered");
   const row = weakBtn && weakBtn.closest(".at-row");
-  check("and the line beside it counts the cards that are slipping",
-    /* No word boundary before the number: the button's own text runs
-       straight into the line beside it in `textContent`. */
-    !!row && /1 card slipping/.test((row.textContent || "").replace(/\s+/g, " ")),
+  check("and says nothing beside it, now that there is something to fix",
+    !!row && !/slipping/.test((row.textContent || "").replace(/\s+/g, " ")),
     row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
 
   click(weakBtn);

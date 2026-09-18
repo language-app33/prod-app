@@ -54,6 +54,8 @@ import {
   shuffled,
   inOrder,
   dueRank,
+  justPractised,
+  JUST_PRACTISED,
 } from "../src/scheduler.ts";
 import { EX, LEVEL_BARS, TYPES, barOf, levelOf } from "../src/languages.ts";
 import { must } from "./helpers.mjs";
@@ -729,6 +731,16 @@ test("everything already due is equally due", () => {
   assert.ok(dueRank(T + DAY, still) < dueRank(T + 2 * DAY, still));
 });
 
+test("a card just answered is known to have been just answered", () => {
+  /* Which is what stops a session that has run out of due cards reaching
+     for the same nine words every twenty minutes all day. */
+  assert.equal(justPractised(T - MIN, still), true);
+  assert.equal(justPractised(T - JUST_PRACTISED + MIN, still), true);
+  assert.equal(justPractised(T - JUST_PRACTISED, still), false, "the window has an end");
+  assert.equal(justPractised(T - DAY, still), false);
+  assert.equal(justPractised(0, still), false, "a card never answered is not one just answered");
+});
+
 test("so two sessions built from the same cards are not the same session", () => {
   /* The shape of the bug, in the small: five cards, all due, all equal.
      Ordering them is the first thing a session does, and doing it twice
@@ -1188,11 +1200,43 @@ test("answering straight after the last time does not move the card", () => {
   assert.equal(s.right, 5, "but the right answer is counted");
 });
 
-test("answering halfway through the gap grows it, by less", () => {
-  const early = reschedule(waited(20, 10), "good", still).interval;
-  const onTime = reschedule(waited(20, 20), "good", still).interval;
-  assert.ok(early > 20, `it still grows: ${early}`);
-  assert.ok(early < onTime, `but less than the full step: ${early} vs ${onTime}`);
+test("answering halfway through the gap moves nothing at all", () => {
+  /* It used to grow the gap a little, on the reasoning that half a wait is
+     half the evidence. The half it did not say out loud was that it also
+     re-dated the card from the moment of the early answer, throwing away
+     the wait already banked — so a card practised often enough never
+     accumulated a wait, and never grew. It comes back when it was always
+     going to, and grows then. */
+  const s = reschedule(waited(20, 10), "good", still);
+  assert.equal(s.interval, 20, "the gap stands");
+  assert.equal(s.due, T + 10 * DAY, "and so does the date it was already coming back on");
+});
+
+test("and the date stands however many times it is answered early", () => {
+  /* The bug this pair of tests exists for. Every early answer used to set
+     the next date to *now* plus the gap, so somebody practising every
+     twenty minutes pushed the card ahead of themselves all day and it
+     never once fell due. Its gap could then only ever grow from the floor
+     of one day, which tops out at three — under the four-day bar that says
+     a word is recognised, so no word ever left the front door and no new
+     word could arrive. */
+  let s = waited(3, 0);
+  const wasDue = s.due;
+  for (let i = 0; i < 30; i += 1) s = reschedule(s, "good", still);
+  assert.equal(s.due, wasDue, "still coming back when it always was");
+  assert.equal(s.interval, 3, "on the gap it had");
+  assert.equal(s.reps, 34, "and every answer was counted");
+});
+
+test("a card practised all day still grows when it finally falls due", () => {
+  /* The other half: the wait is banked rather than spent, so the answer
+     that lands on the day it asks for is worth the whole step. */
+  let s = waited(3, 0);
+  for (let i = 0; i < 30; i += 1) s = reschedule(s, "good", still);
+  /* Three days later, when it actually asks. */
+  const onTheDay = { now: () => T + 3 * DAY, random: () => 0.5 };
+  const grown = reschedule(s, "good", onTheDay);
+  assert.ok(grown.interval >= MASTERED_DAYS, `it reaches the bar: ${grown.interval}`);
 });
 
 test("no amount of early practice can push a card further out", () => {

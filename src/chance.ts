@@ -249,7 +249,7 @@ export function matchSet<T extends { id: string }>({
   seed: string;
   textOf: (x: T) => string;
   meaningOf: (x: T) => string;
-}): { words: T[]; meanings: string[] } {
+}): { words: T[]; meanings: string[]; said: T[] } {
   const saidText = new Set<string>();
   const saidMeaning = new Set<string>();
   const asked = new Set(answers.map((a) => a.id));
@@ -282,11 +282,21 @@ export function matchSet<T extends { id: string }>({
     saidMeaning.add(meaning.toLowerCase());
     spare.push(cand);
   }
+  /* Shuffled on their own seed, or a word and its meaning would come up
+     in the same place on both sides and the grid would read itself. */
+  const said = shuffledBy(words.concat(spare), `${seed} meanings`, (x) => x.id);
   return {
     words: shuffledBy(words, seed, (x) => x.id),
-    /* Shuffled on their own seed, or a word and its meaning would come up
-       in the same place on both sides and the grid would read itself. */
-    meanings: shuffledBy(words.concat(spare), `${seed} meanings`, (x) => x.id).map(meaningOf),
+    meanings: said.map(meaningOf),
+    /* And whose meanings those are, in the same order.
+
+       A caller with something to say about a meaning tile beyond the words
+       on it — which form of which card it belongs to — cannot find that out
+       from the string: two meanings can read alike, and looking a tile up by
+       what it says is the exact mistake the grid was proofed against. So the
+       units come back beside their meanings and a tile is found by where it
+       is, here as everywhere else in this exercise. */
+    said,
   };
 }
 

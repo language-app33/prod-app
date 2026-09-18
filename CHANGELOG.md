@@ -8,6 +8,130 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.173 — 18 September 2026
+
+**"Weak skills" now answers for itself.**
+
+The line beside it is gone. On the days there is nothing going wrong the
+button is simply dimmed, and pressing it says so: *There is no weak skill
+to fix right now*, at the foot of the screen, gone a moment later.
+
+That is the difference between a caption and an answer. "Nothing slipping
+just now" sat there every one of those days, explaining a button nobody
+had reached for yet; the same sentence said the instant somebody presses
+the button is the one they were actually asking for. And a dimmed button
+that does nothing at all when you press it teaches you nothing — you are
+left guessing whether the app is broken or you are.
+
+Nothing else about the button has changed: when something is slipping it
+is live, and pressing it deals the session it always did.
+
+## 0.172 — 17 September 2026
+
+**The home screen opens on how far you have got.**
+
+It used to open on a number: how many cards were ready, with four more
+lines around it explaining how a session is put together, how much was
+slipping, how many words were waiting their turn and how many cards were
+sitting out for want of a field. All of it was true and none of it was
+what you came to the screen for, and on the days it all showed at once
+the button you actually wanted was somewhere near the bottom.
+
+All five lines are gone. In their place, above Start session, is your
+climb: a ring of how much of your collection is learnt, and a band beside
+it showing where your cards are on the ladder — one block per level, in
+the same colours the Progress tab uses, so a collection you have just
+joined is one flat colour and one you are nearly through is mostly green.
+Under it, in words, how many cards are learnt out of how many you hold.
+
+Nothing about what a session deals has changed. The counts that came off
+the screen are all still in Progress, which is the tab for them.
+
+*Weak skills* still sits under Start session and still says "nothing
+slipping just now" on the days there is nothing to fix — that is the one
+day the line is worth reading. On every other day the button is simply
+live, and pressing it is the point.
+
+## 0.171 — 17 September 2026
+
+**In "Match the pairs", two forms of the same card now say which is which.**
+
+A card's forms are practised on their own, so two of them can turn up in
+one grid — the masculine and the feminine, the singular and its plural.
+When that happened there was no way to finish the question honestly: the
+two mean the same thing, however differently the two English tiles happen
+to be worded, so which meaning went with which word was a coin toss, and
+half of a correct answer came back marked wrong.
+
+Those tiles now carry their own grammar — *sg. m.*, *pl.* — in small print
+under the word, **and under the meaning**, which is the half that actually
+settles it: naming the word without naming its English leaves the pairing
+exactly as unguessable as it was.
+
+Only those tiles. A word with nothing in the grid to be confused with stays
+bare, because a grid of five labelled words is a reading exercise about
+labels rather than a question about the words. Nothing is said either where
+saying it would not help: two forms whose tags read alike are not told apart
+by them, and a language that declares no grammar — Huế — has nothing to say.
+## 0.170 — 17 September 2026
+
+**Practising a lot no longer stops you learning anything new.**
+
+If you sat down many times a day, the app quietly stopped working. The
+same handful of words came round every session, no word ever counted as
+learnt, and no new word ever arrived — for as long as you kept it up. The
+harder you practised, the more firmly it held.
+
+Here is what was happening. Every word carries a gap: the time the app
+waits before asking you again, which grows each time you get it right and
+is how it decides you have learnt something. Answering a word *before* it
+was due used to reset that gap's clock to the moment you answered. So if
+you came back every twenty minutes, the wait started again every twenty
+minutes and never actually ran. The gap could never grow past about three
+days, and a word needs four to count as recognised — so nothing was ever
+recognised, and the ten-word queue the app uses to pace new material never
+emptied.
+
+Now an early answer is counted, and leaves the word exactly where it was.
+It still comes back when it was always going to, and it grows then. Answer
+a word early as often as you like: it costs nothing and it no longer
+blocks anything.
+
+A simulated learner practising thirty times a day met ten words in a
+fortnight before this and never a word more. The same learner now meets
+forty-one, with gaps stretching out to three weeks. Somebody sitting down
+once or twice a day was never caught by this and will see no change.
+
+**And a session reaches for what you have not just done.** Once nothing is
+actually due, the app deals the words nearest to coming round — which, on
+your tenth sitting of the day, was the same words as on your ninth. A word
+you answered in the last couple of hours now gives way to one you did not,
+so a run of sessions works through what you are learning instead of
+circling the same nine cards. Anything genuinely due still comes first, and
+a card you marked as high priority still leads.
+
+One thing this release does not change: a word you keep getting *wrong*
+still goes back to the start each time, however early the attempt. If you
+drill one word hundreds of times a day, the occasional slip will still hold
+it back. Worth a look on its own if it bites.
+
+## 0.169 — 17 September 2026
+
+**Match the pairs can be started from either column.**
+
+In the matching grid, a pair had to begin with a word on the left: tapping
+a meaning on the right did nothing until a word was picked up first.
+Nothing on the screen said so, and a learner reading down the meanings —
+which is what you do when you are looking for the one you recognise — had
+to cross to the other side before their tap counted for anything.
+
+Now a tap on either side picks that tile up, and a tap on the far side
+completes the pair. Word then meaning, or meaning then word: the same
+pair, made either way round, marked the same. A tile you have picked up is
+outlined on whichever side it sits, tapping it again puts it down, and
+tapping a meaning that is already spoken for still frees it — only now it
+stays in your hand, so it can be given straight to another word.
+
 ## 0.168 — 17 September 2026
 
 **Weak skills: a session made only of what you keep getting wrong.**

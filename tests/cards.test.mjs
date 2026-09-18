@@ -84,7 +84,7 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, levelPercent, formIsAmbiguous, onePerLevel, quietUnits, easedUnits,
+const { leadSpeed, deckPercent, levelPercent, formIsAmbiguous, kinTags, onePerLevel, quietUnits, easedUnits,
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
@@ -709,6 +709,73 @@ test("and nothing is said where the question already settles it", () => {
   );
   /* And nothing at all on nothing, which is a question still being cast. */
   assert.equal(formIsAmbiguous({ unit: null, kin: [many], shown: [], promptField: "en" }), false);
+});
+
+/*
+ * And which tiles of a matching grid say what form they are.
+ *
+ * The instruction says which form is being asked; in a grid every word is
+ * asked, and the work is deciding which English goes with which word. Two
+ * forms of one card in the same grid is the pairing nobody can reason out
+ * — the two mean the same thing however differently the meanings are
+ * written — so those tiles, and only those, carry their own grammar.
+ */
+/** @type {Record<string, string>} */
+const owner = { a: "card", "a-f0": "card", z: "other", "z-f0": "other" };
+const tagsFor = (/** @type {any[]} */ units) =>
+  kinTags({
+    units,
+    cardOf: (/** @type {any} */ u) => owner[u.id] || "",
+    labelOf: (/** @type {any} */ u) => u.tag || "",
+  });
+
+test("two forms of one card in a grid each say which they are", () => {
+  const masc = form({ id: "a", ar: "مبسوط", en: "happy", tag: "sg. m." });
+  const fem = form({ id: "a-f0", ar: "مبسوطة", en: "glad", tag: "sg. f." });
+  const other = form({ id: "z", ar: "باب", en: "door", tag: "sg. m." });
+  /* Both of them, and nobody else: a grid of five labelled words is a
+     reading exercise about labels. */
+  assert.deepEqual(tagsFor([masc, fem, other]), { a: "sg. m.", "a-f0": "sg. f." });
+});
+
+test("a form counted once however many tiles it is on", () => {
+  /* A word and its own meaning are two tiles and one form. Handed in
+     twice, it must not read as a card with two forms up. */
+  const one = form({ id: "a", ar: "باب", en: "door", tag: "sg. m." });
+  assert.deepEqual(tagsFor([one, one]), {});
+});
+
+test("and nothing is said where saying it would not help", () => {
+  const one = form({ id: "a", ar: "كتاب", en: "book", tag: "sg. m." });
+  const two = form({ id: "a-f0", ar: "كتب", en: "books", tag: "sg. m." });
+  /* Tags that read alike tell nothing apart. */
+  assert.deepEqual(tagsFor([one, two]), {});
+  /* Nor does a language that declares no grammar — Huế has none, and a
+     tile with an empty tag on it would be a mark with nothing to say. */
+  assert.deepEqual(tagsFor([{ ...one, tag: "" }, { ...two, tag: "" }]), {});
+  /* One of the pair named and the other not is worth saying: "book · pl."
+     beside a bare "book" is still two tiles told apart. */
+  assert.deepEqual(tagsFor([{ ...one, tag: "" }, { ...two, tag: "pl." }]), { "a-f0": "pl." });
+  /* A form standing on its own is ambiguous with nobody. */
+  assert.deepEqual(tagsFor([one, form({ id: "z", ar: "باب", en: "door", tag: "sg. f." })]), {});
+});
+
+test("forms of two different cards are two crowds, not one", () => {
+  const a1 = form({ id: "a", tag: "sg. m." });
+  const a2 = form({ id: "a-f0", tag: "pl." });
+  const z1 = form({ id: "z", tag: "sg. f." });
+  assert.deepEqual(tagsFor([a1, z1]), {}, "one form apiece says nothing");
+  assert.deepEqual(tagsFor([a1, a2, z1]), { a: "sg. m.", "a-f0": "pl." });
+});
+
+test("and a form whose card nobody can name stands on its own", () => {
+  /* Otherwise every form the lookup missed would join one crowd of
+     strangers and get tagged for the company it never kept. */
+  const x = form({ id: "x", tag: "sg. m." });
+  const y = form({ id: "y", tag: "pl." });
+  assert.deepEqual(tagsFor([x, y]), {});
+  /* Nothing at all on nothing, which is a grid still being dealt. */
+  assert.deepEqual(tagsFor([null, undefined, form({ id: "", tag: "pl." })]), {});
 });
 
 /*

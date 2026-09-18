@@ -247,3 +247,46 @@ test("a word reaches the top of its ladder in a knowable time", () => {
     `mastered in ${got.medianDaysToMaster} days, faster than the bar`,
   );
 });
+
+/*
+ * The learner who does far too much.
+ *
+ * Every case above sits down once or twice a day, which is why this file
+ * reported healthy numbers through several releases in which somebody
+ * practising hard learnt nothing at all. An early answer used to re-date
+ * the card it was about, so a learner who came back every twenty minutes
+ * pushed every card ahead of themselves all day and none ever fell due;
+ * the gap each one was allowed to grow from was therefore always about
+ * nought, floored at a day, and topped out under the four-day bar that
+ * releases a new word. Ten words met in a fortnight, and never an
+ * eleventh, for as long as they kept it up.
+ *
+ * Kept deliberately as a *pace* test rather than a unit one: the fault was
+ * invisible in any single call to the scheduler and only appeared in the
+ * shape of a fortnight.
+ */
+test("practising all day never stops a learner meeting new words", () => {
+  const hard = live({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
+  console.log(
+    `    thirty sittings a day for ten days: met ${hard.met}, mastered ${hard.mastered}, ` +
+      `${hard.asked} questions`,
+  );
+  assert.ok(
+    hard.met > FRONT_DOOR_CAP,
+    `stuck at ${hard.met} words: the front door never emptied, so no new word was released`,
+  );
+  assert.ok(hard.mastered > 0, "nothing reached the top of its ladder");
+});
+
+test("and doing too much never beats doing the right amount", () => {
+  /* The other side of it, and the property the caps exist for: the keen
+     learner may meet more words — they have genuinely graduated more — but
+     the standing pools still bound what they carry, so practice cannot buy
+     its way past the pacing. */
+  const steady = live({ cards: courseOf(60), days: 10, sessionsPerDay: 1 });
+  const keen = live({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
+  assert.ok(keen.met >= steady.met, `${keen.met} against ${steady.met}`);
+  const peaks = liveKeeping({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
+  assert.ok(peaks.peakFront <= FRONT_DOOR_CAP, `front door reached ${peaks.peakFront}`);
+  assert.ok(peaks.peakInHand <= IN_HAND_CAP, `words in hand reached ${peaks.peakInHand}`);
+});

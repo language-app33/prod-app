@@ -1523,10 +1523,18 @@ button {
 /* Fading a filled button took its label down with it, leaving jade-on-jade
    that was barely readable. Disabled now drops to the plain surface and
    keeps a legible label. */
-.at-btn:disabled { cursor:default; box-shadow:none; opacity:1;
+/* `off` is the same look with the press left on, so the button can say why
+   nothing happened rather than sitting there dead — see Button. It has to
+   look identical to :disabled, so it is styled in the same breath. */
+.at-btn:disabled, .at-btn.off { cursor:default; box-shadow:none; opacity:1;
   background: var(--raised); border-color: var(--line); color: var(--faint);
   filter:none; }
-.at-btn.ghost:disabled { background:transparent; }
+.at-btn.ghost:disabled, .at-btn.ghost.off { background:transparent; }
+/* It does not take the small nudge a live button takes — that is the button
+   doing the thing — but it does take the tap flash every pressable surface
+   in the app takes, because the tap did arrive and is about to be answered
+   with a line saying why nothing happened. */
+.at-btn.off:active { transform:none; }
 /* The button that uploads a file is a label with the file input inside it,
    so it is never itself :disabled — the input is, and the label has to be
    told to look it. */
@@ -2041,6 +2049,36 @@ button.at-stat { transition: border-color 140ms ease; }
   button.at-stat:hover:not(:disabled) { border-color: var(--ink); }
   button.at-stat.on:hover:not(:disabled) { border-color: var(--accent); }
 }
+
+/* ---- the climb, at the top of the home screen ----
+   How far along the learner is, above the button that takes them further.
+   The ring is the percentage of the collection learnt; the band beside it is
+   every card filed under the level it is on, in the ladder's own colours, so
+   the spread is seen rather than counted. Nothing here is pressable — the
+   card it sits on is there for the button underneath. */
+/* No margin of its own underneath: the row of buttons below carries the
+   gap, the way every row on that card does. */
+.at-climb { display:flex; align-items:center; gap:16px; }
+.at-climbring { position:relative; flex-shrink:0; width:72px; height:72px; }
+.at-climbring svg { display:block; width:72px; height:72px; }
+.at-climbring circle { fill:none; stroke-width:7; }
+.at-climbring .track { stroke: var(--well); }
+.at-climbring .fill { stroke: var(--jade); stroke-linecap:round; }
+.at-climbring b { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-family: var(--ui); font-size:21px; font-weight:800; letter-spacing:-.03em;
+  color: var(--text); font-variant-numeric: tabular-nums; }
+.at-climbring b i { font-style:normal; font-size:11px; font-weight:800; margin-inline-start:1px; }
+.at-climbside { flex:1; min-width:0; display:flex; flex-direction:column; gap:9px; }
+/* The card centres everything in it, which is right for its buttons and
+   wrong for a line that labels the bar under it: the two line up on the
+   left or the line looks like a caption for the ring. */
+.at-climbsay { margin:0; text-align:start; font-family: var(--ui); font-size:13.5px;
+  font-weight:700; color: var(--text-soft); }
+/* One segment per level, with a gap between them: two neighbours can be the
+   same colour — a card on the last level and a card past it are both jade —
+   and the gap is what keeps them two blocks rather than one. */
+.at-climbband { display:flex; gap:2px; height:10px; }
+.at-climbband i { display:block; min-width:3px; border-radius:999px; }
 
 /* ---- the ladder, on a card's own screen ----
    One row per level the card has material on: which level, what it asks,
@@ -2662,10 +2700,16 @@ body.at-screening .at-chromebar { display:none; }
   display:inline-flex; align-items:center; justify-content:center; }
 .at-matchtile.right .at-matchnum { border-color: var(--jade-soft); color: var(--jade); }
 .at-matchtile.wrong .at-matchnum { border-color: var(--rose-soft); color: var(--rose); }
-/* The word and, once checked, the meaning it should have been paired with,
-   one under the other inside the tile. */
+/* What a tile stacks: the word, whichever of its form's grammar is worth
+   saying, and — once checked — the meaning it should have been paired with.
+   The meanings use it too, for the tag under them. */
 .at-matchword { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .at-matchfix { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--rose); line-height:1.3; }
+/* Which form a tile is, where two forms of one card are in the grid and
+   nothing else tells them apart. Small print in the interface font on both
+   columns — it is a note about the word, never a second word. */
+.at-matchtag { font-family: var(--ui); font-size:12px; font-weight:600; color: var(--muted);
+  line-height:1.3; }
 /* On a phone the two columns still share the row; what gives is the type
    and the padding inside a tile, not the shape of the exercise. */
 @media (max-width: 480px) {

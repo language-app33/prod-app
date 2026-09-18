@@ -189,6 +189,7 @@ import {
   freshStates,
   isAsked,
   itemDifficulty as itemDifficultyOf,
+  justPractised,
   mastered,
   maturity,
   missedTwice,
@@ -428,6 +429,24 @@ const LEVEL_COLOR: Record<number, string> = {
   3: "var(--brass)",
   4: "var(--jade)",
 };
+
+/* The same five rungs as a band, on the home screen: the four levels, then
+   the cards with nothing above them left to open.
+
+   The ladder's own colours, with one change at the bottom. A tile on the
+   Progress screen writes its count in the level's colour and the bottom
+   level's is the ink the rest of the app is written in, which is right for
+   a numeral and wrong for a bar: a learner whose cards are all on the first
+   level would be shown one solid bar in the brightest colour on the screen,
+   which reads as finished rather than as not started. In a band the bottom
+   rung is the quiet one. */
+const CLIMB_COLOR: string[] = [
+  "var(--muted)",
+  LEVEL_COLOR[2],
+  LEVEL_COLOR[3],
+  LEVEL_COLOR[4],
+  "var(--jade)",
+];
 
 const STATUS_COLOR: Record<string, string> = {
   none: "var(--muted)",
@@ -2452,8 +2471,16 @@ export function buildSession({
        states, and a fresh state is ready by definition — counted, it would
        have every card in the deck due at once. */
     const dues: number[] = [];
+    /* And when any of it was last answered, which decides nothing until
+       the learner has run out of cards that are actually due — see
+       justPractised. */
+    let lastSeen = 0;
     for (const { unit } of units) {
-      for (const t of askableTypes(unit, settings)) dues.push(stateOf(unit, t).due || 0);
+      for (const t of askableTypes(unit, settings)) {
+        const st = stateOf(unit, t);
+        dues.push(st.due || 0);
+        lastSeen = Math.max(lastSeen, st.updated || 0);
+      }
     }
     /* Askable rather than merely open, so a frame with nothing to fill it
        yet is not counted as waiting: it would be picked, admitted against
@@ -2472,7 +2499,7 @@ export function buildSession({
     const isNew = units.every(({ unit }) =>
       askableTypes(unit, settings).every((t) => stateOf(unit, t).phase === "new")
     );
-    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent };
+    return { it, units, soonest: dues.length ? Math.min(...dues) : 0, isNew, urgent, lastSeen };
   });
 
   /* Ordered before anything is filtered, because the filter below keeps
@@ -2482,6 +2509,35 @@ export function buildSession({
      from one sitting to the next — and a card the learner asked for ranks
      above all of it. */
   candidates = inOrder(candidates, (c) => (c.urgent ? -1 : dueRank(c.soonest)));
+
+  /*
+   * And among what is *not* due, a card just practised gives way to one
+   * that was not.
+   *
+   * Only among what is not due, which is the whole of the care needed
+   * here: everything genuinely waiting still comes first, in the order
+   * above, and a card the learner asked for still outranks all of it. What
+   * this decides is the order a session reaches past the due line in, and
+   * that order used to be "nearest to due" and nothing else — so the
+   * second sitting of an afternoon reached for the same cards as the
+   * first, and the thirtieth for the same cards as the twenty-ninth. A
+   * learner practising all day was handed nine words and never the rest of
+   * what they were learning.
+   *
+   * Written as a partition rather than another rank because the order
+   * inside each half is one already settled above, and shuffling it again
+   * would throw away the nearest-first reach that a practice session is
+   * for.
+   */
+  const waitingNow = (c: { urgent: boolean; soonest: number }) =>
+    c.urgent || dueRank(c.soonest) === 0;
+  const ahead = candidates.filter((c) => !waitingNow(c));
+  candidates = candidates
+    .filter(waitingNow)
+    .concat(
+      ahead.filter((c) => !justPractised(c.lastSeen)),
+      ahead.filter((c) => justPractised(c.lastSeen))
+    );
 
   /*
    * Being due decides the order, not whether you may practise at all.
@@ -5440,9 +5496,27 @@ function SceneOrder({ card, lang, value, onChange, disabled }: {
  * them: a line between two columns is a thing to draw, to redraw on every
  * resize, and to get wrong in a language that reads right to left.
  */
-function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked }: {
+function MatchGrid({
+  words,
+  meanings,
+  wordTags = [],
+  meaningTags = [],
+  lang,
+  askedId,
+  onChange,
+  onPairs,
+  checked,
+}: {
   words: Form[];
   meanings: string[];
+  /**
+   * What a tile says it is — "f.", "pl." — where anything. One per tile, in
+   * the order of the column it belongs to, and empty on nearly all of them:
+   * only two forms of one card in the same grid are told apart this way.
+   * See kinTags.
+   */
+  wordTags?: string[];
+  meaningTags?: string[];
   lang: Lang;
   askedId: string;
   onChange: (v: string) => void;
@@ -5469,7 +5543,21 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
    * number instead of a string.
    */
   const [pairs, setPairs] = useState<Record<string, number>>({});
-  const [held, setHeld] = useState<string | null>(null);
+  /*
+   * Which tile is picked up and waiting for its other half — a side and a
+   * place on it, never merely a word.
+   *
+   * A pair is started from either column. A learner reading down the
+   * meanings and spotting the one they know should be able to tap it and
+   * then its word; making them cross to the other side first is a rule
+   * about the grid's insides rather than about the language, and nothing on
+   * the screen ever said it was there. Which column a pair was begun from
+   * makes no difference to what it is or how it is marked.
+   */
+  type Held = { col: "word"; id: string } | { col: "meaning"; at: number };
+  const [held, setHeld] = useState<Held | null>(null);
+  const heldWord = held && held.col === "word" ? held.id : null;
+  const heldMeaning = held && held.col === "meaning" ? held.at : null;
 
   /* `undefined` and not falsiness: the first tile is number 0, and a grid
      whose first meaning counted as "unpaired" would never finish. */
@@ -5501,6 +5589,10 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pairs, done, askedId]);
 
+  /* The two taps are one gesture written twice, once for each column: a
+     tile already paired is freed and left held, a tile tapped while the
+     other column holds one completes the pair, and anything else is picked
+     up — or put down again, where it was already held. */
   const tapWord = (id: string) => {
     if (checked) return;
     if (pairedAt(id) !== null) {
@@ -5509,10 +5601,16 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
         delete next[id];
         return next;
       });
-      setHeld(id);
+      setHeld({ col: "word", id });
       return;
     }
-    setHeld((h) => (h === id ? null : id));
+    if (heldMeaning !== null) {
+      const at = heldMeaning;
+      setPairs((p) => ({ ...p, [id]: at }));
+      setHeld(null);
+      return;
+    }
+    setHeld((h) => (h && h.col === "word" && h.id === id ? null : { col: "word", id }));
   };
 
   const tapMeaning = (at: number) => {
@@ -5520,18 +5618,24 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
     const owner = takenBy(at);
     /* Tapping a meaning already spoken for frees it, which is the only way
        back from a pairing made by mistake that does not need a third
-       gesture to undo. */
+       gesture to undo — and leaves it held, as freeing a word does, so the
+       meaning can be given to another word with the next tap. */
     if (owner) {
       setPairs((p) => {
         const next = { ...p };
         delete next[owner.id];
         return next;
       });
+      setHeld({ col: "meaning", at });
       return;
     }
-    if (!held) return;
-    setPairs((p) => ({ ...p, [held]: at }));
-    setHeld(null);
+    if (heldWord !== null) {
+      const id = heldWord;
+      setPairs((p) => ({ ...p, [id]: at }));
+      setHeld(null);
+      return;
+    }
+    setHeld((h) => (h && h.col === "meaning" && h.at === at ? null : { col: "meaning", at }));
   };
 
   const numberOf = (id: string) =>
@@ -5540,7 +5644,7 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
   return (
     <div className="at-match" data-el="answer-match">
       <div className="at-matchcol">
-        {words.map((w) => {
+        {words.map((w, i) => {
           const mine = meaningFor(w.id);
           const right = checked && !!mine && mine === w.en;
           return (
@@ -5548,15 +5652,21 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
               type="button"
               key={w.id}
               data-el="match-word"
-              className={`at-matchtile${held === w.id ? " on" : ""}${mine ? " paired" : ""}${
+              className={`at-matchtile${heldWord === w.id ? " on" : ""}${mine ? " paired" : ""}${
                 checked ? (right ? " right" : " wrong") : ""
               }`}
-              aria-pressed={held === w.id}
+              aria-pressed={heldWord === w.id}
               onClick={() => tapWord(w.id)}
             >
               {mine ? <span className="at-matchnum">{numberOf(w.id)}</span> : null}
               <span className="at-matchword">
                 <Arabic text={w.ar} kind="word" lang={lang} />
+                {/* Which form of its card this is, where another form of
+                    the same card is in the grid and nothing else would say
+                    which meaning belongs to which. */}
+                {wordTags[i] ? (
+                  <span className="at-matchtag" data-el="match-form-tag">{wordTags[i]}</span>
+                ) : null}
                 {/* What it should have been, under a word paired wrong: the
                     verdict below speaks of the first word only, and a grid
                     of five has four others to be told about. */}
@@ -5578,13 +5688,28 @@ function MatchGrid({ words, meanings, lang, askedId, onChange, onPairs, checked 
                  React treat them as one. */
               key={at}
               data-el="match-meaning"
-              className={`at-matchtile en${owner ? " paired" : ""}${
-                checked && owner ? (right ? " right" : " wrong") : ""
-              }`}
+              /* Held looks the same on both sides, because it is the same
+                 thing: a tile waiting for its other half. */
+              className={`at-matchtile en${heldMeaning === at ? " on" : ""}${
+                owner ? " paired" : ""
+              }${checked && owner ? (right ? " right" : " wrong") : ""}`}
+              aria-pressed={heldMeaning === at}
               onClick={() => tapMeaning(at)}
             >
               {owner ? <span className="at-matchnum">{numberOf(owner.id)}</span> : null}
-              {m}
+              {/* The meaning, and — only where two forms of one card are up
+                  — which of them it belongs to. Said on this side as well
+                  as on the words, because it is the meanings a learner
+                  cannot tell apart: the tag on the word alone would name
+                  the form without saying which English is its. */}
+              {meaningTags[at] ? (
+                <span className="at-matchword">
+                  <span>{m}</span>
+                  <span className="at-matchtag" data-el="match-form-tag">{meaningTags[at]}</span>
+                </span>
+              ) : (
+                m
+              )}
             </button>
           );
         })}
@@ -6912,23 +7037,6 @@ export default function ArabicTrainer() {
     [drillable, settings]
   );
 
-  /*
-   * Why no new words are arriving, when none are.
-   *
-   * A learner can be practising perfectly happily and still never meet a
-   * new word, because the words they hold have not been learnt yet. That
-   * is the rule doing its job, and until now it did it in silence — which
-   * reads as the app having quietly run out. Named, it is a goal instead:
-   * these are the ones in the way, and more arrive as they go.
-   */
-  const newWordsHeldUp = useMemo(() => {
-    const unmet = drillable.filter(
-      (it) => familyMaturity(it, (u: Form) => reachedTypes(u, settings)) === "new"
-    ).length;
-    if (!unmet) return 0;
-    return roomForNew(handCounts(shown, settings)) === 0 ? unmet : 0;
-  }, [drillable, shown, settings]);
-
   /* ---------------- session ---------------- */
 
   /*
@@ -7606,7 +7714,9 @@ export default function ArabicTrainer() {
    * whatever of it is still here.
    */
   const grid = useMemo(() => {
-    if (!item || !spec || !exercise || spec.picks !== "pair") return { words: [], meanings: [] };
+    if (!item || !spec || !exercise || spec.picks !== "pair") {
+      return { words: [] as Form[], meanings: [] as string[], said: [] as Form[] };
+    }
     /* Two units a learner would read as one tile: the same word, or the
        same meaning, after both have been narrowed to the one the question
        shows. matchSet is the gate that refuses them; this is the same
@@ -7654,6 +7764,37 @@ export default function ArabicTrainer() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item && item.id, exercise && exercise.type, exercise && exercise.mates, asking, qLang.id]);
+
+  /*
+   * What each tile of the grid says about itself, beside its word.
+   *
+   * Nothing, nearly always — see kinTags, which is where the rule is. The
+   * one case it speaks in is two forms of the same card standing in the
+   * one grid, which a learner cannot pair by reading alone.
+   *
+   * Which card a form came from is not on the form: a grid's words are
+   * drawn from the whole of what this learner has, and arrive narrowed to
+   * one spelling and one meaning. So the cards are asked, once, and the
+   * answer is a tag per tile in the order the two columns stand in.
+   */
+  const gridTags = useMemo(() => {
+    const said = grid.said || [];
+    if (!grid.words.length) return { words: [] as string[], meanings: [] as string[] };
+    const ownerOf = new Map<string, string>();
+    for (const card of asking) {
+      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
+    }
+    const tags = kinTags({
+      units: (grid.words as Record<string, any>[]).concat(said),
+      cardOf: (u) => ownerOf.get(u.id) || "",
+      labelOf: (u) => labelFor(u, qLang),
+    });
+    return {
+      words: grid.words.map((w) => tags[w.id] || ""),
+      meanings: said.map((u) => tags[u.id] || ""),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grid, asking, qLang.id]);
 
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
@@ -8694,12 +8835,6 @@ export default function ArabicTrainer() {
   setSounds(settings.sounds);
   const inExercise = !!(session && exercise);
   const kbOpen = kb.open && inExercise;
-  const undrillable = items.filter((it) => !isDrillable(it, settings)).length;
-  /* Whether the quiet window is open, for the one message whose explanation
-     changes while it is: a card can fall below the two-type minimum because
-     its listening exercises are paused, and saying it is missing fields would
-     send someone looking for a fault that isn't there. */
-  const listenQuiet = listenOff > Date.now();
 
   /*
    * What the corner menu says about sync.
@@ -8843,15 +8978,15 @@ export default function ArabicTrainer() {
 
             {items.length > 0 && !session && (
               <>
-                <div className="at-card">
-                  <p className="at-eyebrow">
-Cards ready to practice
-                  </p>
-                  <Stat value={readyCount} big />
-                  <Help>
-                    Each form is asked {PER_UNIT} different ways where its data allows,
-                    spread across the session.
-                  </Help>
+                {/* The count of what is waiting rides on the card as an
+                    attribute rather than a line of text: nothing reads it at
+                    runtime, and it is here so the walk through the app can
+                    still check that the right cards are being counted after
+                    the number came off the screen. */}
+                <div className="at-card" data-ready={readyCount}>
+                  {/* How far along the learner is, above the button that
+                      takes them further. */}
+                  <Climb items={shown} settings={settings} />
 
                   <div className="at-row">
                     {/* Always live while there is anything to drill. Being
@@ -8875,24 +9010,30 @@ Cards ready to practice
                       moment to reach for it is the moment you have just
                       seen the ladder say a level is paused.
 
-                      Always shown, and disabled with the reason beside it
-                      when there is nothing to fix. The app's habit is to
-                      leave out a button that would open on an empty
-                      screen, but a learner has to be able to find this one
-                      to learn what it does, and "nothing slipping" is a
-                      thing worth being told on the days it is true. */}
+                      Always shown, and dimmed when there is nothing to fix.
+                      The app's habit is to leave out a button that would
+                      open on an empty screen, but a learner has to be able
+                      to find this one to learn what it does.
+
+                      Dimmed, and still worth pressing: `off` rather than
+                      `disabled`, so the press arrives and is answered with
+                      the reason. That line used to sit beside the button on
+                      every single day, saying what is slipping and how
+                      much — a standing caption for a question nobody had
+                      asked yet. It is said now on the one occasion it is an
+                      answer, which is the moment somebody presses the
+                      button and nothing happens. */}
                   <div className="at-row at-mt3">
                     <Button variant="ghost"
-                      onClick={beginWeak}
-                      disabled={!weakCount}
+                      off={!weakCount}
+                      onClick={() =>
+                        weakCount
+                          ? beginWeak()
+                          : flash("There is no weak skill to fix right now")
+                      }
                     >
                       Weak skills
                     </Button>
-                    <Meta>
-                      {weakCount
-                        ? `${plural(weakCount, "card")} slipping`
-                        : "nothing slipping just now"}
-                    </Meta>
                   </div>
                   <div className="at-row at-mt3">
                     <Button variant="ghost"
@@ -8905,7 +9046,7 @@ Cards ready to practice
                   </div>
                   {/* Numbers are built out of the deck's parts rather than
                       dealt from it, so the practice is started by hand and
-                      has no place in the count above. Offered only where
+                      is no part of the climb above. Offered only where
                       there is actually something to build — a deck with no
                       number words in it would open on an empty sitting,
                       which is a promise the app has not kept. */}
@@ -8935,34 +9076,12 @@ Cards ready to practice
                         welcome and won't move your schedule much.`}
                     </Help>
                   )}
-                  {newWordsHeldUp > 0 && (
-                    <Help>
-                      {`${plural(newWordsHeldUp, "word")} waiting to be introduced. New ones arrive
-                        as the words you're learning settle, so practising what you have is what
-                        brings them.`}
-                    </Help>
-                  )}
                   {!drillable.length && items.length > 0 && (
                     <Notice kind="warn">
                       No card here has two usable exercise types. A card needs the{" "}
                       {langOf(settings).scriptLabel} and at least one more field
                       before it can be practiced.
                     </Notice>
-                  )}
-                  {undrillable > 0 && drillable.length > 0 && (
-                    <Help>
-                      {listenQuiet ? (
-                        <>
-                          {plural(undrillable, "item")} sitting out while listening is
-                          off — see Items for anything missing a field.
-                        </>
-                      ) : (
-                        <>
-                          {plural(undrillable, "item")} sitting out — see Items for
-                          which fields are missing.
-                        </>
-                      )}
-                    </Help>
                   )}
                 </div>
               </>
@@ -9201,6 +9320,8 @@ Cards ready to practice
                           key={`${(item && item.id) || ""}-${qi}`}
                           words={grid.words}
                           meanings={grid.meanings}
+                          wordTags={gridTags.words}
+                          meaningTags={gridTags.meanings}
                           lang={qLang}
                           askedId={(item && item.id) || ""}
                           checked={!!checked}
@@ -9885,6 +10006,109 @@ Cards ready to practice
 
       {snack.node}
       </SnackbarProvider>
+    </div>
+  );
+}
+
+/*
+ * How far along the learner is, at the top of the home screen.
+ *
+ * The screen used to open on a count of what was due. That answers "what is
+ * there to do right now" and says nothing at all about the climb: somebody
+ * in their first week and somebody three months in were both told twelve,
+ * and the one thing a learner wants to see when the app opens — that this is
+ * going somewhere — was a tab away.
+ *
+ * Drawn rather than said, because it is a feeling as much as a number. The
+ * ring is the percentage the Progress tab puts on a deck, taken over
+ * everything in play instead of one deck; it shares deckPercent with that
+ * screen, so the two cannot come to disagree, and it is short of a hundred
+ * until every card really is learnt. The band under it is the ladder itself:
+ * every card filed under the level it is on, in the colours Progress gives
+ * those levels, so a collection freshly joined is one flat colour and a
+ * collection nearly finished is mostly jade. The line between them says the
+ * same thing in words, which is what a screen reader gets and what the eye
+ * can check the drawing against.
+ *
+ * Nothing here is pressable. It is the answer to a question, not the start
+ * of a job, and the whole point of the card it sits on is the button
+ * underneath.
+ */
+function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
+  const climb = useMemo(() => {
+    /* The four levels, then the cards with nothing above them left to open
+       — the same five buckets the tiles in Progress count. */
+    const spread = [0, 0, 0, 0, 0];
+    let n = 0;
+    let learnt = 0;
+    let got = 0;
+    for (const it of items) {
+      const rows = cardStandings(it, settings);
+      const at = standing(rows);
+      /* A card with nothing it can be asked yet is on no level, so it is
+         not progress to be short of — the exclusion Progress makes too. */
+      if (!at) continue;
+      n++;
+      /* A level a card has no material for is not a level it is short of,
+         so the denominator is the levels it actually has. */
+      got += rows.filter((r) => r.status === "done").length / rows.length;
+      if (at.status === "done") {
+        learnt++;
+        spread[4]++;
+      } else spread[at.level - 1]++;
+    }
+    return { n, learnt, pct: deckPercent({ n, learnt, got }), spread };
+  }, [items, settings]);
+
+  /* Nothing practisable, nothing to draw. The card below still offers what
+     it can, and the reason there is nothing is the Cards tab's to give. */
+  if (!climb.n) return null;
+  const { n, learnt, pct, spread } = climb;
+  /* The ring is a dash drawn along a circle: as much of the way round as
+     the number, and left off for the rest. */
+  const ROUND = 2 * Math.PI * 32;
+  return (
+    <div className="at-climb">
+      <div className="at-climbring">
+        <svg viewBox="0 0 72 72" aria-hidden="true" focusable="false">
+          <circle className="track" cx="36" cy="36" r="32" />
+          {/* Nothing drawn at nothing: a round-ended stroke of no length is
+              a dot at twelve o'clock, which is a mark on a ring that is
+              meant to be empty. */}
+          {pct > 0 && (
+            <circle
+              className="fill"
+              cx="36"
+              cy="36"
+              r="32"
+              strokeDasharray={`${(ROUND * pct) / 100} ${ROUND}`}
+              /* From the top, rather than from three o'clock. */
+              transform="rotate(-90 36 36)"
+            />
+          )}
+        </svg>
+        {/* The number inside the ring is the ring, so it is drawing too:
+            the line beside it is what gets said. */}
+        <b aria-hidden="true">
+          {pct}
+          <i>%</i>
+        </b>
+      </div>
+      <div className="at-climbside">
+        <p className="at-climbsay">
+          {learnt} of {plural(n, "card")} learnt
+        </p>
+        <span className="at-climbband" aria-hidden="true">
+          {spread.map((count, i) =>
+            count ? (
+              <i
+                key={i}
+                style={{ width: `${(count / n) * 100}%`, background: CLIMB_COLOR[i] }}
+              />
+            ) : null
+          )}
+        </span>
+      </div>
     </div>
   );
 }
@@ -12238,6 +12462,65 @@ export function formIsAmbiguous({ unit, kin, shown, promptField }: {
     String((x && x[promptField]) || "").trim().toLowerCase();
   const asked = said(unit);
   return !!asked && kin.some((k) => said(k) === asked);
+}
+
+/**
+ * Which tiles of a grid have to say what form they are.
+ *
+ * The instruction above says which form is being *asked*, and in a grid
+ * that is not enough: every word in a grid is asked, and what a learner
+ * has to do is decide which English goes with which word. Two forms of one
+ * card standing in the same grid is the one pairing they cannot reason
+ * out — a masculine teacher and a feminine one are both *teacher*, and
+ * even where the two meanings are written differently they are the same
+ * thing said twice. The pairing is then a coin toss, and half of it is
+ * marked wrong for knowing the word.
+ *
+ * So where one card has more than one form up, each of those forms carries
+ * its own grammar — "f.", "pl." — and **both columns carry it**: a tag on
+ * the words alone leaves the meanings exactly as unanswerable as they
+ * were. Every other tile stays bare, because a grid of five labelled words
+ * is a reading exercise about labels.
+ *
+ * Nothing is said where saying it would not help. Forms whose tags read
+ * alike are not told apart by them; a language that declares no grammar —
+ * Huế — has nothing to say at all; and a form standing on its own is not
+ * ambiguous with anybody.
+ *
+ * Keyed by form id, so the caller looks a tile up by which form is on it
+ * rather than by what it reads.
+ */
+export function kinTags({ units, cardOf, labelOf }: {
+  /** Every form on the grid: its words, and the forms its meanings are of. */
+  units: (Record<string, any> | null | undefined)[];
+  /** Which card a form belongs to. Empty where it is not known. */
+  cardOf: (unit: Record<string, any>) => string;
+  /** What the form is, in the language's own terms — see labelFor. */
+  labelOf: (unit: Record<string, any>) => string;
+}): Record<string, string> {
+  /* A word and its own meaning are one form on two tiles, so the forms are
+     taken once each before anything is counted. */
+  const seen = new Map<string, Record<string, any>>();
+  for (const unit of units || []) {
+    if (unit && unit.id && !seen.has(unit.id)) seen.set(unit.id, unit);
+  }
+  const byCard = new Map<string, Record<string, any>[]>();
+  for (const [id, unit] of seen) {
+    /* A form whose card nobody could name stands on its own rather than
+       joining a crowd of others in the same condition. */
+    const card = cardOf(unit) || `#${id}`;
+    byCard.set(card, (byCard.get(card) || []).concat([unit]));
+  }
+  const tags: Record<string, string> = {};
+  for (const kin of byCard.values()) {
+    if (kin.length < 2) continue;
+    const labels = kin.map((unit) => String(labelOf(unit) || "").trim());
+    if (new Set(labels).size < 2) continue;
+    kin.forEach((unit, i) => {
+      if (labels[i]) tags[unit.id] = labels[i];
+    });
+  }
+  return tags;
 }
 
 /* ==================================================================

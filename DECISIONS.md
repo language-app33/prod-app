@@ -2237,3 +2237,70 @@ optional so that one can decline. The marked answer replaces the read-only
 box the learner typed into rather than appearing beneath it: an input cannot
 hold a highlighted letter, and the same word twice with only one of them
 worth reading is worse than either.
+
+---
+
+## An early answer is counted and moves nothing
+
+**17 September 2026** · `src/scheduler.ts` (`reschedule`), `tests/pace.test.mjs`
+
+Practice is not gated on a card being due, so a learner may answer a card
+minutes after they last saw it. What that answer should do to the card's
+schedule has now been decided twice, and this entry is here because the
+first answer looked right and was wrong in a way nothing caught for several
+releases.
+
+**What it was.** A gap grew from the time actually waited. Answer a card
+halfway through its gap and it grew by half as much; answer it straight
+away and it grew by nothing. The reasoning was that half a wait is half the
+evidence, which is true, and it read well.
+
+**What was wrong with it.** The half it did not say out loud was that an
+early answer also re-dated the card — the next review was set to *now* plus
+the gap. So the wait already banked was not merely discounted, it was
+thrown away and started again. A learner coming back every twenty minutes
+re-dated every card every twenty minutes, and no card ever fell due. The
+wait the growth was computed from was therefore always about nought, and it
+had a floor of one day, so every card was credited with a day's retention it
+had not earned and grew to roughly two and a half days and stopped. The bar
+that says a word is recognised is four days. Nothing ever reached it, the
+front door never emptied, and no new word was ever released — permanently,
+for as long as the learner kept practising. The measured case: thirty
+sittings a day, every answer correct, ten words met in a fortnight and never
+an eleventh.
+
+It is worth naming the shape of this, because it is the second time the same
+shape has bitten. Both of the rules that ration new words have now had a
+version under which *practising harder made a learner learn less*. A rule
+about pacing should be checked against the learner who does far too much,
+not only against the one the design imagines.
+
+**What it is now.** An answer given before a card is due is counted — the
+reps, the right and wrong, the history, the difficulty reading, everything
+the progress screen is made of — and moves neither the gap nor the date.
+The card comes back when it was always going to, and grows then, from a
+wait it genuinely served. A miss is untouched by this and still lapses the
+card in full, above the early return, because forgetting is news whenever it
+arrives.
+
+**What it costs.** Two things. An early answer now earns nothing at all
+towards the schedule, where before it earned a little when the card was
+nearly due; a card answered an hour before it asks comes back in an hour
+rather than growing then and there. That is a real loss and a small one,
+and it buys a rule that can be stated in one sentence and cannot rot in the
+way the last one did.
+
+The second is the one to watch. Early *successes* now move nothing while
+early *misses* still move everything, so for somebody drilling one card
+hundreds of times a day the schedule only ratchets downward: at thirty
+sittings a day a simulated learner who is right nine times in ten still
+never masters a word, because the tenth answer lapses it. Whether a miss on
+a card nobody asked about should count in full is a genuine question and it
+is deliberately not settled here — "a miss is a miss wherever it happens" is
+a rule with its own good reasons, and trading it away wants its own
+decision rather than being smuggled in beside this one.
+
+**Where it is measured.** `tests/pace.test.mjs` plays out a simulated
+learner and reports what a course costs in days. It did not catch this,
+because every case in it sat down once or twice a day. It now has one that
+sits down thirty times.

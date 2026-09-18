@@ -124,6 +124,22 @@ test("the grid puts every dealt word up, and spare meanings beside them", () => 
   assert.equal(new Set(grid.meanings).size, grid.meanings.length, "no meaning twice");
 });
 
+test("and says whose each meaning is, in the order they stand in", () => {
+  /* What a caller needs to say anything about a meaning tile beyond the
+     words on it — which form of which card it belongs to. Looking that up
+     by the text is the mistake the grid is proofed against, so the units
+     come back beside their meanings. */
+  const dealt = words(5);
+  const pool = words(4, "p");
+  const grid = matchSet({ answers: dealt, pool, seed: "one", textOf, meaningOf });
+  assert.deepEqual(grid.said.map(meaningOf), grid.meanings, "one unit per meaning, in the same places");
+  assert.deepEqual(
+    ids(grid.said).filter((id) => ids(grid.words).includes(id)).sort(),
+    ids(grid.words).sort(),
+    "every word's own meaning is one of them",
+  );
+});
+
 test("the same seed deals the same grid, and another seed another", () => {
   const dealt = words(5);
   const pool = words(4, "p");

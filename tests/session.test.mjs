@@ -476,6 +476,65 @@ test("the same deck deals a different session next time", () => {
   assert.ok(new Set(runs).size > 1, "six sessions from one deck were identical");
 });
 
+/*
+ * Every exercise settled and none of them due, so the card is one a
+ * session can only reach by going past the due line — which is the only
+ * place the rule below applies. Set over every type there is, because a
+ * single untouched exercise would make the card due on its own.
+ */
+const settledWord = (
+  /** @type {string} */ id,
+  /** @type {number} */ dueInDays,
+  /** @type {number} */ seenMinutesAgo,
+) => {
+  const at = Date.now();
+  const st = {
+    phase: "review", step: 0, ease: 2.5, interval: 30, due: at + dueInDays * 86400000,
+    reps: 6, lapses: 0, right: 6, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1],
+    updated: at - seenMinutesAgo * 60000,
+  };
+  const w = word(id, `كلمة${id}`, `word ${id}`);
+  return {
+    ...w,
+    forms: [{ ...w.forms[0], s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, st])) }],
+  };
+};
+
+test("a sitting reaches past the words the last one just did", () => {
+  /*
+   * The thirtieth session of a day, in the small.
+   *
+   * Nothing is due, so the session reaches past the due line — and what it
+   * reached for was the nearest thing to due and nothing else, which is
+   * the same handful of words every time however often the learner came
+   * back. Here the words just practised are also the nearest to due, so
+   * the old rule would deal every one of them and none of the rest.
+   */
+  const justDone = ["j1", "j2", "j3", "j4", "j5", "j6"].map((id) => settledWord(id, 1, 10));
+  const rested = ["r1", "r2", "r3", "r4", "r5", "r6"].map((id) => settledWord(id, 20, 3 * 24 * 60));
+  const got = deal(justDone.concat(rested));
+  const dealt = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
+  for (const it of rested) {
+    assert.ok(dealt.has(it.id), `${it.id} was passed over for a word just practised`);
+  }
+});
+
+test("but anything actually due still comes first", () => {
+  /* The care this rule needs: it decides the order a session reaches past
+     the due line in, and must never hold back work that is genuinely
+     waiting — a card due this morning is due whether or not it was also
+     practised at breakfast. */
+  const dueNow = dueDeck(9).map((it) => ({
+    ...it,
+    forms: [{ ...it.forms[0], s: { ...it.forms[0].s, ar2en: { ...it.forms[0].s.ar2en, updated: Date.now() } } }],
+  }));
+  const rested = ["r1", "r2", "r3", "r4", "r5", "r6"].map((id) => settledWord(id, 20, 3 * 24 * 60));
+  const got = deal(dueNow.concat(rested));
+  const dealt = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
+  const reached = rested.filter((it) => dealt.has(it.id)).length;
+  assert.equal(reached, 0, `${reached} cards ahead of schedule came before cards that were due`);
+});
+
 /* ------------------------------------------------------------------
    The weak-skills session
 
