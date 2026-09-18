@@ -722,6 +722,23 @@ button {
 .at-formblock .at-groupline + .at-field, .at-formblock .at-groupline + .at-hint {
   margin-top:0; }
 .at-formblock .at-groupline:not(:first-of-type) { margin-top:22px; }
+/* A subsection heading that is also the thing that opens it: the same
+   rule and chip as its neighbours, so it reads as one of the headings
+   rather than a button parked among them, with what is behind it counted
+   on the end and a chevron saying which way it goes. Its margin is
+   written out rather than left to :not(:first-of-type), which counts
+   buttons and paragraphs apart and would give this one no room. */
+.at-groupfold { display:flex; align-items:center; gap:8px; width:100%;
+  min-height:38px; margin:14px 0 8px; padding:0; border:0; background:none;
+  cursor:pointer; text-align:start; color: var(--accent); }
+.at-groupfold > span:first-child { min-width:0; }
+.at-groupfold .at-groupcount { margin-inline-start:auto; flex:0 0 auto;
+  font-size:11px; font-weight:700; letter-spacing:0; text-transform:none;
+  color: var(--muted); }
+.at-groupfold .at-ic { flex:0 0 auto; }
+.at-groupfold:hover .at-groupcount { color: var(--text-soft); }
+.at-groupfold:focus-visible { outline:3px solid var(--brass); outline-offset:3px;
+  border-radius: var(--r-sm); }
 /* Ticking decks: a real checkbox, so it looks and behaves like one. */
 .at-ticklist { display:flex; flex-direction:column; gap:6px; }
 .at-tickrow { display:flex; align-items:center; gap:10px; cursor:pointer;

@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.175 — 18 September 2026
+
+**The filled examples now fold away, and there are all of them.**
+
+*Examples of this card with filled blanks* opens shut on every card, with
+the count on its heading: *24 examples*, and a tap to see them. Shut,
+because the list is no longer a handful — it is now every sentence the
+card is met as, one per word behind each blank, and a card the whole
+collection fills would otherwise push the rest of the screen out of sight
+before you had asked it anything.
+
+Open, it is all of them. The question you have in front of a blank — is
+the right vocabulary behind this, and does every one of these sentences
+say something — is a question about the whole list, and the three
+examples it used to print could not answer it. The heading beside the
+section says the same number, so a card you never open still tells you
+what it is worth.
+
+On a card met as more sentences than one screen will draw, the list stops
+at a thousand and says so, and says how many there are.
+
 ## 0.174 — 18 September 2026
 
 **A card with blanks in it now shows five filled examples, under a heading
