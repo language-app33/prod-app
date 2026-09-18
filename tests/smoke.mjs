@@ -4381,6 +4381,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(300);
     check("choosing it names the block after what is in it",
       blockNames().includes("The sentence"), blockNames().join(" | "));
+    /* And asks what to call it, exactly as a verb is asked. A sentence is
+       saved as a frame with a hole in it, so a list of sentences reads as
+       a list of holes unless the teacher says what each one is for. */
+    const sentenceName = [...document.querySelectorAll(".at-formblock")].find((b) =>
+      /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    check("a sentence can be given a name to be listed under, as a verb can",
+      !!sentenceName, blockNames().join(" | "));
+    check("and it is asked at the top, above the sentence itself",
+      blockNames().indexOf("What to call it") === 1 &&
+        blockNames().indexOf("What to call it") < blockNames().indexOf("The sentence"),
+      blockNames().join(" | "));
+    check("and says what a blank one falls back to, and that nothing is asked about it",
+      !!sentenceName && /listed and searched/.test(sentenceName.textContent || "") &&
+        /blanks and all/.test(sentenceName.textContent || "") &&
+        /Nobody is ever asked this/.test(sentenceName.textContent || ""),
+      sentenceName ? (sentenceName.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no block)");
     check("and stops asking what kind of word it is, because it is not one",
       !document.querySelector('[role="radiogroup"][aria-label="What kind of word"]'),
       document.querySelector('[role="radiogroup"][aria-label="What kind of word"]')

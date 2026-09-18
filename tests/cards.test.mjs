@@ -1771,6 +1771,42 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
   assert.equal(written.note, "about the book");
 });
 
+test("a sentence keeps what the teacher calls it, and a word is named by its own words", () => {
+  /*
+   * A sentence is saved as a frame with a hole in it, so a list of them
+   * reads as a list of holes: "{{name}} is heavy" names the shape of the
+   * card rather than what it is for. What to call it is asked of a
+   * sentence for the reason it is asked of a verb — what is on the card is
+   * not what the card is about — and the save has to carry it, which is
+   * the half a screen cannot show.
+   *
+   * And only where it is asked. Every other card is named by its own word,
+   * so a name typed while the card briefly was a sentence does not follow
+   * it out.
+   */
+  const draft = {
+    shownSpec: null,
+    ownForms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }],
+    tableCells: [],
+    forms: [],
+    note: "",
+    standsIn: false,
+    name: "  introducing yourself  ",
+    uses: [],
+    fills: "",
+    drill: true,
+    category: "",
+    refName: "",
+    spread: [],
+  };
+  const asSentence = writtenCard({ word: draft, talk: {}, shape: "sentence", chosen: [] });
+  assert.equal(asSentence.name, "introducing yourself",
+    "a sentence carries what it is called, trimmed");
+  assert.equal(asSentence.sentence, true, "and is still saved as a sentence");
+  const asWord = writtenCard({ word: draft, talk: {}, shape: "word", chosen: [] });
+  assert.equal(asWord.name, "", "and a word is named by its own words");
+});
+
 /* ---- what a document keeps on its way in ---- */
 
 test("a card's second accepted spelling keeps its schedule across a load", () => {

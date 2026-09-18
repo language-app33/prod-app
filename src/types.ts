@@ -761,9 +761,11 @@ export type Card = {
    *
    * A verb in a language with no infinitive is saved as the form a
    * dictionary lists — Arabic's he-past — so a list read "أكل · he ate",
-   * which names one cell of its table rather than the verb. A name is the
-   * teacher's answer to that. Absent on every other card, which is named
-   * by the word it teaches.
+   * which names one cell of its table rather than the verb. A sentence is
+   * saved as a frame, so a list read "{{name}} is heavy", which names the
+   * hole in it rather than what it is for. A name is the teacher's answer
+   * to both. Absent on every other card, which is named by the word it
+   * teaches.
    */
   name?: string;
   /**

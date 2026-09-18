@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.177 — 18 September 2026
+
+**A sentence can be given a name to be listed under.**
+
+A sentence is saved as the frame you wrote, hole and all, and that is what
+every list showed. So a deck of them read as a column of braces — "{{name}}
+is heavy" names the shape of the card rather than what it is for, and
+telling two of them apart at a glance meant reading past the blank in each.
+Nothing was wrong with the cards. They simply had no name of their own.
+
+**What to call it** is now the first thing on a sentence, exactly as it is
+on a verb, and it says the same about itself: how the card is listed and
+searched, and that nobody is ever asked it — what is practised is the
+sentence with its blanks filled in. Leave it blank and nothing changes; the
+card is listed as it was.
+
+A named sentence reads as its name in a list, with the sentence itself
+underneath. Its English gives way to the name, as a verb's does: the name is
+what the card is about now. It is searched by it too, so a sentence you
+called *saying where you live* is found under that.
+
 ## 0.176 — 18 September 2026
 
 **A card is a sentence because you said so, and only a sentence can have a

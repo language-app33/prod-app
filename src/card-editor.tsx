@@ -2178,8 +2178,9 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
       ) || null
     : null;
   const [note] = useState((card && card.note) || "");
-  /* What to call the card in a list. Only asked of a verb whose own word is
-     a cell of its table — see the block that asks for it. */
+  /* What to call the card in a list. Asked of the two cards whose own words
+     do not name them — a verb whose word is a cell of its table, and a
+     sentence, which is a frame — see the block that asks for it. */
   const [name, setName] = useState(((card && card.name) || "") as string);
   /* Which blanks this card fills, where it is a value rather than
      something to learn: "Raphael" fills `name`, and every phrase with a
@@ -3072,10 +3073,29 @@ const storedHelp = (spec: VerbSpec | null): string => {
     : `${name}: the word, with a table of them beside it, each practised in its own right. Empty the table and it is a word again.`;
 };
 
-/* What to call a verb whose own word is a cell of its table. */
-function NameBlock({ word }: { word: WordDraft }) {
+/*
+ * What to call a card its own words do not name.
+ *
+ * Two cards are in that position and they got there the same way: what is
+ * saved on them is not what they are about. A verb in a language with no
+ * infinitive is saved as the cell a dictionary lists, and a sentence is
+ * saved as a frame with a hole in it. One field, asked in both places,
+ * because it is one question — what goes at the top of the tile — and a
+ * teacher who has met it on a verb has met it here.
+ *
+ * Which of the two is asking decides only the wording: what a blank one
+ * falls back to is the one thing the teacher needs told, and it is a
+ * different sentence in each place. The editor says which it is; nothing
+ * here reads the card to find out.
+ */
+function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
   const { shownSpec, name, setName } = word;
-  if (!shownSpec || !citationOf(shownSpec)) return null;
+  const verb = of === "verb";
+  /* A verb only where the table stands in for the card's own word. Where a
+     language cites nothing — Huế cites the bare verb — the card has a word
+     of its own and is named by it. A sentence always: every one of them is
+     a frame, which is the whole of what a sentence is. */
+  if (verb && (!shownSpec || !citationOf(shownSpec))) return null;
   return (
     <>
     {/* ---- what to call it ----
@@ -3083,18 +3103,17 @@ function NameBlock({ word }: { word: WordDraft }) {
         A verb in a language with no infinitive is saved as the form a
         dictionary lists — Arabic's he-past — so a list read as "he
         ate", which names one cell of the table rather than the verb
-        the card is about. Nothing was wrong with the card; it simply
-        had no name of its own to be listed under.
+        the card is about. A sentence is listed as itself, braces and
+        all: "{{name}} is heavy" names the shape of the card rather
+        than what it is for, and every frame in a deck reads as the
+        hole in it. Nothing is wrong with either card; neither simply
+        has a name of its own to be listed under.
 
         Not the block 0.114 took away. That one asked for the script,
         the pronunciation, the English and the recordings a second
         time, and the two copies had to be kept in step by hand. This
-        asks for one thing the table cannot supply, and nothing is
-        drilled on it: it is a label, and the microcopy says so.
-
-        Only where the table stands in for the card's own word. Where
-        a language cites nothing — Huế cites the bare verb — the card
-        has a word of its own and is named by it. */}
+        asks for one thing the card cannot supply, and nothing is
+        drilled on it: it is a label, and the microcopy says so. */}
       <div className="at-formblock at-mt5">
         <div className="at-formhead">
           <span className="at-formnum">What to call it</span>
@@ -3104,15 +3123,27 @@ function NameBlock({ word }: { word: WordDraft }) {
           <input
             className="at-input"
             value={name}
-            placeholder="to eat"
+            placeholder={verb ? "to eat" : "saying where you live"}
             onChange={(e) => setName(e.target.value)}
           />
         </Field>
         <Help>
-          How this card is listed and searched. Without one it is
-          listed as {citedLabel(shownSpec)} — the box a dictionary lists
-          the verb under — which names that form rather than the verb.
-          Nobody is ever asked this: the table is what is practised.
+          {verb ? (
+            <>
+              How this card is listed and searched. Without one it is
+              listed as {citedLabel(shownSpec)} — the box a dictionary lists
+              the verb under — which names that form rather than the verb.
+              Nobody is ever asked this: the table is what is practised.
+            </>
+          ) : (
+            <>
+              How this card is listed and searched. Without one it is listed
+              as the sentence itself, blanks and all — which names the shape
+              of the card rather than what it is for. Nobody is ever asked
+              this: what is practised is the sentence with its blanks filled
+              in.
+            </>
+          )}
         </Help>
       </div>
     </>
@@ -4350,9 +4381,10 @@ function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }
  * changing which one the card lays out puts the other away rather than
  * saving a hidden one — and a card can never be saved carrying both.
  *
- * The name only where it was asked for: a card that is not a verb of this
- * shape is named by its own word, and a name left behind from a card that
- * briefly was one would go on labelling it.
+ * The name only where it was asked for — a verb whose own word is a cell
+ * of its table, and a sentence — because every other card is named by its
+ * own word, and a name left behind from a card that briefly was one of the
+ * two would go on labelling it.
  */
 export function writtenCard({ word, talk, shape, chosen }: {
   word: WordDraft;
@@ -4377,7 +4409,9 @@ export function writtenCard({ word, talk, shape, chosen }: {
        every sentence passes through while it is being written, and the one
        the old reading could not hold. */
     sentence: shape === "sentence",
-    name: standsIn ? name.trim() : "",
+    /* And what to call it, where its own words do not: the two cards that
+       are saved as something other than what they are about. */
+    name: standsIn || shape === "sentence" ? name.trim() : "",
     decks: chosen,
     uses,
     fills,
@@ -4463,7 +4497,7 @@ function VerbEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
-      {word.standsIn && <NameBlock word={word} />}
+      {word.standsIn && <NameBlock word={word} of="verb" />}
       <TableBlock word={word} lang={lang} />
       {word.forms.map((f, i) => (
         i === 0 && word.standsIn ? null :
@@ -4585,6 +4619,11 @@ function AttachedEditor({ word, lang, allCards, selfId }: {
  * is on screen: the words, then the blanks with what fills each and the
  * sentences a student will actually be asked.
  *
+ * What to call it comes first, as it does on a verb and for the same
+ * reason: what is saved on the card is a frame with a hole in it, so a
+ * list of sentences reads as a list of holes unless the teacher says what
+ * each one is for.
+ *
  * No part of speech and no table, because a sentence is not a word. No
  * button to add another form either — a second way of saying the same
  * sentence is a second sentence — though a card that already carries one
@@ -4622,6 +4661,7 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
   };
   return (
     <>
+      <NameBlock word={word} of="sentence" />
       {word.forms.map((f, i) => (
         <FormBlock
           key={i}
