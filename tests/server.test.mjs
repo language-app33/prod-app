@@ -12,6 +12,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { leadOf } from "../src/cards.ts";
 
 const dir = await mkdtemp(path.join(tmpdir(), "taleb-server-"));
 process.env.DATA_DIR = dir;
@@ -359,6 +360,81 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
   });
   assert.equal("row" in subs(plain.json.card)[0], false, "no empty position on a plain form");
   assert.equal("id" in subs(plain.json.card)[0], false, "and no name on a form that came without one");
+});
+
+/*
+ * And what kind of card it is, which is settled when the card is made.
+ *
+ * A word, a sentence or a conversation. The editor asks once, while the
+ * card is being written and nothing can be lost by any answer, and never
+ * again — but the editor is not the only thing that can reach this
+ * endpoint. A build that has not caught up, a save queued on a device
+ * before the rule existed, or a card pasted in can all claim a kind the
+ * stored card is not, so the kind is taken from the card as stored.
+ */
+test("a card cannot be made into another kind of card", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Sami" } });
+  const key = made.json.key;
+  const save = (/** @type {Record<string, any>} */ card) =>
+    api("/api/courses?action=save-card", { method: "POST", key, body: { card, decks: [] } });
+
+  /* A sentence, said so by the teacher rather than read off its braces. */
+  const frame = await save({
+    id: "", lang: "ar-PS", sentence: true,
+    forms: [{ ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}" }],
+  });
+  assert.equal(frame.status, 200, frame.text);
+  assert.equal(frame.json.card.sentence, true, "it was made as a sentence");
+
+  /* Saved again as a word — braces gone, the flag flipped — and it is
+     still a sentence. Before 0.180 this stored a word, and every card
+     whose blank asked for this frame was asking for something else. */
+  const asWord = await save({
+    id: frame.json.card.id, lang: "ar-PS", sentence: false,
+    forms: [{ ar: "اسمي", en: "my name is", lat: "ismi" }],
+  });
+  assert.equal(asWord.status, 200, asWord.text);
+  assert.equal(asWord.json.card.sentence, true, "a sentence stays a sentence");
+  assert.equal(leadOf(asWord.json.card).ar, "اسمي", "and the words it was saved with are kept");
+
+  /* The same the other way: a word is not turned into a sentence. */
+  const word = await save({
+    id: "", lang: "ar-PS", forms: [{ ar: "كِتاب", en: "book", lat: "kitaab" }],
+  });
+  assert.equal(word.json.card.sentence, false, "it was made as a word");
+  const asFrame = await save({
+    id: word.json.card.id, lang: "ar-PS", sentence: true,
+    forms: [{ ar: "كِتاب", en: "book", lat: "kitaab" }],
+  });
+  assert.equal(asFrame.json.card.sentence, false, "a word stays a word");
+
+  /* And a conversation keeps its turns: emptying them is the one edit
+     that would stop it being one. */
+  const talk = await save({
+    id: "", lang: "ar-PS",
+    forms: [{ ar: "", en: "At the door", lat: "" }],
+    speakers: ["Layla", "Karim"],
+    lines: [
+      { who: 0, ar: "مرحبا", en: "hello", lat: "marhaba" },
+      { who: 1, ar: "أهلا", en: "hi", lat: "ahlan" },
+    ],
+  });
+  assert.equal(talk.json.card.lines.length, 2, "it was made as a conversation");
+  const emptied = await save({
+    id: talk.json.card.id, lang: "ar-PS",
+    forms: [{ ar: "مرحبا", en: "hello", lat: "marhaba" }],
+    lines: [],
+  });
+  assert.equal(emptied.json.card.lines.length, 2, "a conversation stays a conversation");
+  assert.equal(emptied.json.card.sentence, false);
+
+  /* A word that arrives carrying turns does not become one either. */
+  const withTurns = await save({
+    id: word.json.card.id, lang: "ar-PS",
+    forms: [{ ar: "كِتاب", en: "book", lat: "kitaab" }],
+    lines: [{ who: 0, ar: "مرحبا", en: "hello", lat: "" }],
+  });
+  assert.deepEqual(withTurns.json.card.lines, [], "turns on a word are not a conversation");
 });
 
 /*
