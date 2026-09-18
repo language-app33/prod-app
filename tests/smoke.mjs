@@ -3990,10 +3990,110 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     return true;
   };
   const saveBtn = () => /** @type {any} */ (buttonNamed(/^Save$|^Saving…$/) || null);
+
+  /* ---- the card's ID ----
+
+     The other way a blank is filled. A group tag is a set of words a
+     sentence will take any of; a card's own ID is the name that reaches
+     that one word — "{{colour-red}} is heavy". So every new card is asked
+     for one, it is checked against everything else that answers to a name
+     while the teacher is still looking at it, and it is shut with a tick
+     once it is free. */
+  {
+    const idBox = () => /** @type {any} */ (
+      [...document.querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === "The card's ID") || null);
+    const withLabel = (/** @type {string} */ label) => /** @type {any} */ (
+      [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === label) || null);
+    const idName = () => (((document.querySelector(".at-idname") || {}).textContent) || "").trim();
+
+    check("a new card is asked for an ID", !!idBox(),
+      idBox() ? "asked" : "no such field");
+    check("and is not saved without one",
+      !!saveBtn() && saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+
+    /* Narrowed as it is typed to what can go between braces, so a teacher
+       typing "Name Is!" is not handed "nameis" by a save they have already
+       forgotten about. */
+    typeInto(idBox(), "Name Is!");
+    await sleep(200);
+    check("what is typed is narrowed to what a blank can be called",
+      /Kept as/.test((document.body.textContent || "")) &&
+        /nameis/.test((document.body.textContent || "")),
+      ([...document.querySelectorAll(".at-hint")].map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /^Kept as/.test(t))) || "(nothing said)");
+
+    /* A name a group tag already answers to is taken: both go between
+       braces, so they are one namespace or they are two cards answering to
+       one name. Nothing is said about a name that is free — the rim is the
+       whole of "yes". */
+    typeInto(idBox(), "name");
+    await sleep(200);
+    check("a name something else answers to is refused, and says so",
+      /already/.test((document.body.textContent || "")) && !!withLabel("Lock this ID") &&
+        withLabel("Lock this ID").disabled,
+      ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /already/.test(t))) || "(nothing said)");
+
+    typeInto(idBox(), "name-is");
+    await sleep(200);
+    check("and a free one lights the tick, with nothing else said",
+      !!withLabel("Lock this ID") && !withLabel("Lock this ID").disabled,
+      withLabel("Lock this ID") ? "offered" : "no tick");
+
+    /* The tick shuts the box, which is the state a saved card opens in —
+       an ID is written once and read a hundred times, and a box you can
+       type in is a box you can type in by accident. */
+    click(withLabel("Lock this ID"));
+    await sleep(250);
+    check("the tick shuts the box and the ID is read rather than typed",
+      !idBox() && idName() === "name-is",
+      idName() || "(still a field)");
+    check("and the pencil opens it again", !!withLabel("Edit this ID"),
+      withLabel("Edit this ID") ? "there" : "no way back in");
+    click(withLabel("Edit this ID"));
+    await sleep(250);
+    check("which puts the name back in the box, as it was",
+      !!idBox() && idBox().value === "name-is",
+      idBox() ? idBox().value : "(no field)");
+    click(withLabel("Lock this ID"));
+    await sleep(250);
+  }
+
   typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
   await sleep(80);
   typeInto(fieldNamed(/^English$/), "My name is {{name}}");
   await sleep(200);
+
+  /* ---- only a sentence may have a blank ----
+
+     The card on screen is a word, and it has just had braces typed into
+     it. Until 0.176 the app answered that for the teacher by quietly
+     calling the card a sentence — which on a word with a table under it
+     hid the table and offered to drop every box in it on the next save.
+     It is refused now, and both ways out are named, because the two
+     things it can mean are opposite and only the teacher knows which. */
+  const kindSeg = (/** @type {RegExp} */ re) => /** @type {any} */ (
+    [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+      .find((b) => re.test((b.textContent || "").trim())) || null);
+  check("a blank typed into a word is refused rather than quietly allowed",
+    !!saveBtn() && saveBtn().disabled &&
+      /only a sentence can have one/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+      .find((t) => /only a sentence/.test(t))) || "(nothing said)");
+  check("and the way out is named: call it a sentence, or take the braces out",
+    /Call this card a sentence/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-hint")].map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
+      .find((t) => /Call this card a sentence/.test(t))) || "(nothing said)");
+
+  /* Said once, and kept: the kind is the teacher's answer from here on,
+     not something worked out from the braces every time the card is
+     opened. */
+  click(kindSeg(/^Sentence$/));
+  await sleep(300);
+  check("calling it a sentence is what makes the blank allowed",
+    !/only a sentence can have one/.test(document.body.textContent || ""),
+    /only a sentence can have one/.test(document.body.textContent || "") ? "still refused" : "allowed");
   check("a card with a hole in one field only cannot be saved",
     !!saveBtn() && saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
@@ -4040,7 +4140,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        it — "Examples of this card with filled blanks · 2 examples" — so it
        is matched from the front rather than whole. */
     const SHOWN = /^Examples of this card with filled blanks/;
-    const FILLS = /^Using this card to fill a blank$/;
+    const CARDID = /^The card’s ID$/;
+    const FILLS = /^The card’s group tags$/;
 
     check("the section is called Blanks, not Variables", !!blanks(),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
@@ -4179,10 +4280,94 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("a card with no blank in its words shows none",
       chips().length === 0,
       chips().join(", ") || "(none)");
-    check("and says how one is written, since there is nothing here to press",
-      /\{\{name\}\}/.test(((half(HOLES).map((n) => n.textContent || "").join(" ")) || "")),
+    check("and says where one is put in, which is beside the words themselves",
+      /Blank/.test(((half(HOLES).map((n) => n.textContent || "").join(" ")) || "")),
       (half(HOLES).map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
         .find((t) => /None yet/.test(t))) || "(nothing said)");
+
+    /* ---- a blank is put in, not typed ----
+
+       Writing one meant typing the braces, the name and the spelling, and
+       then the same name again in each of the other fields, with nothing
+       on screen to say whether it matched what the other cards call it. A
+       name half a letter out matched nothing for ever and looked exactly
+       like one that matched: the last silent failure on this screen.
+
+       So each field a sentence has carries a bar — the blanks the card
+       already knows, and a button for one it does not — and the card is
+       on "ismi" / "My name is" with no blanks at all, which is where a
+       sentence is actually written from. */
+    {
+      const addIn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        [...document.querySelectorAll(".at-blankadd")]
+          .find((b) => re.test(b.getAttribute("aria-label") || "")) || null);
+      const pill = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        [...document.querySelectorAll(".at-blankpill")]
+          .find((b) => re.test(b.getAttribute("aria-label") || "")) || null);
+      const sheet = () => document.querySelector(".at-sheet");
+      const rows = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+      const rowFor = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+          .find((b) => re.test((((b.querySelector("b") || {}).textContent) || "").trim())) || null);
+
+      check("every field a sentence has offers to put a blank into it",
+        !!addIn(/into Arabic script$/) && !!addIn(/into Transliteration$/) && !!addIn(/into English$/),
+        [...document.querySelectorAll(".at-blankadd")]
+          .map((b) => b.getAttribute("aria-label")).join(" | ") || "(no buttons)");
+
+      click(addIn(/into English$/));
+      await sleep(300);
+      check("the button opens a sheet of the blanks this language has",
+        !!sheet() && rows().length > 0, rows().slice(0, 3).join(" / ") || "(nothing offered)");
+      /* The one thing a teacher cannot tell from a name: whether the hole
+         they are about to write has anything to fill it. */
+      check("each saying what would stand in it, and how many words do today",
+        !!rowFor(/^\{\{name\}\}$/) &&
+          /2 words behind it/.test((rowFor(/^\{\{name\}\}$/).textContent || "").replace(/\s+/g, " ")),
+        rowFor(/^\{\{name\}\}$/)
+          ? (rowFor(/^\{\{name\}\}$/).textContent || "").replace(/\s+/g, " ").trim()
+          : "(no row for name)");
+      /* Four kinds of name reach a card and the sheet says which is which,
+         because they are four different questions: anything at all, a kind
+         of word, a group somebody made, and one card by the ID it answers
+         to. Two of the four are in this collection today. */
+      check("and which kind of name it is, because the four are not the same question",
+        /Any word/.test((rowFor(/^\{\{word\}\}$/) || {}).textContent || "") &&
+          /Kind of word/.test((rowFor(/^\{\{noun\}\}$/) || {}).textContent || ""),
+        rows().join(" / ") || "(nothing offered)");
+
+      click(rowFor(/^\{\{name\}\}$/));
+      await sleep(300);
+      const enNow = () => /** @type {any} */ (fieldNamed(/^English$/));
+      check("choosing one puts it into the field it was asked from",
+        !!enNow() && /^My name is \{\{name\}\}$/.test(enNow().value),
+        enNow() ? enNow().value : "(no field)");
+      check("and the sheet closes behind it", !sheet(), sheet() ? "still open" : "closed");
+
+      /* The other half of the bargain, and the thing that used to be typed
+         twice: a blank belongs to the card, so the moment one field has it
+         the others offer it — which is the rule the save has always
+         enforced and never once helped anybody keep. */
+      check("the other fields then offer the same blank, rather than waiting to be typed",
+        !!pill(/^Put \{\{name\}\} into Arabic script$/) &&
+          !!pill(/^Put \{\{name\}\} into Transliteration$/),
+        [...document.querySelectorAll(".at-blankpill")]
+          .map((b) => b.getAttribute("aria-label")).join(" | ") || "(no chips)");
+      check("and the field that has it says so rather than offering it again",
+        !!pill(/^\{\{name\}\} is in English\./),
+        (pill(/is in English/) || {}).className || "(no chip for English)");
+
+      click(pill(/^Put \{\{name\}\} into Arabic script$/));
+      await sleep(300);
+      const arNow = () => /** @type {any} */ (fieldNamed(/^Arabic script and transliteration$/i));
+      check("and one tap puts it there too",
+        !!arNow() && /^ismi \{\{name\}\}$/.test(arNow().value),
+        arNow() ? arNow().value : "(no field)");
+      check("with a space around it, because a blank is a word and is spaced like one",
+        !!arNow() && !/\S\{\{/.test(arNow().value) && !/\}\}\S/.test(arNow().value),
+        arNow() ? arNow().value : "(no field)");
+    }
 
     /* And written back into the words, it is read off them again. Into
        every field, because a card whose English has a hole and whose
@@ -4220,6 +4405,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(300);
     check("choosing it names the block after what is in it",
       blockNames().includes("The sentence"), blockNames().join(" | "));
+    /* And asks what to call it, exactly as a verb is asked. A sentence is
+       saved as a frame with a hole in it, so a list of sentences reads as
+       a list of holes unless the teacher says what each one is for. */
+    const sentenceName = [...document.querySelectorAll(".at-formblock")].find((b) =>
+      /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    check("a sentence can be given a name to be listed under, as a verb can",
+      !!sentenceName, blockNames().join(" | "));
+    check("and it is asked at the top, above the sentence itself",
+      blockNames().indexOf("What to call it") === 1 &&
+        blockNames().indexOf("What to call it") < blockNames().indexOf("The sentence"),
+      blockNames().join(" | "));
+    check("and says what a blank one falls back to, and that nothing is asked about it",
+      !!sentenceName && /listed and searched/.test(sentenceName.textContent || "") &&
+        /blanks and all/.test(sentenceName.textContent || "") &&
+        /Nobody is ever asked this/.test(sentenceName.textContent || ""),
+      sentenceName ? (sentenceName.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no block)");
     check("and stops asking what kind of word it is, because it is not one",
       !document.querySelector('[role="radiogroup"][aria-label="What kind of word"]'),
       document.querySelector('[role="radiogroup"][aria-label="What kind of word"]')
@@ -4259,13 +4460,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       nounLines().join(" / ") || "(none shown)");
 
     /* And back, because a word and a sentence are the same card written
-       two ways: writing a blank into a word is how most sentences start. */
+       two ways. What was typed is still there — and, since 0.176, saying
+       it is a word again is saying its blanks should not be there, which
+       is refused rather than acted on: the braces are the teacher's words
+       and nothing here is going to delete them for them. */
     click(shapeBtn(/^Word$/));
     await sleep(300);
     const backEn = fieldNamed(/^English$/);
     check("and it can be called a word again, with what was typed still there",
       blockNames().includes("Form 1") && !!backEn && /\{\{noun\}\}/.test(backEn.value),
       blockNames().join(" | "));
+    check("but a word carrying blanks is refused, naming both of them",
+      !!saveBtn() && saveBtn().disabled &&
+        /\{\{name\}\} and \{\{noun\}\} are blanks/.test(document.body.textContent || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /are blanks/.test(t))) || "(nothing said)");
+    /* Back to what it is, for the rest of the walk. */
+    click(shapeBtn(/^Sentence$/));
+    await sleep(300);
 
     /* ---- the section's other half: this card filling somebody else's ----
 
@@ -4280,10 +4492,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     {
       const groups = () => [...((blanks() || document).querySelectorAll(".at-groupline"))]
         .map((g) => (g.textContent || "").trim());
-      check("the section is two named halves, not one block doing two jobs",
+      /* Three named parts rather than one block doing three jobs: what
+         this card leaves open, the name it answers to, and the groups it
+         is in. The last two are both about being borrowed, which is why
+         they are neighbours under one heading rather than a field at the
+         top of the screen and a list at the bottom. */
+      check("the section is named parts, not one block doing several jobs",
         groups().includes("Blanks in this card") &&
-          groups().includes("Using this card to fill a blank"),
+          groups().includes("The card’s ID") &&
+          groups().includes("The card’s group tags"),
         groups().join(" | ") || "(no headings)");
+      /* And the ID is one of them rather than a field at the top of the
+         screen: what it is for is filling somebody else's blank, so it is
+         read beside the groups that do the same job. */
+      const idHalf = () => inHalf(CARDID, ".at-hint, .at-idrow")
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
+      check("the ID is one of them, with the line saying what it is for",
+        /fill a blank in another card/.test(idHalf()) && /name-is/.test(idHalf()),
+        idHalf() || "(nothing there)");
       /* A card with a blank of its own fills none — a sentence dropped
          into somebody else's hole is a sentence with a gap where the point
          was — so the half that offers it says why rather than offering a
@@ -4293,10 +4519,21 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         /fills none/.test(((blanks() || {}).textContent) || "") && !newBox(),
         newBox() ? "offered anyway" : "said, and not offered");
 
-      /* Out of the frame, and the other half comes alive. */
+      /* Out of the frame and into a word, and the other half comes alive.
+         Both halves of that: the blanks come out of the words, and the
+         card is called what it now is. A sentence goes on being one until
+         somebody says otherwise — that is the whole of 0.176 — so taking
+         the braces out is no longer enough on its own, and the card that
+         fills somebody else's blank has to be a word to be offered the
+         question at all. */
       typeInto(fieldNamed(/^Arabic script and transliteration$/i), "rafa");
       await sleep(80);
       typeInto(fieldNamed(/^English$/), "Raphael");
+      await sleep(200);
+      check("a sentence stays one until it is called something else",
+        !inHalf(FILLS, ".at-ticklist .at-tickrow").length,
+        `${inHalf(FILLS, ".at-ticklist .at-tickrow").length} groups offered`);
+      click(shapeBtn(/^Word$/));
       await sleep(300);
 
       /* The blanks it may fill, as a list on the screen. It was a menu
@@ -4310,14 +4547,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       const ticked = () => fillList()
         .filter((r) => /** @type {any} */ (r.querySelector("input")).checked)
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
-      check("the blanks it can fill are a list on the screen, not a menu to open",
+      check("the groups it can join are a list on the screen, not a menu to open",
         fillList().length > 0 && !inHalf(FILLS, ".at-choosebtn").length,
         fillNames().join(", ") || "(no list)");
       /* And blank ids, not kinds of card. A card fills {{noun}} by saying
          it is a noun, so a tick for it would do nothing — while {{name}},
          which this language also declares as a kind of word, is the oldest
          blank in the app and has to stay. Written, not built in. */
-      check("and they are the blank ids somebody wrote, not the kinds of card",
+      check("and they are the group tags somebody wrote, not the kinds of card",
         fillNames().includes("name") &&
           !["word", "noun", "verb", "adjective", "pronoun", "preposition"]
             .some((kind) => fillNames().includes(kind)),
@@ -4329,7 +4566,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       /* And the box that names a new one, above the list rather than at
          the bottom of a menu: naming the first blank of a kind is the one
          thing here nobody can do by choosing. */
-      check("the box that names a new blank is on the screen too",
+      check("the box that names a new group is on the screen too",
         !!newBox() && !!newBox().querySelector("input"),
         newBox() ? "there" : "still behind a button");
       check("and above the list, where it is reached without scrolling past it",
@@ -4352,7 +4589,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       click([...newBox().querySelectorAll("button")]
         .find((b) => /^Add$/.test((b.textContent || "").trim())));
       await sleep(300);
-      check("a blank nobody has named yet is typed in, and joins the list ticked",
+      check("a group nobody has named yet is typed in, and joins the list ticked",
         JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
         ticked().join(", ") || "(none ticked)");
       check("with every one of them named in what the card is for",
@@ -4373,6 +4610,49 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       check("down to none, which is what an ordinary card is",
         ticked().length === 0 && fillNames().includes("name"),
         ticked().join(", ") || "(none ticked)");
+
+      /* ---- renaming one ----
+
+         A group tag is a name several cards share and the only place a
+         misspelt one is visible is a card that carries it, so the pencil
+         that renames it is on the row. What it asks is the one question a
+         rename has: does the new name follow into every card that writes
+         it, or does this card alone move? */
+      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      await sleep(250);
+      const pencil = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        (fillRow(re) ? fillRow(re).parentElement : document)
+          .querySelector('button[aria-label^="Rename the group"]') || null);
+      click(pencil(/^name$/));
+      await sleep(250);
+      const renameBox = () => /** @type {any} */ (inHalf(FILLS, ".at-tagrow input.at-input")[0] || null);
+      check("the pencil on a tag opens its name for editing, in place",
+        !!renameBox() && renameBox().value === "name",
+        renameBox() ? renameBox().value : "(no box)");
+      typeInto(renameBox(), "names");
+      await sleep(150);
+      click([...document.querySelectorAll("button")]
+        .find((b) => b.getAttribute("aria-label") === "Rename the group name"));
+      await sleep(300);
+
+      const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
+      const modalBtns = () => modal() ? [...modal().querySelectorAll("button")] : [];
+      const modalBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        modalBtns().find((b) => re.test((b.textContent || "").trim())) || null);
+      check("renaming a tag asks whether the name follows it everywhere",
+        !!modal() && !!modalBtn(/^Change it everywhere$/) && !!modalBtn(/^Only here$/),
+        modalBtns().map((b) => (b.textContent || "").trim()).join(" | ") || "(nothing asked)");
+
+      /* Answered the narrow way: this card leaves the group for one of the
+         new name, and every other card that carries the old one is left
+         exactly as it was. */
+      click(modalBtn(/^Only here$/));
+      await sleep(300);
+      check("and answering “only here” moves this card alone",
+        JSON.stringify(ticked()) === JSON.stringify(["names"]) && fillNames().includes("name"),
+        `${ticked().join(", ") || "(none ticked)"} · offered ${fillNames().join(", ")}`);
+      click(/** @type {any} */ (fillRow(/^names$/).querySelector("input")));
+      await sleep(250);
     }
   }
 

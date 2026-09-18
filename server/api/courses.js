@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
    that adding an axis to a language does not silently drop it here. */
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
-import { fillNames, slotsOf } from "../../src/variables.ts";
+import { cardRef, fillNames, slotsOf } from "../../src/variables.ts";
 import { formsOf } from "../../src/cards.ts";
 
 /*
@@ -803,7 +803,7 @@ export default async (req) => {
         }
         /* A value that has gone has to reach the devices holding it, and
            nothing else about it moves — see bumpFills. */
-        if (fillNames(card).length) filledOwners.add(card.owner || "");
+        if (fillNames(card).length || cardRef(card)) filledOwners.add(card.owner || "");
         result.deleted.push(id);
       }
       await pullFromDecks(removals);
@@ -886,6 +886,12 @@ export default async (req) => {
          that — see fillNames, which narrows each name to the shape a slot
          can have, lowers it, and caps how many one card may carry. */
       const filling = fillNames(card);
+      /* And the ID the teacher gave it, which is the other name a blank
+         can ask for — one card rather than a group of them. Read through
+         the same answer the app reads it through, so what the editor
+         checked for uniqueness and what is stored here are the same
+         string. */
+      const answersTo = cardRef(card);
       const fields = {
         /* What to call the card in a list, where its own words do not name
            it — a verb saved as the form a dictionary lists. Stored as given
@@ -927,6 +933,24 @@ export default async (req) => {
            a missing key would keep whatever it used to fill. JSON drops
            the undefined on the way to disk. */
         fills: filling.length ? filling : undefined,
+        /* The ID the teacher gave this card, so another card's blank can
+           ask for this one by name. Absent where it has none — a card
+           written before the ID was asked for — rather than stored empty,
+           and undefined rather than left out, because this object is
+           spread over the card as it stood and a missing key would keep
+           whatever it used to answer to. JSON drops the undefined on the
+           way to disk. */
+        ref: answersTo || undefined,
+        /* Whether this card is a sentence — a frame other cards are
+           dropped into — which is the teacher's answer rather than
+           something read off the braces. Stored as a boolean either way
+           rather than only when true, for the reason `drill` is: a card
+           turned from a sentence back into a word must come back as a
+           word, and an absent field would leave every reader falling back
+           to the old reading of its braces for ever. A card written before
+           this carries nothing and is read that old way, which is exactly
+           what it meant — see isSentence. */
+        sentence: card.sentence === true,
         /* Whether it is practised in its own right. Stored as a boolean
            either way rather than only when false: a card that has been
            turned off and on again must come back as on, and an absent field
@@ -1167,7 +1191,7 @@ export default async (req) => {
       if (id) {
         const existing = await loadCard(id);
         if (!existing) return json({ error: "no-card" }, 404);
-        wasFilling = fillNames(existing).length > 0;
+        wasFilling = fillNames(existing).length > 0 || !!cardRef(existing);
         current = await decksHolding(existing);
         if (existing.owner !== mine && !me.admin) {
           /* A card in a deck I teach is mine to correct — a deck it is
@@ -1260,7 +1284,7 @@ export default async (req) => {
       }
       saved.inDecks = final;
       await writeJson(store, K.card(saved.id), saved);
-      if (filling.length || wasFilling) await bumpFills(saved.owner || "");
+      if (filling.length || answersTo || wasFilling) await bumpFills(saved.owner || "");
       await taught();
       /* `trimmed` only where something was — an ordinary save says nothing,
          and the client has nothing to report. */
