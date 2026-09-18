@@ -3160,6 +3160,10 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        where it is off, so an ordinary form gains nothing; absent means
        asked, here as everywhere. */
     ...(f.ask === false ? { ask: false } : null),
+    /* And whether it may be lent to a card with a blank in it. Carried
+       only where the teacher has answered it, because absent means
+       whatever `ask` says — see isLent in variables.ts. */
+    ...(typeof f.lend === "boolean" ? { lend: f.lend } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers

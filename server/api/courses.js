@@ -134,7 +134,7 @@ const clipsOfCard = (card) => [
 
 const RETIRED_CARD_FIELDS = Object.fromEntries(
   [
-    "ar", "en", "lat", "clips", "slowClips", "answers", "subs", "ask",
+    "ar", "en", "lat", "clips", "slowClips", "answers", "subs", "ask", "lend",
     "row", "col", "of",
     /* Whatever grammatical values the languages declare, which were the
        card's when the card was a form. */
@@ -1003,6 +1003,13 @@ export default async (req) => {
                card saved by a build that knows nothing of this passes
                through unchanged. */
             ...(f.ask === false ? { ask: false } : {}),
+            /* And whether it may be lent to a card with a blank in it,
+               which is the other half of the same question and since
+               0.179 a separate answer — see `lend` in src/types.ts.
+               Stored only where the client has an answer to store: absent
+               means whatever `ask` says, which is what every card written
+               before this meant. */
+            ...(typeof f.lend === "boolean" ? { lend: f.lend } : {}),
             answers: storedAnswers(f),
             clips: Array.isArray(f.clips) ? f.clips.slice(0, 12) : [],
             slowClips: Array.isArray(f.slowClips) ? f.slowClips.slice(0, 12) : [],

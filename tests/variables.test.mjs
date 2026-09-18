@@ -22,6 +22,7 @@ import {
   valueOf,
   valuesOf,
   lentBy,
+  isLent,
   valuesFor,
   valuesForTurn,
   fillsOf,
@@ -426,10 +427,10 @@ test("every form of a card lends itself, each under its own name", () => {
      form, and so is a frame's record of having met one. */
   assert.deepEqual(lentBy(card).map((l) => l.form.en), ["book", "books"]);
 
-  /* A form the teacher keeps without asking about lends nothing — there is
-     no ladder to read, so a hole filled with it would hold a word nobody
-     is ever taught. And a form with no word in it would fill the hole with
-     nothing. */
+  /* A form the teacher keeps without asking about lends nothing — which
+     is what one tick for two questions could only mean, and what an
+     absent `lend` still means. And a form with no word in it would fill
+     the hole with nothing. */
   const mixed = {
     id: "c2",
     forms: [
@@ -449,6 +450,33 @@ test("every form of a card lends itself, each under its own name", () => {
   /* Handed a plain form — a line of a conversation, a unit the scheduler
      is holding — it is its own single lending. */
   assert.deepEqual(valuesOf({ id: "l1", ar: "salaam", en: "peace", lat: "" }).map((v) => v.id), ["l1"]);
+});
+
+test("being asked and being lent are two answers on one form", () => {
+  /* Since 0.179 a form says both, because a word can be worth meeting
+     inside somebody else's sentence without being a question of its own —
+     that is what a value card is — and worth asking on its own without
+     being dropped into every frame with a hole of its name. */
+  assert.equal(isLent({ ar: "raafaa2iil" }), true, "nothing said is lent");
+  assert.equal(isLent({ ar: "raafaa2iil", ask: false }), false,
+    "and a card written before this lends exactly while it is asked");
+  assert.equal(isLent({ ar: "raafaa2iil", ask: false, lend: true }), true,
+    "a name is lent everywhere and asked nowhere");
+  assert.equal(isLent({ ar: "kitaab", lend: false }), false,
+    "and a word can be asked without standing in for anything");
+
+  const card = {
+    id: "n", lang: "ar-PS", fills: "name",
+    forms: [
+      { id: "n", ar: "raafaa2iil", en: "Raphael", lat: "", ask: false, lend: true },
+      { id: "n-f0", ar: "raafii", en: "Raphael", lat: "", ask: false },
+    ],
+  };
+  assert.deepEqual(valuesOf(card).map((v) => v.id), ["n"],
+    "the one that says it is lent, and not the one that only says it is not asked");
+  const frame = { ar: "ismi {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}" };
+  assert.deepEqual(valuesFor(frame, [card], "ar-PS").name.map((/** @type {any} */ v) => v.ar),
+    ["raafaa2iil"]);
 });
 
 test("a caller may say which of a card's forms it lends, and this module does not ask why", () => {

@@ -675,6 +675,23 @@ export interface CardForm {
    * is switched off is simply a card with nothing to ask.
    */
   ask?: boolean;
+  /**
+   * Whether this form may be lent to a card with a blank in it — "big" in
+   * *the {{adjective}} book*, "Raphael" in *my name is {{name}}*.
+   *
+   * The other half of the same question, and a separate answer since
+   * 0.179: a word can be worth meeting inside somebody else's sentence
+   * without being a question of its own, and worth asking on its own
+   * without being dropped into every frame that has a hole of its name.
+   * Until then `ask` answered both, so the only way to stop a form being
+   * asked was to stop it being lent as well.
+   *
+   * Absent means whatever `ask` says, which is what every form written
+   * before this meant: a form nobody asked about lent nothing. So a
+   * stored card is read exactly as it was written, and the editor writes
+   * this out only where the two answers differ.
+   */
+  lend?: boolean;
 }
 
 /**
@@ -941,6 +958,9 @@ export type Form = Record<string, any> & {
      wording, its recordings and whatever schedule it had; it is simply
      never dealt. */
   ask?: boolean;
+  /* And whether it may be lent to a card with a blank in it. Absent means
+     whatever `ask` says — see CardForm, where the teacher sets it. */
+  lend?: boolean;
   /* How far this form has been asked with each of the values that fill its
      holes — "slot:valueId" to the highest level it was met at. Only for a
      value with no ladder of its own to be read instead; see valuesAt in

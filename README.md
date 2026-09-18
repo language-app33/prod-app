@@ -233,19 +233,33 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   gender, a noun is asked whether it is a person or a thing — and nothing
   stored is narrowed by that: `dimsFor` is display and editing, `dimValues`
   is storage. See `tablesOf` and `WORD_CATEGORIES` in `src/languages.ts`.
-- **A form can be kept without being asked about.** A card is a word and a
-  pile of forms of it — other spellings, the pronouns on its end, every
-  person and tense of a verb — and a teacher may want some of that written
-  down for a student to read rather than drilled. Each of those is a part
-  that can be switched off in the editor: it stays on the card, keeps its
-  recordings and keeps whatever progress a student has made on it, and is
-  never asked. Stored as `ask: false` on the forms it covers, so a card
-  written before this and anything added to one later are both asked;
-  `askParts` in `src/card-editor.tsx` is what a teacher is shown, and
-  `isAsked` in `src/scheduler.ts` is what every reader goes through. A
-  form's own table follows the form off — the pronouns on the end of a
-  word wait on that word being known, so under a form nobody is asked they
-  could never open.
+- **A form can be kept without being asked about, and lent without being
+  asked.** A card is a word and a pile of forms of it — other spellings,
+  the pronouns on its end, every person and tense of a verb — and a
+  teacher may want some of that written down for a student to read rather
+  than drilled. Each of those is a part with two answers on it, ticked in
+  the editor under the very fields it is about:
+
+  | | what it means | stored |
+  |---|---|---|
+  | on its own | dealt as a question — what it means, how it is written, how it sounds | `ask` |
+  | inside sentence cards | lent to the frames that leave a blank it fills | `lend` |
+
+  A word is usually worth both. A name is worth the second alone —
+  *what does Raphael mean* is not a question — and a table written out for
+  reading is worth neither. Switched off either way it stays on the card,
+  keeps its recordings and keeps whatever progress a student has made on
+  it. Absent means yes for `ask`, and for `lend` it means whatever `ask`
+  says, which is what one tick for both could only have meant — so a card
+  written before the split is read exactly as it was written. `askParts`
+  in `src/card-editor.tsx` is what a teacher is shown, `isAsked` in
+  `src/scheduler.ts` and `isLent` in `src/variables.ts` are what every
+  reader goes through, and a card's own `drill` — which keeps a value out
+  of the grids and the wrong answers as well as out of the deal — is read
+  off the ticks rather than asked for a second time. A form's own table
+  follows the form off *as asked* — the pronouns on the end of a word wait
+  on that word being known, so under a form nobody is asked they could
+  never open — and never off as lent, because lending waits on nothing.
 - **A sentence is a card made of blanks, and the vocabulary fills them.** A
   card may leave a hole in itself — `اسمي {{name}}` — and the question fills
   it before anybody reads the card, with a different word next time round.
