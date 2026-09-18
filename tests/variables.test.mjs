@@ -31,6 +31,12 @@ import {
   renameSlot,
   renamedIn,
   slotName,
+  isSentence,
+  slotSpans,
+  withSlotAt,
+  withoutSlot,
+  movedSlot,
+  dropRail,
   MAX_FILLS,
   valuesAt,
   metKey,
@@ -727,4 +733,142 @@ test("a rename follows a name into every card that writes it", () => {
   assert.equal(renameSlot("{{ name }} and {{age}}", "name", "who"), "{{who}} and {{age}}");
   assert.equal(renameSlot("{{Name}}", "name", "who"), "{{who}}");
   assert.equal(renameSlot("nothing here", "name", "who"), "nothing here");
+});
+
+/* ------------------------------------------------------------------
+   A sentence is a sentence because the teacher said so
+
+   It used to be read off the braces, which made the kind of card a fact
+   about its text rather than a decision anybody had made — so a sentence
+   written before its first blank was a word, and a blank typed into a
+   word made it a sentence whether or not that was meant.
+   ------------------------------------------------------------------ */
+
+test("what a card is, is the teacher's answer and not its braces", () => {
+  /* Said, and kept. A sentence before its first blank is still one, which
+     is the state every sentence passes through while it is written and the
+     one the old reading could not hold. */
+  assert.equal(isSentence({ forms: [{ ar: "ismi", en: "My name is", lat: "" }], sentence: true }), true);
+  /* And a word stays a word. */
+  assert.equal(isSentence({ forms: [{ ar: "kitaab", en: "book", lat: "" }], sentence: false }), false);
+
+  /* Unsaid is read the way it always was, which is the whole of the
+     migration: a card with a hole in it was a sentence before this and is
+     one now, and nothing has to be rewritten to make that true. */
+  assert.equal(isSentence({ forms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }] }), true);
+  assert.equal(isSentence({ forms: [{ ar: "kitaab", en: "book", lat: "" }] }), false);
+  assert.equal(isSentence(null), false);
+});
+
+test("a sentence fills nothing, whether or not it has its blanks yet", () => {
+  /* The rule this exists for: a sentence dropped into somebody else's hole
+     is a sentence with a gap where the point was. Read off the card now,
+     so the gap between calling a card a sentence and writing its first
+     blank is not a window in which it can be lent out. */
+  const half = { forms: [{ ar: "ismi", en: "My name is", lat: "" }], sentence: true, fills: ["name"] };
+  assert.deepEqual(fillsOf(half, "word"), []);
+  /* And a word that says it fills one still does. */
+  const value = { forms: [{ ar: "raafi", en: "Raphael", lat: "raafi" }], fills: ["name"] };
+  assert.deepEqual(fillsOf(value), ["name"]);
+});
+
+/* ------------------------------------------------------------------
+   Putting a blank into a field, and moving it about in one
+   ------------------------------------------------------------------ */
+
+test("a blank is spaced like the word it stands in for", () => {
+  /* Dropped between two words it takes a space on each side: the script is
+     what an answer is marked against, so a doubled or missing space is a
+     sentence nobody can type. */
+  assert.equal(withSlotAt("ismi hina", "name", 5), "ismi {{name}} hina");
+  /* At either end there is nothing to be spaced from on that side. */
+  assert.equal(withSlotAt("ismi", "name", 4), "ismi {{name}}");
+  assert.equal(withSlotAt("ismi", "name", 0), "{{name}} ismi");
+  assert.equal(withSlotAt("", "name", 0), "{{name}}");
+  /* A space already there is not doubled. */
+  assert.equal(withSlotAt("ismi ", "name", 5), "ismi {{name}}");
+  /* Past either end is the end, rather than an error or a gap. */
+  assert.equal(withSlotAt("ismi", "name", 99), "ismi {{name}}");
+  assert.equal(withSlotAt("ismi", "name", -3), "{{name}} ismi");
+  /* Narrowed to what a name can be, here as everywhere it is written. */
+  assert.equal(withSlotAt("ismi", "Name Is!", 4), "ismi {{nameis}}");
+  assert.equal(withSlotAt("ismi", "", 4), "ismi");
+});
+
+test("a blank never lands inside another", () => {
+  /* An offset inside the braces snaps to whichever end is nearer:
+     "{{na{{me}}me}}" is not a thing anybody meant and not a thing any
+     reader here could make sense of. */
+  const whole = "ismi {{name}} hina";
+  assert.equal(withSlotAt(whole, "age", 7), "ismi {{age}} {{name}} hina");
+  assert.equal(withSlotAt(whole, "age", 12), "ismi {{name}} {{age}} hina");
+  /* On the braces themselves it is beside them, which is where it was. */
+  assert.equal(withSlotAt(whole, "age", 5), "ismi {{age}} {{name}} hina");
+});
+
+test("a blank taken out leaves one space, not two", () => {
+  assert.equal(withoutSlot("ismi {{name}} hina", "name"), "ismi hina");
+  assert.equal(withoutSlot("ismi {{name}}", "name"), "ismi");
+  assert.equal(withoutSlot("{{name}} hina", "name"), "hina");
+  assert.equal(withoutSlot("{{name}}", "name"), "");
+  /* One a card does not have is not a change. */
+  assert.equal(withoutSlot("ismi {{name}}", "age"), "ismi {{name}}");
+});
+
+test("a blank dragged across its own field is moved, not copied", () => {
+  const whole = "ismi {{name}} hina";
+  /* Dropped past where it came from, the offset is read against the field
+     as it stands now — with the blank still in it, which is what the
+     teacher is looking at while they drag. */
+  assert.equal(movedSlot(whole, "name", 18), "ismi hina {{name}}");
+  assert.equal(movedSlot(whole, "name", 0), "{{name}} ismi hina");
+  /* Dropped on itself it costs nothing, which is what a drag that goes
+     nowhere should. */
+  assert.equal(movedSlot(whole, "name", 5), whole);
+  assert.equal(movedSlot(whole, "name", 13), whole);
+  /* One that is not there yet is put in rather than refused: the same
+     chip does both jobs, and which one it is doing is a fact about the
+     field rather than about the chip. */
+  assert.equal(movedSlot("ismi hina", "name", 9), "ismi hina {{name}}");
+  /* And it is still one blank afterwards, never two. */
+  assert.deepEqual(slotsIn(movedSlot(whole, "name", 18)), ["name"]);
+});
+
+test("where each blank sits, so one of them can be picked up", () => {
+  assert.deepEqual(slotSpans("ismi {{name}} w {{name}}"), [
+    { name: "name", start: 5, end: 13 },
+    { name: "name", start: 16, end: 24 },
+  ]);
+  assert.deepEqual(slotSpans("nothing here"), []);
+});
+
+test("a field is dropped into by the word, not by the character", () => {
+  /* A gap between words is what a teacher is aiming for — nobody puts a
+     hole in the middle of a word — and word-sized targets ask for the
+     accuracy a thumb has. */
+  const rail = dropRail("ismi hina");
+  assert.deepEqual(rail.pieces, [{ text: "ismi" }, { text: "hina" }]);
+  assert.deepEqual(rail.points, [0, 4, 9]);
+  /* One more place than there are words, always: before the first, and
+     after each of them. */
+  assert.equal(rail.points.length, rail.pieces.length + 1);
+
+  /* A blank already standing is one piece and not the six characters of
+     its braces: it is a thing to be dragged, and there is no place inside
+     it. */
+  const held = dropRail("ismi {{name}} hina");
+  assert.deepEqual(held.pieces, [{ text: "ismi" }, { text: "{{name}}", slot: "name" }, { text: "hina" }]);
+  assert.deepEqual(held.points, [0, 4, 13, 18]);
+
+  /* An empty field has the one place, which is the start of it. */
+  assert.deepEqual(dropRail(""), { pieces: [], points: [0] });
+
+  /* And every point it offers is a point a blank can actually be put at,
+     which is the claim the screen makes by drawing them: the blank that
+     was there survives, and the new one arrives beside it rather than
+     inside it. */
+  const written = "ismi {{name}} hina";
+  for (const at of held.points) {
+    assert.deepEqual(slotsIn(withSlotAt(written, "age", at)).sort(), ["age", "name"]);
+  }
 });

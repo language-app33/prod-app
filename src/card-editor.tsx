@@ -36,7 +36,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { cardRef, fillNames, fillText, hasSlots, MAX_FILLS, refClash, slotName, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import { cardRef, dropRail, fillNames, fillsOf, fillText, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, withSlotAt, WORD_SLOT } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -59,6 +59,7 @@ import {
   plural,
   useOffline,
   ConfirmModal,
+  Overlay,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -179,7 +180,7 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
  * most cards accept one answer and want the language's default, and four
  * pickers under every row would bury the words the card is actually about.
  */
-function ScriptAnswers({ lang, dims, form, onChange }: {
+function ScriptAnswers({ lang, dims, form, onChange, blanks }: {
   lang: Lang;
   /* The axes this word is asked about — the kind of word's own list, not
      the pack's: a preposition has neither number nor gender, and a form
@@ -188,6 +189,12 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
   dims: GrammarDim[];
   form: Record<string, any>;
   onChange: (next: { ar: string; lat: string; answers: Record<string, any>[] }) => void;
+  /* What a sentence's fields need in order to have blanks put into them,
+     and nothing on a word: only a sentence may have one. Two bars per row
+     rather than one, because the script and how it is said are two fields
+     that must leave the same blanks, and the whole point of the bar is
+     that keeping them in step is a tap. */
+  blanks?: BlankWiring;
 }) {
   const fields = answerFields();
   const [rows, setRows] = useState(() => answerRows(form, fields));
@@ -217,7 +224,26 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
       {rows.map((row, i) => (
         <div className="at-answerpair" key={i}>
           <div className="at-altfield">
-            <ScriptInput lang={lang} value={row.text} onChange={(v) => edit(i, { text: v })} />
+            {blanks ? (
+              <BlankField
+                wiring={blanks}
+                value={row.text}
+                onChange={(v) => edit(i, { text: v })}
+                label={lang.scriptLabel}
+                lang={lang}
+              >
+                {(box) => (
+                  <ScriptInput
+                    lang={lang}
+                    value={row.text}
+                    onChange={(v) => edit(i, { text: v })}
+                    inputRef={box}
+                  />
+                )}
+              </BlankField>
+            ) : (
+              <ScriptInput lang={lang} value={row.text} onChange={(v) => edit(i, { text: v })} />
+            )}
           </div>
           {/* The buttons take a column of their own so that the answer and
               its pronunciation, stacked in the column beside them, line up
@@ -238,17 +264,44 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
               />
             )}
           </div>
-          <input
-            className="at-input at-answersaid"
-            value={row.lat}
-            aria-label={
-              rows.length > 1
-                ? `${lang.translitLabel} of accepted answer ${i + 1}`
-                : lang.translitLabel
-            }
-            placeholder={lang.translitLabel.toLowerCase()}
-            onChange={(e) => edit(i, { lat: e.target.value })}
-          />
+          {blanks ? (
+            <div className="at-answersaid">
+              <BlankField
+                wiring={blanks}
+                value={row.lat}
+                onChange={(v) => edit(i, { lat: v })}
+                label={lang.translitLabel}
+                lang={lang}
+              >
+                {(box) => (
+                  <input
+                    ref={box}
+                    className="at-input"
+                    value={row.lat}
+                    aria-label={
+                      rows.length > 1
+                        ? `${lang.translitLabel} of accepted answer ${i + 1}`
+                        : lang.translitLabel
+                    }
+                    placeholder={lang.translitLabel.toLowerCase()}
+                    onChange={(e) => edit(i, { lat: e.target.value })}
+                  />
+                )}
+              </BlankField>
+            </div>
+          ) : (
+            <input
+              className="at-input at-answersaid"
+              value={row.lat}
+              aria-label={
+                rows.length > 1
+                  ? `${lang.translitLabel} of accepted answer ${i + 1}`
+                  : lang.translitLabel
+              }
+              placeholder={lang.translitLabel.toLowerCase()}
+              onChange={(e) => edit(i, { lat: e.target.value })}
+            />
+          )}
           {dims.length > 0 && (
             <div className="at-answergrammar">
               <Button
@@ -289,10 +342,18 @@ function ScriptAnswers({ lang, dims, form, onChange }: {
    laid out by its direction, with the on-screen keys a click away. A
    second implementation of it there would be a second place for the caret
    handling and the direction rule to drift. */
-export function ScriptInput({ lang, value, onChange, compact = false, label }: {
+export function ScriptInput({ lang, value, onChange, compact = false, label, inputRef }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
+  /**
+   * A handle on the box itself, for a caller that needs one — the blank
+   * bar, which reads where the caret was when a chip was tapped. Handed
+   * out rather than made public, so this component goes on owning the
+   * keypad's focus handling and a caller cannot take it over by holding
+   * the same ref.
+   */
+  inputRef?: React.MutableRefObject<HTMLInputElement | null>;
   /**
    * What to call this box where the label above it does not say — in a
    * table, where one heading stands over twenty-one boxes and only the row
@@ -322,7 +383,10 @@ export function ScriptInput({ lang, value, onChange, compact = false, label }: {
           was typed into an Arabic deck. */}
       <div className={`at-inputwrap${lang.direction === "rtl" ? " rtl" : ""}`}>
         <input
-          ref={ref}
+          ref={(el) => {
+            ref.current = el;
+            if (inputRef) inputRef.current = el;
+          }}
           className="at-input"
           lang={lang.id}
           aria-label={label}
@@ -1039,6 +1103,410 @@ function BlankNameBox({ label, placeholder, taken, onName }: {
   );
 }
 
+/* ==================================================================
+   Putting a blank into a sentence
+   ==================================================================
+
+   Writing "{{name}}" meant typing it — the braces, the spelling, and the
+   same name again in each of the three fields, with nothing on screen to
+   say whether it matched what the other cards call it. A name half a
+   letter out matched nothing for ever and looked exactly like one that
+   matched. That was the last silent failure on this screen.
+
+   So a blank is put in rather than typed, and three things do it.
+
+   * **The bar**, under every field a sentence has: a chip per blank the
+     card knows, and a button for a blank it does not. A chip that is in
+     this field already is marked as such; one that is not is a tap away
+     from being in it. That is the whole of "the other fields should offer
+     it": a blank belongs to the card, so the moment one field has it the
+     rest are one tap from agreeing, which is the rule the save has always
+     enforced and never helped anybody keep.
+   * **The rail**, which appears under the field while a chip is being
+     dragged: the sentence cut into its words, with a target in each gap.
+     Where a tap puts a blank at the caret, a drag puts it exactly where
+     it goes, and moves one already there. Word-sized targets, for the
+     reasons in `dropRail`.
+   * **The sheet**, for a blank nobody has written yet: every name that
+     means something in this language, each saying what it would take and
+     how many words are behind it today, over a box for a name of one's
+     own.
+   ================================================================== */
+
+/** A blank the sheet can offer, and what choosing it would mean. */
+interface BlankOffer {
+  name: string;
+  /** What would go in the hole, in the teacher's words. */
+  note: string;
+  /** How many words are behind it today — nothing is a hole that starves. */
+  words: number;
+  kind: "any" | "category" | "group" | "card";
+}
+
+/** What a field needs in order to have blanks put into it. */
+interface BlankWiring {
+  /** Every blank this card knows, in the order the card writes them. */
+  names: string[];
+  /** Opens the sheet, which hands back a name to put where it was asked for. */
+  onNew: (put: (name: string) => void) => void;
+}
+
+/*
+ * A field, and the blanks under it.
+ *
+ * Owns the one thing the bar cannot do without and the input will not give
+ * up: a handle on the box itself, for reading where the caret is when a
+ * chip is tapped. A render prop rather than a wrapper that draws the input,
+ * because the three fields a sentence has are three different boxes — one
+ * of them in the language's own script with a keypad hanging off it — and
+ * a component that drew all three would be a fourth description of them.
+ */
+function BlankField({ wiring, value, onChange, label, lang, children }: {
+  wiring: BlankWiring;
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  lang: Lang;
+  children: (ref: React.MutableRefObject<HTMLInputElement | null>) => Node;
+}) {
+  const box: React.MutableRefObject<HTMLInputElement | null> = useRef(null);
+  return (
+    <>
+      {children(box)}
+      <BlankBar
+        wiring={wiring}
+        value={value}
+        onChange={onChange}
+        label={label}
+        lang={lang}
+        box={box}
+      />
+    </>
+  );
+}
+
+/* How far a finger may wander before it is a drag rather than a tap. Below
+   this a press is a press: a thumb never holds perfectly still, and a chip
+   that refused to be tapped because the hand moved two pixels would read
+   as a chip that does not work. */
+const DRAG_SLOP = 8;
+
+function BlankBar({ wiring, value, onChange, label, lang, box }: {
+  wiring: BlankWiring;
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  lang: Lang;
+  box: React.MutableRefObject<HTMLInputElement | null>;
+}) {
+  /* Which blank is being dragged, and which gap the finger is over. Null
+     for both when nothing is happening, which is nearly always — the rail
+     is not drawn until there is something to drop on it. */
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [over, setOver] = useState<number | null>(null);
+  const from = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const here = slotsIn(value);
+  const rail = useMemo(() => dropRail(value), [value]);
+
+  /*
+   * Where a tapped blank goes: where the teacher last had the caret.
+   *
+   * Read off the box at the moment of the tap rather than tracked as it
+   * moves, because a box keeps its selection when it loses focus and the
+   * tap is what takes the focus away. Where there has never been a caret
+   * in it — a field nobody has touched — the end of what is written is the
+   * only answer that is not a guess.
+   */
+  const caret = (): number => {
+    const at = box.current;
+    if (!at) return value.length;
+    const put = at.selectionStart;
+    return typeof put === "number" ? put : value.length;
+  };
+
+  /* One blank put down at one offset: moved where it is already in this
+     field, put in where it is not. Both go through the same two functions
+     every other writer of a blank goes through. */
+  const put = (name: string, at: number) =>
+    onChange(here.includes(name) ? movedSlot(value, name, at) : withSlotAt(value, name, at));
+
+  /* A blank already in this field, tapped: shown rather than moved. The
+     teacher asked where it is, and the answer is to put the caret round it
+     — moving it is what the drag is for, and a tap that moved it would
+     move it somewhere nobody pointed at. */
+  const show = (name: string) => {
+    const at = box.current;
+    const span = rail.points;
+    if (!at || !span.length) return;
+    const found = value.toLowerCase().indexOf(`{{${name}}}`);
+    if (found < 0) return;
+    at.focus();
+    at.setSelectionRange(found, found + name.length + 4);
+  };
+
+  const tap = (name: string) => (here.includes(name) ? show(name) : put(name, caret()));
+
+  /* The gap the finger is over, by asking the page what is under it. The
+     targets are real elements laid out by the browser, so this is the same
+     answer in a script that runs the other way — see dropRail. */
+  const gapAt = (x: number, y: number): number | null => {
+    const el = document.elementFromPoint(x, y);
+    const target = el && el.closest ? el.closest("[data-blankdrop]") : null;
+    if (!target) return null;
+    const said = Number(target.getAttribute("data-blankdrop"));
+    return Number.isFinite(said) ? said : null;
+  };
+
+  /*
+   * A press that goes somewhere is a drag; one that goes nowhere is left
+   * alone for the click to handle.
+   *
+   * **The tap is a click and not a pointer-up**, which is the whole reason
+   * these are split. A chip is a button, and a button is pressed by a
+   * keyboard as well as by a thumb: Enter and the space bar raise a click
+   * and no pointer event at all, so a chip that acted on pointer-up would
+   * have been a control nobody could reach without a mouse. The drag is
+   * the part that genuinely needs the pointer, and it is the only part
+   * that reads one.
+   *
+   * `dropped` is what stops a drag counting twice: a pointer released over
+   * the chip it started on raises a click afterwards, which would put the
+   * blank back where the caret is having just moved it where it was
+   * dropped.
+   */
+  const dropped = useRef(false);
+
+  const startDrag = (name: string) => (e: React.PointerEvent) => {
+    /* The primary button only: a right-click is not a drag, and a
+       secondary touch during one is not a second drag. */
+    if (e.button !== 0) return;
+    from.current = { x: e.clientX, y: e.clientY, moved: false };
+    setDragging(name);
+    setOver(null);
+    /* So the moves keep coming when the finger leaves the chip, which on
+       a chip the size of a word is immediately. */
+    if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const moveDrag = (e: React.PointerEvent) => {
+    const start = from.current;
+    if (!dragging || !start) return;
+    if (!start.moved &&
+        Math.abs(e.clientX - start.x) < DRAG_SLOP &&
+        Math.abs(e.clientY - start.y) < DRAG_SLOP) return;
+    start.moved = true;
+    setOver(gapAt(e.clientX, e.clientY));
+  };
+
+  const endDrag = (name: string) => (e: React.PointerEvent) => {
+    const start = from.current;
+    from.current = null;
+    setDragging(null);
+    setOver(null);
+    if (!start || !start.moved) return;
+    const at = gapAt(e.clientX, e.clientY);
+    dropped.current = true;
+    if (at !== null) put(name, at);
+  };
+
+  const stopDrag = () => {
+    from.current = null;
+    setDragging(null);
+    setOver(null);
+  };
+
+  return (
+    <div className="at-blankbar">
+      {/* The rail, only while something is being dragged. A row of targets
+          under a field nobody is dragging onto is a row of buttons that
+          do nothing, and this screen has had enough of those. */}
+      {dragging && (
+        <div
+          className="at-blankrail"
+          lang={lang.id}
+          dir={lang.direction}
+          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+        >
+          {rail.points.map((at, i) => (
+            <React.Fragment key={at}>
+              <span
+                className={`at-blankgap${over === at ? " on" : ""}`}
+                data-blankdrop={at}
+                aria-hidden="true"
+              />
+              {rail.pieces[i] && (
+                <span className={`at-blankword${rail.pieces[i].slot ? " slot" : ""}`}>
+                  {rail.pieces[i].slot ? rail.pieces[i].slot : rail.pieces[i].text}
+                </span>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      )}
+
+      <div className="at-blankpills">
+        {wiring.names.map((name) => (
+          <button
+            key={name}
+            type="button"
+            className={`at-blankpill${here.includes(name) ? " in" : ""}${dragging === name ? " lifted" : ""}`}
+            /* What the chip is for, said in full: on a bar under a field
+               the difference between a blank that is in it and one that is
+               not is the whole of the control, and a chip reading only
+               "name" says neither. */
+            aria-label={
+              here.includes(name)
+                ? `{{${name}}} is in ${label}. Tap to find it, drag to move it.`
+                : `Put {{${name}}} into ${label}`
+            }
+            onPointerDown={startDrag(name)}
+            onPointerMove={moveDrag}
+            onPointerUp={endDrag(name)}
+            onPointerCancel={stopDrag}
+            onClick={() => {
+              if (dropped.current) {
+                dropped.current = false;
+                return;
+              }
+              tap(name);
+            }}
+          >
+            {name}
+          </button>
+        ))}
+        <button
+          type="button"
+          className="at-blankadd"
+          aria-label={`Put a blank into ${label}`}
+          onClick={() => wiring.onNew((name) => put(name, caret()))}
+        >
+          <Icon name="add" size={16} />
+          Blank
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/*
+ * The sheet a blank is chosen in.
+ *
+ * Every name that means something in this language, each saying what would
+ * stand in the hole and how many words are behind it — because the one
+ * thing a teacher cannot see from the name is whether the blank they are
+ * about to write has anything to fill it, and a blank with nothing behind
+ * it is a card that is never asked.
+ *
+ * The box at the top is a filter and a name at once, which is the same
+ * gesture either way: you type what you are after, and either it is in the
+ * list or it is not and typing it is how it comes to exist. A name nobody
+ * has written is offered as what it would be — a group tag, waiting for
+ * the cards that say they are in it.
+ *
+ * Over everything, because it is raised from inside a screen that is
+ * itself raised — see Overlay.
+ */
+function BlankSheet({ lang, offers, onPick, onClose }: {
+  lang: Lang;
+  offers: BlankOffer[];
+  onPick: (name: string) => void;
+  onClose: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const name = slotName(typed);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const shown = name ? offers.filter((o) => o.name.includes(name)) : offers;
+  const exact = offers.some((o) => o.name === name);
+  const KINDS: Record<BlankOffer["kind"], string> = {
+    any: "Any word",
+    category: "Kind of word",
+    group: "Group tag",
+    card: "One card",
+  };
+  return (
+    <Overlay>
+      <div className="at-modalback sheet" onClick={onClose}>
+        <div
+          className="at-sheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose a blank"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="at-sheettop">
+            <h3 className="at-modaltitle">Put in a blank</h3>
+            <IconButton icon="close" label="Close" onClick={onClose} />
+          </div>
+          <p className="at-hint">
+            A hole this sentence leaves, and the words that will stand in it.
+          </p>
+
+          <input
+            className="at-input"
+            value={typed}
+            autoFocus
+            placeholder="Find a blank, or name a new one"
+            aria-label="Find a blank, or name a new one"
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || !name) return;
+              onPick(name);
+              onClose();
+            }}
+          />
+
+          {/* A name nobody has written yet, offered as the thing it would
+              be. Not where the list already has it: choosing it from the
+              list and typing it out are the same answer, and two ways to
+              give it on one screen is one too many. */}
+          {name && !exact && (
+            <button className="at-blankmake" onClick={() => { onPick(name); onClose(); }}>
+              <b>{`{{${name}}}`}</b>
+              <span>
+                A new group tag. Nothing fills it until a card says it is in
+                the group, which is a tick on that card.
+              </span>
+            </button>
+          )}
+
+          <ul className="at-blanklist">
+            {shown.map((offer) => (
+              <li key={offer.name}>
+                <button onClick={() => { onPick(offer.name); onClose(); }}>
+                  <b
+                    lang={offer.kind === "card" ? lang.id : undefined}
+                    dir={offer.kind === "card" ? lang.direction : undefined}
+                  >
+                    {`{{${offer.name}}}`}
+                  </b>
+                  <span className="at-sheetnote">{KINDS[offer.kind]}</span>
+                  <span>{offer.note}</span>
+                  <em className={offer.words ? "" : "unmet"}>
+                    {offer.words
+                      ? `${plural(offer.words, "word")} behind it`
+                      : "nothing fills it yet"}
+                  </em>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {!shown.length && !name && (
+            <Help>
+              No blank exists yet in {lang.name}. Type a name above and it
+              becomes a group tag, which cards can then say they are in.
+            </Help>
+          )}
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 /*
  * What a card is, in two questions.
  *
@@ -1075,18 +1543,21 @@ export type CardForms = string;
  * Which of the three a card opens as.
  *
  * A conversation by its turns, as everything else reads one. A **sentence**
- * by the blanks in its own word: "{{noun}} is heavy" is a frame whichever
- * editor it was written in, and the braces are in the text rather than
- * being a label beside it, so there is nothing here to guess at and nothing
- * to be told. That is the difference between this and the table, which is
- * two tables that look alike and had to be asked about (see 0.137).
+ * by the teacher's own answer, kept on the card — see `isSentence`, which
+ * carries the rule and the reading of a card written before there was
+ * anything to keep.
  *
- * Nothing is stored saying "sentence". A card that stops having blanks in
- * it stops being one, which is the same rule the kind has always followed:
- * read off what the card says.
+ * It was read off the braces until 0.176, and that is the thing this no
+ * longer does. The editor asked which kind of card this was, offered three
+ * answers and stored none of them, so the answer was worked out again from
+ * the words every time the card was opened: a sentence typed out before
+ * its first blank came back as a word, and a blank typed into a word with
+ * a table under it came back as a sentence, hid the table and offered to
+ * drop it. Reading a card is not the same as being told, and the kind of
+ * card is something a teacher is entitled to say.
  */
 export const shapeOf = (card: Card | null | undefined, scene: boolean): CardShape =>
-  scene ? "scene" : hasSlots(card) ? "sentence" : "word";
+  scene ? "scene" : isSentence(card) ? "sentence" : "word";
 
 /*
  * What a word can be, as the radio asks it.
@@ -1898,6 +2369,41 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const trouble = scene ? null : ownForms.map((f) => slotTrouble(f)).find(Boolean) || null;
 
   /*
+   * The blanks on a card that is not a sentence, which is a card that
+   * cannot be saved.
+   *
+   * **Only a sentence may have a blank in it.** A word is a thing to learn
+   * and a sentence is a frame to meet it in, and a blank is what makes the
+   * second one a frame — so a hole in a word is one of two mistakes, and
+   * the teacher is the only one who knows which. Either they meant to
+   * write a sentence, and the answer is one tap on the kind above; or they
+   * typed braces into a word, and the answer is to take them out.
+   *
+   * Until 0.176 the app answered for them, by quietly calling any card
+   * with braces in it a sentence. That was wrong in both directions at
+   * once: it turned a word into a sentence nobody had asked for, and on a
+   * word with a table under it, it hid the table and offered to drop every
+   * box in it on the next save — a verb's whole conjugation, and every
+   * student's progress on it, one tap away.
+   *
+   * Every form the card carries and not only its own word, because a
+   * second form is the same card said another way and a blank in it is the
+   * same mistake. The table's cells are not looked at: a sentence a card
+   * asks itself in is written on a cell, and is the one place a blank
+   * belongs on a word.
+   */
+  const strayHoles = useMemo(() => {
+    if (scene || shape === "sentence") return [];
+    const out: string[] = [];
+    for (const form of ownForms) {
+      for (const slot of slotsOf(form)) if (!out.includes(slot)) out.push(slot);
+    }
+    return out;
+    /* eslint-disable-next-line react-hooks/exhaustive-deps -- ownForms is a
+       fresh array every render; what it is made of is what matters. */
+  }, [scene, shape, main, forms]);
+
+  /*
    * The blanks this language already knows about, and what each is worth.
    *
    * Two numbers, because they answer two different questions a teacher has
@@ -1916,12 +2422,12 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     for (const c of allCards || []) {
       if (lang && c.lang && c.lang !== lang.id) continue;
       /* What a card fills — see fillsOf, which is the one answer and which
-         this has to agree with. A card with a blank in it fills nothing at
-         all: it is a sentence, not a word. Every name it gives, because a
-         card may now say it fills several and each of them is a blank with
-         one more word behind it. */
+         this has to agree with. A sentence fills nothing at all, whether or
+         not it has got its blanks yet: it is a sentence, not a word. Every
+         name it gives, because a card may now say it fills several and each
+         of them is a blank with one more word behind it. */
       const named = fillNames(c);
-      if (!hasSlots(c)) {
+      if (!isSentence(c)) {
         for (const name of named) words.set(name, (words.get(name) || 0) + 1);
         if (!named.length && kindOf(c, lang) === "word") anyWord++;
         const category = String(c.category || "").toLowerCase();
@@ -2009,6 +2515,75 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   }, [blanksAround, fills]);
 
   /*
+   * Every blank the sheet can offer, and what each of them would take.
+   *
+   * Four kinds of name reach a card, and they are four because each
+   * answers a different question a teacher has. `{{word}}` takes anything
+   * they have written. A kind of word takes the nouns, or the verbs, with
+   * nothing to tick. A group tag takes the cards that say they are in the
+   * group. And a card's own ID takes that one card and no other. Which is
+   * which matters on this list and nowhere else: the trainer fills a hole
+   * from whatever says it fills it, and `fillsOf` is the one answer to
+   * that — this is a way of choosing a name, not a second opinion about
+   * what a name means.
+   *
+   * A sentence's ID is not offered. A sentence fills nothing, so a blank
+   * asking for one by name would be a hole nothing could ever stand in;
+   * and this card's own ID least of all, which would be a sentence inside
+   * itself.
+   */
+  const blankOffer = useMemo(() => {
+    const named = (id: string) =>
+      (categoriesOf(lang).find((c) => c.id === id) || { label: id }).label;
+    /*
+     * How many words are behind each name, counted the way the question
+     * will count them: through `fillsOf`, which is the one answer to what
+     * a card fills and which the trainer fills a hole from.
+     *
+     * Not off the rows above, which keep the two halves of a name apart —
+     * how many cards *say* they are a noun, and how many *tag* themselves
+     * with the word. A name can be both: Arabic declares `name` as a kind
+     * of word and `{{name}}` is the oldest frame in the app, filled by the
+     * names a teacher has tagged. Counting one half and calling it the
+     * total told a teacher that the blank they were about to write had
+     * nothing behind it while two cards stood ready to fill it.
+     */
+    const behind = new Map<string, number>();
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      for (const name of fillsOf(c, kindOf(c, lang))) {
+        behind.set(name, (behind.get(name) || 0) + 1);
+      }
+    }
+    const rows: BlankOffer[] = [];
+    for (const b of blanksAround) {
+      const words = behind.get(b.name) || 0;
+      if (b.built === "any") {
+        rows.push({ name: b.name, kind: "any", words, note: "Any word in the language" });
+      } else if (b.built === "category") {
+        rows.push({ name: b.name, kind: "category", words, note: `Any ${named(b.name).toLowerCase()}` });
+      } else if (b.used > 0 || b.wrote > 0) {
+        rows.push({ name: b.name, kind: "group", words, note: "The cards tagged with it" });
+      }
+    }
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      if (card && c.id === card.id) continue;
+      if (isSentence(c)) continue;
+      const own = cardRef(c);
+      if (!own || rows.some((r) => r.name === own)) continue;
+      const word = leadOf(c);
+      rows.push({
+        name: own,
+        kind: "card",
+        words: behind.get(own) || 1,
+        note: [word.ar, word.en].filter(Boolean).join(" · ") || "This card alone",
+      });
+    }
+    return rows.sort((a, b) => a.name.localeCompare(b.name));
+  }, [blanksAround, allCards, lang, card]);
+
+  /*
    * The words each of this card's blanks can be filled with, today.
    *
    * Worked out once and read three ways — the example sentences below, the
@@ -2085,7 +2660,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * for preventing.
    */
   const refOk = (!refName || refFree) && (!!card || scene || refFree);
-  const canSave = canSaveWord(main, trouble) && refOk;
+  const canSave = canSaveWord(main, trouble) && refOk && !strayHoles.length;
 
   /* Another form, named so that its own cells can point at it. No number
      override beyond the name: blankForm takes the language's declared
@@ -2228,10 +2803,17 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setRecording,
     main,
     holes,
+    /* Whether the teacher has called this a sentence, which is the one
+       answer to what may have a blank in it and what may not. The shape is
+       the shell's state; every block below reads it from here so that none
+       of them works it out again. */
+    sentence: shape === "sentence",
+    strayHoles,
     ownForms,
     tableCells,
     trouble,
     blanksAround,
+    blankOffer,
     asked,
     starved,
     fillers,
@@ -2378,7 +2960,15 @@ function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, ch
         <span className="at-formnum">The kind of card</span>
         {card && (
           <span className="at-formrole">
-            {categoryLabel(lang, category) || kindLabel(kindOf(card, lang))}
+            {/* What the card is, said in the line beside the heading. A
+                sentence says so itself rather than falling through to
+                what its words look like: `kindOf` reads the text, and a
+                frame of three words reads as a phrase — which is a
+                sentence card labelled "Phrase" directly under the answer
+                calling it a sentence. */}
+            {shape === "sentence"
+              ? "Sentence"
+              : categoryLabel(lang, category) || kindLabel(kindOf(card, lang))}
           </span>
         )}
       </div>
@@ -2766,13 +3356,19 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
     the editor's to say — "Form 2" on a word, "The verb" on a verb — and
     `children` sit after the fields, which is where a form's own pronoun
     table goes. */
-function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
+function FormBlock({ word, lang, index: i, form: f, title, role, blanks, children }: {
   word: WordDraft;
   lang: Lang;
   index: number;
   form: Record<string, any>;
   title: string;
   role: string;
+  /* Handed down only by the sentence editor: a blank belongs in a sentence
+     and nowhere else, so the bar is not drawn on a word, a verb or a
+     conversation. What refuses a blank on those is the save — see
+     `strayHoles` — and this is the other half of the same rule, which is
+     that a teacher is never offered what they will then be refused. */
+  blanks?: BlankWiring;
   children?: Node;
 }) {
   const { canSave, drillsTranslit, setForm, duplicateForm, removeForm, setRecording } = word;
@@ -2823,6 +3419,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
         dims={dimsFor(lang, word.category)}
         form={f}
         onChange={(next) => setForm(i, { ...f, ...next })}
+        blanks={blanks}
       />
       {!drillsTranslit && (
         <Help>
@@ -2837,9 +3434,22 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
       <Alternatives
         value={f.en}
         onChange={(v) => setForm(i, { ...f, en: v })}
-        render={(v, set) => (
-          <input className="at-input" value={v} onChange={(e) => set(e.target.value)} />
-        )}
+        render={(v, set) =>
+          blanks ? (
+            <BlankField wiring={blanks} value={v} onChange={set} label="English" lang={lang}>
+              {(box) => (
+                <input
+                  ref={box}
+                  className="at-input"
+                  value={v}
+                  onChange={(e) => set(e.target.value)}
+                />
+              )}
+            </BlankField>
+          ) : (
+            <input className="at-input" value={v} onChange={(e) => set(e.target.value)} />
+          )
+        }
       />
     </Field>
 
@@ -3342,16 +3952,20 @@ function RenameAsk({ word }: { word: WordDraft }) {
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, asked, fillers, fills, fillsOffer, addFill,
-    main, trouble, drill, setDrillChoice, category,
+    main, trouble, drill, setDrillChoice, category, sentence, strayHoles,
   } = word;
-  /* A card with a blank of its own fills none — see fillsOf, which is the
-     one answer to that and which this only reports. So the second
-     subsection has nothing to offer such a card, except where it already
-     carries names, which it has to go on showing or they are stranded. */
-  const canFill = !holes.length || fills.length > 0;
+  /* A sentence fills nothing — see fillsOf, which is the one answer to
+     that and which this only reports. So the second subsection has nothing
+     to offer one, except where it already carries names, which it has to go
+     on showing or they are stranded.
+
+     Asked of the kind rather than of the braces, since 0.176: a sentence
+     is a sentence before its first blank is in it, and offering to lend it
+     out in that gap was offering the one thing the rule forbids. */
+  const canFill = !sentence || fills.length > 0;
   /* On such a card, only what it already carries — so it can be taken off
      and nothing else can be added to a list that fills nothing. */
-  const offered = holes.length ? fillsOffer.filter((b) => fills.includes(b.name)) : fillsOffer;
+  const offered = sentence ? fillsOffer.filter((b) => fills.includes(b.name)) : fillsOffer;
   const full = fills.length >= MAX_FILLS;
   return (
     <>
@@ -3386,19 +4000,52 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         <div className="at-formhead">
           <span className="at-formnum">Blanks</span>
           <span className="at-formrole">
-            {holes.length
-              ? `${plural(holes.length, "blank")} · ${
-                  starved.length ? "nothing fills it yet" : `met as ${plural(asked.length, "sentence")}`
-                }`
-              : fills.length
-                ? `this card fills ${plural(fills.length, "blank")}`
-                : "a gap this card leaves for another word"}
+            {!sentence && strayHoles.length
+              ? "only a sentence can have a blank"
+              : sentence && holes.length
+                ? `${plural(holes.length, "blank")} · ${
+                    starved.length ? "nothing fills it yet" : `met as ${plural(asked.length, "sentence")}`
+                  }`
+                : sentence
+                  ? "no blank in it yet"
+                  : fills.length
+                    ? `this card fills ${plural(fills.length, "blank")}`
+                    : "a gap this card leaves for another word"}
           </span>
         </div>
 
-        <p className="at-groupline">Blanks in this card</p>
+        {/* ---- a blank on a card that is not a sentence ----
 
-        {holes.length > 0 && (
+            Only a sentence may have one, and this is where a word that has
+            got one says so. It is a refusal and not a warning: the save is
+            off until it is answered, because the two things it could mean
+            are opposite and only the teacher knows which. Both answers are
+            named, in the order they are likely — a card with braces typed
+            into it is usually a sentence somebody has just started
+            writing.
+
+            It replaces the old silence, which was the app answering for
+            them: a word with braces in it was quietly renamed a sentence,
+            and on a word with a table under it that hid the table and
+            offered to drop every box in it. */}
+        {!sentence && strayHoles.length > 0 && (
+          <>
+            <p className="at-formneed unmet">
+              {`${strayHoles.map((s) => `{{${s}}}`).join(" and ")} ${
+                strayHoles.length > 1 ? "are blanks" : "is a blank"
+              }, and only a sentence can have one.`}
+            </p>
+            <Help>
+              Call this card a sentence at the top of the screen, or take the
+              braces out of its words. A word is a thing to learn; a sentence
+              is the frame it is met in, and the blank is what makes it one.
+            </Help>
+          </>
+        )}
+
+        {sentence && <p className="at-groupline">Blanks in this card</p>}
+
+        {sentence && holes.length > 0 && (
           <>
             {/* Named, because it is the reason the card is never
                 asked and the teacher cannot see it from here. */}
@@ -3418,7 +4065,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
 
         {/* The holes the card has, as facts about it — each one saying,
             when it is pointed at, what will be put in it. */}
-        {holes.length > 0 && (
+        {sentence && holes.length > 0 && (
           <div className="at-blankrow">
             {holes.map((slot) => (
               <BlankChip key={slot} slot={slot} values={fillers[slot] || []} lang={lang} />
@@ -3427,8 +4074,11 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         )}
 
         {/* Still possible on a card written before the button, or by
-            typing the braces by hand, so still said — in one line. */}
-        {trouble && (
+            typing the braces by hand, so still said — in one line. Only on
+            a sentence: on a word every blank is already the wrong thing to
+            have, and saying the fields disagree about them as well would be
+            two complaints where there is one thing to do. */}
+        {sentence && trouble && (
           <p className="at-formneed unmet">
             {trouble.missing.length
               ? `${fieldName(trouble.field, lang)} is missing ${trouble.missing
@@ -3440,16 +4090,21 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </p>
         )}
 
-        {holes.length === 0 && (
+        {/* A sentence before its first blank, which is a real state and
+            used to be an impossible one: a card with no braces in it read
+            as a word, so this screen could not be reached from it. What it
+            says is where the blanks are put in, which is beside the words
+            themselves rather than here. */}
+        {sentence && holes.length === 0 && (
           <Help>
             None yet. A blank is a hole this card leaves for another word to
-            fill, so that one card is met as a sentence about anybody. Write
-            one into the card&rsquo;s words — <code>{`{{name}}`}</code>, in
-            every field that has words in it — and it appears here.
+            fill, so that one card is met as a sentence about anybody. Put one
+            in with the <b>Blank</b> button under any of the card&rsquo;s
+            fields, and it appears here.
           </Help>
         )}
 
-        {holes.length > 0 && (main.clips || []).length > 0 && (
+        {sentence && holes.length > 0 && (main.clips || []).length > 0 && (
           <Help>
             Listening exercises are not offered on a card with a blank in it:
             the recording says one of the words, and the next asking wants another.
@@ -3471,7 +4126,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             Only on a card that leaves a blank: a card with no hole in it
             is met as what it says, and a heading offering examples of it
             would be a heading over the card's own words. */}
-        {holes.length > 0 && (
+        {sentence && holes.length > 0 && (
           <>
             <p className="at-groupline">Examples of this card with filled blanks</p>
             {asked.length > 0 ? (
@@ -3715,6 +4370,13 @@ export function writtenCard({ word, talk, shape, chosen }: {
        word at all: what fills its blanks is other cards, and a sentence
        that claimed to be a noun would be offering itself to fill one. */
     category: shape === "word" ? category : "",
+    /* And whether it is a sentence, which until 0.176 was worked out from
+       the braces every time the card was read rather than being the
+       teacher's answer to keep. Carried as a plain yes or no, so a
+       sentence with no blank in it yet is still one — which is the state
+       every sentence passes through while it is being written, and the one
+       the old reading could not hold. */
+    sentence: shape === "sentence",
     name: standsIn ? name.trim() : "",
     decks: chosen,
     uses,
@@ -3934,6 +4596,30 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
   allCards: Card[];
   selfId: string;
 }) {
+  /*
+   * The sheet, and where what it hands back is to go.
+   *
+   * One sheet for the whole card rather than one per field: it is the same
+   * question wherever it is asked from, and the field that asked is
+   * remembered instead — as the thing to do with the answer, so the sheet
+   * itself knows nothing about fields. Held here rather than in each bar,
+   * because a sheet raised from inside a field would be unmounted by the
+   * very change it makes.
+   */
+  const [putting, setPutting] = useState<{ put: (name: string) => void } | null>(null);
+  /*
+   * The blanks a chip is offered for: the ones this card already writes,
+   * in any of its fields, plus none.
+   *
+   * The card's own word and not the form in hand, so the bar under form
+   * two offers what form one leaves — which is the rule the save enforces
+   * ("every field with words in it leaves the same blanks") shown as the
+   * one tap that keeps it.
+   */
+  const wiring: BlankWiring = {
+    names: word.holes,
+    onNew: (put) => setPutting({ put }),
+  };
   return (
     <>
       {word.forms.map((f, i) => (
@@ -3945,8 +4631,17 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
           form={f}
           title={i === 0 ? "The sentence" : `Form ${i + 1}`}
           role={i === 0 ? "the sentence, with a blank where a word goes" : "another way of saying it"}
+          blanks={wiring}
         />
       ))}
+      {putting && (
+        <BlankSheet
+          lang={lang}
+          offers={word.blankOffer}
+          onPick={(name) => putting.put(name)}
+          onClose={() => setPutting(null)}
+        />
+      )}
       <AskBlock word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
@@ -4059,7 +4754,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;

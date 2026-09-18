@@ -941,6 +941,16 @@ export default async (req) => {
            whatever it used to answer to. JSON drops the undefined on the
            way to disk. */
         ref: answersTo || undefined,
+        /* Whether this card is a sentence — a frame other cards are
+           dropped into — which is the teacher's answer rather than
+           something read off the braces. Stored as a boolean either way
+           rather than only when true, for the reason `drill` is: a card
+           turned from a sentence back into a word must come back as a
+           word, and an absent field would leave every reader falling back
+           to the old reading of its braces for ever. A card written before
+           this carries nothing and is read that old way, which is exactly
+           what it meant — see isSentence. */
+        sentence: card.sentence === true,
         /* Whether it is practised in its own right. Stored as a boolean
            either way rather than only when false: a card that has been
            turned off and on again must come back as on, and an absent field

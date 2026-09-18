@@ -281,10 +281,26 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   and the sentence goes back to its card for the form the first other
   blank calls for (`agreedValue` in `src/verbs.ts`, `agreeTook` in the
   trainer): the cell a column picks, the word where none does, and nothing
-  where the cell is blank. The editor asks which kind of card
-  it is: a word, a sentence, or a conversation. Nothing is stored saying
-  "sentence" — the braces are in the text, so a card with a blank in it is
-  one whichever editor wrote it.
+  where the cell is blank.
+
+  **Only a sentence may have a blank in it, and a sentence is one because
+  the teacher said so.** The editor asks which kind of card it is — a word,
+  a sentence, or a conversation — and that answer is now kept, in
+  `sentence` on the card, which `isSentence` in `src/variables.ts` is the
+  one answer to. It used to be read off the braces instead, so the question
+  was thrown away the moment it was answered and worked out again from the
+  words each time the card was opened: a sentence typed out before its
+  first blank came back as a word, and a blank typed into a word made it a
+  sentence whether or not anybody meant that — on a word with a table under
+  it, hiding the table and offering to drop every box in it on the next
+  save. A card written before this carries no answer and is read the way it
+  always was, which is the whole of the migration and leaves nothing to
+  rewrite: a card with a hole in it was a sentence then and is one now, and
+  pins the answer the next time it is saved. The other half of the rule is
+  a refusal — `strayHoles` in `src/card-editor.tsx` stops a save of any
+  card that is not a sentence and has braces in one of its own forms, and
+  names both ways out, because "I meant a sentence" and "I mistyped" are
+  opposite and only the teacher knows which.
 
   **The editor's Blanks section is four named subsections, and they are
   not the same shape, because they are not the same question.**
@@ -295,10 +311,33 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   is to say what that fact is worth: each hole, and, when one is pointed
   at, the words that will go in it. That last is the only place a teacher
   can see whether the right vocabulary is behind a blank without leaving
-  the card. A blank is put in and taken out by writing it into the fields,
-  where it lives; every field with words in it must leave the same blanks,
-  and `slotTrouble` refuses the save and names the field that is short of
-  one.
+  the card. A blank lives in the fields, so that is where it is put in and
+  taken out; every field with words in it must leave the same blanks, and
+  `slotTrouble` refuses the save and names the field that is short of one.
+
+  **And it is put in rather than typed.** Under each of a sentence's three
+  fields is a **bar**: a chip for every blank the card knows, and a button
+  for one it does not. A chip the field already has reads as a fact about
+  it; one it has not is a tap from being in it, at the caret — which is the
+  whole of keeping the three fields in step, a rule the save has always
+  enforced and never once helped anybody keep. Dragging a chip instead puts
+  the blank exactly where it goes, and moves one already there: while a
+  chip is held, a **rail** appears under the field showing the sentence as
+  its words with a target in each gap. **The gap and not the character is
+  the unit**, for two reasons — nobody puts a hole in the middle of a word,
+  so word-sized targets ask for the accuracy a thumb has; and asking the
+  browser which of its own elements a finger is on has one answer in every
+  script, where measuring laid-out text a second way does not. `dropRail`,
+  `withSlotAt`, `withoutSlot` and `movedSlot` in `src/variables.ts` are the
+  string rules, spacing a blank like the word it stands in for and never
+  letting one land inside another; `BlankBar` in `src/card-editor.tsx`
+  draws them. The **sheet** behind the button lists every name that means
+  something in this language — any word, each kind of word, each group tag,
+  each card's own ID — with what would stand in the hole and how many words
+  are behind it today, counted through `fillsOf` so it is the number the
+  question will actually find. A name nobody has written yet is offered as
+  what it would be: a new group tag, waiting for the cards that say they
+  are in it.
 
   *Examples of this card with filled blanks* is the card as a student will
   actually meet it: up to five of it, every hole standing as one of the

@@ -4064,6 +4064,36 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(80);
   typeInto(fieldNamed(/^English$/), "My name is {{name}}");
   await sleep(200);
+
+  /* ---- only a sentence may have a blank ----
+
+     The card on screen is a word, and it has just had braces typed into
+     it. Until 0.176 the app answered that for the teacher by quietly
+     calling the card a sentence — which on a word with a table under it
+     hid the table and offered to drop every box in it on the next save.
+     It is refused now, and both ways out are named, because the two
+     things it can mean are opposite and only the teacher knows which. */
+  const kindSeg = (/** @type {RegExp} */ re) => /** @type {any} */ (
+    [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
+      .find((b) => re.test((b.textContent || "").trim())) || null);
+  check("a blank typed into a word is refused rather than quietly allowed",
+    !!saveBtn() && saveBtn().disabled &&
+      /only a sentence can have one/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+      .find((t) => /only a sentence/.test(t))) || "(nothing said)");
+  check("and the way out is named: call it a sentence, or take the braces out",
+    /Call this card a sentence/.test(document.body.textContent || ""),
+    ([...document.querySelectorAll(".at-hint")].map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
+      .find((t) => /Call this card a sentence/.test(t))) || "(nothing said)");
+
+  /* Said once, and kept: the kind is the teacher's answer from here on,
+     not something worked out from the braces every time the card is
+     opened. */
+  click(kindSeg(/^Sentence$/));
+  await sleep(300);
+  check("calling it a sentence is what makes the blank allowed",
+    !/only a sentence can have one/.test(document.body.textContent || ""),
+    /only a sentence can have one/.test(document.body.textContent || "") ? "still refused" : "allowed");
   check("a card with a hole in one field only cannot be saved",
     !!saveBtn() && saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
@@ -4226,10 +4256,94 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     check("a card with no blank in its words shows none",
       chips().length === 0,
       chips().join(", ") || "(none)");
-    check("and says how one is written, since there is nothing here to press",
-      /\{\{name\}\}/.test(((half(HOLES).map((n) => n.textContent || "").join(" ")) || "")),
+    check("and says where one is put in, which is beside the words themselves",
+      /Blank/.test(((half(HOLES).map((n) => n.textContent || "").join(" ")) || "")),
       (half(HOLES).map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
         .find((t) => /None yet/.test(t))) || "(nothing said)");
+
+    /* ---- a blank is put in, not typed ----
+
+       Writing one meant typing the braces, the name and the spelling, and
+       then the same name again in each of the other fields, with nothing
+       on screen to say whether it matched what the other cards call it. A
+       name half a letter out matched nothing for ever and looked exactly
+       like one that matched: the last silent failure on this screen.
+
+       So each field a sentence has carries a bar — the blanks the card
+       already knows, and a button for one it does not — and the card is
+       on "ismi" / "My name is" with no blanks at all, which is where a
+       sentence is actually written from. */
+    {
+      const addIn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        [...document.querySelectorAll(".at-blankadd")]
+          .find((b) => re.test(b.getAttribute("aria-label") || "")) || null);
+      const pill = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        [...document.querySelectorAll(".at-blankpill")]
+          .find((b) => re.test(b.getAttribute("aria-label") || "")) || null);
+      const sheet = () => document.querySelector(".at-sheet");
+      const rows = () => [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+        .map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
+      const rowFor = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        [...((sheet() || document).querySelectorAll(".at-blanklist button"))]
+          .find((b) => re.test((((b.querySelector("b") || {}).textContent) || "").trim())) || null);
+
+      check("every field a sentence has offers to put a blank into it",
+        !!addIn(/into Arabic script$/) && !!addIn(/into Transliteration$/) && !!addIn(/into English$/),
+        [...document.querySelectorAll(".at-blankadd")]
+          .map((b) => b.getAttribute("aria-label")).join(" | ") || "(no buttons)");
+
+      click(addIn(/into English$/));
+      await sleep(300);
+      check("the button opens a sheet of the blanks this language has",
+        !!sheet() && rows().length > 0, rows().slice(0, 3).join(" / ") || "(nothing offered)");
+      /* The one thing a teacher cannot tell from a name: whether the hole
+         they are about to write has anything to fill it. */
+      check("each saying what would stand in it, and how many words do today",
+        !!rowFor(/^\{\{name\}\}$/) &&
+          /2 words behind it/.test((rowFor(/^\{\{name\}\}$/).textContent || "").replace(/\s+/g, " ")),
+        rowFor(/^\{\{name\}\}$/)
+          ? (rowFor(/^\{\{name\}\}$/).textContent || "").replace(/\s+/g, " ").trim()
+          : "(no row for name)");
+      /* Four kinds of name reach a card and the sheet says which is which,
+         because they are four different questions: anything at all, a kind
+         of word, a group somebody made, and one card by the ID it answers
+         to. Two of the four are in this collection today. */
+      check("and which kind of name it is, because the four are not the same question",
+        /Any word/.test((rowFor(/^\{\{word\}\}$/) || {}).textContent || "") &&
+          /Kind of word/.test((rowFor(/^\{\{noun\}\}$/) || {}).textContent || ""),
+        rows().join(" / ") || "(nothing offered)");
+
+      click(rowFor(/^\{\{name\}\}$/));
+      await sleep(300);
+      const enNow = () => /** @type {any} */ (fieldNamed(/^English$/));
+      check("choosing one puts it into the field it was asked from",
+        !!enNow() && /^My name is \{\{name\}\}$/.test(enNow().value),
+        enNow() ? enNow().value : "(no field)");
+      check("and the sheet closes behind it", !sheet(), sheet() ? "still open" : "closed");
+
+      /* The other half of the bargain, and the thing that used to be typed
+         twice: a blank belongs to the card, so the moment one field has it
+         the others offer it — which is the rule the save has always
+         enforced and never once helped anybody keep. */
+      check("the other fields then offer the same blank, rather than waiting to be typed",
+        !!pill(/^Put \{\{name\}\} into Arabic script$/) &&
+          !!pill(/^Put \{\{name\}\} into Transliteration$/),
+        [...document.querySelectorAll(".at-blankpill")]
+          .map((b) => b.getAttribute("aria-label")).join(" | ") || "(no chips)");
+      check("and the field that has it says so rather than offering it again",
+        !!pill(/^\{\{name\}\} is in English\./),
+        (pill(/is in English/) || {}).className || "(no chip for English)");
+
+      click(pill(/^Put \{\{name\}\} into Arabic script$/));
+      await sleep(300);
+      const arNow = () => /** @type {any} */ (fieldNamed(/^Arabic script and transliteration$/i));
+      check("and one tap puts it there too",
+        !!arNow() && /^ismi \{\{name\}\}$/.test(arNow().value),
+        arNow() ? arNow().value : "(no field)");
+      check("with a space around it, because a blank is a word and is spaced like one",
+        !!arNow() && !/\S\{\{/.test(arNow().value) && !/\}\}\S/.test(arNow().value),
+        arNow() ? arNow().value : "(no field)");
+    }
 
     /* And written back into the words, it is read off them again. Into
        every field, because a card whose English has a hole and whose
@@ -4300,13 +4414,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       nounLines().join(" / ") || "(none shown)");
 
     /* And back, because a word and a sentence are the same card written
-       two ways: writing a blank into a word is how most sentences start. */
+       two ways. What was typed is still there — and, since 0.176, saying
+       it is a word again is saying its blanks should not be there, which
+       is refused rather than acted on: the braces are the teacher's words
+       and nothing here is going to delete them for them. */
     click(shapeBtn(/^Word$/));
     await sleep(300);
     const backEn = fieldNamed(/^English$/);
     check("and it can be called a word again, with what was typed still there",
       blockNames().includes("Form 1") && !!backEn && /\{\{noun\}\}/.test(backEn.value),
       blockNames().join(" | "));
+    check("but a word carrying blanks is refused, naming both of them",
+      !!saveBtn() && saveBtn().disabled &&
+        /\{\{name\}\} and \{\{noun\}\} are blanks/.test(document.body.textContent || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /are blanks/.test(t))) || "(nothing said)");
+    /* Back to what it is, for the rest of the walk. */
+    click(shapeBtn(/^Sentence$/));
+    await sleep(300);
 
     /* ---- the section's other half: this card filling somebody else's ----
 
@@ -4348,10 +4473,21 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         /fills none/.test(((blanks() || {}).textContent) || "") && !newBox(),
         newBox() ? "offered anyway" : "said, and not offered");
 
-      /* Out of the frame, and the other half comes alive. */
+      /* Out of the frame and into a word, and the other half comes alive.
+         Both halves of that: the blanks come out of the words, and the
+         card is called what it now is. A sentence goes on being one until
+         somebody says otherwise — that is the whole of 0.176 — so taking
+         the braces out is no longer enough on its own, and the card that
+         fills somebody else's blank has to be a word to be offered the
+         question at all. */
       typeInto(fieldNamed(/^Arabic script and transliteration$/i), "rafa");
       await sleep(80);
       typeInto(fieldNamed(/^English$/), "Raphael");
+      await sleep(200);
+      check("a sentence stays one until it is called something else",
+        !inHalf(FILLS, ".at-ticklist .at-tickrow").length,
+        `${inHalf(FILLS, ".at-ticklist .at-tickrow").length} groups offered`);
+      click(shapeBtn(/^Word$/));
       await sleep(300);
 
       /* The blanks it may fill, as a list on the screen. It was a menu

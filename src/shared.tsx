@@ -2193,6 +2193,25 @@ function useAppHost() {
   return host;
 }
 
+/*
+ * Anything that has to sit over the whole app rather than inside whatever
+ * drew it.
+ *
+ * A confirmation and a screen each portal themselves for the same reason —
+ * a z-index is only compared against siblings, so a thing raised from
+ * inside a space frame competes from inside that frame's layer and loses
+ * to anything portalled. A sheet raised from inside the card editor has
+ * exactly that problem, and copying the four lines a third time is how the
+ * three would come to disagree about where the app's root is.
+ *
+ * Nothing until the host is found, which is one render: there is no root
+ * to portal into before the first effect runs.
+ */
+export function Overlay({ children }: { children?: Node }) {
+  const host = useAppHost();
+  return host ? createPortal(children, host) : null;
+}
+
 /* ==================================================================
    The snackbar
    ==================================================================
@@ -3192,6 +3211,13 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        hole nothing fills. Left off where the card has none, like the two
        above. */
     ...(cardRef(card) ? { ref: cardRef(card) } : null),
+    /* And whether it is a sentence, which decides whether it may be
+       dropped into somebody else's hole. Carried because a sentence with
+       no blank in it yet cannot be told from a phrase by looking at it,
+       and a device that had to guess would lend it out — see isSentence,
+       and fillsOf, which is where the guess used to be made. Left off
+       where the teacher has not said, which reads as it always did. */
+    ...(typeof card.sentence === "boolean" ? { sentence: card.sentence } : null),
     ...(card.drill === false ? { drill: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same

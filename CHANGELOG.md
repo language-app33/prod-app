@@ -8,6 +8,56 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.176 — 18 September 2026
+
+**A card is a sentence because you said so, and only a sentence can have a
+blank in it.**
+
+The editor has always asked what kind of card you are writing — a word, a
+sentence, or a conversation — and then thrown the answer away. It worked the
+answer out again from your words every time you opened the card: braces in
+the text meant a sentence, and nothing else did. So a sentence you had typed
+out but not yet put a blank into came back as a word, and a blank typed into
+a word turned it into a sentence whether you meant that or not.
+
+Your answer is kept now. A sentence stays a sentence while you write it,
+before its first blank and after its last one goes.
+
+And the other half of the same rule: **a blank belongs in a sentence, so a
+word carrying one is refused rather than quietly renamed.** The card says
+which blanks are the problem and names both ways out — call it a sentence,
+or take the braces out — because those are opposite intentions with the same
+symptom and only you know which it was.
+
+That matters most on a card with a table. A blank typed into a verb used to
+reopen it as a sentence, put its table away, and tell you every box in it
+would be dropped the next time you saved. That cannot happen now.
+
+**Nothing you have written changes.** A card with a blank in it was a
+sentence before this and is one still; it simply writes the answer down the
+next time you save it. Nothing needs converting and nothing needs checking.
+
+**And a blank is put into a sentence rather than typed into it.**
+
+Under each of a sentence's three fields there is now a bar: a chip for every
+blank the card has, and a **Blank** button for one it has not. A chip on the
+field that already has it reads as a fact; a chip on a field that has not is
+one tap from putting it there. That is the whole of keeping the three fields
+in step, which the app has been telling you off for getting wrong since
+blanks existed.
+
+**Drag a chip and the field opens up underneath it** — your sentence as its
+words, with a target in each gap. Drop the blank where it goes, or pick up
+one that is already in the sentence and move it. It is spaced like a word
+either way: one space each side, none left hanging, and never two.
+
+**The Blank button opens a sheet of every blank your language has** — any
+word at all, each kind of word, each group tag, and each card by the ID it
+answers to. Each one says what would stand in the hole and how many words
+are behind it today, so you can see before you write it whether the blank
+has anything to fill it. Type a name nobody has used and it is offered as a
+new group tag.
+
 ## 0.175 — 18 September 2026
 
 **Every card now has an ID you choose, and a sentence can ask for one card

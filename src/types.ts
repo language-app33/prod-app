@@ -725,6 +725,24 @@ export type Card = {
    */
   fills?: string | string[];
   /**
+   * Whether this card is a sentence — a frame with holes in it that other
+   * cards are dropped into — rather than a word.
+   *
+   * The teacher's answer, given in the editor and kept. Until 0.176 it was
+   * worked out from the braces in the card's own words instead, so the
+   * question the editor asked was thrown away the moment it was answered:
+   * a sentence written before its first blank came back as a word, and a
+   * blank typed into a word made it a sentence whether or not anybody
+   * meant that.
+   *
+   * Absent on every card written before this, and read then as it always
+   * was — a card with a hole in it is a sentence. That is the whole of the
+   * migration; see `isSentence`, which is the one answer. Stored only
+   * where it is true, because a word may not carry a blank and so has
+   * nothing to say here.
+   */
+  sentence?: boolean;
+  /**
    * The ID the teacher gave this card, so another card can borrow *this*
    * word by name: "{{colour-red}} is heavy".
    *

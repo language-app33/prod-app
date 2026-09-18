@@ -5083,7 +5083,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, category, decks: inDecks, uses, fills, ref, spread, drill, scene: written }) =>
+        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5147,6 +5147,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            follows from it; nothing about how the card is
                            drilled reads it. */
                         category,
+                        /* And whether it is a sentence — a frame other
+                           cards are dropped into — which is the teacher's
+                           answer and not something to be worked out from
+                           the braces afterwards. A conversation is asked
+                           nothing here: its turns are the cards. */
+                        sentence,
                         uses,
                         /* Which blanks it fills — one name or several —
                            and whether it is a question of its own. A

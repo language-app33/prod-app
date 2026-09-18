@@ -101,7 +101,7 @@ export const WORD_SLOT = "word";
  * no `noun` may still name a blank `noun` and write the cards that fill it,
  * exactly as before.
  *
- * **A frame is not a filler**, whatever kind it reads as and whatever it
+ * **A sentence is not a filler**, whatever kind it reads as and whatever it
  * says it fills. A card with a hole in it dropped into somebody else's
  * hole is a sentence with a gap where the point was, and if the frame is
  * the one being filled it is a sentence inside itself. That was the stated
@@ -109,9 +109,13 @@ export const WORD_SLOT = "word";
  * named a slot by hand went on standing in other cards' holes. The
  * exception is gone as of 0.139, which is the release that made a card of
  * blanks a thing a teacher sets out to write.
+ *
+ * Asked of the card and not of its braces, since 0.176: a sentence written
+ * before its first blank is still a sentence, and lending it out would be
+ * the one thing this rule exists to stop. See isSentence.
  */
 export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[] {
-  if (hasSlots(card)) return [];
+  if (isSentence(card)) return [];
   const out = fillNames(card);
   /* And the card's own ID, which is the one name that reaches this card
      and no other: `{{colour-red}}` is a sentence asking for that word
@@ -243,6 +247,176 @@ export function renameSlot(value: string | null | undefined, from: string, to: s
   return String(value || "").replace(SLOT, (whole, name) =>
     String(name).toLowerCase() === was ? `{{${now}}}` : whole,
   );
+}
+
+/* ------------------------------------------------------------------
+   Putting a blank into a field, and moving it about in one
+
+   A blank used to be typed: you wrote the braces yourself, into each of
+   the three fields, and a name that did not match the one on the other
+   cards matched nothing for ever. The editor puts them in now — tapped in
+   at the caret, or dragged to where they belong — and these are the three
+   string operations that takes. Here rather than in the editor because
+   they are about a string and a name, a test can ask them without a
+   screen, and the same rule then holds however the blank arrives.
+
+   **A blank is a word, and is spaced like one.** Dropped between two
+   letters it takes a space on each side; taken out, it leaves one space
+   rather than two, and none at all where it was the whole field. Getting
+   that wrong is not cosmetic: the script is what a student's answer is
+   marked against, so a doubled space is a sentence nobody can type.
+   ------------------------------------------------------------------ */
+
+/**
+ * Where each blank sits in one string, in the order they are written.
+ *
+ * Every occurrence, not one per name — "{{a}} and {{a}}" is two places a
+ * thing can be moved from, where `slotsIn` is right to call it one hole
+ * filled twice. Start and end are the braces themselves, so the text
+ * between them can be cut out whole.
+ */
+export function slotSpans(
+  value: string | null | undefined,
+): { name: string; start: number; end: number }[] {
+  const out: { name: string; start: number; end: number }[] = [];
+  for (const m of String(value || "").matchAll(SLOT)) {
+    const start = m.index || 0;
+    out.push({ name: m[1].toLowerCase(), start, end: start + m[0].length });
+  }
+  return out;
+}
+
+/* Two halves of a string put back together where something between them
+   has gone: one space where each half offered one, and no space left
+   hanging off either end. */
+const rejoin = (before: string, after: string): string => {
+  if (!before) return after.replace(/^\s+/, "");
+  if (!after) return before.replace(/\s+$/, "");
+  if (/\s$/.test(before) && /^\s/.test(after)) return before + after.replace(/^\s+/, "");
+  return before + after;
+};
+
+/**
+ * One string with a blank written into it, at a character offset.
+ *
+ * The offset is where the teacher put it — a caret, or the point a chip
+ * was dropped at — so it can land anywhere, including inside the braces of
+ * a blank that is already there. **A blank never lands inside another**:
+ * an offset within one snaps to whichever end of it is nearer, because
+ * "{{na{{me}}me}}" is not a thing anybody meant and is not a thing any
+ * reader here could make sense of.
+ */
+export function withSlotAt(
+  value: string | null | undefined,
+  name: string,
+  at: number,
+): string {
+  const slot = slotName(name);
+  const whole = String(value || "");
+  if (!slot) return whole;
+  let cut = Math.max(0, Math.min(whole.length, Math.round(Number(at) || 0)));
+  for (const span of slotSpans(whole)) {
+    if (cut > span.start && cut < span.end) {
+      cut = cut - span.start < span.end - cut ? span.start : span.end;
+      break;
+    }
+  }
+  const before = whole.slice(0, cut);
+  const after = whole.slice(cut);
+  const lead = before && !/\s$/.test(before) ? " " : "";
+  const tail = after && !/^\s/.test(after) ? " " : "";
+  return `${before}${lead}{{${slot}}}${tail}${after}`;
+}
+
+/** The same string with a blank's first appearance taken out of it. */
+export function withoutSlot(value: string | null | undefined, name: string): string {
+  const slot = slotName(name);
+  const whole = String(value || "");
+  if (!slot) return whole;
+  const span = slotSpans(whole).find((s) => s.name === slot);
+  if (!span) return whole;
+  return rejoin(whole.slice(0, span.start), whole.slice(span.end));
+}
+
+/** One field, cut into what is written in it and the places a blank may go. */
+export interface DropRail {
+  /** Each word, and each blank already standing, in the order written. */
+  pieces: { text: string; slot?: string }[];
+  /**
+   * The offsets a blank may be put down at: before the first piece, after
+   * each of them. One more than there are pieces, always — an empty field
+   * has the one place, which is the start of it.
+   */
+  points: number[];
+}
+
+/**
+ * The places in a field a blank can be dropped, as things on a screen.
+ *
+ * A blank is dragged to where it belongs, and **the unit it is dragged
+ * between is a word, not a character.** Two reasons, and the second is the
+ * one that settles it. A gap between words is what a teacher is aiming
+ * for — nobody puts a hole in the middle of a word — so word-sized targets
+ * ask for the accuracy a thumb actually has. And working out which
+ * character a point on the screen is over means measuring text the browser
+ * has already laid out, which for a script that runs right to left and
+ * joins its letters is measuring it a second way and getting a second
+ * answer. Handing the browser real elements to lay out, and asking which
+ * one the finger is on, has one answer and it is the right one in every
+ * script.
+ *
+ * A blank already in the field is one piece, not the six characters of its
+ * braces: it is a thing that can be dragged, and a drop point inside
+ * `{{name}}` is not a place.
+ */
+export function dropRail(value: string | null | undefined): DropRail {
+  const whole = String(value || "");
+  const pieces: { text: string; slot?: string; start: number; end: number }[] = [];
+  let at = 0;
+  for (const run of splitSlots(whole)) {
+    if (run.slot) {
+      pieces.push({ text: run.text, slot: run.slot, start: at, end: at + run.text.length });
+      at += run.text.length;
+      continue;
+    }
+    const words = /\S+/g;
+    let found = words.exec(run.text);
+    while (found) {
+      pieces.push({ text: found[0], start: at + found.index, end: at + found.index + found[0].length });
+      found = words.exec(run.text);
+    }
+    at += run.text.length;
+  }
+  return {
+    pieces: pieces.map((p) => (p.slot ? { text: p.text, slot: p.slot } : { text: p.text })),
+    points: pieces.length ? [pieces[0].start, ...pieces.map((p) => p.end)] : [0],
+  };
+}
+
+/**
+ * And the same blank picked up and put down somewhere else in the string.
+ *
+ * The offset is read against the string as it stands *now* — with the
+ * blank still in it, which is what the teacher is looking at while they
+ * drag — so a drop past where it came from is shifted by what taking it
+ * out removes. Dropping it on itself leaves the string alone, which is
+ * what a drag that goes nowhere should cost.
+ */
+export function movedSlot(
+  value: string | null | undefined,
+  name: string,
+  at: number,
+): string {
+  const slot = slotName(name);
+  const whole = String(value || "");
+  if (!slot) return whole;
+  const span = slotSpans(whole).find((s) => s.name === slot);
+  if (!span) return withSlotAt(whole, slot, at);
+  const cut = Math.max(0, Math.min(whole.length, Math.round(Number(at) || 0)));
+  if (cut >= span.start && cut <= span.end) return whole;
+  const gone = withoutSlot(whole, slot);
+  const shrank = whole.length - gone.length;
+  return withSlotAt(gone, slot, cut < span.start ? cut : cut - shrank);
 }
 
 /**
@@ -378,6 +552,35 @@ export function slotsOf(form: WithSlots | null | undefined): string[] {
 }
 
 export const hasSlots = (form: WithSlots | null | undefined): boolean => slotsOf(form).length > 0;
+
+/**
+ * Whether this card is a sentence — a frame other cards are dropped into —
+ * or a word.
+ *
+ * **The teacher's answer, and stored.** It used to be read off the braces
+ * and nothing else, which made "is this a sentence" a fact about the text
+ * rather than a decision anybody had made. The editor asked which kind of
+ * card it was, offered three answers, stored none of them and worked the
+ * answer out again from the words next time: a sentence written before its
+ * first blank reopened as a word, and a blank typed into a word turned it
+ * into a sentence whether or not that was meant. Neither is the teacher's
+ * to be overruled on.
+ *
+ * **Absent means read it the old way**, which is the whole of the
+ * migration and costs nothing: a card with a hole in it was a sentence
+ * before this and is one now, and pins the answer the next time it is
+ * saved. Nothing has to be rewritten, and a collection half-migrated reads
+ * exactly like one that is not.
+ *
+ * Only `true` is ever stored. A word cannot have a blank in it — see
+ * `strayHoles` in the editor, which is where a save is refused — so a card
+ * carrying no holes and no answer has already said it is a word, and a
+ * stored `false` would be a second way of saying the same thing.
+ */
+export const isSentence = (card: WithSlots | null | undefined): boolean => {
+  const said = card ? card.sentence : undefined;
+  return said === undefined || said === null ? hasSlots(card) : !!said;
+};
 
 /*
  * Whether the fields agree about their holes.
