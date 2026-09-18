@@ -41,7 +41,7 @@ await build({
 });
 const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn, buildNumberSession, numberFillers, isMadeUpNumber, NUMBER_SESSION_SIZE,
-  NUMBERS_PER_BAND } = await import(path.join(out, "trainer.js"));
+  NUMBERS_PER_BAND, buildWeakSession, weakness, isWeak } = await import(path.join(out, "trainer.js"));
 const { TYPES, NUMBER_EQUIVALENT } = await import(path.join(here, "..", "src", "languages.ts"));
 const { FRONT_DOOR_CAP } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
@@ -476,6 +476,208 @@ test("the same deck deals a different session next time", () => {
   assert.ok(new Set(runs).size > 1, "six sessions from one deck were identical");
 });
 
+/*
+ * Every exercise settled and none of them due, so the card is one a
+ * session can only reach by going past the due line — which is the only
+ * place the rule below applies. Set over every type there is, because a
+ * single untouched exercise would make the card due on its own.
+ */
+const settledWord = (
+  /** @type {string} */ id,
+  /** @type {number} */ dueInDays,
+  /** @type {number} */ seenMinutesAgo,
+) => {
+  const at = Date.now();
+  const st = {
+    phase: "review", step: 0, ease: 2.5, interval: 30, due: at + dueInDays * 86400000,
+    reps: 6, lapses: 0, right: 6, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1],
+    updated: at - seenMinutesAgo * 60000,
+  };
+  const w = word(id, `كلمة${id}`, `word ${id}`);
+  return {
+    ...w,
+    forms: [{ ...w.forms[0], s: Object.fromEntries(TYPES.map((/** @type {string} */ t) => [t, st])) }],
+  };
+};
+
+test("a sitting reaches past the words the last one just did", () => {
+  /*
+   * The thirtieth session of a day, in the small.
+   *
+   * Nothing is due, so the session reaches past the due line — and what it
+   * reached for was the nearest thing to due and nothing else, which is
+   * the same handful of words every time however often the learner came
+   * back. Here the words just practised are also the nearest to due, so
+   * the old rule would deal every one of them and none of the rest.
+   */
+  const justDone = ["j1", "j2", "j3", "j4", "j5", "j6"].map((id) => settledWord(id, 1, 10));
+  const rested = ["r1", "r2", "r3", "r4", "r5", "r6"].map((id) => settledWord(id, 20, 3 * 24 * 60));
+  const got = deal(justDone.concat(rested));
+  const dealt = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
+  for (const it of rested) {
+    assert.ok(dealt.has(it.id), `${it.id} was passed over for a word just practised`);
+  }
+});
+
+test("but anything actually due still comes first", () => {
+  /* The care this rule needs: it decides the order a session reaches past
+     the due line in, and must never hold back work that is genuinely
+     waiting — a card due this morning is due whether or not it was also
+     practised at breakfast. */
+  const dueNow = dueDeck(9).map((it) => ({
+    ...it,
+    forms: [{ ...it.forms[0], s: { ...it.forms[0].s, ar2en: { ...it.forms[0].s.ar2en, updated: Date.now() } } }],
+  }));
+  const rested = ["r1", "r2", "r3", "r4", "r5", "r6"].map((id) => settledWord(id, 20, 3 * 24 * 60));
+  const got = deal(dueNow.concat(rested));
+  const dealt = new Set(got.exercises.map((/** @type {any} */ e) => e.id));
+  const reached = rested.filter((it) => dealt.has(it.id)).length;
+  assert.equal(reached, 0, `${reached} cards ahead of schedule came before cards that were due`);
+});
+
+/* ------------------------------------------------------------------
+   The weak-skills session
+
+   One button, and what it opens: everything going wrong and nothing else,
+   worst first. The rule it turns on is per *exercise* rather than per
+   card, which is the whole difference between this and the Fix mistakes
+   mode on the Build screen — so what is asserted here is that a card
+   failing one way is drilled that way and not on the readings it has
+   always got right.
+   ------------------------------------------------------------------ */
+
+/** An exercise with a given history behind it, and otherwise ordinary. */
+const withHist = (/** @type {number[]} */ hist) => ({
+  phase: "review", step: 0, ease: 2.0, interval: 1, due: Date.now() - 86400000,
+  reps: hist.length, lapses: 0, right: hist.filter(Boolean).length,
+  wrong: hist.filter((x) => !x).length, skips: 0, near: 0, hints: 0, hist, updated: 1,
+});
+
+/** A card going wrong on one exercise, and untouched on the rest. */
+const slipping = (/** @type {string} */ id, /** @type {number[]} */ hist, type = "ar2en") =>
+  word(id, `كلمة-${id}`, `word ${id}`, {
+    forms: [{ id, ar: `كلمة-${id}`, en: `word ${id}`, lat: `kalima-${id}`, lang: "ar-PS",
+      s: { [type]: withHist(hist) } }],
+  });
+
+/** Built the way a render builds it, like `deal` above. */
+const weak = (/** @type {any[]} */ items, /** @type {Record<string, any>} */ over = {}) => {
+  installIndexes(items, settings);
+  return buildWeakSession({ items, settings, inDeck: anyDeck, ...over });
+};
+
+test("how badly one exercise is going, in three answers", () => {
+  /* Wrong twice running is the gap — the app's own test for one, and what
+     shuts the levels above a question. */
+  assert.equal(weakness(withHist([0, 0])), 2);
+  assert.equal(weakness(withHist([1, 0, 0])), 2);
+  /* A single miss in the last two outings is the slip. */
+  assert.equal(weakness(withHist([0])), 1);
+  assert.equal(weakness(withHist([0, 1])), 1);
+  assert.equal(weakness(withHist([1, 0])), 1);
+  /* Going fine, and put right two outings ago, are both nothing to fix. */
+  assert.equal(weakness(withHist([1, 1])), 0);
+  assert.equal(weakness(withHist([0, 1, 1])), 0);
+  /* A card from before the history existed carries an empty one, and reads
+     as nothing to fix rather than as never having been right. */
+  assert.equal(weakness(withHist([])), 0);
+  assert.equal(weakness(null), 0);
+});
+
+test("a weak session asks the exercises that went wrong, and nothing else", () => {
+  /* The card is failing one way. Everything else in the deck is fine, and
+     the card's own other exercises are fine — so one question is the whole
+     of what is going wrong, and padding it out with readings this learner
+     has never missed is what the button would be lying about. */
+  const items = [slipping("s1", [0, 0])].concat(deckOf(6));
+  const got = weak(items);
+  assert.equal(got.reason, null, got.reason || "");
+  assert.deepEqual([...new Set(got.exercises.map((/** @type {any} */ e) => e.id))], ["s1"],
+    "only the card that is slipping");
+  assert.ok(got.exercises.every((/** @type {any} */ e) => e.type === "ar2en"),
+    `and only the exercise that slipped: ${got.exercises.map((/** @type {any} */ e) => e.type).join(" ")}`);
+});
+
+test("the one thing you keep failing is a session on its own", () => {
+  /* Every other session is refused for want of variety, because one
+     exercise repeated is a poor way to meet new material. It is exactly
+     the right way to fix the thing you keep getting wrong. */
+  const got = weak([slipping("s1", [0, 0])].concat(deckOf(3)));
+  assert.equal(got.reason, null, got.reason || "");
+  assert.equal(got.exercises.length, 1);
+});
+
+test("wrong twice running is asked before a single slip", () => {
+  const got = weak([slipping("once", [1, 0]), slipping("twice", [0, 0])].concat(deckOf(4)));
+  assert.equal(got.exercises.length, 2, "both are in it");
+  assert.equal(got.exercises[0].id, "twice", "and the gap leads the slip");
+});
+
+test("a deck with nothing going wrong says so rather than building a session", () => {
+  /* The reason is a sentence the button can say, which is the difference
+     between an empty session and a button that looks broken. */
+  assert.equal(weak(deckOf(6)).reason, "nothing-weak");
+  assert.equal(weak([]).reason, "none-drillable");
+});
+
+test("an exercise the ladder has not opened is not drilled, however badly it went", () => {
+  /*
+   * Writing a word from its meaning is the fourth level and opens only
+   * when everything under it holds. A history of misses on a question the
+   * app is not putting to anybody is not work waiting to be done — it is
+   * the level below being recovered first, which is what this session is
+   * for.
+   */
+  const got = weak([slipping("s1", [0, 0], "en2ar")].concat(deckOf(4)));
+  assert.equal(got.reason, "nothing-weak");
+});
+
+test("no one card is the whole of a weak session", () => {
+  /*
+   * The cap a dealt session puts on how many forms of one card a sitting
+   * takes, kept here: a verb lays out twenty cells, and twenty questions
+   * about one word is the complaint that cap exists for. The worst-going
+   * forms are the ones it keeps.
+   */
+  const many = word("v1", "أكل", "to eat", {
+    category: "verb",
+    forms: ["a", "b", "c", "d"].map((k) => ({
+      id: k === "a" ? "v1" : `c-${k}`, ar: `أكل-${k}`, en: `ate ${k}`, lat: `akal-${k}`,
+      lang: "ar-PS", s: { ar2en: withHist([0, 0]) },
+    })),
+  });
+  const got = weak([many].concat(deckOf(4)));
+  const forms = new Set(got.exercises.map((/** @type {any} */ e) => e.subId || "own"));
+  assert.ok(forms.size <= 2, `${forms.size} forms of one card in the session`);
+});
+
+test("every form with something wrong on it is asked before any is asked twice", () => {
+  /* Dealt a round at a time, like the session the app deals itself: a
+     learner with twenty cards slipping gets twenty first questions, not
+     six cards drilled to death. */
+  const items = Array.from({ length: 12 }, (_, i) => slipping(`s${i + 1}`, [0, 0]));
+  const got = weak(items);
+  const perCard = new Map();
+  for (const ex of got.exercises) perCard.set(ex.id, (perCard.get(ex.id) || 0) + 1);
+  assert.ok(perCard.size >= 10, `${perCard.size} cards in the session`);
+  for (const [id, n] of perCard) assert.equal(n, 1, `${id} was asked ${n} times`);
+});
+
+test("the count beside the button and the session it opens are the same test", () => {
+  /* A number promising cards the session would not include is the fault
+     the home screen has had before — see countReady. Both read isWeak. */
+  const items = [slipping("s1", [0, 0]), slipping("s2", [1, 0])].concat(deckOf(4));
+  installIndexes(items, settings);
+  const counted = items.filter((it) => isWeak(it, settings)).map((it) => it.id);
+  assert.deepEqual(counted, ["s1", "s2"]);
+  const got = buildWeakSession({ items, settings, inDeck: anyDeck });
+  assert.deepEqual(
+    [...new Set(got.exercises.map((/** @type {any} */ e) => e.id))].sort(),
+    counted.sort(),
+    "the cards counted are the cards asked",
+  );
+});
+
 /* ------------------------------------------------------------------
    The words that stood in a sentence's blanks
 
@@ -711,6 +913,53 @@ test("practising ahead never brings in more new words than there is room for", (
   const got = deal(deckOf(60));
   const dealt = new Set(got.exercises.map((/** @type {any} */ x) => x.id));
   assert.ok(dealt.size <= FRONT_DOOR_CAP, `${dealt.size} new words in one session`);
+});
+
+/*
+ * More cards asked for than a session would ordinarily hold.
+ *
+ * How many cards a session takes is worked out from how long it is and
+ * what a card costs to ask — nine of these, and five where each card
+ * carries a second form. That is the right question about the cards the
+ * app picks and the wrong one about the cards a learner picked: somebody
+ * who marked eight was handed five of them, a different five each sitting,
+ * by a screen that had said each one was in their next session. The
+ * session grows to hold them instead.
+ */
+test("every card the learner asked for is dealt, however many there are", () => {
+  const deck = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, 30 + i));
+  for (const n of [3, 8, 12]) {
+    const asked = Array.from({ length: n }, (_, i) => ({
+      ...settled(`a${i + 1}`, 60),
+      priority: true,
+    }));
+    const dealt = dealtCards(deal(deck.concat(asked)));
+    const missing = asked.map((it) => it.id).filter((id) => !dealt.has(id));
+    assert.equal(missing.length, 0, `${n} marked, and these were left out: ${missing.join(" ")}`);
+  }
+});
+
+test("and a card with a second form on it is no harder to ask for", () => {
+  /* The ordinary shape of a course card, and the one where the old
+     arithmetic bought the fewest places. */
+  /** @param {string} id @param {number} inDays */
+  const pair = (id, inDays) => {
+    const w = settled(id, inDays);
+    return { ...w, forms: w.forms.concat([{ ...w.forms[0], id: `${id}-f1`, ar: `${w.forms[0].ar}ات`, en: `${w.forms[0].en}s` }]) };
+  };
+  const deck = Array.from({ length: 30 }, (_, i) => pair(`f${i + 1}`, 30 + i));
+  const asked = Array.from({ length: 8 }, (_, i) => ({ ...pair(`a${i + 1}`, 60), priority: true }));
+  const dealt = dealtCards(deal(deck.concat(asked)));
+  const missing = asked.map((it) => it.id).filter((id) => !dealt.has(id));
+  assert.equal(missing.length, 0, `left out: ${missing.join(" ")}`);
+});
+
+test("and a session nobody has marked anything in is the size it always was", () => {
+  /* The other half of the rule: the reach above is bought by the marks, so
+     a learner who has made none is dealt exactly what they were before. */
+  const deck = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, -1));
+  const got = deal(deck);
+  assert.ok(got.exercises.length <= 18, `${got.exercises.length} questions with nothing marked`);
 });
 
 /** A word met but not yet recognisable: a gap shorter than the bar. */

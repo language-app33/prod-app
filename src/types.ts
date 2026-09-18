@@ -493,6 +493,23 @@ export interface Lang {
   fontStack: string;
   keys: LangKeys;
   check: (given: string, expected: string, settings?: any) => any;
+  /**
+   * One character, folded the way this language's marking folds it when it
+   * is deciding whether two spellings are the same word.
+   *
+   * What it is for is showing a learner *which* letter they got wrong —
+   * see `spellRuns` in src/spelling.ts, which lines the two spellings up
+   * and can only do it in letters the language agrees are letters. Two
+   * characters are the same letter when they fold the same; a character
+   * that folds to nothing is not a letter to get wrong, which is how a
+   * harakat, a tone mark and a space stay out of it.
+   *
+   * The same fold the check itself uses for its skeleton, so the marks on
+   * the screen cannot contradict the verdict beside them. A pack that
+   * declares none has its answers marked exactly as before and nothing
+   * highlighted.
+   */
+  letter?: (ch: string, settings?: any) => string;
   marking: LangMarking;
   rules: string[];
   /** Only where the language has one. */
@@ -696,19 +713,59 @@ export type Card = {
    */
   value?: number;
   /**
-   * The variable this card can stand in for, where it is a value rather
+   * The variables this card can stand in for, where it is a value rather
    * than something to learn: a card saying `name` fills every {{name}} in
    * every phrase of the same language. Empty on an ordinary card.
+   *
+   * One name or several — a word stands in more than one kind of hole as
+   * soon as a teacher writes a second frame about it. A card written
+   * before that carries the one name as a plain string, and is read
+   * exactly the same: see `fillNames`, which is the one answer and which
+   * the server reads it through too.
    */
-  fills?: string;
+  fills?: string | string[];
+  /**
+   * Whether this card is a sentence — a frame with holes in it that other
+   * cards are dropped into — rather than a word.
+   *
+   * The teacher's answer, given in the editor and kept. Until 0.176 it was
+   * worked out from the braces in the card's own words instead, so the
+   * question the editor asked was thrown away the moment it was answered:
+   * a sentence written before its first blank came back as a word, and a
+   * blank typed into a word made it a sentence whether or not anybody
+   * meant that.
+   *
+   * Absent on every card written before this, and read then as it always
+   * was — a card with a hole in it is a sentence. That is the whole of the
+   * migration; see `isSentence`, which is the one answer. Stored only
+   * where it is true, because a word may not carry a blank and so has
+   * nothing to say here.
+   */
+  sentence?: boolean;
+  /**
+   * The ID the teacher gave this card, so another card can borrow *this*
+   * word by name: "{{colour-red}} is heavy".
+   *
+   * Not the `id` above, which the app mints and nobody types. This is the
+   * teacher's, chosen when the card is written, unique across the cards
+   * they can see, and the same shape as anything else that goes between
+   * braces — see cardRef, which is the one answer to what it says.
+   *
+   * Absent on a card written before it was asked for. Such a card is
+   * borrowed the way it always was, through the tags it carries, and is
+   * simply not reachable by name until somebody gives it an ID.
+   */
+  ref?: string;
   /**
    * What to call the card in a list, where its own words do not name it.
    *
    * A verb in a language with no infinitive is saved as the form a
    * dictionary lists — Arabic's he-past — so a list read "أكل · he ate",
-   * which names one cell of its table rather than the verb. A name is the
-   * teacher's answer to that. Absent on every other card, which is named
-   * by the word it teaches.
+   * which names one cell of its table rather than the verb. A sentence is
+   * saved as a frame, so a list read "{{name}} is heavy", which names the
+   * hole in it rather than what it is for. A name is the teacher's answer
+   * to both. Absent on every other card, which is named by the word it
+   * teaches.
    */
   name?: string;
   /**
@@ -949,8 +1006,10 @@ export type Item = {
   forms: Form[];
   /** What the card as a whole is about, where the teacher wrote one. */
   note?: string;
-  /** The variable this card stands in for, where it is a value. See Card. */
-  fills?: string;
+  /** The variables this card stands in for, where it is a value. See Card. */
+  fills?: string | string[];
+  /** The ID the teacher gave it, which a blank may ask for by name. See Card. */
+  ref?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
@@ -1036,6 +1095,19 @@ export interface Parked {
   at: Millis;
   forms: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
   lines?: Record<string, { s?: Record<string, ExerciseState>; met?: Record<string, number> }>;
+  /**
+   * And what the learner had said about wanting this card next, which
+   * rides on the card rather than on any of its forms and so is not
+   * covered by the two above.
+   *
+   * A card can go missing for reasons that are nobody's decision — see
+   * `parked` in Doc — and the refresh that brought it home handed back
+   * every schedule and quietly dropped the mark, so a learner whose deck
+   * was detached and reattached found the cards they had asked for no
+   * longer in their sessions and nothing anywhere saying why.
+   */
+  priority?: boolean;
+  priorityAt?: Millis;
 }
 
 /**

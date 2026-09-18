@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { mergeMet, splitSlots } from "./variables.ts";
+import { cardRef, fillNames, mergeMet, splitSlots } from "./variables.ts";
 import { isOffline, watchNet } from "./net.ts";
 
 /*
@@ -370,6 +370,7 @@ export function Button({
   wide,
   icon,
   iconSize,
+  off,
   className = "",
   children,
   ...rest
@@ -379,6 +380,7 @@ export function Button({
   wide?: boolean;
   icon?: string;
   iconSize?: number;
+  off?: boolean;
   className?: string;
   children?: Node;
 } & Record<string, any>) {
@@ -387,12 +389,21 @@ export function Button({
     variant !== "default" ? variant : "",
     size === "sm" ? "sm" : "",
     wide ? "wide" : "",
+    off ? "off" : "",
     className,
   ]
     .filter(Boolean)
     .join(" ");
   return (
-    <button type="button" className={cls} {...rest}>
+    /* `off` is disabled with its voice left on: it looks exactly like a
+       disabled button and reads as one — aria-disabled is what a screen
+       reader announces — but the press still arrives, so the handler can
+       say why nothing happened. A `disabled` button swallows the press,
+       which is the right answer where the reason is already on the screen
+       beside it and the wrong one where a learner is left tapping a dead
+       button and guessing. Both are here; which to reach for is a question
+       about whether anything else says why. */
+    <button type="button" className={cls} aria-disabled={off || undefined} {...rest}>
       {icon ? <Icon name={icon} size={iconSize || (size === "sm" ? 16 : 18)} /> : null}
       {children}
     </button>
@@ -856,7 +867,7 @@ function Written({ text }: { text?: string | null }) {
  * The card is a form rather than a `Card` or an `Item`, because both
  * sides show these: only the wording is read, and that is all a form is.
  */
-export function CardTile({ card, lang, showLat, meta, actions, onClick, className }: {
+export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, className }: {
   /* A card, not one of its forms: the tile shows the card's own word —
      the first of them — and says what the card is called, which is a fact
      about the card. */
@@ -864,6 +875,18 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
   lang?: Lang;
   showLat?: boolean;
   meta?: Node;
+  /**
+   * How far along the card is, where the list it is in is a list about
+   * progress. A percentage, drawn and said.
+   *
+   * An object rather than a bare number, so nought per cent is a bar at
+   * nought and not a tile with no bar at all — which is the one reading a
+   * list of cards nobody has started would otherwise get.
+   *
+   * What the number means is the caller's to decide and the caller's to
+   * label: this draws it.
+   */
+  bar?: { pct: number } | null;
   actions?: Node;
   onClick?: () => void;
   className?: string;
@@ -933,14 +956,30 @@ export function CardTile({ card, lang, showLat, meta, actions, onClick, classNam
       <div className="ar" lang={L.id} dir={L.direction} style={{ ...(L.fontStack ? { fontFamily: L.fontStack } : null), ...scriptVars(L) }}>
         <Written text={face} />
       </div>
-      {card.name ? null : <div className="at-minien">{lead.en}</div>}
-      {showLat && lead.lat ? <div className="at-minilat">{lead.lat}</div> : null}
+      {/* The meaning and the romanisation leave the same holes the script
+          does — every field with words in it leaves the same blanks — so
+          they are drawn the same way, and a tile shows one card rather
+          than a frame beside two lines of braces. */}
+      {card.name ? null : <div className="at-minien"><Written text={lead.en} /></div>}
+      {showLat && lead.lat ? <div className="at-minilat"><Written text={lead.lat} /></div> : null}
       {/* One line of small print, and the caller decides what it says.
           It used to carry the language, the decks the card was in, how
           many forms it had and how many recordings — four facts in a
           tile you are scanning past, none of them what you came to the
           list for. */}
       {meta ? <div className="at-minimeta">{meta}</div> : null}
+      {/* And how far along it is, where that is what the list is about.
+          The number is written out and the bar is the same number drawn,
+          so a screen reader is told once — the bar is scenery, the way the
+          deck bars on Progress are. */}
+      {bar ? (
+        <div className="at-minibar">
+          <span className="at-minibarrail" aria-hidden="true">
+            <span style={{ width: `${bar.pct}%` }} />
+          </span>
+          <b>{bar.pct}%</b>
+        </div>
+      ) : null}
       {actions ? <div className="at-miniacts">{actions}</div> : null}
     </div>
   );
@@ -2106,7 +2145,11 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
               reaches students with every deck whose phrases have a hole of
               its name, whatever deck it is filed in — which is the one case
               where "in no deck" above is not the whole story. */}
-          {card.fills ? <Row label="Fills">{`{{${card.fills}}}`}</Row> : null}
+          {fillNames(card).length ? (
+            <Row label="Fills">
+              {fillNames(card).join(" · ")}
+            </Row>
+          ) : null}
           {card.drill === false ? (
             <Row label="Practised">Not on its own — it fills other cards</Row>
           ) : null}
@@ -2186,6 +2229,25 @@ function useAppHost() {
     setHost(document.querySelector(".at") || document.body);
   }, []);
   return host;
+}
+
+/*
+ * Anything that has to sit over the whole app rather than inside whatever
+ * drew it.
+ *
+ * A confirmation and a screen each portal themselves for the same reason —
+ * a z-index is only compared against siblings, so a thing raised from
+ * inside a space frame competes from inside that frame's layer and loses
+ * to anything portalled. A sheet raised from inside the card editor has
+ * exactly that problem, and copying the four lines a third time is how the
+ * three would come to disagree about where the app's root is.
+ *
+ * Nothing until the host is found, which is one render: there is no root
+ * to portal into before the first effect runs.
+ */
+export function Overlay({ children }: { children?: Node }) {
+  const host = useAppHost();
+  return host ? createPortal(children, host) : null;
 }
 
 /* ==================================================================
@@ -2614,6 +2676,8 @@ export function ConfirmModal({
   body,
   confirmLabel,
   confirmWord,
+  altLabel,
+  onAlt,
   busy,
   danger = true,
   onCancel,
@@ -2623,6 +2687,18 @@ export function ConfirmModal({
   body?: Node;
   confirmLabel?: string;
   /** Makes the person type a word before the button enables — for the things that cannot be undone. */ confirmWord?: string;
+  /**
+   * A second answer, beside the first.
+   *
+   * Most questions here have one — do it, or don't — and a second button
+   * would be a third thing to read. A few have two real answers, though,
+   * and a rename is the one this was added for: change the name
+   * everywhere it is written, or change it only here. Neither of those is
+   * cancelling and neither is the safe default, so both are said in words
+   * and the way out is still Cancel.
+   */
+  altLabel?: string;
+  onAlt?: () => void;
   busy?: boolean;
   danger?: boolean;
   onCancel: () => void;
@@ -2693,6 +2769,11 @@ export function ConfirmModal({
           <button className="at-btn ghost" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
+          {altLabel && onAlt && (
+            <button className="at-btn" disabled={!ready || busy} onClick={onAlt}>
+              {altLabel}
+            </button>
+          )}
           <button
             className={`at-btn ${danger ? "danger" : "primary"}`}
             disabled={!ready || busy}
@@ -3161,7 +3242,20 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        which variable it stands in for, and whether it is practised in its
        own right. Carried rather than derived, because both are the
        teacher's decision and neither can be read off the words. */
-    ...(card.fills ? { fills: String(card.fills) } : null),
+    ...(fillNames(card).length ? { fills: fillNames(card) } : null),
+    /* And the ID the teacher gave it, which is the other name a blank can
+       ask for: a sentence writing {{colour-red}} wants this card and no
+       other, so a device that dropped it would meet that sentence with a
+       hole nothing fills. Left off where the card has none, like the two
+       above. */
+    ...(cardRef(card) ? { ref: cardRef(card) } : null),
+    /* And whether it is a sentence, which decides whether it may be
+       dropped into somebody else's hole. Carried because a sentence with
+       no blank in it yet cannot be told from a phrase by looking at it,
+       and a device that had to guess would lend it out — see isSentence,
+       and fillsOf, which is where the guess used to be made. Left off
+       where the teacher has not said, which reads as it always did. */
+    ...(typeof card.sentence === "boolean" ? { sentence: card.sentence } : null),
     ...(card.drill === false ? { drill: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same
@@ -3402,6 +3496,14 @@ export function progressOf(item: Item): Parked {
     at: Date.now(),
     forms: of(formsOf(item)),
     ...(Object.keys(lines).length ? { lines } : null),
+    /* The mark goes in the drawer with the schedules. Stored whenever the
+       learner has said anything at all, cleared as well as set, so that
+       what comes back out is their last word and not an older one — the
+       same reason it is stored as `false` rather than removed on the card
+       itself. See `priorityAt` in types.ts. */
+    ...(item.priorityAt || item.priority
+      ? { priority: !!item.priority, ...(item.priorityAt ? { priorityAt: item.priorityAt } : null) }
+      : null),
   };
 }
 
@@ -3418,6 +3520,11 @@ export function withProgress(item: Item, saved: Parked | undefined): Item {
     ...item,
     forms: formsOf(item).map((f) => put(f, saved.forms || {})),
     ...(lines.length ? { lines } : null),
+    /* And the mark the learner had put on it, with its stamp, so a card
+       that has been away comes home asked for. */
+    ...(saved.priorityAt || saved.priority
+      ? { priority: !!saved.priority, ...(saved.priorityAt ? { priorityAt: saved.priorityAt } : null) }
+      : null),
   };
 }
 
@@ -3460,7 +3567,20 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
          written. */
       kept.push({
         ...fresh,
-        ...(existing.priority ? { priority: true, priorityAt: existing.priorityAt } : null),
+        /* Whatever the learner last said about wanting this card next,
+           and when they said it — not only a yes. Keeping the yes alone
+           dropped the stamp off a card whose mark had just been cleared,
+           and a stamp is what lets the merge tell "no longer wanted, as
+           of then" from an older yes still held on another device: the
+           card came back marked on the next sync, went to the front of
+           every session, and clearing it again did the same thing. See
+           `priorityAt` in types.ts. */
+        ...(existing.priorityAt || existing.priority
+          ? {
+              priority: !!existing.priority,
+              ...(existing.priorityAt ? { priorityAt: existing.priorityAt } : null),
+            }
+          : null),
         ...(existing.reset ? { reset: existing.reset } : null),
         forms: foldForms(formsOf(existing), formsOf(fresh)),
         ...(fresh.lines ? { lines: foldForms(existing.lines || [], fresh.lines) } : null),
@@ -3496,7 +3616,15 @@ export function foldCourses(items: Item[], incoming: Item[], parked: Record<stri
   const nextParked = { ...parked };
   for (const it of gone) {
     const saved = progressOf(it);
-    if (Object.keys(saved.forms).length || (saved.lines && Object.keys(saved.lines).length)) {
+    /* The mark counts as something worth keeping in its own right: a card
+       marked the day it arrived has no schedules yet, and it is exactly
+       the card a learner would notice going missing. */
+    if (
+      Object.keys(saved.forms).length ||
+      (saved.lines && Object.keys(saved.lines).length) ||
+      saved.priorityAt ||
+      saved.priority
+    ) {
       nextParked[it.id] = saved;
     }
   }

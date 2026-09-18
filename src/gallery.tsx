@@ -170,10 +170,17 @@ const PLACES: Record<string, [string, string]> = {
   PronounTable: [TEACH, "Editing a card · the pronouns on the end of a form"],
   AddFormButton: [TEACH, "Editing a card · adding a form"],
   AskBlock: [TEACH, "Editing a card · which of its forms are drilled"],
+  SentenceEditor: [TEACH, "Editing a card · a sentence"],
   BlanksBlock: [TEACH, "Editing a card · its blanks"],
+  BlankChip: [TEACH, "Editing a card · one blank, and the words that fill it"],
+  BlankBar: [TEACH, "Editing a card · putting a blank into a field"],
+  BlankSheet: [TEACH, "Editing a card · choosing which blank to put in"],
+  IdBox: [TEACH, "Editing a card · the ID it answers to"],
+  TagList: [TEACH, "Editing a card · the groups it is in"],
+  RenameAsk: [TEACH, "Editing a card · renaming an ID or a group tag"],
   RecordingOverlays: [TEACH, "Editing a card · recording a form"],
   DeckSwitch: [TEACH, "Editing a card · which decks it is in"],
-  BlankPicker: [TEACH, "Editing a card · choosing a blank"],
+  BlankNameBox: [TEACH, "Editing a card · naming a blank nobody has named yet"],
   VerbTable: [TEACH, "Filling in a verb's forms"],
   Alternatives: [TEACH, "Editing a card · several accepted answers"],
   ScriptAnswers: [TEACH, "Editing a card · each answer and how it is said"],
@@ -493,7 +500,7 @@ export function ComponentGallery() {
       <Row
         name="Button"
         what="Every button in the app."
-        note="Pass icon= rather than an <Icon> child, so the spacing stays consistent."
+        note="Pass icon= rather than an <Icon> child, so the spacing stays consistent. disabled and off look identical: disabled swallows the press, for a button whose reason is already on the screen beside it; off lets it through, so the handler can answer with a line saying why nothing happened."
       >
         <V label='variant="default"'><Button>Default</Button></V>
         <V label='variant="primary"'><Button variant="primary">Primary</Button></V>
@@ -502,6 +509,11 @@ export function ComponentGallery() {
         <V label='size="sm"'><Button size="sm">Small</Button></V>
         <V label='icon="add"'><Button icon="add">With icon</Button></V>
         <V label="disabled"><Button disabled>Disabled</Button></V>
+        <V label="off">
+          <Button off onClick={() => demo.show("Nothing to do here just now")}>
+            Off
+          </Button>
+        </V>
         <V label="wide" wide><Button wide>Wide</Button></V>
       </Row>
 
@@ -781,6 +793,12 @@ export function ComponentGallery() {
             meta="Lesson 1"
             showLat
           />
+        </V>
+        {/* And a tile in a list about progress: Learning → Progress → a
+            level, where each card says how far it has got on that level.
+            The number is written out and the bar draws it. */}
+        <V label="card + bar" wide>
+          <CardTile card={SAMPLE_CARD} lang={SAMPLE_LANG} bar={{ pct: 40 }} />
         </V>
       </Row>
 

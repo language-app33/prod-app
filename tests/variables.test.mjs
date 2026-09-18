@@ -19,14 +19,25 @@ import {
   slotsIn,
   slotsOf,
   splitSlots,
-  tidySlots,
-  withoutSlot,
   valueOf,
   valuesOf,
   lentBy,
   valuesFor,
   valuesForTurn,
   fillsOf,
+  fillNames,
+  cardRef,
+  refClash,
+  renameSlot,
+  renamedIn,
+  slotName,
+  isSentence,
+  slotSpans,
+  withSlotAt,
+  withoutSlot,
+  movedSlot,
+  dropRail,
+  MAX_FILLS,
   valuesAt,
   metKey,
   metAt,
@@ -265,6 +276,63 @@ test("only a word fills it, and never a card with a hole of its own", () => {
   assert.deepEqual(fillsOf({ ar: "kitaab", en: "book" }, ""), []);
 });
 
+/*
+ * A card may fill more than one blank.
+ *
+ * It began as one name, because one is what a value is usually for. But a
+ * word stands in more than one kind of hole as soon as a teacher writes a
+ * second frame about it, and the only way to say so was a second card
+ * carrying the same word — the same word learnt twice, with two schedules
+ * for it.
+ */
+test("a card says which blanks it fills, one name or several", () => {
+  /* Every card ever stored carries the one name as a plain string, and is
+     read as the list of one it always meant. Nothing is migrated. */
+  assert.deepEqual(fillNames({ fills: "name" }), ["name"]);
+  assert.deepEqual(fillNames({ fills: ["name", "greeting"] }), ["name", "greeting"]);
+  assert.deepEqual(fillNames({}), []);
+  assert.deepEqual(fillNames(null), []);
+  assert.deepEqual(fillNames({ fills: "" }), []);
+  assert.deepEqual(fillNames({ fills: [] }), []);
+
+  /* Narrowed to what a slot may be named and lowered, so {{Name}} and
+     {{name}} are one blank rather than two that look alike — the same
+     narrowing the server stores by, because it reads this. */
+  assert.deepEqual(fillNames({ fills: "Name" }), ["name"]);
+  assert.deepEqual(fillNames({ fills: ["Name Is!", "greeting"] }), ["nameis", "greeting"]);
+  assert.deepEqual(fillNames({ fills: ["name-is"] }), ["name-is"]);
+  assert.equal(fillNames({ fills: ["x".repeat(40)] })[0].length, 24);
+
+  /* Said twice is said once, and no card carries more than the cap. */
+  assert.deepEqual(fillNames({ fills: ["name", "NAME", "name"] }), ["name"]);
+  assert.equal(
+    fillNames({ fills: Array.from({ length: MAX_FILLS + 5 }, (_, i) => `b${i}`) }).length,
+    MAX_FILLS
+  );
+
+  /* And every one of them is a hole this card can stand in, beside what
+     the card says it is and the blank every word fills. */
+  const both = { id: "n1", ar: "Raphael", en: "Raphael", lat: "", fills: ["name", "greeting"] };
+  assert.deepEqual(fillsOf(both, ""), ["name", "greeting"]);
+  assert.deepEqual(fillsOf(both, "word"), ["name", "greeting", WORD_SLOT]);
+  assert.deepEqual(fillsOf({ ...both, category: "noun" }, ""), ["name", "greeting", "noun"]);
+
+  /* A frame still fills none of them, however many it names. */
+  const frame = { id: "f1", ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" };
+  assert.deepEqual(fillsOf({ ...frame, fills: ["name", "greeting"] }, "word"), []);
+});
+
+test("a word that fills two blanks stands in both of them", () => {
+  const frames = { ar: "{{name}} {{greeting}}", en: "{{name}} {{greeting}}", lat: "" };
+  const pool = [
+    { id: "v1", ar: "رافائيل", en: "Raphael", lat: "rafa", lang: "ar-PS", fills: ["name", "greeting"] },
+    { id: "v2", ar: "مرحبا", en: "hello", lat: "marhaba", lang: "ar-PS", fills: "greeting" },
+  ];
+  const have = valuesFor(frames, pool, "ar-PS");
+  assert.deepEqual(have.name.map((v) => v.en), ["Raphael"]);
+  assert.deepEqual(have.greeting.map((v) => v.en), ["Raphael", "hello"]);
+});
+
 test("a frame with {{word}} in it is filled from the whole vocabulary", () => {
   const frame = { ar: "bḥibb {{word}}", en: "I like {{word}}", lat: "bḥibb {{word}}" };
   const pool = [
@@ -456,40 +524,6 @@ test("a card with nothing in it is one plain piece, or none", () => {
   assert.deepEqual(splitSlots(undefined), []);
 });
 
-test("a blank taken off a card takes the gap it left with it", () => {
-  /* The cross on the pill, in one function. What is checked is the
-     spacing either side of it: a hole lifted out of the middle of a
-     sentence used to leave the two spaces that were around it. */
-  assert.equal(withoutSlot("My name is {{name}}", "name"), "My name is");
-  assert.equal(withoutSlot("{{name}} is here", "name"), "is here");
-  assert.equal(withoutSlot("I like {{food}} a lot", "food"), "I like a lot");
-  assert.equal(withoutSlot("{{name}}", "name"), "");
-  /* One hole however often it is named, which is what slotsIn says too. */
-  assert.equal(withoutSlot("{{a}} meets {{a}} again", "a"), "meets again");
-  /* And the holes it is not about are left exactly where they were. */
-  assert.equal(withoutSlot("{{a}} meets {{b}}", "a"), "meets {{b}}");
-  /* Named the way every other reader names it: folded and trimmed. */
-  assert.equal(withoutSlot("hello {{ Name }}", "name"), "hello");
-  assert.equal(withoutSlot("hello {{name}}", ""), "hello {{name}}", "no name, no change");
-});
-
-test("a blank dropped between two letters is given the space it needs", () => {
-  /* Where the drag ends is where the thumb was, which is as likely to be
-     the middle of a word as the gap between two. */
-  assert.equal(tidySlots("ismi{{name}}"), "ismi {{name}}");
-  assert.equal(tidySlots("{{name}}bḥibb"), "{{name}} bḥibb");
-  assert.equal(tidySlots("ismi {{name}}"), "ismi {{name}}", "already spaced");
-  /* Punctuation is not a word, and a space in front of it is wrong. */
-  assert.equal(tidySlots("where is the {{word}}?"), "where is the {{word}}?");
-  assert.equal(tidySlots("«{{word}}»"), "«{{word}}»");
-  /* The two spaces a hole leaves behind close up, and the ends come off. */
-  assert.equal(tidySlots("I like  a lot"), "I like a lot");
-  assert.equal(tidySlots("  {{name}} "), "{{name}}");
-  /* A card with no holes in it is not something this touches beyond that. */
-  assert.equal(tidySlots("kitaab"), "kitaab");
-  assert.equal(tidySlots(""), "");
-});
-
 test("a hole is named the way every other reader of it names it", () => {
   /* slotsIn folds the case and trims the spaces; a cut that disagreed
      would mark a run as a hole the rest of the app has never heard of. */
@@ -586,4 +620,255 @@ test("and two devices' records merge by taking the further of the two", () => {
   /* And a form with no record does not start carrying an empty one. */
   assert.equal(mergeMet(null, null), undefined);
   assert.equal(mergeMet({}, {}), undefined);
+});
+
+/*
+ * The other way a blank is filled: by name, one card.
+ *
+ * A group tag is a set of words a sentence will take any of — "{{colour}}"
+ * is red, or blue, or green. A card's own ID is the other half of the
+ * question: "{{colour-red}}" is that word and no other. Both go between
+ * braces, which is why they share a namespace and why nothing may answer
+ * to a name something else already answers to.
+ */
+test("a card's own ID is a name a blank can ask for", () => {
+  const red = { id: "c1", ar: "aḥmar", en: "red", lat: "", ref: "colour-red" };
+  assert.deepEqual(fillsOf(red, ""), ["colour-red"]);
+
+  /* Beside its groups and its kind, not instead of them. */
+  const tagged = { ...red, fills: ["colours"], category: "adjective" };
+  assert.deepEqual(fillsOf(tagged, "word"), ["colours", "colour-red", WORD_SLOT, "adjective"]);
+
+  /* Narrowed the way every other name that goes in braces is, so what the
+     editor checked and what the server stored cannot come apart. */
+  assert.equal(cardRef({ ref: "Colour Red!" }), "colourred");
+  assert.equal(cardRef({ ref: "a".repeat(40) }), "a".repeat(24));
+  assert.equal(cardRef({}), "");
+  assert.equal(slotName(null), "");
+
+  /* And a card with a hole of its own is not a filler, ID or no ID: a
+     sentence dropped into somebody else's hole is a sentence with a gap
+     where the point was. */
+  const frame = { id: "f1", ar: "{{colour}} bayt", en: "a {{colour}} house", lat: "", ref: "house-is" };
+  assert.deepEqual(fillsOf(frame, "word"), []);
+});
+
+test("and a sentence asking for one by ID gets that card alone", () => {
+  const red = { id: "c1", lang: "ar", ar: "aḥmar", en: "red", lat: "", ref: "colour-red", fills: ["colours"] };
+  const blue = { id: "c2", lang: "ar", ar: "azraq", en: "blue", lat: "", ref: "colour-blue", fills: ["colours"] };
+  const asks = { ar: "il-bayt {{colour-red}}", en: "the house is {{colour-red}}", lat: "" };
+  const group = { ar: "il-bayt {{colours}}", en: "the house is {{colours}}", lat: "" };
+
+  const one = valuesFor(asks, [red, blue], "ar");
+  assert.deepEqual((one["colour-red"] || []).map((v) => v.en), ["red"]);
+
+  /* Where the group takes either, which is what a group is for. */
+  const both = valuesFor(group, [red, blue], "ar");
+  assert.deepEqual((both.colours || []).map((v) => v.en), ["red", "blue"]);
+});
+
+test("a name is free of every other name, or it is not free", () => {
+  const red = { id: "c1", ar: "aḥmar", en: "red", lat: "", ref: "colour-red", fills: ["colours"] };
+  const blue = { id: "c2", ar: "azraq", en: "blue", lat: "", ref: "colour-blue" };
+  const pool = [red, blue];
+
+  /* Another card's ID, and a group tag anybody carries: both are taken,
+     and which it is, is what lets the editor say so in words. */
+  assert.deepEqual(refClash("colour-red", pool), { kind: "card", card: red });
+  assert.deepEqual(refClash("colours", pool), { kind: "group", card: red });
+  /* Spoken for by every word in the language. */
+  assert.deepEqual(refClash(WORD_SLOT, pool), { kind: "group" });
+
+  /* A card is never a clash with itself: opening a card and saving it
+     again is not a teacher taking their own name. */
+  assert.equal(refClash("colour-red", pool, "c1"), null);
+  assert.equal(refClash("colour-green", pool), null);
+  assert.equal(refClash("", pool), null);
+});
+
+/*
+ * What "everywhere" means.
+ *
+ * A name lives in two sorts of place: on the card that answers to it, and
+ * in every card that asks for it. Renaming one and not the other is a real
+ * answer — and so is renaming both — so the walk that does the second is
+ * here, where a test can ask it without a screen.
+ */
+test("a rename follows a name into every card that writes it", () => {
+  const asks = {
+    id: "f1",
+    forms: [
+      { ar: "il-bayt {{colour-red}}", en: "the house is {{colour-red}}", lat: "il-bayt {{colour-red}}" },
+      { ar: "{{colour-red}} w {{colour-blue}}", en: "{{colour-red}} and {{colour-blue}}", lat: "" },
+    ],
+  };
+  const moved = /** @type {any} */ (renamedIn(asks, "colour-red", "red"));
+  assert.equal(moved.forms[0].ar, "il-bayt {{red}}");
+  assert.equal(moved.forms[0].en, "the house is {{red}}");
+  assert.equal(moved.forms[0].lat, "il-bayt {{red}}");
+  /* One name at a time: the other hole is not this rename's business. */
+  assert.equal(moved.forms[1].en, "{{red}} and {{colour-blue}}");
+
+  /* Every turn of a conversation too, which is where a sentence with a
+     hole in it is just as likely to be written. */
+  const scene = { id: "s1", lines: [{ who: 0, ar: "{{colour-red}}?", en: "{{colour-red}}?", lat: "" }] };
+  assert.equal(/** @type {any} */ (renamedIn(scene, "colour-red", "red")).lines[0].en, "{{red}}?");
+
+  /* And the tag on a card that carries it, which is the other half of a
+     group being renamed rather than left as a group of one. */
+  const tagged = { id: "c9", forms: [{ ar: "aṣfar", en: "yellow", lat: "" }], fills: ["colours", "warm"] };
+  assert.deepEqual(/** @type {any} */ (renamedIn(tagged, "colours", "colour")).fills, ["colour", "warm"]);
+  /* Renamed onto a tag it already carries, it is one tag, not two. */
+  assert.deepEqual(/** @type {any} */ (renamedIn(tagged, "colours", "warm")).fills, ["warm"]);
+
+  /* Null where nothing moved, which is the answer for almost every card in
+     a collection: the caller saves what comes back and lets the rest
+     alone. */
+  assert.equal(renamedIn(tagged, "greetings", "hello"), null);
+  assert.equal(renamedIn(asks, "colour-red", "colour-red"), null);
+  assert.equal(renamedIn(asks, "", "red"), null);
+
+  /* The string rule underneath, which knows nothing about cards: only the
+     hole named, and the braces put back the way they are written. */
+  assert.equal(renameSlot("{{ name }} and {{age}}", "name", "who"), "{{who}} and {{age}}");
+  assert.equal(renameSlot("{{Name}}", "name", "who"), "{{who}}");
+  assert.equal(renameSlot("nothing here", "name", "who"), "nothing here");
+});
+
+/* ------------------------------------------------------------------
+   A sentence is a sentence because the teacher said so
+
+   It used to be read off the braces, which made the kind of card a fact
+   about its text rather than a decision anybody had made — so a sentence
+   written before its first blank was a word, and a blank typed into a
+   word made it a sentence whether or not that was meant.
+   ------------------------------------------------------------------ */
+
+test("what a card is, is the teacher's answer and not its braces", () => {
+  /* Said, and kept. A sentence before its first blank is still one, which
+     is the state every sentence passes through while it is written and the
+     one the old reading could not hold. */
+  assert.equal(isSentence({ forms: [{ ar: "ismi", en: "My name is", lat: "" }], sentence: true }), true);
+  /* And a word stays a word. */
+  assert.equal(isSentence({ forms: [{ ar: "kitaab", en: "book", lat: "" }], sentence: false }), false);
+
+  /* Unsaid is read the way it always was, which is the whole of the
+     migration: a card with a hole in it was a sentence before this and is
+     one now, and nothing has to be rewritten to make that true. */
+  assert.equal(isSentence({ forms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }] }), true);
+  assert.equal(isSentence({ forms: [{ ar: "kitaab", en: "book", lat: "" }] }), false);
+  assert.equal(isSentence(null), false);
+});
+
+test("a sentence fills nothing, whether or not it has its blanks yet", () => {
+  /* The rule this exists for: a sentence dropped into somebody else's hole
+     is a sentence with a gap where the point was. Read off the card now,
+     so the gap between calling a card a sentence and writing its first
+     blank is not a window in which it can be lent out. */
+  const half = { forms: [{ ar: "ismi", en: "My name is", lat: "" }], sentence: true, fills: ["name"] };
+  assert.deepEqual(fillsOf(half, "word"), []);
+  /* And a word that says it fills one still does. */
+  const value = { forms: [{ ar: "raafi", en: "Raphael", lat: "raafi" }], fills: ["name"] };
+  assert.deepEqual(fillsOf(value), ["name"]);
+});
+
+/* ------------------------------------------------------------------
+   Putting a blank into a field, and moving it about in one
+   ------------------------------------------------------------------ */
+
+test("a blank is spaced like the word it stands in for", () => {
+  /* Dropped between two words it takes a space on each side: the script is
+     what an answer is marked against, so a doubled or missing space is a
+     sentence nobody can type. */
+  assert.equal(withSlotAt("ismi hina", "name", 5), "ismi {{name}} hina");
+  /* At either end there is nothing to be spaced from on that side. */
+  assert.equal(withSlotAt("ismi", "name", 4), "ismi {{name}}");
+  assert.equal(withSlotAt("ismi", "name", 0), "{{name}} ismi");
+  assert.equal(withSlotAt("", "name", 0), "{{name}}");
+  /* A space already there is not doubled. */
+  assert.equal(withSlotAt("ismi ", "name", 5), "ismi {{name}}");
+  /* Past either end is the end, rather than an error or a gap. */
+  assert.equal(withSlotAt("ismi", "name", 99), "ismi {{name}}");
+  assert.equal(withSlotAt("ismi", "name", -3), "{{name}} ismi");
+  /* Narrowed to what a name can be, here as everywhere it is written. */
+  assert.equal(withSlotAt("ismi", "Name Is!", 4), "ismi {{nameis}}");
+  assert.equal(withSlotAt("ismi", "", 4), "ismi");
+});
+
+test("a blank never lands inside another", () => {
+  /* An offset inside the braces snaps to whichever end is nearer:
+     "{{na{{me}}me}}" is not a thing anybody meant and not a thing any
+     reader here could make sense of. */
+  const whole = "ismi {{name}} hina";
+  assert.equal(withSlotAt(whole, "age", 7), "ismi {{age}} {{name}} hina");
+  assert.equal(withSlotAt(whole, "age", 12), "ismi {{name}} {{age}} hina");
+  /* On the braces themselves it is beside them, which is where it was. */
+  assert.equal(withSlotAt(whole, "age", 5), "ismi {{age}} {{name}} hina");
+});
+
+test("a blank taken out leaves one space, not two", () => {
+  assert.equal(withoutSlot("ismi {{name}} hina", "name"), "ismi hina");
+  assert.equal(withoutSlot("ismi {{name}}", "name"), "ismi");
+  assert.equal(withoutSlot("{{name}} hina", "name"), "hina");
+  assert.equal(withoutSlot("{{name}}", "name"), "");
+  /* One a card does not have is not a change. */
+  assert.equal(withoutSlot("ismi {{name}}", "age"), "ismi {{name}}");
+});
+
+test("a blank dragged across its own field is moved, not copied", () => {
+  const whole = "ismi {{name}} hina";
+  /* Dropped past where it came from, the offset is read against the field
+     as it stands now — with the blank still in it, which is what the
+     teacher is looking at while they drag. */
+  assert.equal(movedSlot(whole, "name", 18), "ismi hina {{name}}");
+  assert.equal(movedSlot(whole, "name", 0), "{{name}} ismi hina");
+  /* Dropped on itself it costs nothing, which is what a drag that goes
+     nowhere should. */
+  assert.equal(movedSlot(whole, "name", 5), whole);
+  assert.equal(movedSlot(whole, "name", 13), whole);
+  /* One that is not there yet is put in rather than refused: the same
+     chip does both jobs, and which one it is doing is a fact about the
+     field rather than about the chip. */
+  assert.equal(movedSlot("ismi hina", "name", 9), "ismi hina {{name}}");
+  /* And it is still one blank afterwards, never two. */
+  assert.deepEqual(slotsIn(movedSlot(whole, "name", 18)), ["name"]);
+});
+
+test("where each blank sits, so one of them can be picked up", () => {
+  assert.deepEqual(slotSpans("ismi {{name}} w {{name}}"), [
+    { name: "name", start: 5, end: 13 },
+    { name: "name", start: 16, end: 24 },
+  ]);
+  assert.deepEqual(slotSpans("nothing here"), []);
+});
+
+test("a field is dropped into by the word, not by the character", () => {
+  /* A gap between words is what a teacher is aiming for — nobody puts a
+     hole in the middle of a word — and word-sized targets ask for the
+     accuracy a thumb has. */
+  const rail = dropRail("ismi hina");
+  assert.deepEqual(rail.pieces, [{ text: "ismi" }, { text: "hina" }]);
+  assert.deepEqual(rail.points, [0, 4, 9]);
+  /* One more place than there are words, always: before the first, and
+     after each of them. */
+  assert.equal(rail.points.length, rail.pieces.length + 1);
+
+  /* A blank already standing is one piece and not the six characters of
+     its braces: it is a thing to be dragged, and there is no place inside
+     it. */
+  const held = dropRail("ismi {{name}} hina");
+  assert.deepEqual(held.pieces, [{ text: "ismi" }, { text: "{{name}}", slot: "name" }, { text: "hina" }]);
+  assert.deepEqual(held.points, [0, 4, 13, 18]);
+
+  /* An empty field has the one place, which is the start of it. */
+  assert.deepEqual(dropRail(""), { pieces: [], points: [0] });
+
+  /* And every point it offers is a point a blank can actually be put at,
+     which is the claim the screen makes by drawing them: the blank that
+     was there survives, and the new one arrives beside it rather than
+     inside it. */
+  const written = "ismi {{name}} hina";
+  for (const at of held.points) {
+    assert.deepEqual(slotsIn(withSlotAt(written, "age", at)).sort(), ["age", "name"]);
+  }
 });
