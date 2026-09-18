@@ -668,14 +668,42 @@ button {
 .at-lockrow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .at-lockname { display:inline-flex; align-items:center; gap:8px; font-size:15px;
   font-weight:700; color: var(--ink); }
-/* Splitting a form into what gets drilled and what doesn't. */
-/* A subsection inside a form: a coloured rule and a chip, so the split
-   between what is drilled and what is reference is impossible to miss. */
+/* ---- a subsection inside a section ----
+
+   A block is not one run of fields. What is drilled, what is only written
+   down, and the table on the end of the word are three different
+   questions, and the only thing that said so was a small coloured line —
+   which, sitting directly above a label, read as a label on the field
+   under it rather than as the head of everything below. So a subsection
+   is a panel of its own: recessed onto the page's ground, ruled, and
+   named across the top, inside the block it belongs to.
+
+   Still inside the section, and deliberately quieter than one: a section
+   is a solid surface with a two-pixel edge, a subsection a well with a
+   hairline. The eye reads the outer frame first and the split second,
+   which is the order they matter in. */
+.at-part { border:1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--well); padding:12px; margin:0 0 12px; }
+.at-part:last-child { margin-bottom:0; }
+/* The name of the subsection, across the top of its panel and ruled off
+   from the fields under it. */
 .at-groupline { margin:0 0 14px; font-size:11px; font-weight:800;
   text-transform:uppercase; letter-spacing:.07em; color: var(--accent); }
+.at-part > .at-groupline { margin:0 0 10px; padding-bottom:8px;
+  border-bottom:1px solid var(--line); }
 .at-formblock .at-groupline + .at-field, .at-formblock .at-groupline + .at-hint {
   margin-top:0; }
 .at-formblock .at-groupline:not(:first-of-type) { margin-top:22px; }
+/* The last field of a subsection sits on the panel's floor, not a margin
+   below it — the same rule .at-sub and .at-section already carry. */
+.at-part > :first-child { margin-top:0; }
+.at-part > :last-child, .at-part > .at-field:last-of-type { margin-bottom:0; }
+/* What is drilled, at the foot of the subsection it is about: the ticks
+   answer the question the panel above them poses, so they are separated
+   from it the way the panel is separated from its neighbours. */
+.at-drills { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+.at-drillhead { display:block; margin:0 0 8px; font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.07em; color: var(--muted); }
 /* Ticking decks: a real checkbox, so it looks and behaves like one. */
 .at-ticklist { display:flex; flex-direction:column; gap:6px; }
 .at-tickrow { display:flex; align-items:center; gap:10px; cursor:pointer;

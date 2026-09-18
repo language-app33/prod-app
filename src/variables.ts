@@ -277,6 +277,28 @@ export function valuesFor(
   return out;
 }
 
+/**
+ * Whether a form may be lent to a card with a blank in it.
+ *
+ * Two questions live on a form, and they are not the same one: whether it
+ * is asked on its own — *what does Raphael mean* — and whether it is lent
+ * to somebody else's sentence — *my name is Raphael*. A name is worth the
+ * second and is not a question at all as the first; a rare plural written
+ * out for a student to read may be worth neither; and an ordinary word is
+ * worth both.
+ *
+ * Until 0.159 `ask` answered both at once, so a form kept without being
+ * asked lent nothing either — which was the only thing it could mean when
+ * there was one answer between them. That is exactly what an absent
+ * `lend` still means, so every card written before this is read as it was
+ * written, and the editor stores the field only where the two differ.
+ */
+export const isLent = (form: WithSlots | null | undefined): boolean => {
+  if (!form) return false;
+  const said = form.lend;
+  return typeof said === "boolean" ? said : form.ask !== false;
+};
+
 /*
  * Every form of a card, as the words that form lends — with the form it
  * came from, for a caller that has to ask it something else.
@@ -293,9 +315,8 @@ export function valuesFor(
  * it carries no name of its own, because that is what it was called before
  * forms had names and what every record already written points at.
  *
- * A form the teacher keeps without asking about — see `ask` — lends
- * nothing. It has no ladder to be read, so a hole filled with it would be
- * filled with a word nobody is ever taught.
+ * A form the teacher keeps out of the frames — see `isLent` — lends
+ * nothing.
  */
 export function lentBy(
   card: WithSlots | null | undefined,
@@ -312,7 +333,7 @@ export function lentBy(
   const own = String((card && card.id) || "");
   const out: { form: WithSlots; value: Value }[] = [];
   formsOf(card).forEach((form, at) => {
-    if (form && (form as WithSlots).ask === false) return;
+    if (!isLent(form as WithSlots)) return;
     if (!lends(form as WithSlots)) return;
     const value = valueOf(form as WithSlots, fields);
     if (!value.ar) return;

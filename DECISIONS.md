@@ -2055,3 +2055,50 @@ The lower levels have no such bar and always get the full two.
   — the front-door cap from 0.154 — and `quietRows` call `mastered` directly
   and need the strict reading. A word you have just missed should still cost a
   place at the front door: that is work in hand.
+
+---
+
+## Being asked and being lent are two answers, and `drill` is read off them
+
+**18 September 2026** · `src/types.ts` (`lend`), `src/variables.ts`
+(`isLent`), `src/card-editor.tsx` (`askParts`, `setPartFlags`,
+`writtenCard`)
+
+A form on a card can be worth two different things, and until now one tick
+answered both. `ask: false` meant "keep this, do not ask about it" — and
+`lentBy` read the same field, so a form kept without being asked also
+stopped standing in every sentence card that could have borrowed it. That
+is the only thing one tick could have meant, and it is wrong for the
+commonest case of all: a name is worth meeting inside *my name is ____* and
+is no question at all on its own.
+
+So a form carries `lend` beside `ask`, and the editor asks both under the
+fields they are about rather than in a list at the foot of the screen.
+
+**Absent `lend` means whatever `ask` says.** Not "yes", which is what every
+other absent flag in this codebase means. A card written before the split
+carries neither field, and reading an absent `lend` as yes would have
+started lending every form a teacher had deliberately switched off — a
+silent change to material already in students' hands. The fallback is the
+old single answer, exactly, so nothing stored moves; the editor writes the
+field out only where the two answers differ, which is why `setPartFlags`
+writes both at once and is the only place either is set.
+
+**`drill` is derived rather than asked for.** The card-wide "this is a
+value, not a question" flag stays — it reaches further than the per-form
+ticks, keeping a value out of the matching grids and out of the wrong
+answers a learner is asked to tell apart, not merely out of the deal. But
+it had a tick of its own in the Blanks block, asking the same question as
+the per-form ticks in different words and in a different place, and a card
+where the two disagreed was a card nobody could reason about. It is now
+read off them: a card is a question exactly while something on it is asked
+on its own, and a card stored with it off opens with nothing asked and
+everything still lent.
+
+**What it costs.** The "a new card that fills a blank is not drilled by
+default" rule was a third state of that toggle — `null`, meaning "whatever
+this card looks like". A hidden state cannot survive being spread over one
+tick per part, so it is now a visible side effect: naming a blank on a card
+nobody has saved yet unticks "on its own" everywhere, once, and the teacher
+can say otherwise. The default is unchanged; what changed is that it
+happens in front of them.

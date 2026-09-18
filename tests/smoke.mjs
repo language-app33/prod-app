@@ -3958,19 +3958,30 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     typeInto(fieldNamed(/^English$/), "to eat");
     await sleep(200);
 
-    /* And the plainest card there is says what of it is drilled. 0.134 hid
-       the section on a card with one part, which is every ordinary word —
-       so the one place a teacher would look for it was the one place it
-       was never drawn. */
+    /* And the plainest card there is says what of it is drilled — under
+       the word itself, which is what the ticks are about. 0.134 hid the
+       question altogether on a card with one part, which is every
+       ordinary word; 0.158 put it back as a list at the foot of the
+       screen naming parts in the editor's own words; 0.159 asks it where
+       the thing being drilled is. */
     {
-      const plain = [...document.querySelectorAll(".at-formblock")].find((b) =>
-        /^What is drilled$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-      check("an ordinary word says what of it is drilled too", !!plain,
-        [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
-      const only = plain ? [...plain.querySelectorAll(".at-tickrow")] : [];
-      check("one line, for the word itself, ticked",
-        only.length === 1 && /The main form/.test(only[0].textContent || "") &&
-          /** @type {any} */ (only[0].querySelector("input")).checked,
+      const formBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
+        /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+      const parts = formBlock ? [...formBlock.querySelectorAll(".at-part")] : [];
+      check("a form is cut into subsections, each named across the top",
+        parts.length >= 1 &&
+          /^The word itself$/.test(((parts[0].querySelector(".at-groupline") || {}).textContent || "").trim()),
+        parts.map((g) => ((g.querySelector(".at-groupline") || {}).textContent || "").trim()).join(" | ")
+          || "(no subsections)");
+      const drills = parts.length ? parts[0].querySelector(".at-drills") : null;
+      check("an ordinary word says what of it is drilled, beside the word", !!drills,
+        [...document.querySelectorAll(".at-formnum, .at-groupline")]
+          .map((n) => n.textContent).join(" | "));
+      const only = drills ? [...drills.querySelectorAll(".at-tickrow")] : [];
+      check("two ticks — on its own, and inside sentence cards — both on",
+        only.length === 2 && /On its own/.test(only[0].textContent || "") &&
+          /Inside sentence cards/.test(only[1].textContent || "") &&
+          only.every((r) => /** @type {any} */ (r.querySelector("input")).checked),
         only.map((r) => (r.querySelector("b") || {}).textContent).join(" | ") || "(no lines)");
     }
 
@@ -4476,45 +4487,71 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     ([...document.querySelectorAll(".at-hint, .at-help, p")]
       .map((n) => (n.textContent || "").trim()).find((t) => /^(A verb|Attached pronouns):/.test(t)) || "(nothing said)"));
 
-  /* ---- and what of it is drilled ----
+  /* ---- and what of it is drilled, subsection by subsection ----
 
      A card is a word and a pile of forms of it, and until 0.134 all of it
      was asked about: the only way to stop a form being drilled was to
      delete it, which took its recordings and every student's progress with
-     it. The section lists the parts this card actually has — its word, and
-     the pronouns on the end of that word — and the tick is what keeps one
-     without asking it. */
+     it. Until 0.159 the answer was given in one list at the foot of the
+     screen naming each part in the editor's own words — so a teacher
+     looking at the pronoun table they had just filled in had to scroll
+     past everything else to a line called "Its attached pronouns" and work
+     out that it meant the table above. Now each subsection asks for
+     itself, at its own foot: the word, and the pronouns on the end of it. */
   {
-    const block = [...document.querySelectorAll(".at-formblock")]
-      .find((b) => /What is drilled/.test((b.querySelector(".at-formnum") || {}).textContent || ""));
-    check("the editor says what of the card is drilled", !!block,
-      block ? (block.textContent || "").replace(/\s+/g, " ").slice(0, 80) : "(no such section)");
-    const rows = block ? [...block.querySelectorAll(".at-tickrow")] : [];
-    check("one line for the word and one for the pronouns on its end",
-      rows.length === 2 &&
-        /The main form/.test(rows[0].textContent || "") &&
-        /Its attached pronouns/.test(rows[1].textContent || ""),
-      rows.map((r) => (r.querySelector("b") || {}).textContent).join(" | ") || "(no lines)");
-    const ticks = rows.map((r) => /** @type {any} */ (r.querySelector("input")));
+    const partsOf = () => {
+      const block = [...document.querySelectorAll(".at-formblock")].find((b) =>
+        /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+      return block ? [...block.querySelectorAll(".at-part")] : [];
+    };
+    const named = partsOf().map((g) =>
+      ((g.querySelector(".at-groupline") || {}).textContent || "").trim());
+    check("the form is cut into the word and the pronouns on its end",
+      named.length === 2 && /^The word itself$/.test(named[0]) &&
+        /^Its attached pronouns$/.test(named[1]),
+      named.join(" | ") || "(no subsections)");
+    const drillsIn = () => partsOf().map((g) => g.querySelector(".at-drills"));
+    check("and each of them says for itself what is drilled",
+      drillsIn().length === 2 && drillsIn().every(Boolean),
+      drillsIn().map((d) => !!d).join(", "));
+    /* One named tick inside one subsection's ticks. */
+    const tickIn = (/** @type {any} */ at, /** @type {RegExp} */ re) => {
+      const row = at ? [...at.querySelectorAll(".at-tickrow")]
+        .find((/** @type {any} */ r) => re.test(r.textContent || "")) : null;
+      return row ? /** @type {any} */ (row.querySelector("input")) : null;
+    };
     check("all of it is drilled until somebody says otherwise",
-      ticks.every((t) => t && t.checked), ticks.map((t) => !!(t && t.checked)).join(", "));
+      drillsIn().every((d) => d && [...d.querySelectorAll(".at-tickrow input")]
+        .every((/** @type {any} */ t) => t.checked)),
+      drillsIn().map((d) => d ? [...d.querySelectorAll(".at-tickrow input")]
+        .map((/** @type {any} */ t) => t.checked).join("/") : "-").join(" | "));
 
-    /* Untick the pronouns: the section counts what is left, and says what
-       switching one off actually does — which is the whole reason it is
-       here rather than a Delete button. */
-    click(ticks[1]);
+    /* Untick the pronouns' own "on its own": the answer is written where
+       the table is, the word above it is untouched, the pronouns go on
+       standing in other cards' blanks, and the table stays on the card —
+       which is the whole reason this is here rather than a Delete
+       button. */
+    click(tickIn(drillsIn()[1], /On its own/));
     await sleep(250);
-    const after = [...document.querySelectorAll(".at-formblock")]
-      .find((b) => /What is drilled/.test((b.querySelector(".at-formnum") || {}).textContent || ""));
-    const role = after ? ((after.querySelector(".at-formrole") || {}).textContent || "").trim() : "";
-    check("switching the pronouns off is counted rather than done silently",
-      role === "1 of 2", role || "(nothing said)");
+    const back = drillsIn();
+    check("switching the pronouns off leaves them lent to sentence cards",
+      back.length === 2 && tickIn(back[1], /On its own/) &&
+        !tickIn(back[1], /On its own/).checked &&
+        tickIn(back[1], /Inside sentence cards/).checked,
+      back.length === 2 && back[1]
+        ? [...back[1].querySelectorAll(".at-tickrow")]
+            .map((/** @type {any} */ r) => `${(r.querySelector("b") || {}).textContent}=${r.querySelector("input").checked}`)
+            .join(" | ")
+        : "(no ticks)");
     check("and the word itself is still drilled",
-      !!after && /** @type {any} */ (after.querySelectorAll(".at-tickrow input")[0]).checked,
-      role);
+      back.length === 2 && tickIn(back[0], /On its own/).checked,
+      back.length === 2 ? String(!!(tickIn(back[0], /On its own/) || {}).checked) : "(no ticks)");
     check("while the table stays on the card, recordings and progress and all",
-      !!me && me.value === "قلمي" && /stays on the card/.test((after || {}).textContent || ""),
-      ((after || {}).textContent || "").replace(/\s+/g, " ").slice(-120));
+      !!me && me.value === "قلمي" &&
+        back.length === 2 && /stays on the card/.test((back[1] || {}).textContent || ""),
+      back.length === 2 && back[1]
+        ? (back[1].textContent || "").replace(/\s+/g, " ").slice(-140)
+        : "(no ticks)");
   }
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));

@@ -36,7 +36,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { fillText, hasSlots, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import { fillsOf, fillText, hasSlots, isLent, slotsIn, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
   Button,
@@ -774,9 +774,9 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
 
   /* One row of the table, whether it stands on its own or inside the block
      of the form it belongs to. A table hung off a form is a part of that
-     form rather than a section beside it, so there it is a group of fields
-     under a line of its own — the same thing "Drilled in exercises" and
-     "Reference — not drilled" are in the blocks above. */
+     form rather than a section beside it, so there it is a subsection of
+     that block — the same thing "The word itself" and "Reference — never
+     drilled" are in the blocks above. */
   const row = (tense: VerbTense, at_: number) => (
     <>
       {persons.map((person) => {
@@ -848,12 +848,17 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
     </>
   );
 
+  /* Inside the block of the form it belongs to, under a name the caller
+     has already written across the top of the subsection. So the row is
+     named here only where there is more than one of them to tell apart —
+     a single row would be the subsection's own name said twice. */
   if (inline) {
+    const rows = tensesOf(spec);
     return (
       <>
-        {tensesOf(spec).map((tense, at_) => (
+        {rows.map((tense, at_) => (
           <div key={tense.id}>
-            <p className="at-groupline">{tense.label}</p>
+            {rows.length > 1 && <p className="at-groupline">{tense.label}</p>}
             {row(tense, at_)}
           </div>
         ))}
@@ -1239,6 +1244,32 @@ export const shapeChoices = (
    answer rather than each working it out.
    ------------------------------------------------------------------ */
 
+/* A form that is kept and lent but never asked on its own. Written out
+   rather than left to the fallback, because with `ask` off an absent
+   `lend` reads as "not lent" — see setPartFlags, which is the same rule
+   said once. */
+export const keptNotAsked = (f: Record<string, any>): Record<string, any> =>
+  setPartFlags(f, false, partLends(f));
+
+/*
+ * A card stored as a value rather than as a question, opened as one.
+ *
+ * `drill: false` on the card is the card-wide way of saying "this is
+ * Raphael, and *what does Raphael mean* is not a question". It used to be
+ * a tick of its own in the Blanks block — one answer for the whole card,
+ * in a different place from the per-form ticks and asking a question that
+ * read like theirs. Since 0.159 there is one question, asked of each part
+ * where that part is edited, so what the card carries is read back into
+ * those ticks on the way in: nothing asked on its own, everything still
+ * lent. Saving writes the card's flag back out the same way — see
+ * writtenCard.
+ */
+const asValue = (
+  card: Card | null,
+  list: Record<string, any>[],
+): Record<string, any>[] =>
+  card && card.drill === false ? list.map(keptNotAsked) : list;
+
 /*
  * The forms a card opens with: its own word first, then every sub-form
  * that is not a cell of a table.
@@ -1298,7 +1329,7 @@ export function initialForms(
   for (const s of subFormsOf(card).filter((f) => !isCell(f))) {
     out.push({ ...blankForm(), ...s, id: String(s.id || "") || formName(out) });
   }
-  return out;
+  return asValue(card, out);
 }
 
 /*
@@ -1339,7 +1370,7 @@ export function initialCells(
     (spec) => citationOf(spec) && cellsIn({ subs: had }, spec).length,
   );
   /* The card's own word, through leadOf as everything else reads it. */
-  return cited ? seedCited(had, leadOf(card), cited, taken()) : had;
+  return asValue(card, cited ? seedCited(had, leadOf(card), cited, taken()) : had);
 }
 
 /*
@@ -1453,11 +1484,11 @@ export function tableCellsOf(
   });
 }
 
-/* ---- what is asked about ----
+/* ---- what is drilled, and where ----
 
    A card is one word and a pile of forms of it: other spellings, the
    pronouns a language puts on its end, every person and tense of a verb.
-   Until now all of it was drilled, and the only way to stop any of it
+   Until 0.134 all of it was drilled, and the only way to stop any of it
    being drilled was to delete it — which takes its recordings and every
    student's progress with it.
 
@@ -1465,20 +1496,65 @@ export function tableCellsOf(
    on the card, shown to a student who opens it, and never asked about.
    What is stored is the switched-off ones, on the forms themselves, so a
    card written before this and a form added after are both asked — see
-   `ask` in types.ts. */
+   `ask` in types.ts.
 
-/** One line of the section: a part of the card, and whether it is asked. */
+   Two questions, since 0.159, because they were always two: whether a
+   form is asked **on its own** — what does it mean, how is it written —
+   and whether it is lent **inside sentence cards**, standing in the blank
+   another card leaves. A name is worth the second and is no question at
+   all as the first; a rare plural kept for reference is worth neither; an
+   ordinary word is worth both. One tick answered both until now, so
+   keeping a form without asking it also took it out of every frame. See
+   `lend` in types.ts and isLent in variables.ts.
+
+   And they are asked where the answer applies — under the fields of the
+   form they are about, and under the table on the end of it — rather
+   than in one list at the foot of the screen naming parts by the words
+   the editor happens to call them. */
+
+/** One part of the card: what it covers, and the two answers about it. */
 export interface AskPart {
   /** What it covers, in the editor's own terms — see setAskPart. */
   id: string;
   title: string;
   note: string;
+  /** Asked as a question of its own. */
   on: boolean;
+  /** Lent to the cards that leave a blank of its name. */
+  lends: boolean;
 }
 
 /** Whether a form of the draft is asked about. Absent means yes. */
 export const partAsked = (form: { ask?: boolean } | null | undefined): boolean =>
   !!form && form.ask !== false;
+
+/** And whether it is lent to sentence cards — see isLent, which is the
+    one answer and which this only narrows to the draft's shape. */
+export const partLends = (form: Record<string, any> | null | undefined): boolean =>
+  !!form && isLent(form);
+
+/*
+ * The two answers written onto one form, together.
+ *
+ * Always together, because what `lend` means when it is absent is
+ * whatever `ask` says — so writing one without the other could turn the
+ * teacher's answer to the second question into its opposite. Left off
+ * where the fallback already says the same thing, so an ordinary form
+ * gains no field and a card that passes through this editor untouched is
+ * stored exactly as it arrived.
+ */
+export const setPartFlags = (
+  form: Record<string, any>,
+  ask: boolean,
+  lend: boolean,
+): Record<string, any> => {
+  const next = { ...form };
+  if (ask) delete next.ask;
+  else next.ask = false;
+  if (lend === ask) delete next.lend;
+  else next.lend = lend;
+  return next;
+};
 
 /** A form nobody has typed anything into is not a part of anything yet. */
 const hasWords = (f: { ar?: string; en?: string }): boolean =>
@@ -1525,6 +1601,7 @@ export function askParts(
       title: i === 0 ? (cite ? "The verb" : "The main form") : `Form ${i + 1}`,
       note: String(f.ar || "").trim() || String(f.en || "").trim() || "nothing written yet",
       on: partAsked(f),
+      lends: partLends(f),
     });
     /* This form's own table, where every form carries one — the pronouns
        on its end. Under the form it belongs to, at the same level as the
@@ -1538,6 +1615,7 @@ export function askParts(
       title: `Its ${spec.label || "table"}`,
       note: `${plural(mine.length, "form")} written`,
       on: mine.some(partAsked),
+      lends: mine.some(partLends),
     });
   });
   if (spec && !perForm) {
@@ -1552,6 +1630,7 @@ export function askParts(
         title: cite ? "The conjugated forms" : `Its ${spec.label || "table"}`,
         note: `${plural(table.length, "form")} written`,
         on: table.some(partAsked),
+        lends: table.some(partLends),
       });
     }
   }
@@ -1706,21 +1785,29 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   /* Which variable this card fills, where it is a value rather than
      something to learn: "Raphael" fills `name`, and every phrase with a
      {{name}} in it can borrow it. */
-  const [fills, setFills] = useState(((card && card.fills) || "").toLowerCase());
+  const [fills, setFillsChosen] = useState(((card && card.fills) || "").toLowerCase());
   /*
-   * Whether it is practised in its own right — and null where nobody has
-   * said, which is every new card.
+   * Naming a blank on a new card takes it out of the questions.
    *
-   * Unsaid is not the same as no: it means "whatever this card looks like",
-   * and a card that fills a variable looks like a value, which is not a
-   * question. Derived rather than flipped by a side effect when the field
-   * is typed into, so what the toggle shows is always what will be saved
-   * and nothing changes under the teacher's hand.
+   * "Raphael" is written to fill *my name is {{name}}*, and *what does
+   * Raphael mean* is not a question — so a card that says it fills a
+   * blank, and has never said anything else about what is drilled,
+   * starts as a word that is lent and not asked. That has been the
+   * default since values existed; what has changed is that it now
+   * happens in the ticks, where the teacher can see it and say
+   * otherwise, rather than in a hidden third state of a toggle nobody
+   * was shown.
+   *
+   * Only on a card nobody has saved, and only the first time a blank is
+   * named: a card already written has answered this, and answering it
+   * again over the teacher's head is the thing this replaces.
    */
-  const [drillChoice, setDrillChoice] = useState<boolean | null>(
-    card ? card.drill !== false : null
-  );
-  const drill = drillChoice === null ? !fills.trim() : drillChoice;
+  const setFills = (next: string) => {
+    setFillsChosen(next);
+    if (card || !next.trim() || fills.trim()) return;
+    setForms((x) => x.map(keptNotAsked));
+    setCells((x) => x.map(keptNotAsked));
+  };
   /* Which words this phrase teaches. Confirmed, never assumed: the matcher
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
@@ -1758,6 +1845,30 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      so a hole the cited cell leaves is checked against the fields beside
      it rather than against a block nobody is filling in. */
   const ownForms = [main].concat(forms.slice(1));
+  /*
+   * Whether "inside sentence cards" is a question worth asking of this
+   * card at all.
+   *
+   * A tick that does nothing is worse than no tick, and on two kinds of
+   * card the answer is settled before anybody reaches it. A card with a
+   * blank of its own is a frame, and a frame is never a filler — a
+   * sentence dropped into somebody else's hole is a sentence with a gap
+   * where the point was. And a card that stands in no hole — one that
+   * names no blank, says it is no kind of word, and whose own word is
+   * too long to be the one every frame borrows — is lent nowhere
+   * whatever is ticked.
+   *
+   * Asked of fillsOf, which is the one answer to what a card stands in,
+   * so this cannot come to disagree with what actually happens at
+   * question time.
+   */
+  const canLend =
+    !scene &&
+    !holes.length &&
+    fillsOf(
+      { fills, category },
+      guessKind(main.ar || main.en || main.lat, lang),
+    ).length > 0;
   /* The cells of the table on screen, as they will be saved — see
      tableCellsOf. */
   const tableCells = tableCellsOf(cells, shownSpec, forms);
@@ -1918,13 +2029,18 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      listed and an empty table is not. */
   const parts = askParts({ forms, cells, spec: shownSpec });
   /*
-   * Switching one of them off, or back on.
+   * Switching one of them off, or back on — either question, one path.
    *
    * The answer goes on the forms the part covers, because that is where
    * everything reads it. A part is the editor's word for a group of forms
    * and nothing more; storing the grouping as well would be a second
    * answer to what a card is made of, which is the thing this codebase
    * keeps having to remove.
+   *
+   * `which` names the question being answered; the other one is read off
+   * the form as it stands, so answering one never silently changes the
+   * other — which is exactly what an absent `lend` beside a switched-off
+   * `ask` would do. setPartFlags is where that is settled.
    *
    * Two parts cover more than they appear to. Where a language cites a
    * cell of the table, the card's own word *is* that cell — one word in
@@ -1935,14 +2051,16 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * than no tick. Not back on with it, though: what is asked about is the
    * teacher's to say, and a table that switched itself on would be the app
    * answering for them.
+   *
+   * The cascade is the *asked* question's alone. Lending waits on
+   * nothing: a form nobody is taught can still be the word a frame is
+   * met with, which is what a value card is.
    */
-  const setAskPart = (id: string, on: boolean) => {
-    const set = (f: Record<string, any>) => {
-      const next = { ...f };
-      if (on) delete next.ask;
-      else next.ask = false;
-      return next;
-    };
+  const setPart = (id: string, which: "ask" | "lend", on: boolean) => {
+    const set = (f: Record<string, any>) =>
+      which === "ask"
+        ? setPartFlags(f, on, partLends(f))
+        : setPartFlags(f, partAsked(f), on);
     /* Only the table on screen. The other one is being held aside whole,
        and is saved by nobody until it is the one being looked at. */
     const inShown = (c: Record<string, any>) =>
@@ -1968,11 +2086,15 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
         if (i === 0 && isCited(c)) return set(c);
         /* A table whose cells wait on the word follows the word off: under
            a form nobody is asked about they could never open. */
-        if (!on && waitsOnWord(shownSpec) && String(c.of || "") === mine) return set(c);
+        if (which === "ask" && !on && waitsOnWord(shownSpec) && String(c.of || "") === mine) {
+          return setPartFlags(c, false, partLends(c));
+        }
         return c;
       }),
     );
   };
+  const setAskPart = (id: string, on: boolean) => setPart(id, "ask", on);
+  const setLendPart = (id: string, on: boolean) => setPart(id, "lend", on);
 
   return {
     addForm,
@@ -2003,8 +2125,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setName,
     fills,
     setFills,
-    setDrillChoice,
-    drill,
+    canLend,
     uses,
     setUses,
     recording,
@@ -2022,6 +2143,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     putBlank,
     parts,
     setAskPart,
+    setLendPart,
   };
 }
 
@@ -2315,7 +2437,10 @@ function NameBlock({ word }: { word: WordDraft }) {
 /* The table a card carries — a verb's, an adjective's — and the one line
    that unblocks Save when a cited cell is empty. */
 function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
-  const { shownSpec, cells, setCells, mintCell, setRecordingCell, standsIn, canSave } = word;
+  const { shownSpec, parts, cells, setCells, mintCell, setRecordingCell, standsIn, canSave } = word;
+  /* The table's own line of what is drilled — see askParts, which lists
+     nothing for a table nobody has written yet. */
+  const mine = parts.find((p) => p.id === "table:");
   if (!shownSpec || shownSpec.perForm) return null;
   return (
     <>
@@ -2346,6 +2471,20 @@ function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           <p className="at-formneed unmet">
             Fill in {citedLabel(shownSpec)}, plus its English.
           </p>
+        )}
+        {/* And whether the table is drilled, under the table rather than
+            in a list at the bottom of the screen. A section of its own
+            because this table is the card's rather than a form's: its
+            rows are the blocks above, and the answer is one answer about
+            all of them. */}
+        {mine && (
+          <div className="at-formblock at-mt5">
+            <div className="at-formhead">
+              <span className="at-formnum">{mine.title}</span>
+              <span className="at-formrole">{mine.note}</span>
+            </div>
+            <DrillChecks word={word} part={mine} />
+          </div>
         )}
       </>
     </>
@@ -2558,7 +2697,12 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
   role: string;
   children?: Node;
 }) {
-  const { canSave, drillsTranslit, setForm, duplicateForm, removeForm, setRecording } = word;
+  const { canSave, drillsTranslit, parts, setForm, duplicateForm, removeForm, setRecording } = word;
+  /* This form's own two answers — see askParts, which lists one line per
+     form whether or not anything is written in it yet: the answer is
+     about the form, and a card being written from scratch should be able
+     to say what it is for before it says what it is. */
+  const mine = parts.find((p) => p.id === `form:${i}`);
   return (
     <>
   <div className={`at-formblock${i === 0 ? " main" : ""}`}>
@@ -2586,7 +2730,13 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
       </span>
     </div>
 
-    <p className="at-groupline">Drilled in exercises</p>
+    {/* ---- the word itself ----
+        A subsection rather than a run of fields under a coloured line:
+        a form block holds two or three different questions, and until
+        0.159 the only thing saying where one ended was that line,
+        which read as a label on the field beneath it. */}
+    <div className="at-part">
+    <p className="at-groupline">The word itself</p>
 
     {/* What this form needs, next to the fields it's about. */}
     {i === 0 && (
@@ -2630,6 +2780,11 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
       <Recordings form={f} onOpen={() => setRecording(i)} />
     </div>
 
+    {/* And whether this form is drilled, at the foot of the fields it is
+        about rather than in a list at the bottom of the screen. */}
+    {mine && <DrillChecks word={word} part={mine} />}
+    </div>
+
     {/* Number and gender used to stand down here, one set for
         the whole form. They belong to an answer — two spellings
         are two words, and one of them may be the feminine — so
@@ -2639,8 +2794,10 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
         What is left is what is genuinely about the form rather
         than about one of its answers. */}
     {i === 0 && lang && lang.lexical && (
-      <>
-        <p className="at-groupline">Reference — not drilled</p>
+      /* No ticks under this one: it is never drilled and never lent, and
+         the name across the top is the whole of what there is to say. */
+      <div className="at-part">
+        <p className="at-groupline">Reference — never drilled</p>
         <Field label={lang.lexical.label}>
           <input
             className="at-input"
@@ -2649,7 +2806,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, children }: {
             onChange={(e) => setForm(i, { ...f, [lang.lexical ? lang.lexical.key : ""]: e.target.value })}
           />
         </Field>
-      </>
+      </div>
     )}
 
     {children}
@@ -2664,11 +2821,18 @@ function PronounTable({ word, lang, index: i, form: f }: {
   index: number;
   form: Record<string, any>;
 }) {
-  const { forms, shownSpec, cells, setCells, mintCell, setRecordingCell } = word;
+  const { forms, parts, shownSpec, cells, setCells, mintCell, setRecordingCell } = word;
   if (!shownSpec || !shownSpec.perForm) return null;
-  return (
-    <>
-  {/* ---- the pronouns this form takes on its end ----
+  const of = i === 0 ? "" : String(f.id || "");
+  /* This table's own line of what is drilled. Absent while the table is
+     empty, and absent again once the form above it is switched off —
+     these wait on that word being known, so there would be nothing for a
+     tick to open. See askParts. */
+  const mine = parts.find((p) => p.id === `table:${of}`);
+  const written = cellsIn({ subs: cells }, shownSpec, of).some(
+    (c) => String(c.ar || "").trim() || String(c.en || "").trim(),
+  );
+  /* ---- the pronouns this form takes on its end ----
 
       Part of the form rather than a section beside it, which is
       what it is: the singular has its pronouns and the plural
@@ -2677,23 +2841,31 @@ function PronounTable({ word, lang, index: i, form: f }: {
       is the order they are learnt in — the word first, and each
       of these once the word is known.
 
+      A subsection of that form's block since 0.159, with its name
+      across the top and its own ticks at the foot: it is one of the
+      things on the card that is drilled or not, and the answer belongs
+      where the table is rather than in a list at the bottom of the
+      screen naming it in the editor's words.
+
       The same component the verb's table uses, because it is
       the same thing: cells of a table over the card's own
       sub-forms. Inline, so the eye reads it as belonging to the
-      block it is in. */}
-    <>
+      block it is in. */
+  return (
+    <div className="at-part">
+      <p className="at-groupline">Its {shownSpec.label || "table"}</p>
       <VerbTable
         inline
         lang={lang}
         spec={shownSpec}
-        of={i === 0 ? "" : String(f.id || "")}
+        of={of}
         ofLabel={ownerLabel(i, forms.length)}
         cells={cells}
         mint={mintCell}
         onChange={setCells}
         onRecord={(row, col) =>
           setRecordingCell({
-            of: i === 0 ? "" : String(f.id || ""),
+            of,
             ofLabel: ownerLabel(i, forms.length),
             row,
             col,
@@ -2710,8 +2882,18 @@ function PronounTable({ word, lang, index: i, form: f }: {
           you do not teach.
         </p>
       )}
-    </>
-    </>
+      {mine ? (
+        <DrillChecks word={word} part={mine} />
+      ) : written ? (
+        /* Named rather than left as a missing tick: the reason these are
+           not asked is a decision made in the block above this one, and
+           it is not visible from here. */
+        <p className="at-formneed">
+          Not drilled while the form above is switched off — these wait on
+          that word being known.
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -2758,63 +2940,94 @@ function AddFormButton({ word }: { word: WordDraft }) {
 }
 
 /*
- * What on this card is asked about, and what is only written down.
+ * What is drilled here, and where — at the foot of the subsection it is
+ * about.
  *
- * One tick per part of the card — see askParts for what the parts are.
- * Everything is ticked until somebody says otherwise, which is what a card
- * has always been; the section is a way of keeping a form without being
- * asked it, not a new thing to fill in.
+ * This was one section at the bottom of the screen listing every part of
+ * the card by the name the editor happens to give it: "The main form",
+ * "Its attached pronouns". A teacher looking at the pronouns they had
+ * just typed in had to scroll past everything else to a list of words
+ * about them, work out which line meant the table they were looking at,
+ * and scroll back. So the question is asked twice over — once beside each
+ * thing it is about — and the card-wide list is gone.
  *
- * Shown on every card, including the plain word with one form and nothing
- * else — where it is one line saying that the word is asked about, which
- * is a true thing to say and the only place anybody would look to change
- * it. 0.134 hid it there, on the grounds that a single tick can only turn
- * the whole card off and the Blanks block asks that already. It does not:
- * that tick is only drawn on a card that *fills* a blank, so on an
- * ordinary word there was no such question anywhere, and the section
- * appeared on none of the cards somebody opening the editor would first
- * look at.
+ * Two ticks, because there are two questions and a word may be worth
+ * either without the other:
+ *
+ *   * **on its own** — dealt as a question, what it means, how it is
+ *     written, how it sounds.
+ *   * **inside sentence cards** — lent to the frames that leave a blank
+ *     of its name, so *my name is ____* is met with this word in it.
+ *
+ * The second is only offered where the card stands in a blank at all —
+ * see canLend, and a tick that does nothing is worse than no tick.
  */
-function AskBlock({ word }: { word: WordDraft }) {
-  const { parts, setAskPart } = word;
-  if (!parts.length) return null;
-  const on = parts.filter((p) => p.on);
+function DrillChecks({ word, part }: { word: WordDraft; part: AskPart }) {
+  const { canLend, setAskPart, setLendPart } = word;
+  const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
   return (
-    <div className="at-formblock at-mt5">
-      <div className="at-formhead">
-        <span className="at-formnum">What is drilled</span>
-        <span className="at-formrole">
-          {on.length === parts.length
-            ? "all of it"
-            : `${on.length} of ${parts.length}`}
-        </span>
-      </div>
+    <div className="at-drills">
+      <span className="at-drillhead">What is drilled</span>
       <CheckList
-        options={parts.map((p) => ({ id: p.id, title: p.title, note: p.note }))}
-        chosen={on.map((p) => p.id)}
-        onToggle={(id, wasOn) => setAskPart(id, !wasOn)}
+        options={[
+          {
+            id: "ask",
+            title: "On its own",
+            note: "Dealt as a question of its own — what it means, how it is written, how it sounds.",
+          },
+          ...(canLend
+            ? [{
+                id: "lend",
+                title: "Inside sentence cards",
+                note: "Lent to the cards that leave a blank this one fills, so the sentence is met with this word in it.",
+              }]
+            : []),
+        ]}
+        chosen={chosen}
+        onToggle={(id, wasOn) =>
+          (id === "ask" ? setAskPart : setLendPart)(part.id, !wasOn)
+        }
       />
-      {on.length ? (
-        /* The sentence the whole section exists for. Deleting a form was the
-           only way to stop it being asked, and deleting it took its
-           recordings and every student's progress on it too. */
+      {part.on || (canLend && part.lends) ? (
+        /* The sentence the ticks exist for. Deleting a form was the only
+           way to stop it being asked, and deleting it took its recordings
+           and every student's progress on it too. */
         <Help>
-          Anything switched off stays on the card and is still shown — its
-          recordings, and whatever progress a student has already made on
-          it, are kept. It is simply never asked about.
+          Switched off, it stays on the card and is still shown — its
+          recordings, and whatever progress a student has made on it, are
+          kept. It is simply never asked.
         </Help>
       ) : (
-        <Notice kind="warn">
-          Nothing on this card would be asked about. It is still shown
-          wherever the card is, but no session will ever deal it.
-        </Notice>
+        <Help>
+          Kept and shown, and never asked or lent anywhere.
+        </Help>
       )}
     </div>
   );
 }
 
+/*
+ * The one thing the card-wide list did that no subsection can: say that
+ * between them the ticks have switched the whole card off.
+ *
+ * Every part is drilled until somebody says otherwise, so this is silent
+ * on every card anybody is writing — it is the warning at the end of a
+ * road nobody takes by accident, not a section to fill in.
+ */
+function NothingAsked({ word }: { word: WordDraft }) {
+  const { parts, canLend } = word;
+  if (!parts.length) return null;
+  if (parts.some((p) => p.on || (canLend && p.lends))) return null;
+  return (
+    <Notice kind="warn">
+      Nothing on this card is drilled. It is still shown wherever the card
+      is, but no session will deal it and no sentence will borrow it.
+    </Notice>
+  );
+}
+
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
-  const { holes, starved, asked, fills, setFills, main, standsIn, blanksAround, putBlank, trouble, drill, setDrillChoice } = word;
+  const { holes, starved, asked, fills, setFills, main, standsIn, blanksAround, putBlank, trouble } = word;
   return (
     <>
     {/* ---- blanks ----
@@ -2937,27 +3150,17 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               )}
             </div>
             {fills ? (
-              <>
-                <Help>
-                  Every card with a <code>{`{{${fills}}}`}</code> blank in it can borrow
-                  this word.
-                </Help>
-                <label className="at-tickrow">
-                  <input
-                    type="checkbox"
-                    checked={drill}
-                    onChange={() => setDrillChoice(!drill)}
-                  />
-                  <span className="at-tickbody">
-                    <b>Also ask this card on its own</b>
-                    <i>
-                      {drill
-                        ? "Asked as a question of its own, like every other card."
-                        : "Only ever used to fill a blank in another card."}
-                    </i>
-                  </span>
-                </label>
-              </>
+              /* Whether it is *also* a question of its own used to be a
+                 tick here — one answer for the whole card, in a different
+                 place from the per-form ticks and asking a question that
+                 read like theirs. It is one of the two ticks under each
+                 form now, so there is one question about what is drilled
+                 and it is asked where the thing being drilled is. */
+              <Help>
+                Every card with a <code>{`{{${fills}}}`}</code> blank in it can borrow
+                this word. Whether it is <i>also</i> asked as a question of its
+                own is under the form itself, beside the word.
+              </Help>
             ) : (
               <Help>
                 Leave this unless the card is a word other cards borrow — a name, a
@@ -3047,9 +3250,10 @@ export function writtenCard({ word, talk, shape, chosen }: {
   chosen: string[];
 }) {
   const scene = shape === "scene";
-  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, drill, category } = word;
+  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, category } = word;
+  const written = shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms;
   return {
-    forms: shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms,
+    forms: written,
     note,
     /* What the teacher says it is — asked only of a word. A conversation
        has turns where a word has a part of speech, and a sentence is not a
@@ -3060,7 +3264,21 @@ export function writtenCard({ word, talk, shape, chosen }: {
     decks: chosen,
     uses,
     fills: fills.trim(),
-    drill,
+    /*
+     * And whether the card is a question at all, which is no longer a
+     * question anybody is asked.
+     *
+     * `drill` is card-wide and reaches further than the per-form ticks
+     * do: a card marked as a value stays out of the matching grids and
+     * out of the wrong answers a learner is asked to tell apart, not
+     * merely out of the deal. It used to be a tick of its own in the
+     * Blanks block, which asked the same question as the ticks under
+     * each form in different words and in another place. So it is read
+     * off them: a card is a question exactly while something on it is
+     * asked on its own. A card opened with it off is read back the same
+     * way — see asStored.
+     */
+    drill: written.some(partAsked),
     scene: scene
       ? { title: talk.title.trim(), setting: talk.setting.trim(), speakers: talk.speakers, you: talk.you, lines: talk.written }
       : null,
@@ -3105,7 +3323,7 @@ function WordEditor({ word, lang, allCards, selfId }: {
         />
       ))}
       <AddFormButton word={word} />
-      <AskBlock word={word} />
+      <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
         lang={lang}
@@ -3148,7 +3366,7 @@ function VerbEditor({ word, lang, allCards, selfId }: {
           role={i === 0 ? "the verb itself" : "another form of the same card"}
         />
       ))}
-      <AskBlock word={word} />
+      <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
         lang={lang}
@@ -3191,7 +3409,7 @@ function TableEditor({ word, lang, allCards, selfId }: {
         />
       ))}
       <TableBlock word={word} lang={lang} />
-      <AskBlock word={word} />
+      <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
         lang={lang}
@@ -3232,7 +3450,7 @@ function AttachedEditor({ word, lang, allCards, selfId }: {
         </FormBlock>
       ))}
       <AddFormButton word={word} />
-      <AskBlock word={word} />
+      <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
         lang={lang}
@@ -3280,7 +3498,7 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
           role={i === 0 ? "the sentence, with a blank where a word goes" : "another way of saying it"}
         />
       ))}
-      <AskBlock word={word} />
+      <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
         lang={lang}

@@ -8,6 +8,39 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.159 — 18 September 2026
+
+**Each part of a card now says for itself what it is drilled as.** The
+create and edit screen used to ask that once, in a list at the very bottom
+called "What is drilled", naming each part in the editor's own words — "The
+main form", "Its attached pronouns". So a teacher who had just filled in a
+pronoun table had to scroll past everything else, work out which line meant
+the table they were looking at, and scroll back. The question is now asked
+under the thing it is about: under the word, under the pronouns on its end,
+under a verb's conjugations.
+
+**And it is two questions, because it always was two.** Each of them can be
+drilled *on its own* — dealt as a question, what it means, how it is
+written, how it sounds — and *inside sentence cards*, lent to the sentences
+that leave a blank it fills. A word is usually worth both. A name is worth
+only the second: "my name is ____" is worth meeting with Raphael in it, and
+"what does Raphael mean" is not a question. Until now one tick answered
+both, so keeping a form without asking about it also took it out of every
+sentence that could have borrowed it.
+
+Nothing about any card already written has changed. Everything that was
+drilled is still drilled in both ways, and anything switched off is still
+switched off in both. The separate "Also ask this card on its own" tick in
+the Blanks section is gone — it asked the same question in different words,
+somewhere else on the screen — and what it said is now the first tick under
+the form itself.
+
+**Subsections are easier to tell apart.** Inside a block, the split between
+the word, the reference fields beside it and the table on the end of it was
+a single small coloured line that read as a label on the field under it.
+Each is now a panel of its own, named across the top, inside the block it
+belongs to.
+
 ## 0.158 — 17 September 2026
 
 **A copied report shows the card again.**

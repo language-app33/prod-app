@@ -47,7 +47,8 @@ await build({
 });
 const { shapeOf, shapeChoices, categoryChoices, categoryOffers, tableFor,
   initialForms, initialCells, initialCategory, storedFormsOf, asideOf, tableCellsOf,
-  canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked } =
+  canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked,
+  partLends, setPartFlags, keptNotAsked } =
   await import(path.join(out, "card-editor.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -1268,8 +1269,8 @@ test("every form is asked about until somebody says otherwise", () => {
 
 test("a plain word has nothing to choose between, and a word with a table does", () => {
   const forms = [{ ar: "كتاب", en: "book" }];
-  /* One part is no question: the section is not drawn, and the tick that
-     would turn the only form off is the one the Blanks block already has. */
+  /* One form is one part, and it is asked of that form where the form is
+     edited — there is no card-wide list for it to be the only line of. */
   assert.deepEqual(askParts({ forms, cells: [], spec: null }).map((/** @type {any} */ p) => p.id), ["form:0"]);
 
   /* The word, and the pronouns on the end of the word. */
@@ -1381,6 +1382,95 @@ test("a form switched off is dealt nothing, and the rest of the card still is", 
   );
   assert.equal(table.some((/** @type {any} */ u) => u.unit.id === "s-me"), false);
   assert.ok(table.some((/** @type {any} */ u) => u.unit.id === "book"), "the word is asked as ever");
+});
+
+test("whether a part is asked and whether it is lent are two answers", () => {
+  /* One tick answered both until 0.159, so keeping a form without asking
+     it also took it out of every sentence card that could have borrowed
+     it. What a stored card means is unchanged: an absent `lend` still
+     reads as whatever `ask` says. */
+  const forms = [
+    { ar: "كتاب", en: "book" },
+    { id: "pl", ar: "كتب", en: "books", ask: false },
+    { id: "nm", ar: "رافاييل", en: "Raphael", ask: false, lend: true },
+    { id: "rf", ar: "كتيب", en: "booklet", lend: false },
+  ];
+  const parts = askParts({ forms, cells: [], spec: null });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.on), [true, false, false, true]);
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.lends), [true, false, true, false],
+    "a form written before this lends exactly while it is asked");
+  assert.equal(partLends(forms[0]), true, "and nothing said is both");
+});
+
+test("the two answers are written together, and neither is stored where the fallback says it", () => {
+  /* Writing one without the other could turn the teacher's answer to the
+     other question into its opposite: with `ask` off, an absent `lend`
+     reads as "not lent". */
+  const both = setPartFlags({ ar: "كتاب" }, true, true);
+  assert.equal("ask" in both, false, "asked is the absence of the field");
+  assert.equal("lend" in both, false, "and so is lent, while the two agree");
+
+  const kept = setPartFlags({ ar: "كتاب" }, false, true);
+  assert.equal(kept.ask, false);
+  assert.equal(kept.lend, true, "written out, because absent would read as not lent");
+
+  const quiet = setPartFlags({ ar: "كتاب" }, true, false);
+  assert.equal("ask" in quiet, false);
+  assert.equal(quiet.lend, false, "and written out the other way for the same reason");
+
+  /* Off and off is one field, because that is what the fallback says. */
+  const neither = setPartFlags({ ar: "كتاب", lend: true }, false, false);
+  assert.equal(neither.ask, false);
+  assert.equal("lend" in neither, false);
+
+  /* And the answer nobody touched survives being written. */
+  assert.equal(partLends(keptNotAsked({ ar: "كتاب" })), true);
+  assert.equal(partLends(keptNotAsked({ ar: "كتاب", lend: false })), false);
+});
+
+test("a card stored as a value opens with nothing asked and everything still lent", () => {
+  /* `drill: false` is the card-wide "this is Raphael, and what does
+     Raphael mean is not a question". It was a tick of its own in the
+     Blanks block, asking the same thing as the per-form ticks in other
+     words and in another place; it is read back into them now. */
+  const value = /** @type {any} */ ({
+    id: "r", ar: "رافاييل", en: "Raphael", fills: "name", drill: false,
+    subs: [{ id: "alt", ar: "رافائيل", en: "Raphael" }],
+  });
+  const forms = initialForms(value, null);
+  assert.deepEqual(forms.map((/** @type {any} */ f) => partAsked(f)), [false, false]);
+  assert.deepEqual(forms.map((/** @type {any} */ f) => partLends(f)), [true, true],
+    "it is in the deck to be borrowed, which is the whole of what it is for");
+
+  /* An ordinary card is untouched on the way in. */
+  const plain = initialForms(/** @type {any} */ ({ id: "k", ar: "كتاب", en: "book" }), null);
+  assert.equal(partAsked(plain[0]), true);
+  assert.equal("lend" in plain[0], false, "and gains no field it did not have");
+});
+
+test("what is saved says whether the card is a question at all", () => {
+  /* `drill` reaches further than the per-form ticks — a card marked as a
+     value stays out of the matching grids and out of the wrong answers a
+     learner is asked to tell apart — so it is still stored. It is read
+     off the ticks rather than asked for twice. */
+  const save = (/** @type {any} */ forms) =>
+    writtenCard({
+      word: {
+        shownSpec: null, ownForms: forms, tableCells: [], forms,
+        note: "", standsIn: false, name: "", uses: [], fills: "name", category: "",
+      },
+      talk: {},
+      shape: "word",
+      chosen: [],
+    });
+  assert.equal(save([{ ar: "رافاييل", en: "Raphael" }]).drill, true);
+  assert.equal(save([{ ar: "رافاييل", en: "Raphael", ask: false, lend: true }]).drill, false,
+    "lent everywhere and asked nowhere is a value");
+  assert.equal(
+    save([{ ar: "كتاب", en: "book", ask: false }, { ar: "كتب", en: "books" }]).drill,
+    true,
+    "and a card is a question while anything on it is asked",
+  );
 });
 
 test("a form's table is named only where there is more than one on screen", () => {
@@ -1573,13 +1663,13 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
       name: "",
       uses: [],
       fills: "",
-      drill: true,
       category: "noun",
     },
     talk: {},
     shape: "word",
     chosen: ["d1"],
   });
+  assert.equal(written.drill, true, "a card with something asked on it is a question");
   assert.deepEqual(written.forms.map((/** @type {any} */ f) => f.ar), ["كِتاب", "كُتُب", "كتابي"],
     "every form comes back out, the word first");
   assert.deepEqual(written.forms[0].clips, ["c1"], "with the word's recordings still on it");
