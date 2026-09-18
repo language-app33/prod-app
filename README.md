@@ -137,8 +137,11 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   thing you keep failing is a session worth having. `weakness`, `isWeak`
   and `buildWeakSession` in `src/ArabicTrainer.tsx`; the button is live
   exactly when `isWeak` finds something, so pressing it is always a session
-  that builds, and on the days it finds nothing the button says so rather
-  than sitting there dimmed and unexplained.
+  that builds. On the days it finds nothing the button is `off` rather than
+  `disabled` — dimmed to the eye and to a screen reader, and still taking
+  the press, which answers with a line saying there is no weak skill to fix
+  right now. A dimmed button that swallows the press explains nothing; the
+  reason is worth saying at the moment it is asked for, and not before.
 - **A learner can ask for a card.** Marking one *high priority* on its own
   screen, under Cards, is the one place a learner overrides the schedule:
   the card counts as waiting however far off its next review is, opens the

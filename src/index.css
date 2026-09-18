@@ -1523,10 +1523,18 @@ button {
 /* Fading a filled button took its label down with it, leaving jade-on-jade
    that was barely readable. Disabled now drops to the plain surface and
    keeps a legible label. */
-.at-btn:disabled { cursor:default; box-shadow:none; opacity:1;
+/* `off` is the same look with the press left on, so the button can say why
+   nothing happened rather than sitting there dead — see Button. It has to
+   look identical to :disabled, so it is styled in the same breath. */
+.at-btn:disabled, .at-btn.off { cursor:default; box-shadow:none; opacity:1;
   background: var(--raised); border-color: var(--line); color: var(--faint);
   filter:none; }
-.at-btn.ghost:disabled { background:transparent; }
+.at-btn.ghost:disabled, .at-btn.ghost.off { background:transparent; }
+/* It does not take the small nudge a live button takes — that is the button
+   doing the thing — but it does take the tap flash every pressable surface
+   in the app takes, because the tap did arrive and is about to be answered
+   with a line saying why nothing happened. */
+.at-btn.off:active { transform:none; }
 /* The button that uploads a file is a label with the file input inside it,
    so it is never itself :disabled — the input is, and the label has to be
    told to look it. */

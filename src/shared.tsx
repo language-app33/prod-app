@@ -342,6 +342,7 @@ export function Button({
   wide,
   icon,
   iconSize,
+  off,
   className = "",
   children,
   ...rest
@@ -351,6 +352,7 @@ export function Button({
   wide?: boolean;
   icon?: string;
   iconSize?: number;
+  off?: boolean;
   className?: string;
   children?: Node;
 } & Record<string, any>) {
@@ -359,12 +361,21 @@ export function Button({
     variant !== "default" ? variant : "",
     size === "sm" ? "sm" : "",
     wide ? "wide" : "",
+    off ? "off" : "",
     className,
   ]
     .filter(Boolean)
     .join(" ");
   return (
-    <button type="button" className={cls} {...rest}>
+    /* `off` is disabled with its voice left on: it looks exactly like a
+       disabled button and reads as one — aria-disabled is what a screen
+       reader announces — but the press still arrives, so the handler can
+       say why nothing happened. A `disabled` button swallows the press,
+       which is the right answer where the reason is already on the screen
+       beside it and the wrong one where a learner is left tapping a dead
+       button and guessing. Both are here; which to reach for is a question
+       about whether anything else says why. */
+    <button type="button" className={cls} aria-disabled={off || undefined} {...rest}>
       {icon ? <Icon name={icon} size={iconSize || (size === "sm" ? 16 : 18)} /> : null}
       {children}
     </button>

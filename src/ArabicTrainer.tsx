@@ -9010,27 +9010,30 @@ export default function ArabicTrainer() {
                       moment to reach for it is the moment you have just
                       seen the ladder say a level is paused.
 
-                      Always shown, and disabled with the reason beside it
-                      when there is nothing to fix. The app's habit is to
-                      leave out a button that would open on an empty
-                      screen, but a learner has to be able to find this one
-                      to learn what it does, and "nothing slipping" is a
-                      thing worth being told on the days it is true.
+                      Always shown, and dimmed when there is nothing to fix.
+                      The app's habit is to leave out a button that would
+                      open on an empty screen, but a learner has to be able
+                      to find this one to learn what it does.
 
-                      Only on those days. The count that used to sit here on
-                      every other day said what the button already offers,
-                      in the one place on the home screen where a number is
-                      not the point: what is slipping is a session away, and
-                      how much of it there is changes nothing about pressing
-                      the button. */}
+                      Dimmed, and still worth pressing: `off` rather than
+                      `disabled`, so the press arrives and is answered with
+                      the reason. That line used to sit beside the button on
+                      every single day, saying what is slipping and how
+                      much — a standing caption for a question nobody had
+                      asked yet. It is said now on the one occasion it is an
+                      answer, which is the moment somebody presses the
+                      button and nothing happens. */}
                   <div className="at-row at-mt3">
                     <Button variant="ghost"
-                      onClick={beginWeak}
-                      disabled={!weakCount}
+                      off={!weakCount}
+                      onClick={() =>
+                        weakCount
+                          ? beginWeak()
+                          : flash("There is no weak skill to fix right now")
+                      }
                     >
                       Weak skills
                     </Button>
-                    {!weakCount && <Meta>nothing slipping just now</Meta>}
                   </div>
                   <div className="at-row at-mt3">
                     <Button variant="ghost"

@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.173 — 18 September 2026
+
+**"Weak skills" now answers for itself.**
+
+The line beside it is gone. On the days there is nothing going wrong the
+button is simply dimmed, and pressing it says so: *There is no weak skill
+to fix right now*, at the foot of the screen, gone a moment later.
+
+That is the difference between a caption and an answer. "Nothing slipping
+just now" sat there every one of those days, explaining a button nobody
+had reached for yet; the same sentence said the instant somebody presses
+the button is the one they were actually asking for. And a dimmed button
+that does nothing at all when you press it teaches you nothing — you are
+left guessing whether the app is broken or you are.
+
+Nothing else about the button has changed: when something is slipping it
+is live, and pressing it deals the session it always did.
+
 ## 0.172 — 17 September 2026
 
 **The home screen opens on how far you have got.**

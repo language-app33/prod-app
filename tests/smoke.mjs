@@ -1969,22 +1969,37 @@ const beforeStates = stateKeys(
 /* ---- the weak-skills button sits under Start session ----
    Its own walk at the foot of this file drives it on a deck with something
    actually going wrong. Here it is the offer itself: on the ordinary home
-   screen it is there, under the button it narrows, and it says what it
-   holds rather than being a dimmed button with no explanation. */
+   screen it is there, nothing is written beside it, and when there is
+   nothing to fix it is dimmed and says so on being pressed rather than
+   swallowing the press. */
 {
   const weakBtn = buttonNamed(/^Weak skills$/);
   check("the home screen offers a weak-skills session", !!weakBtn,
     (document.body.textContent || "").slice(0, 120).replace(/\s+/g, " "));
   const row = weakBtn && weakBtn.closest(".at-row");
-  /* Live, the button is the whole offer and says nothing beside it. Dimmed,
-     it says why — which is the day a learner would otherwise be looking at a
-     greyed-out button with no explanation. */
-  check("and beside it, a reason only on the days there is nothing to fix",
-    !!row &&
-      (weakBtn.disabled
-        ? /nothing slipping just now/.test(row.textContent || "")
-        : !/slipping/.test(row.textContent || "")),
-    row ? `${weakBtn.disabled ? "dimmed" : "live"}: ${(row.textContent || "").replace(/\s+/g, " ")}` : "no row");
+  check("and nothing is written beside it either way",
+    !!row && !/slipping/.test(row.textContent || ""),
+    row ? (row.textContent || "").replace(/\s+/g, " ") : "no row");
+  /* Dimmed here — this learner has nothing going wrong — and dimmed is not
+     dead: the press arrives and comes back with the reason. */
+  const dimmed = !!weakBtn && weakBtn.getAttribute("aria-disabled") === "true";
+  check("with nothing slipping, the button is dimmed and still takes a press",
+    dimmed && !weakBtn.disabled,
+    weakBtn ? `aria-disabled=${weakBtn.getAttribute("aria-disabled")} disabled=${weakBtn.disabled}` : "no button");
+  if (dimmed) {
+    click(weakBtn);
+    await sleep(200);
+    const said = document.querySelector(".at-snack");
+    check("and pressing it says why nothing happened, rather than nothing at all",
+      !!said && /no weak skill to fix right now/i.test(said.textContent || ""),
+      said ? (said.textContent || "").replace(/\s+/g, " ") : "nothing said");
+    /* And it started no session: the whole point of the dimming. */
+    check("and no session starts from it", !document.querySelector(".at-instruction"),
+      (document.querySelector(".at-instruction") || {}).textContent || "none");
+    const shut = document.querySelector(".at-snackx");
+    if (shut) click(shut);
+    await sleep(200);
+  }
 }
 click(buttonNamed(/^Start session$/));
 await sleep(400);
@@ -5453,7 +5468,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const weakBtn = [...host3.querySelectorAll("button")]
     .find((b) => /^Weak skills$/.test((b.textContent || "").trim()));
   check("a card missed twice running lights the weak-skills button",
-    !!weakBtn && !weakBtn.disabled,
+    !!weakBtn && weakBtn.getAttribute("aria-disabled") !== "true",
     weakBtn ? "the button is there but dimmed"
       : (host3.textContent || "").slice(0, 90).replace(/\s+/g, " ") || "nothing rendered");
   const row = weakBtn && weakBtn.closest(".at-row");

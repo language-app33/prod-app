@@ -494,7 +494,7 @@ export function ComponentGallery() {
       <Row
         name="Button"
         what="Every button in the app."
-        note="Pass icon= rather than an <Icon> child, so the spacing stays consistent."
+        note="Pass icon= rather than an <Icon> child, so the spacing stays consistent. disabled and off look identical: disabled swallows the press, for a button whose reason is already on the screen beside it; off lets it through, so the handler can answer with a line saying why nothing happened."
       >
         <V label='variant="default"'><Button>Default</Button></V>
         <V label='variant="primary"'><Button variant="primary">Primary</Button></V>
@@ -503,6 +503,11 @@ export function ComponentGallery() {
         <V label='size="sm"'><Button size="sm">Small</Button></V>
         <V label='icon="add"'><Button icon="add">With icon</Button></V>
         <V label="disabled"><Button disabled>Disabled</Button></V>
+        <V label="off">
+          <Button off onClick={() => demo.show("Nothing to do here just now")}>
+            Off
+          </Button>
+        </V>
         <V label="wide" wide><Button wide>Wide</Button></V>
       </Row>
 
