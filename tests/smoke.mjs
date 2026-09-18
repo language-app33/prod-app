@@ -3644,6 +3644,35 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   }
 }
 
+/* ---- what kind of word a card is, wherever it is asked ----
+
+   A drop-down since 0.183, shutting to the answer with a pencil beside it:
+   on most cards it is answered once and then read, and a column of radio
+   buttons standing open above the word itself is a decision nobody is
+   making, in the way of the fields they came to fill in. So every walk
+   below opens the list before reading it — by the pencil where there is an
+   answer, and by the button where there is not. At the top level because
+   four walks in three blocks ask the same question. */
+const wordKindBtn = () => /** @type {any} */ ([...document.querySelectorAll(".at-choosebtn")]
+  .find((b) => /^What kind of word/.test(b.getAttribute("aria-label") || "")) || null);
+const wordKindPencil = () => /** @type {any} */ ([...document.querySelectorAll("button")]
+  .find((b) => b.getAttribute("aria-label") === "Change what kind of word this is") || null);
+const formRows = () => [...document.querySelectorAll(
+  '[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')];
+const openWordKind = async () => {
+  if (formRows().length) return;
+  click(wordKindPencil() || wordKindBtn());
+  await sleep(250);
+};
+/* Choosing one: open the list where it is shut, tick the answer, and let
+   the screen settle — which is a table appearing or going. */
+const pickKind = async (/** @type {RegExp} */ want) => {
+  await openWordKind();
+  const row = formRows().find((r) => want.test((r.textContent || "").trim()));
+  click(row ? row.querySelector("input") : null);
+  await sleep(320);
+};
+
 /* ---- a conversation, opened by the teacher who wrote it ----
    Opening one from Teaching > Cards put the word editor up: one script
    box, one meaning, and the whole scene out of reach behind it. A stored
@@ -3835,9 +3864,22 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
   /* And, underneath, what kind of word it is — which is a second question
      and not a third answer to the first. The list is the language's own,
-     and what follows from the answer is which table the card is offered. */
-  const formRows = () => [...document.querySelectorAll('[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')];
+     and what follows from the answer is which table the card is offered.
+
+     A drop-down since 0.183, and the answer shuts to a row with a pencil
+     on it: on most cards this is answered once and then read, and a column
+     of radio buttons standing open above the word itself is a decision
+     nobody is making, in the way of the fields they came to fill in. So
+     the list has to be opened before it can be read — by the pencil where
+     there is an answer, and by the button where there is not. */
   check("and what kind of word it is, as a question of its own",
+    !!wordKindBtn(),
+    wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(nothing asked)");
+  check("and nothing has been said yet, so the button says so and the list is shut",
+    !!wordKindBtn() && /Not said yet/.test(wordKindBtn().textContent || "") && !formRows().length,
+    `${wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(no button)"} · ${formRows().length} rows`);
+  await openWordKind();
+  check("and opening it lists what the language lets a word be",
     formRows().length > 2 &&
       /^Noun/.test((formRows()[0].textContent || "").trim()) &&
       formRows().some((r) => /^Verb/.test((r.textContent || "").trim())),
@@ -3847,6 +3889,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("each of them saying what it gets you",
     formRows().every((r) => !!r.querySelector("i")),
     formRows().map((r) => ((r.querySelector("i") || {}).textContent || "—")).join(" | "));
+  /* And a click anywhere else puts it away again, the rule every menu on
+     this screen goes by. */
+  click(document.querySelector(".at-screenhead h2"));
+  await sleep(200);
+  check("and a click outside puts the list away without answering it",
+    !formRows().length && !!wordKindBtn() && /Not said yet/.test(wordKindBtn().textContent || ""),
+    wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(no button)");
   /* And it is the wrapping variant, not the compact one. The compact track
      sizes every option to the longest label and never wraps, so three of
      them is three times "Conversation" — wider than any phone, which is
@@ -3867,7 +3916,11 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      top rather than the section of ticks that used to be several hundred
      pixels below, under everything about the words. */
   {
-    const deckBtn = () => /** @type {any} */ (document.querySelector(".at-choosebtn"));
+    /* Named rather than taken as the first chooser on the screen: what
+       kind of word a card is wears the same pill since 0.183, and the
+       first one is now that. */
+    const deckBtn = () => /** @type {any} */ ([...document.querySelectorAll(".at-choosebtn")]
+      .find((b) => /^Decks/.test(b.getAttribute("aria-label") || "")) || null);
     check("a new card says where it goes, at the top", !!deckBtn(),
       deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
     check("and says it is in none yet",
@@ -4512,10 +4565,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         /blanks and all/.test(sentenceName.textContent || "") &&
         /Nobody is ever asked this/.test(sentenceName.textContent || ""),
       sentenceName ? (sentenceName.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no block)");
+    /* The control itself, not the list behind it: the list is on screen
+       only while it is open, so a card that is still asked and shut would
+       pass a check that only looked for the rows. */
     check("and stops asking what kind of word it is, because it is not one",
-      !document.querySelector('[role="radiogroup"][aria-label="What kind of word"]'),
-      document.querySelector('[role="radiogroup"][aria-label="What kind of word"]')
-        ? "still asked" : "not asked");
+      !wordKindBtn() && !wordKindPencil() &&
+        ![...document.querySelectorAll(".at-label")]
+          .some((l) => /^What kind of word$/.test((l.textContent || "").trim())),
+      wordKindBtn() || wordKindPencil() ? "still asked" : "not asked");
     check("and offers no second form, because another way of saying it is another sentence",
       ![...document.querySelectorAll("button")]
         .some((b) => /^Add another form$/.test((b.textContent || "").trim())),
@@ -4596,7 +4653,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       /* And the ID is one of them rather than a field at the top of the
          screen: what it is for is filling somebody else's blank, so it is
          read beside the groups that do the same job. */
-      const idHalf = () => inHalf(CARDID, ".at-hint, .at-idrow")
+      const idHalf = () => inHalf(CARDID, ".at-hint, .at-idrow, .at-shutrow")
         .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
       check("the ID is one of them, with the line saying what it is for",
         /reaching this one card from another card/.test(idHalf()) && /name-is/.test(idHalf()),
@@ -4819,9 +4876,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     const block = (/** @type {RegExp} */ re) =>
       [...document.querySelectorAll(".at-formblock")].find((b) =>
         re.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-    /* Re-queried each time rather than held: the radio re-renders between
+    /* Re-queried each time rather than held: the list re-renders between
        clicks, so a row kept in a variable is a row that is no longer on the
-       screen. */
+       screen. And it has to be opened first — see openWordKind. */
     const formsRow = (/** @type {RegExp} */ re) =>
       /** @type {any} */ ([...document.querySelectorAll(
         '[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')]
@@ -4830,18 +4887,28 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       const row = formsRow(re);
       return row ? row.querySelector("input") : null;
     };
+    await openWordKind();
     check("a word can be called a verb", !!kindBtn(/^Verb/),
-      kindBtn(/^Verb/) ? "the radio offers it" : "no such answer");
+      kindBtn(/^Verb/) ? "the list offers it" : "no such answer");
     check("and until it is, the card's own word is where it always was", !!block(/^The verb$|^Form 1$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
 
-    click(kindBtn(/^Verb/));
-    await sleep(300);
+    await pickKind(/^Verb/);
 
-    check("and the radio says that is what it is",
+    /* Answering shuts the list, and what is on screen is the answer with
+       the pencil that opens it again — the state a question that has been
+       answered sits in. */
+    check("answering shuts the list and leaves the answer on screen",
+      !formsRow(/^Verb/) && !!wordKindPencil() &&
+        /^Verb/.test(((document.querySelector(".at-shutname") || {}).textContent || "").trim()),
+      ((document.querySelector(".at-shutname") || {}).textContent || "").trim() || "(nothing shown)");
+    await openWordKind();
+    check("and the pencil opens it again, on the answer",
       !!kindBtn(/^Verb/) && kindBtn(/^Verb/).checked,
       [...document.querySelectorAll('[aria-label="What kind of word"] .at-tickrow input')]
         .map((/** @type {any} */ b) => b.checked).join(" "));
+    click(document.querySelector(".at-screenhead h2"));
+    await sleep(200);
     check("choosing it takes the block away rather than asking for the word twice",
       !block(/^The verb$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
@@ -4918,8 +4985,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
        putting the table away must not read as having thrown the card away.
        Still offered here because this card has never been saved: a stored
        verb is not asked, because the answer would drop its table. */
-    click(kindBtn(/^Something else/));
-    await sleep(300);
+    await pickKind(/^Something else/);
     const back = fieldNamed(/^Arabic script and transliteration$/i);
     check("choosing an ordinary word again brings the block back with the word still in it",
       !!block(/^Form 1$|^The verb$/) && !!back && back.value === "akal",
@@ -4935,8 +5001,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     await sleep(250);
     check("a second form can be added to the word", !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
-    click(kindBtn(/^Verb/));
-    await sleep(300);
+    await pickKind(/^Verb/);
     check("and calling it a verb does not hide the form it already has",
       !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
@@ -4970,14 +5035,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         return seen;
       };
 
-      click(kindBtn(/^Preposition/));
-      await sleep(320);
+      await pickKind(/^Preposition/);
       check("a preposition takes the pronouns on its end, and is asked no number or gender",
         boxes(/attached pronouns · me$/).length > 0 && !grammarBtn() && !boxes(/for past · he$/).length,
         `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
 
-      click(kindBtn(/^Name/));
-      await sleep(320);
+      await pickKind(/^Name/);
       check("a name has no table and is asked its number and gender — the verb beside it reads both",
         !tables().length && !!grammarBtn(), `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
       const nameAxes = grammarBtn() ? await askAxes() : [];
@@ -4985,15 +5048,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         nameAxes.includes("Number") && nameAxes.includes("Gender") && !nameAxes.includes("Person or thing"),
         nameAxes.join(" | ") || "(no axes)");
 
-      click(kindBtn(/^Noun/));
-      await sleep(320);
+      await pickKind(/^Noun/);
       const nounAxes = grammarBtn() ? await askAxes() : [];
       check("a noun is asked whether it is a person or a thing, which is what an adjective beside a plural reads",
         nounAxes.includes("Person or thing") && boxes(/attached pronouns · me$/).length > 0,
         nounAxes.join(" | ") || "(no axes)");
 
-      click(kindBtn(/^Adjective/));
-      await sleep(320);
+      await pickKind(/^Adjective/);
       check("an adjective lays out its feminine and plural, and nothing else",
         !!boxes(/for agreement · feminine$/).length && !!boxes(/for agreement · plural$/).length &&
           !boxes(/attached pronouns|for (present|past|command) · /).length,
@@ -5005,32 +5066,27 @@ check("no console errors during the session", errors.length === 0, errors.slice(
         !addForm() && blocksUp().includes("Form 1"),
         addForm() ? "a form is offered" : blocksUp().join(" | "));
 
-      click(kindBtn(/^Number/));
-      await sleep(320);
+      await pickKind(/^Number/);
       check("a number lays out the form a feminine noun takes, and only that",
         boxes(/^Arabic script for counted · feminine$/).length === 1 &&
           !boxes(/^Arabic script for (agreement|the word · attached|present|past|command)/).length,
         boxes(/^Arabic script for /).join(" | ") || "(no table)");
 
-      click(kindBtn(/^Pronoun/));
-      await sleep(320);
+      await pickKind(/^Pronoun/);
       check("a pronoun has no table and is asked its number and gender",
         !tables().length && !!grammarBtn(), `${tables().length} table boxes`);
 
-      click(kindBtn(/^Something else/));
-      await sleep(320);
+      await pickKind(/^Something else/);
       check("something else is the word alone: no table, no grammar",
         !tables().length && !grammarBtn(), `${tables().length} table boxes · grammar ${grammarBtn() ? "asked" : "not asked"}`);
 
-      click(kindBtn(/^Verb/));
-      await sleep(320);
+      await pickKind(/^Verb/);
     }
 
     /* A card that has never been saved is not locked into being a verb, so
        it is the one place a typed table can still be dropped. It says so,
        and counts what is at stake rather than warning in the abstract. */
-    click(kindBtn(/^Something else/));
-    await sleep(300);
+    await pickKind(/^Something else/);
     check("a table typed into a new card says what dropping it would cost",
       /table is put aside/.test(document.body.textContent || "") &&
         /1 box filled in/.test((document.body.textContent || "").replace(/\s+/g, " ")),
@@ -5071,8 +5127,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
       .find((b) => /^Word$/.test((b.textContent || "").trim())));
     await sleep(300);
-    click(kindBtn(/^Verb/));
-    await sleep(300);
+    await pickKind(/^Verb/);
     check("and coming back brings the table with its cells still in it",
       !!cellNamed("Arabic script for past · he") &&
         cellNamed("Arabic script for past · he").value === "akal",
@@ -5105,7 +5160,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
 
   const saved = () => [...document.querySelectorAll(
     '[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')];
-  check("a card written weeks ago is still asked what kind of word it is",
+  /* A card written before the question existed says nothing about what
+     kind of word it is and holds no table to be read as one, so it opens
+     unanswered — the button, saying so, with the list behind it. */
+  check("a card written weeks ago opens with the question unanswered rather than guessed at",
+    !!wordKindBtn() && /Not said yet/.test(wordKindBtn().textContent || "") && !saved().length,
+    wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(nothing offered)");
+  await openWordKind();
+  check("and is still asked what kind of word it is",
     saved().length > 2 && saved().some((r) => /^Verb/.test((r.textContent || "").trim())),
     saved().map((r) => (r.textContent || "").slice(0, 24)).join(" | ") || "(nothing offered)");
   /* The kind itself is settled: a written word does not become a
@@ -5116,12 +5178,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     !kindSegs.some((b) => /Conversation/.test(b.textContent || "")),
     kindSegs.map((b) => b.textContent).join(" | ") || "(the kind is settled, and says so)");
 
-  const verbHere = () => {
-    const row = saved().find((r) => /^Verb/.test((r.textContent || "").trim()));
-    return /** @type {any} */ (row ? row.querySelector("input") : null);
-  };
-  click(verbHere());
-  await sleep(350);
+  await pickKind(/^Verb/);
   const cited = /** @type {any} */ ([...document.querySelectorAll("input")]
     .find((i) => (i.getAttribute("aria-label") || "") === "Arabic script for past · he") || null);
   check("calling it one moves its word into the box a dictionary lists it under",
@@ -5142,14 +5199,11 @@ check("no console errors during the session", errors.length === 0, errors.slice(
      verb table has no axis for them: it says who is doing it and when,
      never who it is about. One row, the same component, and cells told
      apart from a verb's by the row they sit in. */
-  const attachedHere = () => {
-    const row = saved().find((r) => /^Noun/.test((r.textContent || "").trim()));
-    return /** @type {any} */ (row ? row.querySelector("input") : null);
-  };
-  check("a word can be called a noun, which is what takes them", !!attachedHere(),
+  await openWordKind();
+  check("a word can be called a noun, which is what takes them",
+    saved().some((r) => /^Noun/.test((r.textContent || "").trim())),
     saved().map((r) => (r.textContent || "").slice(0, 24)).join(" | "));
-  click(attachedHere());
-  await sleep(350);
+  await pickKind(/^Noun/);
 
   const attachedCell = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]

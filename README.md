@@ -233,6 +233,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   gender, a noun is asked whether it is a person or a thing — and nothing
   stored is narrowed by that: `dimsFor` is display and editing, `dimValues`
   is storage. See `tablesOf` and `WORD_CATEGORIES` in `src/languages.ts`.
+  The teacher answers it in a drop-down (`WordKind` in
+  `src/card-editor.tsx`), and an answer shuts to the answer with a pencil
+  beside it — the same `.at-shutrow` the card's ID wears, because it is
+  the same state: decided once, read often, and changed on purpose rather
+  than by a stray tap. Every answer carries a line saying what it gets
+  you, which is why the list inside is rows and not a track of segments.
 - **A form can be kept without being asked about, and lent without being
   asked.** A card is a word and a pile of forms of it — other spellings,
   the pronouns on its end, every person and tense of a verb — and a

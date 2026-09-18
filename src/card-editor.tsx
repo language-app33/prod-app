@@ -3666,6 +3666,94 @@ export type SceneDraft = ReturnType<typeof useSceneDraft>;
  * the first decision — then what a word lays its forms out in, and which
  * decks it goes in. The one block every editor shares, drawn by the shell.
  */
+/*
+ * What kind of word this is: a list to choose from, and then the answer.
+ *
+ * The list is the language's own — noun, verb, adjective, name — and every
+ * answer carries a line saying what it means, which is why it is a list of
+ * rows rather than a track of segments. It was a column of those rows
+ * standing open on the screen, which is right while the question is being
+ * answered and wrong every other time: on most cards it is answered once
+ * and then read, and five rows of radio buttons above the word itself is
+ * five rows of a decision nobody is making, in the way of the fields they
+ * came to fill in.
+ *
+ * So it is a drop-down. Answered, it shuts to the answer with a pencil on
+ * the end — the same row the card's ID wears, because it is the same
+ * state: a thing decided once, read often, and changed on purpose rather
+ * than by a stray tap. Unanswered, it is the button that opens the list,
+ * and says so.
+ *
+ * Which answers the list holds is categoryOffers, and where it holds none
+ * this draws nothing: a card whose table only one kind lays out is not
+ * asked a question with one answer.
+ */
+function WordKind({ word }: { word: WordDraft }) {
+  const { category, chooseCategory, categoryOffer } = word;
+  const { open, setOpen, mine } = usePicker();
+  const said = categoryOffer.find((c) => c.value === category) || null;
+  if (!categoryOffer.length) return null;
+  /* Shut is the state an answered question sits in, and the pencil is the
+     way back into it — so the list is on screen only while it is being
+     read, and the answer is on screen the rest of the time. */
+  if (said && !open) {
+    return (
+      <div className="at-field at-mt3">
+        <label className="at-label">What kind of word</label>
+        <div className="at-shutrow">
+          <Icon name="tune" />
+          <span className="at-shutname">{said.label}</span>
+          <IconButton
+            icon="edit"
+            label="Change what kind of word this is"
+            onClick={() => setOpen(true)}
+          />
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="at-field at-mt3">
+      <label className="at-label">What kind of word</label>
+      <div className="at-chooser" ref={mine}>
+        <button
+          className={`at-choosebtn${said ? " on" : ""}`}
+          aria-expanded={open}
+          aria-label={
+            said
+              ? `What kind of word — ${said.label}. Choose another.`
+              : "What kind of word. Nobody has said. Choose one."
+          }
+          onClick={() => setOpen((v) => !v)}
+        >
+          <Icon name="tune" size={16} />
+          <span className="at-choosemark">{said ? said.label : "Not said yet"}</span>
+          <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+        </button>
+        {open && (
+          <div className="at-choosemenu">
+            {/* Choosing shuts it, because choosing is the whole of what it
+                was open for — and what follows from the answer is a table
+                appearing further down the screen, which a menu standing
+                over it would hide. */}
+            <RadioGroup
+              quiet
+              label="What kind of word"
+              name="card-category"
+              options={categoryOffer}
+              value={category}
+              onChange={(v) => {
+                chooseCategory(v);
+                setOpen(false);
+              }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* What each of the three is, in one sentence — said to somebody choosing
    between them and to somebody reading what their card already is, which
    is the same sentence and so is written once. */
@@ -3688,7 +3776,7 @@ function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, ch
   chosen: string[];
   onToggleDeck: (id: string, on: boolean) => void;
 }) {
-  const { category, chooseCategory, categoryOffer, aside, storedForms } = word;
+  const { category, aside, storedForms } = word;
   return (
     <>
     {/* What kind of card this is — the first thing about it, and for
@@ -3769,23 +3857,9 @@ function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, ch
           table is still read off the rows its cells sit in — so the
           answer only decides what the teacher is shown.
 
-          A radio rather than segments, because each answer needs a
-          line saying what it means, which is what a row of ticks is
-          for and what a track of segments cannot hold.
-
           Asked only of a word: a conversation has turns where a word
           has forms, and there is nothing for a table to lay out. */}
-      {categoryOffer.length > 0 && (
-        <div className="at-mt3">
-          <RadioGroup
-            label="What kind of word"
-            name="card-category"
-            options={categoryOffer}
-            value={category}
-            onChange={chooseCategory}
-          />
-        </div>
-      )}
+      <WordKind word={word} />
       {/* A table put aside is not thrown away until the card is saved, and
           saying so is the only warning there is. Outside the radio above,
           because calling the card a sentence puts a table aside as surely
@@ -4711,9 +4785,9 @@ function IdBox({ word }: { word: WordDraft }) {
           )}
         </>
       ) : (
-        <div className="at-idrow shut">
+        <div className="at-shutrow">
           <Icon name="key" />
-          <span className="at-idname">{refName}</span>
+          <span className="at-shutname at-idname">{refName}</span>
           <IconButton icon="edit" label="Edit this ID" onClick={openRef} />
         </div>
       )}

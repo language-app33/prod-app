@@ -557,6 +557,7 @@ button {
   box-shadow: var(--nav-shadow); }
 .at-choosemenu .at-eyebrow { margin:0 0 8px; }
 .at-choosemenu .at-hint { margin:10px 0 0; }
+.at-choosemenu > .at-field:last-child { margin-bottom:0; }
 /*
  * The sentences a student will be asked, filled with the words that exist
  * today. The section used to explain this in ninety words; five real
@@ -715,12 +716,23 @@ button {
 .at-idrow { display:flex; align-items:center; gap:8px; margin-top:10px; }
 .at-idrow .at-input { flex:1 1 auto; min-width:0; }
 .at-idrow .at-icon { flex:0 0 auto; width:48px; min-height:48px; padding:0; }
-.at-idrow.shut { border:2px solid var(--line); border-radius: var(--r);
+/* ---- a question that has been answered ----
+   The answer, read rather than typed or picked, with the pencil that opens
+   it again on the end. Two of them wear it — the card's ID and what kind
+   of word it is — because it is one state and not two: a decision made
+   once and read a hundred times, where a control you can change is a
+   control you can change by accident. */
+.at-shutrow { display:flex; align-items:center; gap:8px; margin-top:10px;
+  border:2px solid var(--line); border-radius: var(--r);
   background: var(--well-deep); padding:6px 6px 6px 14px; }
-.at-idrow.shut .at-ic { flex:0 0 auto; color: var(--muted); }
-.at-idname { flex:1 1 auto; min-width:0; font-family: var(--mono); font-size:17px;
-  font-weight:700; color: var(--text-soft); overflow:hidden; text-overflow:ellipsis;
+.at-shutrow .at-ic { flex:0 0 auto; color: var(--muted); }
+.at-shutrow .at-icon { flex:0 0 auto; width:48px; min-height:48px; padding:0; }
+.at-shutname { flex:1 1 auto; min-width:0; font-size:17px; font-weight:700;
+  color: var(--text-soft); overflow:hidden; text-overflow:ellipsis;
   white-space:nowrap; }
+/* An ID is a name written between braces on another card, so it is read in
+   the face those are read in. A part of speech is a word. */
+.at-idname { font-family: var(--mono); }
 /* One group tag: the tick that joins it, and the pencil that renames it.
    Two questions about one row, so they are two controls — a row that
    renamed the group when you meant to join it would be unusable. */

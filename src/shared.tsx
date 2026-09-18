@@ -2581,17 +2581,27 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
  * doing the exclusivity, so a group of these reads as the same furniture
  * as a group of ticks and needs no styling of its own.
  */
-export function RadioGroup<T extends string>({ options, value, onChange, label, name }: {
+export function RadioGroup<T extends string>({ options, value, onChange, label, name, quiet }: {
   options: { value: T; label: Node; note?: Node }[];
   value?: T | null;
   onChange: (value: T) => void;
   label: string;
   /** What makes the group exclusive to the browser. Unique on the screen. */
   name: string;
+  /**
+   * Whether something on screen already names this group.
+   *
+   * The label is two things at once: the question above the rows, and what
+   * a screen reader says before reading them. Inside a menu hung off a
+   * button that is already labelled, the first is the question asked
+   * twice; the second still has to be said. So `quiet` drops the visible
+   * one and keeps the other.
+   */
+  quiet?: boolean;
 }) {
   return (
     <div className="at-field" role="radiogroup" aria-label={label}>
-      <label className="at-label">{label}</label>
+      {!quiet && <label className="at-label">{label}</label>}
       <div className="at-ticklist">
         {options.map((o) => (
           <label className="at-tickrow" key={String(o.value)}>

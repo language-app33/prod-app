@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.183 — 18 September 2026
+
+**What kind of word a card is, is now a drop-down that shuts on the
+answer.** It was a column of radio rows — Noun, Verb, Adjective,
+Preposition, Pronoun, Name, Number, Something else — standing open above
+the word itself on every card. That is right while somebody is answering
+it, and wrong every other time: on most cards it is answered once and then
+read, so eight rows of a decision nobody was making sat between the top of
+the screen and the fields they came to fill in.
+
+So it is a button that opens the list. Each answer still carries the line
+saying what it gets you — a noun takes the pronouns on its end, a verb gets
+its persons and tenses — because that is what the list is for and what a
+row of segments could not hold.
+
+**And once one is chosen, it locks.** The answer reads back as a row with a
+pencil on the right, exactly as the card's ID does; the pencil opens the
+list again. A card that has never been asked says "Not said yet" and opens
+on a tap.
+
 ## 0.182 — 18 September 2026
 
 **A card no longer needs an ID to be saved.** The ID is the name one card
