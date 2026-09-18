@@ -2564,3 +2564,56 @@ is them answering; from there the app stops answering for them. The default
 is unchanged. What changed is that it happens in front of them, which is
 the point: a card-wide toggle nobody was shown could hold a state nobody
 could see.
+
+---
+
+## What kind of card it is, is settled when the card is made
+
+**18 September 2026** · `src/card-editor.tsx` (`shapeChoices`),
+`server/api/courses.js` (`keptKind`)
+
+There are three kinds of card — a word or phrase, a sentence, a
+conversation — and until now two of them were fixed by accident rather
+than on purpose. A conversation could not stop being one because a scene
+with four turns on it has nowhere to put them. A word with a table could
+not become a sentence because the table is content and the change would
+have dropped it. Both were argued from what would be *lost*, so the pair
+where nothing visible is lost stayed open: a saved word with no table
+could be called a sentence, and back again, as often as anybody liked.
+
+**The thing that is lost there is not visible on the screen.** A card is
+the anchor for a student's whole record of it — a schedule per form per
+exercise, on devices this server never hears from until they sync. It is
+also what every other card's blanks are written against: a group tag and an
+ID both name cards, and a sentence is the one kind that fills nothing. And
+the three kinds are asked, dealt and filled by three different paths. So a
+card that changes kind is a card whose past means something it no longer
+is, and the damage shows up later, somewhere else, as a schedule against a
+question that is not asked any more or a frame whose filler has become a
+frame.
+
+So the question is asked once, while the card is being written — the one
+moment when nothing has been typed and no answer can cost anything — and
+never again. `shapeChoices` answers nothing at all to a saved card, and the
+block that asked says what the card is instead.
+
+**Why not migrate instead.** A "change the kind and carry the record
+across" would have to say what a word's forms become when it is a scene
+with two speakers, and what a sentence's blanks become when it is a word.
+There is no answer to either that is not a guess, and a guess here is
+silent. Writing a new card is explicit, takes a minute, and leaves the old
+one where it is until its author says otherwise.
+
+**And it is enforced where the editor is not.** The editor is not the only
+thing that can reach `save-card`: a device can queue a save from a build
+that has not caught up, and a card can be pasted in. `keptKind` takes an
+existing card's kind from the card as stored rather than from the request,
+through the same `isDialog` and `isSentence` the app reads it through.
+
+Kept rather than refused. A refusal would lock an older client out of cards
+it can otherwise edit perfectly well, and the failure being replaced was
+silent in the other direction: a client that said nothing about `sentence`
+— every build before 0.176 — turned each sentence it saved into a word.
+Writing the answer out also pins the kind of a card written before there
+was anything to pin, which until then was recognised by the braces in its
+words and stopped being a sentence when they came out.

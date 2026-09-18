@@ -5228,6 +5228,27 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     ([...document.querySelectorAll(".at-hint, .at-help, p")]
       .map((n) => (n.textContent || "").trim()).find((t) => /^(A verb|Attached pronouns):/.test(t)) || "(nothing said)"));
 
+  /* ---- and cannot be made into another kind of card ----
+
+     A card is a word, a sentence or a conversation, and that is settled
+     when it is made. It is what a student's whole record hangs on and what
+     every other card's blanks are written against, so the block that asked
+     it says what the card is instead of offering to change it. Until 0.180
+     a saved word with no table could be called a sentence and back again,
+     which is the one pair that looked harmless. */
+  {
+    const kind = [...document.querySelectorAll(".at-formblock")].find((b) =>
+      /^The kind of card$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    check("a saved card is not offered another kind",
+      !!kind && !kind.querySelector('[aria-label="The kind of card"]'),
+      kind
+        ? (kind.querySelector('[aria-label="The kind of card"]') ? "the track is still there" : "no track")
+        : "(no such section)");
+    check("and says what it is, and that it was settled when the card was made",
+      !!kind && /settled when it was made/.test(kind.textContent || ""),
+      kind ? (kind.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no such section)");
+  }
+
   /* ---- and what of it is drilled, subsection by subsection ----
 
      A card is a word and a pile of forms of it, and until 0.134 all of it

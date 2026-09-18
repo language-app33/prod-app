@@ -8,6 +8,34 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.180 — 18 September 2026
+
+**A card keeps the kind it was made as.** There are three kinds — word or
+phrase, sentence, and conversation — and the editor asks which while the
+card is being written, when nothing has been typed and no answer can lose
+anything. From the first save it says what the card is instead of offering
+to change it.
+
+Two of the three were already like this. A conversation could never stop
+being one: a scene with four turns on it has nowhere to put them. Nor could
+a word with a table, because the table is the content and calling the card
+a sentence would have thrown it away. What stayed open was the pair that
+looked harmless — a word with no table could be called a sentence and back
+again — and it is not harmless. A card is what a student's whole record is
+attached to and what every other card's blanks are written against, and the
+three kinds are asked, dealt and filled in three different ways; a card
+that changes kind is a card whose past means something it no longer is.
+
+**If you want the other kind, write another card.** That is the cost, and
+it is worth saying plainly: a word you decide should have been a sentence
+has to be typed again, and the original deleted if you do not want both.
+Nothing you have already written changes, and no card in anybody's deck
+moves.
+
+The same rule now holds where the editor cannot be reached, so a device
+saving from an old copy of the app can no longer turn a sentence into a
+word by saying nothing about it — which it could until today.
+
 ## 0.179 — 18 September 2026
 
 **Each part of a card now says for itself what it is drilled as.** The

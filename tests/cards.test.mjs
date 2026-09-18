@@ -508,23 +508,19 @@ test("a card is a word, a sentence or a conversation, and says which by what it 
   assert.equal(shapeOf(worded("{{noun}}"), true), "scene");
 });
 
-test("a new card may be any of the three, and a written one stays what it can", () => {
+test("a new card may be any of the three, and a written one is what it was made as", () => {
   const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  assert.deepEqual(values({ saved: false, shape: "word", table: "" }),
-    ["word", "sentence", "scene"]);
-  /* A written conversation is offered nothing at all, so the block says
-     what it is instead: a scene with four turns on it would have nowhere
-     to put them. */
-  assert.deepEqual(values({ saved: true, shape: "scene", table: "" }), []);
-  /* A word and a sentence are the same card written two ways, so that
-     pair stays open both ways — writing a blank into a word is how most
-     sentences start. */
-  assert.deepEqual(values({ saved: true, shape: "word", table: "" }), ["word", "sentence"]);
-  assert.deepEqual(values({ saved: true, shape: "sentence", table: "" }), ["word", "sentence"]);
-  /* Except where the card has a table, which is content: saving it as a
-     sentence would drop it. */
-  assert.deepEqual(values({ saved: true, shape: "word", table: "verb" }), ["word"]);
-  assert.deepEqual(values({ saved: true, shape: "word", table: "attached" }), ["word"]);
+  /* Asked once, while the card is being written and nothing can be lost
+     by any answer. */
+  assert.deepEqual(values({ saved: false }), ["word", "sentence", "scene"]);
+  /* And never again, whichever of the three it is: a card is what a
+     student's whole record hangs on and what every other card's blanks
+     are written against, so the block says what it is rather than
+     offering to change it. A conversation was always like this — a scene
+     with four turns on it has nowhere to put them — and a word with a
+     table was half like it; the pair that stayed open until 0.180 was a
+     word and a sentence with nothing in the way. */
+  assert.deepEqual(values({ saved: true }), []);
 });
 
 test("and a word is asked what kind of word it is, in the language's own list", () => {
