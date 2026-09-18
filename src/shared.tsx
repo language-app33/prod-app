@@ -12,7 +12,7 @@ import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
 import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { fillNames, mergeMet, splitSlots } from "./variables.ts";
+import { cardRef, fillNames, mergeMet, splitSlots } from "./variables.ts";
 import { isOffline, watchNet } from "./net.ts";
 
 /*
@@ -2619,6 +2619,8 @@ export function ConfirmModal({
   body,
   confirmLabel,
   confirmWord,
+  altLabel,
+  onAlt,
   busy,
   danger = true,
   onCancel,
@@ -2628,6 +2630,18 @@ export function ConfirmModal({
   body?: Node;
   confirmLabel?: string;
   /** Makes the person type a word before the button enables — for the things that cannot be undone. */ confirmWord?: string;
+  /**
+   * A second answer, beside the first.
+   *
+   * Most questions here have one — do it, or don't — and a second button
+   * would be a third thing to read. A few have two real answers, though,
+   * and a rename is the one this was added for: change the name
+   * everywhere it is written, or change it only here. Neither of those is
+   * cancelling and neither is the safe default, so both are said in words
+   * and the way out is still Cancel.
+   */
+  altLabel?: string;
+  onAlt?: () => void;
   busy?: boolean;
   danger?: boolean;
   onCancel: () => void;
@@ -2698,6 +2712,11 @@ export function ConfirmModal({
           <button className="at-btn ghost" onClick={onCancel} disabled={busy}>
             Cancel
           </button>
+          {altLabel && onAlt && (
+            <button className="at-btn" disabled={!ready || busy} onClick={onAlt}>
+              {altLabel}
+            </button>
+          )}
           <button
             className={`at-btn ${danger ? "danger" : "primary"}`}
             disabled={!ready || busy}
@@ -3167,6 +3186,12 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        own right. Carried rather than derived, because both are the
        teacher's decision and neither can be read off the words. */
     ...(fillNames(card).length ? { fills: fillNames(card) } : null),
+    /* And the ID the teacher gave it, which is the other name a blank can
+       ask for: a sentence writing {{colour-red}} wants this card and no
+       other, so a device that dropped it would meet that sentence with a
+       hole nothing fills. Left off where the card has none, like the two
+       above. */
+    ...(cardRef(card) ? { ref: cardRef(card) } : null),
     ...(card.drill === false ? { drill: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same

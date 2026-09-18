@@ -249,19 +249,27 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 - **A sentence is a card made of blanks, and the vocabulary fills them.** A
   card may leave a hole in itself — `اسمي {{name}}` — and the question fills
   it before anybody reads the card, with a different word next time round.
-  A blank is filled three ways, in rising order of how much filing it
+  A blank is filled four ways, in rising order of how much filing it
   costs the teacher. `{{word}}` takes any word in the language, with
   nothing written on any of them. A blank named after a **kind of word** —
   `{{noun}}`, `{{verb}}`, whichever its pack declares — takes the cards
   that say they are one, which they already did when they said what they
-  were. And a blank with a name of the teacher's own takes the cards that
-  name it back, in `fills`, which is the only case left where anything has
-  to be written twice — and which is a **list**, because a word stands in
-  more than one kind of hole as soon as somebody writes a second frame
-  about it, and saying so used to take a second card carrying the same
-  word. A card written when it was one name reads as the list of one it
-  always meant; `fillNames` in `src/variables.ts` is the one answer to
-  what a card fills, and the server reads it through the same function.
+  were. A blank with a name of the teacher's own takes the cards that name
+  it back, in `fills` — the card's **group tags**, which is a **list**,
+  because a word stands in more than one kind of hole as soon as somebody
+  writes a second frame about it, and saying so used to take a second card
+  carrying the same word. A card written when it was one name reads as the
+  list of one it always meant; `fillNames` in `src/variables.ts` is the one
+  answer to what a card fills, and the server reads it through the same
+  function. And a blank named after **one card's ID** takes that card and
+  no other: `{{colour-red}}` asks for that word where `{{colour}}` asks for
+  any of a group. The ID is the teacher's, typed when the card is written
+  and stored in `ref`; `cardRef` reads it and narrows it the way every
+  other name that goes between braces is narrowed, so what the editor
+  checked and what the server stored cannot come apart. Both kinds of name
+  are one namespace, because both are what a sentence writes between
+  braces: `refClash` refuses a name another card's ID or anybody's group
+  tag already answers to, while the teacher is still looking at it.
   Every form of a filler lends itself, not only its
   own word: a plural stands in a sentence its singular does not, gated on
   what that form itself has climbed. A card with a blank in it never fills
@@ -278,7 +286,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   "sentence" — the braces are in the text, so a card with a blank in it is
   one whichever editor wrote it.
 
-  **The editor's Blanks section is three named subsections, and they are
+  **The editor's Blanks section is four named subsections, and they are
   not the same shape, because they are not the same question.**
 
   *Blanks in this card* is a **readout**, and has nothing to decide. What
@@ -315,11 +323,25 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   blank appears the moment a card writes it and goes when the last one
   stops.
 
-  *Using this card to fill a blank* is the opposite job, and there a list
-  is right: what a card fills is nowhere in its words and nothing can be
-  read off, so it is the teacher's answer and this is where they give it —
-  a box that names a new blank, above the blanks somebody has written,
-  with this card's ticked. A kind of word is not among them, because a
+  *The card's ID* is the name this one card answers to, and the only field
+  in the editor a card cannot be saved without. It is asked of a new card,
+  because that is the moment the teacher is naming the thing and the moment
+  nothing else points at it yet; a card written before IDs existed carries
+  none until somebody opens it and gives it one, so editing a recording on
+  an old card is not a demand to name it. What it says back is as short as
+  it can be: a name that is free gets a green rim and no sentence, and the
+  only line here is for a name something else answers to, which names what
+  has it. It is typed once and then **shut** — the tick beside the box,
+  which lights only on a free name — because an ID is written once and read
+  a hundred times, and a box you can type in is a box you can type in by
+  accident. The pencil opens it again, which is the state a saved card
+  arrives in.
+
+  *The card's group tags* is the opposite job, and there a list is right:
+  what a card fills is nowhere in its words and nothing can be read off, so
+  it is the teacher's answer and this is where they give it — a box that
+  names a new group, above the groups somebody has written, with this
+  card's ticked. A kind of word is not among them, because a
   card fills `{{noun}}` by saying it is a noun and `{{word}}` by being a
   word: a tick for either would change nothing. What is offered is what
   somebody *wrote* rather than what is not built in, because a language
@@ -327,7 +349,26 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   Arabic declares `name`, and `{{name}}` is the oldest frame in the app. A
   card that leaves a blank of its own fills none, so on one of those this
   subsection says that rather than offering a control there is no answer
-  to.
+  to. Every row carries the pencil that renames the tag, because a tag is a
+  name several cards share and the only place a misspelt one is visible is
+  a card that has it.
+
+  **Renaming either asks one question: does the name follow, or does this
+  card alone move?** A name lives in two sorts of place — on the card that
+  answers to it, and in every card that asks for it — so changing it here
+  and nowhere else is a real answer and so is changing it everywhere.
+  *Everywhere* rewrites the braces in every field of every form and every
+  turn of every card that writes the old name, and swaps the tag on every
+  card that carries it (`renamedIn` in `src/variables.ts`, which comes back
+  null for a card nothing moved in, which is almost all of them). *Only
+  here* leaves them: an ID renamed alone is a card with a new name while
+  the old sentences go on asking for the old one, and a tag renamed alone
+  is this card leaving the group for one of the new name. Neither is safe
+  to assume, so neither is the default and both buttons say what they will
+  do. The editor holds one card and saves one card, so it carries the
+  answer out with the card being saved and the Cards screen does the
+  walking — the same `sendOrKeep` every card goes through, in a loop, so a
+  rename made on a train is kept and sent like anything else.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the

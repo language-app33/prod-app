@@ -3960,7 +3960,7 @@ function liftAnswers(form: Record<string, any>): Record<string, any> {
  * belongs to the word.
  */
 const CARD_ONLY = new Set([
-  "kind", "tags", "locked", "flags", "source", "fills", "name", "category",
+  "kind", "tags", "locked", "flags", "source", "fills", "ref", "name", "category",
   "drill", "uses", "note", "lines", "speakers", "you", "subs", "forms",
 ]);
 

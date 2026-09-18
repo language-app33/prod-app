@@ -725,6 +725,20 @@ export type Card = {
    */
   fills?: string | string[];
   /**
+   * The ID the teacher gave this card, so another card can borrow *this*
+   * word by name: "{{colour-red}} is heavy".
+   *
+   * Not the `id` above, which the app mints and nobody types. This is the
+   * teacher's, chosen when the card is written, unique across the cards
+   * they can see, and the same shape as anything else that goes between
+   * braces — see cardRef, which is the one answer to what it says.
+   *
+   * Absent on a card written before it was asked for. Such a card is
+   * borrowed the way it always was, through the tags it carries, and is
+   * simply not reachable by name until somebody gives it an ID.
+   */
+  ref?: string;
+  /**
    * What to call the card in a list, where its own words do not name it.
    *
    * A verb in a language with no infinitive is saved as the form a
@@ -974,6 +988,8 @@ export type Item = {
   note?: string;
   /** The variables this card stands in for, where it is a value. See Card. */
   fills?: string | string[];
+  /** The ID the teacher gave it, which a blank may ask for by name. See Card. */
+  ref?: string;
   /** What to call it in a list, where its own words do not name it. See Card. */
   name?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */

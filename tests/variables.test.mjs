@@ -26,6 +26,11 @@ import {
   valuesForTurn,
   fillsOf,
   fillNames,
+  cardRef,
+  refClash,
+  renameSlot,
+  renamedIn,
+  slotName,
   MAX_FILLS,
   valuesAt,
   metKey,
@@ -609,4 +614,117 @@ test("and two devices' records merge by taking the further of the two", () => {
   /* And a form with no record does not start carrying an empty one. */
   assert.equal(mergeMet(null, null), undefined);
   assert.equal(mergeMet({}, {}), undefined);
+});
+
+/*
+ * The other way a blank is filled: by name, one card.
+ *
+ * A group tag is a set of words a sentence will take any of — "{{colour}}"
+ * is red, or blue, or green. A card's own ID is the other half of the
+ * question: "{{colour-red}}" is that word and no other. Both go between
+ * braces, which is why they share a namespace and why nothing may answer
+ * to a name something else already answers to.
+ */
+test("a card's own ID is a name a blank can ask for", () => {
+  const red = { id: "c1", ar: "aḥmar", en: "red", lat: "", ref: "colour-red" };
+  assert.deepEqual(fillsOf(red, ""), ["colour-red"]);
+
+  /* Beside its groups and its kind, not instead of them. */
+  const tagged = { ...red, fills: ["colours"], category: "adjective" };
+  assert.deepEqual(fillsOf(tagged, "word"), ["colours", "colour-red", WORD_SLOT, "adjective"]);
+
+  /* Narrowed the way every other name that goes in braces is, so what the
+     editor checked and what the server stored cannot come apart. */
+  assert.equal(cardRef({ ref: "Colour Red!" }), "colourred");
+  assert.equal(cardRef({ ref: "a".repeat(40) }), "a".repeat(24));
+  assert.equal(cardRef({}), "");
+  assert.equal(slotName(null), "");
+
+  /* And a card with a hole of its own is not a filler, ID or no ID: a
+     sentence dropped into somebody else's hole is a sentence with a gap
+     where the point was. */
+  const frame = { id: "f1", ar: "{{colour}} bayt", en: "a {{colour}} house", lat: "", ref: "house-is" };
+  assert.deepEqual(fillsOf(frame, "word"), []);
+});
+
+test("and a sentence asking for one by ID gets that card alone", () => {
+  const red = { id: "c1", lang: "ar", ar: "aḥmar", en: "red", lat: "", ref: "colour-red", fills: ["colours"] };
+  const blue = { id: "c2", lang: "ar", ar: "azraq", en: "blue", lat: "", ref: "colour-blue", fills: ["colours"] };
+  const asks = { ar: "il-bayt {{colour-red}}", en: "the house is {{colour-red}}", lat: "" };
+  const group = { ar: "il-bayt {{colours}}", en: "the house is {{colours}}", lat: "" };
+
+  const one = valuesFor(asks, [red, blue], "ar");
+  assert.deepEqual((one["colour-red"] || []).map((v) => v.en), ["red"]);
+
+  /* Where the group takes either, which is what a group is for. */
+  const both = valuesFor(group, [red, blue], "ar");
+  assert.deepEqual((both.colours || []).map((v) => v.en), ["red", "blue"]);
+});
+
+test("a name is free of every other name, or it is not free", () => {
+  const red = { id: "c1", ar: "aḥmar", en: "red", lat: "", ref: "colour-red", fills: ["colours"] };
+  const blue = { id: "c2", ar: "azraq", en: "blue", lat: "", ref: "colour-blue" };
+  const pool = [red, blue];
+
+  /* Another card's ID, and a group tag anybody carries: both are taken,
+     and which it is, is what lets the editor say so in words. */
+  assert.deepEqual(refClash("colour-red", pool), { kind: "card", card: red });
+  assert.deepEqual(refClash("colours", pool), { kind: "group", card: red });
+  /* Spoken for by every word in the language. */
+  assert.deepEqual(refClash(WORD_SLOT, pool), { kind: "group" });
+
+  /* A card is never a clash with itself: opening a card and saving it
+     again is not a teacher taking their own name. */
+  assert.equal(refClash("colour-red", pool, "c1"), null);
+  assert.equal(refClash("colour-green", pool), null);
+  assert.equal(refClash("", pool), null);
+});
+
+/*
+ * What "everywhere" means.
+ *
+ * A name lives in two sorts of place: on the card that answers to it, and
+ * in every card that asks for it. Renaming one and not the other is a real
+ * answer — and so is renaming both — so the walk that does the second is
+ * here, where a test can ask it without a screen.
+ */
+test("a rename follows a name into every card that writes it", () => {
+  const asks = {
+    id: "f1",
+    forms: [
+      { ar: "il-bayt {{colour-red}}", en: "the house is {{colour-red}}", lat: "il-bayt {{colour-red}}" },
+      { ar: "{{colour-red}} w {{colour-blue}}", en: "{{colour-red}} and {{colour-blue}}", lat: "" },
+    ],
+  };
+  const moved = /** @type {any} */ (renamedIn(asks, "colour-red", "red"));
+  assert.equal(moved.forms[0].ar, "il-bayt {{red}}");
+  assert.equal(moved.forms[0].en, "the house is {{red}}");
+  assert.equal(moved.forms[0].lat, "il-bayt {{red}}");
+  /* One name at a time: the other hole is not this rename's business. */
+  assert.equal(moved.forms[1].en, "{{red}} and {{colour-blue}}");
+
+  /* Every turn of a conversation too, which is where a sentence with a
+     hole in it is just as likely to be written. */
+  const scene = { id: "s1", lines: [{ who: 0, ar: "{{colour-red}}?", en: "{{colour-red}}?", lat: "" }] };
+  assert.equal(/** @type {any} */ (renamedIn(scene, "colour-red", "red")).lines[0].en, "{{red}}?");
+
+  /* And the tag on a card that carries it, which is the other half of a
+     group being renamed rather than left as a group of one. */
+  const tagged = { id: "c9", forms: [{ ar: "aṣfar", en: "yellow", lat: "" }], fills: ["colours", "warm"] };
+  assert.deepEqual(/** @type {any} */ (renamedIn(tagged, "colours", "colour")).fills, ["colour", "warm"]);
+  /* Renamed onto a tag it already carries, it is one tag, not two. */
+  assert.deepEqual(/** @type {any} */ (renamedIn(tagged, "colours", "warm")).fills, ["warm"]);
+
+  /* Null where nothing moved, which is the answer for almost every card in
+     a collection: the caller saves what comes back and lets the rest
+     alone. */
+  assert.equal(renamedIn(tagged, "greetings", "hello"), null);
+  assert.equal(renamedIn(asks, "colour-red", "colour-red"), null);
+  assert.equal(renamedIn(asks, "", "red"), null);
+
+  /* The string rule underneath, which knows nothing about cards: only the
+     hole named, and the braces put back the way they are written. */
+  assert.equal(renameSlot("{{ name }} and {{age}}", "name", "who"), "{{who}} and {{age}}");
+  assert.equal(renameSlot("{{Name}}", "name", "who"), "{{who}}");
+  assert.equal(renameSlot("nothing here", "name", "who"), "nothing here");
 });

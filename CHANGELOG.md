@@ -8,6 +8,49 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.175 — 18 September 2026
+
+**Every card now has an ID you choose, and a sentence can ask for one card
+by it.**
+
+Until now a word was borrowed by a sentence through a name you ticked on
+both — "Raphael fills `{{name}}`" — which is the right answer when the hole
+takes any of a set of words, and no answer at all when you want that one
+word in it. So a card now carries an ID of its own, typed by you when you
+write it: put `{{colour-red}}` in a sentence and the card called
+`colour-red` is what goes in the hole.
+
+It is asked for in the Blanks section, under *The card's ID*, and it has to
+be free: while you type, the app checks it against every other card's ID
+and every group tag anybody has written, and says which card has it when
+one does. Nothing is said when the name is free — the field simply turns
+green — and the tick beside it shuts the box, because an ID is written once
+and read a hundred times. The pencil opens it again, which is how a card
+you come back to arrives.
+
+A new card is not saved without one. A card written before this release has
+none, so opening an old card to fix a recording is not a demand to name it
+— but a name that is already taken stops a save whatever the card's age.
+
+**The blanks you tick are now called group tags, which is what they always
+were.**
+
+*Using this card to fill a blank* is *The card's group tags*, with the same
+list in it: tick the groups this card belongs to, and it fills the blank
+each group is named after. Nothing about your cards changed — every tick
+you have made still means what it meant.
+
+**And renaming either one asks what should follow it.**
+
+Rename an ID, or a group tag from the pencil on its row, and the app asks
+one question: change it everywhere, or only here. *Everywhere* rewrites the
+name in every card that writes it — the braces in every field, of every
+form, of every turn — and retags every card in the group. *Only here*
+leaves them alone, which for an ID means the old sentences go on asking for
+a name nothing answers to, and for a tag means this card leaves the group
+for one of the new name. Both are real answers, so neither is the default,
+and the toast afterwards says how many other cards the new name went into.
+
 ## 0.174 — 18 September 2026
 
 **A card with blanks in it now shows five filled examples, under a heading

@@ -113,10 +113,136 @@ export const WORD_SLOT = "word";
 export function fillsOf(card: WithSlots | null | undefined, kind = ""): string[] {
   if (hasSlots(card)) return [];
   const out = fillNames(card);
+  /* And the card's own ID, which is the one name that reaches this card
+     and no other: `{{colour-red}}` is a sentence asking for that word
+     rather than for any word of a kind. See cardRef — the ID is the
+     teacher's, and the same shape as everything else that goes in braces,
+     which is what lets it be written into one. */
+  const own = cardRef(card);
+  if (own && !out.includes(own)) out.push(own);
   if (kind === WORD_SLOT && !out.includes(WORD_SLOT)) out.push(WORD_SLOT);
   const said = String((card && card.category) || "").toLowerCase();
   if (said && !out.includes(said)) out.push(said);
   return out;
+}
+
+/*
+ * A name that can go between braces, narrowed to what a slot may be.
+ *
+ * One rule, in one place: the blanks a card fills, the ID it answers to
+ * and the name a teacher is typing are all the same kind of string, and
+ * they are all matched against the braces in somebody else's card. Lower
+ * case, letters, digits, dash and underscore, and short enough to read on
+ * a phone. Written before it is stored and again on the way in, so what
+ * the editor shows and what the server keeps cannot come apart.
+ */
+export const slotName = (raw: unknown): string =>
+  String(raw == null ? "" : raw)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 24);
+
+/**
+ * The ID a teacher gave this card, as anything asking for it by name
+ * reads it.
+ *
+ * A card has always had an id the app minted, which nobody types and
+ * nobody sees. This is the other one: the name the teacher chooses, so
+ * that a sentence can borrow *this* word rather than a word of a kind —
+ * "{{colour-red}} is heavy". It is narrowed like every other name that
+ * goes in braces and is empty on a card written before the ID was asked
+ * for, which simply fills nothing by name.
+ */
+export const cardRef = (card: WithSlots | null | undefined): string =>
+  slotName(card ? card.ref : "");
+
+/*
+ * Whether a name is already answered to by something else.
+ *
+ * Both halves of the Blanks section put a name between braces — a card's
+ * ID and a group tag — so the two share one namespace and a name has to be
+ * free of both. Comes back as what holds it, so the editor can say which
+ * card that is rather than "taken"; null where the name is free.
+ *
+ * `self` is the card being edited, which is never a clash with itself.
+ * `{{word}}` is spoken for by every word in the language, so nothing may
+ * be called it.
+ */
+export function refClash(
+  name: string,
+  pool: WithSlots[],
+  self = "",
+): { kind: "card" | "group"; card?: WithSlots } | null {
+  const want = slotName(name);
+  if (!want) return null;
+  if (want === WORD_SLOT) return { kind: "group" };
+  for (const card of pool || []) {
+    if (String((card && card.id) || "") === self) continue;
+    if (cardRef(card) === want) return { kind: "card", card };
+    if (fillNames(card).includes(want)) return { kind: "group", card };
+  }
+  return null;
+}
+
+/*
+ * One card, with a name rewritten wherever it is written or ticked.
+ *
+ * What "everywhere" means when a teacher renames an ID or a group tag: the
+ * sentences that ask for it by that name are asking for something that no
+ * longer answers, and a tag renamed on one card is a group of one. So both
+ * are rewritten by the same walk — the braces in every field of every form
+ * and every turn, and the tags a card carries.
+ *
+ * Null where nothing moved, which is the answer for almost every card in
+ * the collection: the caller saves what comes back and lets the rest
+ * alone.
+ */
+export function renamedIn<T extends WithSlots>(card: T, from: string, to: string): T | null {
+  const was = slotName(from);
+  const now = slotName(to);
+  if (!was || !now || was === now || !card) return null;
+  let moved = false;
+  const rewrite = (form: WithSlots): WithSlots => {
+    let next: WithSlots | null = null;
+    for (const field of FILLED_FIELDS) {
+      const written = text(form, field);
+      if (!written) continue;
+      const after = renameSlot(written, was, now);
+      if (after === written) continue;
+      next = next || { ...form };
+      next[field] = after;
+    }
+    if (next) moved = true;
+    return next || form;
+  };
+  const out: Record<string, unknown> = { ...card };
+  if (Array.isArray(card.forms)) out.forms = (card.forms as WithSlots[]).map(rewrite);
+  else {
+    const lead = rewrite(card as WithSlots);
+    if (lead !== card) for (const field of FILLED_FIELDS) out[field] = lead[field];
+  }
+  if (Array.isArray(card.lines)) out.lines = (card.lines as WithSlots[]).map(rewrite);
+  const tags = fillNames(card);
+  if (tags.includes(was)) {
+    const swapped: string[] = [];
+    for (const tag of tags) {
+      const one = tag === was ? now : tag;
+      if (!swapped.includes(one)) swapped.push(one);
+    }
+    out.fills = swapped;
+    moved = true;
+  }
+  return moved ? (out as T) : null;
+}
+
+/** One string, with one slot renamed — `{{name}}` to `{{name-is}}`. */
+export function renameSlot(value: string | null | undefined, from: string, to: string): string {
+  const was = slotName(from);
+  const now = slotName(to);
+  if (!was || !now || was === now) return String(value || "");
+  return String(value || "").replace(SLOT, (whole, name) =>
+    String(name).toLowerCase() === was ? `{{${now}}}` : whole,
+  );
 }
 
 /**
@@ -157,10 +283,7 @@ export function fillNames(card: WithSlots | null | undefined): string[] {
   const raw: unknown[] = Array.isArray(said) ? said : [said];
   const out: string[] = [];
   for (const one of raw) {
-    const name = String(one == null ? "" : one)
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, "")
-      .slice(0, 24);
+    const name = slotName(one);
     if (name && !out.includes(name)) out.push(name);
     if (out.length >= MAX_FILLS) break;
   }

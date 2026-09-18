@@ -67,7 +67,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
-import { fillNames, hasSlots, slotsOf, valuesFor } from "./variables.ts";
+import { cardRef, fillNames, hasSlots, renamedIn, slotsOf, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -4110,6 +4110,15 @@ export function blanksInUse(cards: Card[]): { name: string; leaves: number; fill
     for (const name of slotsOf(c)) row(name).leaves += 1;
     for (const name of fillNames(c)) row(name).fills += 1;
   }
+  /* A card's own ID fills the blank of that name too — but it is not a
+     blank until some sentence asks for it. Counted only where a row
+     already exists, or every card in the collection would be a line in a
+     list of blanks. */
+  for (const c of cards) {
+    const own = cardRef(c);
+    const had = own ? rows.get(own) : null;
+    if (had) had.fills += 1;
+  }
   return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -5074,7 +5083,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, category, decks: inDecks, uses, fills, drill, scene: written }) =>
+        onSave={({ forms, note, name, category, decks: inDecks, uses, fills, ref, spread, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5145,12 +5154,49 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                            and the editor does not offer either field on
                            one. */
                         fills,
+                        /* The ID the teacher gave it, which another
+                           card's blank may ask for by name. */
+                        ref,
                         drill,
                       }),
                 },
                 inDecks
               );
               absorbSaved(r);
+              /*
+               * And the renames the teacher said should follow the name.
+               *
+               * The editor holds one card, so it carries the answer out
+               * rather than reaching for the rest: what it hands back is
+               * the names that moved, and this is where every other card
+               * that writes one is rewritten. No bulk write — the same
+               * `sendOrKeep` every card goes through, in a loop, so a
+               * rename made on a train is kept and sent like anything
+               * else.
+               *
+               * Worked out over a pool rather than the list in hand, so
+               * two renames in one sitting reach the same card twice and
+               * it is saved once, with both.
+               */
+              const saved0 = r && r.card;
+              const pool = new Map(cards.map((c) => [c.id, c] as [string, Card]));
+              const moved = new Set<string>();
+              for (const { from, to } of spread || []) {
+                for (const [id, other] of pool) {
+                  if (saved0 && id === saved0.id) continue;
+                  const next = renamedIn(other, from, to);
+                  if (!next) continue;
+                  pool.set(id, next);
+                  moved.add(id);
+                }
+              }
+              for (const id of moved) {
+                const one = pool.get(id);
+                if (!one) continue;
+                absorbSaved(
+                  await sendOrKeep({ ...one, id, lang: one.lang || "" }, one.decks || []),
+                );
+              }
               setEditing(null);
               /* Whether the card just saved turns up in phrases already
                  written. Counted against the list with the new card in
@@ -5170,6 +5216,10 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                    promise and has to read as one. */
                 kept: !!(r && r.kept),
                 waiting,
+                /* And how many other cards a rename followed the name
+                   into, which is the one thing about this save that
+                   happened somewhere the teacher was not looking. */
+                moved: moved.size,
                 /* And whatever the server had to cut to store it — a
                    thirteenth turn, a fifth speaker. Every one of those
                    caps used to apply in silence, so the only way to find
@@ -5185,9 +5235,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                already written, say so — that is the moment the link is
                worth making, and the alternative is a deck whose coverage
                quietly falls as it grows. */
-            (done: { name: string, kept: boolean, waiting: number, trimmed: string[] }) =>
+            (done: { name: string, kept: boolean, waiting: number, trimmed: string[], moved: number }) =>
               done.kept
                 ? `${done.name} saved on this device — it goes up when you're back online`
+                : done.moved
+                ? `${done.name} saved · the new name went into ${plural(done.moved, "other card")}`
                 : done.trimmed.length
                 ? `${done.name} saved — but ${done.trimmed.join(" and ")} did not fit and ${done.trimmed.length === 1 ? "was" : "were"} left out`
                 : done.waiting

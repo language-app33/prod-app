@@ -3990,6 +3990,76 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     return true;
   };
   const saveBtn = () => /** @type {any} */ (buttonNamed(/^Save$|^Saving…$/) || null);
+
+  /* ---- the card's ID ----
+
+     The other way a blank is filled. A group tag is a set of words a
+     sentence will take any of; a card's own ID is the name that reaches
+     that one word — "{{colour-red}} is heavy". So every new card is asked
+     for one, it is checked against everything else that answers to a name
+     while the teacher is still looking at it, and it is shut with a tick
+     once it is free. */
+  {
+    const idBox = () => /** @type {any} */ (
+      [...document.querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === "The card's ID") || null);
+    const withLabel = (/** @type {string} */ label) => /** @type {any} */ (
+      [...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === label) || null);
+    const idName = () => (((document.querySelector(".at-idname") || {}).textContent) || "").trim();
+
+    check("a new card is asked for an ID", !!idBox(),
+      idBox() ? "asked" : "no such field");
+    check("and is not saved without one",
+      !!saveBtn() && saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+
+    /* Narrowed as it is typed to what can go between braces, so a teacher
+       typing "Name Is!" is not handed "nameis" by a save they have already
+       forgotten about. */
+    typeInto(idBox(), "Name Is!");
+    await sleep(200);
+    check("what is typed is narrowed to what a blank can be called",
+      /Kept as/.test((document.body.textContent || "")) &&
+        /nameis/.test((document.body.textContent || "")),
+      ([...document.querySelectorAll(".at-hint")].map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /^Kept as/.test(t))) || "(nothing said)");
+
+    /* A name a group tag already answers to is taken: both go between
+       braces, so they are one namespace or they are two cards answering to
+       one name. Nothing is said about a name that is free — the rim is the
+       whole of "yes". */
+    typeInto(idBox(), "name");
+    await sleep(200);
+    check("a name something else answers to is refused, and says so",
+      /already/.test((document.body.textContent || "")) && !!withLabel("Lock this ID") &&
+        withLabel("Lock this ID").disabled,
+      ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /already/.test(t))) || "(nothing said)");
+
+    typeInto(idBox(), "name-is");
+    await sleep(200);
+    check("and a free one lights the tick, with nothing else said",
+      !!withLabel("Lock this ID") && !withLabel("Lock this ID").disabled,
+      withLabel("Lock this ID") ? "offered" : "no tick");
+
+    /* The tick shuts the box, which is the state a saved card opens in —
+       an ID is written once and read a hundred times, and a box you can
+       type in is a box you can type in by accident. */
+    click(withLabel("Lock this ID"));
+    await sleep(250);
+    check("the tick shuts the box and the ID is read rather than typed",
+      !idBox() && idName() === "name-is",
+      idName() || "(still a field)");
+    check("and the pencil opens it again", !!withLabel("Edit this ID"),
+      withLabel("Edit this ID") ? "there" : "no way back in");
+    click(withLabel("Edit this ID"));
+    await sleep(250);
+    check("which puts the name back in the box, as it was",
+      !!idBox() && idBox().value === "name-is",
+      idBox() ? idBox().value : "(no field)");
+    click(withLabel("Lock this ID"));
+    await sleep(250);
+  }
+
   typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
   await sleep(80);
   typeInto(fieldNamed(/^English$/), "My name is {{name}}");
@@ -4037,7 +4107,8 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       ]);
     const HOLES = /^Blanks in this card$/;
     const SHOWN = /^Examples of this card with filled blanks$/;
-    const FILLS = /^Using this card to fill a blank$/;
+    const CARDID = /^The card’s ID$/;
+    const FILLS = /^The card’s group tags$/;
 
     check("the section is called Blanks, not Variables", !!blanks(),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
@@ -4250,10 +4321,24 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     {
       const groups = () => [...((blanks() || document).querySelectorAll(".at-groupline"))]
         .map((g) => (g.textContent || "").trim());
-      check("the section is two named halves, not one block doing two jobs",
+      /* Three named parts rather than one block doing three jobs: what
+         this card leaves open, the name it answers to, and the groups it
+         is in. The last two are both about being borrowed, which is why
+         they are neighbours under one heading rather than a field at the
+         top of the screen and a list at the bottom. */
+      check("the section is named parts, not one block doing several jobs",
         groups().includes("Blanks in this card") &&
-          groups().includes("Using this card to fill a blank"),
+          groups().includes("The card’s ID") &&
+          groups().includes("The card’s group tags"),
         groups().join(" | ") || "(no headings)");
+      /* And the ID is one of them rather than a field at the top of the
+         screen: what it is for is filling somebody else's blank, so it is
+         read beside the groups that do the same job. */
+      const idHalf = () => inHalf(CARDID, ".at-hint, .at-idrow")
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
+      check("the ID is one of them, with the line saying what it is for",
+        /fill a blank in another card/.test(idHalf()) && /name-is/.test(idHalf()),
+        idHalf() || "(nothing there)");
       /* A card with a blank of its own fills none — a sentence dropped
          into somebody else's hole is a sentence with a gap where the point
          was — so the half that offers it says why rather than offering a
@@ -4280,14 +4365,14 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       const ticked = () => fillList()
         .filter((r) => /** @type {any} */ (r.querySelector("input")).checked)
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
-      check("the blanks it can fill are a list on the screen, not a menu to open",
+      check("the groups it can join are a list on the screen, not a menu to open",
         fillList().length > 0 && !inHalf(FILLS, ".at-choosebtn").length,
         fillNames().join(", ") || "(no list)");
       /* And blank ids, not kinds of card. A card fills {{noun}} by saying
          it is a noun, so a tick for it would do nothing — while {{name}},
          which this language also declares as a kind of word, is the oldest
          blank in the app and has to stay. Written, not built in. */
-      check("and they are the blank ids somebody wrote, not the kinds of card",
+      check("and they are the group tags somebody wrote, not the kinds of card",
         fillNames().includes("name") &&
           !["word", "noun", "verb", "adjective", "pronoun", "preposition"]
             .some((kind) => fillNames().includes(kind)),
@@ -4299,7 +4384,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       /* And the box that names a new one, above the list rather than at
          the bottom of a menu: naming the first blank of a kind is the one
          thing here nobody can do by choosing. */
-      check("the box that names a new blank is on the screen too",
+      check("the box that names a new group is on the screen too",
         !!newBox() && !!newBox().querySelector("input"),
         newBox() ? "there" : "still behind a button");
       check("and above the list, where it is reached without scrolling past it",
@@ -4322,7 +4407,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       click([...newBox().querySelectorAll("button")]
         .find((b) => /^Add$/.test((b.textContent || "").trim())));
       await sleep(300);
-      check("a blank nobody has named yet is typed in, and joins the list ticked",
+      check("a group nobody has named yet is typed in, and joins the list ticked",
         JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
         ticked().join(", ") || "(none ticked)");
       check("with every one of them named in what the card is for",
@@ -4343,6 +4428,49 @@ check("no console errors during the session", errors.length === 0, errors.slice(
       check("down to none, which is what an ordinary card is",
         ticked().length === 0 && fillNames().includes("name"),
         ticked().join(", ") || "(none ticked)");
+
+      /* ---- renaming one ----
+
+         A group tag is a name several cards share and the only place a
+         misspelt one is visible is a card that carries it, so the pencil
+         that renames it is on the row. What it asks is the one question a
+         rename has: does the new name follow into every card that writes
+         it, or does this card alone move? */
+      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      await sleep(250);
+      const pencil = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        (fillRow(re) ? fillRow(re).parentElement : document)
+          .querySelector('button[aria-label^="Rename the group"]') || null);
+      click(pencil(/^name$/));
+      await sleep(250);
+      const renameBox = () => /** @type {any} */ (inHalf(FILLS, ".at-tagrow input.at-input")[0] || null);
+      check("the pencil on a tag opens its name for editing, in place",
+        !!renameBox() && renameBox().value === "name",
+        renameBox() ? renameBox().value : "(no box)");
+      typeInto(renameBox(), "names");
+      await sleep(150);
+      click([...document.querySelectorAll("button")]
+        .find((b) => b.getAttribute("aria-label") === "Rename the group name"));
+      await sleep(300);
+
+      const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
+      const modalBtns = () => modal() ? [...modal().querySelectorAll("button")] : [];
+      const modalBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        modalBtns().find((b) => re.test((b.textContent || "").trim())) || null);
+      check("renaming a tag asks whether the name follows it everywhere",
+        !!modal() && !!modalBtn(/^Change it everywhere$/) && !!modalBtn(/^Only here$/),
+        modalBtns().map((b) => (b.textContent || "").trim()).join(" | ") || "(nothing asked)");
+
+      /* Answered the narrow way: this card leaves the group for one of the
+         new name, and every other card that carries the old one is left
+         exactly as it was. */
+      click(modalBtn(/^Only here$/));
+      await sleep(300);
+      check("and answering “only here” moves this card alone",
+        JSON.stringify(ticked()) === JSON.stringify(["names"]) && fillNames().includes("name"),
+        `${ticked().join(", ") || "(none ticked)"} · offered ${fillNames().join(", ")}`);
+      click(/** @type {any} */ (fillRow(/^names$/).querySelector("input")));
+      await sleep(250);
     }
   }
 

@@ -36,7 +36,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
-import { fillNames, fillText, hasSlots, MAX_FILLS, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
+import { cardRef, fillNames, fillText, hasSlots, MAX_FILLS, refClash, slotName, slotsOf, slotTrouble, valuesFor, valuesForTurn, WORD_SLOT } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -58,6 +58,7 @@ import {
   Segmented,
   plural,
   useOffline,
+  ConfirmModal,
 } from "./shared.tsx";
 
 /* A blank form carries every grammatical value any language might use, so a
@@ -1735,6 +1736,112 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     );
   const dropFill = (name: string) => setFills((was) => was.filter((had) => had !== name));
   /*
+   * The ID this card answers to, the box it is typed in, and whether that
+   * box is shut.
+   *
+   * Shut is the state a saved card opens in: an ID is written once and
+   * read a hundred times, and a box you can type in is a box you can type
+   * in by accident. It opens on the pencil and shuts on the tick, and the
+   * tick only lights on a name nobody else answers to — which is the whole
+   * of what "unique" means here, said while the teacher is still looking
+   * at it rather than by a refusal at save.
+   */
+  const savedRef = useMemo(() => cardRef(card), [card]);
+  const [ref, setRef] = useState<string>(savedRef);
+  const [refOpen, setRefOpen] = useState<boolean>(!savedRef);
+  const refName = slotName(ref);
+  /* What already answers to the name being typed — another card's ID, or a
+     group tag. Both go between braces, so a name is free of both or it is
+     not free. */
+  const refHeld = useMemo(
+    () => (refName ? refClash(refName, (allCards || []) as unknown as Record<string, unknown>[], (card && card.id) || "") : null),
+    [refName, allCards, card],
+  );
+  const refFree = !!refName && !refHeld;
+  /* The same question asked of any name, for the other half of the
+     section: a group tag renamed onto a card's ID would be two things
+     answering to one `{{x}}`, which is the whole of what the ID is for
+     preventing. */
+  const nameHeld = (name: string) =>
+    refClash(name, (allCards || []) as unknown as Record<string, unknown>[], (card && card.id) || "");
+  /*
+   * A rename the teacher has said should follow the name everywhere.
+   *
+   * The editor cannot save anybody else's card and does not try to: it
+   * carries the answer out with the card being saved, and the screen that
+   * owns the collection does the walking. See writtenCard.
+   */
+  const [spread, setSpread] = useState<{ from: string; to: string }[]>([]);
+  /*
+   * One entry per name the rest of the collection still knows, whatever
+   * the teacher does to it before saving.
+   *
+   * Renaming twice in a sitting is two answers to one question, and kept
+   * as two entries they would fight: `a → b` followed by `a → c` rewrites
+   * the other cards to b and then finds no a left to make c, leaving this
+   * card called c and everything pointing at b. So a second rename of the
+   * same name replaces the first, a rename of where one landed extends it,
+   * and a name renamed back to itself is not a rename at all.
+   */
+  const spreadWith = (from: string, to: string) =>
+    setSpread((was) => {
+      const same = was.findIndex((r) => r.from === from);
+      const chain = was.findIndex((r) => r.to === from);
+      const next =
+        same >= 0
+          ? was.map((r, i) => (i === same ? { from, to } : r))
+          : chain >= 0
+            ? was.map((r, i) => (i === chain ? { ...r, to } : r))
+            : was.concat([{ from, to }]);
+      return next.filter((r) => r.from !== r.to);
+    });
+  /* The question itself, while it is up: what is being renamed, from what,
+     to what. Null the rest of the time, which is almost always. */
+  const [asking, setAsking] = useState<{ kind: "id" | "group"; from: string; to: string } | null>(null);
+  /* Shutting the box on a name that differs from the saved one is a
+     rename, and a rename is a question. A card being given its first ID is
+     not: there is nowhere for the old name to still be written. */
+  const shutRef = () => {
+    if (!refFree) return;
+    if (savedRef && savedRef !== refName) setAsking({ kind: "id", from: savedRef, to: refName });
+    else setRefOpen(false);
+  };
+  const openRef = () => setRefOpen(true);
+  /* And the same question for a group tag, asked from the row it is on. */
+  const renameFill = (from: string, to: string) => {
+    const now = slotName(to);
+    if (!from || !now || now === from) return;
+    setAsking({ kind: "group", from, to: now });
+  };
+  const swapFill = (from: string, to: string) =>
+    setFills((was) => {
+      const out: string[] = [];
+      for (const had of was) {
+        const one = had === from ? to : had;
+        if (!out.includes(one)) out.push(one);
+      }
+      return out;
+    });
+  /*
+   * The answer.
+   *
+   * *Everywhere* is the rename following the name into every card that
+   * writes it or carries it; *here* leaves those cards alone, which for an
+   * ID means the sentences go on asking for the old name and nothing
+   * answers, and for a tag means this card leaves the group rather than
+   * the group being renamed. Both are real answers, so both are offered
+   * and neither is the default.
+   */
+  const answerAsk = (everywhere: boolean) => {
+    const ask = asking;
+    if (!ask) return;
+    if (everywhere) spreadWith(ask.from, ask.to);
+    if (ask.kind === "group") swapFill(ask.from, ask.to);
+    else setRefOpen(false);
+    setAsking(null);
+  };
+  const dropAsk = () => setAsking(null);
+  /*
    * Whether it is practised in its own right — and null where nobody has
    * said, which is every new card.
    *
@@ -1966,7 +2073,19 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   );
   const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
-  const canSave = canSaveWord(main, trouble);
+  /*
+   * And the ID, which a card cannot be saved without.
+   *
+   * Asked of a new card, because that is the moment the teacher is naming
+   * the thing and the moment nothing else points at it yet. An older card
+   * carries none until somebody opens it and gives it one, so editing a
+   * recording on a card written last year is not a demand to name it —
+   * but a name that is *taken* stops a save whatever the card's age,
+   * because two cards answering to one name is the one thing the ID is
+   * for preventing.
+   */
+  const refOk = (!refName || refFree) && (!!card || scene || refFree);
+  const canSave = canSaveWord(main, trouble) && refOk;
 
   /* Another form, named so that its own cells can point at it. No number
      override beyond the name: blankForm takes the language's declared
@@ -2086,6 +2205,21 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     addFill,
     dropFill,
     fillsOffer,
+    ref,
+    setRef,
+    refName,
+    refHeld,
+    refFree,
+    refOpen,
+    openRef,
+    shutRef,
+    savedRef,
+    nameHeld,
+    renameFill,
+    asking,
+    answerAsk,
+    dropAsk,
+    spread,
     setDrillChoice,
     drill,
     uses,
@@ -2987,9 +3121,227 @@ function BlankChip({ slot, values, lang }: {
   );
 }
 
+/*
+ * The card's ID: typed once, then shut.
+ *
+ * Two states and one control between them. Open, it is a box with a tick
+ * beside it, and the tick lights only on a name nobody else answers to —
+ * so the check that matters is made while the teacher is looking at the
+ * name rather than by a refusal after they have moved on. Shut, it is the
+ * name with a pencil beside it, which is what a saved card opens as.
+ *
+ * What it says back is as short as it can be. A name that is free gets no
+ * congratulation: the green rim is the whole of "yes", and the only
+ * sentence here is the one for a name that is already taken, which names
+ * what has it.
+ */
+function IdBox({ word }: { word: WordDraft }) {
+  const { ref, setRef, refName, refHeld, refFree, refOpen, openRef, shutRef } = word;
+  const lead = refHeld && refHeld.card ? leadOf(refHeld.card) : null;
+  const who = lead ? [lead.en, lead.ar].filter(Boolean).join(" · ") : "";
+  return (
+    <>
+      <Help>
+        This ID will be used to use this card to fill a blank in another card.
+      </Help>
+      {refOpen ? (
+        <>
+          <div className="at-idrow">
+            <input
+              className={`at-input${refFree ? " ok" : refHeld ? " no" : ""}`}
+              value={ref}
+              aria-label="The card's ID"
+              placeholder="colour-red"
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(e) => setRef(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && shutRef()}
+            />
+            <IconButton
+              icon="check"
+              label="Lock this ID"
+              disabled={!refFree}
+              onClick={shutRef}
+            />
+          </div>
+          {refHeld && (
+            <p className="at-formneed unmet">
+              {refHeld.kind === "card"
+                ? `Taken — ${who || "another card"} already has this ID. Choose another.`
+                : "Taken — a group tag already answers to this name. Choose another."}
+            </p>
+          )}
+          {refName && refName !== ref && (
+            <Help>
+              Kept as <code>{refName}</code> — lower case letters, numbers, - and
+              _ only.
+            </Help>
+          )}
+        </>
+      ) : (
+        <div className="at-idrow shut">
+          <Icon name="key" />
+          <span className="at-idname">{refName}</span>
+          <IconButton icon="edit" label="Edit this ID" onClick={openRef} />
+        </div>
+      )}
+    </>
+  );
+}
+
+/*
+ * The groups this card is in, each with the pencil that renames it.
+ *
+ * A tick list with a second control on every row, which is why it is not
+ * the shared CheckList: the tick and the pencil are different questions
+ * about the same tag — is this card in it, and is the tag called the right
+ * thing — and a row that answered the second by being tapped anywhere
+ * would rename a group every time somebody meant to join one.
+ *
+ * Renaming opens in place, over the row: a group is a name two cards agree
+ * on, and the only place a misspelt one is visible is a card that has it.
+ */
+function TagList({ word, rows }: {
+  word: WordDraft;
+  rows: { name: string; used: number; wrote: number }[];
+}) {
+  const { fills, addFill, dropFill, renameFill, nameHeld } = word;
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  /* A tag may be renamed onto another tag — two groups becoming one is a
+     thing a teacher may mean — but never onto a card's ID, which would
+     leave two different things answering to one `{{x}}`. */
+  const clash = renaming ? nameHeld(slotName(renaming.to)) : null;
+  const canRename = !!renaming && !!slotName(renaming.to) &&
+    slotName(renaming.to) !== renaming.from && (!clash || clash.kind === "group");
+  if (!rows.length) {
+    return (
+      <p className="at-hint">
+        No group has been named yet. Type one above — the first of its kind has
+        to be named by somebody.
+      </p>
+    );
+  }
+  return (
+    <div className="at-ticklist">
+      {rows.map((b) => {
+        const on = fills.includes(b.name);
+        if (renaming && renaming.from === b.name) {
+          return (
+            <div className="at-tagrow" key={b.name}>
+              <input
+                className="at-input"
+                value={renaming.to}
+                aria-label={`A new name for the group ${b.name}`}
+                autoFocus
+                onChange={(e) => setRenaming({ from: b.name, to: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setRenaming(null);
+                  if (e.key !== "Enter" || !canRename) return;
+                  renameFill(b.name, renaming.to);
+                  setRenaming(null);
+                }}
+              />
+              <IconButton
+                icon="check"
+                label={`Rename the group ${b.name}`}
+                disabled={!canRename}
+                onClick={() => {
+                  renameFill(b.name, renaming.to);
+                  setRenaming(null);
+                }}
+              />
+              <IconButton icon="close" label="Leave the name as it is" onClick={() => setRenaming(null)} />
+            </div>
+          );
+        }
+        return (
+          <div className="at-tagrow" key={b.name}>
+            <label className="at-tickrow">
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={() => (on ? dropFill(b.name) : addFill(b.name))}
+              />
+              <span className="at-tickbody">
+                <b>{b.name}</b>
+                {/* Two facts, each of which is a reason to tick or not:
+                    how many sentences would borrow this word, and whether
+                    anybody else's card is already standing in that hole. */}
+                <i>
+                  {[
+                    b.used ? `left by ${plural(b.used, "card")}` : "no card leaves it yet",
+                    b.wrote ? `${plural(b.wrote, "card")} already fill it` : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </i>
+              </span>
+            </label>
+            <IconButton
+              icon="edit"
+              label={`Rename the group ${b.name}`}
+              onClick={() => setRenaming({ from: b.name, to: b.name })}
+            />
+          </div>
+        );
+      })}
+      {/* Said rather than left as a tick that will not press. Two groups
+          becoming one is allowed and this is the case that is not: a card
+          answers to that name already. */}
+      {clash && clash.kind === "card" && (
+        <p className="at-formneed unmet">
+          A card&rsquo;s ID is that name already, and one <code>{`{{${slotName((renaming || { to: "" }).to)}}}`}</code> cannot
+          be two things.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/*
+ * The one question a rename has to ask.
+ *
+ * A name is written in two sorts of place: on this card, and in every
+ * other card that asks for it. Changing it here and nowhere else is a
+ * real answer — a tag renamed on one card is that card leaving the group,
+ * and an ID renamed alone is a card that has been given a new name while
+ * the old sentences go on asking for the old one — and so is changing it
+ * everywhere. Neither is safe to assume, so neither is the default and
+ * both buttons say what they will do rather than yes and no.
+ */
+function RenameAsk({ word }: { word: WordDraft }) {
+  const { asking, answerAsk, dropAsk } = word;
+  if (!asking) return null;
+  const what = asking.kind === "id" ? "ID" : "group tag";
+  return (
+    <ConfirmModal
+      danger={false}
+      title={`Rename this ${what}?`}
+      body={
+        <>
+          <p>
+            <code>{`{{${asking.from}}}`}</code> becomes{" "}
+            <code>{`{{${asking.to}}}`}</code>.
+          </p>
+          <p>
+            {asking.kind === "id"
+              ? "Other cards ask for this one by its ID. Change it everywhere and those sentences follow it; change it only here and they go on asking for the old name, which nothing will answer to."
+              : "A group tag is a name several cards share. Change it everywhere and every card in the group is renamed with it; change it only here and this card leaves the group for one of the new name."}
+          </p>
+        </>
+      }
+      altLabel="Only here"
+      onAlt={() => answerAsk(false)}
+      confirmLabel="Change it everywhere"
+      onCancel={dropAsk}
+      onConfirm={() => answerAsk(true)}
+    />
+  );
+}
+
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
-    holes, starved, asked, fillers, fills, fillsOffer, addFill, dropFill,
+    holes, starved, asked, fillers, fills, fillsOffer, addFill,
     main, trouble, drill, setDrillChoice, category,
   } = word;
   /* A card with a blank of its own fills none — see fillsOf, which is the
@@ -3152,12 +3504,23 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </>
         )}
 
+        {/* ---- the card's ID ----
+
+            The name this one card answers to, which is the other half of
+            how a blank is filled: a group is a set of words a sentence
+            will take any of, and this is the one word it asks for. Here
+            rather than at the top of the screen because that is what it is
+            for — a teacher looking for how this card gets borrowed finds
+            both answers in one section. */}
+        <p className="at-groupline">The card&rsquo;s ID</p>
+        <IdBox word={word} />
+
         {/* The other job. Named and always on screen, so that a teacher
             looking for where a word is offered to other cards finds the
             question rather than the absence of it — on a card that leaves
             a blank of its own, what they find is the reason there is
             nothing to answer. */}
-        <p className="at-groupline">Using this card to fill a blank</p>
+        <p className="at-groupline">The card&rsquo;s group tags</p>
 
         {!canFill ? (
           <Help>
@@ -3174,49 +3537,38 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               </p>
             )}
 
+            <Help>
+              Select which group this card should belong to so it fills cards
+              that tag those groups in blank spaces
+            </Help>
+
             {/* The box that names one, at the top and always there.
                 It was the last thing in a menu that had to be opened, under
-                a list — so naming the first blank of a kind, which is the
-                one thing on this screen nobody can do by choosing, was the
-                hardest thing on it to reach. */}
+                a list — so naming the first group, which is the one thing
+                on this screen nobody can do by choosing, was the hardest
+                thing on it to reach. */}
             {!holes.length && !full && (
               <BlankNameBox
-                label="Name a blank this card fills"
-                placeholder="A new blank, like name-is"
+                label="Name a group this card joins"
+                placeholder="A new group, like colours"
                 taken={offered.map((b) => b.name)}
                 onName={addFill}
               />
             )}
 
-            {/* And every blank there is, on the screen rather than behind a
-                button: which blanks a word is offered to is the question
-                this half of the section exists to ask, and a list you have
-                to open to see is a list you answer without reading. */}
-            <CheckList
-              options={offered.map((b) => ({
-                id: b.name,
-                title: b.name,
-                /* Two facts, each of which is a reason to tick or not:
-                   how many sentences would borrow this word, and whether
-                   anybody else's card is already standing in that hole. */
-                note: [
-                  b.used ? `left by ${plural(b.used, "card")}` : "no card leaves it yet",
-                  b.wrote ? `${plural(b.wrote, "card")} already fill it` : "",
-                ].filter(Boolean).join(" · "),
-              }))}
-              chosen={fills}
-              onToggle={(id, wasOn) => (wasOn ? dropFill(id) : addFill(id))}
-              empty={
-                holes.length
-                  ? "This card fills none."
-                  : "No blank has been named yet. Type one above — the first of its kind has to be named by somebody."
-              }
-            />
+            {/* And every group there is, on the screen rather than behind a
+                button: which groups a word is in is the question this half
+                of the section exists to ask, and a list you have to open to
+                see is a list you answer without reading. Each carries the
+                pencil that renames it, because a tag is a name two cards
+                agree on and a misspelt one is only findable from a card
+                that has it. */}
+            <TagList word={word} rows={offered} />
 
             {full && (
               <Notice kind="warn">
-                That is as many blanks as one card may fill. Take one off to
-                name another.
+                That is as many groups as one card may be in. Take one off to
+                join another.
               </Notice>
             )}
 
@@ -3270,6 +3622,10 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           </>
         )}
       </div>
+      {/* And the question a rename asks, over the whole app: it is about
+          cards this screen is not editing, so it cannot be answered
+          beside the row it came from. */}
+      <RenameAsk word={word} />
     </>
   );
 }
@@ -3350,7 +3706,7 @@ export function writtenCard({ word, talk, shape, chosen }: {
   chosen: string[];
 }) {
   const scene = shape === "scene";
-  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, drill, category } = word;
+  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, drill, category, refName, spread } = word;
   return {
     forms: shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms,
     note,
@@ -3363,6 +3719,14 @@ export function writtenCard({ word, talk, shape, chosen }: {
     decks: chosen,
     uses,
     fills,
+    /* The ID the teacher gave it, which another card's blank may ask for
+       by name. A conversation is not borrowed by anybody — its turns are
+       the lesson — so it carries none. */
+    ref: scene ? "" : refName,
+    /* And the renames the teacher said should follow the name into every
+       other card. The editor holds one card and saves one card; this is
+       what it hands the screen that holds the rest. */
+    spread: scene ? [] : spread,
     drill,
     scene: scene
       ? { title: talk.title.trim(), setting: talk.setting.trim(), speakers: talk.speakers, you: talk.you, lines: talk.written }
@@ -3695,7 +4059,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, decks: string[], uses: string[], fills: string[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;

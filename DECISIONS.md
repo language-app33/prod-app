@@ -2304,3 +2304,64 @@ decision rather than being smuggled in beside this one.
 learner and reports what a course costs in days. It did not catch this,
 because every case in it sat down once or twice a day. It now has one that
 sits down thirty times.
+
+---
+
+## A card's ID is a second name, not the id it is stored under
+
+**18 September 2026** · `src/variables.ts` (`cardRef`, `refClash`,
+`renamedIn`), `src/card-editor.tsx`, `server/api/courses.js`
+
+A teacher can now name a card and have a sentence ask for it: write
+`{{colour-red}}` in a frame and that one card fills the hole. The obvious
+implementation is to let the teacher type the card's `id` — the app already
+mints one, the server already takes whatever id the client sends, and a
+document key is unique by construction.
+
+**Why it is a separate field.** Because the name has to be *changeable*, and
+the id cannot be. A card's id is written into the decks that hold it, into
+the `uses` of every phrase that teaches it, and into every student's
+schedule on every device they own — none of which the server can rewrite
+and the last of which it cannot even read. Renaming a stored document would
+therefore either lose a learner's progress or need a migration reaching into
+private documents the server has no key for. `ref` is a field like any
+other: renaming it costs one save, and the only thing pointing at it is the
+braces in other teachers' cards, which are the teacher's own text and can be
+rewritten with their consent.
+
+The cost is two identifiers for one card, and the confusion that invites.
+It is held down by nobody ever seeing the first: the id appears in no
+screen, and `cardRef` is the one answer to "what does this card answer to".
+
+**Why uniqueness is checked in the editor and not enforced by the server.**
+The check the teacher needs is the one made while they are still looking at
+the name, and that is a client check — the editor already holds every card
+they can see. A server check would mean reading the whole collection on
+every card save, and the failure it prevents is mild: two cards answering
+to one name is two cards filling one blank, which is what a group tag
+already is. So the server narrows the string and stores it, and the editor
+is where a name is refused.
+
+**Why an ID and a group tag share one namespace.** Both are what a sentence
+writes between braces, so `{{x}}` has to have one answer. `refClash` refuses
+a name that either an ID or a tag already answers to — which means the
+editor can say *which* card has it, rather than "taken".
+
+**Why a rename asks rather than deciding.** Changing a name in one place and
+not the other is a real intention — a card leaving a group, or a card being
+given a new name while the old sentences are meant to break loudly — and so
+is changing it everywhere. Guessing either way silently edits cards the
+teacher was not looking at, or silently leaves sentences pointing at
+nothing. So both answers are offered in words, on the modal, and neither is
+the default. `renamedIn` does the rewriting, returns null for a card nothing
+moved in, and is a plain function so a test can ask it without a screen; the
+editor carries the answer out with the card being saved, because an editor
+that could save other people's cards is an editor with the whole collection
+in scope.
+
+**What it costs.** A rename of a common tag is one save per card that
+carries it, in a loop, through the same offline-safe path a single save
+takes — so a rename made on a train is dozens of kept requests. That is
+accepted: the alternative is a bulk endpoint, which is a second way to write
+a card and a second place for the rules about what a card may contain to
+live.
