@@ -8,6 +8,42 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.193 — 19 September 2026
+
+**Writing a card is one sheet now, not a stack of boxes.** Every section of
+the card editor used to be a rounded box sitting on the page's grey, so a
+field you were typing in was inside a panel, inside a box, inside the page —
+three frames to unpick before you reached the thing you were reading. The
+boxes were also charging you about a word's worth of every line for their
+own edges and corners, which on a phone is what you notice first.
+
+The sections run the full width of the screen now, and what tells one from
+the next is a rule straight across with room either side of it. The one
+frame left is the panel around a subsection — a form's own fields, the table
+of endings on a word — so a box on this screen now means one thing only:
+that what is in it sits inside something else.
+
+**And a section says what it is.** The name of a section is set at the size
+of a heading, with what it is for on the line underneath in grey, where the
+two used to share a line and compete. A field's name is a size up with it,
+and every field on the screen now sits the same distance from its
+explanation and from the box you type in.
+
+**What kind of card it is, said rather than implied.** The first section is
+called "This card", and it opens with the type — word or phrase, sentence,
+conversation — shown the way every answered question on the screen is shown:
+the answer, read, with a padlock where a question you can still change wears
+a pencil. It was a line of grey beside the heading with two paragraphs under
+it explaining that it could not be changed.
+
+**Decks are the decks, not a count of them.** "2 decks" told you how many and
+never which, and taking a card out of one meant opening a list and hunting
+for the tick that was already on. Each deck the card is in is now a pill of
+its own, with the cross that takes the card out of that deck on the pill.
+While the card is in none — a card no student will ever see — what stands
+there is a dashed outline saying "Add this card to a deck", which opens your
+decks to pick from.
+
 ## 0.192 — 19 September 2026
 
 **Opening a card to look at it now shows everything the card holds.** It was

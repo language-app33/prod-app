@@ -2962,7 +2962,7 @@ export function useScrollTop(key: unknown) {
  *   which says it is a step to the side of what is underneath rather than
  *   somewhere new.
  */
-export function Screen({ title, onBack, action, children, footer, backLabel = "Back", rise }: {
+export function Screen({ title, onBack, action, children, footer, backLabel = "Back", rise, className = "" }: {
   title?: Node;
   onBack?: () => void;
   action?: Node;
@@ -2970,6 +2970,11 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
   footer?: Node;
   backLabel?: string;
   rise?: boolean;
+  /** A name for what this screen is, where it lays its contents out its own
+      way — `cardform` is the card editor, whose sections run the full width
+      of the sheet. The stylesheet is where that layout lives; this is only
+      how a screen says which one it is. */
+  className?: string;
 }) {
   const self: React.MutableRefObject<{ el: Element | null, close?: () => void }> = useRef({ el: null });
   /* The screen's own element, so the stack can be checked against the
@@ -3032,7 +3037,7 @@ export function Screen({ title, onBack, action, children, footer, backLabel = "B
      and no z-index of its own, so it is not a stacking context — mounting
      inside it escapes the space's layer while staying in the theme. */
   const view = (
-    <div className={`at-screen over${rise ? " rise" : ""}`} ref={elRef} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
+    <div className={`at-screen over${rise ? " rise" : ""}${className ? " " + className : ""}`} ref={elRef} role="dialog" aria-modal="true" aria-label={typeof title === "string" ? title : undefined}>
       <div className="at-screenhead">
         {onBack ? (
           <button className="at-back" onClick={onBack} aria-label={backLabel}>

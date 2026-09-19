@@ -3699,6 +3699,12 @@ const wordKindBtn = () => /** @type {any} */ ([...document.querySelectorAll(".at
   .find((b) => /^What kind of word/.test(b.getAttribute("aria-label") || "")) || null);
 const wordKindPencil = () => /** @type {any} */ ([...document.querySelectorAll("button")]
   .find((b) => b.getAttribute("aria-label") === "Change what kind of word this is") || null);
+/* What the word-kind row is showing, read off the row the pencil is on:
+   the card's own type wears the same shut row, one section above. */
+const wordKindSaid = () => {
+  const row = wordKindPencil() ? wordKindPencil().closest(".at-shutrow") : null;
+  return ((row && row.querySelector(".at-shutname") || {}).textContent || "").trim();
+};
 const formRows = () => [...document.querySelectorAll(
   '[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')];
 const openWordKind = async () => {
@@ -3771,7 +3777,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      conversation. A screen called "Edit conversation" said the opposite. */
   check("it is still the card editor, saying which kind of card this is",
     /^Edit card$/.test(heading.trim()) &&
-      /The kind of card/.test(document.body.textContent || ""),
+      /This card/.test(document.body.textContent || ""),
     heading.trim() || "(no title)");
   /* And written the same way. A column of identical blocks made a teacher
      read the "who says it" picker on every one to see the shape of what
@@ -3960,7 +3966,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     screenTitle() === "New word or phrase", screenTitle() || "(no editor)");
   check("which says what kind of card it is and does not ask again",
     !document.querySelector('[role="group"][aria-label="The kind of card"]') &&
-      /settled when it was made/.test(document.body.textContent || ""),
+      /The type of card cannot be changed/.test(document.body.textContent || ""),
     document.querySelector('[role="group"][aria-label="The kind of card"]')
       ? "still asked" : "said, not asked");
   /* And, underneath, what kind of word it is — which is a second question
@@ -4004,50 +4010,67 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      top rather than the section of ticks that used to be several hundred
      pixels below, under everything about the words. */
   {
-    /* Named rather than taken as the first chooser on the screen: what
-       kind of word a card is wears the same pill since 0.183, and the
-       first one is now that. */
-    const deckBtn = () => /** @type {any} */ ([...document.querySelectorAll(".at-choosebtn")]
-      .find((b) => /^Decks/.test(b.getAttribute("aria-label") || "")) || null);
-    check("a new card says where it goes, at the top", !!deckBtn(),
-      deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
+    /* The outline of a pill that is not there yet. It is the whole of the
+       control while the card is in nothing, and it says what pressing it
+       is for rather than what the state is — "In no deck" was a true
+       thing to read and no invitation to do anything about it. */
+    const addBtn = () => /** @type {any} */ (document.querySelector(".at-deckadd"));
+    const pills = () => [...document.querySelectorAll(".at-deckpill .nm")]
+      .map((n) => (n.textContent || "").trim());
+    check("a new card says where it goes, at the top", !!addBtn(),
+      addBtn() ? (addBtn().textContent || "").trim() : "no button");
     /* A section of its own, directly under what kind of card this is: it
        is a fact about the card rather than about the kind, and at the foot
        of that block it read as one more thing about the kind. */
     const named = () => [...document.querySelectorAll(".at-formblock .at-formnum")]
       .map((n) => (n.textContent || "").trim());
     check("and the decks are a section of their own, under the kind of card",
-      named().indexOf("Decks") === named().indexOf("The kind of card") + 1 &&
-        !!deckBtn() && !!deckBtn().closest(".at-formblock") &&
-        /^Decks$/.test(((deckBtn().closest(".at-formblock").querySelector(".at-formnum") || {}).textContent || "").trim()),
+      named().indexOf("Decks") === named().indexOf("This card") + 1 &&
+        !!addBtn() && !!addBtn().closest(".at-formblock") &&
+        /^Decks$/.test(((addBtn().closest(".at-formblock").querySelector(".at-formnum") || {}).textContent || "").trim()),
       named().join(" | "));
-    check("and says it is in none yet",
-      !!deckBtn() && /in no deck/i.test(deckBtn().getAttribute("aria-label") || ""),
-      deckBtn() ? deckBtn().getAttribute("aria-label") : "no button");
-    check("the ticks are put away until asked for", !document.querySelector(".at-choosemenu"));
+    check("and says it is in none yet, as the offer to put it in one",
+      !pills().length && /add this card to a deck/i.test(addBtn() ? addBtn().textContent || "" : ""),
+      `${pills().length} pills · ${addBtn() ? (addBtn().textContent || "").trim() : "no button"}`);
+    check("the decks are put away until asked for", !document.querySelector(".at-choosemenu"));
 
-    click(deckBtn());
+    click(addBtn());
     await sleep(200);
     const menu = document.querySelector(".at-choosemenu");
-    const rows = menu ? [...menu.querySelectorAll(".at-tickrow")] : [];
-    check("pressing it opens the decks as a list of ticks", rows.length > 0,
+    const rows = menu ? [...menu.querySelectorAll(".at-deckpick")] : [];
+    check("pressing it opens the decks as a list to pick from", rows.length > 0,
       `${rows.length} decks offered`);
-    click(rows[0] && rows[0].querySelector("input"));
+    const firstDeck = ((rows[0] && rows[0].querySelector("b")) || {}).textContent || "";
+    click(rows[0]);
     await sleep(200);
-    check("ticking one names it on the button",
-      !!deckBtn() && (deckBtn().textContent || "").trim() ===
-        ((rows[0].querySelector("b") || {}).textContent || "").trim(),
-      deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
-    check("and the list stays open, because you are usually ticking more than one",
+    /* And what picking one leaves is the deck itself, standing in the
+       section — the count that used to be on the button said how many and
+       never which. */
+    check("picking one stands it in the section as a deck of its own",
+      pills().length === 1 && pills()[0] === firstDeck.trim(),
+      pills().join(" | ") || "(no decks named)");
+    check("and the row now says it is added rather than offering to add it",
+      /added/i.test(((rows[0].querySelector(".at-deckmark") || {}).textContent || "")),
+      ((rows[0].querySelector(".at-deckmark") || {}).textContent || "").trim() || "(no mark)");
+    check("and the list stays open, because you are usually picking more than one",
       !!document.querySelector(".at-choosemenu"));
     /* A click anywhere else puts it away — the rule the language switch
        goes by, read off the click on the way down. */
     click(document.querySelector(".at-screenhead h2"));
     await sleep(200);
     check("a click outside puts it away", !document.querySelector(".at-choosemenu"));
-    check("and what was ticked is still ticked",
-      !!deckBtn() && deckBtn().className.includes("on"),
-      deckBtn() ? deckBtn().className : "no button");
+    check("and the deck it was put in is still named",
+      pills().length === 1 && pills()[0] === firstDeck.trim(),
+      pills().join(" | ") || "(no decks named)");
+    /* Out again from the pill itself, which is where a teacher looking at
+       the deck they want rid of already is. */
+    const drop = () => /** @type {any} */ (document.querySelector(".at-deckdrop"));
+    check("the deck carries the cross that takes the card out of it", !!drop());
+    click(drop());
+    await sleep(200);
+    check("and pressing it leaves the card in no deck, offering one again",
+      !pills().length && /add this card to a deck/i.test(addBtn() ? addBtn().textContent || "" : ""),
+      `${pills().length} pills · ${addBtn() ? (addBtn().textContent || "").trim() : "no button"}`);
   }
 
   /* ---- each accepted answer, and how that one is said ----
@@ -5107,8 +5130,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        answered sits in. */
     check("answering shuts the list and leaves the answer on screen",
       !formsRow(/^Verb/) && !!wordKindPencil() &&
-        /^Verb/.test(((document.querySelector(".at-shutname") || {}).textContent || "").trim()),
-      ((document.querySelector(".at-shutname") || {}).textContent || "").trim() || "(nothing shown)");
+        /^Verb/.test(wordKindSaid()),
+      wordKindSaid() || "(nothing shown)");
     await openWordKind();
     check("and the pencil opens it again, on the answer",
       !!kindBtn(/^Verb/) && kindBtn(/^Verb/).checked,
@@ -5274,7 +5297,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         `${cardAxis() ? "asked once" : "not asked"} · answer axes ${nounAxes.join(" | ") || "(none)"}`);
       check("and it is one line of radios, a thing or a person, in the block that says what kind it is",
         !!cardAxis() && !!cardAxis().closest(".at-formblock") &&
-          /The kind of card/.test(((cardAxis().closest(".at-formblock").querySelector(".at-formnum")) || {}).textContent || "") &&
+          /This card/.test(((cardAxis().closest(".at-formblock").querySelector(".at-formnum")) || {}).textContent || "") &&
           ["a thing", "a person"].every((v) => axisPicks().includes(v)),
         axisPicks().join(" | ") || "(no radios)");
       check("while its number and gender stay with the answer they are about",
@@ -5594,14 +5617,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      which is the one pair that looked harmless. */
   {
     const kind = [...document.querySelectorAll(".at-formblock")].find((b) =>
-      /^The kind of card$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+      /^This card$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
     check("a saved card is not offered another kind",
       !!kind && !kind.querySelector('[aria-label="The kind of card"]'),
       kind
         ? (kind.querySelector('[aria-label="The kind of card"]') ? "the track is still there" : "no track")
         : "(no such section)");
+    /* Said as the answered question it is: the type, read, with a padlock
+       where a question that can still be answered again wears a pencil. */
     check("and says what it is, and that it was settled when the card was made",
-      !!kind && /settled when it was made/.test(kind.textContent || ""),
+      !!kind && /The type of card cannot be changed/.test(kind.textContent || "") &&
+        !!kind.querySelector(".at-shutlock"),
       kind ? (kind.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no such section)");
   }
 

@@ -19,7 +19,6 @@ import type { Node } from "./shared.tsx";
 import {
   categoriesOf,
   categoryOf,
-  categoryLabel,
   answerDims,
   briefOf,
   cardDims,
@@ -29,7 +28,6 @@ import {
   findWordSlot,
   answerFields,
   guessKind,
-  kindLabel,
   kindOf,
   labelFor,
   supportsContext,
@@ -1618,46 +1616,73 @@ function DeckSwitch({ decks, chosen, onToggle }: {
 
   const all = decks || [];
   const inThese = all.filter((d) => chosen.includes(d.id));
-  /* The state in the room a button has: the deck itself when there is one,
-     how many when there are several, and the plain fact when there are
-     none — which is a card no student will ever see, and worth reading as
-     a state rather than as an empty space. */
-  const said = !all.length
-    ? "No decks yet"
-    : !inThese.length
-      ? "In no deck"
-      : inThese.length === 1
-        ? inThese[0].title
-        : `${inThese.length} decks`;
 
   return (
-    <div className="at-chooser" ref={mine}>
-      <button
-        className={`at-choosebtn${inThese.length ? " on" : ""}`}
-        aria-expanded={open}
-        aria-label={`Decks — ${said.toLowerCase()}. Choose which.`}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Icon name="folder" size={16} />
-        <span className="at-choosemark">{said}</span>
-      </button>
+    <div className="at-chooser deckwrap" ref={mine}>
+      {/* The decks this card is in, each as a thing you can see and take
+          off, with the way to add another on the end of the row. It was a
+          pill saying "2 decks" that had to be opened to find out which
+          two — a count is a state, and the thing a teacher wants to read
+          here is the names. */}
+      <div className="at-deckpills">
+        {inThese.map((d) => (
+          <span className="at-deckpill" key={d.id}>
+            <span className="nm">{d.title}</span>
+            <button
+              className="at-deckdrop"
+              aria-label={`Take this card out of ${d.title}`}
+              onClick={() => onToggle(d.id, true)}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </span>
+        ))}
+
+        {/* Dotted, because it is the outline of a pill that is not there
+            yet: what it makes is what stands beside it. Its words are the
+            whole invitation while the card is in nothing, and shorten to
+            the bare offer once the row can speak for itself. */}
+        {all.length > 0 && (
+          <button
+            className="at-deckadd"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <Icon name="add" size={17} />
+            {inThese.length ? "Another deck" : "Add this card to a deck"}
+          </button>
+        )}
+
+        {!all.length && (
+          <Help>You have no decks yet. Make one under Decks, then this card can go in it.</Help>
+        )}
+      </div>
 
       {open && (
         <div className="at-choosemenu">
-          <p className="at-eyebrow">Decks</p>
-          <CheckList
-            options={all.map((d) => ({
-              id: d.id,
-              title: d.title,
-              note: plural(d.cardCount || 0, "card"),
-            }))}
-            chosen={chosen}
-            onToggle={onToggle}
-            empty="You have no decks yet. Make one under Decks, then this card can go in it."
-          />
-          {all.length > 0 && (
-            <Help>A student sees this card only where it is in a deck their course uses.</Help>
-          )}
+          <p className="at-eyebrow">Your decks</p>
+          <div className="at-deckpicks">
+            {all.map((d) => {
+              const on = chosen.includes(d.id);
+              return (
+                <button
+                  className={`at-deckpick${on ? " on" : ""}`}
+                  key={d.id}
+                  aria-pressed={on}
+                  onClick={() => onToggle(d.id, on)}
+                >
+                  <span className="at-tickbody">
+                    <b>{d.title}</b>
+                    <i>{plural(d.cardCount || 0, "card")}</i>
+                  </span>
+                  {/* What tapping it does, rather than a tick saying what
+                      is already true: the row is the verb. */}
+                  <span className="at-deckmark">{on ? "Added" : "Add"}</span>
+                </button>
+              );
+            })}
+          </div>
+          <Help>A student sees this card only where it is in a deck their course uses.</Help>
         </div>
       )}
     </div>
@@ -3995,7 +4020,7 @@ function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck
   chosen: string[];
   onToggleDeck: (id: string, on: boolean) => void;
 }) {
-  const { category, aside, storedForms } = word;
+  const { aside, storedForms } = word;
   return (
     <>
     {/* What kind of card this is — the first thing about it, and no
@@ -4011,27 +4036,30 @@ function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck
         different shape of card" with "a word with more said about it". */}
     <div className="at-formblock">
       <div className="at-formhead">
-        <span className="at-formnum">The kind of card</span>
-        <span className="at-formrole">
-          {/* What the card is, said in the line beside the heading. A
-              sentence says so itself rather than falling through to
-              what its words look like: `kindOf` reads the text, and a
-              frame of three words reads as a phrase — which is a
-              sentence card labelled "Phrase" directly under the answer
-              calling it a sentence. And a card being written has no
-              words to read yet, so it says what it was started as. */}
-          {shape !== "word"
-            ? shapeLabel(shape)
-            : card
-              ? categoryLabel(lang, category) || kindLabel(kindOf(card, lang))
-              : categoryLabel(lang, category) || shapeLabel(shape)}
-        </span>
+        <span className="at-formnum">This card</span>
       </div>
-      <Help>{shapeHelp(shape)}</Help>
-      <Help>
-        What kind of card this is was settled when it was made and does
-        not change. A card of another kind is another card.
-      </Help>
+
+      {/* What kind of card it is, as a fact on the screen rather than as a
+          line of grey beside the heading. It used to be the heading's own
+          gloss, with two paragraphs under it saying it could not be
+          changed; it is one answered question now, in the shape every
+          answered question on this screen wears — the answer, read, with
+          what would open it again on the end. What is on that end here is
+          a padlock, because nothing opens it. */}
+      <Field label="What type of card">
+        <div className="at-shutrow">
+          <Icon name="cards" />
+          <span className="at-shutname">{shapeLabel(shape)}</span>
+          <span className="at-shutlock" aria-hidden="true">
+            <Icon name="lock" />
+          </span>
+        </div>
+        <Help>
+          The type of card cannot be changed. A card of another type is
+          another card.
+        </Help>
+        <Help>{shapeHelp(shape)}</Help>
+      </Field>
 
       {/* ---- and what kind of word it is ----
 
@@ -4085,7 +4113,7 @@ function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck
     <div className="at-formblock at-mt5">
       <div className="at-formhead">
         <span className="at-formnum">Decks</span>
-        <span className="at-formrole">where a student finds it</span>
+        <span className="at-formrole">Manage what decks this card belongs to.</span>
       </div>
       <DeckSwitch decks={decks} chosen={chosen} onToggle={onToggleDeck} />
     </div>
@@ -4149,7 +4177,7 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
       <div className="at-formblock at-mt5">
         <div className="at-formhead">
           <span className="at-formnum">What to call it</span>
-          <span className="at-formrole">how it is listed</span>
+          <span className="at-formrole">How this card is listed.</span>
         </div>
         <Field label="Name">
           <input
@@ -4248,7 +4276,7 @@ function SceneBlock({ talk }: { talk: SceneDraft }) {
     <div className="at-formblock main">
       <div className="at-formhead">
         <span className="at-formnum">The scene</span>
-        <span className="at-formrole">what it is and who is in it</span>
+        <span className="at-formrole">What it is and who is in it.</span>
       </div>
       <p className={`at-formneed${canSave ? "" : " unmet"}`}>
         A name, and two turns or more.
@@ -4351,7 +4379,7 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
             for grabs, no turn is "theirs" until the question
             picks, and labelling one would be a guess. */}
         <span className="at-formrole">
-          {you === null ? "" : (l.who || 0) === you ? "the student's turn" : "said to them"}
+          {you === null ? "" : (l.who || 0) === you ? "The student's turn." : "Said to them."}
         </span>
         <span className="at-formacts">
           {lines.length > 2 && (
@@ -4436,6 +4464,15 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
     the editor's to say — "Form 2" on a word, "The verb" on a verb — and
     `children` sit after the fields, which is where a form's own pronoun
     table goes. */
+/* What a form is, said under its name. The line under a heading has room
+   for a sentence now that it is no longer squeezed in beside one, so the
+   first form says what the ones under it are for rather than leaving a
+   teacher to find the Add button and guess. */
+export const formRole = (i: number): string =>
+  i === 0
+    ? "This is the main form of the card. You can add more forms below — for a different number, a different gender, and so on."
+    : "Another form of the same card.";
+
 function FormBlock({ word, lang, index: i, form: f, title, role, blanks, children }: {
   word: WordDraft;
   lang: Lang;
@@ -5325,7 +5362,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           <span className="at-formnum">Blanks</span>
           <span className="at-formrole">
             {!sentence && strayHoles.length
-              ? "only a sentence can have a blank"
+              ? "Only a sentence can have a blank."
               : sentence && holes.length
                 ? `${plural(holes.length, "blank")} · ${
                     /* Every filling the card has, counted — not the examples
@@ -5837,7 +5874,7 @@ function WordEditor({ word, lang, allCards, selfId }: {
           index={i}
           form={f}
           title={`Form ${i + 1}`}
-          role={i === 0 ? "the main form" : "another form of the same card"}
+          role={formRole(i)}
         />
       ))}
       <AddFormButton word={word} />
@@ -5881,7 +5918,7 @@ function VerbEditor({ word, lang, allCards, selfId }: {
           index={i}
           form={f}
           title={i === 0 ? "The verb" : `Form ${i + 1}`}
-          role={i === 0 ? "the verb itself" : "another form of the same card"}
+          role={i === 0 ? "This is the verb itself." : formRole(i)}
         />
       ))}
       <NothingAsked word={word} />
@@ -5923,7 +5960,7 @@ function TableEditor({ word, lang, allCards, selfId }: {
           index={i}
           form={f}
           title={`Form ${i + 1}`}
-          role={i === 0 ? "the main form" : "another form of the same card"}
+          role={formRole(i)}
         />
       ))}
       <TableBlock word={word} lang={lang} />
@@ -5962,7 +5999,7 @@ function AttachedEditor({ word, lang, allCards, selfId }: {
           index={i}
           form={f}
           title={`Form ${i + 1}`}
-          role={i === 0 ? "the main form" : "another form of the same card"}
+          role={formRole(i)}
         >
           <PronounTable word={word} lang={lang} index={i} form={f} />
         </FormBlock>
@@ -6043,7 +6080,11 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
           index={i}
           form={f}
           title={i === 0 ? "The sentence" : `Form ${i + 1}`}
-          role={i === 0 ? "the sentence, with a blank where a word goes" : "another way of saying it"}
+          role={
+            i === 0
+              ? "This is the sentence, with a blank where a word goes."
+              : "Another way of saying it."
+          }
           blanks={wiring}
         />
       ))}
@@ -6281,6 +6322,10 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
            opens: a screen for writing a conversation should not be called
            "New card" and then be full of turns. */
         title={card ? "Edit card" : `New ${shapeLabel(shape).toLowerCase()}`}
+        /* One sheet, ruled into sections — see .at-screen.cardform. The
+           editor is the only screen laid out that way, so it is the only
+           one that asks for it. */
+        className="cardform"
         onBack={onClose}
         action={
           <Button variant="primary" size="sm"
