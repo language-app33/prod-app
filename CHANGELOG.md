@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.188 — 19 September 2026
+
+**The card's group tags now show the tags a card wears anyway.** A card
+fills `{{noun}}` by saying it is a noun, and `{{word}}` by being a single
+word, without anybody ticking anything — and that list used to leave both
+out, on the grounds that a tick for either would do nothing. True, and the
+wrong conclusion: it meant reading a list of the blanks your card fills
+that did not have the commonest two in it.
+
+They are listed now, grouped together above the tags you keep, with the
+ones this card actually fills marked and each saying how many words are
+behind it. They are flat rather than ticked, because there is nothing on
+those rows to answer — what changes them is the kind of word, further up
+the screen.
+
+**And a card can no longer be given an ID that a kind of word already
+answers to.** A card ID, a group tag, a kind of word and `{{word}}` all go
+between braces, so they are one namespace — but only the first two were
+checked. Calling a card `noun` left `{{noun}}` pulling that one card *and*
+every noun. The editor refuses it now and says why, the same way it
+refuses a name another card or group already holds. Cards written before
+the rule are untouched.
+
+**One number, counted once.** How many words are behind a blank was worked
+out in two places, each reading half the answer — how many cards *say*
+they are a noun, and how many *tag* themselves with the word. A name can
+be both. They are one count now, taken the way the question itself takes
+it.
+
 ## 0.187 — 19 September 2026
 
 **New card now asks which of the three kinds you are making, before the

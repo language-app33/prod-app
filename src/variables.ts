@@ -163,23 +163,34 @@ export const cardRef = (card: WithSlots | null | undefined): string =>
 /*
  * Whether a name is already answered to by something else.
  *
- * Both halves of the Blanks section put a name between braces — a card's
- * ID and a group tag — so the two share one namespace and a name has to be
- * free of both. Comes back as what holds it, so the editor can say which
- * card that is rather than "taken"; null where the name is free.
+ * Everything that reaches a card reaches it between braces — a card's ID,
+ * a group tag, a kind of word, and the built-in `{{word}}` — so the four
+ * share one namespace and a name has to be free of all of them. Comes back
+ * as what holds it, so the editor can say which card that is rather than
+ * "taken"; null where the name is free.
  *
  * `self` is the card being edited, which is never a clash with itself.
  * `{{word}}` is spoken for by every word in the language, so nothing may
  * be called it.
+ *
+ * `kinds` is the parts of speech the language declares, which fill a hole
+ * of their own name without anybody ticking anything — see fillsOf. They
+ * are passed in for the reason the kind of a card is: which strings a
+ * language declares is the language pack's business and this module knows
+ * no language. Left out, they are not checked, which is what every caller
+ * got before 0.188 — and what let a card be given the ID `noun` while
+ * every noun went on filling the same hole.
  */
 export function refClash(
   name: string,
   pool: WithSlots[],
   self = "",
-): { kind: "card" | "group"; card?: WithSlots } | null {
+  kinds: string[] = [],
+): { kind: "card" | "group" | "category"; card?: WithSlots } | null {
   const want = slotName(name);
   if (!want) return null;
   if (want === WORD_SLOT) return { kind: "group" };
+  if (kinds.includes(want)) return { kind: "category" };
   for (const card of pool || []) {
     if (String((card && card.id) || "") === self) continue;
     if (cardRef(card) === want) return { kind: "card", card };

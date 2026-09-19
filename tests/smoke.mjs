@@ -4232,6 +4232,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
         .find((t) => /already/.test(t))) || "(nothing said)");
 
+    /* And a kind of word is taken too, since 0.188: a card called `noun`
+       would be one more thing answering to `{{noun}}`, beside every noun
+       in the language — which is the one thing an ID is for preventing. */
+    typeInto(idBox(), "verb");
+    await sleep(200);
+    check("a kind of word is taken as surely as another card's name is",
+      !!withLabel("Lock this ID") && withLabel("Lock this ID").disabled &&
+        /that is a kind of word/.test(document.body.textContent || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /kind of word/.test(t))) || "(nothing said)");
+
     typeInto(idBox(), "name-is");
     await sleep(200);
     check("and a free one lights the tick, with nothing else said",
@@ -4770,10 +4781,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("the groups it can join are a list on the screen, not a menu to open",
         fillList().length > 0 && !inHalf(FILLS, ".at-choosebtn").length,
         fillNames().join(", ") || "(no list)");
-      /* And blank ids, not kinds of card. A card fills {{noun}} by saying
-         it is a noun, so a tick for it would do nothing — while {{name}},
-         which this language also declares as a kind of word, is the oldest
-         blank in the app and has to stay. Written, not built in. */
+      /* The ticked list is the tags somebody wrote. A card fills {{noun}}
+         by saying it is a noun, so a tick for it would do nothing — while
+         {{name}}, which this language also declares as a kind of word, is
+         the oldest blank in the app and has to stay. Written, not built
+         in. */
       check("and they are the group tags somebody wrote, not the kinds of card",
         fillNames().includes("name") &&
           !["word", "noun", "verb", "adjective", "pronoun", "preposition"]
@@ -4782,6 +4794,51 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("with what each is worth, which is whether to tick it",
         fillList().every((r) => /\d/.test(((r.querySelector("i") || {}).textContent) || "")),
         fillList().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
+
+      /* ---- and above them, the tags the card wears anyway ----
+
+         A card fills its kind of word and {{word}} with nothing ticked, so
+         leaving those out left a teacher reading a list of the blanks
+         their card fills that did not have the commonest two in it. They
+         are shown since 0.188 — grouped, flat rather than ticked, because
+         the answer to them is the kind of word further up the screen. */
+      {
+        const fixed = () => inHalf(FILLS, ".at-tagfixed");
+        const fixedNames = () => fixed()
+          .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+        const runs = () => inHalf(FILLS, ".at-eyebrow")
+          .map((n) => (n.textContent || "").trim());
+        check("the default tags are listed too, in a run of their own",
+          runs()[0] === "Default tags" && runs().includes("Your own tags"),
+          runs().join(" | ") || "(no runs)");
+        check("and they are the kinds of word, plus the one every word fills",
+          ["noun", "verb", "adjective", "name", "word"]
+            .every((n) => fixedNames().includes(n)),
+          fixedNames().join(", ") || "(none listed)");
+        check("each saying what it takes and how many words are behind it",
+          fixed().length > 0 && fixed().every((r) =>
+            /^Any /.test(((r.querySelector("i") || {}).textContent) || "")),
+          fixed().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
+        /* The card on screen is a word nobody has said the kind of, so
+           {{word}} is marked and no kind of word is. */
+        const marked = () => fixed()
+          .filter((r) => !((r.className || "").includes("off")) && (r.className || "").includes("on"))
+          .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+        check("and the ones this card actually fills are marked",
+          JSON.stringify(marked()) === JSON.stringify(["word"]),
+          marked().join(", ") || "(none marked)");
+        /* And none of them can be typed in as a group, because each is
+           already a name on this list. */
+        const newInput = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew input")[0] || null);
+        const addBtn = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew button")[0] || null);
+        typeInto(newInput(), "noun");
+        await sleep(200);
+        check("and a group cannot be named after one of them",
+          !!addBtn() && addBtn().disabled,
+          addBtn() ? (addBtn().disabled ? "refused" : "offered") : "(no button)");
+        typeInto(newInput(), "");
+        await sleep(150);
+      }
 
       /* And the box that names a new one, above the list rather than at
          the bottom of a menu: naming the first blank of a kind is the one
