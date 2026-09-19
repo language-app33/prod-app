@@ -251,6 +251,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   the same state: decided once, read often, and changed on purpose rather
   than by a stray tap. Every answer carries a line saying what it gets
   you, which is why the list inside is rows and not a track of segments.
+  Where a saved card's table is laid out by one kind of word and no other
+  — a verb's, in every pack today — there is nothing to choose between, so
+  the answer is shown and not asked: the same row with a padlock where the
+  pencil sits, as the kind of card above it wears. The question going away
+  is right; the fact going with it is what left a saved verb saying
+  nothing about what kind of word it was.
 - **A form can be kept without being asked about, and lent without being
   asked.** A card is a word and a pile of forms of it — other spellings,
   the pronouns on its end, every person and tense of a verb — and a

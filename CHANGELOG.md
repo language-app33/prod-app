@@ -8,6 +8,23 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.201 — 19 September 2026
+
+**Fixed: a saved verb stopped saying what kind of word it was.**
+
+*What subtype* is answered once and then read, and on a verb there is
+nothing to answer it with a second time: a verb's table is laid out by
+that one kind of word, and offering any other kind would be offering to
+throw the table away. So the drop-down was not shown — and the answer went
+with it, which meant opening a verb you had saved showed no subtype at
+all, on the one screen that knows it.
+
+The answer is there now, under its own heading, with a padlock where the
+pencil sits on a question that can still be answered again — the same row
+the kind of card wears one section above. The line at the foot of the
+block still says what a verb is and how it stops being one: empty the
+table and it is a word again.
+
 ## 0.200 — 19 September 2026
 
 **A verb is listed as what you call it, and no box of its table is

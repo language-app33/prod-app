@@ -3046,6 +3046,17 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const storedForms: CardForms = storedFormsOf(card, lang);
   /* What this language lets a word be — see categoryOffers. */
   const categoryOffer = categoryOffers(lang, { worded, storedForms });
+  /*
+   * And what this card says it is, from the language's whole list rather
+   * than from what the radio offers.
+   *
+   * A saved card whose table only one kind of word lays out is offered
+   * nothing — one answer is not a question — and still has an answer,
+   * which the screen has to be able to show. Read off the list of every
+   * kind so that the two cannot come apart: the offer is about what may
+   * be changed, this is about what the card is.
+   */
+  const categorySaid = (worded && categoryChoices(lang).find((c) => c.value === category)) || null;
   /* How much of a table is being held aside — what the line under the
      radio counts. */
   const aside = asideOf(cells, Object.values(tablesOf(lang)), shownSpec, forms);
@@ -3988,6 +3999,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     cite,
     storedForms,
     categoryOffer,
+    categorySaid,
     aside,
     chooseCategory,
     standsIn,
@@ -4194,10 +4206,48 @@ export type SceneDraft = ReturnType<typeof useSceneDraft>;
 const SUBTYPE_LEDE = "Each subtype has specific fields, forms, structures, etc.";
 
 function WordKind({ word }: { word: WordDraft }) {
-  const { category, chooseCategory, categoryOffer } = word;
+  const { category, chooseCategory, categoryOffer, categorySaid } = word;
   const { open, setOpen, mine } = usePicker();
   const said = categoryOffer.find((c) => c.value === category) || null;
-  if (!categoryOffer.length) return null;
+  /*
+   * Where there is nothing to choose between, the answer is shown and not
+   * asked.
+   *
+   * A saved card whose table only one kind of word lays out — a verb, in
+   * every pack today — is offered no list, because offering a kind that
+   * lays out another table is offering to throw the table away and a list
+   * of one is not a question. This section used to disappear with the
+   * list, so a teacher opening a verb they had saved was shown no answer
+   * to *what kind of word is this* at all, and the card's plainest fact
+   * went missing from the one screen that knows it.
+   *
+   * So it reads the way the kind of card above it reads when it is
+   * settled: the answer, with a padlock where the pencil would be. What
+   * would unlock it is emptying the table, which the line at the foot of
+   * this block says — see storedHelp.
+   *
+   * Nothing at all only where there is nothing to say: a conversation and
+   * a sentence are not kinds of word, and a card whose language declares
+   * no kinds has never been asked.
+   */
+  if (!categoryOffer.length) {
+    if (!categorySaid) return null;
+    return (
+      <div className="at-field at-mt3">
+        <label className="at-label">What subtype</label>
+        <p className="at-fieldlede">
+          The subtype cannot be changed while the card carries its table.
+        </p>
+        <div className="at-shutrow">
+          <Icon name="tune" />
+          <span className="at-shutname">{categorySaid.label}</span>
+          <span className="at-shutlock" aria-hidden="true">
+            <Icon name="lock" />
+          </span>
+        </div>
+      </div>
+    );
+  }
   /* Shut is the state an answered question sits in, and the pencil is the
      way back into it — so the list is on screen only while it is being
      read, and the answer is on screen the rest of the time. */

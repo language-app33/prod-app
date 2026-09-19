@@ -5736,6 +5736,61 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(300);
 }
 
+/* ---- a saved verb still says what kind of word it is ----
+
+   A verb is the one card whose table only one kind of word lays out, so
+   nothing is offered: choosing a kind that lays out another table would be
+   offering to throw this one away, and a list of one answer is not a
+   question. The section used to go with the list, and a teacher opening a
+   verb they had saved was shown no answer to "what kind of word is this"
+   at all — the card's plainest fact missing from the one screen that knows
+   it. It is shown and not asked now, the way the kind of card above it is
+   when it is settled. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  /* The verb, which is listed under the name its teacher gave it. */
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".at-mininame") || {}).textContent || "").trim() === "to eat");
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  check("a saved verb is still asked nothing about its subtype",
+    !wordKindBtn() && !formRows().length,
+    wordKindBtn() ? "a list is offered" : "nothing is offered");
+  check("but the subtype is still on the screen, under its own heading",
+    thisCardAsks().includes("What subtype"),
+    thisCardAsks().join(" | ") || "(nothing asked)");
+  const subtypeRow = () => {
+    const block = thisCardBlock();
+    const field = block && [...block.querySelectorAll(".at-field")].find(
+      (f) => /^What subtype$/.test(((f.querySelector(".at-label") || {}).textContent || "").trim()));
+    return /** @type {any} */ (field ? field.querySelector(".at-shutrow") : null);
+  };
+  check("and it says Verb",
+    !!subtypeRow() && /^Verb/.test(
+      ((subtypeRow().querySelector(".at-shutname") || {}).textContent || "").trim()),
+    subtypeRow() ? (subtypeRow().textContent || "").replace(/\s+/g, " ").trim() : "(no row)");
+  /* With a padlock where the pencil sits on a question that can still be
+     answered again — the same row the kind of card wears one section up. */
+  check("with a padlock rather than a pencil, and says why",
+    !!subtypeRow() && !!subtypeRow().querySelector(".at-shutlock") && !wordKindPencil() &&
+      /cannot be changed while the card carries its table/.test(
+        (thisCardBlock().textContent || "")),
+    subtypeRow() && subtypeRow().querySelector(".at-shutlock") ? "locked" : "no padlock");
+  /* And the line that says what would unlock it is still at the foot of
+     the block: empty the table and it is a word again. */
+  check("and the block still says what a verb is and how it stops being one",
+    /Empty the table and it is a word again/.test(thisCardBlock().textContent || ""),
+    (thisCardBlock().textContent || "").replace(/\s+/g, " ").slice(-120));
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
 /* ---- a saved adjective opens on the table it agrees out of ----
 
    The first table that is neither a verb's nor the pronouns, so the first
