@@ -70,7 +70,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
-import { cardRef, fillNames, hasSlots, renamedIn, slotsOf, valuesFor } from "./variables.ts";
+import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -5107,7 +5107,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         allCards={cards}
         scene={editing.scene || isDialog(editing.card)}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, drill, scene: written }) =>
+        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5215,6 +5215,25 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 for (const [id, other] of pool) {
                   if (saved0 && id === saved0.id) continue;
                   const next = renamedIn(other, from, to);
+                  if (!next) continue;
+                  pool.set(id, next);
+                  moved.add(id);
+                }
+              }
+              /*
+               * And the groups the teacher took off the collection.
+               *
+               * After the renames and over the same pool, so a tag renamed
+               * and then taken off in one sitting comes off where it
+               * landed, and a card caught by both is written once with
+               * both. Only the tags come off: a sentence that asks for the
+               * name goes on asking for it, which is the honest half of
+               * what the teacher was told before they pressed.
+               */
+              for (const name of stripped || []) {
+                for (const [id, other] of pool) {
+                  if (saved0 && id === saved0.id) continue;
+                  const next = droppedIn(other, name);
                   if (!next) continue;
                   pool.set(id, next);
                   moved.add(id);

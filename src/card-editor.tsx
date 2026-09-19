@@ -2963,6 +2963,41 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setAsking(null);
   };
   const dropAsk = () => setAsking(null);
+  /*
+   * And the groups the teacher has taken off every card.
+   *
+   * The same journey a rename everywhere makes, and for the same reason: a
+   * tag is a name several cards share, the only place a stale one is
+   * visible is a card that carries it, and the editor holds one card. So
+   * the answer is carried out with the card being saved and the screen
+   * that owns the collection does the walking.
+   *
+   * There is no "only here" to ask for: taking this one card out of the
+   * group is the tick on the row, two rows up from the question. So the
+   * one question is whether to do it at all, and what it costs is the
+   * cards that fill the group and the sentences left asking for it.
+   */
+  const [stripped, setStripped] = useState<string[]>([]);
+  /* The group being taken off, while the question is up, with the two
+     counts the answer turns on. Null the rest of the time. */
+  const [dropping, setDropping] = useState<{ name: string; fills: number; leaves: number } | null>(null);
+  const askStrip = (name: string, fillCount: number, leaveCount: number) =>
+    setDropping({ name, fills: fillCount, leaves: leaveCount });
+  const dropStrip = () => setDropping(null);
+  const answerStrip = () => {
+    if (!dropping) return;
+    /* Where the name will have got to by the time this is carried out: the
+       screen applies the renames first, so a tag renamed everywhere and
+       then taken off in one sitting has to be taken off where it lands.
+       The rename itself stands — it rewrote the sentences' braces too, and
+       taking a group off the words says nothing about those. */
+    const landed = spread.find((r) => r.from === dropping.name);
+    const target = landed ? landed.to : dropping.name;
+    setStripped((was) => (was.includes(target) ? was : was.concat([target])));
+    dropFill(dropping.name);
+    if (target !== dropping.name) dropFill(target);
+    setDropping(null);
+  };
   /* Which words this phrase teaches. Confirmed, never assumed: the matcher
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
@@ -3533,6 +3568,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     answerAsk,
     dropAsk,
     spread,
+    stripped,
+    dropping,
+    askStrip,
+    answerStrip,
+    dropStrip,
     uses,
     setUses,
     recording,
@@ -4816,7 +4856,7 @@ function TagList({ word, rows }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
 }) {
-  const { fills, addFill, dropFill, renameFill, nameHeld } = word;
+  const { fills, addFill, dropFill, renameFill, nameHeld, askStrip } = word;
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
   /* A tag may be renamed onto another tag — two groups becoming one is a
      thing a teacher may mean — but never onto a card's ID, which would
@@ -4893,6 +4933,21 @@ function TagList({ word, rows }: {
               label={`Rename the group ${b.name}`}
               onClick={() => setRenaming({ from: b.name, to: b.name })}
             />
+            {/* And the bin, beside the pencil, for the same reason the
+                pencil is here: a group nobody wants any more is only
+                visible from a card that is in it. Only where cards
+                actually fill it — on a name a sentence leaves and nothing
+                fills, there is nothing to take off anybody, and a button
+                that would do nothing is worse than no button. Taking this
+                one card out is the tick to its left, so this can mean the
+                one thing. */}
+            {b.wrote > 0 && (
+              <IconButton
+                icon="delete"
+                label={`Take the group ${b.name} off every card`}
+                onClick={() => askStrip(b.name, b.wrote, b.used)}
+              />
+            )}
           </div>
         );
       })}
@@ -4946,6 +5001,60 @@ function RenameAsk({ word }: { word: WordDraft }) {
       confirmLabel="Change it everywhere"
       onCancel={dropAsk}
       onConfirm={() => answerAsk(true)}
+    />
+  );
+}
+
+/*
+ * And the one question taking a group off every card has to ask.
+ *
+ * Not "are you sure" — "here is what it costs". The two numbers on the row
+ * are the two halves of that: how many cards fill the group, which is what
+ * loses the tag, and how many leave a blank of the name, which is what
+ * goes on asking for a word that will not come. The second is the half
+ * nobody would think of, and the half that is not undone by ticking the
+ * group back on to one card.
+ *
+ * What is *not* lost is worth as many words as what is: a tag is a name,
+ * and taking it off a card takes nothing else off — not the word, not its
+ * recordings, and not a day of anybody's progress on it.
+ */
+function StripAsk({ word }: { word: WordDraft }) {
+  const { dropping, answerStrip, dropStrip } = word;
+  if (!dropping) return null;
+  return (
+    <ConfirmModal
+      danger
+      title={`Take ${dropping.name} off every card?`}
+      confirmLabel="Take it off every card"
+      body={
+        <>
+          {/* Counted rather than made the subject of a sentence: "1 card
+              lose the tag" is what writing it the other way round gets
+              you, on the one card that is the commonest case of all. */}
+          <p>
+            The tag comes off <strong>{plural(dropping.fills, "card")}</strong>,
+            and nothing else goes with it — the words, the recordings and
+            every day of progress a student has made on them stay exactly as
+            they are.
+          </p>
+          {dropping.leaves ? (
+            <p>
+              A <BlankName name={dropping.name} /> blank is left by{" "}
+              {plural(dropping.leaves, "card")}, and it goes on being asked.
+              With nothing filling it, there is no word to put in the hole
+              until something fills it again.
+            </p>
+          ) : (
+            <p>
+              No card leaves a <BlankName name={dropping.name} /> blank, so
+              the name goes with the last card that filled it.
+            </p>
+          )}
+        </>
+      }
+      onCancel={dropStrip}
+      onConfirm={answerStrip}
     />
   );
 }
@@ -5340,10 +5449,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         )}
         </div>
       </div>
-      {/* And the question a rename asks, over the whole app: it is about
-          cards this screen is not editing, so it cannot be answered
-          beside the row it came from. */}
+      {/* And the two questions that are about cards this screen is not
+          editing, so neither can be answered beside the row it came
+          from: where a rename follows the name to, and whether a group
+          comes off the collection. */}
       <RenameAsk word={word} />
+      <StripAsk word={word} />
     </>
   );
 }
@@ -5425,7 +5536,7 @@ export function writtenCard({ word, talk, shape, chosen }: {
   chosen: string[];
 }) {
   const scene = shape === "scene";
-  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, category, refName, spread } = word;
+  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, category, refName, spread, stripped } = word;
   const written = shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms;
   return {
     forms: written,
@@ -5456,6 +5567,9 @@ export function writtenCard({ word, talk, shape, chosen }: {
        other card. The editor holds one card and saves one card; this is
        what it hands the screen that holds the rest. */
     spread: scene ? [] : spread,
+    /* And the groups the teacher took off the collection altogether, which
+       travel the same way and are applied after the renames. */
+    stripped: scene ? [] : stripped,
     /*
      * And whether the card is a question at all, which is no longer a
      * question anybody is asked.
@@ -5841,7 +5955,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;

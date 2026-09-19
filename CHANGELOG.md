@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.187 — 19 September 2026
+
+**A group tag can be taken off every card.** Until now a teacher could name
+a group, tick cards into it and rename it, but never get rid of one: a tag
+typed in a hurry, or a group that stopped being useful, sat in the list on
+every card for good, and the only way to empty it was to open each card in
+it and untick.
+
+The bin is beside the pencil on the group's own row while a card is being
+edited, which is where the pencil is for the same reason — a group nobody
+wants any more is only visible from a card that is in it. It appears only
+on a group that cards actually fill; on a name a sentence leaves and
+nothing fills there is nothing to take off anybody.
+
+It asks once, and what it asks is what it costs rather than whether you are
+sure: how many cards lose the tag, and that they lose nothing else — not
+their words, not their recordings, and not a day of anybody's progress. And
+the half nobody would think of, which is the half that ticking the group
+back onto one card does not undo: the sentences that leave a blank of that
+name go on asking for it, with no word to put in the hole until something
+fills it again.
+
+Which is why it says *take it off every card* rather than *delete*. A tag
+is not a thing the app keeps a list of — it exists exactly while some card
+carries it or some sentence asks for it — so taking it off the last card
+that filled it makes the name disappear only when no sentence is still
+writing it. Nothing rewrites a sentence here: a teacher taking a group off
+their words has said nothing about the sentences that use it.
+
 ## 0.186 — 19 September 2026
 
 **The app's text styles are now listed in Admin → App, drawn at the size

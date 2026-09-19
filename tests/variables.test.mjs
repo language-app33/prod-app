@@ -30,6 +30,7 @@ import {
   cardRef,
   refClash,
   renameSlot,
+  droppedIn,
   renamedIn,
   slotName,
   isSentence,
@@ -761,6 +762,52 @@ test("a rename follows a name into every card that writes it", () => {
   assert.equal(renameSlot("{{ name }} and {{age}}", "name", "who"), "{{who}} and {{age}}");
   assert.equal(renameSlot("{{Name}}", "name", "who"), "{{who}}");
   assert.equal(renameSlot("nothing here", "name", "who"), "nothing here");
+});
+
+/*
+ * Taking a group off every card.
+ *
+ * The other thing a teacher does to a name several cards share, and the
+ * one the app deliberately does less of than its name suggests: the tags
+ * come off the words, and the sentences that ask for the name go on asking
+ * for it. That is why it is called taking a group off every card rather
+ * than deleting a tag — the name outlives the last card that filled it for
+ * as long as some sentence still writes it.
+ */
+test("taking a group off a card takes the tag and nothing else", () => {
+  const tagged = {
+    id: "c9",
+    forms: [{ ar: "aṣfar", en: "yellow", lat: "asfar" }],
+    fills: ["colours", "warm"],
+  };
+  const off = /** @type {any} */ (droppedIn(tagged, "colours"));
+  assert.deepEqual(off.fills, ["warm"]);
+  /* The word itself is untouched — the tag is a name, and this takes the
+     name off. */
+  assert.deepEqual(off.forms, tagged.forms);
+  /* Down to none, which is what an ordinary word is. */
+  assert.deepEqual(/** @type {any} */ (droppedIn(off, "warm")).fills, []);
+
+  /* The braces a sentence writes are not a tag and are left alone: the
+     blank goes on being asked, with nothing behind it. */
+  const asks = {
+    id: "f1",
+    forms: [{ ar: "il-bayt {{colours}}", en: "the house is {{colours}}", lat: "" }],
+    fills: ["colours"],
+  };
+  const still = /** @type {any} */ (droppedIn(asks, "colours"));
+  assert.deepEqual(still.fills, []);
+  assert.equal(still.forms[0].en, "the house is {{colours}}");
+
+  /* Named the way every other name that goes between braces is named, so
+     what the editor checked and what is stored cannot come apart. */
+  assert.deepEqual(/** @type {any} */ (droppedIn(tagged, " Colours ")).fills, ["warm"]);
+
+  /* Null where nothing moved, as a rename is, which is the answer for
+     almost every card in a collection. */
+  assert.equal(droppedIn(tagged, "greetings"), null);
+  assert.equal(droppedIn(tagged, ""), null);
+  assert.equal(droppedIn(/** @type {any} */ (null), "colours"), null);
 });
 
 /* ------------------------------------------------------------------

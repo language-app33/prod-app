@@ -444,6 +444,24 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   name several cards share and the only place a misspelt one is visible is
   a card that has it.
 
+  **And beside the pencil, on a group cards actually fill, the bin that
+  takes it off all of them.** For the same reason the pencil is there, and
+  offered nowhere else: a group nobody wants any more is only visible from
+  a card that is in it. There is no "only here" to ask for — taking this
+  card out of the group is the tick two rows to the left — so the one
+  question is whether to do it at all, and what it asks is what it costs:
+  how many cards lose the tag, that they lose nothing else, and that the
+  sentences leaving a blank of that name go on asking for it with nothing
+  to fill it. It is called *taking a group off every card* and not
+  *deleting a tag* because that is all it is: `droppedIn` in
+  `src/variables.ts` takes the tags off the words and never the braces off
+  a sentence, so a name outlives the last card that filled it for exactly
+  as long as some sentence still writes it. Rewriting those sentences would
+  be acting on an absence — the teacher said nothing about them. The editor
+  holds one card, so the answer travels out beside a rename's and the Cards
+  screen does the walking, after the renames and over the same pool, so a
+  tag renamed and then taken off in one sitting comes off where it landed.
+
   **Renaming either asks one question: does the name follow, or does this
   card alone move?** A name lives in two sorts of place — on the card that
   answers to it, and in every card that asks for it — so changing it here

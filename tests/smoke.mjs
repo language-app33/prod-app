@@ -4828,6 +4828,72 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           .map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
           .find((t) => /borrow/.test(t))) || "(nothing said)");
 
+      const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
+      const modalBtns = () => modal() ? [...modal().querySelectorAll("button")] : [];
+      const modalBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        modalBtns().find((b) => re.test((b.textContent || "").trim())) || null);
+
+      /* ---- taking one off every card ----
+
+         The other thing done to a name several cards share, beside the
+         pencil and for the same reason: a group nobody wants any more is
+         only visible from a card that is in it. It can mean one thing —
+         taking this card out is the tick two rows to its left — so the
+         question is whether to do it at all, and what it costs. */
+      const bin = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        (fillRow(re) ? fillRow(re).parentElement : document)
+          .querySelector('button[aria-label^="Take the group"]') || null);
+      check("a group cards actually fill offers to come off all of them",
+        !!bin(/^name$/), bin(/^name$/) ? "there" : "(no bin)");
+      /* And one nothing fills does not: there is nothing to take off
+         anybody, and a button that would do nothing is worse than none. */
+      check("while one nobody fills yet does not, having nothing to come off",
+        !bin(/^greeting$/), bin(/^greeting$/) ? "offered anyway" : "not offered");
+
+      click(bin(/^name$/));
+      await sleep(300);
+      check("the bin asks before it reaches past this card",
+        !!modal() && /^Take name off every card\?$/.test(
+          ((modal().querySelector(".at-modaltitle") || {}).textContent || "").trim()),
+        modal() ? ((modal().querySelector(".at-modaltitle") || {}).textContent || "").trim() : "(nothing asked)");
+      /* Not "are you sure" — what it costs, in both directions: the cards
+         that lose the tag and keep everything else, and the sentences left
+         asking for a name nothing answers to. That second half is the one
+         nobody would think of and the one that re-ticking cannot undo. */
+      const asked = () => ((modal() || {}).textContent || "").replace(/\s+/g, " ");
+      check("and says what goes with it, and what does not",
+        /The tag comes off/.test(asked()) && /progress/.test(asked()),
+        asked().slice(0, 160) || "(nothing said)");
+      check("including the sentences that go on asking for the name",
+        /goes on being asked/.test(asked()),
+        asked().slice(0, 240) || "(nothing said)");
+
+      /* Answered no, nothing has happened. */
+      click(modalBtn(/^Cancel$/));
+      await sleep(250);
+      check("answering no leaves the group exactly as it was",
+        !modal() && JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
+        ticked().join(", ") || "(none ticked)");
+
+      click(bin(/^name$/));
+      await sleep(300);
+      click(modalBtn(/^Take it off every card$/));
+      await sleep(300);
+      check("and answering yes takes it off this card with the rest",
+        !modal() && JSON.stringify(ticked()) === JSON.stringify(["greeting"]),
+        ticked().join(", ") || "(none ticked)");
+      /* The row stays, because the list is the collection as it is stored
+         and nothing is stored until the card is saved — the same way a
+         rename leaves the old name on the list until then. */
+      check("the row stays until the save that carries the answer out",
+        fillNames().includes("name"), fillNames().join(", "));
+
+      /* Ticked back on, so the walk below meets the card it expects: this
+         card is in the group again, and the answer it carries out is the
+         one being tested here rather than a card that quietly left. */
+      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      await sleep(250);
+
       /* And unticking is how one is taken off. */
       click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
       await sleep(250);
@@ -4867,10 +4933,6 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .find((b) => b.getAttribute("aria-label") === "Rename the group name"));
       await sleep(300);
 
-      const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
-      const modalBtns = () => modal() ? [...modal().querySelectorAll("button")] : [];
-      const modalBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
-        modalBtns().find((b) => re.test((b.textContent || "").trim())) || null);
       check("renaming a tag asks whether the name follows it everywhere",
         !!modal() && !!modalBtn(/^Change it everywhere$/) && !!modalBtn(/^Only here$/),
         modalBtns().map((b) => (b.textContent || "").trim()).join(" | ") || "(nothing asked)");
