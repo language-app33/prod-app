@@ -717,7 +717,10 @@ button {
 .at-blankword { flex:0 1 auto; font-size:calc(16px * var(--sscale, 1));
   line-height:calc(1.4 * var(--sleading, 1)); font-weight:600; overflow-wrap:anywhere; }
 .at-blankword.slot { font-family: var(--mono); font-size:12px; font-weight:700;
-  color: var(--brass); background: var(--tag-bg); border-radius:999px; padding:1px 8px; }
+  color: var(--brass); background: var(--tag-bg); border-radius:999px; padding:1px 8px;
+  /* Latin in a rail that may run the other way — as the pill in the field
+     above it is, and for the same reason. */
+  direction:ltr; unicode-bidi:isolate; }
 
 /* The sheet a blank is chosen in. A bottom sheet on a phone, because the
    list is long and the thumb is at the bottom; it stops growing and
@@ -1293,7 +1296,13 @@ button {
    shrunk — it is the shape of the card, not a word to read. */
 .at-slot { font-size:calc(.85em * var(--lscale, 1) / var(--sscale, 1)); color: var(--muted);
   display:inline-block; padding:0 .4em; border-radius:999px; background: var(--tag-bg);
-  border:1px solid var(--tag-line); font-family: var(--mono); }
+  border:1px solid var(--tag-line); font-family: var(--mono);
+  /* The name is Latin standing in whatever the card is written in, so it
+     is read left to right and stands apart from the line it is in —
+     which is what keeps a name with a dash in it from coming apart where
+     the sentence around it runs the other way. Where it *stands* is the
+     line's business and is left to it. */
+  direction:ltr; unicode-bidi:isolate; }
 /* Room for the descenders the clamp would otherwise shave off an Arabic
    line — the box crops to the line height, which sits above the tail of a
    ب or a ج. */
@@ -2094,12 +2103,22 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    middle of the taught script, and takes the same --lscale correction
    every other Latin word in a script field takes. */
 .at-blankpill { display:inline-flex; align-items:center; gap:.15em; vertical-align:baseline;
-  margin:0 .08em; padding:.05em .1em .05em .5em; border-radius:999px;
+  margin:0 .08em; padding-block:.05em; padding-inline:.5em .1em; border-radius:999px;
   background: var(--tag-bg); border:2px solid var(--tag-line); color: var(--brass);
   font-family: var(--mono); font-weight:700; white-space:nowrap;
   font-size:calc(.72em * var(--lscale, 1) / var(--sscale, 1));
   cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
-.at-blankpillname { padding:0; }
+/* Logical padding above, and the cross on the end the field ends at: in a
+   sentence that runs right to left the pill is read from its right, so the
+   room is on its right and the cross is on its left. It was pinned to the
+   left and the right by hand, which put the cross in front of the name on
+   every right-to-left card.
+
+   The name inside is Latin whichever way the sentence runs — a blank is
+   named in Latin letters and nothing else — so it is read left to right
+   and kept out of the line's own reckoning, which is what stops a name
+   ending in a dash or a digit from coming apart in an Arabic field. */
+.at-blankpillname { padding:0; direction:ltr; unicode-bidi:isolate; }
 /* Lifted: it follows the sentence it is being dragged through, so it has
    to read as picked up rather than as sitting where it was. */
 .at-blankpill.lifting { cursor:grabbing; background: var(--brass); color: var(--onbrass);

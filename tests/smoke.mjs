@@ -4352,6 +4352,35 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!saveBtn() && !saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "still refused" : "offered"}`);
 
+  /* ---- which way a field with blanks in it reads ----
+
+     A blank is drawn as a pill and a blank's name is Latin, so a field
+     that asked the browser to lay itself out by its own first strong
+     character — dir="auto" — was answered about the pill. An Arabic
+     sentence beginning with a blank came out running left to right, and
+     so did a field holding nothing but blanks, which every field of a
+     frame is while it is being written. The words decide now, and where
+     there are none the language does. */
+  {
+    const script = () => fieldNamed(/^Arabic script and transliteration$/i);
+    const dirOfScript = () => (script() ? script().getAttribute("dir") : "(no field)");
+    typeInto(script(), "{{name}}");
+    await sleep(200);
+    check("a field holding nothing but blanks reads the way the language does",
+      dirOfScript() === "rtl", `dir=${dirOfScript()}`);
+    typeInto(script(), "{{name}} اسمي");
+    await sleep(200);
+    check("and so does an Arabic sentence that begins with one",
+      dirOfScript() === "rtl", `dir=${dirOfScript()}`);
+    /* And what the teacher wrote still decides, which is what laying a
+       field out by its own text was for: a phrase in another script does
+       not take the deck's direction. */
+    typeInto(script(), "ismi {{name}}");
+    await sleep(200);
+    check("while the words themselves still decide where there are any",
+      dirOfScript() === "ltr", `dir=${dirOfScript()}`);
+  }
+
   /* ---- blanks ----
 
      The section was called Variables and did two opposite jobs at once,

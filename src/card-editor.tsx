@@ -36,7 +36,7 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT } from "./variables.ts";
+import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
@@ -313,6 +313,7 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                 onChange={(v) => edit(i, { text: v })}
                 label={lang.scriptLabel}
                 lang={lang}
+                script
               >
                 {(box) => (
                   <ScriptInput
@@ -964,13 +965,17 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   const look = {
     className: "at-input",
     lang: lang.id,
-    /* The text decides, once there is any: dir="auto" lays the field out
-       by its own first strong character, so a pasted Arabic phrase reads
+    /* The words decide, once there are any: the field is laid out by its
+       own first strong character, so a pasted Arabic phrase reads
        right-to-left even if the deck is labelled with another language.
        Trusting the deck's direction is what put pasted words in the
-       wrong order. While the field is empty there is nothing to go on,
-       so the language's own direction places the caret. */
-    dir: value ? "auto" : lang.direction,
+       wrong order. What the browser's own `dir="auto"` would read and
+       `wordsDir` does not is the blanks — their names are Latin, so a
+       sentence starting with one, or a field still holding nothing else,
+       came out running the wrong way. While there is nothing written
+       there is nothing to go on, and the language's own direction places
+       the pills and the caret. */
+    dir: wordsDir(value, lang.direction),
     /* The room for the keys button is reserved by .at-inputwrap in the
        stylesheet — physical right, not logical, because the button is
        at right:8px whichever way the text runs. */
@@ -1804,12 +1809,23 @@ interface BlankWiring {
  * of them in the language's own script with a keypad hanging off it — and
  * a component that drew all three would be a fourth description of them.
  */
-function BlankField({ wiring, value, onChange, label, lang, children }: {
+function BlankField({ wiring, value, onChange, label, lang, script = false, children }: {
   wiring: BlankWiring;
   value: string;
   onChange: (v: string) => void;
   label: string;
   lang: Lang;
+  /**
+   * Whether this field is written in the taught script.
+   *
+   * The rail under it is the field's own words laid out again, so it is
+   * laid out the way the field is or it is a picture of a different
+   * sentence: the script's face and the script's direction on the field
+   * that is in the script, and the page's own on the two beside it that
+   * are Latin. It read every field as the script before this, so the
+   * English of an Arabic card was dragged through back to front.
+   */
+  script?: boolean;
   children: (box: React.MutableRefObject<BlankBox | null>) => Node;
 }) {
   const box: React.MutableRefObject<BlankBox | null> = useRef(null);
@@ -1822,6 +1838,7 @@ function BlankField({ wiring, value, onChange, label, lang, children }: {
         onChange={onChange}
         label={label}
         lang={lang}
+        script={script}
         box={box}
       />
     </>
@@ -1834,12 +1851,14 @@ function BlankField({ wiring, value, onChange, label, lang, children }: {
    as a chip that does not work. */
 const DRAG_SLOP = 8;
 
-function BlankBar({ wiring, value, onChange, label, lang, box }: {
+function BlankBar({ wiring, value, onChange, label, lang, script = false, box }: {
   wiring: BlankWiring;
   value: string;
   onChange: (v: string) => void;
   label: string;
   lang: Lang;
+  /** Whether the field above is in the taught script — see BlankField. */
+  script?: boolean;
   box: React.MutableRefObject<BlankBox | null>;
 }) {
   /* Which blank is being dragged, and which gap the finger is over. Null
@@ -1964,9 +1983,13 @@ function BlankBar({ wiring, value, onChange, label, lang, box }: {
       {dragging && (
         <div
           className="at-blankrail"
-          lang={lang.id}
-          dir={lang.direction}
-          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+          lang={script ? lang.id : undefined}
+          /* The same answer the field above reached, from the same
+             function, so the words on the rail stand where the words in
+             the field stand — and the gap a finger is over is the gap it
+             looks like it is over. */
+          dir={script ? wordsDir(value, lang.direction) : undefined}
+          style={script ? { fontFamily: lang.fontStack, ...scriptVars(lang) } : undefined}
         >
           {rail.points.map((at, i) => (
             <React.Fragment key={at}>
