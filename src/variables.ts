@@ -178,7 +178,7 @@ export const cardRef = (card: WithSlots | null | undefined): string =>
  * are passed in for the reason the kind of a card is: which strings a
  * language declares is the language pack's business and this module knows
  * no language. Left out, they are not checked, which is what every caller
- * got before 0.188 — and what let a card be given the ID `noun` while
+ * got before 0.189 — and what let a card be given the ID `noun` while
  * every noun went on filling the same hole.
  */
 export function refClash(
@@ -248,6 +248,31 @@ export function renamedIn<T extends WithSlots>(card: T, from: string, to: string
     moved = true;
   }
   return moved ? (out as T) : null;
+}
+
+/*
+ * One card, with a group tag taken off it.
+ *
+ * What "take this group off every card" means, and the whole of it: the
+ * tags a card carries, never the braces a sentence writes. A sentence
+ * asking for `{{colour}}` goes on asking for it — the name is still a
+ * blank, now with nothing behind it — because a teacher taking a group off
+ * their words has said nothing about the sentences that use it, and
+ * rewriting those would be acting on an absence. It is also why the app
+ * calls this taking a group off every card rather than deleting a tag: the
+ * name outlives the last card that filled it for exactly as long as some
+ * sentence still asks for it.
+ *
+ * Null where nothing moved, as renamedIn is, which is the answer for
+ * almost every card in the collection: the caller saves what comes back
+ * and lets the rest alone.
+ */
+export function droppedIn<T extends WithSlots>(card: T, name: string): T | null {
+  const want = slotName(name);
+  if (!want || !card) return null;
+  const tags = fillNames(card);
+  if (!tags.includes(want)) return null;
+  return { ...card, fills: tags.filter((tag) => tag !== want) } as unknown as T;
 }
 
 /** One string, with one slot renamed — `{{name}}` to `{{name-is}}`. */

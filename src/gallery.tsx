@@ -183,6 +183,7 @@ const PLACES: Record<string, [string, string]> = {
   IdBox: [TEACH, "Editing a card · the ID it answers to"],
   TagList: [TEACH, "Editing a card · the groups it is in"],
   RenameAsk: [TEACH, "Editing a card · renaming an ID or a group tag"],
+  StripAsk: [TEACH, "Editing a card · taking a group off every card"],
   RecordingOverlays: [TEACH, "Editing a card · recording a form"],
   DeckSwitch: [TEACH, "Editing a card · which decks it is in"],
   BlankNameBox: [TEACH, "Editing a card · naming a blank nobody has named yet"],
