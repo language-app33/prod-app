@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.196 — 19 September 2026
+## 0.197 — 19 September 2026
 
 **A sentence in Arabic or Hebrew stopped reading backwards while you wrote
 it.** A blank in a card's field is drawn as a pill with its name on it, and
@@ -36,6 +36,21 @@ The pill itself sits the right way round in a right-to-left sentence, with
 the cross that takes it off on the end the sentence ends at. And a blank's
 name is left reading left to right wherever it stands, so a name with a
 dash or a digit in it cannot come apart in the middle of Arabic.
+
+## 0.196 — 19 September 2026
+
+**What a card is called is asked with the rest of what the card is.** A verb
+and a sentence are both saved as something other than what they are about —
+a verb as the form a dictionary lists, a sentence as a frame with a hole in
+it — so each can be given a name to be listed under instead. That question
+had a framed section of its own, standing between the card and its words and
+reading as a stage of the form rather than as the label it is.
+
+It is now a field in "This card", directly under what subtype the card is,
+and its name is set the same way: both are one fact about the whole card,
+settled once and then read. Nothing else changes — the same box, the same
+wording about what a card with no name falls back to, and the same nothing
+asked about it.
 
 ## 0.195 — 19 September 2026
 
