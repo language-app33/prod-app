@@ -10,7 +10,7 @@
  *
  * The stored card stays one thing; this file only decides how it is edited.
  */
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
 import { cellsIn, citationOf, citedWord, isCell, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
@@ -20,6 +20,7 @@ import {
   categoriesOf,
   categoryOf,
   categoryLabel,
+  briefOf,
   dimsFor,
   lendsForm,
   dimValues,
@@ -158,6 +159,77 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
           {i === list.length - 1 && (
             <IconButton icon="add" label={addLabel} onClick={() => commit(list.concat([""]))} />
           )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/*
+ * What an answer is grammatically: one axis to a line.
+ *
+ * Number on one line, gender on the next, each with its values beside its
+ * name and exactly one of them chosen — which is what a radio button is
+ * for, and what these have been all along. They were a track of segmented
+ * buttons per axis, each stacked under a label of its own, so three axes
+ * came to six rows of furniture under a word of two syllables, and the
+ * panel they sat in was taller than the fields it belonged to.
+ *
+ * Where a line is too narrow for the names — a phone, or an axis with
+ * three long values — the values read as the abbreviations the pack gives
+ * them instead: "sg. pl. N/A", which is what the card list has always
+ * called them. Both are written into every row and the width of the panel
+ * picks, so nothing is measured in JavaScript and the choice is made again
+ * whenever the panel is a different width — a phone turned on its side,
+ * the same card opened on a laptop.
+ *
+ * An axis a language does not insist on gets one more button than it has
+ * values — *not set*, at the front. A radio cannot be un-clicked, and a
+ * gender chosen by mistake with no way back is worse than a gender
+ * nobody said.
+ */
+function GrammarRadios({ dims, values, onPick, of }: {
+  dims: GrammarDim[];
+  values: Record<string, any>;
+  onPick: (field: string, value: string) => void;
+  /** Which answer these belong to, as a screen reader should hear it. */
+  of: string;
+}) {
+  /* What makes a row exclusive to the browser. A card shows several forms
+     at once and each shows every answer it accepts, so a name built out of
+     the axis alone would put every gender on the screen into one group —
+     and arrowing through it would walk out of the answer being edited. */
+  const id = useId();
+  return (
+    <div className="at-answerdims">
+      {dims.map((dim) => (
+        <div
+          className="at-dimrow"
+          role="radiogroup"
+          aria-label={`${dim.label} ${of}`}
+          key={dim.field}
+        >
+          <span className="at-dimname">{dim.label}</span>
+          <span className="at-dimpicks">
+            {(dim.required ? [] : [["", "not set", "—"] as [string, string, string]])
+              .concat(dim.options.map(([v, label]) => [v, label, briefOf(dim, v)]))
+              .map(([value, label, brief]) => (
+                <label className="at-dimpick" key={value || "unset"}>
+                  <input
+                    type="radio"
+                    name={`${id}-${dim.field}`}
+                    checked={String(values[dim.field] || "") === value}
+                    onChange={() => onPick(dim.field, value)}
+                    aria-label={label}
+                  />
+                  {/* Said twice and heard once: the input carries the name
+                      a screen reader reads, and these two are what the eye
+                      gets — whichever of them the line has room for. */}
+                  <span className="at-dimlong" aria-hidden="true">{label}</span>
+                  <span className="at-dimbrief" aria-hidden="true">{brief}</span>
+                </label>
+              ))}
+          </span>
         </div>
       ))}
     </div>
@@ -321,18 +393,12 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                 <Icon name={open === i ? "chevronUp" : "chevronDown"} />
               </Button>
               {open === i && (
-                <div className="at-answerdims">
-                  {dims.map((dim) => (
-                    <Field label={dim.label} key={dim.field}>
-                      <Segmented
-                        label={`${dim.label} of accepted answer ${i + 1}`}
-                        options={dim.options.map(([value, label]) => ({ value, label }))}
-                        value={String(row[dim.field] || "")}
-                        onChange={(v) => edit(i, { [dim.field]: v })}
-                      />
-                    </Field>
-                  ))}
-                </div>
+                <GrammarRadios
+                  dims={dims}
+                  values={row}
+                  of={`of accepted answer ${i + 1}`}
+                  onPick={(field, v) => edit(i, { [field]: v })}
+                />
               )}
             </div>
           )}

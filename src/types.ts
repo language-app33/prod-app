@@ -370,6 +370,14 @@ export interface GrammarDim {
    * option's own label.
    */
   short?: Record<string, string>;
+  /**
+   * How a value reads where the picker is too narrow for its name —
+   * "sg.", "m.". Never silent, unlike `short`: a row of radios with a
+   * blank beside one of them is a choice nobody can make. Absent means
+   * the option's own label, which is what a value short enough to stand
+   * as it is wants.
+   */
+  brief?: Record<string, string>;
   /** What a new or unreadable value becomes. */
   default?: string;
   retired?: boolean;

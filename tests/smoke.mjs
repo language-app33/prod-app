@@ -4087,14 +4087,24 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     grammarBtns().map((b) => b.getAttribute("aria-label")).join(" | ") || "none");
   click(grammarBtns()[1]);
   await sleep(200);
-  const genderGroup = document.querySelector('[role="group"][aria-label="Gender of accepted answer 2"]');
+  /* A radiogroup per axis since 0.188 — one line of radios rather than a
+     stack of segmented tracks — so the pickers are found by the role the
+     control actually has. */
+  const genderGroup = document.querySelector('[role="radiogroup"][aria-label="Gender of accepted answer 2"]');
   check("and opens onto the pickers for that answer alone",
     !!genderGroup &&
-      !document.querySelector('[role="group"][aria-label="Gender of accepted answer 1"]'),
+      !document.querySelector('[role="radiogroup"][aria-label="Gender of accepted answer 1"]'),
     genderGroup ? "the second answer's" : "(no pickers)");
+  /* Every value of the axis is on the line, named rather than counted:
+     a picker that dropped one would still pass a count. */
+  const genderPicks = [...(genderGroup ? genderGroup.querySelectorAll('input[type="radio"]') : [])]
+    .map((i) => i.getAttribute("aria-label") || "");
+  check("with every value of the axis on the one line, and a way back to none",
+    ["not set", "masculine", "feminine", "neutral"].every((v) => genderPicks.includes(v)),
+    genderPicks.join(" | ") || "(no radios)");
   click(
-    [...(genderGroup ? genderGroup.querySelectorAll("button") : [])]
-      .find((b) => /feminine/i.test(b.textContent || ""))
+    [...(genderGroup ? genderGroup.querySelectorAll('input[type="radio"]') : [])]
+      .find((b) => /feminine/i.test(b.getAttribute("aria-label") || ""))
   );
   await sleep(200);
   check("choosing one names that answer without touching the other",
@@ -5221,7 +5231,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const boxes = (/** @type {RegExp} */ re) => [...document.querySelectorAll("input")]
         .map((i) => i.getAttribute("aria-label") || "").filter((l) => re.test(l));
       const tables = () => boxes(/attached pronouns|agreement|counted|for (present|past|command) · /);
-      const dimGroups = () => [...document.querySelectorAll('[role="group"]')]
+      const dimGroups = () => [...document.querySelectorAll('[role="radiogroup"]')]
         .map((g) => g.getAttribute("aria-label") || "").filter((l) => / of accepted answer| of this answer/.test(l));
       const askAxes = async () => {
         click(grammarBtn());

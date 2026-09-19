@@ -8,6 +8,28 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.190 — 19 September 2026
+
+**What an accepted answer is grammatically is now one line per question.**
+Number on a line, gender on the next, each with its values beside its name
+and one of them filled in — radio buttons, which is what "pick one of
+these" looks like everywhere else.
+
+They were rows of large buttons, a label above each row, so a word asked
+about three things came to six rows of controls under a word of two
+syllables, in a panel taller than the fields it belonged to. Nothing about
+what a card can say has changed: the same questions, the same answers,
+read in a glance instead of a scroll.
+
+**Where the line is too narrow for the words, the values shorten.** On a
+phone the choices read *sg. pl. N/A* and *m. f. n.* — the same
+abbreviations the card lists have always used to name a form — and go back
+to the full words as soon as there is room for them.
+
+**And a gender set by mistake can be taken off again.** Anything the
+language does not insist on now starts its line with *not set*, which
+there was previously no way back to.
+
 ## 0.189 — 19 September 2026
 
 **The card's group tags now show the tags a card wears anyway.** A card

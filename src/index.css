@@ -3017,12 +3017,48 @@ body.at-screening .at-chromebar { display:none; }
 /* What an accepted answer is, grammatically. Folded away behind its own
    name — "sg. f." where it has one, "Grammar" where it has none — because
    most cards accept one answer and want the language's default, and four
-   pickers under every row would bury the words the card is about. */
-.at-answergrammar { grid-column:1; }
+   pickers under every row would bury the words the card is about.
+
+   Across the whole row rather than under the answer alone: the panel is a
+   run of one-line pickers, and every pixel the buttons beside the answer
+   would take off it is a word that has to be abbreviated. */
+.at-answergrammar { grid-column:1 / -1; }
 .at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
-.at-answerdims { display:flex; flex-direction:column; gap:8px; margin-top:8px;
-  padding:10px 12px; background: var(--well); border-radius: var(--r-sm); }
-.at-answerdims .at-field { margin:0; }
+.at-answerdims { display:flex; flex-direction:column; gap:6px; margin-top:8px;
+  padding:8px 12px; background: var(--well); border-radius: var(--r-sm);
+  container-type: inline-size; }
+/* One axis to a line: its name on the left, its values as radios beside it.
+   The values never break from each other — that is the whole of what this
+   row is for — so where a line will not hold both, the set of them drops
+   under the name whole rather than splitting across two lines. */
+.at-dimrow { display:flex; align-items:center; justify-content:space-between;
+  gap:2px 10px; min-height:26px; flex-wrap:wrap; }
+.at-dimname { font-family: var(--ui); font-size:11px; font-weight:700; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; flex:0 0 auto; }
+.at-dimpicks { display:flex; align-items:center; gap:12px; flex-wrap:nowrap; min-width:0; }
+/* One weight for every value, chosen or not: the chosen one is said by its
+   own button and by the colour, and bolding it as well would widen the
+   word and shove the rest of the line along as it is picked. */
+.at-dimpick { display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
+  white-space:nowrap; }
+.at-dimpick:has(input:checked) { color: var(--text); }
+.at-dimpick:hover { color: var(--text-soft); }
+.at-dimpick input { width:15px; height:15px; flex:0 0 auto; margin:0; cursor:pointer;
+  accent-color: var(--jade); }
+/* Where the names will not fit, the pack's abbreviations stand in for them.
+   Both are in the row and the width chooses, so nothing is measured in
+   JavaScript and the choice is made again whenever the panel is resized. */
+.at-dimbrief { display:none; }
+@container (max-width: 400px) {
+  .at-dimlong { display:none; }
+  .at-dimbrief { display:inline; }
+  /* The name gives up a little too, so that the longest of them — "person
+     or thing", which has no abbreviation to fall back on — keeps its
+     values beside it on a phone rather than under them. */
+  .at-dimname { font-size:10px; letter-spacing:.03em; }
+  .at-dimpicks { gap:10px; }
+}
 
 /* The phrase is a way into the card it belongs to, so it reads as one —
    quieter than the word, and underlined on hover like every other way of
