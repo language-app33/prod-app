@@ -1379,8 +1379,8 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
   /* One row of the table, whether it stands on its own or inside the block
      of the form it belongs to. A table hung off a form is a part of that
      form rather than a section beside it, so there it is a subsection of
-     that block — the same thing "The word itself" and "Reference — never
-     drilled" are in the blocks above. */
+     that block — the same thing the form's own fields and "Reference —
+     never drilled" are in the blocks above. */
   const row = (tense: VerbTense, at_: number) => (
     <>
       {persons.map((person) => {
@@ -3876,12 +3876,21 @@ function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, ch
         <Help className="at-mt3">{storedHelp(specOf(lang, storedForms))}</Help>
       )}
 
-      {/* And where it goes, which is the other fact about the card
-          rather than about its words — and the one that decides
-          whether anybody ever sees it. */}
-      <div className="at-mt3">
-        <DeckSwitch decks={decks} chosen={chosen} onToggle={onToggleDeck} />
+    </div>
+
+    {/* ---- and where it goes ----
+
+        The other fact about the card rather than about its words, and the
+        one that decides whether anybody ever sees it — so it is a section
+        of its own, directly under what kind of card this is. It was a
+        control at the foot of that block, where it read as one more thing
+        about the kind rather than as the question it is. */}
+    <div className="at-formblock at-mt5">
+      <div className="at-formhead">
+        <span className="at-formnum">Decks</span>
+        <span className="at-formrole">where a student finds it</span>
       </div>
+      <DeckSwitch decks={decks} chosen={chosen} onToggle={onToggleDeck} />
     </div>
     </>
   );
@@ -4025,7 +4034,7 @@ function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               <span className="at-formnum">{mine.title}</span>
               <span className="at-formrole">{mine.note}</span>
             </div>
-            <DrillChecks word={word} part={mine} />
+            <DrillChecks word={word} part={mine} label="How these forms can be practiced" />
           </div>
         )}
       </>
@@ -4245,7 +4254,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, blanks, childre
   blanks?: BlankWiring;
   children?: Node;
 }) {
-  const { canSave, drillsTranslit, parts, setForm, duplicateForm, removeForm, setRecording, dropBlank } = word;
+  const { drillsTranslit, parts, setForm, duplicateForm, removeForm, setRecording, dropBlank } = word;
   /* This form's own two answers — see askParts, which lists one line per
      form whether or not anything is written in it yet: the answer is
      about the form, and a card being written from scratch should be able
@@ -4290,20 +4299,19 @@ function FormBlock({ word, lang, index: i, form: f, title, role, blanks, childre
       </span>
     </div>
 
-    {/* ---- the word itself ----
+    {/* ---- the form's own fields ----
         A subsection rather than a run of fields under a coloured line:
         a form block holds two or three different questions, and until
-        0.179 the only thing saying where one ended was that line,
-        which read as a label on the field beneath it. */}
-    <div className="at-part">
-    <p className="at-groupline">The word itself</p>
+        0.179 the only thing saying where one ended was that line.
 
-    {/* What this form needs, next to the fields it's about. */}
-    {i === 0 && (
-      <p className={`at-formneed${canSave ? "" : " unmet"}`}>
-        {lang.scriptLabel} plus English.
-      </p>
-    )}
+        The one subsection here with no name across the top. The others
+        are named because they are additions to the form — what is kept
+        for reading, the table on the end of the word — and this is the
+        form itself, under a block that already says which form it is.
+        A line naming it again, and a second line under that saying which
+        of the fields below are required, were two rows of the screen
+        telling a teacher what they could see. */}
+    <div className="at-part">
 
     {/* An accepted answer and how it is said are written together,
         because one transliteration under two spellings belongs to
@@ -4460,7 +4468,7 @@ function PronounTable({ word, lang, index: i, form: f }: {
         </p>
       )}
       {mine ? (
-        <DrillChecks word={word} part={mine} />
+        <DrillChecks word={word} part={mine} label="How these forms can be practiced" />
       ) : written ? (
         /* Named rather than left as a missing tick: the reason these are
            not asked is a decision made in the block above this one, and
@@ -4539,23 +4547,18 @@ function AddFormButton({ word }: { word: WordDraft }) {
  * The second is only offered where the card stands in a blank at all —
  * see canLend, and a tick that does nothing is worse than no tick.
  */
-function DrillChecks({ word, part }: { word: WordDraft; part: AskPart }) {
+function DrillChecks({ word, part, label = "How this form can be practiced" }: {
+  word: WordDraft;
+  part: AskPart;
+  /* What the ticks are about, in the caller's words: one form under its
+     own fields, and a table of them under the table. */
+  label?: string;
+}) {
   const { canLend, setAskPart, setLendPart } = word;
   const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
   return (
     <div className="at-drills">
-      <span className="at-drillhead">What is drilled</span>
-      {/* What a tick means, above the ticks: it is what somebody about to
-          switch one off needs to know, and under them it was an answer to
-          a question already asked. The sentence the whole control exists
-          for — deleting a form was the only way to stop it being asked,
-          and deleting it took its recordings and every student's progress
-          on it too. */}
-      <Help>
-        Switched off, it stays on the card and is still shown — its
-        recordings, and whatever progress a student has made on it, are
-        kept. It is simply never asked.
-      </Help>
+      <span className="at-drillhead">{label}</span>
       <CheckList
         options={[
           {
