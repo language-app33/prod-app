@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.194 — 19 September 2026
+
+**What a card is called is asked with the rest of what the card is.** A verb
+and a sentence are both saved as something other than what they are about —
+a verb as the form a dictionary lists, a sentence as a frame with a hole in
+it — so each can be given a name to be listed under instead. That question
+had a framed section of its own, standing between the card and its words and
+reading as a stage of the form rather than as the label it is.
+
+It is now a field in "This card", directly under what subtype the card is,
+and its name is set the same way: both are one fact about the whole card,
+settled once and then read. Nothing else changes — the same box, the same
+wording about what a card with no name falls back to, and the same nothing
+asked about it.
+
 ## 0.193 — 19 September 2026
 
 **Writing a card is one sheet now, not a stack of boxes.** Every section of

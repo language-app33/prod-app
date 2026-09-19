@@ -3705,6 +3705,25 @@ const wordKindSaid = () => {
   const row = wordKindPencil() ? wordKindPencil().closest(".at-shutrow") : null;
   return ((row && row.querySelector(".at-shutname") || {}).textContent || "").trim();
 };
+/* "This card" — the block every editor opens with, and what it asks. What
+   a card is called lives in it since 0.194: a verb's name and a sentence's
+   are facts about the card, in the same class as what kind of card it is
+   and what kind of word, so they are asked where those are and wear the
+   same heading rather than a framed section of their own. */
+const thisCardBlock = () => /** @type {any} */ ([...document.querySelectorAll(".at-formblock")]
+  .find((b) => /^This card$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
+  || null);
+/* The questions it asks, in the order it asks them. */
+const thisCardAsks = () => {
+  const block = thisCardBlock();
+  return block ? [...block.querySelectorAll(".at-label")].map((l) => (l.textContent || "").trim()) : [];
+};
+const cardNameField = () => {
+  const block = thisCardBlock();
+  return /** @type {any} */ ((block && [...block.querySelectorAll(".at-field")]
+    .find((f) => /^Name$/.test(((f.querySelector(".at-label") || {}).textContent || "").trim())))
+    || null);
+};
 const formRows = () => [...document.querySelectorAll(
   '[role="radiogroup"][aria-label="What subtype"] .at-tickrow')];
 const openWordKind = async () => {
@@ -4676,23 +4695,20 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     /* And asks what to call it, exactly as a verb is asked. A sentence is
        saved as a frame with a hole in it, so a list of sentences reads as
        a list of holes unless the teacher says what each one is for. */
-    const sentenceName = [...document.querySelectorAll(".at-formblock")].find((b) =>
-      /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    const sentenceName = cardNameField();
     check("a sentence can be given a name to be listed under, as a verb can",
-      !!sentenceName, blockNames().join(" | "));
-    /* Above the sentence, which is what "at the top" is for — the two
-       sections over it are what kind of card this is and which decks it
-       goes in, both facts about the card rather than about its words. */
-    check("and it is asked at the top, above the sentence itself",
-      blockNames().indexOf("What to call it") ===
-        blockNames().indexOf("Decks") + 1 &&
-        blockNames().indexOf("What to call it") < blockNames().indexOf("The sentence"),
-      blockNames().join(" | "));
+      !!sentenceName, thisCardAsks().join(" | "));
+    /* In "This card" with the other facts about the card, and not in a
+       framed section of its own between the card and its words. */
+    check("and it is asked in This card, above the sentence itself",
+      !!sentenceName && thisCardAsks().includes("Name") &&
+        !blockNames().includes("What to call it"),
+      `${thisCardAsks().join(" | ")} · ${blockNames().join(" | ")}`);
     check("and says what a blank one falls back to, and that nothing is asked about it",
       !!sentenceName && /listed and searched/.test(sentenceName.textContent || "") &&
         /blanks and all/.test(sentenceName.textContent || "") &&
         /Nobody is ever asked this/.test(sentenceName.textContent || ""),
-      sentenceName ? (sentenceName.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no block)");
+      sentenceName ? (sentenceName.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no field)");
     /* The control itself, not the list behind it: the list is on screen
        only while it is open, so a card that is still asked and shut would
        pass a check that only looked for the rows. */
@@ -5161,26 +5177,26 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        is saved as the form a dictionary lists, so a list read "أكل · he
        ate" — one cell of the table rather than the verb the card is
        about. */
-    const nameBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
-      /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    const nameBlock = cardNameField();
     check("a verb can be given a name to be listed under", !!nameBlock,
-      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
-    /* Above the table, which is where it is decided rather than where it is
-       remembered — and the first thing on the screen after what kind of
-       card this is. */
+      thisCardAsks().join(" | "));
+    /* In "This card" and directly under what subtype it is: both are one
+       fact about the whole card, settled once and then read, and neither
+       belongs to any one of its forms. Not a framed section of its own
+       standing between the card and its table. */
     const heads = [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
-    check("and it is asked above the first tense, not under the whole table",
-      heads.indexOf("What to call it") > -1 &&
-        heads.indexOf("What to call it") < heads.indexOf("present"),
-      heads.join(" | "));
+    check("and it is asked in This card, directly under what subtype it is",
+      thisCardAsks().indexOf("Name") === thisCardAsks().indexOf("What subtype") + 1 &&
+        !heads.includes("What to call it"),
+      `${thisCardAsks().join(" | ")} · ${heads.join(" | ")}`);
     /* And it says what it is for, and that nothing is asked about it. */
     check("and says it is a label rather than something practised",
       !!nameBlock && /listed and searched/.test(nameBlock.textContent || "") &&
         /Nobody is ever asked this/.test(nameBlock.textContent || ""),
-      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
+      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no field)");
     check("naming the box it would otherwise be listed under",
       !!nameBlock && /past · he/.test(nameBlock.textContent || ""),
-      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
+      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no field)");
 
     check("without the table labelling the cell it went into",
       !/the dictionary form/i.test(document.body.textContent || ""),
