@@ -24,6 +24,7 @@ import {
   findWordSlot,
   GRAMMAR,
   guessKind,
+  kindOf,
   LANGUAGES,
   tablesOf,
   specOf,
@@ -39,6 +40,7 @@ import {
   EX,
   isListening,
 } from "../src/languages.ts";
+import { fillsOf } from "../src/variables.ts";
 
 test("Arabic: bare letters accepted, wrong harakat rejected, missing harakat depends on setting", () => {
   assert.equal(checkAr("كتاب", "كِتَاب", { tashkeel: "either" }).ok, true);
@@ -312,6 +314,44 @@ test("neither language pack overrides it today", () => {
   for (const id of Object.keys(LANGUAGES)) {
     assert.equal(LANGUAGES[id].guessKind, undefined, id);
   }
+});
+
+test("a card that says what kind of word it is, is a word in any language", () => {
+  /*
+   * The guess counts spaces, and Vietnamese writes one word as its
+   * syllables with spaces between them: *cảm ơn* is a single word and
+   * came back a phrase. Every such card fell out of `{{word}}` — the
+   * blank that means "any word in the language" — which quietly excluded
+   * roughly every Vietnamese word longer than a syllable, with nothing on
+   * the screen to say so.
+   *
+   * The teacher answers what kind of word each card is anyway, and that
+   * answer is a fact rather than a guess, so it is read first.
+   */
+  const vi = LANGUAGES["vi-HUE"];
+  const card = (/** @type {string} */ ar, /** @type {Record<string, any>} */ over = {}) =>
+    ({ id: "x", lang: "vi-HUE", forms: [{ id: "x", ar, en: "thanks", lat: "" }], ...over });
+  assert.equal(kindOf(card("cảm ơn", { category: "noun" }), vi), "word");
+  assert.equal(kindOf(card("chó", { category: "noun" }), vi), "word");
+  /* And the same in Arabic, where a compound the teacher called a noun is
+     a word however many spaces are in it. */
+  assert.equal(kindOf(card("رئيس الوزراء", { category: "noun" }), LANGUAGES["ar-PS"]), "word");
+
+  /* A card nobody has answered for is still guessed at, exactly as before. */
+  assert.equal(kindOf(card("cảm ơn"), vi), "phrase");
+  assert.equal(kindOf(card("chó"), vi), "word");
+
+  /* And the answer beats the kind cached on a card when it was typed,
+     which is only this same guess written down. */
+  assert.equal(kindOf(card("cảm ơn", { category: "noun", kind: "phrase" }), vi), "word");
+});
+
+test("and so it is offered to fill the blank that means any word", () => {
+  /* Which is the whole point of the rule above: fillsOf is handed the
+     kind, and a card that reads as a word answers to `{{word}}`. */
+  const vi = LANGUAGES["vi-HUE"];
+  const thanks = { id: "x", lang: "vi-HUE", category: "noun", forms: [{ id: "x", ar: "cảm ơn", en: "thanks", lat: "" }] };
+  assert.deepEqual(fillsOf(thanks, kindOf(thanks, vi)).sort(), ["noun", "word"]);
 });
 
 /* --- finding a word inside a phrase ---

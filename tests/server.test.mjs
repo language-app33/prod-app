@@ -65,6 +65,10 @@ const coursesOf = (r) => r.json.courses;
 /* A card's forms, as a saved card carries them: the card's own word first
    and its other forms after. Written out here rather than imported so
    these tests read a saved card the way a client would, off the JSON. */
+/* A recording is stored under the hash of its own bytes and fetched by
+   it, so a name that is not one names nothing — see clipList. */
+/** @param {number} n */
+const clipId = (n) => String(n).padStart(64, "0");
 /** @param {any} card */
 const lead = (card) => card.forms[0];
 /** @param {any} card */
@@ -767,6 +771,184 @@ test("a deck's phrases are sent with the cards that fill their variables", async
       .sort(),
     ["Raphael", "Sarah", "Victor"]
   );
+});
+
+/*
+ * And the other two ways a blank names what fills it.
+ *
+ * A blank is filled four ways, and only one of them was ever bundled. A
+ * card that answers by the kind of word it said it was — `{{noun}}` — and
+ * one that answers to the ID its teacher gave it — `{{colour-red}}` —
+ * both sat in no deck and so never reached the student at all: the
+ * sentence arrived with a hole nothing on the device could fill, and was
+ * quietly never dealt. The teacher saw it working, because the editor's
+ * examples read the whole library.
+ */
+test("a deck's phrases are also sent the cards a kind of word and an ID fill", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yara" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Things", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title: "Arabic 2", language: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key, body: { deckId, courseId: course.json.course.id },
+  });
+  /* Two frames in the deck: one asking for any noun, one for a named card. */
+  for (const [ar, en] of [["الـ{{noun}} كبير", "the {{noun}} is big"], ["{{colour-red}} غامق", "{{colour-red}} is dark"]]) {
+    await api("/api/courses?action=save-card", {
+      method: "POST", key,
+      body: { card: carded({ ar, en, lat: en }, [], { sentence: true }), decks: [deckId] },
+    });
+  }
+  /* A noun, which says what it is and names no group at all. */
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "باب", en: "door", lat: "baab" }, [], { category: "noun" }), decks: [] },
+  });
+  /* And a card answering to its own ID, likewise in no deck and tagged
+     with nothing. */
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "أحمر", en: "red", lat: "aHmar" }, [], { ref: "colour-red" }), decks: [] },
+  });
+
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Lina" } });
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key, body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+
+  const mine = await api("/api/courses?action=my-material", { key: student.json.key });
+  const sent = (mine.json.cards || []).flatMap((/** @type {any} */ d) => d.cards).map((/** @type {any} */ c) => lead(c).en);
+  assert.ok(sent.includes("door"), "the noun never reached the student, so {{noun}} had nothing in it");
+  assert.ok(sent.includes("red"), "the named card never reached the student, so {{colour-red}} had nothing in it");
+});
+
+/*
+ * And what a client that says nothing at all gets.
+ *
+ * "Not a sentence" and "did not say" are different answers, and the server
+ * read both as the first. A build from before 0.176 says nothing about
+ * this by definition, so every sentence it saved arrived here and was
+ * pinned as a word with its own braces in it — lent into other cards'
+ * holes, drawn as a word, and refused by the editor on every later save
+ * until somebody deleted the braces. A card with a hole in it is a
+ * sentence, which is how it was always read and is now what is stored.
+ */
+test("a card that says nothing about being a sentence is read by its holes", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rania" } });
+  const key = made.json.key;
+  const save = (/** @type {Record<string, any>} */ card) =>
+    api("/api/courses?action=save-card", { method: "POST", key, body: { card, decks: [] } });
+
+  /* No `sentence` field at all, which is what an older build sends. */
+  const old = await save({
+    id: "", lang: "ar-PS",
+    forms: [{ ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}" }],
+  });
+  assert.equal(old.status, 200, old.text);
+  assert.equal(old.json.card.sentence, true, "a card with a hole in it is a sentence");
+
+  /* And one that says outright that it is a word, while carrying a hole:
+     the invariant the rest of this rests on is that only a sentence may
+     have a blank, so it is settled by reading rather than by refusing. */
+  const contrary = await save({
+    id: "", lang: "ar-PS", sentence: false,
+    forms: [{ ar: "الـ{{noun}} كبير", en: "the {{noun}} is big", lat: "" }],
+  });
+  assert.equal(contrary.json.card.sentence, true);
+
+  /* A word with no holes is untouched by any of it. */
+  const plain = await save({ id: "", lang: "ar-PS", forms: [{ ar: "باب", en: "door", lat: "baab" }] });
+  assert.equal(plain.json.card.sentence, false);
+});
+
+/*
+ * Two saves at once, and neither of them lost.
+ *
+ * Every list here was read, changed in memory and written back whole, and
+ * the lock inside the store serialises the write without seeing the read
+ * before it. So two saves in flight — two tabs, two co-teachers, a queued
+ * draft draining while somebody types — each read the list as it was and
+ * the second wrote its copy over the first. What that costs is a card
+ * that was saved, stored, and in no deck and no collection: nothing
+ * afterwards looks for it, and nobody is told.
+ */
+test("cards saved at the same moment all reach the deck and the collection", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Suha" } });
+  const key = made.json.key;
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title: "Lesson 1", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+
+  /* Eight at once, which is what a paste of a list looks like from here. */
+  const saves = Array.from({ length: 8 }, (_, i) =>
+    api("/api/courses?action=save-card", {
+      method: "POST", key,
+      body: { card: carded({ ar: `كلمة${i}`, en: `word ${i}`, lat: `word${i}` }), decks: [deckId] },
+    }));
+  const done = await Promise.all(saves);
+  for (const r of done) assert.equal(r.status, 200, r.text);
+  const saveIds = done.map((r) => r.json.card.id).sort();
+
+  const mine = await api("/api/courses?action=my-cards", { key });
+  assert.deepEqual(
+    mine.json.cards.map((/** @type {any} */ c) => c.id).sort(),
+    saveIds,
+    "a card was saved into nobody's collection",
+  );
+  const decks = await api("/api/courses?action=my-decks", { key });
+  const back = decks.json.decks.find((/** @type {any} */ d) => d.id === deckId);
+  assert.equal(back.cardCount, 8, "a card was saved into no deck");
+
+  /* And deleting several at once leaves the rest where they were. */
+  const gone = saveIds.slice(0, 3);
+  const cut = await api("/api/courses?action=delete-cards", { method: "POST", key, body: { cardIds: gone } });
+  assert.equal(cut.status, 200, cut.text);
+  const after = await api("/api/courses?action=my-cards", { key });
+  assert.deepEqual(
+    after.json.cards.map((/** @type {any} */ c) => c.id).sort(),
+    saveIds.filter((id) => !gone.includes(id)),
+  );
+});
+
+/*
+ * Two cards answering to one name.
+ *
+ * The editor refuses a taken ID while the teacher is looking at it, which
+ * is where the refusal says something useful. Nothing said so for the
+ * saves that never went through that screen, and two cards answering to
+ * one `{{x}}` is the one thing an ID exists to prevent: neither of them
+ * can be pointed at afterwards.
+ */
+test("an ID another card already answers to is refused", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Hadi" } });
+  const key = made.json.key;
+  const save = (/** @type {Record<string, any>} */ card) =>
+    api("/api/courses?action=save-card", { method: "POST", key, body: { card, decks: [] } });
+
+  const red = await save({ id: "", lang: "ar-PS", ref: "colour-red", forms: [{ ar: "أحمر", en: "red", lat: "" }] });
+  assert.equal(red.json.card.ref, "colour-red");
+
+  const twin = await save({ id: "", lang: "ar-PS", ref: "colour-red", forms: [{ ar: "قرمزي", en: "crimson", lat: "" }] });
+  assert.equal(twin.status, 409, twin.text);
+  assert.equal(twin.json.error, "ref-taken");
+
+  /* A free name is saved as ever, and the card that already holds one may
+     be saved again without tripping over itself. */
+  const blue = await save({ id: "", lang: "ar-PS", ref: "colour-blue", forms: [{ ar: "أزرق", en: "blue", lat: "" }] });
+  assert.equal(blue.status, 200, blue.text);
+  const again = await save({
+    id: red.json.card.id, lang: "ar-PS", ref: "colour-red", forms: [{ ar: "أحمر", en: "red", lat: "aHmar" }],
+  });
+  assert.equal(again.status, 200, again.text);
+  assert.equal(lead(again.json.card).lat, "aHmar", "its own ID is not a clash with itself");
 });
 
 /*
@@ -1700,7 +1882,7 @@ test("saving a card clears the shape it was stored in before one list of forms",
   const aged = {
     id: "kaged0000", owner: made.json.user.handle, lang: "ar-PS", rev: 3,
     ar: "كِتاب", en: "book", lat: "kitaab", gender: "masculine",
-    clips: ["oldclip"], slowClips: [], answers: [{ text: "كِتاب", lat: "kitaab" }],
+    clips: [clipId(7)], slowClips: [], answers: [{ text: "كِتاب", lat: "kitaab" }],
     subs: [{ ar: "كُتُب", en: "books", lat: "kutub" }],
     created: 1, updated: 1,
   };
@@ -1714,7 +1896,7 @@ test("saving a card clears the shape it was stored in before one list of forms",
       card: {
         id: aged.id, lang: "ar-PS",
         forms: [
-          { id: aged.id, ar: "كِتاب", en: "book", lat: "kitaab", gender: "masculine", clips: ["oldclip"] },
+          { id: aged.id, ar: "كِتاب", en: "book", lat: "kitaab", gender: "masculine", clips: [clipId(7)] },
           { id: "fpl", ar: "كُتُب", en: "books", lat: "kutub" },
         ],
       },
@@ -1770,12 +1952,30 @@ test("a card that does not fit says what was left out", async () => {
     body: {
       card: {
         id: "", lang: "ar-PS",
-        forms: [{ ar: "باب", en: "door", lat: "baab", clips: Array.from({ length: 14 }, (_, i) => `c${i}`) }],
+        forms: [{ ar: "باب", en: "door", lat: "baab", clips: Array.from({ length: 14 }, (_, i) => clipId(i)) }],
       },
       decks: [],
     },
   });
   assert.deepEqual(loud.json.trimmed, ["2 recordings"]);
+
+  /* And a name no recording could ever have. A clip is stored under the
+     hash of its own bytes and fetched by it, so anything else names
+     nothing that can be played — it was kept anyway, twelve per form
+     across sixty-five forms, which is a card a client can make as large
+     as it likes and every student then downloads. */
+  const junk = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS",
+        forms: [{ ar: "شبّاك", en: "window", lat: "shubbaak", clips: [clipId(4), "x".repeat(9000), "nope"] }],
+      },
+      decks: [],
+    },
+  });
+  assert.deepEqual(lead(junk.json.card).clips, [clipId(4)], "only a name a recording can have is kept");
+  assert.deepEqual(junk.json.trimmed, ["2 recordings"]);
 
   /* And an ordinary card says nothing at all, so the client has nothing to
      report. */
@@ -1806,26 +2006,26 @@ test("a backup counts the recordings on a conversation's turns", async () => {
     body: {
       card: {
         id: "", lang: "ar-PS",
-        forms: [{ ar: "", en: "At the door", lat: "", clips: ["wordclip"] }],
+        forms: [{ ar: "", en: "At the door", lat: "", clips: [clipId(1)] }],
         speakers: ["A", "B"],
         lines: [
-          { who: 0, ar: "مرحبا", en: "hello", lat: "", clips: ["lineclip"] },
-          { who: 1, ar: "أهلا", en: "hi", lat: "", slowClips: ["slowlineclip"] },
+          { who: 0, ar: "مرحبا", en: "hello", lat: "", clips: [clipId(2)] },
+          { who: 1, ar: "أهلا", en: "hi", lat: "", slowClips: [clipId(3)] },
         ],
       },
       decks: [],
     },
   });
   assert.equal(scene.status, 200, scene.text);
-  assert.equal(scene.json.card.lines[0].clips[0], "lineclip", "the turn's recording is stored");
+  assert.equal(scene.json.card.lines[0].clips[0], clipId(2), "the turn's recording is stored");
 
   const got = await api("/api/courses?action=admin-backup-manifest", { key });
   assert.equal(got.status, 200, got.text);
   const planned = got.json.manifest.plan
     .filter((/** @type {any} */ c) => c.kind === "clip")
     .flatMap((/** @type {any} */ c) => c.keys);
-  for (const hash of ["wordclip", "lineclip", "slowlineclip"]) {
-    assert.ok(planned.includes(`clip:${hash}`), `${hash} is in the backup`);
+  for (const [what, hash] of [["the card's own", clipId(1)], ["the turn's", clipId(2)], ["the slow turn's", clipId(3)]]) {
+    assert.ok(planned.includes(`clip:${hash}`), `${what} recording is in the backup`);
   }
   assert.equal(got.json.manifest.counts.clips, planned.length, "and the count agrees with the plan");
 });

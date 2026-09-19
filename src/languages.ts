@@ -673,6 +673,25 @@ export const kindOf = (
   lang: { guessKind?: (text: string) => string } | null = null,
 ): string => {
   if (isDialog(card)) return DIALOG_KIND;
+  /*
+   * A card that says what kind of word it is, is a word.
+   *
+   * The teacher answered this in a drop-down — a noun, a verb, a name —
+   * and that answer is worth more than any count of the spaces in the
+   * text, because it is a fact about the card rather than a guess at one.
+   * It is read before the stored `kind`, which is itself only the guess
+   * this function used to make, cached at the moment the card was typed.
+   *
+   * What it costs to guess instead is a language: Vietnamese writes a word
+   * as its syllables with spaces between them, so *cảm ơn* is one word
+   * and the rule below counts two — and every such card was left out of
+   * `{{word}}`, which is the blank that means "any word in the language".
+   * Roughly every Vietnamese word of more than one syllable, with nothing
+   * on the screen to say so and nothing a teacher could do about it. The
+   * kind of word is asked of every card in every language, so every
+   * language gets the answer.
+   */
+  if (card && card.category) return "word";
   if (card && card.kind) return card.kind;
   /* Guessed from the card's own word, which since 0.138 is the first of
      its forms rather than the card itself. A plain form is its own lead,
