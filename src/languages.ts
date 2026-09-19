@@ -1141,6 +1141,11 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        guessing wrong labels every form in the card list. Start at "doesn't
        apply" and let them say otherwise. */
     default: "na",
+    /* What the editor falls back to where three words will not fit on one
+       line. The same abbreviations the card list uses, except that "na"
+       has one here: a tag saying nothing is right, and a radio button
+       labelled nothing is not. */
+    brief: { singular: "sg.", plural: "pl.", na: "N/A" },
   },
   gender: {
     label: "Gender",
@@ -1151,6 +1156,7 @@ export const GRAMMAR: Record<string, GrammarDim> = {
       ["feminine", "feminine"],
       ["neutral", "neutral"],
     ],
+    brief: { masculine: "m.", feminine: "f.", neutral: "n." },
   },
   /* Whether a noun is a person or a thing. Not a way of telling its forms
      apart — nothing is ever asked "the person one" — but the fact that
@@ -1168,6 +1174,9 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     ],
     default: "thing",
     short: { thing: "", person: "" },
+    /* Silent on a tag and never silent in the picker — the article is what
+       goes, not the word. */
+    brief: { thing: "thing", person: "person" },
   },
   /* Retired. Addressee turned out not to be a property of a word — chó is
      chó whoever is listening — but of an utterance containing an address
@@ -1190,6 +1199,21 @@ export const GRAMMAR: Record<string, GrammarDim> = {
 
 export const dimsOf = (lang: Lang): GrammarDim[] =>
   (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
+
+/**
+ * What one value of an axis reads as where there is no room for its name.
+ *
+ * The editor puts an axis and all its values on one line, and "masculine
+ * feminine neutral" does not fit on a phone. An axis that declares no
+ * abbreviations has values short enough to stand as they are, so the
+ * option's own label is the answer rather than a missing one.
+ */
+export const briefOf = (dim: GrammarDim, value: string): string => {
+  const brief = dim.brief && dim.brief[value];
+  if (brief) return brief;
+  const opt = dim.options.find(([v]) => v === value);
+  return opt ? opt[1] : value;
+};
 
 /**
  * The axes a word of one kind is asked about: the kind's own list where
