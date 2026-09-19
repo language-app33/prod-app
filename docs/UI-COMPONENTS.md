@@ -222,7 +222,16 @@ reusable things are; it is in `shared.tsx` with the rest now.
 The line under a tile: whether anyone can see it. `live, children`
 
 ### `CardReadout` — 4 uses
-Read-only view of a card and its forms. `card, lang, decks`
+Everything a saved card holds, read-only: its kind, its forms, its tables,
+its blanks, what other cards call it and where it lives. What it draws is
+described once in `src/card-facts.ts`, and a field that list does not name
+yet is still shown, raw, at the foot — so the screen cannot fall behind the
+editor. `card, lang, decks, cards, reader`
+
+`cards` is the rest of the collection, where the caller has it: what is
+behind a blank and how many cards wear a tag are facts about the collection.
+`reader` is `"teacher"` (the default) or `"both"` — a student's screen is the
+card itself, without which decks carry it or which of its forms are lent.
 
 ---
 

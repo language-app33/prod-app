@@ -1070,6 +1070,22 @@ button {
    them stack, with air between, because the thing being read is which
    pronunciation goes with which spelling. */
 .at-readanswer + .at-readanswer { margin-top:10px; }
+/* One cell of a table a card lays its forms out in: which cell it is on the
+   left, and the cell itself — its words, its recordings, what is asked of
+   it — on the right. A row rather than a grid cell, because a grid of seven
+   columns is how a grammar book prints a conjugation and is unusable on a
+   phone; the editor lays the same table out the same way. */
+.at-readcell { display:flex; gap:12px; padding:8px 0; align-items:baseline;
+  flex-wrap:wrap; border-top:1px solid var(--line); }
+.at-readcell .at-readlabel { flex:0 0 108px; }
+.at-readcell .at-readvalue { flex:1 1 160px; min-width:0; }
+.at-readcell .at-readword { font-size:24px; margin:0 0 2px; }
+.at-readcell .at-readmeaning { font-size: var(--fs-md); }
+/* A field on the card that nothing has been written about yet, shown as it
+   is stored — see card-facts.ts. Monospaced, because that is what it is:
+   the raw value, until somebody gives it a heading. */
+.at-readraw { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-soft);
+  overflow-wrap:anywhere; }
 @media (max-width: 420px) {
   .at-readlabel { flex-basis:100%; }}
 /* Someone's own name in a roster. */

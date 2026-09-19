@@ -23,7 +23,6 @@ import {
   answerDims,
   briefOf,
   cardDims,
-  lendsForm,
   dimValues,
   specOf,
   tablesOf,
@@ -38,7 +37,8 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { cardRef, dropRail, fillNames, fillsOf, fillText, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, valuesFor, valuesForTurn, withoutSlot, withSlotAt, WORD_SLOT } from "./variables.ts";
+import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT } from "./variables.ts";
+import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -2801,25 +2801,15 @@ export interface Blank {
   built?: "any" | "category";
 }
 
-/*
- * The most filled examples of a card the editor will draw at once.
- *
- * Not a taste about how many are worth reading — every filling the card has
- * is listed, which is the point of the subsection — but the one number that
- * keeps a frame from taking the screen down with it. What a card is met as
- * is every combination of the words behind its blanks, and that multiplies:
- * `{{name}} {{verb}} {{object}}` over a collection of any size is tens of
- * thousands of sentences, and drawing them would be a hung phone rather
- * than an answer. A thousand is past every real card — a blank with a
- * thousand words behind it is a collection nobody has — and where a card
- * does go past it, the list says so and says how many there are.
- */
-const EXAMPLES_CEILING = 1000;
-
 /**
  * One example of a card with a blank in it, as a student will meet it: the
  * frame with its holes filled, in each of the three fields it is written
  * in. A field the card leaves empty comes back empty.
+ *
+ * How many of them any screen draws at once, and the filling itself, are
+ * `EXAMPLES_CEILING` and `examplesOf` in card-facts.ts: the read-out asks
+ * the same question about the same card, and two answers to it would be two
+ * accounts of what a teacher has written.
  */
 export interface Asked {
   ar: string;
@@ -3451,7 +3441,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    */
   const fillers = useMemo(() => {
     if (scene || !holes.length) return {} as Record<string, Value[]>;
-    return valuesFor(main, allCards || [], lang && lang.id, (c) => kindOf(c, lang), (c, f) => lendsForm(lang, c)(f));
+    return fillersFor(main, allCards || [], lang);
   }, [scene, holes, main, allCards, lang]);
 
   /*
@@ -3462,10 +3452,10 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * and stopped. Counted rather than built, so it is there while the list
    * below it is still folded away.
    */
-  const combos = useMemo(() => {
-    if (scene || !holes.length) return 0;
-    return holes.reduce((n, slot) => n * ((fillers[slot] || []).length), 1);
-  }, [scene, holes, fillers]);
+  const combos = useMemo(
+    () => (scene ? 0 : combosOf(holes, fillers)),
+    [scene, holes, fillers],
+  );
 
   /*
    * The sentences a student will be asked, filled from the words that
@@ -3476,51 +3466,17 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * examples read as "and so on" and answered nothing beyond it, and the
    * question a teacher actually has — is the right vocabulary behind this
    * blank, and does every one of these sentences say something — is asked
-   * of the whole list or not at all. `EXAMPLES_CEILING` is the only thing
-   * that shortens it, and only where a card is met as more sentences than
-   * a screen can hold.
+   * of the whole list or not at all.
    *
-   * Distinct, because two cards carrying one word would otherwise print
-   * the same sentence twice and read as a bug. Empty where nothing fills a
-   * blank yet, which is its own answer.
-   *
-   * All three fields, because a teacher writing an Arabic frame is owed
-   * the Arabic sentence: the preview showed the English alone, which is
-   * the one line of the question the learner is never asked to produce.
-   * A field the card does not use — a card with no transliteration — comes
-   * back empty and is not drawn; a field whose filler has nothing to put
-   * in it keeps the braces standing, exactly as the question would, which
-   * is the teacher's answer about the card they have written.
-   *
-   * `valuesForTurn` counts through the combinations in order, so walking
-   * the turns from nothing to `combos` is every filling the card has,
-   * exactly once each.
+   * How the list is built, what shortens it and what it does with a field
+   * nothing fills are all `examplesOf` in card-facts.ts, which the
+   * view-only screen draws the same sentences with. Two accounts of what a
+   * teacher has written is one too many.
    */
-  const asked = useMemo(() => {
-    if (scene || !holes.length) return [];
-    const out: Asked[] = [];
-    /* Kept as keys rather than compared against what is already out: a
-       thousand examples asked "have I printed this one" a thousand times
-       is a million string comparisons, on every keystroke in the field
-       above. */
-    const had = new Set<string>();
-    const turns = Math.min(combos, EXAMPLES_CEILING);
-    for (let turn = 0; turn < turns; turn++) {
-      const took = valuesForTurn(holes, fillers, turn);
-      if (!took) break;
-      const line = {
-        ar: fillText(main.ar, took, "ar").trim(),
-        lat: fillText(main.lat, took, "lat").trim(),
-        en: fillText(main.en, took, "en").trim(),
-      };
-      if (!line.ar && !line.lat && !line.en) continue;
-      const key = JSON.stringify([line.ar, line.lat, line.en]);
-      if (had.has(key)) continue;
-      had.add(key);
-      out.push(line);
-    }
-    return out;
-  }, [scene, holes, main, fillers, combos]);
+  const asked = useMemo(
+    () => (scene ? [] : examplesOf(main, holes, fillers)),
+    [scene, holes, main, fillers],
+  );
 
   /* Which blanks have nothing to put in them — the reason a card with a
      hole in it is never asked, named rather than left to be discovered. */

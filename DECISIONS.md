@@ -2683,3 +2683,82 @@ build still reads. What changed is that no screen shows them: not the
 field, not the tiles a card is listed on, not the sheet a blank is chosen
 in, not the filter that narrows a list by one, and not the lines that name
 a blank in passing. One picture of a blank in the app instead of two.
+
+---
+
+## What a card holds is a list, and reading one is drawn from it
+
+**19 September 2026** · `src/card-facts.ts`, `src/shared.tsx` (`CardReadout`),
+`tests/card-facts.test.mjs`, `tests/card-readout.test.mjs`
+
+A card in the teaching space can be opened to change it or to look at it,
+and the second is meant to be the first with the typing taken away. It was
+not. The view-only screen was a second, hand-written description of a card
+— the rows somebody thought worth showing on the day they wrote it — and
+every feature since had to be added to it again by somebody remembering to.
+Nobody did. By 0.191 a teacher looking at a card could not see what kind of
+word it was, what its ID was, which blanks it left, what stood in them,
+which of its forms were asked about or lent out, what a number part was
+worth, or which cell of a verb's table any of its forms sat in; and it was
+the one screen left in the app that printed the braces a blank is stored as.
+
+Nine missing rows was not the problem. The problem was that two
+descriptions of a card existed and only one of them was kept up to date, so
+fixing the nine would have got us to that day and left the next one exactly
+as fragile.
+
+**The rule adopted instead: the saved card is the contract between the two
+screens.** Everything the editor does ends as a card being saved — that is
+what the editor is — so a read-out that says everything a *saved card* can
+hold cannot fall behind it, whatever is added later. A feature that stores
+nothing has changed nothing to show. That turns a promise about discipline
+into a question about data, and a question about data is one the build can
+ask.
+
+So `card-facts.ts` describes every field a card, a form, a turn or an
+accepted answer can carry: its heading, who it is worth showing to, and
+what the screen says for a given value. `CardReadout` draws that, panel by
+panel, in the order the editor asks for the same things.
+
+**A field nothing describes yet is shown anyway.** The screen walks the card
+in front of it rather than a fixed run of fields, and whatever the list does
+not name is drawn at the foot under its own internal name with its value as
+it is stored. Deliberately plain: it reads as a thing nobody has got round
+to, which is what it is. This is the half that makes the guarantee hold
+before anybody notices — the default for a new field is *shown, badly*
+rather than silence, and the only way for something to be invisible is for
+a person to put it in `NOT_SHOWN` with a line saying why.
+
+**Two tests, failing in the right order.** The first takes the keys
+`writtenCard` actually emits and the fields `types.ts` documents, and fails
+when one of them is described nowhere or carried by no example card. The
+second renders the read-out over those cards and fails when a value on one
+is not on the screen, naming the field and the card. Add a field: *no
+example card carries this*. Add it to the corpus: *the read-out does not
+show this*. Write its heading: green. At no point can the work look finished
+while the parity is quietly broken.
+
+**Why not one screen with the inputs switched off**, which is what "one
+implementation of a thing" would suggest. The editor is not a list of
+fields: it is drag rails, pills pulled along a sentence, contenteditable
+boxes, recording overlays, a grid that mints cells. Locked down it reads as
+a form somebody took the buttons off, and it is not what a student should
+ever be shown. One description of a card and two drawings of it is the
+convergence that was available; what did converge is everything underneath
+— the blanks a card leaves, the words behind them, the filled-in examples,
+whether a form is asked or lent, and the two speeds a word is recorded at
+are each one function now, read by the editor and the read-out alike.
+
+**What it does not cover.** Some of what the editor shows is not on the card
+— how many words are behind a blank, the sentences it comes out as, the
+warning that a name is taken. Those are worked out while a teacher looks,
+so no walk of a stored card can find them, and the guarantee above says
+nothing about them. They are on the read-out because they were written
+there, not because anything makes them stay; what keeps them honest is that
+both screens now compute them with the same functions.
+
+**A reader, not a flag.** The student's card screen is the same component
+with `reader="both"`, and each field says whether it is the teacher's
+business or everybody's. It replaced `whereItLives`, which was one panel's
+worth of the same question. Nothing is a student's alone: there is no fact
+about a card its teacher may not see.

@@ -10,9 +10,14 @@ import type { Card, Course, Deck, ExerciseState, FlagKind, Form, Item, Lang, Lan
 import { formsOf, leadOf } from "./cards.ts";
 import { createPortal } from "react-dom";
 import * as API from "./courses-api.ts";
-import { answerFields, dimValues, dimsFor, kindLabel, kindOf, labelFor, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
+import { answerFields, categoryLabel, dimValues, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
-import { cardRef, fillNames, mergeMet, splitSlots } from "./variables.ts";
+import { cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
+import type { Reader, TableGroup } from "./card-facts.ts";
+import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
+  examplesOf, fillersOn, IN_NO_DECK, isTableCell, lexicalKeys, lexicalLabel, NO_PART, NOT_DRILLED,
+  tablesOn, tableTitle, unnamedOn } from "./card-facts.ts";
+import { colOf, personsOf, rowOf, tensesOf } from "./verbs.ts";
 import { isOffline, watchNet } from "./net.ts";
 
 /*
@@ -1049,33 +1054,12 @@ export function flagTitle(kind: string) {
 
 /* --- the two speeds a word is recorded at -------------------------
  *
- * A word said at the speed it is really said, and the same word said
- * slowly enough to hear its parts, are two different recordings doing two
- * different jobs — and a teacher may make either, both, or neither.
- *
- * They are two fields on the form rather than one list with a mark on each
- * entry: which speed a recording is at is the only thing that distinguishes
- * them, and a mark is a thing that can be lost in a merge, a backup or an
- * older client. Two lists cannot lose it.
- *
- * Here rather than in the teaching space because both ends need it: the
- * teacher records against these, and the learner's card shows what it got
- * under the same names.
+ * `CLIP_KINDS` is in card-facts.ts, with the rest of what a card holds, and
+ * re-exported here: both ends need it — the teacher records against these
+ * and the learner's card shows what it got under the same names — and a
+ * pure module is where a read-out's list of fields can reach it.
  */
-export const CLIP_KINDS: { key: "clips" | "slowClips"; title: string; short: string; what: string }[] = [
-  {
-    key: "clips",
-    title: "Regular speed",
-    short: "Regular",
-    what: "The word as it is really said. This is what a listening exercise plays.",
-  },
-  {
-    key: "slowClips",
-    title: "Slow",
-    short: "Slow",
-    what: "The same word said slowly, so a learner can hear each sound in it.",
-  },
-];
+export { CLIP_KINDS };
 
 /* Every recording on one form, named by the speed it was made at, in the
    shape ClipList reads. Numbered only where there is more than one of a
@@ -1927,10 +1911,469 @@ export function ItemList<T>({
    A card, read only
 
    Used on both sides: a teacher checking their material, a student looking
-   at a card between sessions. Grouped the way the editor groups it — what
-   gets drilled, then what is reference — so the two screens describe the
-   card the same way.
+   at a card between sessions.
+
+   **Everything a saved card holds is on this screen.** Not the fields
+   somebody thought worth showing when they wrote it, which is what this was
+   until 0.192 and why it had fallen nine features behind the editor: a
+   teacher could not see what kind of word a card was, what it was called
+   between braces, which blanks it left, which of its forms were asked
+   about, or which cell of a verb's table any of them sat in.
+
+   The rule it is kept by, and the lists that keep it, are in
+   `src/card-facts.ts` — the saved card is the contract between the two
+   screens, so a read-out that says everything a card can hold cannot fall
+   behind an editor whose every feature ends in a card being saved. What is
+   here is the drawing of that: a panel per group of facts, in the order the
+   editor asks for them, and one panel at the foot for whatever the lists do
+   not describe yet, which is what keeps the promise true before anybody
+   notices.
    ------------------------------------------------------------------ */
+
+/** A labelled row: the name of the thing on the left, what it says on the
+    right. Nothing at all where there is nothing to say. */
+function ReadRow({ label, children }: { label?: Node; children?: Node }) {
+  if (children === null || children === undefined || children === false || children === "") {
+    return null;
+  }
+  return (
+    <div className="at-readrow">
+      <span className="at-readlabel">{label}</span>
+      <span className="at-readvalue">{children}</span>
+    </div>
+  );
+}
+
+/**
+ * The grammar a form or one of its accepted answers says about itself,
+ * spelled out in full.
+ *
+ * Full labels rather than the short forms a tile wears: a read-out has the
+ * room, and "sg. m." is shorthand for somewhere that has not. Read off what
+ * the card holds rather than off the axes the pack asks about today, so a
+ * value on a card whose axis has since been retired is still shown — it is
+ * on the card, and this screen's whole job is to say so.
+ */
+function ReadGrammar({ of, lang, skipPerCard = false }: {
+  of: Record<string, any>;
+  lang: Lang;
+  /** Left out where the axis is a fact about the card, which is said once
+      above rather than under every form. */
+  skipPerCard?: boolean;
+}) {
+  const said = dimsSaid(of).filter((dim) => !(skipPerCard && dim.perCard));
+  const lex = lexicalKeys().filter((key) => String(of[key] || "").trim());
+  if (!said.length && !lex.length) return null;
+  return (
+    <>
+      {said.map((dim) => (
+        <ReadRow key={dim.field} label={dim.label}>
+          {dimText(dim, of[dim.field])}
+        </ReadRow>
+      ))}
+      {lex.map((key) => (
+        <ReadRow key={key} label={lexicalLabel(lang, key)}>
+          {String(of[key]).trim()}
+        </ReadRow>
+      ))}
+    </>
+  );
+}
+
+/** One form's words: every accepted answer with the transliteration and the
+    grammar that belong to *it*, then what the form means. Blanks are drawn
+    as the pills every other screen draws them as, never as braces. */
+function ReadSaid({ form, lang }: { form: Record<string, any>; lang: Lang }) {
+  const answers = answersOf(form, answerFields());
+  return (
+    <>
+      {answers.map((answer, n) => (
+        <div className="at-readanswer" key={n}>
+          <p
+            className="at-readword"
+            lang={lang.id}
+            dir={lang.direction}
+            style={{ fontFamily: lang.fontStack, direction: lang.direction, ...scriptVars(lang) }}
+          >
+            <Written text={answer.text} />
+          </p>
+          {answer.lat ? <p className="at-readlat"><Written text={answer.lat} /></p> : null}
+          {/* Beside the answer it is about rather than under the card:
+              two accepted answers may be a masculine and a feminine, and a
+              single label over the pair describes one of them. */}
+          <ReadGrammar of={answer} lang={lang} skipPerCard />
+        </div>
+      ))}
+      {form.en ? (
+        <p className="at-readmeaning">
+          <Written text={String(form.en)} />
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** How a form sounds, at each speed it was recorded at. */
+function ReadSound({ form }: { form: Record<string, any> }) {
+  const clips = clipsOf(form);
+  if (!clips.length) return null;
+  return (
+    <>
+      <p className="at-eyebrow at-mt4">Recordings</p>
+      <p className="at-hint">
+        How it sounds, at each speed it was recorded at. Cards with a
+        recording can be practiced by ear.
+      </p>
+      <ClipList clips={clips} />
+    </>
+  );
+}
+
+/**
+ * What is recorded on a form and never asked in an exercise.
+ *
+ * Only what the answers above have not already said. A form's axes are
+ * written flat on it *and* onto each of its accepted answers, so a card with
+ * one spelling would otherwise print its gender twice on one screen — once
+ * beside the word and once here — and a reader would be left looking for the
+ * difference between them.
+ */
+function ReadReference({ form, lang }: {
+  form: Record<string, any>;
+  lang: Lang;
+}) {
+  const answers = answersOf(form, answerFields());
+  const already = new Set<string>();
+  for (const answer of answers) {
+    for (const dim of dimsSaid(answer as Record<string, any>)) already.add(dim.field);
+    for (const key of lexicalKeys()) if (String((answer as Record<string, any>)[key] || "").trim()) already.add(key);
+  }
+  const dims = dimsSaid(form).filter((dim) => !dim.perCard && !already.has(dim.field));
+  const lex = lexicalKeys().filter((key) => String(form[key] || "").trim() && !already.has(key));
+  if (!dims.length && !lex.length) return null;
+  return (
+    <>
+      <p className="at-eyebrow at-mt4">Reference</p>
+      <p className="at-hint">Recorded on the card, but never asked in an exercise.</p>
+      {dims.map((dim) => (
+        <ReadRow key={dim.field} label={dim.label}>
+          {dimText(dim, form[dim.field])}
+        </ReadRow>
+      ))}
+      {lex.map((key) => (
+        <ReadRow key={key} label={lexicalLabel(lang, key)}>
+          {String(form[key]).trim()}
+        </ReadRow>
+      ))}
+    </>
+  );
+}
+
+/** Whether a form is dealt as a question, and whether it is lent to other
+    cards' sentences — the two ticks the editor puts under it. */
+function ReadAsked({ form }: { form: Record<string, any> }) {
+  return <p className="at-hint at-mt3">{askLine(form)}</p>;
+}
+
+/** One form of a card: its words, its sound, what is asked of it, and
+    whatever the language records about it. */
+function ReadForm({ form, lang, title, what, reader }: {
+  form: Record<string, any>;
+  lang: Lang;
+  title: string;
+  what: string;
+  reader: Reader;
+}) {
+  return (
+    <section className="at-panel">
+      <p className="at-eyebrow">{title}</p>
+      <p className="at-hint">{what}</p>
+      <ReadSaid form={form} lang={lang} />
+      <ReadSound form={form} />
+      {reader === "teacher" ? <ReadAsked form={form} /> : null}
+      {form.note ? <ReadRow label="Note">{String(form.note)}</ReadRow> : null}
+      <ReadReference form={form} lang={lang} />
+    </section>
+  );
+}
+
+/**
+ * One of the tables a card lays its forms out in.
+ *
+ * Down the page and gathered under the row each cell sits on, which is how
+ * the editor draws the same table and for the same reason: a grid of seven
+ * columns is how a grammar book prints one and is unusable on a phone. The
+ * heading names the table, and names the form it hangs off where a card
+ * carries one per form — the pronouns on the end of a word.
+ *
+ * Until 0.192 these were listed as "other form 3", with nothing saying
+ * which tense or which person any of them was.
+ */
+function ReadTable({ group, lang, reader }: {
+  group: TableGroup;
+  lang: Lang;
+  reader: Reader;
+}) {
+  const word = group.of && group.owner ? String(group.owner.ar || group.owner.en || "") : "";
+  let row = "";
+  return (
+    <section className="at-panel">
+      <p className="at-eyebrow">{tableTitle(group.spec)}{word ? ` — ${word}` : ""}</p>
+      <p className="at-hint">
+        Every cell is a form of the word in its own right: its own
+        recordings, its own progress, and asked as its own question.
+      </p>
+      {group.cells.map((cell, i) => {
+        const on = rowOf(cell);
+        const opens = on !== row;
+        row = on;
+        const tense = tensesOf(group.spec).find((t) => t.id === on);
+        const rowName = tense ? tense.label : on;
+        /* A one-row table is named by its own name — "attached pronouns" —
+           and a heading repeating it says nothing twice. */
+        const heads = opens && rowName !== tableTitle(group.spec);
+        const person = personsOf(group.spec).find((p) => p.id === colOf(cell));
+        return (
+          <React.Fragment key={String(cell.id || i)}>
+            {heads ? <p className="at-eyebrow at-mt3">{rowName}</p> : null}
+            <div className="at-readcell">
+              <span className="at-readlabel">
+                {(person && person.label) || cellTitle(group.spec, cell)}
+              </span>
+              <span className="at-readvalue">
+                <ReadSaid form={cell} lang={lang} />
+                <ReadSound form={cell} />
+                {reader === "teacher" ? <ReadAsked form={cell} /> : null}
+                <ReadGrammar of={cell} lang={lang} skipPerCard />
+              </span>
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </section>
+  );
+}
+
+/**
+ * The blanks a card leaves, what will go in them, and what it is met as.
+ *
+ * The three questions a frame raises, in the order a teacher asks them:
+ * which holes are in it, whether the right vocabulary is behind each, and
+ * whether every sentence it comes out as says something. The words and the
+ * sentences need the rest of the collection to work out, so they appear
+ * where the reader has it — a student's screen has the blanks and not the
+ * pool, and says the first of the three.
+ */
+function ReadBlanks({ card, lang, cards }: {
+  card: Record<string, any>;
+  lang: Lang;
+  cards?: Record<string, any>[];
+}) {
+  const [open, setOpen] = useState(false);
+  const holes = blanksOn(card);
+  const lead = leadOf(card);
+  const fillers = useMemo(
+    () => (cards && holes.length ? fillersOn(card, cards, lang) : null),
+    [cards, holes.length, card, lang],
+  );
+  /* The examples are of the card's own words, so they are drawn for a card
+     that leaves its holes there — a sentence. A conversation leaves them in
+     its turns, and one example of each turn is not an example of the card. */
+  const mine = slotsOf(lead);
+  /* And counted over those same holes, so the number on the fold is the
+     number of sentences behind it. */
+  const combos = fillers ? combosOf(mine, fillers) : 0;
+  const asked = useMemo(
+    () => (fillers && open ? examplesOf(lead, mine, fillers) : []),
+    [fillers, open, lead, mine],
+  );
+  if (!holes.length) return null;
+  return (
+    <section className="at-panel">
+      <p className="at-eyebrow">Blanks in this card</p>
+      <p className="at-hint">
+        A hole in the card's own words, filled with a different word every
+        time it is asked. What stands in it is every card that says it fills
+        a blank of that name.
+      </p>
+      {holes.map((slot) => {
+        const words = (fillers && fillers[slot]) || [];
+        return (
+          <ReadRow key={slot} label={<span className="at-slot">{slot}</span>}>
+            {!fillers ? null : words.length ? (
+              <ul className="at-filllist">
+                {words.slice(0, FILLS_SHOWN).map((value, i) => (
+                  <li key={`${value.id || value.ar}-${i}`}>
+                    <b lang={lang.id} dir={lang.direction} style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}>
+                      {value.ar}
+                    </b>
+                    {value.lat ? <em>{value.lat}</em> : null}
+                    {value.en ? <i>{value.en}</i> : null}
+                  </li>
+                ))}
+                {words.length > FILLS_SHOWN ? (
+                  <li>
+                    <i>and {words.length - FILLS_SHOWN} more</i>
+                  </li>
+                ) : null}
+              </ul>
+            ) : (
+              "Nothing fills it yet"
+            )}
+          </ReadRow>
+        );
+      })}
+      {/* And the card as a student actually meets it. Folded, because a
+          frame the whole collection fills is met as hundreds of sentences
+          and a section that opened on them would put the rest of the card
+          below them; the heading says how many, which is the answer wanted
+          oftener than the sentences. */}
+      {fillers && mine.length ? (
+        <>
+          <button
+            type="button"
+            className="at-groupline at-groupfold at-mt3"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <span>Examples of this card with filled blanks</span>
+            <span className="at-groupcount">
+              {combos ? plural(combos, "example") : "none yet"}
+            </span>
+            <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+          </button>
+          {open ? (
+            asked.length ? (
+              <>
+                <ol className="at-asked">
+                  {asked.map((line, i) => (
+                    <li className="at-askedline" key={i}>
+                      <span className="at-askedsays">
+                        {line.ar ? (
+                          <span
+                            className="at-askedscript"
+                            lang={lang.id}
+                            dir={lang.direction}
+                            style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+                          >
+                            {line.ar}
+                          </span>
+                        ) : null}
+                        {line.lat ? <span className="at-askedsaid">{line.lat}</span> : null}
+                        {line.en ? <span className="at-askedmeans">{line.en}</span> : null}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                {combos > EXAMPLES_CEILING ? (
+                  <p className="at-hint">
+                    The first {plural(asked.length, "example")} of{" "}
+                    {plural(combos, "example")}, which is as many as one screen
+                    will draw. The rest are this card with other words in it.
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <p className="at-hint">
+                None yet. A blank in this card has no word behind it, so there
+                is nothing to stand in it and no filled sentence to show.
+              </p>
+            )
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+/* How many of the words behind one blank a read-out lists before it starts
+   counting instead. Past what a teacher reads down and short of what turns
+   a card into a word list. */
+const FILLS_SHOWN = 24;
+
+/**
+ * The names this card answers to: the ID the teacher gave it, and the
+ * groups it is in.
+ *
+ * The other half of how a blank is filled — a group is a set of words a
+ * sentence will take any of, and an ID is the one word it asks for — so
+ * both are in one panel, which is where the editor puts them.
+ */
+function ReadNames({ card, lang, cards }: {
+  card: Record<string, any>;
+  lang: Lang;
+  cards?: Record<string, any>[];
+}) {
+  const own = cardRef(card);
+  const wrote = fillNames(card);
+  /* The tags a card wears anyway: the kind of word it says it is, and
+     `{{word}}` where it is one. Nobody ticks them, and a list of the blanks
+     this card fills that left them out would be a list without the
+     commonest two in it. */
+  const anyway = fillsOf(card, kindOf(card, lang)).filter((name) => name !== own && !wrote.includes(name));
+  const behind = (name: string): number =>
+    (cards || []).filter((c) => fillsOf(c, kindOf(c, lang)).includes(name)).length;
+  if (!own && !wrote.length && !anyway.length) return null;
+  return (
+    <section className="at-panel">
+      <p className="at-eyebrow">What other cards call it</p>
+      <p className="at-hint">
+        A sentence borrows a word by name. An ID names this one card and no
+        other; a group tag names a set of words a sentence will take any of.
+      </p>
+      <ReadRow label="The card's ID">
+        {own ? <span className="at-slot">{own}</span> : null}
+      </ReadRow>
+      <ReadRow label="Group tags">
+        {wrote.length || anyway.length ? (
+          <span className="at-flags">
+            {wrote.concat(anyway).map((name) => (
+              <span className="at-flag" key={name}>
+                {name}
+                {cards ? ` · ${behind(name)}` : ""}
+              </span>
+            ))}
+          </span>
+        ) : null}
+      </ReadRow>
+    </section>
+  );
+}
+
+/**
+ * Whatever is on the card that `card-facts.ts` does not describe yet.
+ *
+ * Plain on purpose: it reads as a thing nobody has got round to naming,
+ * which is exactly what it is, and in the meantime the teacher can see it.
+ * The alternative is the one this screen spent years being — a field added
+ * to a card and invisible to everybody who was not reading the source.
+ *
+ * The teacher's screen only. A student's card is an item on their device
+ * and carries their own progress, which has a screen of its own.
+ */
+function ReadUnnamed({ card }: { card: Record<string, any> }) {
+  const extra = unnamedOn(card);
+  if (!extra.length) return null;
+  return (
+    <section className="at-panel">
+      <p className="at-eyebrow">Also on this card</p>
+      <p className="at-hint">
+        Fields nothing has been written about yet, exactly as they are
+        stored. A row that reads like this one is a row somebody still has to
+        name — and it is here rather than nowhere, because a card says
+        everything it holds.
+      </p>
+      {extra.map((one, i) => (
+        <ReadRow key={`${one.where}.${one.key}-${i}`} label={one.key}>
+          <span className="at-readraw">
+            {one.at ? `${one.at} — ` : ""}
+            {typeof one.value === "string" ? one.value : JSON.stringify(one.value)}
+          </span>
+        </ReadRow>
+      ))}
+    </section>
+  );
+}
 
 /**
  * The card is described by what this reads rather than as a `Card`,
@@ -1938,39 +2381,37 @@ export function ItemList<T>({
  * the learner an item as this device holds it. Neither is the other, and
  * the fields below are the ones they agree on.
  *
- * `whereItLives` is the one difference between the two readers. A teacher
- * needs to know which decks carry a card, because a card in no deck reaches
- * nobody and that is their problem to fix. A student is already holding the
- * card; being told which shelf it came off answers a question they did not
- * ask, so their screen leaves that panel out.
+ * `reader` is the one difference between the two. A teacher needs to know
+ * which decks carry a card, what it is called between braces and which of
+ * its forms are lent out, because all of that is theirs to get right. A
+ * student is holding the card; being told which shelf it came off answers a
+ * question they did not ask, so their screen is the card itself. Nothing is
+ * a student's alone — see Reader in card-facts.ts.
  *
- * @param props  Only a deck's id and title are read, to name where the card lives.
+ * @param props  Only a deck's id and title are read, to name where the card
+ *   lives. `cards` is the rest of the collection, where the reader has it:
+ *   what is behind a blank is a fact about the collection and not about this
+ *   card.
  */
-export function CardReadout({ card, lang, decks, whereItLives = true }: {
+export function CardReadout({ card, lang, decks, cards, reader = "teacher" }: {
   card: Record<string, any> & { subs?: Record<string, any>[], decks?: string[] };
   lang?: Lang;
   decks: { id: string, title?: string }[];
-  whereItLives?: boolean;
+  cards?: Record<string, any>[];
+  reader?: Reader;
 }) {
   const L = lang || LANGUAGES[DEFAULT_LANGUAGE];
-  /* The axes this kind of word is asked about, so a preposition's
-     read-out does not list a gender it was never asked. A value written
-     before the kinds narrowed is still on the card; it is simply not a
-     row here. */
-  const dims = dimsFor(L, card.category);
+  const teacher = reader === "teacher";
   const forms: Record<string, any>[] = formsOf(card);
+  const tables = tablesOn(card, L);
+  /* The forms that are not cells of a table: a cell is a form like any
+     other and is drawn under the table it sits in, which is what says
+     which tense and which person it is. */
+  const loose = forms.filter((f) => !isTableCell(f, L));
   const titles = (card.decks || [])
     .map((id: string) => decks.find((d) => d.id === id))
     .map((d) => d && d.title)
     .filter(Boolean);
-
-  const Row = ({ label, children }: { label?: Node; children?: Node }) =>
-    children ? (
-      <div className="at-readrow">
-        <span className="at-readlabel">{label}</span>
-        <span className="at-readvalue">{children}</span>
-      </div>
-    ) : null;
 
   /* A conversation reads as one: who spoke, what they said, what it meant.
      The card above it is built around a word and its other spellings,
@@ -1980,6 +2421,35 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
   const speakers = (card.speakers || []).filter(Boolean);
   const nameOf = (who: number) => speakers[who] || speakers[0] || `Speaker ${who + 1}`;
 
+  const whereItLives = (
+    <section className="at-panel">
+      <p className="at-eyebrow">Where it lives</p>
+      <p className="at-hint">
+        A card is seen through its decks. One in no deck reaches nobody.
+      </p>
+      <ReadRow label="Language">{L.name}</ReadRow>
+      <ReadRow label="Decks">
+        {titles.length ? (
+          <span className="at-flags">
+            {titles.map((t) => (
+              <span className="at-flag audio" key={t}>
+                {t}
+              </span>
+            ))}
+          </span>
+        ) : (
+          IN_NO_DECK
+        )}
+      </ReadRow>
+      {/* What the card is for, where it is not simply a card. A value
+          reaches students with every deck whose phrases have a hole of
+          its name, whatever deck it is filed in — which is the one case
+          where "in no deck" above is not the whole story. */}
+      {fillNames(card).length ? <ReadRow label="Fills">{fillNames(card).join(" · ")}</ReadRow> : null}
+      {card.drill === false ? <ReadRow label="Practised">{NOT_DRILLED}</ReadRow> : null}
+    </section>
+  );
+
   if (isDialog(card)) {
     return (
       <div className="at-readout">
@@ -1988,6 +2458,10 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
           <p className="at-hint">
             {card.note || "A conversation. Each line is practised in its own right."}
           </p>
+          {/* Its name, which is where a conversation keeps the words a word
+              card keeps in its own script: the card is the scene, and the
+              scene is what it is called. */}
+          <ReadRow label="Called">{String(leadOf(card).en || "")}</ReadRow>
           {/* Two people, one down each side — which is how a conversation
               is read everywhere else, and the difference between scanning
               a scene and parsing it. Three or four stay a list: there is
@@ -2002,11 +2476,14 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
                 <div className="at-scenesaid">
                   <p className="at-arabic phrase" lang={L.id} dir={L.direction}
                     style={{ fontFamily: L.fontStack, direction: L.direction, ...scriptVars(L) }}>
-                    {line.ar}
+                    <Written text={line.ar} />
                   </p>
-                  {line.en ? <p className="at-scenemeaning">{line.en}</p> : null}
-                  {line.lat ? <p className="at-scenemeaning">{line.lat}</p> : null}
+                  {line.en ? <p className="at-scenemeaning"><Written text={line.en} /></p> : null}
+                  {line.lat ? <p className="at-scenemeaning"><Written text={line.lat} /></p> : null}
                   {clipsOf(line).length ? <ClipList clips={clipsOf(line)} /> : null}
+                  {teacher ? <ReadAsked form={line as Record<string, any>} /> : null}
+                  <ReadTaught of={line as Record<string, any>} cards={cards} label="Words this turn teaches" />
+                  <ReadGrammar of={line as Record<string, any>} lang={L} />
                 </div>
               </div>
             ))}
@@ -2017,98 +2494,64 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
           <p className="at-eyebrow">The student's part</p>
           <p className="at-hint">
             {namedPart(card) === null
-              ? "Not set. The question picks a part and takes them in turn, so a scene met twice has been held up from both ends."
+              ? `${NO_PART}. The question picks a part and takes them in turn, so a scene met twice has been held up from both ends.`
               : `${nameOf(namedPart(card) as number)} — their turns are the ones they produce when the whole scene is asked. Everything else is said to them.`}
           </p>
+          <ReadRow label="Who is in it">
+            {speakers.length ? speakers.join(" · ") : null}
+          </ReadRow>
         </section>
 
-        {whereItLives ? (
-          <section className="at-panel">
-            <p className="at-eyebrow">Where it lives</p>
-            <Row label="Language">{L.name}</Row>
-            <Row label="Decks">
-              {titles.length ? (
-                <span className="at-flags">
-                  {titles.map((t) => (
-                    <span className="at-flag audio" key={t}>
-                      {t}
-                    </span>
-                  ))}
-                </span>
-              ) : (
-                "In no deck"
-              )}
-            </Row>
-          </section>
-        ) : null}
+        <ReadBlanks card={card} lang={L} cards={cards} />
+
+        {teacher ? whereItLives : null}
+        {teacher ? <ReadUnnamed card={card} /> : null}
       </div>
     );
   }
 
   return (
     <div className="at-readout">
-      {forms.map((f, i) => (
-        <section className="at-panel" key={i}>
-          <p className="at-eyebrow">{i === 0 ? "The card" : `Other form ${i}`}</p>
-          <p className="at-hint">
-            {i === 0
-              ? "What a student is asked, and what counts as the answer."
-              : "Another way the same thing is said. It is practiced on its own."}
-          </p>
+      {/* What the teacher said the card is, which decides what it is
+          offered and which blanks it fills without anybody ticking one.
+          First, because it is the first question the editor asks — before
+          the editor opens, in the case of the three shapes. */}
+      <ReadKind card={card} lang={L} />
 
-          {/* Each accepted answer with the transliteration that belongs to
-              it, rather than every spelling on one line and one
-              pronunciation under the lot of them — which said nothing about
-              which was which, and read as a single wrong answer when the two
-              lists were different lengths. */}
-          {answersOf(f, answerFields()).map((answer, n) => (
-            <div className="at-readanswer" key={n}>
-              <p className="at-readword" dir={L.direction} style={{ fontFamily: L.fontStack, ...scriptVars(L) }}>
-                {answer.text}
-              </p>
-              {answer.lat ? <p className="at-readlat">{answer.lat}</p> : null}
-              {/* And what this one is, grammatically. Beside the answer it
-                  is about rather than under the card, because two accepted
-                  answers may be a masculine and a feminine and a single
-                  label over the pair describes one of them. */}
-              {labelFor(answer, L) ? <p className="at-readlat">{labelFor(answer, L)}</p> : null}
-            </div>
-          ))}
-          <p className="at-readmeaning">{f.en}</p>
-
-          {clipsOf(f).length ? (
-            <>
-              <p className="at-eyebrow at-mt4">
-                Recordings
-              </p>
-              <p className="at-hint">
-                How it sounds, at each speed it was recorded at. Cards with a
-                recording can be practiced by ear.
-              </p>
-              <ClipList clips={clipsOf(f)} />
-            </>
-          ) : null}
-
-          {dims.some((d) => f[d.field]) || (i === 0 && L.lexical && f[L.lexical.key]) ? (
-            <>
-              <p className="at-eyebrow at-mt4">
-                Reference
-              </p>
-              <p className="at-hint">
-                Recorded on the card, but never asked in an exercise.
-              </p>
-              {dims.map((dim) => (
-                <Row key={dim.field} label={dim.label}>
-                  {(dim.options.find(([v]) => v === f[dim.field]) || [])[1]}
-                </Row>
-              ))}
-              {i === 0 && L.lexical ? (
-                <Row label={L.lexical.label}>{f[L.lexical.key]}</Row>
-              ) : null}
-            </>
-          ) : null}
-        </section>
+      {loose.map((f, i) => (
+        <React.Fragment key={String(f.id || i)}>
+          <ReadForm
+            form={f}
+            lang={L}
+            reader={reader}
+            title={i === 0 ? "The card" : `Other form ${i}`}
+            what={
+              i === 0
+                ? "What a student is asked, and what counts as the answer."
+                : "Another way the same thing is said. It is practiced on its own."
+            }
+          />
+          {/* The tables hanging off this form, directly under it: a card's
+              own table under its word, and the pronouns a form takes under
+              that form. */}
+          {tables
+            .filter((t) => t.of === (i === 0 ? "" : String(f.id || "")))
+            .map((t) => <ReadTable key={`${t.of}-${tableTitle(t.spec)}`} group={t} lang={L} reader={reader} />)}
+        </React.Fragment>
       ))}
+
+      {/* And any table whose form is no longer on the card, which is a cell
+          hanging off nothing. Drawn rather than dropped: it is on the card,
+          and a teacher who can see it can fix it. */}
+      {tables
+        .filter((t) => t.of && !loose.some((f) => String(f.id || "") === t.of))
+        .map((t) => <ReadTable key={`orphan-${t.of}`} group={t} lang={L} reader={reader} />)}
+
+      <ReadBlanks card={card} lang={L} cards={cards} />
+
+      <ReadTaught of={card} cards={cards} label="Words this teaches" panel />
+
+      {teacher ? <ReadNames card={card} lang={L} cards={cards} /> : null}
 
       {/* The note used to be a row of the panel below, which meant dropping
           that panel for the student would have dropped the note with it —
@@ -2121,41 +2564,91 @@ export function CardReadout({ card, lang, decks, whereItLives = true }: {
         </section>
       ) : null}
 
-      {whereItLives ? (
-        <section className="at-panel">
-          <p className="at-eyebrow">Where it lives</p>
-          <p className="at-hint">
-            A card is seen through its decks. One in no deck reaches nobody.
-          </p>
-          <Row label="Language">{L.name}</Row>
-          <Row label="Decks">
-            {titles.length ? (
-              <span className="at-flags">
-                {titles.map((t) => (
-                  <span className="at-flag audio" key={t}>
-                    {t}
-                  </span>
-                ))}
-              </span>
-            ) : (
-              "In no deck"
-            )}
-          </Row>
-          {/* What the card is for, where it is not simply a card. A value
-              reaches students with every deck whose phrases have a hole of
-              its name, whatever deck it is filed in — which is the one case
-              where "in no deck" above is not the whole story. */}
-          {fillNames(card).length ? (
-            <Row label="Fills">
-              {fillNames(card).join(" · ")}
-            </Row>
-          ) : null}
-          {card.drill === false ? (
-            <Row label="Practised">Not on its own — it fills other cards</Row>
-          ) : null}
-        </section>
-      ) : null}
+      {teacher ? whereItLives : null}
+      {teacher ? <ReadUnnamed card={card} /> : null}
     </div>
+  );
+}
+
+/**
+ * What the card says it is: the kind of word, whether it is a sentence,
+ * what it is listed as, what it is worth as a number, and the axes that are
+ * facts about the word rather than about one of its spellings.
+ *
+ * One panel, because it is one question asked in parts, and the editor asks
+ * it in one block before anything else.
+ */
+function ReadKind({ card, lang }: { card: Record<string, any>; lang: Lang }) {
+  const kind = categoryLabel(lang, card.category);
+  const worth = card.value === undefined || card.value === null || card.value === ""
+    ? ""
+    : String(card.value);
+  const lead = leadOf(card) as Record<string, any>;
+  const perCard = dimsSaid(lead).filter((dim) => dim.perCard);
+  const name = String(card.name || "").trim();
+  if (!kind && !worth && !name && !perCard.length && !isSentence(card)) return null;
+  return (
+    <section className="at-panel">
+      <p className="at-eyebrow">What it is</p>
+      <p className="at-hint">
+        What the teacher says this card is. It decides which table the card
+        is laid out in, which grammar it is asked about, and which blanks it
+        fills without anybody ticking one.
+      </p>
+      <ReadRow label="Kind of word">{kind}</ReadRow>
+      {isSentence(card) ? <ReadRow label="Shape">{A_SENTENCE}</ReadRow> : null}
+      <ReadRow label="Listed as">{name ? <Written text={name} /> : null}</ReadRow>
+      <ReadRow label="Worth">{worth}</ReadRow>
+      {perCard.map((dim) => (
+        <ReadRow key={dim.field} label={dim.label}>
+          {dimText(dim, lead[dim.field])}
+        </ReadRow>
+      ))}
+    </section>
+  );
+}
+
+/**
+ * The word cards a phrase, a sentence or one turn of a conversation says it
+ * teaches — each practised inside it as well as on its own.
+ *
+ * The words, not the ids: nobody can read an id. Where the reader has no
+ * collection to look them up in there is nothing truthful to print but how
+ * many there are, which is what a student's screen gets.
+ */
+function ReadTaught({ of, cards, label, panel = false }: {
+  of: Record<string, any>;
+  cards?: Record<string, any>[];
+  label: string;
+  /** A panel of its own, as it is on a card; a line, as it is in a turn. */
+  panel?: boolean;
+}) {
+  const ids: string[] = ((of && of.uses) || []).map((x: unknown) => String(x || "")).filter(Boolean);
+  if (!ids.length) return null;
+  const words = cards
+    ? ids
+        .map((id: string) => (cards || []).find((c: Record<string, any>) => String(c.id) === id))
+        .map((c) => (c ? String(leadOf(c).ar || leadOf(c).en || "") : ""))
+        .filter(Boolean)
+    : [];
+  const said = words.length ? words.join(" · ") : `${ids.length}`;
+  if (!panel) {
+    return (
+      <p className="at-hint">
+        {label}: {said}
+      </p>
+    );
+  }
+  return (
+    <section className="at-panel">
+      <p className="at-eyebrow">{label}</p>
+      <p className="at-hint">
+        Each of these is practised inside this card as well as on its own,
+        which is how a word is met in more than one place without anything
+        being invented.
+      </p>
+      <p className="at-readvalue">{said}</p>
+    </section>
   );
 }
 

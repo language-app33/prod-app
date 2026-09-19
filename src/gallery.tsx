@@ -218,6 +218,8 @@ const PLACES: Record<string, [string, string]> = {
   PlayButton: [PARTS, "A play button"],
   ClipRow: [PARTS, "A recording in a list"],
   CardReadout: [PARTS, "A card's details"],
+  ReadSound: [PARTS, "A card's details · how it sounds"],
+  ReadBlanks: [PARTS, "A card's details · the blanks it leaves"],
   ItemList: [PARTS, "A searchable list"],
   FilterBar: [PARTS, "What Sort or Filter opens onto"],
   FilterMenu: [PARTS, "One filter, in the toolbar"],
@@ -937,7 +939,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="CardReadout" what="A card and its forms, read-only. Falls back to the default language pack when lang is left off.">
+      <Row name="CardReadout" what="A card and everything it holds, read-only — see card-facts.ts, which is what it draws. `reader` is who is looking: a teacher sees which decks carry it and what other cards call it, a student the card itself. Falls back to the default language pack when lang is left off.">
         <V label="card + lang" wide>
           <CardReadout card={{ ...SAMPLE_CARD, decks: ["d1"] }} decks={[{ id: "d1", title: "Lesson 1" }]} />
         </V>

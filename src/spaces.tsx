@@ -5529,7 +5529,15 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               </Button>
             }
           >
-            <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+            <CardReadout
+              card={viewing}
+              lang={langOfCard(viewing)}
+              decks={decks}
+              /* And the rest of the collection, because what is behind a
+                 blank and how many cards wear a tag are facts about the
+                 collection rather than about this card. */
+              cards={cards}
+            />
             <TryExercises
               /* The card, and the screen it was read from — a deck's card
                  list here, so answering comes back to the card inside the
@@ -6043,7 +6051,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         </Button>
                   }
                 >
-                  <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+                  <CardReadout
+                    card={viewing}
+                    lang={langOfCard(viewing)}
+                    decks={decks}
+                    cards={cards}
+                  />
                   <TryExercises
                     back={{ cardId: viewing.id, tab, deckId: null }}
                     card={viewing}

@@ -8,6 +8,47 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.192 — 19 September 2026
+
+**Opening a card to look at it now shows everything the card holds.** It was
+meant to be the card with the typing taken away and it had fallen a long way
+behind: a teacher looking at one of their own cards could not see what kind
+of word they had said it was, the ID other cards borrow it by, which blanks
+it leaves or what stands in them, which of its forms are asked about and
+which are lent to sentences, what a number part is worth, or which tense and
+person any cell of a verb's table was. A verb's table was an unnumbered run
+of "other forms". And it was the last screen in the app that printed the
+braces a blank is stored as, rather than drawing the blank.
+
+All of that is on the screen now. A card opens with what it is — the kind of
+word, whether it is a sentence, what it is listed as, what it is worth — then
+its forms, each saying whether it is dealt as a question and whether it is
+lent out; then any table it lays its forms out in, gathered under the row
+each cell is on and labelled with the person, the way the editor lays the
+same table out; then the blanks it leaves with the words that will go in
+them, and how many sentences it is met as, with the filled-in sentences
+behind a fold. A card with none of that reads exactly as it did: anything
+with nothing in it is left out.
+
+**And it cannot fall behind again.** What a card can hold is written down in
+one place now, and the view-only screen is drawn from that list rather than
+from somebody's memory of it. Two things keep it true. A field nothing has
+been written about yet is still shown — at the foot of the card, under its
+own internal name, with its value as it is stored — so the worst case is a
+row that looks unfinished rather than a fact nobody can see. And the build
+refuses to finish work that breaks the promise: it fails when a card gains a
+field nothing describes, and again when a field is on an example card and not
+on the screen.
+
+A card a student opens is the same screen without the teacher's side of it —
+which decks carry it, what other cards call it, which forms are lent —
+because that is theirs to get right, not the student's.
+
+**Two things a teacher sees on a card whose axis the app no longer asks
+about.** A value recorded under a retired grammar axis, and one under an axis
+only some languages declare, are both on the card and are both shown now.
+What a card holds is what the screen says.
+
 ## 0.191 — 19 September 2026
 
 **Whether a word is a person or a thing is now asked once, beside the kind

@@ -690,6 +690,13 @@ src/
   cards.ts         what a card is made of: its own word and the forms it
                    carries, as one list. The single door everything that
                    walks a card's forms goes through. Pure, imports nothing.
+  card-facts.ts    what a card *holds*: every field it can carry, what a
+                   reader sees it called, who it is worth showing to and what
+                   the screen says for it — plus the short list of fields
+                   that are not information, each with why. The view-only
+                   screen is drawn from it and a field it does not name yet
+                   is still shown, raw, so the screen cannot fall behind the
+                   editor. Pure.
   numbers.ts       numbers built out of a teacher's parts: finding the card
                    a part is written on, how far a deck reaches, and what
                    to ask next. How a language puts its numbers together is
@@ -740,6 +747,17 @@ A few rules the code follows, learned the hard way:
   a grader or an editor are where the subtle bugs come from.
 - **One implementation of a thing.** If two versions of a component coexist,
   the goal is to converge on one, not to keep both.
+- **The saved card is the contract between editing a card and reading one.**
+  Opening a card in the teaching space to look at it shows everything a saved
+  card can hold, not the fields somebody thought worth showing: everything
+  the editor does ends as a card being saved, so a read-out that says
+  everything a card holds cannot fall behind it. What each field is called
+  lives in `src/card-facts.ts`; a field nothing there names yet is shown raw
+  at the foot of the card rather than dropped, so the default is *visible and
+  unlabelled* instead of silence. Two tests hold it: one fails when a field
+  the editor writes is described nowhere or carried by no example card, the
+  other renders the read-out over those cards and fails when a value on one
+  is not on the screen.
 - **The scheduler owns the schedule.** Exercise state is per card *and* per
   exercise type; states that have never been answered are not stored.
 - **Merging is idempotent.** Sync can run twice with the same input and
