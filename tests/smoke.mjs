@@ -5299,13 +5299,20 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        dictionary form" label made one row a different width and colour
        from the rest and asked for a piece of grammar theory to be held in
        mind while typing; where it matters, the editor says so below. */
-    /* And it can be given a name. A verb in a language with no infinitive
-       is saved as the form a dictionary lists, so a list read "أكل · he
-       ate" — one cell of the table rather than the verb the card is
-       about. */
+    /* And it is named. A verb has no one word of its own — it is a table
+       — so without a name a list would read "أكل · he ate", which is one
+       cell of the table rather than the verb the card is about. The name
+       is what a verb is listed as, so it is asked for rather than
+       offered, and the English just typed into the word is what it starts
+       as: nothing anybody wrote is lost by the block going away. */
     const nameBlock = cardNameField();
-    check("a verb can be given a name to be listed under", !!nameBlock,
+    check("a verb is asked what to call it", !!nameBlock,
       thisCardAsks().join(" | "));
+    const nameBox = () => /** @type {any} */ (
+      (cardNameField() || { querySelector: () => null }).querySelector("input"));
+    check("and it starts as the meaning the word already had",
+      !!nameBox() && nameBox().value === "to eat",
+      nameBox() ? `"${nameBox().value}"` : "no such box");
     /* In "This card" and directly under what subtype it is: both are one
        fact about the whole card, settled once and then read, and neither
        belongs to any one of its forms. Not a framed section of its own
@@ -5331,18 +5338,61 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!saveBtn() && !saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
 
-    /* Empty that cell and there is no card: it is the face, the meaning
-       and what the card is searched by, so the editor refuses and says
-       which cell it wants rather than greying Save with no reason. */
+    /*
+     * ---- no box of the table is the card ----
+     *
+     * The he-past is the form a dictionary lists and it used to be the
+     * card itself: the editor refused a verb until that one box and its
+     * English were filled in, whatever else was written. A teacher
+     * writing the present of a verb whose past they had not taught was
+     * writing half a card. It is an ordinary box now.
+     */
     typeInto(script, "");
+    typeInto(meaning, "");
     await sleep(200);
-    check("emptying it is refused, because it is the card itself",
+    typeInto(cellNamed("Arabic script for present · he"), "byaakul");
+    typeInto(cellNamed("English for present · he"), "he eats");
+    await sleep(250);
+    check("a verb with the box a dictionary lists left empty still saves",
+      !!saveBtn() && !saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+    check("and nothing on the screen asks for that box",
+      !/past · he/.test(([...document.querySelectorAll(".at-formneed.unmet")]
+        .map((n) => n.textContent || "").join(" ")) || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")]
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+
+    /* What it is held to instead: a name, because that is what it is
+       listed as and nothing else on a verb can be, and one form of the
+       verb with its English, because a table with nothing in it teaches
+       nothing. */
+    typeInto(nameBox(), "");
+    await sleep(250);
+    check("a verb with no name is refused, because a name is what it is listed as",
       !!saveBtn() && saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "still offered"}`);
-    check("and the editor names the cell it is waiting for",
-      /Fill in past · he/.test(document.body.textContent || ""),
+    check("and the line that says so is beside the name, not under the table",
+      !!cardNameField() && /listed as its name/.test(
+        (cardNameField().querySelector(".at-formneed.unmet") || {}).textContent || ""),
       ([...document.querySelectorAll(".at-formneed.unmet")]
-        .map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+    typeInto(nameBox(), "to eat");
+    await sleep(250);
+
+    /* And with the whole table empty, the line is about the table as a
+       whole — any box of it, and the teacher chooses which. */
+    typeInto(cellNamed("Arabic script for present · he"), "");
+    typeInto(cellNamed("English for present · he"), "");
+    await sleep(250);
+    check("a verb with nothing written in its table is refused",
+      !!saveBtn() && saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "still offered"}`);
+    const unmetLines = () => [...document.querySelectorAll(".at-formneed.unmet")]
+      .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim());
+    check("and what it asks for is any one form, not a named box",
+      unmetLines().some((t) => /at least one form of the verb/.test(t)) &&
+        !unmetLines().some((t) => /past · he/.test(t)),
+      unmetLines().join(" · ") || "(nothing said)");
 
     /* A verb is not offered a form outside its table. The offer used to be
        a quieter-worded button that revealed a block which was not there —
@@ -5378,9 +5428,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
 
-    /* The cited cell was emptied above to see Save refuse; fill it again,
-       so what follows is about a table with something in it. */
+    /* The table was emptied above to see Save refuse; fill the box a
+       dictionary lists again, so what follows is about a table with
+       something in it and a card that saves. */
     typeInto(cellNamed("Arabic script for past · he"), "akal");
+    typeInto(cellNamed("English for past · he"), "he ate");
     await sleep(200);
 
     /* ---- each kind of word gets the editor its grammar wants ----

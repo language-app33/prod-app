@@ -47,7 +47,7 @@ await build({
 });
 const { shapeOf, shapeChoices, shapeLabel, categoryChoices, categoryOffers, tableFor,
   initialForms, initialCells, initialCategory, initialFrames, storedFormsOf, asideOf, tableCellsOf,
-  canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked,
+  canSaveWord, canSaveVerb, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked,
   partLends, setPartFlags, keptNotAsked } =
   await import(path.join(out, "card-editor.js"));
 
@@ -1435,6 +1435,31 @@ test("what can be saved: a word needs its script and its English, a scene a name
   assert.equal(canSaveScene("  ", [{}, {}]), false);
   assert.equal(canSaveScene("At the door", [{}]), false);
   assert.deepEqual(writtenLines([{ ar: "سلام" }, { ar: " " }, { ar: "" }]).map((/** @type {any} */ l) => l.ar), ["سلام"]);
+});
+
+/*
+ * And a verb whose table stands in for its own word: a name, and one form
+ * of the verb — any one.
+ *
+ * The cell a dictionary lists the verb under used to be demanded by name,
+ * because it was also the card's own word and so its face in every list. A
+ * verb is listed as its name now, so the name is what is asked for, and
+ * the he-past is an ordinary box: a teacher who has taught the present and
+ * not the past is writing a whole card.
+ */
+test("what can be saved: a verb needs a name and one form of itself, whichever one", () => {
+  const past = { ar: "أكل", en: "he ate" };
+  const present = { ar: "بياكل", en: "he eats" };
+  assert.equal(canSaveVerb("to eat", [past], null), true);
+  assert.equal(canSaveVerb("to eat", [present], null), true,
+    "the box a dictionary lists is not the one that counts");
+  assert.equal(canSaveVerb("to eat", [], null), false, "a table with nothing in it");
+  assert.equal(canSaveVerb("  ", [past], null), false, "and a verb with nothing to be listed as");
+  assert.equal(canSaveVerb("to eat", [{ ar: "بياكل", en: " " }], null), false,
+    "a form with no meaning supports no exercise, as a word with none does");
+  assert.equal(canSaveVerb("to eat", [{ ar: "", en: "he eats" }], null), false);
+  assert.equal(canSaveVerb("to eat", [past], { field: "en", missing: ["name"] }), false,
+    "a field disagreeing about a blank stops this save as it stops any other");
 });
 
 /*

@@ -8,6 +8,45 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.200 — 19 September 2026
+
+**A verb is listed as what you call it, and no box of its table is
+required.**
+
+In Arabic and Hebrew a verb has no one word of its own — it is a table,
+and every box in it is a form — so the app used the box a dictionary lists
+the verb under, the he-past, as the card itself. Two things followed, and
+both were wrong. A deck of verbs read as a column of he-pasts: *he ate*,
+*he drank*, *he went*, each naming one form rather than the verb the card
+was about. And Save stayed grey until that one box and its English were
+filled in, so writing the present tense of a verb whose past you had not
+taught yet meant filling in the past anyway.
+
+**What a verb is listed as is now its name** — *to eat* — which is asked
+for on the card rather than offered. It is the one thing about a verb that
+can stand for the whole of it. Call a word a verb and the meaning you had
+already typed becomes that name, so nothing you wrote is lost.
+
+**And the he-past is an ordinary box.** Write the present alone, or the
+command alone, or all twenty-four: what a save now asks for is a name and
+one form of the verb with its English, and which form is your business.
+The line under the table says that when it is true, in those words,
+instead of naming a box.
+
+A verb you wrote before this is untouched, and is still listed by its name
+where you gave it one. Where you did not, the next time you open it the
+editor asks for one — that is the card being given something to be listed
+as instead of its he-past.
+
+## 0.199 — 19 September 2026 — withdrawn
+
+This release gave every verb an ordinary word block at the top and took
+the dictionary form out altogether. That was the wrong fix: a verb in
+Arabic or Hebrew has no single word of its own, which is why its table
+stands in for one, and the block asked for a word that would then be
+drilled twice. It was reversed the same day, and what it was trying to fix
+is fixed in 0.200 instead.
+
 ## 0.198 — 19 September 2026
 
 **A sentence can say which tense it wants its verbs in.** Write "yesterday

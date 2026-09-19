@@ -343,6 +343,37 @@ test("a deck with nothing to ask says so rather than coming back empty", () => {
   assert.equal(deal([word("w1", "كلمة", "")]).reason, "none-drillable");
 });
 
+/*
+ * A verb whose own word is empty is its table, and the table is dealt.
+ *
+ * Since 0.200 the box a dictionary lists a verb under may be left blank,
+ * and the card's own word is read off that box — so such a card reaches
+ * the learner with nothing in its own word and its forms full. Asking the
+ * card's own word alone would have hidden the whole verb from every
+ * session while its table sat there waiting to be practised.
+ */
+test("a verb with nothing in its own word is dealt through its table", () => {
+  const verb = word("v1", "", "", {
+    category: "verb",
+    name: "to eat",
+    forms: [
+      { id: "v1", ar: "", en: "", lat: "", lang: "ar-PS", s: {} },
+      { id: "v-present-he", ar: "بياكل", en: "he eats", lat: "byaakul",
+        row: "present", col: "he", lang: "ar-PS", s: {} },
+      { id: "v-present-she", ar: "بتاكل", en: "she eats", lat: "btaakul",
+        row: "present", col: "she", lang: "ar-PS", s: {} },
+    ],
+  });
+  const got = deal([verb]);
+  assert.equal(got.reason, null, "there was something to ask");
+  const asked = got.exercises.map((/** @type {any} */ e) => e.subId || e.id);
+  assert.ok(asked.includes("v-present-he"),
+    `the table was not dealt: ${asked.join(", ") || "(nothing)"}`);
+  /* And the empty word itself is asked nothing, having nothing to ask. */
+  assert.equal(asked.includes("v1"), false,
+    "the card's own word has no material, so it is not a question");
+});
+
 test("a card the learner asked for is dealt however far off it was", () => {
   /* The mark is the whole feature: a card three weeks out comes back now.
      It opens the session, so it is in the first handful whatever else is

@@ -327,17 +327,21 @@ export function citedCell(
  * Where a language cites a cell, that cell holds everything the card's own
  * word does — the script, the pronunciation, the English, the recordings —
  * so the editor stops asking for them a second time and reads them off the
- * table instead. The card is still saved with a word of its own: the face
- * every list shows, what a search matches, what a tile is labelled. This
- * is where that word comes from.
+ * table instead. The card is still saved with a word of its own, which is
+ * what a search matches and what the script line of a tile shows. This is
+ * where that word comes from.
  *
  * Everything else about the form is kept. The word is what the cell knows;
  * whether the card is drilled, which variable it fills, what deck it is in
  * are facts about the card and are none of the cell's business.
  *
- * An empty cell gives an empty word rather than the last one typed, which
- * is what lets the editor refuse to save a verb whose dictionary form has
- * been left blank instead of quietly keeping a word nothing points at.
+ * **An empty cell gives an empty word**, rather than the last one typed:
+ * a card labelled with a word no cell holds would be the one thing worse
+ * than a card with no word at all. That used to be what stopped the save,
+ * because a card with no word had nothing to be listed as. It does not any
+ * more — a verb is listed as its name, which is asked for instead, and the
+ * cell a dictionary lists is an ordinary cell that may be left blank until
+ * the teacher reaches that tense. See canSaveVerb in card-editor.tsx.
  */
 export function citedWord<T extends Record<string, unknown>>(own: T, cell: unknown): T {
   return {

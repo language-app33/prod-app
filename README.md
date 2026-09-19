@@ -203,7 +203,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   card's own word is not shown, the cell is what the card is saved as, and
   a word first called a verb moves into that cell rather than being asked
   for twice. Where a language cites nothing — Huế cites the bare verb,
-  which is a word and not a cell — the block is the verb and stays. A verb card may also
+  which is a word and not a cell — the block is the verb and stays.
+
+  **No cell of the table is required, and none of them is what the card is
+  listed as.** A verb is listed as its `name` — the teacher's own words for
+  it, *to eat* — which is the one thing about the whole card that can stand
+  for all of it, and is therefore asked for rather than offered on a verb
+  whose table stands in for its word. What a save is held to besides is one
+  form written with its English, whichever form that is: a teacher who has
+  taught the present and not the past writes the present. The cited cell
+  was demanded until 0.200, because it was also the card's face; it is an
+  ordinary box now, and a card whose teacher has left it blank carries no
+  word of its own and is its name and its table. `canSaveVerb` in
+  `src/card-editor.tsx`. A verb card may also
   carry a sentence with its own place marked in it — `{{name}} {{verb}}
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already

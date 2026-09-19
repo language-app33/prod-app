@@ -2359,9 +2359,20 @@ function isDrillable(it: Item, settings: Settings) {
      whose dictionary form is the question and whose table is there to be
      read is the ordinary case of this; so is the other way round. Asking
      the card alone would hide every one of them from the list of what can
-     be practised while its forms were being practised. */
-  if (isDialog(it) || !isAsked(leadOf(it))) return drillableUnits(it, settings).length > 0;
-  return enabledTypes(leadOf(it), settings).length >= 2;
+     be practised while its forms were being practised.
+
+     And a card whose own word has nothing to ask at all, which since
+     0.200 is a verb on a language that cites a cell and whose teacher has
+     not written that one: the card's word is read off that cell, so it is
+     empty, and the verb is in its table. Nothing is loosened by this —
+     a word supporting one exercise is still not a card, which is what the
+     line below says — only a card supporting none through its own word is
+     asked what its forms can do before it is turned away. */
+  const lead = leadOf(it);
+  if (isDialog(it) || !isAsked(lead) || !enabledTypes(lead, settings).length) {
+    return drillableUnits(it, settings).length > 0;
+  }
+  return enabledTypes(lead, settings).length >= 2;
 }
 
 /*

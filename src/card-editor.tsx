@@ -2895,6 +2895,39 @@ export const canSaveWord = (
   trouble: unknown,
 ): boolean => !!(String(main.ar || "").trim() && String(main.en || "").trim() && !trouble);
 
+/*
+ * Whether a verb whose table stands in for its own word can be saved.
+ *
+ * **Not one particular box of it.** Until 0.200 it was the cell a
+ * dictionary lists the verb under — Arabic's he-past — because that cell
+ * was also the card's own word and its face in every list, so a card
+ * without it had nothing to be listed as and no meaning to be asked
+ * about. A teacher writing the present tense of a verb whose past they
+ * have not taught was writing half a card, and the editor said so.
+ *
+ * What a verb is listed as is its **name** now, which is a thing about
+ * the whole card and the only thing on a verb that can be one. So that is
+ * what is asked for, and the box a dictionary happens to list is an
+ * ordinary box of the table like the other twenty-three.
+ *
+ * The rest is what every card has always been held to, asked of the table
+ * as a whole rather than of one cell: **one form written, with its
+ * English**. A table with nothing in it teaches nothing, and a form
+ * carrying only the script supports one exercise nobody could ever
+ * practise — which is the reason canSaveWord gives above, unchanged.
+ * Which form it is, is the teacher's business.
+ */
+export const canSaveVerb = (
+  name: string,
+  cells: { ar?: string; en?: string }[],
+  trouble: unknown,
+): boolean =>
+  !!(
+    String(name || "").trim() &&
+    cells.some((c) => String(c.ar || "").trim() && String(c.en || "").trim()) &&
+    !trouble
+  );
+
 /* A conversation needs a name and two turns. One line with the reply
    missing is a phrase card in the wrong editor. */
 export const canSaveScene = (title: string, written: unknown[]): boolean =>
@@ -3021,20 +3054,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      cell and a form are told apart by nothing but their names. */
   const mintCell = () => formName([...forms, ...cells]);
   /*
-   * On the way in to a table that cites a cell — a verb's — the card's own
-   * word moves into the cell about to hold it, rather than being left
-   * behind in a block that has just disappeared; and only into an empty
-   * cell, because a card that already has a table knows better than the
-   * block does. Nothing of the sort for a table that cites nothing: the
-   * word stays the word, and the cells are forms of it rather than a
-   * stand-in for it.
-   */
-  const chooseCategory = (next: string) => {
-    setCategory(next);
-    const spec = specOf(lang, tableFor(lang, next));
-    if (citationOf(spec)) setCells((x) => seedCited(x, forms[0], spec, forms));
-  };
-  /*
    * Whether the table holds the card's own word as well as its forms.
    *
    * Arabic and Hebrew have no infinitive: a dictionary lists the he-past,
@@ -3075,6 +3094,29 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      do not name them — a verb whose word is a cell of its table, and a
      sentence, which is a frame — see the block that asks for it. */
   const [name, setName] = useState(((card && card.name) || "") as string);
+  /*
+   * On the way in to a table that cites a cell — a verb's — the card's own
+   * word moves into the cell about to hold it, rather than being left
+   * behind in a block that has just disappeared; and only into an empty
+   * cell, because a card that already has a table knows better than the
+   * block does. Nothing of the sort for a table that cites nothing: the
+   * word stays the word, and the cells are forms of it rather than a
+   * stand-in for it.
+   *
+   * And the word's English becomes what the card is called, where nothing
+   * is called anything yet. A verb is listed as its name and has to have
+   * one, and the meaning just typed into a word about to become a verb —
+   * "to eat" — is that name in the overwhelming majority of cases. Never
+   * over a name somebody has written, and never from a card that has said
+   * nothing: what this cannot do is invent one.
+   */
+  const chooseCategory = (next: string) => {
+    setCategory(next);
+    const spec = specOf(lang, tableFor(lang, next));
+    if (!citationOf(spec)) return;
+    setCells((x) => seedCited(x, forms[0], spec, forms));
+    setName((was) => was.trim() || String((forms[0] || {}).en || "").trim());
+  };
   /* Which blanks this card fills, where it is a value rather than
      something to learn: "Raphael" fills `name`, and every phrase with a
      {{name}} in it can borrow it. A list, because a word stands in more
@@ -3808,7 +3850,15 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * is for preventing. That half stands.
    */
   const refOk = !refName || refFree;
-  const canSave = canSaveWord(main, trouble) && refOk && !strayHoles.length;
+  /* What the card is short of, where it is a verb the table stands in for:
+     the two things such a card is held to, each said where it is asked for
+     rather than both at the foot of the table. */
+  const needsName = standsIn && !name.trim();
+  const needsForm = standsIn && !tableCells.some(
+    (c) => String(c.ar || "").trim() && String(c.en || "").trim(),
+  );
+  const canSave = (standsIn ? canSaveVerb(name, tableCells, trouble) : canSaveWord(main, trouble))
+    && refOk && !strayHoles.length;
 
   /* Another form, named so that its own cells can point at it. No number
      override beyond the name: blankForm takes the language's declared
@@ -3941,6 +3991,8 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     aside,
     chooseCategory,
     standsIn,
+    needsName,
+    needsForm,
     recordingCell,
     setRecordingCell,
     cellHere,
@@ -4410,7 +4462,7 @@ const storedHelp = (spec: VerbSpec | null): string => {
  * of the form rather than as the label it is.
  */
 function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
-  const { shownSpec, name, setName } = word;
+  const { shownSpec, name, setName, needsName } = word;
   const verb = of === "verb";
   /* A verb only where the table stands in for the card's own word. Where a
      language cites nothing — Huế cites the bare verb — the card has a word
@@ -4420,14 +4472,22 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
   return (
     /* ---- what to call it ----
 
-       A verb in a language with no infinitive is saved as the form a
-       dictionary lists — Arabic's he-past — so a list read as "he
-       ate", which names one cell of the table rather than the verb
-       the card is about. A sentence is listed as itself, braces and
-       all: "{{name}} is heavy" names the shape of the card rather
-       than what it is for, and every frame in a deck reads as the
-       hole in it. Nothing is wrong with either card; neither simply
-       has a name of its own to be listed under.
+       A verb in a language with no infinitive has no one word of its
+       own: it is a table, and every box in it is a form. So a list had
+       to show one of those boxes — {citedLabel} — and a deck of verbs
+       read as a column of he-pasts, each naming one form rather than
+       the verb the card is about. A sentence is listed as itself,
+       braces and all: "{{name}} is heavy" names the shape of the card
+       rather than what it is for, and every frame in a deck reads as
+       the hole in it. Nothing is wrong with either card; neither
+       simply has a name of its own to be listed under.
+
+       **Which is why a verb is asked for one and a sentence is not.**
+       A sentence that goes unnamed is listed as the sentence, which is
+       its own words and says something; a verb that goes unnamed would
+       be listed as whichever box somebody happened to fill in first.
+       So the one that has nowhere to fall back to is the one it is
+       required of — see canSaveVerb, which is where that is settled.
 
        Not the block 0.114 took away. That one asked for the script,
        the pronunciation, the English and the recordings a second
@@ -4445,13 +4505,22 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
         placeholder={verb ? "to eat" : "saying where you live"}
         onChange={(e) => setName(e.target.value)}
       />
+      {/* Only while it is in the way, like every other line that unblocks
+          Save on this screen: a demand standing there before anybody has
+          typed reads as a telling-off for opening the screen. */}
+      {needsName && (
+        <p className="at-formneed unmet">
+          A verb is listed as its name, so it needs one — nothing else on
+          the card can stand for the whole of it.
+        </p>
+      )}
       <Help>
         {verb ? (
           <>
-            Without one it is listed as {citedLabel(shownSpec)} — the box a
-            dictionary lists the verb under — which names that form rather
-            than the verb. Nobody is ever asked this: the table is what is
-            practised.
+            A verb is its table, so there is no one word of it to head a
+            list: without a name it would be listed as {citedLabel(shownSpec)},
+            which names that form rather than the verb. Nobody is ever
+            asked this: the table is what is practised.
           </>
         ) : (
           <>
@@ -4467,9 +4536,9 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
 }
 
 /* The table a card carries — a verb's, an adjective's — and the one line
-   that unblocks Save when a cited cell is empty. */
+   that unblocks Save while the whole of it is empty. */
 function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
-  const { shownSpec, parts, cells, setCells, mintCell, setRecordingCell, standsIn, canSave } = word;
+  const { shownSpec, parts, cells, setCells, mintCell, setRecordingCell, needsForm } = word;
   /* The table's own line of what is drilled — see askParts, which lists
      nothing for a table nobody has written yet. */
   const mine = parts.find((p) => p.id === "table:");
@@ -4492,16 +4561,19 @@ function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           onChange={setCells}
           onRecord={(row, col) => setRecordingCell({ of: "", ofLabel: "", row, col })}
         />
-        {/* Only when it is in the way. A line explaining which box a
-            dictionary lists the verb under, standing there whether or
-            not anything was wrong with the card, was a paragraph of
-            theory between the teacher and the table. A Save that
-            stays grey with nothing saying why is worse, so what is
-            left is the one sentence that unblocks it, at the moment
-            it is true and not before. */}
-        {standsIn && !canSave && (
+        {/* Only when it is in the way, and never about one box. It
+            used to read "Fill in past · he, plus its English" — the
+            cell a dictionary lists the verb under, demanded because
+            that cell was also the card's own word. It is an ordinary
+            cell now: any one of them, written with its English, is a
+            verb worth saving, and which one is the teacher's
+            business. A Save that stays grey with nothing saying why
+            is worse than a line, so the line is here at the moment it
+            is true and not before. */}
+        {needsForm && (
           <p className="at-formneed unmet">
-            Fill in {citedLabel(shownSpec)}, plus its English.
+            Write at least one form of the verb, with its English. Any of
+            them — the table is filled in as you teach it.
           </p>
         )}
         {/* And whether the table is drilled, under the table rather than

@@ -2827,3 +2827,49 @@ third place, because its pool of values is indexed once for the whole
 collection by the blank's name: what the *index* holds is what fills
 `{{verb}}` for anybody, and what *this frame* wants is asked as the frame
 is filled.
+
+---
+
+## A verb is listed as its name, and no cell of its table is required
+
+**19 September 2026** · `src/card-editor.tsx` (`canSaveVerb`), `src/verbs.ts`
+
+Where a pack names a cell as the form a dictionary lists — Arabic's and
+Hebrew's he-past — that cell stands in for the card's own word: the editor
+does not ask for the word a second time, and the card is saved carrying
+what the cell holds. That much is right and stays. What came with it was
+not: the cell was the card's *face*, so the editor refused a verb until
+that one box and its English were filled in, and a deck of verbs read as a
+column of he-pasts.
+
+Both fall to the same answer. **The card's `name` is what a verb is listed
+as** — the field a sentence has had since 0.177, and the only thing on a
+verb that can stand for the whole of it. So it is asked for rather than
+offered on a verb whose table stands in for its word, and the cell a
+dictionary lists is an ordinary cell that may be left blank.
+
+**What a save is held to instead**: a name, and one form of the verb
+written with its English. The second is the old rule about inert cards —
+a form carrying only the script supports one exercise nobody could
+practise — asked of the table as a whole rather than of one named box.
+Which box it is, is the teacher's, which is the whole point: a course that
+has reached the present tense and not the past writes the present tense.
+
+**Why not drop the citation instead**, which was tried and reversed within
+the hour as 0.199. Taking it out gives a verb an ordinary word block at the
+top on every language, which asks a teacher for a word Arabic does not
+have, and then drills whatever they type beside the very cell that says the
+same thing. The citation is a true fact about those languages. What was
+wrong was never that a cell stood in for the word; it was that standing in
+for the word had been allowed to mean *required* and *listed as*.
+
+**What it costs.** A card whose teacher leaves the cited cell blank is
+saved with an empty word of its own — it is its name and its table. Two
+readers had to learn that. `isDrillable` asked the card's own word whether
+there was anything to practise, and now falls through to the card's forms
+where that word has nothing to ask, the way it already does for a scene
+and for a word nobody is asked about; without it the whole verb would have
+been dropped from every session while its table sat there full. And a
+teacher opening a verb written before this is asked for a name before they
+can save it again, which is that card being given something to be listed
+as instead of its he-past.
