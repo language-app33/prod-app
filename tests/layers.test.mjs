@@ -819,16 +819,24 @@ test("Latin in an exercise is sized as Latin, not as the script", () => {
 });
 
 test("a hole in a frame is sized as Latin, by the ratio and not the factor", () => {
-  /* {{name}} is Latin standing inside the taught script, so it takes the
-     same correction the meaning does — but it inherits an em that --sscale
-     has already multiplied, which the fields beside the script do not.
-     Applying --lscale on its own would be right in Arabic and wrong in
+  /* A blank's name is Latin standing inside the taught script, so it takes
+     the same correction the meaning does — but it inherits an em that
+     --sscale has already multiplied, which the fields beside the script do
+     not. Applying --lscale on its own would be right in Arabic and wrong in
      Vietnamese, where the script is Latin too: 0.78 of an em that is
      already 0.78 leaves a hole smaller than the words around it. Dividing
-     by --sscale is what makes one rule serve both. */
-  const slot = rule(".at-slot");
-  assert.match(slot, /font-size:\s*calc\(1em \* var\(--lscale, 1\) \/ var\(--sscale, 1\)\)/,
-    `.at-slot is sized ${slot.trim() || "not at all"}`);
+     by --sscale is what makes one rule serve both.
+
+     Both places a blank is drawn: the pill inside the field it is part of,
+     and the one on the tile where the card is listed. The em each is taken
+     down to is its own business — a pill carries its own padding and a
+     border, so its name is set smaller than the words it sits between and
+     the line does not grow — and the ratio is what has to be there. */
+  for (const selector of [".at-slot", ".at-blankpill"]) {
+    const sized = rule(selector);
+    assert.match(sized, /font-size:\s*calc\([\d.]+em \* var\(--lscale, 1\) \/ var\(--sscale, 1\)\)/,
+      `${selector} is sized ${sized.trim() || "not at all"}`);
+  }
 });
 
 test("a listening question starts where a written one does", () => {

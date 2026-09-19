@@ -10197,7 +10197,11 @@ function CardScreen({ card, items, settings, onPriority, onBack, action }: {
            own material. The student is looking at the card itself, so the
            readout stops at the card and there are no decks to name. */
         decks={[]}
-        whereItLives={false}
+        /* And the card as the person learning it reads it: its words, its
+           sound and what it means, without the teacher's side of it — which
+           decks carry it, what other cards call it, which of its forms are
+           lent out. See Reader in card-facts.ts. */
+        reader="both"
       />
 
       <CardLadder card={live} settings={settings} />

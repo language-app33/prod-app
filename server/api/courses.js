@@ -10,7 +10,8 @@ import { createHash, randomBytes } from "node:crypto";
    that adding an axis to a language does not silently drop it here. */
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
-import { cardRef, fillNames, slotsOf } from "../../src/variables.ts";
+import { cardRef, fillNames, isSentence, slotsOf } from "../../src/variables.ts";
+import { isDialog } from "../../src/dialogs.ts";
 import { formsOf } from "../../src/cards.ts";
 
 /*
@@ -134,7 +135,7 @@ const clipsOfCard = (card) => [
 
 const RETIRED_CARD_FIELDS = Object.fromEntries(
   [
-    "ar", "en", "lat", "clips", "slowClips", "answers", "subs", "ask",
+    "ar", "en", "lat", "clips", "slowClips", "answers", "subs", "ask", "lend",
     "row", "col", "of",
     /* Whatever grammatical values the languages declare, which were the
        card's when the card was a form. */
@@ -1003,6 +1004,13 @@ export default async (req) => {
                card saved by a build that knows nothing of this passes
                through unchanged. */
             ...(f.ask === false ? { ask: false } : {}),
+            /* And whether it may be lent to a card with a blank in it,
+               which is the other half of the same question and since
+               0.179 a separate answer — see `lend` in src/types.ts.
+               Stored only where the client has an answer to store: absent
+               means whatever `ask` says, which is what every card written
+               before this meant. */
+            ...(typeof f.lend === "boolean" ? { lend: f.lend } : {}),
             answers: storedAnswers(f),
             clips: Array.isArray(f.clips) ? f.clips.slice(0, 12) : [],
             slowClips: Array.isArray(f.slowClips) ? f.slowClips.slice(0, 12) : [],
@@ -1171,6 +1179,43 @@ export default async (req) => {
         return row && col ? { row, col, ...(of ? { of } : {}) } : {};
       }
 
+      /*
+       * Which of the three kinds of card this one is — taken from the card
+       * as it is stored, never from the request.
+       *
+       * A card is a word, a sentence or a conversation, and that is
+       * settled when it is made and never again: it is what a student's
+       * whole record hangs on, what every other card's blanks are written
+       * against, and the three are asked, dealt and filled in three
+       * different ways. The editor asks the question once, while the card
+       * is being written and nothing can be lost by any answer — see
+       * shapeChoices — and this is the same rule where it cannot be worked
+       * around: by a build that has not caught up, by a card pasted in, or
+       * by a save queued on a device before the rule existed.
+       *
+       * Kept rather than refused, because a refusal would lock an older
+       * client out of cards it can otherwise edit perfectly well — and
+       * because the failure this replaces was silent in the other
+       * direction: a client that said nothing about `sentence` turned
+       * every sentence it saved into a word.
+       *
+       * Read through isDialog and isSentence, which are the app's own two
+       * answers, so this and the editor cannot come to disagree. Writing
+       * the answer out also pins the kind of a card written before there
+       * was anything to pin: until then a sentence was recognised by the
+       * braces in its words, and taking the braces out made it a word.
+       */
+      /** @param {Record<string, any>} was @param {Record<string, any>} sent */
+      function keptKind(was, sent) {
+        if (isDialog(was)) {
+          /* Its turns are the lesson, so they are the teacher's to edit —
+             but never to empty, which is the one edit that would stop it
+             being a conversation. */
+          return { sentence: false, lines: sent.lines.length ? sent.lines : was.lines };
+        }
+        return { sentence: isSentence(was), speakers: [], you: null, lines: [] };
+      }
+
       /* The shape an id can take, which is all the server checks of one:
          which rows, columns and forms a card names is the client's
          business, and this only makes sure what comes back is nameable. */
@@ -1225,6 +1270,7 @@ export default async (req) => {
           ...existing,
           ...RETIRED_CARD_FIELDS,
           ...fields,
+          ...keptKind(existing, fields),
           rev: (existing.rev || 1) + 1,
           updated: Date.now(),
         };

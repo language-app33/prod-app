@@ -1141,6 +1141,11 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        guessing wrong labels every form in the card list. Start at "doesn't
        apply" and let them say otherwise. */
     default: "na",
+    /* What the editor falls back to where three words will not fit on one
+       line. The same abbreviations the card list uses, except that "na"
+       has one here: a tag saying nothing is right, and a radio button
+       labelled nothing is not. */
+    brief: { singular: "sg.", plural: "pl.", na: "N/A" },
   },
   gender: {
     label: "Gender",
@@ -1151,6 +1156,7 @@ export const GRAMMAR: Record<string, GrammarDim> = {
       ["feminine", "feminine"],
       ["neutral", "neutral"],
     ],
+    brief: { masculine: "m.", feminine: "f.", neutral: "n." },
   },
   /* Whether a noun is a person or a thing. Not a way of telling its forms
      apart — nothing is ever asked "the person one" — but the fact that
@@ -1162,12 +1168,20 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     label: "Person or thing",
     field: "human",
     required: true,
+    help: "Specify here what kind of noun this is, so adjectives in sentence cards can use the correct form.",
     options: [
       ["thing", "a thing"],
       ["person", "a person"],
     ],
     default: "thing",
+    /* A fact about the word and not about one of its spellings: كتاب and
+       its plural كتب are both things, and so is either way of spelling
+       either of them. Asked once beside the kind of word — see perCard. */
+    perCard: true,
     short: { thing: "", person: "" },
+    /* Silent on a tag and never silent in the picker — the article is what
+       goes, not the word. */
+    brief: { thing: "thing", person: "person" },
   },
   /* Retired. Addressee turned out not to be a property of a word — chó is
      chó whoever is listening — but of an utterance containing an address
@@ -1192,6 +1206,21 @@ export const dimsOf = (lang: Lang): GrammarDim[] =>
   (lang.grammar || []).map((k) => GRAMMAR[k]).filter(Boolean);
 
 /**
+ * What one value of an axis reads as where there is no room for its name.
+ *
+ * The editor puts an axis and all its values on one line, and "masculine
+ * feminine neutral" does not fit on a phone. An axis that declares no
+ * abbreviations has values short enough to stand as they are, so the
+ * option's own label is the answer rather than a missing one.
+ */
+export const briefOf = (dim: GrammarDim, value: string): string => {
+  const brief = dim.brief && dim.brief[value];
+  if (brief) return brief;
+  const opt = dim.options.find(([v]) => v === value);
+  return opt ? opt[1] : value;
+};
+
+/**
  * The axes a word of one kind is asked about: the kind's own list where
  * it has one, and the pack's otherwise — always within the pack's, so the
  * shared category list can name an axis and a language without it is
@@ -1206,6 +1235,25 @@ export const dimsFor = (
   const own = kind && kind.grammar;
   return own ? dimsOf(lang).filter((d) => own.includes(d.field)) : dimsOf(lang);
 };
+
+/**
+ * The same list, cut in two by what each axis is about.
+ *
+ * An accepted answer carries its own number and gender, because two
+ * spellings may differ in exactly those. Whether the word is a person or a
+ * thing is not that kind of fact — it is as true of the plural as of the
+ * singular — so it is asked once about the card and written onto every
+ * form, which is where `valueOf` reads a word's grammar. See perCard.
+ */
+export const answerDims = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): GrammarDim[] => dimsFor(lang, category).filter((d) => !d.perCard);
+
+export const cardDims = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): GrammarDim[] => dimsFor(lang, category).filter((d) => d.perCard);
 
 /*
  * The persons a language with subject agreement declares, ready to be

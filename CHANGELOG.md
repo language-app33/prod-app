@@ -8,6 +8,453 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.193 — 19 September 2026
+
+**Writing a card is one sheet now, not a stack of boxes.** Every section of
+the card editor used to be a rounded box sitting on the page's grey, so a
+field you were typing in was inside a panel, inside a box, inside the page —
+three frames to unpick before you reached the thing you were reading. The
+boxes were also charging you about a word's worth of every line for their
+own edges and corners, which on a phone is what you notice first.
+
+The sections run the full width of the screen now, and what tells one from
+the next is a rule straight across with room either side of it. The one
+frame left is the panel around a subsection — a form's own fields, the table
+of endings on a word — so a box on this screen now means one thing only:
+that what is in it sits inside something else.
+
+**And a section says what it is.** The name of a section is set at the size
+of a heading, with what it is for on the line underneath in grey, where the
+two used to share a line and compete. A field's name is a size up with it,
+and every field on the screen now sits the same distance from its
+explanation and from the box you type in.
+
+**What kind of card it is, said rather than implied.** The first section is
+called "This card", and it opens with the type — word or phrase, sentence,
+conversation — shown the way every answered question on the screen is shown:
+the answer, read, with a padlock where a question you can still change wears
+a pencil. It was a line of grey beside the heading with two paragraphs under
+it explaining that it could not be changed.
+
+**And what a question is for is said before you answer it.** An explanation
+used to sit under the box, where it read as a note about what you had just
+written; it now sits between the name of the question and the box, which is
+where somebody who needs it needs it. What kind of word a card is is asked
+as "what subtype", saying what the answer gets you, and the fact that
+follows from it — whether a noun is a person or a thing — is asked under the
+kind of word it is about, with the reason it is being asked at all.
+
+**Decks are the decks, not a count of them.** "2 decks" told you how many and
+never which, and taking a card out of one meant opening a list and hunting
+for the tick that was already on. Each deck the card is in is now a pill of
+its own, with the cross that takes the card out of that deck on the pill.
+While the card is in none — a card no student will ever see — what stands
+there is a dashed outline saying "Add this card to a deck", which opens your
+decks to pick from.
+
+## 0.192 — 19 September 2026
+
+**Opening a card to look at it now shows everything the card holds.** It was
+meant to be the card with the typing taken away and it had fallen a long way
+behind: a teacher looking at one of their own cards could not see what kind
+of word they had said it was, the ID other cards borrow it by, which blanks
+it leaves or what stands in them, which of its forms are asked about and
+which are lent to sentences, what a number part is worth, or which tense and
+person any cell of a verb's table was. A verb's table was an unnumbered run
+of "other forms". And it was the last screen in the app that printed the
+braces a blank is stored as, rather than drawing the blank.
+
+All of that is on the screen now. A card opens with what it is — the kind of
+word, whether it is a sentence, what it is listed as, what it is worth — then
+its forms, each saying whether it is dealt as a question and whether it is
+lent out; then any table it lays its forms out in, gathered under the row
+each cell is on and labelled with the person, the way the editor lays the
+same table out; then the blanks it leaves with the words that will go in
+them, and how many sentences it is met as, with the filled-in sentences
+behind a fold. A card with none of that reads exactly as it did: anything
+with nothing in it is left out.
+
+**And it cannot fall behind again.** What a card can hold is written down in
+one place now, and the view-only screen is drawn from that list rather than
+from somebody's memory of it. Two things keep it true. A field nothing has
+been written about yet is still shown — at the foot of the card, under its
+own internal name, with its value as it is stored — so the worst case is a
+row that looks unfinished rather than a fact nobody can see. And the build
+refuses to finish work that breaks the promise: it fails when a card gains a
+field nothing describes, and again when a field is on an example card and not
+on the screen.
+
+A card a student opens is the same screen without the teacher's side of it —
+which decks carry it, what other cards call it, which forms are lent —
+because that is theirs to get right, not the student's.
+
+**Two things a teacher sees on a card whose axis the app no longer asks
+about.** A value recorded under a retired grammar axis, and one under an axis
+only some languages declare, are both on the card and are both shown now.
+What a card holds is what the screen says.
+
+## 0.191 — 19 September 2026
+
+**Whether a word is a person or a thing is now asked once, beside the kind
+of word it is.** It is a fact about the card — a book is a thing whether it
+is one book or several, and whichever way you spell it — and it was being
+asked of every accepted answer of every form, where a card could answer it
+one way on its singular and the other way on its plural, and where nobody
+would think to look for it.
+
+It sits under *What kind of word*, on the cards that are asked it at all:
+in Arabic and Hebrew that is nouns, because the question exists for what
+stands beside them — a plural of things takes the feminine adjective and a
+plural of people the plural. Opening a card settles it on what the card
+already says, so nothing has to be answered again, and a form added later
+starts from the card's answer instead of the default.
+
+Number and gender stay where they were, with the answer they are about:
+two spellings may be a masculine and a feminine, which is the whole reason
+they live there.
+
+## 0.190 — 19 September 2026
+
+**What an accepted answer is grammatically is now one line per question.**
+Number on a line, gender on the next, each with its values beside its name
+and one of them filled in — radio buttons, which is what "pick one of
+these" looks like everywhere else.
+
+They were rows of large buttons, a label above each row, so a word asked
+about three things came to six rows of controls under a word of two
+syllables, in a panel taller than the fields it belonged to. Nothing about
+what a card can say has changed: the same questions, the same answers,
+read in a glance instead of a scroll.
+
+**Where the line is too narrow for the words, the values shorten.** On a
+phone the choices read *sg. pl. N/A* and *m. f. n.* — the same
+abbreviations the card lists have always used to name a form — and go back
+to the full words as soon as there is room for them.
+
+**And a gender set by mistake can be taken off again.** Anything the
+language does not insist on now starts its line with *not set*, which
+there was previously no way back to.
+
+## 0.189 — 19 September 2026
+
+**The card's group tags now show the tags a card wears anyway.** A card
+fills `{{noun}}` by saying it is a noun, and `{{word}}` by being a single
+word, without anybody ticking anything — and that list used to leave both
+out, on the grounds that a tick for either would do nothing. True, and the
+wrong conclusion: it meant reading a list of the blanks your card fills
+that did not have the commonest two in it.
+
+They are listed now, grouped together above the tags you keep, with the
+ones this card actually fills marked and each saying how many words are
+behind it. They are flat rather than ticked, because there is nothing on
+those rows to answer — what changes them is the kind of word, further up
+the screen.
+
+**And a card can no longer be given an ID that a kind of word already
+answers to.** A card ID, a group tag, a kind of word and `{{word}}` all go
+between braces, so they are one namespace — but only the first two were
+checked. Calling a card `noun` left `{{noun}}` pulling that one card *and*
+every noun. The editor refuses it now and says why, the same way it
+refuses a name another card or group already holds. Cards written before
+the rule are untouched.
+
+**One number, counted once.** How many words are behind a blank was worked
+out in two places, each reading half the answer — how many cards *say*
+they are a noun, and how many *tag* themselves with the word. A name can
+be both. They are one count now, taken the way the question itself takes
+it.
+
+## 0.188 — 19 September 2026
+
+**A group tag can be taken off every card.** Until now a teacher could name
+a group, tick cards into it and rename it, but never get rid of one: a tag
+typed in a hurry, or a group that stopped being useful, sat in the list on
+every card for good, and the only way to empty it was to open each card in
+it and untick.
+
+The bin is beside the pencil on the group's own row while a card is being
+edited, which is where the pencil is for the same reason — a group nobody
+wants any more is only visible from a card that is in it. It appears only
+on a group that cards actually fill; on a name a sentence leaves and
+nothing fills there is nothing to take off anybody.
+
+It asks once, and what it asks is what it costs rather than whether you are
+sure: how many cards lose the tag, and that they lose nothing else — not
+their words, not their recordings, and not a day of anybody's progress. And
+the half nobody would think of, which is the half that ticking the group
+back onto one card does not undo: the sentences that leave a blank of that
+name go on asking for it, with no word to put in the hole until something
+fills it again.
+
+Which is why it says *take it off every card* rather than *delete*. A tag
+is not a thing the app keeps a list of — it exists exactly while some card
+carries it or some sentence asks for it — so taking it off the last card
+that filled it makes the name disappear only when no sentence is still
+writing it. Nothing rewrites a sentence here: a teacher taking a group off
+their words has said nothing about the sentences that use it.
+
+
+## 0.187 — 19 September 2026
+
+**New card now asks which of the three kinds you are making, before the
+editor opens.** Word or phrase, sentence, or conversation — each with a
+line saying what it is — and what comes up is a screen for making that
+one: named for it, laid out for it, and asking nothing further about it.
+
+It was the first field *inside* the editor, which put you in a screen for
+making a card and then asked what sort of card it was going to be. The
+three are not variations on one form. A conversation has speakers and
+turns where a word has forms; a sentence has blanks and fills nothing;
+each is asked, dealt and filled by a different path. The question belongs
+before the door.
+
+Nothing else about the flow changes. Which decks it goes in, and which
+language it is in where you teach more than one, are asked as they were.
+A card that already exists opens as what it is, as it has since 0.180.
+
+**One line changed with it.** A word with braces typed into it is still
+refused, and used to offer two ways out — call it a sentence, or take the
+braces out. There is no calling it a sentence any more, so it names the
+one that is left and says where the other is: start a new card and pick
+Sentence.
+
+## 0.186 — 19 September 2026
+
+**The app's text styles are now listed in Admin → App, drawn at the size
+they are drawn at in the app.** The components have been shown there for a
+while, so that what exists can be seen rather than remembered; the sizes
+they are set in could not be, and "make it bigger" has meant a different
+paragraph every time it was asked.
+
+Fifty of them, grouped by the job they do — headings and labels, body text,
+numbers and small print, controls, a question and an answer, cards and
+lists. Each says what it is and where it turns up, and is shown as itself:
+the real class on a real element, at the size it would be on that screen,
+with the language being taught laid out in its own face and at its own
+scale the way the practice screens lay it out.
+
+Beside each one is the size it actually comes out at, measured off the
+specimen rather than copied from the stylesheet — so a named size, a
+calculation against a script's scale and a verdict sized off the width of
+the phone all answer in pixels. Where the stylesheet writes it differently,
+its own words are underneath. The six named sizes it declares are listed
+above the lot, each drawn at what it is worth.
+
+
+## 0.185 — 19 September 2026
+
+**Which decks a card goes in is a section of its own,** directly under
+what kind of card it is, rather than a button at the foot of that block
+where it read as one more thing about the kind.
+
+**A form block says less and lines up better.** The "The word itself"
+heading over each form's own fields is gone — the block above it already
+says which form it is — and so is the line under it listing what the card
+cannot be saved without. The word, how it is said and its grammar now all
+start at the same left edge; they were stepped in from each other, which
+is the first thing the eye checks on a form.
+
+The **+** that adds another accepted answer is the height of the field it
+adds to and starts where that field starts. It was a twelve-pixel sliver
+dropped eight pixels down the side of a forty-eight-pixel box: it read as
+something that had slipped, and it was a tap target two letters wide.
+
+And *What is drilled* under each form is now **How this form can be
+practiced**, with the paragraph under it about what switching a tick off
+does taken away. The two ticks say what they do.
+
+## 0.184 — 18 September 2026
+
+**Three lines in the card editor, said where they are wanted.**
+
+*What is drilled* explains itself above its ticks rather than under them:
+that switching one off keeps the form on the card, with its recordings and
+whatever progress a student has made on it, and only stops it being asked.
+That is what somebody about to switch one off needs to know, and under the
+ticks it was an answer to a question already asked.
+
+*Recordings* says what a recording gets you between the heading and the
+button — "a recording lets this form be practiced by ear as well as by
+sight" — instead of under the button, where it read as a note about what
+had just been pressed. Which speeds you can record is no longer said here
+at all: it is said on the screen where you choose between them.
+
+And the line telling you to choose the kind of card now rather than later
+is gone. The block already says what each kind is and that the answer is
+settled when the card is made.
+
+## 0.183 — 18 September 2026
+
+**What kind of word a card is, is now a drop-down that shuts on the
+answer.** It was a column of radio rows — Noun, Verb, Adjective,
+Preposition, Pronoun, Name, Number, Something else — standing open above
+the word itself on every card. That is right while somebody is answering
+it, and wrong every other time: on most cards it is answered once and then
+read, so eight rows of a decision nobody was making sat between the top of
+the screen and the fields they came to fill in.
+
+So it is a button that opens the list. Each answer still carries the line
+saying what it gets you — a noun takes the pronouns on its end, a verb gets
+its persons and tenses — because that is what the list is for and what a
+row of segments could not hold.
+
+**And once one is chosen, it locks.** The answer reads back as a row with a
+pencil on the right, exactly as the card's ID does; the pencil opens the
+list again. A card that has never been asked says "Not said yet" and opens
+on a tap.
+
+## 0.182 — 18 September 2026
+
+**A card no longer needs an ID to be saved.** The ID is the name one card
+answers to, so that another card's blank can ask for *that* word —
+`{{colour-red}}` rather than any colour. Most cards are never pointed at
+that way, and the name is usually wanted later, while you are writing the
+sentence that points at them.
+
+Every new card was being made to have one first, so the commonest job on
+the screen — write a word, save it — waited on a decision about a card that
+did not exist yet, behind a Save button that stayed grey with nothing
+saying why. The box is still there, first thing in the Blanks section, and
+now says it is optional; a card can be given one whenever it needs one.
+
+What has not changed is the part that was doing real work: a name that
+something else already answers to — another card's ID, or a group tag —
+still stops the save and says which card has it. Two cards answering to one
+`{{x}}` is the one thing an ID is there to prevent.
+
+## 0.181 — 18 September 2026
+
+**A blank sits in the sentence now, not under it.**
+
+0.176 made a blank something you put into a card rather than type. What it
+left alone was the words themselves, which went on showing `{{name}}` — so
+every blank was on the screen twice: a chip under the field, and the braces
+in the middle of your own sentence. Only the chip could be touched, and it
+could not be moved to where the blank actually goes.
+
+The blank is a pill in the field now, where it stands:
+
+- **Drag it** anywhere in the sentence, with a finger or a mouse. It moves
+  through the words as you go, so what the card will read like is on the
+  screen while you decide. It is spaced like a word wherever it lands.
+- **Tap the cross on its end** to take it off. It goes from the script, the
+  pronunciation and the English together, because a blank in one field and
+  not the others is the one thing a sentence cannot be saved with.
+- **The bar underneath keeps the half the words cannot say**: the blanks
+  your card leaves that *this* field has not got, each one a tap from
+  agreeing, and the button for a blank nobody has written yet. A field that
+  has the blank no longer carries a chip saying so — you are looking at it.
+- **The braces are gone from every screen.** They are still how a card is
+  stored and nothing about any card has changed, but nothing asks you to
+  read or type them: not the fields, not the card lists, not the sheet you
+  choose a blank in, not the filter that narrows the list by one. Type them
+  out by hand anyway and they turn into the blank they name as you finish.
+
+## 0.180 — 18 September 2026
+
+**A card keeps the kind it was made as.** There are three kinds — word or
+phrase, sentence, and conversation — and the editor asks which while the
+card is being written, when nothing has been typed and no answer can lose
+anything. From the first save it says what the card is instead of offering
+to change it.
+
+Two of the three were already like this. A conversation could never stop
+being one: a scene with four turns on it has nowhere to put them. Nor could
+a word with a table, because the table is the content and calling the card
+a sentence would have thrown it away. What stayed open was the pair that
+looked harmless — a word with no table could be called a sentence and back
+again — and it is not harmless. A card is what a student's whole record is
+attached to and what every other card's blanks are written against, and the
+three kinds are asked, dealt and filled in three different ways; a card
+that changes kind is a card whose past means something it no longer is.
+
+**If you want the other kind, write another card.** That is the cost, and
+it is worth saying plainly: a word you decide should have been a sentence
+has to be typed again, and the original deleted if you do not want both.
+Nothing you have already written changes, and no card in anybody's deck
+moves.
+
+The same rule now holds where the editor cannot be reached, so a device
+saving from an old copy of the app can no longer turn a sentence into a
+word by saying nothing about it — which it could until today.
+
+
+## 0.179 — 18 September 2026
+
+**Each part of a card now says for itself what it is drilled as.** The
+create and edit screen used to ask that once, in a list at the very bottom
+called "What is drilled", naming each part in the editor's own words — "The
+main form", "Its attached pronouns". So a teacher who had just filled in a
+pronoun table had to scroll past everything else, work out which line meant
+the table they were looking at, and scroll back. The question is now asked
+under the thing it is about: under the word, under the pronouns on its end,
+under a verb's conjugations.
+
+**And it is two questions, because it always was two.** Each of them can be
+drilled *on its own* — dealt as a question, what it means, how it is
+written, how it sounds — and *inside sentence cards*, lent to the sentences
+that leave a blank it fills. A word is usually worth both. A name is worth
+only the second: "my name is ____" is worth meeting with Raphael in it, and
+"what does Raphael mean" is not a question. Until now one tick answered
+both, so keeping a form without asking about it also took it out of every
+sentence that could have borrowed it.
+
+Nothing about any card already written has changed. Everything that was
+drilled is still drilled in both ways, and anything switched off is still
+switched off in both. The separate "Also ask this card on its own" tick in
+the Blanks section is gone — it asked the same question in different words,
+somewhere else on the screen — and what it said is now the first tick under
+the form itself.
+
+**Subsections are easier to tell apart.** Inside a block — the word, the
+reference fields beside it, the table on the end of it; the blanks a
+sentence leaves, the examples of it filled in, the card's ID, the groups it
+is in — the split between one and the next was a single small coloured line
+that read as a label on the field under it. Each is now a panel of its own,
+named across the top, inside the block it belongs to.
+
+## 0.178 — 18 September 2026
+
+**The filled examples now fold away, and there are all of them.**
+
+*Examples of this card with filled blanks* opens shut on every card, with
+the count on its heading: *24 examples*, and a tap to see them. Shut,
+because the list is no longer a handful — it is now every sentence the
+card is met as, one per word behind each blank, and a card the whole
+collection fills would otherwise push the rest of the screen out of sight
+before you had asked it anything.
+
+Open, it is all of them. The question you have in front of a blank — is
+the right vocabulary behind this, and does every one of these sentences
+say something — is a question about the whole list, and the three
+examples it used to print could not answer it. The heading beside the
+section says the same number, so a card you never open still tells you
+what it is worth.
+
+On a card met as more sentences than one screen will draw, the list stops
+at a thousand and says so, and says how many there are.
+
+## 0.177 — 18 September 2026
+
+**A sentence can be given a name to be listed under.**
+
+A sentence is saved as the frame you wrote, hole and all, and that is what
+every list showed. So a deck of them read as a column of braces — "{{name}}
+is heavy" names the shape of the card rather than what it is for, and
+telling two of them apart at a glance meant reading past the blank in each.
+Nothing was wrong with the cards. They simply had no name of their own.
+
+**What to call it** is now the first thing on a sentence, exactly as it is
+on a verb, and it says the same about itself: how the card is listed and
+searched, and that nobody is ever asked it — what is practised is the
+sentence with its blanks filled in. Leave it blank and nothing changes; the
+card is listed as it was.
+
+A named sentence reads as its name in a list, with the sentence itself
+underneath. Its English gives way to the name, as a verb's does: the name is
+what the card is about now. It is searched by it too, so a sentence you
+called *saying where you live* is found under that.
+
 ## 0.176 — 18 September 2026
 
 **A card is a sentence because you said so, and only a sentence can have a

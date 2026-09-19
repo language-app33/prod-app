@@ -45,9 +45,10 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { shapeOf, shapeChoices, categoryChoices, categoryOffers, tableFor,
+const { shapeOf, shapeChoices, shapeLabel, categoryChoices, categoryOffers, tableFor,
   initialForms, initialCells, initialCategory, storedFormsOf, asideOf, tableCellsOf,
-  canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked } =
+  canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked,
+  partLends, setPartFlags, keptNotAsked } =
   await import(path.join(out, "card-editor.js"));
 
 /* The two halves of card identity live in shared.tsx, so it is bundled the
@@ -495,35 +496,37 @@ test("and an item that was never a course card has only the one name", () => {
  * rows, and it is a sentence when its own word has a blank in it.
  */
 test("a card is a word, a sentence or a conversation, and says which by what it holds", () => {
-  assert.equal(shapeOf(null, false), "word");
-  assert.equal(shapeOf(null, true), "scene");
-  const worded = (/** @type {any} */ ar) => ({ id: "c", forms: [{ id: "c", ar, en: "x", lat: "" }] });
-  assert.equal(shapeOf(worded("كتاب"), false), "word");
-  /* The braces are in the text, so there is nothing to guess at: a card
-     with a blank in it is a sentence whichever editor wrote it. */
-  assert.equal(shapeOf(worded("{{noun}} كبير"), false), "sentence");
+  const worded = (/** @type {any} */ ar, /** @type {any} */ rest = {}) =>
+    ({ id: "c", forms: [{ id: "c", ar, en: "x", lat: "" }], ...rest });
+  assert.equal(shapeOf(null), "word", "and nothing at all is nothing to read");
+  assert.equal(shapeOf(worded("كتاب")), "word");
+  /* The teacher's own answer, kept on the card since 0.176 — and behind
+     it, for a card written before there was anything to keep, the braces
+     in its words. */
+  assert.equal(shapeOf(worded("كتاب", { sentence: true })), "sentence");
+  assert.equal(shapeOf(worded("{{noun}} كبير")), "sentence");
   /* And turns win over blanks, because a conversation is a different
-     shape of card rather than a longer one. */
-  assert.equal(shapeOf(worded("{{noun}}"), true), "scene");
+     shape of card rather than a longer one. Read off the card rather than
+     handed in: since 0.187 the only thing that says which kind a card is
+     without reading one is the answer given before it existed. */
+  assert.equal(shapeOf(worded("{{noun}}", { lines: [{ who: 0, ar: "a" }] })), "scene");
 });
 
-test("a new card may be any of the three, and a written one stays what it can", () => {
-  const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  assert.deepEqual(values({ saved: false, shape: "word", table: "" }),
+test("the three kinds a card can be, each with a line saying what it is", () => {
+  /* Asked once, before the editor opens — and never again, whichever of
+     the three it is: a card is what a student's whole record hangs on and
+     what every other card's blanks are written against, so the editor
+     says what it is rather than offering to change it. A conversation was
+     always like this — a scene with four turns on it has nowhere to put
+     them — and a word with a table was half like it; the pair that stayed
+     open until 0.180 was a word and a sentence with nothing in the way. */
+  assert.deepEqual(shapeChoices().map((/** @type {any} */ c) => c.value),
     ["word", "sentence", "scene"]);
-  /* A written conversation is offered nothing at all, so the block says
-     what it is instead: a scene with four turns on it would have nowhere
-     to put them. */
-  assert.deepEqual(values({ saved: true, shape: "scene", table: "" }), []);
-  /* A word and a sentence are the same card written two ways, so that
-     pair stays open both ways — writing a blank into a word is how most
-     sentences start. */
-  assert.deepEqual(values({ saved: true, shape: "word", table: "" }), ["word", "sentence"]);
-  assert.deepEqual(values({ saved: true, shape: "sentence", table: "" }), ["word", "sentence"]);
-  /* Except where the card has a table, which is content: saving it as a
-     sentence would drop it. */
-  assert.deepEqual(values({ saved: true, shape: "word", table: "verb" }), ["word"]);
-  assert.deepEqual(values({ saved: true, shape: "word", table: "attached" }), ["word"]);
+  /* Every answer carries what it means, which is why the question is a
+     screen of rows rather than a track of segments. */
+  assert.ok(shapeChoices().every((/** @type {any} */ c) => c.label && c.note));
+  assert.equal(shapeLabel("word"), "Word or phrase");
+  assert.equal(shapeLabel("scene"), "Conversation");
 });
 
 test("and a word is asked what kind of word it is, in the language's own list", () => {
@@ -1450,8 +1453,8 @@ test("every form is asked about until somebody says otherwise", () => {
 
 test("a plain word has nothing to choose between, and a word with a table does", () => {
   const forms = [{ ar: "كتاب", en: "book" }];
-  /* One part is no question: the section is not drawn, and the tick that
-     would turn the only form off is the one the Blanks block already has. */
+  /* One form is one part, and it is asked of that form where the form is
+     edited — there is no card-wide list for it to be the only line of. */
   assert.deepEqual(askParts({ forms, cells: [], spec: null }).map((/** @type {any} */ p) => p.id), ["form:0"]);
 
   /* The word, and the pronouns on the end of the word. */
@@ -1563,6 +1566,95 @@ test("a form switched off is dealt nothing, and the rest of the card still is", 
   );
   assert.equal(table.some((/** @type {any} */ u) => u.unit.id === "s-me"), false);
   assert.ok(table.some((/** @type {any} */ u) => u.unit.id === "book"), "the word is asked as ever");
+});
+
+test("whether a part is asked and whether it is lent are two answers", () => {
+  /* One tick answered both until 0.179, so keeping a form without asking
+     it also took it out of every sentence card that could have borrowed
+     it. What a stored card means is unchanged: an absent `lend` still
+     reads as whatever `ask` says. */
+  const forms = [
+    { ar: "كتاب", en: "book" },
+    { id: "pl", ar: "كتب", en: "books", ask: false },
+    { id: "nm", ar: "رافاييل", en: "Raphael", ask: false, lend: true },
+    { id: "rf", ar: "كتيب", en: "booklet", lend: false },
+  ];
+  const parts = askParts({ forms, cells: [], spec: null });
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.on), [true, false, false, true]);
+  assert.deepEqual(parts.map((/** @type {any} */ p) => p.lends), [true, false, true, false],
+    "a form written before this lends exactly while it is asked");
+  assert.equal(partLends(forms[0]), true, "and nothing said is both");
+});
+
+test("the two answers are written together, and neither is stored where the fallback says it", () => {
+  /* Writing one without the other could turn the teacher's answer to the
+     other question into its opposite: with `ask` off, an absent `lend`
+     reads as "not lent". */
+  const both = setPartFlags({ ar: "كتاب" }, true, true);
+  assert.equal("ask" in both, false, "asked is the absence of the field");
+  assert.equal("lend" in both, false, "and so is lent, while the two agree");
+
+  const kept = setPartFlags({ ar: "كتاب" }, false, true);
+  assert.equal(kept.ask, false);
+  assert.equal(kept.lend, true, "written out, because absent would read as not lent");
+
+  const quiet = setPartFlags({ ar: "كتاب" }, true, false);
+  assert.equal("ask" in quiet, false);
+  assert.equal(quiet.lend, false, "and written out the other way for the same reason");
+
+  /* Off and off is one field, because that is what the fallback says. */
+  const neither = setPartFlags({ ar: "كتاب", lend: true }, false, false);
+  assert.equal(neither.ask, false);
+  assert.equal("lend" in neither, false);
+
+  /* And the answer nobody touched survives being written. */
+  assert.equal(partLends(keptNotAsked({ ar: "كتاب" })), true);
+  assert.equal(partLends(keptNotAsked({ ar: "كتاب", lend: false })), false);
+});
+
+test("a card stored as a value opens with nothing asked and everything still lent", () => {
+  /* `drill: false` is the card-wide "this is Raphael, and what does
+     Raphael mean is not a question". It was a tick of its own in the
+     Blanks block, asking the same thing as the per-form ticks in other
+     words and in another place; it is read back into them now. */
+  const value = /** @type {any} */ ({
+    id: "r", ar: "رافاييل", en: "Raphael", fills: "name", drill: false,
+    subs: [{ id: "alt", ar: "رافائيل", en: "Raphael" }],
+  });
+  const forms = initialForms(value, null);
+  assert.deepEqual(forms.map((/** @type {any} */ f) => partAsked(f)), [false, false]);
+  assert.deepEqual(forms.map((/** @type {any} */ f) => partLends(f)), [true, true],
+    "it is in the deck to be borrowed, which is the whole of what it is for");
+
+  /* An ordinary card is untouched on the way in. */
+  const plain = initialForms(/** @type {any} */ ({ id: "k", ar: "كتاب", en: "book" }), null);
+  assert.equal(partAsked(plain[0]), true);
+  assert.equal("lend" in plain[0], false, "and gains no field it did not have");
+});
+
+test("what is saved says whether the card is a question at all", () => {
+  /* `drill` reaches further than the per-form ticks — a card marked as a
+     value stays out of the matching grids and out of the wrong answers a
+     learner is asked to tell apart — so it is still stored. It is read
+     off the ticks rather than asked for twice. */
+  const save = (/** @type {any} */ forms) =>
+    writtenCard({
+      word: {
+        shownSpec: null, ownForms: forms, tableCells: [], forms,
+        note: "", standsIn: false, name: "", uses: [], fills: "name", category: "",
+      },
+      talk: {},
+      shape: "word",
+      chosen: [],
+    });
+  assert.equal(save([{ ar: "رافاييل", en: "Raphael" }]).drill, true);
+  assert.equal(save([{ ar: "رافاييل", en: "Raphael", ask: false, lend: true }]).drill, false,
+    "lent everywhere and asked nowhere is a value");
+  assert.equal(
+    save([{ ar: "كتاب", en: "book", ask: false }, { ar: "كتب", en: "books" }]).drill,
+    true,
+    "and a card is a question while anything on it is asked",
+  );
 });
 
 test("a form's table is named only where there is more than one on screen", () => {
@@ -1755,13 +1847,13 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
       name: "",
       uses: [],
       fills: "",
-      drill: true,
       category: "noun",
     },
     talk: {},
     shape: "word",
     chosen: ["d1"],
   });
+  assert.equal(written.drill, true, "a card with something asked on it is a question");
   assert.deepEqual(written.forms.map((/** @type {any} */ f) => f.ar), ["كِتاب", "كُتُب", "كتابي"],
     "every form comes back out, the word first");
   assert.deepEqual(written.forms[0].clips, ["c1"], "with the word's recordings still on it");
@@ -1769,6 +1861,42 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
   assert.equal(written.forms[2].row, "attached", "and the cell still placed");
   assert.equal(written.category, "noun");
   assert.equal(written.note, "about the book");
+});
+
+test("a sentence keeps what the teacher calls it, and a word is named by its own words", () => {
+  /*
+   * A sentence is saved as a frame with a hole in it, so a list of them
+   * reads as a list of holes: "{{name}} is heavy" names the shape of the
+   * card rather than what it is for. What to call it is asked of a
+   * sentence for the reason it is asked of a verb — what is on the card is
+   * not what the card is about — and the save has to carry it, which is
+   * the half a screen cannot show.
+   *
+   * And only where it is asked. Every other card is named by its own word,
+   * so a name typed while the card briefly was a sentence does not follow
+   * it out.
+   */
+  const draft = {
+    shownSpec: null,
+    ownForms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }],
+    tableCells: [],
+    forms: [],
+    note: "",
+    standsIn: false,
+    name: "  introducing yourself  ",
+    uses: [],
+    fills: "",
+    drill: true,
+    category: "",
+    refName: "",
+    spread: [],
+  };
+  const asSentence = writtenCard({ word: draft, talk: {}, shape: "sentence", chosen: [] });
+  assert.equal(asSentence.name, "introducing yourself",
+    "a sentence carries what it is called, trimmed");
+  assert.equal(asSentence.sentence, true, "and is still saved as a sentence");
+  const asWord = writtenCard({ word: draft, talk: {}, shape: "word", chosen: [] });
+  assert.equal(asWord.name, "", "and a word is named by its own words");
 });
 
 /* ---- what a document keeps on its way in ---- */

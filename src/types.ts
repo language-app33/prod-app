@@ -360,6 +360,14 @@ export interface GrammarDim {
   label: string;
   field: string;
   required: boolean;
+  /**
+   * What answering it is for, in the words a teacher would want before
+   * they answer rather than after. An axis that tells a card's forms
+   * apart needs none — a reader picking between "sg." and "pl." knows
+   * what they are doing — so this is for the ones that decide what
+   * happens somewhere else on some other card.
+   */
+  help?: string;
   /** [stored value, what to show]. */
   options: [string, string][];
   /**
@@ -370,8 +378,29 @@ export interface GrammarDim {
    * option's own label.
    */
   short?: Record<string, string>;
+  /**
+   * How a value reads where the picker is too narrow for its name —
+   * "sg.", "m.". Never silent, unlike `short`: a row of radios with a
+   * blank beside one of them is a choice nobody can make. Absent means
+   * the option's own label, which is what a value short enough to stand
+   * as it is wants.
+   */
+  brief?: Record<string, string>;
   /** What a new or unreadable value becomes. */
   default?: string;
+  /**
+   * Whether the axis is a fact about the card rather than about one of its
+   * accepted answers.
+   *
+   * Most of them are about the answer: two spellings may be a masculine
+   * and a feminine, which is why grammar moved onto the answer at all. One
+   * is not — whether a noun is a person or a thing is as true of its plural
+   * as of its singular, and of both its spellings — and asking it of every
+   * answer is asking a card to disagree with itself about something it
+   * cannot disagree about. Asked once, beside the kind of word; stored on
+   * every form, which is where the agreement rules read it.
+   */
+  perCard?: boolean;
   retired?: boolean;
 }
 
@@ -675,6 +704,23 @@ export interface CardForm {
    * is switched off is simply a card with nothing to ask.
    */
   ask?: boolean;
+  /**
+   * Whether this form may be lent to a card with a blank in it — "big" in
+   * *the {{adjective}} book*, "Raphael" in *my name is {{name}}*.
+   *
+   * The other half of the same question, and a separate answer since
+   * 0.179: a word can be worth meeting inside somebody else's sentence
+   * without being a question of its own, and worth asking on its own
+   * without being dropped into every frame that has a hole of its name.
+   * Until then `ask` answered both, so the only way to stop a form being
+   * asked was to stop it being lent as well.
+   *
+   * Absent means whatever `ask` says, which is what every form written
+   * before this meant: a form nobody asked about lent nothing. So a
+   * stored card is read exactly as it was written, and the editor writes
+   * this out only where the two answers differ.
+   */
+  lend?: boolean;
 }
 
 /**
@@ -761,9 +807,11 @@ export type Card = {
    *
    * A verb in a language with no infinitive is saved as the form a
    * dictionary lists — Arabic's he-past — so a list read "أكل · he ate",
-   * which names one cell of its table rather than the verb. A name is the
-   * teacher's answer to that. Absent on every other card, which is named
-   * by the word it teaches.
+   * which names one cell of its table rather than the verb. A sentence is
+   * saved as a frame, so a list read "{{name}} is heavy", which names the
+   * hole in it rather than what it is for. A name is the teacher's answer
+   * to both. Absent on every other card, which is named by the word it
+   * teaches.
    */
   name?: string;
   /**
@@ -939,6 +987,9 @@ export type Form = Record<string, any> & {
      wording, its recordings and whatever schedule it had; it is simply
      never dealt. */
   ask?: boolean;
+  /* And whether it may be lent to a card with a blank in it. Absent means
+     whatever `ask` says — see CardForm, where the teacher sets it. */
+  lend?: boolean;
   /* How far this form has been asked with each of the values that fill its
      holes — "slot:valueId" to the highest level it was met at. Only for a
      value with no ladder of its own to be read instead; see valuesAt in

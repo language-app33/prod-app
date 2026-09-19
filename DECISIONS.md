@@ -2513,3 +2513,252 @@ not something any reader here could make sense of.
 - **Moving a blank between two fields is not a drag.** A chip drags onto its
   own field only. Tapping is how a blank reaches another field, which is the
   gesture that matters — the fields are meant to agree, not to trade.
+
+---
+
+## Being asked and being lent are two answers, and `drill` is read off them
+
+**18 September 2026** · `src/types.ts` (`lend`), `src/variables.ts`
+(`isLent`), `src/card-editor.tsx` (`askParts`, `setPartFlags`,
+`writtenCard`)
+
+A form on a card can be worth two different things, and until now one tick
+answered both. `ask: false` meant "keep this, do not ask about it" — and
+`lentBy` read the same field, so a form kept without being asked also
+stopped standing in every sentence card that could have borrowed it. That
+is the only thing one tick could have meant, and it is wrong for the
+commonest case of all: a name is worth meeting inside *my name is ____* and
+is no question at all on its own.
+
+So a form carries `lend` beside `ask`, and the editor asks both under the
+fields they are about rather than in a list at the foot of the screen.
+
+**Absent `lend` means whatever `ask` says.** Not "yes", which is what every
+other absent flag in this codebase means. A card written before the split
+carries neither field, and reading an absent `lend` as yes would have
+started lending every form a teacher had deliberately switched off — a
+silent change to material already in students' hands. The fallback is the
+old single answer, exactly, so nothing stored moves; the editor writes the
+field out only where the two answers differ, which is why `setPartFlags`
+writes both at once and is the only place either is set.
+
+**`drill` is derived rather than asked for.** The card-wide "this is a
+value, not a question" flag stays — it reaches further than the per-form
+ticks, keeping a value out of the matching grids and out of the wrong
+answers a learner is asked to tell apart, not merely out of the deal. But
+it had a tick of its own in the Blanks block, asking the same question as
+the per-form ticks in different words and in a different place, and a card
+where the two disagreed was a card nobody could reason about. It is now
+read off them: a card is a question exactly while something on it is asked
+on its own, and a card stored with it off opens with nothing asked and
+everything still lent.
+
+**What it costs.** The "a new card that joins a group is not drilled by
+default" rule was a third state of that toggle — `null`, meaning "whatever
+this card looks like" — and a hidden state cannot survive being spread over
+one tick per part. It is written into the ticks instead: joining a first
+group on a card nobody has saved unticks "on its own" everywhere, and
+leaving the last one ticks it back, so the guess is as reversible as it was
+while it was derived. What stops it is the teacher touching any tick, which
+is them answering; from there the app stops answering for them. The default
+is unchanged. What changed is that it happens in front of them, which is
+the point: a card-wide toggle nobody was shown could hold a state nobody
+could see.
+
+---
+
+## What kind of card it is, is settled when the card is made
+
+**18 September 2026** · `src/card-editor.tsx` (`shapeChoices`),
+`server/api/courses.js` (`keptKind`)
+
+There are three kinds of card — a word or phrase, a sentence, a
+conversation — and until now two of them were fixed by accident rather
+than on purpose. A conversation could not stop being one because a scene
+with four turns on it has nowhere to put them. A word with a table could
+not become a sentence because the table is content and the change would
+have dropped it. Both were argued from what would be *lost*, so the pair
+where nothing visible is lost stayed open: a saved word with no table
+could be called a sentence, and back again, as often as anybody liked.
+
+**The thing that is lost there is not visible on the screen.** A card is
+the anchor for a student's whole record of it — a schedule per form per
+exercise, on devices this server never hears from until they sync. It is
+also what every other card's blanks are written against: a group tag and an
+ID both name cards, and a sentence is the one kind that fills nothing. And
+the three kinds are asked, dealt and filled by three different paths. So a
+card that changes kind is a card whose past means something it no longer
+is, and the damage shows up later, somewhere else, as a schedule against a
+question that is not asked any more or a frame whose filler has become a
+frame.
+
+So the question is asked once, while the card is being written — the one
+moment when nothing has been typed and no answer can cost anything — and
+never again. `shapeChoices` answers nothing at all to a saved card, and the
+block that asked says what the card is instead.
+
+**Why not migrate instead.** A "change the kind and carry the record
+across" would have to say what a word's forms become when it is a scene
+with two speakers, and what a sentence's blanks become when it is a word.
+There is no answer to either that is not a guess, and a guess here is
+silent. Writing a new card is explicit, takes a minute, and leaves the old
+one where it is until its author says otherwise.
+
+**And it is enforced where the editor is not.** The editor is not the only
+thing that can reach `save-card`: a device can queue a save from a build
+that has not caught up, and a card can be pasted in. `keptKind` takes an
+existing card's kind from the card as stored rather than from the request,
+through the same `isDialog` and `isSentence` the app reads it through.
+
+Kept rather than refused. A refusal would lock an older client out of cards
+it can otherwise edit perfectly well, and the failure being replaced was
+silent in the other direction: a client that said nothing about `sentence`
+— every build before 0.176 — turned each sentence it saved into a word.
+Writing the answer out also pins the kind of a card written before there
+was anything to pin, which until then was recognised by the braces in its
+words and stopped being a sentence when they came out.
+
+---
+
+## A card's own fields are not `<input>`s
+
+**18 September 2026** · `BlankText` and `dropBlank` in `src/card-editor.tsx`
+
+0.176 made a blank something you put into a sentence rather than type:
+a bar under each field, a chip per blank the card knows, a rail of word-gaps
+to drop one on. What it left alone was the field itself, which went on
+showing `{{name}}` — so the blank existed twice over. The chip under the
+field could be dragged and could not be moved *in the sentence*; the thing
+in the sentence was six characters of Latin punctuation a teacher had to
+select through their own words, and delete a brace at a time.
+
+The blank is now a pill inside the field, where it stands. An `<input>`
+holds characters and nothing else, so a sentence's three fields are
+contenteditable boxes the app draws the contents of.
+
+**What that costs, and why it was still the cheaper side.** A box the app
+draws is a box the app has to keep from fighting the caret. The rule that
+makes it tractable is that *nothing is repainted while anybody types*: what
+is read back off the box is compared with what was last painted into it,
+and on a keystroke they agree, so the caret is never moved out from under
+the person typing. A repaint happens only where the app itself changed the
+words — a blank put in from the bar, moved, taken off, or braces typed out
+by hand becoming the pill they name — and each of those puts the caret back
+by offset, counted in the same terms as everything else: `{{name}}` is
+eight characters wherever it is drawn as a pill. There is one zero-width
+space behind every pill, because a box you type in cannot put the caret
+after something it may not edit unless there is somewhere for the caret to
+be, and a blank put in at the end of a sentence is the commonest there is.
+
+**Dragging a pill reads the caret; dragging a chip still reads the rail.**
+0.176 chose word-sized drop targets over character offsets, and the reason
+was that finding the character under a finger inside an `<input>` means
+measuring text the browser has already laid out — a mirror element, a
+second answer, and a wrong one in a script that runs the other way. That
+argument is about an input. A pill is in a box the browser lays out for
+real, so `caretRangeFromPoint` is the browser's own answer about its own
+text, in any script, and the pill can move through the words as the finger
+goes rather than hopping between gaps on a rail beneath them. Both are
+drops of a blank at an offset, and both go through `withSlotAt` and
+`movedSlot`, so there is one set of string rules under the two gestures.
+
+**The bar stopped saying what the field now says.** It carried a chip for
+every blank the card knew, marked as in this field or not. The half that
+was "in" is the field's job now — it is in the field, it says its own name,
+it is dragged by its own pill and taken off by its own cross — so the bar
+keeps only the half the field cannot say: the blanks the rest of the card
+leaves and this one has not got, each a tap from agreeing, and the button
+for a blank nobody has written yet.
+
+**A cross takes the blank out of the form, not out of the field.** Putting
+one in is per field because a teacher may want it in a different place in
+each of them; taking one off is not, because there is no such thing as
+taking a blank off *somewhere*. A cross that emptied the English alone
+would put the card straight into the disagreement the bar exists to keep it
+out of, and leave two more crosses to find.
+
+**The braces did not change.** They are what is stored, what the server
+holds, what every other reader of a card understands, and what an older
+build still reads. What changed is that no screen shows them: not the
+field, not the tiles a card is listed on, not the sheet a blank is chosen
+in, not the filter that narrows a list by one, and not the lines that name
+a blank in passing. One picture of a blank in the app instead of two.
+
+---
+
+## What a card holds is a list, and reading one is drawn from it
+
+**19 September 2026** · `src/card-facts.ts`, `src/shared.tsx` (`CardReadout`),
+`tests/card-facts.test.mjs`, `tests/card-readout.test.mjs`
+
+A card in the teaching space can be opened to change it or to look at it,
+and the second is meant to be the first with the typing taken away. It was
+not. The view-only screen was a second, hand-written description of a card
+— the rows somebody thought worth showing on the day they wrote it — and
+every feature since had to be added to it again by somebody remembering to.
+Nobody did. By 0.191 a teacher looking at a card could not see what kind of
+word it was, what its ID was, which blanks it left, what stood in them,
+which of its forms were asked about or lent out, what a number part was
+worth, or which cell of a verb's table any of its forms sat in; and it was
+the one screen left in the app that printed the braces a blank is stored as.
+
+Nine missing rows was not the problem. The problem was that two
+descriptions of a card existed and only one of them was kept up to date, so
+fixing the nine would have got us to that day and left the next one exactly
+as fragile.
+
+**The rule adopted instead: the saved card is the contract between the two
+screens.** Everything the editor does ends as a card being saved — that is
+what the editor is — so a read-out that says everything a *saved card* can
+hold cannot fall behind it, whatever is added later. A feature that stores
+nothing has changed nothing to show. That turns a promise about discipline
+into a question about data, and a question about data is one the build can
+ask.
+
+So `card-facts.ts` describes every field a card, a form, a turn or an
+accepted answer can carry: its heading, who it is worth showing to, and
+what the screen says for a given value. `CardReadout` draws that, panel by
+panel, in the order the editor asks for the same things.
+
+**A field nothing describes yet is shown anyway.** The screen walks the card
+in front of it rather than a fixed run of fields, and whatever the list does
+not name is drawn at the foot under its own internal name with its value as
+it is stored. Deliberately plain: it reads as a thing nobody has got round
+to, which is what it is. This is the half that makes the guarantee hold
+before anybody notices — the default for a new field is *shown, badly*
+rather than silence, and the only way for something to be invisible is for
+a person to put it in `NOT_SHOWN` with a line saying why.
+
+**Two tests, failing in the right order.** The first takes the keys
+`writtenCard` actually emits and the fields `types.ts` documents, and fails
+when one of them is described nowhere or carried by no example card. The
+second renders the read-out over those cards and fails when a value on one
+is not on the screen, naming the field and the card. Add a field: *no
+example card carries this*. Add it to the corpus: *the read-out does not
+show this*. Write its heading: green. At no point can the work look finished
+while the parity is quietly broken.
+
+**Why not one screen with the inputs switched off**, which is what "one
+implementation of a thing" would suggest. The editor is not a list of
+fields: it is drag rails, pills pulled along a sentence, contenteditable
+boxes, recording overlays, a grid that mints cells. Locked down it reads as
+a form somebody took the buttons off, and it is not what a student should
+ever be shown. One description of a card and two drawings of it is the
+convergence that was available; what did converge is everything underneath
+— the blanks a card leaves, the words behind them, the filled-in examples,
+whether a form is asked or lent, and the two speeds a word is recorded at
+are each one function now, read by the editor and the read-out alike.
+
+**What it does not cover.** Some of what the editor shows is not on the card
+— how many words are behind a blank, the sentences it comes out as, the
+warning that a name is taken. Those are worked out while a teacher looks,
+so no walk of a stored card can find them, and the guarantee above says
+nothing about them. They are on the read-out because they were written
+there, not because anything makes them stay; what keeps them honest is that
+both screens now compute them with the same functions.
+
+**A reader, not a flag.** The student's card screen is the same component
+with `reader="both"`, and each field says whether it is the teacher's
+business or everybody's. It replaced `whereItLives`, which was one panel's
+worth of the same question. Nothing is a student's alone: there is no fact
+about a card its teacher may not see.

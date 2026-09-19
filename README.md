@@ -233,19 +233,39 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   gender, a noun is asked whether it is a person or a thing — and nothing
   stored is narrowed by that: `dimsFor` is display and editing, `dimValues`
   is storage. See `tablesOf` and `WORD_CATEGORIES` in `src/languages.ts`.
-- **A form can be kept without being asked about.** A card is a word and a
-  pile of forms of it — other spellings, the pronouns on its end, every
-  person and tense of a verb — and a teacher may want some of that written
-  down for a student to read rather than drilled. Each of those is a part
-  that can be switched off in the editor: it stays on the card, keeps its
-  recordings and keeps whatever progress a student has made on it, and is
-  never asked. Stored as `ask: false` on the forms it covers, so a card
-  written before this and anything added to one later are both asked;
-  `askParts` in `src/card-editor.tsx` is what a teacher is shown, and
-  `isAsked` in `src/scheduler.ts` is what every reader goes through. A
-  form's own table follows the form off — the pronouns on the end of a
-  word wait on that word being known, so under a form nobody is asked they
-  could never open.
+  The teacher answers it in a drop-down (`WordKind` in
+  `src/card-editor.tsx`), and an answer shuts to the answer with a pencil
+  beside it — the same `.at-shutrow` the card's ID wears, because it is
+  the same state: decided once, read often, and changed on purpose rather
+  than by a stray tap. Every answer carries a line saying what it gets
+  you, which is why the list inside is rows and not a track of segments.
+- **A form can be kept without being asked about, and lent without being
+  asked.** A card is a word and a pile of forms of it — other spellings,
+  the pronouns on its end, every person and tense of a verb — and a
+  teacher may want some of that written down for a student to read rather
+  than drilled. Each of those is a part with two answers on it, ticked in
+  the editor under the very fields it is about:
+
+  | | what it means | stored |
+  |---|---|---|
+  | on its own | dealt as a question — what it means, how it is written, how it sounds | `ask` |
+  | inside sentence cards | lent to the frames that leave a blank it fills | `lend` |
+
+  A word is usually worth both. A name is worth the second alone —
+  *what does Raphael mean* is not a question — and a table written out for
+  reading is worth neither. Switched off either way it stays on the card,
+  keeps its recordings and keeps whatever progress a student has made on
+  it. Absent means yes for `ask`, and for `lend` it means whatever `ask`
+  says, which is what one tick for both could only have meant — so a card
+  written before the split is read exactly as it was written. `askParts`
+  in `src/card-editor.tsx` is what a teacher is shown, `isAsked` in
+  `src/scheduler.ts` and `isLent` in `src/variables.ts` are what every
+  reader goes through, and a card's own `drill` — which keeps a value out
+  of the grids and the wrong answers as well as out of the deal — is read
+  off the ticks rather than asked for a second time. A form's own table
+  follows the form off *as asked* — the pronouns on the end of a word wait
+  on that word being known, so under a form nobody is asked they could
+  never open — and never off as lent, because lending waits on nothing.
 - **A sentence is a card made of blanks, and the vocabulary fills them.** A
   card may leave a hole in itself — `اسمي {{name}}` — and the question fills
   it before anybody reads the card, with a different word next time round.
@@ -263,13 +283,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   answer to what a card fills, and the server reads it through the same
   function. And a blank named after **one card's ID** takes that card and
   no other: `{{colour-red}}` asks for that word where `{{colour}}` asks for
-  any of a group. The ID is the teacher's, typed when the card is written
-  and stored in `ref`; `cardRef` reads it and narrows it the way every
+  any of a group. The ID is the teacher's, optional, given whenever they
+  want one and stored in `ref`; `cardRef` reads it and narrows it the way every
   other name that goes between braces is narrowed, so what the editor
-  checked and what the server stored cannot come apart. Both kinds of name
-  are one namespace, because both are what a sentence writes between
-  braces: `refClash` refuses a name another card's ID or anybody's group
-  tag already answers to, while the teacher is still looking at it.
+  checked and what the server stored cannot come apart. All four kinds of
+  name are one namespace, because all four are what a sentence writes
+  between braces: `refClash` refuses a name that another card's ID,
+  anybody's group tag, a kind of word the language declares or the built-in
+  `{{word}}` already answers to, while the teacher is still looking at it.
+  It is the editor that refuses, not the server, so a name that collided
+  before the rule existed is stored and read as it always was.
   Every form of a filler lends itself, not only its
   own word: a plural stands in a sentence its singular does not, gated on
   what that form itself has climbed. A card with a blank in it never fills
@@ -299,8 +322,28 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   pins the answer the next time it is saved. The other half of the rule is
   a refusal — `strayHoles` in `src/card-editor.tsx` stops a save of any
   card that is not a sentence and has braces in one of its own forms, and
-  names both ways out, because "I meant a sentence" and "I mistyped" are
-  opposite and only the teacher knows which.
+  names the one way out, which is to take them out. To have the sentence
+  you start one, which is the rule below.
+
+  **And what kind of card it is, is settled before the editor opens.**
+  New card asks which of the three — `NewCardKind` in
+  `src/card-editor.tsx`, over `shapeChoices`, which is the one list of
+  what the three are and what each means — and what comes up is a screen
+  for making that one, named for it and asking nothing further about it.
+  The editor says what the card is and never offers to change it; a card
+  that exists answers for itself through `shapeOf`. A card is what a
+  student's whole record hangs on, what every other card's blanks are
+  written against, and the three kinds are asked, dealt and filled in
+  three different ways, so a card changing kind is a card whose past means
+  something it no longer is. It was the first field inside the editor
+  until 0.187, which put a teacher in a screen for making a card before
+  asking what sort of card it was going to be — and before 0.180 a word
+  with no table could be called a sentence and back again. Whoever wants
+  the other kind wants another card. The same rule holds where the editor
+  cannot be reached — `keptKind` in `server/api/courses.js` takes a saved
+  card's kind from the card as stored, through the same `isDialog` and
+  `isSentence` the app reads it through, so a stale build or a queued save
+  cannot change one.
 
   **The editor's Blanks section is four named subsections, and they are
   not the same shape, because they are not the same question.**
@@ -340,15 +383,25 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   are in it.
 
   *Examples of this card with filled blanks* is the card as a student will
-  actually meet it: up to five of it, every hole standing as one of the
-  words behind it, each in the script, in how it is said and in what it
-  means, filled from the words that exist today. It is a list to be read
-  down — how much the card varies, and whether the words standing in it
-  are the ones the teacher meant — which is why it is named and on its own
-  rather than a wordless preface to the holes, and why five rather than
-  the three it showed while it was one. Empty where a blank has nothing
-  behind it, which is its own answer, and said in a line. `EXAMPLES_SHOWN`
-  in `src/card-editor.tsx`.
+  actually meet it, and **all of it**: every word behind one blank, every
+  pair of words behind two, each in the script, in how it is said and in
+  what it means, filled from the words that exist today. It is a list to
+  be read down — whether the right vocabulary is behind a blank, and
+  whether every one of those sentences says something — and that question
+  is asked of the whole list or not at all, which is why it stopped being
+  the three examples it printed as a preface to the holes.
+
+  **It is folded away until it is asked for**, on every card, because what
+  a frame the whole collection fills is met as is hundreds of sentences,
+  and a section that opened on them would put the rest of the card below
+  them. Its heading says how many are in there, which is the answer a
+  teacher wants oftener than the sentences, and so does the section's own
+  line — `combos` in `src/card-editor.tsx`, counted rather than built, so
+  it is there while the list is still folded. `EXAMPLES_CEILING` is the
+  only thing that shortens the list, and only on a card met as more
+  sentences than a screen will draw at once, where the foot of the list
+  says so and says how many there are. Empty where a blank has nothing
+  behind it, which is its own answer, and said in a line.
 
   **And the card list narrows by a blank, from either side of it.** Teaching
   → Cards has a *Blanks* filter: which side a card is on — it leaves one,
@@ -362,14 +415,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   blank appears the moment a card writes it and goes when the last one
   stops.
 
-  *The card's ID* is the name this one card answers to, and the only field
-  in the editor a card cannot be saved without. It is asked of a new card,
-  because that is the moment the teacher is naming the thing and the moment
-  nothing else points at it yet; a card written before IDs existed carries
-  none until somebody opens it and gives it one, so editing a recording on
-  an old card is not a demand to name it. What it says back is as short as
-  it can be: a name that is free gets a green rim and no sentence, and the
-  only line here is for a name something else answers to, which names what
+  *The card's ID* is the name this one card answers to, and it is
+  **optional** — a card is its words, and a name for pointing at it is a
+  thing a teacher wants while writing the sentence that points, which is
+  usually another day. It is offered on every card and demanded of none;
+  what a save does refuse is a name something else already answers to,
+  whatever the card's age, because two cards answering to one `{{x}}` is
+  the one thing an ID is for preventing (`refOk` in
+  `src/card-editor.tsx`). What it says back is as short as it can be: a
+  name that is free gets a green rim and no sentence, and the only line
+  here is for a name something else answers to, which names what
   has it. It is typed once and then **shut** — the tick beside the box,
   which lights only on a free name — because an ID is written once and read
   a hundred times, and a box you can type in is a box you can type in by
@@ -380,17 +435,44 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   what a card fills is nowhere in its words and nothing can be read off, so
   it is the teacher's answer and this is where they give it — a box that
   names a new group, above the groups somebody has written, with this
-  card's ticked. A kind of word is not among them, because a
-  card fills `{{noun}}` by saying it is a noun and `{{word}}` by being a
-  word: a tick for either would change nothing. What is offered is what
-  somebody *wrote* rather than what is not built in, because a language
-  may declare a kind of word whose name a teacher also uses by hand —
-  Arabic declares `name`, and `{{name}}` is the oldest frame in the app. A
-  card that leaves a blank of its own fills none, so on one of those this
-  subsection says that rather than offering a control there is no answer
-  to. Every row carries the pencil that renames the tag, because a tag is a
-  name several cards share and the only place a misspelt one is visible is
-  a card that has it.
+  card's ticked.
+
+  **Two runs, because a card wears two sorts of tag.** The first is what
+  follows from the card: the kind of word it says it is, and `{{word}}`
+  where it is one, each filled with nothing ticked (`fillsOf`). Those are
+  shown flat rather than ticked — the answer to them is the kind of word,
+  further up the screen — with the ones this card actually fills marked,
+  and every one of them saying how many words are behind it. They were left
+  out until 0.189, on the grounds that a tick for one would do nothing,
+  which is true and was the wrong conclusion: it left a teacher reading a
+  list of the blanks their card fills that did not have the commonest two
+  in it. The second run is the tags somebody wrote, ticked, each with the
+  pencil that renames it — because a tag is a name several cards share and
+  the only place a misspelt one is visible is a card that has it. What that
+  run offers is what somebody *wrote* rather than what is not built in,
+  because a language may declare a kind of word whose name a teacher also
+  uses by hand — Arabic declares `name`, and `{{name}}` is the oldest frame
+  in the app. A card that leaves a blank of its own fills none, so on one
+  of those the subsection says that rather than offering a control there is
+  no answer to.
+
+  **And beside the pencil, on a group cards actually fill, the bin that
+  takes it off all of them.** For the same reason the pencil is there, and
+  offered nowhere else: a group nobody wants any more is only visible from
+  a card that is in it. There is no "only here" to ask for — taking this
+  card out of the group is the tick two rows to the left — so the one
+  question is whether to do it at all, and what it asks is what it costs:
+  how many cards lose the tag, that they lose nothing else, and that the
+  sentences leaving a blank of that name go on asking for it with nothing
+  to fill it. It is called *taking a group off every card* and not
+  *deleting a tag* because that is all it is: `droppedIn` in
+  `src/variables.ts` takes the tags off the words and never the braces off
+  a sentence, so a name outlives the last card that filled it for exactly
+  as long as some sentence still writes it. Rewriting those sentences would
+  be acting on an absence — the teacher said nothing about them. The editor
+  holds one card, so the answer travels out beside a rename's and the Cards
+  screen does the walking, after the renames and over the same pool, so a
+  tag renamed and then taken off in one sitting comes off where it landed.
 
   **Renaming either asks one question: does the name follow, or does this
   card alone move?** A name lives in two sorts of place — on the card that
@@ -408,6 +490,20 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   answer out with the card being saved and the Cards screen does the
   walking — the same `sendOrKeep` every card goes through, in a loop, so a
   rename made on a train is kept and sent like anything else.
+
+  **The braces are how a card is stored and not how one is written.** A
+  sentence's fields draw each blank where it stands, as a pill: dragged
+  along the words to move it, crossed off to take it off the form's three
+  fields together. `BlankText` in `src/card-editor.tsx` is that field — a
+  contenteditable box the app draws, which is why nothing in it is
+  repainted while anybody types — and `dropBlank` beside it is what a
+  cross means. The bar under each field keeps what the words cannot say:
+  the blanks the card leaves that this field has not got, and the button
+  for one nobody has written yet. Every gesture ends in the same string
+  rules, `withSlotAt`, `movedSlot` and `withoutSlot` in
+  `src/variables.ts`, which is where a blank's spacing is decided. No
+  screen shows the braces: a card listed anywhere draws its blanks the
+  same way, through `splitSlots`.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the
@@ -594,6 +690,13 @@ src/
   cards.ts         what a card is made of: its own word and the forms it
                    carries, as one list. The single door everything that
                    walks a card's forms goes through. Pure, imports nothing.
+  card-facts.ts    what a card *holds*: every field it can carry, what a
+                   reader sees it called, who it is worth showing to and what
+                   the screen says for it — plus the short list of fields
+                   that are not information, each with why. The view-only
+                   screen is drawn from it and a field it does not name yet
+                   is still shown, raw, so the screen cannot fall behind the
+                   editor. Pure.
   numbers.ts       numbers built out of a teacher's parts: finding the card
                    a part is written on, how far a deck reaches, and what
                    to ask next. How a language puts its numbers together is
@@ -644,6 +747,17 @@ A few rules the code follows, learned the hard way:
   a grader or an editor are where the subtle bugs come from.
 - **One implementation of a thing.** If two versions of a component coexist,
   the goal is to converge on one, not to keep both.
+- **The saved card is the contract between editing a card and reading one.**
+  Opening a card in the teaching space to look at it shows everything a saved
+  card can hold, not the fields somebody thought worth showing: everything
+  the editor does ends as a card being saved, so a read-out that says
+  everything a card holds cannot fall behind it. What each field is called
+  lives in `src/card-facts.ts`; a field nothing there names yet is shown raw
+  at the foot of the card rather than dropped, so the default is *visible and
+  unlabelled* instead of silence. Two tests hold it: one fails when a field
+  the editor writes is described nowhere or carried by no example card, the
+  other renders the read-out over those cards and fails when a value on one
+  is not on the screen.
 - **The scheduler owns the schedule.** Exercise state is per card *and* per
   exercise type; states that have never been answered are not stored.
 - **Merging is idempotent.** Sync can run twice with the same input and

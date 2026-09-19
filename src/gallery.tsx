@@ -23,7 +23,9 @@ interface Use {
 import React, { useState } from "react";
 import { COMPONENT_USES } from "./component-uses.js";
 import { SCREEN_ELEMENTS, NAMING } from "./screen-elements.ts";
-import { LANGUAGES } from "./languages.ts";
+import { TEXT_STYLES, TYPE_SCALE } from "./text-styles.ts";
+import type { TextStyle } from "./text-styles.ts";
+import { LANGUAGES, scriptVars } from "./languages.ts";
 import {
   Button,
   CardReadout,
@@ -161,7 +163,10 @@ const PLACES: Record<string, [string, string]> = {
   AttachedEditor: [TEACH, "Editing a card · a word with attached pronouns"],
   TableEditor: [TEACH, "Editing a card · a word with a table of its forms beside it"],
   SceneEditor: [TEACH, "Editing a card · a conversation"],
+  NewCardKind: [TEACH, "Making a card · which of the three kinds it is"],
   KindBlock: [TEACH, "Editing a card · what kind of card it is"],
+  WordKind: [TEACH, "Editing a card · what kind of word it is"],
+  WordGrammar: [TEACH, "Editing a card · what is true of the word itself"],
   NameBlock: [TEACH, "Editing a card · what to call a verb"],
   TableBlock: [TEACH, "Editing a card · the table a card carries"],
   SceneBlock: [TEACH, "Editing a card · the scene"],
@@ -169,7 +174,8 @@ const PLACES: Record<string, [string, string]> = {
   FormBlock: [TEACH, "Editing a card · one form"],
   PronounTable: [TEACH, "Editing a card · the pronouns on the end of a form"],
   AddFormButton: [TEACH, "Editing a card · adding a form"],
-  AskBlock: [TEACH, "Editing a card · which of its forms are drilled"],
+  DrillChecks: [TEACH, "Editing a card · whether a part of it is drilled, and where"],
+  NothingAsked: [TEACH, "Editing a card · the warning that none of it is drilled"],
   SentenceEditor: [TEACH, "Editing a card · a sentence"],
   BlanksBlock: [TEACH, "Editing a card · its blanks"],
   BlankChip: [TEACH, "Editing a card · one blank, and the words that fill it"],
@@ -178,6 +184,7 @@ const PLACES: Record<string, [string, string]> = {
   IdBox: [TEACH, "Editing a card · the ID it answers to"],
   TagList: [TEACH, "Editing a card · the groups it is in"],
   RenameAsk: [TEACH, "Editing a card · renaming an ID or a group tag"],
+  StripAsk: [TEACH, "Editing a card · taking a group off every card"],
   RecordingOverlays: [TEACH, "Editing a card · recording a form"],
   DeckSwitch: [TEACH, "Editing a card · which decks it is in"],
   BlankNameBox: [TEACH, "Editing a card · naming a blank nobody has named yet"],
@@ -211,6 +218,8 @@ const PLACES: Record<string, [string, string]> = {
   PlayButton: [PARTS, "A play button"],
   ClipRow: [PARTS, "A recording in a list"],
   CardReadout: [PARTS, "A card's details"],
+  ReadSound: [PARTS, "A card's details · how it sounds"],
+  ReadBlanks: [PARTS, "A card's details · the blanks it leaves"],
   ItemList: [PARTS, "A searchable list"],
   FilterBar: [PARTS, "What Sort or Filter opens onto"],
   FilterMenu: [PARTS, "One filter, in the toolbar"],
@@ -391,6 +400,134 @@ export function ScreenElements() {
               <code className="at-elname">{name}</code>
               <p className="at-elwhat">{what}</p>
               {example ? <p className="at-elexample">{example}</p> : null}
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/*
+ * The text styles, drawn at the size they are drawn at in the app.
+ *
+ * A specimen is the real class on a real element, so the sizes on this
+ * screen are the app's sizes rather than a picture of them — and the
+ * number beside each one is measured off that specimen rather than
+ * copied out of the stylesheet, which is what makes a token, a calc and
+ * a script's own scale all answer in pixels.
+ */
+
+/* The pack the script specimens are laid out with — the real one, as the
+   trainer lays a question out. */
+const TEXT_LANG = LANGUAGES["ar-PS"];
+
+function Specimen({ style }: { style: TextStyle }) {
+  const Tag = (style.tag || "p") as "p";
+  const body = (
+    <Tag className={style.cls} data-ts={style.name}>
+      {style.example}
+    </Tag>
+  );
+  const inner = style.wrap ? <div className={style.wrap}>{body}</div> : body;
+  if (!style.script) return inner;
+  /* The same three things the trainer sets on the app root, so a script
+     size resolves here exactly as it resolves there. The face as well as
+     the scale: a rule that takes its font-family from an inline style in
+     the app — a card's word, a tile's script — would otherwise be drawn
+     in the interface face and read as the wrong thing entirely. */
+  return (
+    <div
+      className="at-tsscript"
+      style={{
+        "--sfont": TEXT_LANG.fontStack,
+        "--sdir": TEXT_LANG.direction || "ltr",
+        ...scriptVars(TEXT_LANG),
+      } as React.CSSProperties}
+    >
+      {inner}
+    </div>
+  );
+}
+
+export function TextStyles() {
+  const host = React.useRef<HTMLDivElement | null>(null);
+  const [sizes, setSizes] = useState<Record<string, string>>({});
+
+  React.useLayoutEffect(() => {
+    const root = host.current;
+    if (!root || typeof window === "undefined" || !window.getComputedStyle) return;
+    /* Nothing worth measuring where the app's own stylesheet has not been
+       applied — a test renderer, or the moment before the CSS lands. Every
+       element would answer with the browser's own default and the list
+       would read 16px all the way down, which is worse than no number at
+       all. The token is the proof the stylesheet is in scope. */
+    if (!window.getComputedStyle(root).getPropertyValue("--fs-md").trim()) return;
+    const found: Record<string, string> = {};
+    for (const el of root.querySelectorAll("[data-ts]")) {
+      const name = el.getAttribute("data-ts");
+      const px = parseFloat(window.getComputedStyle(el).fontSize);
+      /* A tenth of a pixel, because a calc against a script's scale lands
+         between whole ones and rounding it away would make two different
+         sizes read as one. */
+      if (name && px) found[name] = `${Math.round(px * 10) / 10}px`;
+    }
+    setSizes(found);
+  }, []);
+
+  return (
+    <div className="at-ts" ref={host}>
+      <Lede>
+        Every size a person actually reads, drawn here at the size it is
+        drawn at in the app. Ask for a change by the name in{" "}
+        <code>code</code> — “at-hint is too small” — rather than by
+        describing which grey paragraph is meant.
+      </Lede>
+      <Help>
+        The number beside each name is measured off the specimen next to it,
+        so it is the size on this screen rather than what the stylesheet was
+        written to say. Where the two are written differently — a named
+        size, or a calculation against the script's own scale — the
+        stylesheet's own words are underneath.
+      </Help>
+
+      <p className="at-eyebrow at-mt5">The named sizes</p>
+      <Help className="at-mb3">
+        The scale the stylesheet declares at the top. Much of the app writes
+        its size out in pixels instead, which is why the list below is
+        longer than these six.
+      </Help>
+      <div className="at-tsscale">
+        {TYPE_SCALE.map(([token, size]) => (
+          <div className="at-tsscalerow" key={token}>
+            <code className="at-tsname">{token}</code>
+            <span className="at-tssize">{size}</span>
+            <span className="at-tsruler" style={{ fontSize: `var(${token})` }}>
+              Aa
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {TEXT_STYLES.map(([group, styles]) => (
+        <section className="at-tsgroup" key={group}>
+          <p className="at-eyebrow">{group}</p>
+          {styles.map((style) => (
+            <div className="at-tsrow" key={style.name}>
+              <div className="at-tshead">
+                <code className="at-tsname">{style.name}</code>
+                <span className="at-tssize">{sizes[style.name] || style.size}</span>
+              </div>
+              {/* The stylesheet's own words, where they are not simply the
+                  number already shown — there is nothing to add by
+                  printing 14px twice. */}
+              {(sizes[style.name] || style.size) !== style.size ? (
+                <code className="at-tsdecl">{style.size}</code>
+              ) : null}
+              <p className="at-tswhat">{style.what}</p>
+              <div className="at-tsspec">
+                <Specimen style={style} />
+              </div>
             </div>
           ))}
         </section>
@@ -802,7 +939,7 @@ export function ComponentGallery() {
         </V>
       </Row>
 
-      <Row name="CardReadout" what="A card and its forms, read-only. Falls back to the default language pack when lang is left off.">
+      <Row name="CardReadout" what="A card and everything it holds, read-only — see card-facts.ts, which is what it draws. `reader` is who is looking: a teacher sees which decks carry it and what other cards call it, a student the card itself. Falls back to the default language pack when lang is left off.">
         <V label="card + lang" wide>
           <CardReadout card={{ ...SAMPLE_CARD, decks: ["d1"] }} decks={[{ id: "d1", title: "Lesson 1" }]} />
         </V>

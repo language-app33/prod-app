@@ -222,7 +222,16 @@ reusable things are; it is in `shared.tsx` with the rest now.
 The line under a tile: whether anyone can see it. `live, children`
 
 ### `CardReadout` — 4 uses
-Read-only view of a card and its forms. `card, lang, decks`
+Everything a saved card holds, read-only: its kind, its forms, its tables,
+its blanks, what other cards call it and where it lives. What it draws is
+described once in `src/card-facts.ts`, and a field that list does not name
+yet is still shown, raw, at the foot — so the screen cannot fall behind the
+editor. `card, lang, decks, cards, reader`
+
+`cards` is the rest of the collection, where the caller has it: what is
+behind a blank and how many cards wear a tag are facts about the collection.
+`reader` is `"teacher"` (the default) or `"both"` — a student's screen is the
+card itself, without which decks carry it or which of its forms are lent.
 
 ---
 
@@ -299,7 +308,13 @@ its play buttons resolve to "missing" rather than fetching.
   first and last children, so `marginTop: 0` is almost never needed. The 32
   inline styles that remain are dynamic values (computed colours, a font stack
   from the language pack).
-- Type scale is `--fs-xs` … `--fs-xl`; z-index layers are `--z-*`.
+- Type scale is `--fs-xs` … `--fs-xl`; z-index layers are `--z-*`. Most sizes
+  are written out in pixels rather than taken from a token, so **Text styles**
+  in Admin → App is the list to read before setting one: every style the app
+  is written in, drawn at its real size with the size it resolves to measured
+  off the specimen. `src/text-styles.ts` is the list behind it, and
+  `tests/text-styles.test.mjs` fails if a size there and the stylesheet have
+  come apart.
 - Every `at-` class in the stylesheet is currently referenced by something. If
   you delete markup, delete its CSS — and note that a multi-selector rule is
   only dead if *every* selector in it is.

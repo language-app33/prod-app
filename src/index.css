@@ -537,6 +537,55 @@ button {
 .at-choosebtn.on { border-color: var(--accent); color: var(--ink); }
 .at-choosemark { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /*
+ * Which decks a card is in, read as the decks rather than as a number.
+ *
+ * The control was one pill whose text was the state — "2 decks" — so the
+ * answer to "which two" was behind a tap, and taking a card out of one
+ * meant opening a list and hunting for the tick that was already on. Each
+ * deck is its own pill now, with the cross that takes the card out of that
+ * deck on the pill itself.
+ *
+ * The way to add another is the outline of a pill that is not there yet:
+ * dashed, in the row, where what it makes will stand. It carries the whole
+ * invitation while the card is in no deck at all — a card in no deck is a
+ * card no student will ever see, and an empty row would say nothing about
+ * that.
+ */
+.at-chooser.deckwrap { display:block; width:100%; }
+.at-deckpills { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.at-deckpills > .at-hint { margin:0; }
+.at-deckpill { display:inline-flex; align-items:center; gap:4px; max-width:100%;
+  min-height:48px; padding-inline:16px 4px; border-radius:999px;
+  border:2px solid var(--accent); background: var(--jade-bg); color: var(--text);
+  font-family: var(--ui); font-size:14px; font-weight:700; }
+.at-deckpill > .nm { min-width:0; overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; }
+.at-deckdrop { flex:0 0 auto; width:40px; height:40px; padding:0; border:0;
+  border-radius:999px; background:none; color: var(--accent);
+  display:flex; align-items:center; justify-content:center; }
+.at-deckdrop:hover { background: var(--press); }
+.at-deckdrop:focus-visible { outline:3px solid var(--brass); outline-offset:1px; }
+/* --faint rather than --line: a dashed edge is half absent to begin with,
+   and the palette's rule colour leaves it invisible on the light theme. */
+.at-deckadd { display:inline-flex; align-items:center; gap:8px; min-height:48px;
+  padding-inline:18px; border-radius:999px; border:2px dashed var(--faint);
+  background:none; color: var(--muted); font-family: var(--ui); font-size:14px;
+  font-weight:700; text-align:start; }
+.at-deckadd:hover { border-color: var(--muted); color: var(--text); }
+.at-deckadd:focus-visible { outline:3px solid var(--brass); outline-offset:2px; }
+/* A deck in the list, which is a button saying what tapping it does rather
+   than a tick saying what is already true. */
+.at-deckpicks { display:flex; flex-direction:column; gap:6px; }
+.at-deckpick { display:flex; align-items:center; gap:10px; width:100%;
+  text-align:start; padding:10px 12px; border:2px solid var(--line);
+  border-radius: var(--r-sm); background: var(--raised); color: var(--text); }
+.at-deckpick.on { border-color: var(--accent); }
+.at-deckpick > .at-tickbody { flex:1 1 auto; }
+.at-deckmark { flex:0 0 auto; font-family: var(--ui); font-size:12px;
+  font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+  color: var(--muted); }
+.at-deckpick.on .at-deckmark { color: var(--accent); }
+/*
  * Hung off the button, not pinned to the window.
  *
  * The language switch's menu is fixed because it lives in the chrome,
@@ -557,6 +606,7 @@ button {
   box-shadow: var(--nav-shadow); }
 .at-choosemenu .at-eyebrow { margin:0 0 8px; }
 .at-choosemenu .at-hint { margin:10px 0 0; }
+.at-choosemenu > .at-field:last-child { margin-bottom:0; }
 /*
  * The sentences a student will be asked, filled with the words that exist
  * today. The section used to explain this in ninety words; five real
@@ -631,30 +681,26 @@ button {
 /* ---- putting a blank into a sentence ----
 
    The bar under each of a sentence's fields: a chip per blank the card
-   knows, and the button for one it does not. A chip that is already in
-   this field reads as a fact about it — filled in, the way the readout
-   above does — and one that is not reads as a thing to press, because
-   that is what it is: one tap and the field has it too.
+   leaves that *this field has not got*, and the button for one nobody has
+   written yet. A blank the field does have is in the field, drawn where it
+   stands — see .at-blankpill below — so the bar never says the same thing
+   twice.
 
    The whole bar is quiet by design. It sits under a field the teacher is
    typing into, so it may not compete with the words; what it costs is one
-   line of small type, and it disappears entirely on a card that is not a
-   sentence. */
+   line of small type, it is empty on a sentence whose fields agree, and it
+   disappears entirely on a card that is not a sentence. */
 .at-blankbar { margin-top:6px; }
-.at-blankpills { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
-.at-blankpill, .at-blankadd { display:inline-flex; align-items:center; gap:4px;
+.at-blankputs { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.at-blankput, .at-blankadd { display:inline-flex; align-items:center; gap:4px;
   min-height:30px; padding:0 10px; border-radius:999px; font-family: var(--mono);
   font-size:12px; font-weight:700; cursor:pointer; -webkit-appearance:none; appearance:none;
   /* A chip is dragged, so the browser must not take the gesture for a
      scroll or a text selection first. */
   touch-action:none; user-select:none; -webkit-user-select:none; }
-.at-blankpill { background: var(--well); border:2px dashed var(--line); color: var(--muted); }
-.at-blankpill:hover, .at-blankpill:focus-visible { border-color: var(--brass); color: var(--brass); }
-/* In this field already: solid, and in the colour the readout above gives
-   a blank, so the two say the same thing about the same name. */
-.at-blankpill.in { background: var(--tag-bg); border-style:solid; border-color: var(--tag-line);
-  color: var(--brass); cursor:grab; }
-.at-blankpill.lifted { opacity:.45; cursor:grabbing; }
+.at-blankput { background: var(--well); border:2px dashed var(--line); color: var(--muted); }
+.at-blankput:hover, .at-blankput:focus-visible { border-color: var(--brass); color: var(--brass); }
+.at-blankput.lifted { opacity:.45; cursor:grabbing; }
 .at-blankadd { background: var(--raised); border:2px solid var(--line); color: var(--text-soft); }
 .at-blankadd:hover, .at-blankadd:focus-visible { border-color: var(--brass); color: var(--brass); }
 
@@ -719,12 +765,43 @@ button {
 .at-idrow { display:flex; align-items:center; gap:8px; margin-top:10px; }
 .at-idrow .at-input { flex:1 1 auto; min-width:0; }
 .at-idrow .at-icon { flex:0 0 auto; width:48px; min-height:48px; padding:0; }
-.at-idrow.shut { border:2px solid var(--line); border-radius: var(--r);
+/* ---- a question that has been answered ----
+   The answer, read rather than typed or picked, with the pencil that opens
+   it again on the end. Two of them wear it — the card's ID and what kind
+   of word it is — because it is one state and not two: a decision made
+   once and read a hundred times, where a control you can change is a
+   control you can change by accident. */
+.at-shutrow { display:flex; align-items:center; gap:8px; margin-top:10px;
+  border:2px solid var(--line); border-radius: var(--r);
   background: var(--well-deep); padding:6px 6px 6px 14px; }
-.at-idrow.shut .at-ic { flex:0 0 auto; color: var(--muted); }
-.at-idname { flex:1 1 auto; min-width:0; font-family: var(--mono); font-size:17px;
-  font-weight:700; color: var(--text-soft); overflow:hidden; text-overflow:ellipsis;
+.at-shutrow .at-ic { flex:0 0 auto; color: var(--muted); }
+.at-shutrow .at-icon { flex:0 0 auto; width:48px; min-height:48px; padding:0; }
+.at-shutname { flex:1 1 auto; min-width:0; font-size:17px; font-weight:700;
+  color: var(--text-soft); overflow:hidden; text-overflow:ellipsis;
   white-space:nowrap; }
+/* Where the pencil sits on a question that can be answered again, a
+   padlock sits on one that cannot — the same room, so the rows line up
+   down the section whether or not there is anything to press. */
+.at-shutlock { flex:0 0 auto; width:48px; min-height:48px; display:flex;
+  align-items:center; justify-content:center; color: var(--faint); }
+/* An ID is a name written between braces on another card, so it is read in
+   the face those are read in. A part of speech is a word. */
+.at-idname { font-family: var(--mono); }
+/* ---- a tag a card wears without being given it ----
+   Its kind of word, and the built-in every single word fills. A row in the
+   same list as the tags a teacher ticks, because it is one namespace — but
+   flat rather than ticked, because there is nothing on it to answer: the
+   question is the kind of word, further up the screen. Dashed says so; the
+   one that applies is marked and takes the solid rim a ticked row has. */
+.at-tagfixed { display:flex; align-items:center; gap:10px;
+  border:2px dashed var(--line); border-radius: var(--r-sm);
+  background: var(--well); padding:10px 12px; }
+.at-tagfixed.on { border-style:solid; border-color: var(--accent); }
+.at-tagmark { flex:0 0 auto; display:inline-flex; width:20px; justify-content:center;
+  color: var(--accent); }
+.at-tagmark.off { visibility:hidden; }
+.at-ticklist > .at-eyebrow { margin:2px 0 0; }
+.at-ticklist > .at-hint { margin:0; }
 /* One group tag: the tick that joins it, and the pencil that renames it.
    Two questions about one row, so they are two controls — a row that
    renamed the group when you meant to join it would be unusable. */
@@ -779,6 +856,65 @@ button {
 .at-screen.over .at-formrole { font-size:12px; color: var(--muted); }
 .at-screen.over .at-chips { gap:5px; }
 .at-screen.over .at-chips .at-btn.sm { padding:5px 10px; font-size:12px; }
+
+/* ------------------------------------------------------------------
+   The card editor: one sheet, ruled into sections
+
+   Every section of the editor used to be a rounded box on the page's
+   own grey — so a field sat inside a panel, inside a box, inside the
+   page, and the eye had to unpick three frames to reach the thing it
+   was reading. The boxes also spent 32px of a phone's width on their
+   own edges, which is most of a word.
+
+   So the sheet is the surface, the sections run its full width, and
+   what says where one ends is a rule straight across with room either
+   side of it. A subsection keeps its panel — it is the one frame
+   left, and now the only thing on the screen that means "inside".
+
+   Alternating the ground instead of ruling was tried first and
+   dropped: the two greys the palette has are a step the eye reads as
+   a smudge rather than as a boundary, and picking two that were far
+   enough apart made the editor look like two different screens
+   stapled together.
+   ------------------------------------------------------------------ */
+.at-screen.cardform { background: var(--surface); }
+/* The first section brings its own room below the head; anything else that
+   opens the screen — the offline line — keeps the body's. */
+.at-screen.cardform .at-screenbody { padding-top:0; }
+.at-screen.cardform .at-screeninner > :not(.at-formblock):first-child { margin-top:18px; }
+/* Out to the gutters, past the body's own padding — which the rest of
+   the screen's contents still keep. */
+.at-screen.cardform .at-formblock { margin:0 -16px; padding:28px 16px 32px;
+  border:0; border-top:1px solid var(--line); border-radius:0; background:none; }
+.at-screen.cardform .at-formblock:first-child { border-top:0; }
+/* A conversation's turns are sections like any other, and keep the one
+   thing that said whose they were: the indent away from the far gutter.
+   The coloured edge that used to go with it was the box's, and the box is
+   gone — so the rule between turns steps in and out down the scene, which
+   is the shape of a conversation and costs nothing. */
+.at-screen.cardform .at-formblock.side0 { margin-inline:-16px var(--turn-inset); }
+.at-screen.cardform .at-formblock.side1 { margin-inline: var(--turn-inset) -16px; }
+/* Heading, then what it is underneath it. They shared a line and competed:
+   a name set at heading size with a gloss beside it in grey reads as one
+   long line of two voices. `order` puts the actions back up on the
+   heading's line, where the thing they act on is. */
+.at-screen.cardform .at-formhead { display:flex; flex-wrap:wrap;
+  align-items:baseline; gap:4px 10px; margin-bottom:18px;
+  padding-bottom:0; border-bottom:0; }
+.at-screen.cardform .at-formnum { font-size:25px; font-weight:800;
+  letter-spacing:-.015em; line-height:1.15; text-transform:none; color: var(--ink); }
+.at-screen.cardform .at-formacts { order:1; margin-inline-start:auto; }
+.at-screen.cardform .at-formrole { order:2; flex:0 0 100%; font-size:14px;
+  font-weight:500; line-height:1.6; color: var(--muted);
+  white-space:normal; overflow:visible; text-overflow:clip; }
+/* A field's name is a size up with it, and every one of them sits the same
+   distance above what it explains and what it asks for. */
+.at-screen.cardform .at-label { font-size:15px; letter-spacing:.07em;
+  line-height:1.3; margin-bottom:8px; }
+.at-screen.cardform .at-hint { font-size:14px; line-height:1.6; }
+.at-screen.cardform .at-field { margin-bottom:16px; }
+.at-screen.cardform .at-groupline,
+.at-screen.cardform .at-drillhead { font-size:15px; line-height:1.3; }
 /* Icons sit inside buttons at the text baseline. */
 .at-ic { flex:0 0 auto; vertical-align:-4px; }
 .at-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family: var(--ui); font-size:16px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background: var(--raised); color: var(--text); border:2px solid var(--line); border-radius: var(--r); padding:14px 22px; cursor:pointer; transition: transform 60ms, background 120ms; min-height:52px; }
@@ -811,14 +947,65 @@ button {
 .at-lockrow { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .at-lockname { display:inline-flex; align-items:center; gap:8px; font-size:15px;
   font-weight:700; color: var(--ink); }
-/* Splitting a form into what gets drilled and what doesn't. */
-/* A subsection inside a form: a coloured rule and a chip, so the split
-   between what is drilled and what is reference is impossible to miss. */
+/* ---- a subsection inside a section ----
+
+   A block is not one run of fields. What is drilled, what is only written
+   down, and the table on the end of the word are three different
+   questions, and the only thing that said so was a small coloured line —
+   which, sitting directly above a label, read as a label on the field
+   under it rather than as the head of everything below. So a subsection
+   is a panel of its own: recessed onto the page's ground, ruled, and
+   named across the top, inside the block it belongs to.
+
+   Still inside the section, and deliberately quieter than one: a section
+   is a solid surface with a two-pixel edge, a subsection a well with a
+   hairline. The eye reads the outer frame first and the split second,
+   which is the order they matter in. */
+.at-part { border:1px solid var(--line); border-radius: var(--r-sm);
+  background: var(--well); padding:12px; margin:0 0 12px; }
+.at-part:last-child { margin-bottom:0; }
+/* The name of the subsection, across the top of its panel and ruled off
+   from the fields under it. */
 .at-groupline { margin:0 0 14px; font-size:11px; font-weight:800;
   text-transform:uppercase; letter-spacing:.07em; color: var(--accent); }
+.at-part > .at-groupline { margin:0 0 10px; padding-bottom:8px;
+  border-bottom:1px solid var(--line); }
 .at-formblock .at-groupline + .at-field, .at-formblock .at-groupline + .at-hint {
   margin-top:0; }
 .at-formblock .at-groupline:not(:first-of-type) { margin-top:22px; }
+/* The last field of a subsection sits on the panel's floor, not a margin
+   below it — the same rule .at-sub and .at-section already carry. */
+.at-part > :first-child { margin-top:0; }
+.at-part > :last-child, .at-part > .at-field:last-of-type { margin-bottom:0; }
+/* What is drilled, at the foot of the subsection it is about: the ticks
+   answer the question the panel above them poses, so they are separated
+   from it the way the panel is separated from its neighbours. */
+.at-drills { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+.at-drillhead { display:block; margin:0 0 8px; font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.07em; color: var(--muted); }
+/* A subsection heading that is also the thing that opens it: the same
+   rule and chip as its neighbours, so it reads as one of the headings
+   rather than a button parked among them, with what is behind it counted
+   on the end and a chevron saying which way it goes. Its margin is
+   written out rather than left to :not(:first-of-type), which counts
+   buttons and paragraphs apart and would give this one no room. */
+.at-groupfold { display:flex; align-items:center; gap:8px; width:100%;
+  min-height:38px; margin:14px 0 8px; padding:0; border:0; background:none;
+  cursor:pointer; text-align:start; color: var(--accent); }
+.at-groupfold > span:first-child { min-width:0; }
+.at-groupfold .at-groupcount { margin-inline-start:auto; flex:0 0 auto;
+  font-size:11px; font-weight:700; letter-spacing:0; text-transform:none;
+  color: var(--muted); }
+.at-groupfold .at-ic { flex:0 0 auto; }
+.at-groupfold:hover .at-groupcount { color: var(--text-soft); }
+.at-groupfold:focus-visible { outline:3px solid var(--brass); outline-offset:3px;
+  border-radius: var(--r-sm); }
+/* A fold that opens a subsection is the head of its panel, so it is ruled
+   off from what it opens exactly as a plain heading is. */
+.at-part > .at-groupfold { margin:0 0 10px; padding-bottom:8px;
+  border-bottom:1px solid var(--line); }
+.at-part > .at-groupfold:not([aria-expanded="true"]) { margin-bottom:0;
+  padding-bottom:0; border-bottom:0; }
 /* Ticking decks: a real checkbox, so it looks and behaves like one. */
 .at-ticklist { display:flex; flex-direction:column; gap:6px; }
 .at-tickrow { display:flex; align-items:center; gap:10px; cursor:pointer;
@@ -996,6 +1183,22 @@ button {
    them stack, with air between, because the thing being read is which
    pronunciation goes with which spelling. */
 .at-readanswer + .at-readanswer { margin-top:10px; }
+/* One cell of a table a card lays its forms out in: which cell it is on the
+   left, and the cell itself — its words, its recordings, what is asked of
+   it — on the right. A row rather than a grid cell, because a grid of seven
+   columns is how a grammar book prints a conjugation and is unusable on a
+   phone; the editor lays the same table out the same way. */
+.at-readcell { display:flex; gap:12px; padding:8px 0; align-items:baseline;
+  flex-wrap:wrap; border-top:1px solid var(--line); }
+.at-readcell .at-readlabel { flex:0 0 108px; }
+.at-readcell .at-readvalue { flex:1 1 160px; min-width:0; }
+.at-readcell .at-readword { font-size:24px; margin:0 0 2px; }
+.at-readcell .at-readmeaning { font-size: var(--fs-md); }
+/* A field on the card that nothing has been written about yet, shown as it
+   is stored — see card-facts.ts. Monospaced, because that is what it is:
+   the raw value, until somebody gives it a heading. */
+.at-readraw { font-family: var(--mono); font-size: var(--fs-sm); color: var(--text-soft);
+  overflow-wrap:anywhere; }
 @media (max-width: 420px) {
   .at-readlabel { flex-basis:100%; }}
 /* Someone's own name in a roster. */
@@ -1088,7 +1291,9 @@ button {
    whose script is Latin the two are equal, the ratio is one, and a slot is
    left the size of the words beside it. Muted for the same reason it is
    shrunk — it is the shape of the card, not a word to read. */
-.at-slot { font-size:calc(1em * var(--lscale, 1) / var(--sscale, 1)); color: var(--muted); }
+.at-slot { font-size:calc(.85em * var(--lscale, 1) / var(--sscale, 1)); color: var(--muted);
+  display:inline-block; padding:0 .4em; border-radius:999px; background: var(--tag-bg);
+  border:1px solid var(--tag-line); font-family: var(--mono); }
 /* Room for the descenders the clamp would otherwise shave off an Arabic
    line — the box crops to the line height, which sits above the tail of a
    ب or a ج. */
@@ -1541,6 +1746,12 @@ button {
 .at-picknote { flex:0 0 auto; font-size:11px; font-weight:700; color: var(--muted); }
 .at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
 .at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
+/* The same voice as a hint, said before the answer rather than after it —
+   see Field's `lede`. Its room is under it, because what it explains is
+   the control it sits on top of. Not .at-lede, which is a page's opening
+   line and belongs to somebody else. */
+.at-fieldlede { font-size:14px; font-weight:500; color: var(--muted);
+  line-height:1.6; margin:0 0 10px; }
 .at-hint em { color: var(--text-soft); font-style:normal; }
 .at-card { background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg);
   padding:30px 22px; text-align:center; box-shadow: var(--shadow); }
@@ -1858,6 +2069,55 @@ button {
   text-decoration-thickness:2px; text-underline-offset:.16em; }
 textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:vertical; min-height:140px; }
 
+/* ---- a field with the card's blanks in it --------------------------
+   A box you type in, which is also where the blanks of a sentence
+   live: each one a pill, moved by dragging it and taken off the card
+   by the cross on its end. It is not an <input> — an input holds
+   characters and nothing else — so everything an input would have been
+   given for free is here: the height of one line of text, a wrap that
+   breaks a long word rather than scrolling sideways, and a placeholder.
+
+   The box grows rather than scrolling. A sentence with two blanks in it
+   is longer than the word a card usually holds, and a field that keeps
+   its own text out of sight is a field you cannot check. */
+.at-blanktext { display:block; min-height:calc(1.35em + 34px); white-space:pre-wrap;
+  overflow-wrap:anywhere; line-height:1.35; cursor:text; }
+.at-blanktext:focus { outline:none; border-color: var(--brass); }
+.at-blanktext:empty::before { content:attr(data-placeholder); color: var(--faint);
+  font-weight:500; pointer-events:none; }
+/* While one is being carried, nothing under the finger is selected and
+   the page does not scroll out from under the gesture. */
+.at-blanktext.moving { user-select:none; -webkit-user-select:none; }
+/* The blank itself. Sized from the em of the box it sits in, so it is the
+   height of the line in a 22px script field and in a 15px Latin one
+   without either being told about the other; the name is Latin in the
+   middle of the taught script, and takes the same --lscale correction
+   every other Latin word in a script field takes. */
+.at-blankpill { display:inline-flex; align-items:center; gap:.15em; vertical-align:baseline;
+  margin:0 .08em; padding:.05em .1em .05em .5em; border-radius:999px;
+  background: var(--tag-bg); border:2px solid var(--tag-line); color: var(--brass);
+  font-family: var(--mono); font-weight:700; white-space:nowrap;
+  font-size:calc(.72em * var(--lscale, 1) / var(--sscale, 1));
+  cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; }
+.at-blankpillname { padding:0; }
+/* Lifted: it follows the sentence it is being dragged through, so it has
+   to read as picked up rather than as sitting where it was. */
+.at-blankpill.lifting { cursor:grabbing; background: var(--brass); color: var(--onbrass);
+  border-color: var(--brass); box-shadow:0 6px 16px rgba(0,0,0,.28); }
+/* The cross that takes the blank off the card. A thumb's worth of target
+   inside a pill that is only as tall as a line of text, which is what the
+   padding around the glyph is for. */
+.at-blankpilloff { display:inline-flex; align-items:center; justify-content:center;
+  width:1.5em; height:1.5em; padding:0; border:0; border-radius:999px; cursor:pointer;
+  background:transparent; color:inherit; opacity:.75; }
+.at-blankpilloff:hover, .at-blankpilloff:focus-visible { opacity:1; background: var(--tag-line); }
+.at-blankpilloff .at-ic { width:1em; height:1em; }
+/* A blank named in a line of prose about it — "English is missing name".
+   The pill's colours at the size of the text it is set in. */
+.at-blankname { display:inline-block; padding:0 .45em; border-radius:999px;
+  background: var(--tag-bg); border:1px solid var(--tag-line); color: var(--brass);
+  font-family: var(--mono); font-weight:700; font-size:.92em; }
+
 /* A field with the on-screen keys button in its corner.
 
    Below the .at-input rules on purpose: the room reserved for the button is
@@ -1871,11 +2131,17 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    other, with a + after the last and, once there are two, a − on each so
    either can go. The buttons sit
    beside the field rather than under it, so the script keypad, which opens
-   under its own field, does not push them about. */
+   under its own field, does not push them about.
+
+   Beside means beside: the button is the height of the field it adds to
+   and its top edge is that field's top edge. It used to be a 12-pixel
+   sliver dropped eight pixels down the side of a 48-pixel box, which read
+   as something that had slipped rather than as the end of the row — and
+   was a tap target the width of two letters. */
 .at-alts { display:flex; flex-direction:column; gap:6px; }
-.at-altrow { display:flex; align-items:flex-start; gap:6px; }
+.at-altrow { display:flex; align-items:stretch; gap:6px; }
 .at-altrow > .at-altfield { flex:1 1 auto; min-width:0; }
-.at-altrow > .at-icon { flex:0 0 auto; margin-top:8px; }
+.at-altrow > .at-icon { flex:0 0 auto; width:44px; margin-top:0; }
 /* An accepted answer and how it is said, as one thing. The pronunciation
    is indented under its answer and set quieter, so the column reads as a
    list of answers rather than as twice as many fields — which is what two
@@ -1884,13 +2150,22 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    which transliteration belongs to which spelling. */
 .at-answerpair { display:grid; grid-template-columns: minmax(0, 1fr) auto;
   gap:4px 6px; align-items:start; }
-.at-answerpair > .at-answeracts { display:flex; gap:6px; margin-top:8px; }
+/* Stretched to the row, which is the height of the field beside it — see
+   .at-altrow above, which is the same rule for the plain list. */
+.at-answerpair > .at-answeracts { display:flex; gap:6px; align-self:stretch; }
+.at-answerpair > .at-answeracts > .at-icon { width:44px; }
 .at-alts > .at-answerpair + .at-answerpair { margin-top:10px; }
 /* Under its own answer and in the same column, so the two read as one
-   thing; indented and quieter, so the column reads as a list of answers
-   rather than as twice as many fields. */
+   thing; quieter and smaller, so the column reads as a list of answers
+   rather than as twice as many fields.
+
+   Not indented. The indent was the other half of saying so, and it cost
+   more than it bought: three controls that belong to one answer — the
+   word, how it is said, and its grammar — started at three different
+   places down the left edge, which is the first thing the eye checks on a
+   form. Size and weight say which is which without moving anything. */
 .at-answersaid { grid-column:1; font-family: var(--ui); font-size:14px;
-  padding-block:7px; margin-inline-start:10px; width:auto; }
+  padding-block:7px; width:auto; }
 /* Which side the button takes is the script's business, not the page's: it
    belongs at the end of the line, which is the left in Arabic. Marked with
    a class rather than left to logical properties, because the button
@@ -2877,12 +3152,54 @@ body.at-screening .at-chromebar { display:none; }
 /* What an accepted answer is, grammatically. Folded away behind its own
    name — "sg. f." where it has one, "Grammar" where it has none — because
    most cards accept one answer and want the language's default, and four
-   pickers under every row would bury the words the card is about. */
-.at-answergrammar { grid-column:1; margin-inline-start:10px; }
+   pickers under every row would bury the words the card is about.
+
+   Across the whole row rather than under the answer alone: the panel is a
+   run of one-line pickers, and every pixel the buttons beside the answer
+   would take off it is a word that has to be abbreviated. */
+.at-answergrammar { grid-column:1 / -1; }
 .at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
-.at-answerdims { display:flex; flex-direction:column; gap:8px; margin-top:8px;
-  padding:10px 12px; background: var(--well); border-radius: var(--r-sm); }
-.at-answerdims .at-field { margin:0; }
+.at-answerdims { display:flex; flex-direction:column; gap:6px; margin-top:8px;
+  padding:8px 12px; background: var(--well); border-radius: var(--r-sm);
+  container-type: inline-size; }
+/* One axis, asked by the field's own label: nothing sits beside the values,
+   so they need no well to hold them together and no abbreviating to fit
+   beside a name that is not there. */
+.at-answerdims.bare { margin:0; padding:0; background:none; border-radius:0; }
+.at-answerdims.bare .at-dimlong { display:inline; }
+.at-answerdims.bare .at-dimbrief { display:none; }
+/* One axis to a line: its name on the left, its values as radios beside it.
+   The values never break from each other — that is the whole of what this
+   row is for — so where a line will not hold both, the set of them drops
+   under the name whole rather than splitting across two lines. */
+.at-dimrow { display:flex; align-items:center; justify-content:space-between;
+  gap:2px 10px; min-height:26px; flex-wrap:wrap; }
+.at-dimname { font-family: var(--ui); font-size:11px; font-weight:700; color: var(--muted);
+  text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; flex:0 0 auto; }
+.at-dimpicks { display:flex; align-items:center; gap:12px; flex-wrap:nowrap; min-width:0; }
+/* One weight for every value, chosen or not: the chosen one is said by its
+   own button and by the colour, and bolding it as well would widen the
+   word and shove the rest of the line along as it is picked. */
+.at-dimpick { display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  font-family: var(--ui); font-size:13px; font-weight:600; color: var(--muted);
+  white-space:nowrap; }
+.at-dimpick:has(input:checked) { color: var(--text); }
+.at-dimpick:hover { color: var(--text-soft); }
+.at-dimpick input { width:15px; height:15px; flex:0 0 auto; margin:0; cursor:pointer;
+  accent-color: var(--jade); }
+/* Where the names will not fit, the pack's abbreviations stand in for them.
+   Both are in the row and the width chooses, so nothing is measured in
+   JavaScript and the choice is made again whenever the panel is resized. */
+.at-dimbrief { display:none; }
+@container (max-width: 400px) {
+  .at-dimlong { display:none; }
+  .at-dimbrief { display:inline; }
+  /* The name gives up a little too, so that the longest of them — "person
+     or thing", which has no abbreviation to fall back on — keeps its
+     values beside it on a phone rather than under them. */
+  .at-dimname { font-size:10px; letter-spacing:.03em; }
+  .at-dimpicks { gap:10px; }
+}
 
 /* The phrase is a way into the card it belongs to, so it reads as one —
    quieter than the word, and underlined on hover like every other way of
@@ -2922,6 +3239,58 @@ body.at-screening .at-chromebar { display:none; }
    gallery: quieter than the sentence, and never mistaken for it. */
 .at-elexample { font-family: var(--ui); font-size:13px; color: var(--muted); margin:4px 0 0;
   padding-inline-start:10px; border-inline-start:2px solid var(--line); }
+
+/* --- the text styles -----------------------------------------------
+   Admin > App, beside the components. A name, the size it comes out at,
+   and the style drawn at that size — so "too small" can be said about a
+   particular one rather than about the screen it was noticed on.
+
+   Nothing here sets a size on what it frames: the specimen has to be
+   free to be whatever size its own class makes it, which is the whole
+   point of the section. */
+.at-ts { margin-top: var(--s4); }
+/* The scale, as a ruler: the token, what it is worth, and a letter drawn
+   at it, so the six steps can be compared by eye rather than by arithmetic. */
+.at-tsscale { border:2px solid var(--line); border-radius: var(--r); background: var(--well);
+  padding: var(--s3) var(--s4); }
+.at-tsscalerow { display:flex; align-items:baseline; gap: var(--s3); padding: var(--s2) 0;
+  border-top:1px solid var(--line); }
+.at-tsscalerow:first-child { border-top:0; }
+.at-tsruler { font-family: var(--ui); font-weight:800; color: var(--text); line-height:1;
+  margin-inline-start:auto; }
+.at-tsgroup { margin-top: var(--s6); }
+.at-tsrow { border-top:1px solid var(--line); padding: var(--s4) 0; }
+.at-tsrow:last-child { border-bottom:1px solid var(--line); }
+.at-tshead { display:flex; align-items:baseline; gap: var(--s3); flex-wrap:wrap; }
+.at-tsname { font-family: var(--mono); font-size:13px; font-weight:800; color: var(--ink);
+  word-break:break-all; }
+/* The measured size. The answer most readers came for, so it is the one
+   thing on the row that is not grey. */
+.at-tssize { font-family: var(--mono); font-size:13px; font-weight:800; color: var(--brass);
+  white-space:nowrap; margin-inline-start:auto; }
+/* What the stylesheet says, where that is not the number above — a named
+   size, or a calculation against a scale. */
+.at-tsdecl { display:block; font-family: var(--mono); font-size:11px; color: var(--muted);
+  margin-top:2px; word-break:break-all; }
+.at-tswhat { font-family: var(--ui); font-size:14px; color: var(--text-soft); margin:4px 0 0; }
+/* The specimen itself, in a well of its own so the type has a ground to
+   sit on and cannot be mistaken for the page's own writing. A script
+   specimen can be wider than the column, so it scrolls rather than
+   dragging the page sideways. */
+.at-tsspec { margin-top: var(--s3); padding: var(--s3) var(--s4); border:1px solid var(--line);
+  border-radius:10px; background: var(--surface); overflow-x:auto; }
+.at-tsspec > :first-child, .at-tsspec .at-tsscript > :first-child { margin-top:0; }
+.at-tsspec > :last-child, .at-tsspec .at-tsscript > :last-child { margin-bottom:0; }
+/* A screen's head reserves a band at the top for the chrome it has to
+   clear. There is no chrome over a specimen, so the band is 46px of
+   nothing above the title being shown — the same correction the component
+   gallery gives the mode selector, and for the same reason. */
+.at-tsspec .at-screenhead { padding-top:14px; }
+/* The taught language's own face, as the trainer sets it on the app root.
+   A class that declares a face of its own — the interface one, for a
+   meaning or a romanisation — still wins, which is what it does in the
+   app. */
+.at-tsscript { font-family: var(--sfont); }
 
 /* ---- numbers: the parts a language builds them out of ----
 

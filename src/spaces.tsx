@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import * as API from "./courses-api.ts";
 import type { Card, CardForm, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
-import { CardEditor, ScriptInput } from "./card-editor.tsx";
+import { CardEditor, NewCardKind, ScriptInput } from "./card-editor.tsx";
+import type { CardShape } from "./card-editor.tsx";
 import { formsOf, leadOf } from "./cards.ts";
 import {
   bandsOf,
@@ -57,6 +58,9 @@ const ComponentGallery = React.lazy(() =>
 const ScreenElements = React.lazy(() =>
   import("./gallery.tsx").then((m) => ({ default: m.ScreenElements })),
 );
+const TextStyles = React.lazy(() =>
+  import("./gallery.tsx").then((m) => ({ default: m.TextStyles })),
+);
 import {
   contextCoverage,
   dimValues,
@@ -67,7 +71,7 @@ import {
   DEFAULT_LANGUAGE,
   scriptVars, lendsForm } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
-import { cardRef, fillNames, hasSlots, renamedIn, slotsOf, valuesFor } from "./variables.ts";
+import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf, valuesFor } from "./variables.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -1423,6 +1427,7 @@ export function AdminSpace({ account, languages, onClose }: {
      which is a lot of markup to carry on a tab that is mostly about backups. */
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [elementsOpen, setElementsOpen] = useState(false);
+  const [stylesOpen, setStylesOpen] = useState(false);
   const [selDecks, setSelDecks] = useState(() => new Set<string>());
   const [selFlags, setSelFlags] = useState(() => new Set<string>());
   /* The flagged card being looked at: { flag, card, error }. The card
@@ -2718,6 +2723,26 @@ export function AdminSpace({ account, languages, onClose }: {
               {galleryOpen && (
                 <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
                   <ComponentGallery />
+                </React.Suspense>
+              )}
+
+              <p className="at-eyebrow at-mt6">Text styles</p>
+              <Help>
+                Every size a person actually reads, drawn at the size it is drawn at in the
+                app and labelled with what that size comes out as. The same reason the
+                components are here: a size is worth pointing at by name — “at-hint is too
+                small” — rather than by describing the paragraph it was noticed in.
+              </Help>
+              <Button
+                className="at-mt3"
+                icon={stylesOpen ? "close" : "view"}
+                onClick={() => setStylesOpen((v) => !v)}
+              >
+                {stylesOpen ? "Hide the text styles" : "Show the text styles"}
+              </Button>
+              {stylesOpen && (
+                <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
+                  <TextStyles />
                 </React.Suspense>
               )}
 
@@ -4412,9 +4437,23 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     card: Card | null;
     decks: string[];
     lang?: LangId;
-    scene?: boolean;
+    /* Which of the three is being made, where a card is being made — the
+       answer given on the way in, before the editor opened. A card that
+       exists says what it is itself. */
+    making?: CardShape;
     draft?: Record<string, any>;
   } | null>(null);
+  /*
+   * A card being started: everything settled about it so far, and nothing
+   * typed yet.
+   *
+   * New card asks which of the three kinds it is before the editor opens,
+   * because the three are not variations on one form — see NewCardKind.
+   * This is what the question is asked on top of: which decks it is going
+   * into, and which language it is in, both of which are known by the time
+   * the button is pressed or asked for first where they are not.
+   */
+  const [making, setMaking] = useState<{ decks: string[]; lang?: LangId } | null>(null);
   /* How many cards are waiting for a connection, so the space can say so
      rather than leaving a teacher to wonder where their work went. */
   const [kept, setKept] = useState(() => waitingToSend(CARD_OUTBOX));
@@ -4732,7 +4771,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               <CheckList
                 options={blanksHere.map((b) => ({
                   id: b.name,
-                  title: `{{${b.name}}}`,
+                  title: b.name,
                   note: `left by ${plural(b.leaves, "card")} · filled by ${plural(b.fills, "card")}`,
                 }))}
                 chosen={cardFilter.blankNames}
@@ -4753,7 +4792,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     : "Every word other cards borrow, whichever blank it fills. Tick one to narrow it."
                   : `${
                       cardFilter.blankMode === "leaves" ? "Cards that leave" : "Cards that fill"
-                    } ${cardFilter.blankNames.map((n) => `{{${n}}}`).join(" or ")}.`}
+                    } ${cardFilter.blankNames.join(" or ")}.`}
               </p>
             </>
           )}
@@ -5062,6 +5101,23 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     );
   }
 
+  /* ---- and before it, the one question the editor cannot ask ----
+     Which of the three kinds is being made. It is asked here rather than
+     inside the editor because what the editor opens as follows from it:
+     a screen for writing a conversation should not be called "New card"
+     and then be full of turns. */
+  if (making) {
+    return (
+      <NewCardKind
+        onClose={() => setMaking(null)}
+        onPick={(shape) => {
+          setEditing({ card: null, decks: making.decks, lang: making.lang, making: shape });
+          setMaking(null);
+        }}
+      />
+    );
+  }
+
   /* ---- the card editor takes over the screen ---- */
   if (editing) {
     const forDeck = editing.decks[0]
@@ -5081,9 +5137,9 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         busy={busy}
         onClose={() => setEditing(null)}
         allCards={cards}
-        scene={editing.scene || isDialog(editing.card)}
+        making={editing.making}
         draft={editing.draft || null}
-        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, drill, scene: written }) =>
+        onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, stripped, drill, scene: written }) =>
           run(
             async () => {
               const [main, ...subs] = forms;
@@ -5191,6 +5247,25 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 for (const [id, other] of pool) {
                   if (saved0 && id === saved0.id) continue;
                   const next = renamedIn(other, from, to);
+                  if (!next) continue;
+                  pool.set(id, next);
+                  moved.add(id);
+                }
+              }
+              /*
+               * And the groups the teacher took off the collection.
+               *
+               * After the renames and over the same pool, so a tag renamed
+               * and then taken off in one sitting comes off where it
+               * landed, and a card caught by both is written once with
+               * both. Only the tags come off: a sentence that asks for the
+               * name goes on asking for it, which is the honest half of
+               * what the teacher was told before they pressed.
+               */
+              for (const name of stripped || []) {
+                for (const [id, other] of pool) {
+                  if (saved0 && id === saved0.id) continue;
+                  const next = droppedIn(other, name);
                   if (!next) continue;
                   pool.set(id, next);
                   moved.add(id);
@@ -5379,10 +5454,8 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                  conversation had a second button here, which made it read
                  as a separate sort of thing to make — and meant the Cards
                  tab, with only the one button, could not make one at all.
-                 The kind is the first field in the editor now. */
-              onNew={() =>
-                setEditing({ card: null, decks: [d.id], lang: (langOfDeck(d) || {}).id })
-              }
+                 Which kind is asked on the way in, before the editor. */
+              onNew={() => setMaking({ decks: [d.id], lang: (langOfDeck(d) || {}).id })}
               selected={selCards}
               onSelectedChange={setSelCards}
               bulkActions={[
@@ -5456,7 +5529,15 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
               </Button>
             }
           >
-            <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+            <CardReadout
+              card={viewing}
+              lang={langOfCard(viewing)}
+              decks={decks}
+              /* And the rest of the collection, because what is behind a
+                 blank and how many cards wear a tag are facts about the
+                 collection rather than about this card. */
+              cards={cards}
+            />
             <TryExercises
               /* The card, and the screen it was read from — a deck's card
                  list here, so answering comes back to the card inside the
@@ -5754,11 +5835,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     <Button variant="primary"
                       disabled={!newCardLang}
                       onClick={() => {
-                        setEditing({ card: null, decks: [], lang: newCardLang });
+                        setMaking({ decks: [], lang: newCardLang });
                         setNewCardLang(null);
                       }}
                     >
-                      Start the card
+                      Next
                     </Button>
                   </div>
                 </Screen>
@@ -5970,7 +6051,12 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         </Button>
                   }
                 >
-                  <CardReadout card={viewing} lang={langOfCard(viewing)} decks={decks} />
+                  <CardReadout
+                    card={viewing}
+                    lang={langOfCard(viewing)}
+                    decks={decks}
+                    cards={cards}
+                  />
                   <TryExercises
                     back={{ cardId: viewing.id, tab, deckId: null }}
                     card={viewing}
@@ -6036,7 +6122,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 }
                 onNew={() => {
                   if (mustAsk) setNewCardLang(knownLangs[0] || "");
-                  else setEditing({ card: null, decks: [], lang: soleLang });
+                  else setMaking({ decks: [], lang: soleLang });
                 }}
                 selected={selCards}
                 onSelectedChange={setSelCards}

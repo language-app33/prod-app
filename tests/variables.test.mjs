@@ -22,6 +22,7 @@ import {
   valueOf,
   valuesOf,
   lentBy,
+  isLent,
   valuesFor,
   valuesForTurn,
   fillsOf,
@@ -29,6 +30,7 @@ import {
   cardRef,
   refClash,
   renameSlot,
+  droppedIn,
   renamedIn,
   slotName,
   isSentence,
@@ -426,10 +428,10 @@ test("every form of a card lends itself, each under its own name", () => {
      form, and so is a frame's record of having met one. */
   assert.deepEqual(lentBy(card).map((l) => l.form.en), ["book", "books"]);
 
-  /* A form the teacher keeps without asking about lends nothing — there is
-     no ladder to read, so a hole filled with it would hold a word nobody
-     is ever taught. And a form with no word in it would fill the hole with
-     nothing. */
+  /* A form the teacher keeps without asking about lends nothing — which
+     is what one tick for two questions could only mean, and what an
+     absent `lend` still means. And a form with no word in it would fill
+     the hole with nothing. */
   const mixed = {
     id: "c2",
     forms: [
@@ -449,6 +451,33 @@ test("every form of a card lends itself, each under its own name", () => {
   /* Handed a plain form — a line of a conversation, a unit the scheduler
      is holding — it is its own single lending. */
   assert.deepEqual(valuesOf({ id: "l1", ar: "salaam", en: "peace", lat: "" }).map((v) => v.id), ["l1"]);
+});
+
+test("being asked and being lent are two answers on one form", () => {
+  /* Since 0.179 a form says both, because a word can be worth meeting
+     inside somebody else's sentence without being a question of its own —
+     that is what a value card is — and worth asking on its own without
+     being dropped into every frame with a hole of its name. */
+  assert.equal(isLent({ ar: "raafaa2iil" }), true, "nothing said is lent");
+  assert.equal(isLent({ ar: "raafaa2iil", ask: false }), false,
+    "and a card written before this lends exactly while it is asked");
+  assert.equal(isLent({ ar: "raafaa2iil", ask: false, lend: true }), true,
+    "a name is lent everywhere and asked nowhere");
+  assert.equal(isLent({ ar: "kitaab", lend: false }), false,
+    "and a word can be asked without standing in for anything");
+
+  const card = {
+    id: "n", lang: "ar-PS", fills: "name",
+    forms: [
+      { id: "n", ar: "raafaa2iil", en: "Raphael", lat: "", ask: false, lend: true },
+      { id: "n-f0", ar: "raafii", en: "Raphael", lat: "", ask: false },
+    ],
+  };
+  assert.deepEqual(valuesOf(card).map((v) => v.id), ["n"],
+    "the one that says it is lent, and not the one that only says it is not asked");
+  const frame = { ar: "ismi {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}" };
+  assert.deepEqual(valuesFor(frame, [card], "ar-PS").name.map((/** @type {any} */ v) => v.ar),
+    ["raafaa2iil"]);
 });
 
 test("a caller may say which of a card's forms it lends, and this module does not ask why", () => {
@@ -733,6 +762,52 @@ test("a rename follows a name into every card that writes it", () => {
   assert.equal(renameSlot("{{ name }} and {{age}}", "name", "who"), "{{who}} and {{age}}");
   assert.equal(renameSlot("{{Name}}", "name", "who"), "{{who}}");
   assert.equal(renameSlot("nothing here", "name", "who"), "nothing here");
+});
+
+/*
+ * Taking a group off every card.
+ *
+ * The other thing a teacher does to a name several cards share, and the
+ * one the app deliberately does less of than its name suggests: the tags
+ * come off the words, and the sentences that ask for the name go on asking
+ * for it. That is why it is called taking a group off every card rather
+ * than deleting a tag — the name outlives the last card that filled it for
+ * as long as some sentence still writes it.
+ */
+test("taking a group off a card takes the tag and nothing else", () => {
+  const tagged = {
+    id: "c9",
+    forms: [{ ar: "aṣfar", en: "yellow", lat: "asfar" }],
+    fills: ["colours", "warm"],
+  };
+  const off = /** @type {any} */ (droppedIn(tagged, "colours"));
+  assert.deepEqual(off.fills, ["warm"]);
+  /* The word itself is untouched — the tag is a name, and this takes the
+     name off. */
+  assert.deepEqual(off.forms, tagged.forms);
+  /* Down to none, which is what an ordinary word is. */
+  assert.deepEqual(/** @type {any} */ (droppedIn(off, "warm")).fills, []);
+
+  /* The braces a sentence writes are not a tag and are left alone: the
+     blank goes on being asked, with nothing behind it. */
+  const asks = {
+    id: "f1",
+    forms: [{ ar: "il-bayt {{colours}}", en: "the house is {{colours}}", lat: "" }],
+    fills: ["colours"],
+  };
+  const still = /** @type {any} */ (droppedIn(asks, "colours"));
+  assert.deepEqual(still.fills, []);
+  assert.equal(still.forms[0].en, "the house is {{colours}}");
+
+  /* Named the way every other name that goes between braces is named, so
+     what the editor checked and what is stored cannot come apart. */
+  assert.deepEqual(/** @type {any} */ (droppedIn(tagged, " Colours ")).fills, ["warm"]);
+
+  /* Null where nothing moved, as a rename is, which is the answer for
+     almost every card in a collection. */
+  assert.equal(droppedIn(tagged, "greetings"), null);
+  assert.equal(droppedIn(tagged, ""), null);
+  assert.equal(droppedIn(/** @type {any} */ (null), "colours"), null);
 });
 
 /* ------------------------------------------------------------------
