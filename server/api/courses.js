@@ -969,8 +969,8 @@ export default async (req) => {
          * for the card's word.
          *
          * The cap is a guard against a runaway client rather than a limit
-         * anybody should meet: seven persons across three tenses is
-         * twenty-one boxes before a teacher has added a plural.
+         * anybody should meet: eight persons across three tenses is
+         * twenty-four boxes before a teacher has added a plural.
          */
         forms: formsOf(card)
           .slice(0, 65)

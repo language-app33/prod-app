@@ -290,17 +290,16 @@ test("a card remembers which words it teaches, and keeps the list clean", async 
  * come back still knowing where it sits, and a whole table has to fit.
  *
  * The cap mattered more than it looks. Twelve sub-forms is more alternate
- * spellings than any word has ever wanted, and it is three fewer than
- * Arabic's smallest useful table — so a teacher would have filled in
- * twenty-one forms, saved, and got back the first twelve with no error
- * anywhere.
+ * spellings than any word has ever wanted, and it is half of Arabic's
+ * smallest useful table — so a teacher would have filled in twenty-four
+ * forms, saved, and got back the first twelve with no error anywhere.
  */
 test("a verb's cells come back knowing where they sit, and a whole table fits", async () => {
   const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nadia" } });
   const key = made.json.key;
 
-  /* Seven persons across three tenses, which is what Arabic declares. */
-  const persons = ["i", "you-m", "you-f", "he", "she", "we", "they"];
+  /* Eight persons across three tenses, which is what Arabic declares. */
+  const persons = ["i", "you-m", "you-f", "he", "she", "we", "you-pl", "they"];
   const cells = [];
   for (const row of ["present", "past", "command"]) {
     for (const col of persons) {
@@ -313,7 +312,7 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
     body: { card: carded({ ar: "أكل", en: "to eat" }, cells), decks: [] },
   });
   assert.equal(saved.status, 200, saved.text);
-  assert.equal(subs(saved.json.card).length, 21, "the whole table survived the save");
+  assert.equal(subs(saved.json.card).length, 24, "the whole table survived the save");
 
   const she = subs(saved.json.card).find(
     (/** @type {Record<string, any>} */ s) => s.row === "past" && s.col === "she",

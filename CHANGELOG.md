@@ -8,6 +8,35 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.194 — 19 September 2026
+
+**Arabic verbs have a plural *you* at last.** A verb card laid its forms out
+under seven people — I, you (m), you (f), he, she, we, they — and Arabic
+marks a verb for eight. The one missing was the *you* you say to a room:
+إنتو. So there was nowhere to write بتاكلوا and nowhere to write أكلتوا, and
+nowhere at all for كولوا — which, of every command in the language, is the
+one a learner hears and says most, because most of the time you are talking
+to more than one person.
+
+It was never a decision. The grid in the write-up this feature was built
+from was drawn with seven columns, and the plural forms were put in the
+*they* column to fit — including the command, which cannot be *they*'s at
+all, since you cannot tell *them* to do anything. The table was then built
+from the picture. The pronouns that go on the end of a word were written
+later and from the pronouns themselves, which is why that table has had all
+eight of them the whole time.
+
+The column sits where the paradigm puts it, between *we* and *they*.
+Nothing you have already written moves or changes: every verb card you have
+gains one more empty box per tense, to fill in when you get to it, and a
+card with nothing in the new box is asked exactly what it was asked
+yesterday. As with every other person, a sentence never puts a subject in
+it — *you* is who is being spoken to, not who a name in the sentence turns
+out to be — so what a plural name fills is still *they*.
+
+Hebrew shares the same list of people, and had the gap for the same reason.
+It gains the same column.
+
 ## 0.193 — 19 September 2026
 
 **Writing a card is one sheet now, not a stack of boxes.** Every section of

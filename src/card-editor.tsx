@@ -938,7 +938,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   onRemoveBlank?: (name: string) => void;
   /**
    * What to call this box where the label above it does not say — in a
-   * table, where one heading stands over twenty-one boxes and only the row
+   * table, where one heading stands over twenty-four boxes and only the row
    * and column say which is which. The two boxes beside it in a cell have
    * carried their own names since the table was written; this one had
    * none, which on the languages whose dictionary form is a cell now
@@ -947,7 +947,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   label?: string;
   /**
    * A shorter box, for where there are many of them. A verb's table is
-   * twenty-one of these on one screen, and at the size a single field is
+   * twenty-four of these on one screen, and at the size a single field is
    * written at it scrolls for a thousand pixels. Only the script shrinks —
    * still the largest thing on its line, because it is the thing being
    * read — and only where a caller asks.
@@ -1358,7 +1358,7 @@ const fieldName = (field: string, lang: Lang): string =>
  * downstream — the schedule, the recordings, the sync, the export — goes
  * on working without having been told what a verb is.
  *
- * Laid out down the page rather than across it. A grid of seven columns is
+ * Laid out down the page rather than across it. A grid of eight columns is
  * the way a grammar book prints one, and it is unusable on the phone this
  * app is mostly opened on; one line per cell, gathered under its tense,
  * says the same thing and can be typed with a thumb. The tenses are in the
@@ -1370,7 +1370,7 @@ const fieldName = (field: string, lang: Lang): string =>
  * of them from one word — "ate" giving "I ate", "she ate" — and it is gone
  * for the reason set out in verbs.ts: what it produced was wrong in the
  * present, where English inflects and the app must not know that it does.
- * Seventeen boxes is more typing than three and it is typing that produces
+ * Nineteen boxes is more typing than three and it is typing that produces
  * something true.
  */
 /* What to call one cell out loud — "past · she". Read off the language's
@@ -1445,7 +1445,7 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
   const named = persons.some((p) => p.label);
   /* A box for the pronunciation only where the language asks for one to be
      written. Huế calls it a note and never drills it, so a column of them
-     across a whole table would be twenty-one boxes nothing reads — the
+     across a whole table would be twenty-four boxes nothing reads — the
      note belongs on the verb itself, which still has its own field below. */
   const saysHow = lang.translitDrilled !== false;
 
@@ -1504,7 +1504,7 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
                 </div>
                 {/* One button rather than the Recordings block the forms
                     below get: a list and an explanation under every one of
-                    twenty-one cells would be the table's whole height
+                    twenty-four cells would be the table's whole height
                     again. It says how many there are, and opens the same
                     screen. Off until there is a word to say — a recording
                     of an empty cell is a recording of nothing. */}

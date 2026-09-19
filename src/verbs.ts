@@ -23,7 +23,7 @@
  * calls for, and which rows are open yet.
  *
  * Which rows and columns exist is the language's answer, never this
- * module's. Arabic declares seven persons and three tenses; Huế declares
+ * module's. Arabic declares eight persons and three tenses; Huế declares
  * one person and four; a language that declares none has no verb tables
  * and every function here comes back empty. Nothing below knows what a
  * tense is — only that a table has two axes, that the rows are in the
@@ -258,7 +258,7 @@ export const personsOf = (spec: VerbSpec | null | undefined): VerbPerson[] =>
  *
  * There was a function here that made one from the row's English and the
  * column's label — "she" and "ate" giving "she ate" — so that a teacher
- * wrote three words instead of seventeen. It is gone, and the reason is
+ * wrote three words instead of nineteen. It is gone, and the reason is
  * worth keeping: it could not be right, and it was wrong in the place a
  * learner would meet first.
  *
@@ -270,7 +270,7 @@ export const personsOf = (spec: VerbSpec | null | undefined): VerbPerson[] =>
  * and a rule that knew better would be a rule about English, living in a
  * file whose whole point is that it knows no language at all.
  *
- * So each cell carries the words it was given. Seventeen boxes typed is
+ * So each cell carries the words it was given. Nineteen boxes typed is
  * more work than three, and it is work that produces something true.
  */
 
