@@ -1168,6 +1168,7 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     label: "Person or thing",
     field: "human",
     required: true,
+    help: "Specify here what kind of noun this is, so adjectives in sentence cards can use the correct form.",
     options: [
       ["thing", "a thing"],
       ["person", "a person"],

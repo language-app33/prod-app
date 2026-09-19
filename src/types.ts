@@ -360,6 +360,14 @@ export interface GrammarDim {
   label: string;
   field: string;
   required: boolean;
+  /**
+   * What answering it is for, in the words a teacher would want before
+   * they answer rather than after. An axis that tells a card's forms
+   * apart needs none — a reader picking between "sg." and "pl." knows
+   * what they are doing — so this is for the ones that decide what
+   * happens somewhere else on some other card.
+   */
+  help?: string;
   /** [stored value, what to show]. */
   options: [string, string][];
   /**

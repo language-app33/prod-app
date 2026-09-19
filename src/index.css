@@ -1746,6 +1746,12 @@ button {
 .at-picknote { flex:0 0 auto; font-size:11px; font-weight:700; color: var(--muted); }
 .at-eyebrow { font-family: var(--ui); font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color: var(--muted); margin:0 0 12px; }
 .at-hint { font-size:14px; font-weight:500; color: var(--muted); line-height:1.6; margin:10px 0 0; }
+/* The same voice as a hint, said before the answer rather than after it —
+   see Field's `lede`. Its room is under it, because what it explains is
+   the control it sits on top of. Not .at-lede, which is a page's opening
+   line and belongs to somebody else. */
+.at-fieldlede { font-size:14px; font-weight:500; color: var(--muted);
+  line-height:1.6; margin:0 0 10px; }
 .at-hint em { color: var(--text-soft); font-style:normal; }
 .at-card { background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg);
   padding:30px 22px; text-align:center; box-shadow: var(--shadow); }
@@ -3156,6 +3162,12 @@ body.at-screening .at-chromebar { display:none; }
 .at-answerdims { display:flex; flex-direction:column; gap:6px; margin-top:8px;
   padding:8px 12px; background: var(--well); border-radius: var(--r-sm);
   container-type: inline-size; }
+/* One axis, asked by the field's own label: nothing sits beside the values,
+   so they need no well to hold them together and no abbreviating to fit
+   beside a name that is not there. */
+.at-answerdims.bare { margin:0; padding:0; background:none; border-radius:0; }
+.at-answerdims.bare .at-dimlong { display:inline; }
+.at-answerdims.bare .at-dimbrief { display:none; }
 /* One axis to a line: its name on the left, its values as radios beside it.
    The values never break from each other — that is the whole of what this
    row is for — so where a line will not hold both, the set of them drops

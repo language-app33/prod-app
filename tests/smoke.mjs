@@ -3696,9 +3696,9 @@ check("no console errors during the session", errors.length === 0, errors.slice(
    answer, and by the button where there is not. At the top level because
    four walks in three blocks ask the same question. */
 const wordKindBtn = () => /** @type {any} */ ([...document.querySelectorAll(".at-choosebtn")]
-  .find((b) => /^What kind of word/.test(b.getAttribute("aria-label") || "")) || null);
+  .find((b) => /^What subtype/.test(b.getAttribute("aria-label") || "")) || null);
 const wordKindPencil = () => /** @type {any} */ ([...document.querySelectorAll("button")]
-  .find((b) => b.getAttribute("aria-label") === "Change what kind of word this is") || null);
+  .find((b) => b.getAttribute("aria-label") === "Change what subtype this card is") || null);
 /* What the word-kind row is showing, read off the row the pencil is on:
    the card's own type wears the same shut row, one section above. */
 const wordKindSaid = () => {
@@ -3706,7 +3706,7 @@ const wordKindSaid = () => {
   return ((row && row.querySelector(".at-shutname") || {}).textContent || "").trim();
 };
 const formRows = () => [...document.querySelectorAll(
-  '[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')];
+  '[role="radiogroup"][aria-label="What subtype"] .at-tickrow')];
 const openWordKind = async () => {
   if (formRows().length) return;
   click(wordKindPencil() || wordKindBtn());
@@ -4699,7 +4699,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     check("and stops asking what kind of word it is, because it is not one",
       !wordKindBtn() && !wordKindPencil() &&
         ![...document.querySelectorAll(".at-label")]
-          .some((l) => /^What kind of word$/.test((l.textContent || "").trim())),
+          .some((l) => /^What subtype$/.test((l.textContent || "").trim())),
       wordKindBtn() || wordKindPencil() ? "still asked" : "not asked");
     check("and offers no second form, because another way of saying it is another sentence",
       ![...document.querySelectorAll("button")]
@@ -5111,7 +5111,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        screen. And it has to be opened first — see openWordKind. */
     const formsRow = (/** @type {RegExp} */ re) =>
       /** @type {any} */ ([...document.querySelectorAll(
-        '[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')]
+        '[role="radiogroup"][aria-label="What subtype"] .at-tickrow')]
         .find((r) => re.test((r.textContent || "").trim())) || null);
     const kindBtn = (/** @type {RegExp} */ re) => {
       const row = formsRow(re);
@@ -5135,7 +5135,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     await openWordKind();
     check("and the pencil opens it again, on the answer",
       !!kindBtn(/^Verb/) && kindBtn(/^Verb/).checked,
-      [...document.querySelectorAll('[aria-label="What kind of word"] .at-tickrow input')]
+      [...document.querySelectorAll('[aria-label="What subtype"] .at-tickrow input')]
         .map((/** @type {any} */ b) => b.checked).join(" "));
     click(document.querySelector(".at-screenhead h2"));
     await sleep(200);
@@ -5394,7 +5394,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(450);
 
   const saved = () => [...document.querySelectorAll(
-    '[role="radiogroup"][aria-label="What kind of word"] .at-tickrow')];
+    '[role="radiogroup"][aria-label="What subtype"] .at-tickrow')];
   /* A card written before the question existed says nothing about what
      kind of word it is and holds no table to be read as one, so it opens
      unanswered — the button, saying so, with the list behind it. */

@@ -20,6 +20,7 @@ import {
   categoriesOf,
   categoryOf,
   answerDims,
+  categoryLabel,
   briefOf,
   cardDims,
   dimValues,
@@ -187,7 +188,7 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
  * gender chosen by mistake with no way back is worse than a gender
  * nobody said.
  */
-function GrammarRadios({ dims, values, onPick, of }: {
+function GrammarRadios({ dims, values, onPick, of, bare }: {
   dims: GrammarDim[];
   values: Record<string, any>;
   onPick: (field: string, value: string) => void;
@@ -195,6 +196,10 @@ function GrammarRadios({ dims, values, onPick, of }: {
       Left out where they belong to the card, which has only one of each
       and needs nothing said to tell them apart. */
   of?: string;
+  /** Without the axis's name in the row, for a caller whose own label has
+      already asked the question. The name stays on the group, so nothing
+      is lost to a screen reader. */
+  bare?: boolean;
 }) {
   /* What makes a row exclusive to the browser. A card shows several forms
      at once and each shows every answer it accepts, so a name built out of
@@ -202,7 +207,7 @@ function GrammarRadios({ dims, values, onPick, of }: {
      and arrowing through it would walk out of the answer being edited. */
   const id = useId();
   return (
-    <div className="at-answerdims">
+    <div className={`at-answerdims${bare ? " bare" : ""}`}>
       {dims.map((dim) => (
         <div
           className="at-dimrow"
@@ -210,7 +215,7 @@ function GrammarRadios({ dims, values, onPick, of }: {
           aria-label={of ? `${dim.label} ${of}` : dim.label}
           key={dim.field}
         >
-          <span className="at-dimname">{dim.label}</span>
+          {!bare && <span className="at-dimname">{dim.label}</span>}
           <span className="at-dimpicks">
             {(dim.required ? [] : [["", "not set", "—"] as [string, string, string]])
               .concat(dim.options.map(([v, label]) => [v, label, briefOf(dim, v)]))
@@ -3909,6 +3914,11 @@ export type SceneDraft = ReturnType<typeof useSceneDraft>;
  * this draws nothing: a card whose table only one kind lays out is not
  * asked a question with one answer.
  */
+/* What answering it gets you, said before it is answered: the answer
+   decides which fields, which forms and which table the card is laid out
+   with, and none of that is guessable from the list of words. */
+const SUBTYPE_LEDE = "Each subtype has specific fields, forms, structures, etc.";
+
 function WordKind({ word }: { word: WordDraft }) {
   const { category, chooseCategory, categoryOffer } = word;
   const { open, setOpen, mine } = usePicker();
@@ -3920,13 +3930,14 @@ function WordKind({ word }: { word: WordDraft }) {
   if (said && !open) {
     return (
       <div className="at-field at-mt3">
-        <label className="at-label">What kind of word</label>
+        <label className="at-label">What subtype</label>
+        <p className="at-fieldlede">{SUBTYPE_LEDE}</p>
         <div className="at-shutrow">
           <Icon name="tune" />
           <span className="at-shutname">{said.label}</span>
           <IconButton
             icon="edit"
-            label="Change what kind of word this is"
+            label="Change what subtype this card is"
             onClick={() => setOpen(true)}
           />
         </div>
@@ -3935,15 +3946,16 @@ function WordKind({ word }: { word: WordDraft }) {
   }
   return (
     <div className="at-field at-mt3">
-      <label className="at-label">What kind of word</label>
+      <label className="at-label">What subtype</label>
+      <p className="at-fieldlede">{SUBTYPE_LEDE}</p>
       <div className="at-chooser" ref={mine}>
         <button
           className={`at-choosebtn${said ? " on" : ""}`}
           aria-expanded={open}
           aria-label={
             said
-              ? `What kind of word — ${said.label}. Choose another.`
-              : "What kind of word. Nobody has said. Choose one."
+              ? `What subtype — ${said.label}. Choose another.`
+              : "What subtype. Nobody has said. Choose one."
           }
           onClick={() => setOpen((v) => !v)}
         >
@@ -3959,7 +3971,7 @@ function WordKind({ word }: { word: WordDraft }) {
                 over it would hide. */}
             <RadioGroup
               quiet
-              label="What kind of word"
+              label="What subtype"
               name="card-category"
               options={categoryOffer}
               value={category}
@@ -3999,14 +4011,25 @@ function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
   const { category, categoryOffer, cardGrammar, setCardDim } = word;
   const dims = cardDims(lang, category);
   if (!dims.length || (categoryOffer.length && !category)) return null;
+  /* Named for the kind of word it is about, because that is what decides
+     which axes these are — and where there is only one of them, the field's
+     own name is the question, so the axis does not say it again over a row
+     of two radios. A language declaring two gets its names back. */
+  const only = dims.length === 1 ? dims[0] : null;
   return (
-    <div className="at-field at-mt3">
-      <GrammarRadios dims={dims} values={cardGrammar()} onPick={setCardDim} />
-      <Help>
-        True of the whole card, its other forms included. It is what the
-        words beside it agree with.
-      </Help>
-    </div>
+    <Field
+      label={`${categoryLabel(lang, category) || "Word"} property`}
+      lede={only ? only.help : ""}
+      className="at-mt3"
+    >
+      <GrammarRadios dims={dims} values={cardGrammar()} onPick={setCardDim} bare={!!only} />
+      {only ? null : (
+        <Help>
+          True of the whole card, its other forms included. It is what the
+          words beside it agree with.
+        </Help>
+      )}
+    </Field>
   );
 }
 
@@ -4046,7 +4069,7 @@ function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck
           answered question on this screen wears — the answer, read, with
           what would open it again on the end. What is on that end here is
           a padlock, because nothing opens it. */}
-      <Field label="What type of card">
+      <Field label="What type of card" lede="The type of card cannot be changed">
         <div className="at-shutrow">
           <Icon name="cards" />
           <span className="at-shutname">{shapeLabel(shape)}</span>
@@ -4054,11 +4077,6 @@ function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck
             <Icon name="lock" />
           </span>
         </div>
-        <Help>
-          The type of card cannot be changed. A card of another type is
-          another card.
-        </Help>
-        <Help>{shapeHelp(shape)}</Help>
       </Field>
 
       {/* ---- and what kind of word it is ----
@@ -4470,7 +4488,7 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
    teacher to find the Add button and guess. */
 export const formRole = (i: number): string =>
   i === 0
-    ? "This is the main form of the card. You can add more forms below — for a different number, a different gender, and so on."
+    ? "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
     : "Another form of the same card.";
 
 function FormBlock({ word, lang, index: i, form: f, title, role, blanks, children }: {

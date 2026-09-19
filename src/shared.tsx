@@ -723,8 +723,13 @@ export function Stat({ value, label, big, lang, dir, style, className = "" }: {
    A label, a control, and the helper text underneath. Forty-eight
    hand-built copies, nine of which carried marginBottom:0 to undo a
    default that is now handled by the stylesheet. */
-export function Field({ label, hint, optional, htmlFor, children, className = "" }: {
+export function Field({ label, lede, hint, optional, htmlFor, children, className = "" }: {
   label?: Node;
+  /** What the question means, between its name and the box that answers
+      it. A `hint` is a note about the answer and reads after it; this is
+      part of the asking, and a reader who needs it needs it before they
+      start answering rather than under what they have just written. */
+  lede?: Node;
   hint?: Node;
   optional?: boolean;
   htmlFor?: string;
@@ -739,6 +744,7 @@ export function Field({ label, hint, optional, htmlFor, children, className = ""
           {optional ? <span className="at-optional"> — {optional === true ? "optional" : optional}</span> : null}
         </label>
       ) : null}
+      {lede ? <p className="at-fieldlede">{lede}</p> : null}
       {children}
       {hint ? <p className="at-hint">{hint}</p> : null}
     </div>

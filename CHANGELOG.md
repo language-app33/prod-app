@@ -36,6 +36,14 @@ the answer, read, with a padlock where a question you can still change wears
 a pencil. It was a line of grey beside the heading with two paragraphs under
 it explaining that it could not be changed.
 
+**And what a question is for is said before you answer it.** An explanation
+used to sit under the box, where it read as a note about what you had just
+written; it now sits between the name of the question and the box, which is
+where somebody who needs it needs it. What kind of word a card is is asked
+as "what subtype", saying what the answer gets you, and the fact that
+follows from it — whether a noun is a person or a thing — is asked under the
+kind of word it is about, with the reason it is being asked at all.
+
 **Decks are the decks, not a count of them.** "2 decks" told you how many and
 never which, and taking a card out of one meant opening a list and hunting
 for the tick that was already on. Each deck the card is in is now a pill of
