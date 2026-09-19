@@ -190,7 +190,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   yet through the steps somewhere, *Young* is graduated everywhere it is
   open, *Mature* is three weeks out everywhere.
 - **One tense of a verb is ever new at a time.** Where a language lays its
-  verbs out in a table — Arabic in seven persons and three tenses, Huế in
+  verbs out in a table — Arabic in eight persons and three tenses, Huế in
   one person and four markers — each cell of it is a sub-form, drilled and
   scheduled in its own right by the exercises every other form gets. The
   rows open in the order the language teaches them, one waiting on the one

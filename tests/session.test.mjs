@@ -441,6 +441,51 @@ test("a sentence is not dealt until there is a word to put in it", () => {
     "with a name to put in it, it is");
 });
 
+test("nor when the only word for it has no form that agrees with the rest", () => {
+  /*
+   * An adjective lends its own word and the sentence goes back to its card
+   * for the form that agrees with the noun beside it. A teacher who left
+   * that box empty leaves this turn with nothing to put in the hole.
+   *
+   * Counting what was in the pools called that fillable, so the frame was
+   * dealt — and then drawn with its own braces on the screen, marked
+   * against them, and, because the turn only moves on a right answer,
+   * asked again in every session after it. One walk now decides both.
+   */
+  const frame = word("f2", "الـ{{noun}} {{adjective}}", "the {{adjective}} {{noun}}");
+  const noun = word("n1", "سيارة", "car", {
+    fills: "noun", category: "noun", drill: false,
+    forms: [{ id: "n1", ar: "سيارة", en: "car", lat: "sayyaara", lang: "ar-PS", s: {},
+      number: "singular", gender: "feminine", human: "thing" }],
+  });
+  /* The feminine box left empty, which is the whole of the case. */
+  const blank = word("a1", "كبير", "big", {
+    fills: "adjective", category: "adjective", drill: false,
+    forms: [
+      { id: "a1", ar: "كبير", en: "big", lat: "kabiir", lang: "ar-PS", s: {} },
+      { id: "a1-f", ar: "", en: "big", lat: "", lang: "ar-PS", s: {}, row: "agreement", col: "feminine" },
+    ],
+  });
+  const rest = dueDeck(3);
+  installIndexes([frame, noun, blank].concat(rest), settings);
+  const short = buildSession({ items: [frame, noun, blank].concat(rest), settings, inDeck: anyDeck });
+  assert.ok(!short.exercises.some((/** @type {any} */ e) => e.id === "f2"),
+    "there is no sentence to make, so none is asked");
+
+  /* Filled in, it is a question like any other. */
+  const whole = word("a1", "كبير", "big", {
+    fills: "adjective", category: "adjective", drill: false,
+    forms: [
+      { id: "a1", ar: "كبير", en: "big", lat: "kabiir", lang: "ar-PS", s: {} },
+      { id: "a1-f", ar: "كبيرة", en: "big", lat: "kabiira", lang: "ar-PS", s: {}, row: "agreement", col: "feminine" },
+    ],
+  });
+  installIndexes([frame, noun, whole].concat(rest), settings);
+  const full = buildSession({ items: [frame, noun, whole].concat(rest), settings, inDeck: anyDeck });
+  assert.ok(full.exercises.some((/** @type {any} */ e) => e.id === "f2"),
+    "with the feminine written down, it is");
+});
+
 test("a verb's later rows are not dealt before the row above is known", () => {
   /*
    * One tense of a verb is ever new at a time. The gate is read off the

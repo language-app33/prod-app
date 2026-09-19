@@ -10,7 +10,7 @@ import { createHash, randomBytes } from "node:crypto";
    that adding an axis to a language does not silently drop it here. */
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
-import { cardRef, fillNames, isSentence, slotsOf } from "../../src/variables.ts";
+import { cardRef, fillNames, fillsOf, isSentence, slotsOf } from "../../src/variables.ts";
 import { isDialog } from "../../src/dialogs.ts";
 import { formsOf } from "../../src/cards.ts";
 
@@ -132,6 +132,27 @@ const clipsOfCard = (card) => [
     ...(ln.slowClips || []),
   ]),
 ];
+
+/*
+ * The recordings named on one form, narrowed to names a recording can have.
+ *
+ * A clip is stored under the hash of its own bytes and is fetched by that
+ * hash — sixty-four hex characters, which `put-clip` and `get-clip` both
+ * insist on. What was kept on a card was whatever arrived: any type, any
+ * length, twelve per form across sixty-five forms. Nothing could ever be
+ * fetched by one of those names, so keeping them bought nothing and cost a
+ * card a client could make arbitrarily large, which every student then
+ * downloads.
+ *
+ * Dropped rather than refused, like every other narrowing here: a card
+ * with an unfetchable name on it is saved without it, and the answer says
+ * what was trimmed.
+ */
+/** @param {unknown} list */
+const clipList = (list) =>
+  (Array.isArray(list) ? list : [])
+    .filter((/** @type {unknown} */ h) => typeof h === "string" && /^[a-f0-9]{64}$/.test(h))
+    .slice(0, 12);
 
 const RETIRED_CARD_FIELDS = Object.fromEntries(
   [
@@ -276,6 +297,58 @@ async function readJson(store, key, opts = {}) {
 }
 /** @type {(store: Store, key: string, value: unknown) => Promise<any>} */
 const writeJson = (store, key, value) => store.set(key, JSON.stringify(value));
+
+/*
+ * A record read, changed, and written back — without another request's
+ * change going missing in between.
+ *
+ * Every list on this endpoint was read, changed in memory and written
+ * whole: which cards a deck holds, which cards a teacher owns. Two saves
+ * in flight at once — two tabs, two co-teachers, a queued draft draining
+ * while somebody is typing — both read the list as it was and the second
+ * wrote its copy over the first, so a card was silently dropped from a
+ * deck, or from the owner's own list, where nothing afterwards would look
+ * for it. The lock inside the store serialises the write and not the read
+ * before it, so it cannot see this.
+ *
+ * So the write says which version it is replacing and is refused if that
+ * is no longer the one on disk, and a refusal reads again and redoes the
+ * change against what is there now. The change has to be a function of the
+ * record for that to be safe, which is what this asks for.
+ *
+ * `change` returning null means there is nothing to write, and the record
+ * is left exactly as it stands.
+ */
+/**
+ * @template T
+ * @param {Store} store
+ * @param {string} key
+ * @param {(current: T | null) => T | null} change
+ * @returns {Promise<T | null>}
+ */
+async function updateJson(store, key, change) {
+  /* Enough goes at it to outlast any contention a teaching site sees, and
+     few enough that a genuinely stuck key reports rather than spins. */
+  for (let i = 0; i < 8; i++) {
+    const held = await store.getWithMetadata(key);
+    /* Through the same parse every other read goes through, so a record
+       that cannot be read throws here too rather than being quietly
+       replaced with whatever this call was about to write. */
+    let current = null;
+    if (held && held.data) {
+      try {
+        current = JSON.parse(held.data);
+      } catch (e) {
+        throw Object.assign(new Error(`unreadable record: ${key}`), { unreadable: true });
+      }
+    }
+    const next = change(current);
+    if (next === null) return current;
+    const done = await store.set(key, JSON.stringify(next), held ? { onlyIfMatch: held.etag } : { onlyIfNew: true });
+    if (done && done.modified) return next;
+  }
+  throw new Error(`could not update ${key}`);
+}
 
 /*
  * The four records, each read by name.
@@ -734,16 +807,20 @@ export default async (req) => {
     /** @param {Map<string, Set<string>>} removals deckId -> the cards to take out */
     async function pullFromDecks(removals) {
       for (const [did, cardIds] of removals) {
-        const d = await readDeck(store, did);
-        if (!d) continue;
-        const next = (d.cardIds || []).filter((x) => !cardIds.has(x));
-        if (next.length === (d.cardIds || []).length) continue;
-        await writeJson(store, K.deck(did), {
-          ...d,
-          cardIds: next,
-          cardCount: next.length,
-          version: (d.version || 1) + 1,
-          updated: Date.now(),
+        /* Against whatever the deck holds at the moment of writing, so a
+           card added to it while this was running is not carried off by a
+           deletion that never knew about it — see updateJson. */
+        await updateJson(store, K.deck(did), (d) => {
+          if (!d) return null;
+          const next = (d.cardIds || []).filter((/** @type {string} */ x) => !cardIds.has(x));
+          if (next.length === (d.cardIds || []).length) return null;
+          return {
+            ...d,
+            cardIds: next,
+            cardCount: next.length,
+            version: (d.version || 1) + 1,
+            updated: Date.now(),
+          };
         });
       }
     }
@@ -803,15 +880,20 @@ export default async (req) => {
           theirs.push(id);
         }
         /* A value that has gone has to reach the devices holding it, and
-           nothing else about it moves — see bumpFills. */
-        if (fillNames(card).length || cardRef(card)) filledOwners.add(card.owner || "");
+           nothing else about it moves — see bumpFills. Through fillsOf, so
+           a card that filled a blank by the kind of word it is counts as
+           one of them, the same way the bundling counts it. */
+        if (fillsOf(card).length) filledOwners.add(card.owner || "");
         result.deleted.push(id);
       }
       await pullFromDecks(removals);
       for (const id of result.deleted) await store.delete(K.card(id)).catch(() => {});
       for (const [owner, gone] of owned) {
-        const list = (await readJson(store, K.myCards(owner))) || [];
-        await writeJson(store, K.myCards(owner), list.filter((/** @type {string} */ x) => !gone.includes(x)));
+        /* Likewise: a card written while this delete was running stays
+           written, rather than being dropped from the list nothing else
+           would find it by. */
+        await updateJson(store, K.myCards(owner), (list) =>
+          (list || []).filter((/** @type {string} */ x) => !gone.includes(x)));
       }
       for (const owner of filledOwners) await bumpFills(owner);
       return result;
@@ -827,8 +909,8 @@ export default async (req) => {
       if (Array.isArray(deck.cardIds) && deck.cardIds.length) return deck.cardIds;
       const legacy = (await readJson(store, K.cards(deck.id))) || [];
       if (!legacy.length) return [];
+      /** @type {string[]} */
       const ids = [];
-      const mineList = (await readJson(store, K.myCards(deck.owner))) || [];
       for (const c of legacy) {
         const id = `k${randomBytes(6).toString("hex")}`;
         await writeJson(store, K.card(id), {
@@ -840,10 +922,16 @@ export default async (req) => {
           inDecks: [deck.id],
         });
         ids.push(id);
-        mineList.push(id);
       }
-      await writeJson(store, K.myCards(deck.owner), mineList);
-      await writeJson(store, K.deck(deck.id), { ...deck, cardIds: ids, cardCount: ids.length });
+      /* Added to the owner's list as it stands rather than to the copy
+         this read before making the cards, which is a stretch of time long
+         enough for a save of their own to land in between. */
+      await updateJson(store, K.myCards(deck.owner), (list) => (list || []).concat(ids));
+      await updateJson(store, K.deck(deck.id), (fresh) => ({
+        ...(fresh || deck),
+        cardIds: ids,
+        cardCount: ids.length,
+      }));
       await store.delete(K.cards(deck.id)).catch(() => {});
       return ids;
     }
@@ -893,6 +981,14 @@ export default async (req) => {
          checked for uniqueness and what is stored here are the same
          string. */
       const answersTo = cardRef(card);
+      /* Whether anything on this card leaves a hole. Asked of the forms
+         because that is where a card's words live, and asked at all
+         because a card with a hole in it is a sentence — see `sentence`
+         below, which is the one place this is used. */
+      /** @param {Record<string, any>} c */
+      function holed(c) {
+        return formsOf(c).some((/** @type {any} */ f) => slotsOf(f).length > 0);
+      }
       const fields = {
         /* What to call the card in a list, where its own words do not name
            it — a verb saved as the form a dictionary lists. Stored as given
@@ -950,8 +1046,24 @@ export default async (req) => {
            word, and an absent field would leave every reader falling back
            to the old reading of its braces for ever. A card written before
            this carries nothing and is read that old way, which is exactly
-           what it meant — see isSentence. */
-        sentence: card.sentence === true,
+           what it meant — see isSentence, which is the reading this goes
+           through rather than a fourth copy of it.
+
+           Saying nothing is not the same as saying no. Reading an absent
+           answer as `false` pinned every card an older build sent — and a
+           build from before 0.176 says nothing about this by definition —
+           so a sentence saved from a stale tab, or pasted in, came back a
+           word with its own braces in it: lent into other cards' holes,
+           drawn as a word, and refused by the editor on every later save
+           until somebody deleted the braces.
+
+           And a card with a hole in it is a sentence whoever says
+           otherwise. That is the invariant the rest of this rests on —
+           only a sentence may have a blank — and it is worth more than any
+           one client's answer, so it is settled by reading rather than by
+           refusing: an old client goes on saving its cards, and what it
+           saves is true. A conversation is left alone, being neither. */
+        sentence: !isDialog(card) && (isSentence(card) || holed(card)),
         /* Whether it is practised in its own right. Stored as a boolean
            either way rather than only when false: a card that has been
            turned off and on again must come back as on, and an absent field
@@ -969,8 +1081,8 @@ export default async (req) => {
          * for the card's word.
          *
          * The cap is a guard against a runaway client rather than a limit
-         * anybody should meet: seven persons across three tenses is
-         * twenty-one boxes before a teacher has added a plural.
+         * anybody should meet: eight persons across three tenses is
+         * twenty-four boxes before a teacher has added a plural.
          */
         forms: formsOf(card)
           .slice(0, 65)
@@ -1012,8 +1124,8 @@ export default async (req) => {
                before this meant. */
             ...(typeof f.lend === "boolean" ? { lend: f.lend } : {}),
             answers: storedAnswers(f),
-            clips: Array.isArray(f.clips) ? f.clips.slice(0, 12) : [],
-            slowClips: Array.isArray(f.slowClips) ? f.slowClips.slice(0, 12) : [],
+            clips: clipList(f.clips),
+            slowClips: clipList(f.slowClips),
           })),
         /* Which word cards this one teaches by containing them. A phrase
            the teacher recorded is a context for the words inside it, and
@@ -1065,8 +1177,8 @@ export default async (req) => {
               ar: String(ln.ar || "").slice(0, 400),
               en: String(ln.en || "").slice(0, 400),
               lat: String(ln.lat || "").slice(0, 400),
-              clips: Array.isArray(ln.clips) ? ln.clips.slice(0, 12) : [],
-              slowClips: Array.isArray(ln.slowClips) ? ln.slowClips.slice(0, 12) : [],
+              clips: clipList(ln.clips),
+              slowClips: clipList(ln.slowClips),
               uses: Array.isArray(ln.uses)
                 ? [...new Set(ln.uses.map((/** @type {unknown} */ x) => String(x || "").replace(/[^A-Za-z0-9_-]/g, "")))]
                     .filter(Boolean)
@@ -1233,10 +1345,12 @@ export default async (req) => {
       /* Whether this card was a value before this save, so that turning one
          back into an ordinary card reaches the devices holding it too. */
       let wasFilling = false;
+      /** @type {Card | null} */
+      let existing = null;
       if (id) {
-        const existing = await loadCard(id);
+        existing = await loadCard(id);
         if (!existing) return json({ error: "no-card" }, 404);
-        wasFilling = fillNames(existing).length > 0 || !!cardRef(existing);
+        wasFilling = fillsOf(existing).length > 0;
         current = await decksHolding(existing);
         if (existing.owner !== mine && !me.admin) {
           /* A card in a deck I teach is mine to correct — a deck it is
@@ -1251,6 +1365,35 @@ export default async (req) => {
           }
           if (!allowed) return json({ error: "not-yours" }, 403);
         }
+      }
+
+      /*
+       * An ID is the one name that reaches one card, so no two cards may
+       * answer to it.
+       *
+       * The editor refuses a taken name while the teacher is still looking
+       * at it, which is where it belongs and where it says something
+       * useful. This is the same refusal for the saves that never went
+       * through that screen — a stale tab, a queued draft from before the
+       * rule, a script — because two cards answering to one `{{x}}` is
+       * precisely what an ID exists to prevent, and neither of them can be
+       * pointed at afterwards.
+       *
+       * Only when the name is new or has changed, so an ordinary save
+       * costs nothing: an ID is typed once and read a hundred times, and
+       * this is the once. A collision already on disk is left alone and
+       * read exactly as it always was — this refuses the making of one,
+       * not the having of one.
+       */
+      if (answersTo && answersTo !== cardRef(existing || {})) {
+        const owner = (existing && existing.owner) || mine;
+        const ids = (await readJson(store, K.myCards(owner))) || [];
+        const rows = await readManyJson(store, ids.map((/** @type {string} */ x) => K.card(x)), EVENTUAL);
+        const clash = rows.find((/** @type {any} */ c) => c && c.id !== id && cardRef(c) === answersTo);
+        if (clash) return json({ error: "ref-taken", ref: answersTo }, 409);
+      }
+
+      if (existing) {
         /* created is whatever it already was. A card saved before this
            field existed has none, and must not acquire today's date by
            being edited — the reader falls back to `updated`, which for a
@@ -1278,8 +1421,11 @@ export default async (req) => {
         const newId = `k${randomBytes(6).toString("hex")}`;
         const now = Date.now();
         saved = { id: newId, owner: mine, ...fields, rev: 1, created: now, updated: now };
-        const list = (await readJson(store, K.myCards(mine))) || [];
-        await writeJson(store, K.myCards(mine), list.concat([newId]));
+        /* Added to whatever the list holds when the write lands. Read and
+           written whole, two cards made at once cost one of them its place
+           in it — and a card missing from here is a card that is on disk
+           and in nobody's collection. */
+        await updateJson(store, K.myCards(mine), (list) => (list || []).concat([newId]));
       }
 
       /* Which decks it belongs to travels with the card. Older clients sent
@@ -1317,20 +1463,38 @@ export default async (req) => {
         if (want) final.push(did);
         const changedMembership = next.length !== ids.length;
         if (!changedMembership && !id) continue;
-        const fresh = (changedMembership ? await readDeck(store, did) : d) || d;
-        const record = {
-          ...fresh,
-          cardIds: next,
-          cardCount: next.length,
-          version: (fresh.version || 1) + 1,
-          updated: Date.now(),
-        };
-        await writeJson(store, K.deck(did), record);
-        deckRecords.push(record);
+        /*
+         * This one card in or out of whatever the deck holds when the
+         * write lands, rather than a whole list worked out beforehand.
+         *
+         * Two teachers filing cards into one deck at the same moment each
+         * read its membership, each added their own card to the copy they
+         * held, and the second wrote over the first: a card saved, stored,
+         * and in no deck. The card being saved is the only one this
+         * request has anything to say about, so it is the only one the
+         * write changes.
+         */
+        const record = await updateJson(store, K.deck(did), (fresh) => {
+          const base = fresh || d;
+          const held = Array.isArray(base.cardIds) && base.cardIds.length ? base.cardIds : ids;
+          const now = want
+            ? held.includes(saved.id) ? held : held.concat([saved.id])
+            : held.filter((/** @type {string} */ x) => x !== saved.id);
+          return {
+            ...base,
+            cardIds: now,
+            cardCount: now.length,
+            version: (base.version || 1) + 1,
+            updated: Date.now(),
+          };
+        });
+        if (record) deckRecords.push(record);
       }
       saved.inDecks = final;
       await writeJson(store, K.card(saved.id), saved);
-      if (filling.length || answersTo || wasFilling) await bumpFills(saved.owner || "");
+      /* Through the same answer the bundling uses, so a card that fills a
+         blank only by the kind of word it is moves the revision too. */
+      if (fillsOf(saved).length || wasFilling) await bumpFills(saved.owner || "");
       await taught();
       /* `trimmed` only where something was — an ordinary save says nothing,
          and the client has nothing to report. */
@@ -1663,6 +1827,29 @@ export default async (req) => {
        * Nothing is read here for a site that uses no variables — the first
        * line is a scan of cards already in hand.
        */
+      /*
+       * Each teacher's library, read once for the whole answer.
+       *
+       * It was read once per deck: ten decks in a course meant ten reads
+       * of every card its teachers have ever written, and every one of
+       * them parsed again — for one student, on every refresh that found
+       * anything changed. What a card answers to is worked out on the way
+       * past for the same reason, since that too was redone per deck.
+       */
+      /** @type {Map<string, { card: any, fills: string[] }[]>} */
+      const libraries = new Map();
+      /** @param {string} owner */
+      async function libraryOf(owner) {
+        const held = libraries.get(owner);
+        if (held) return held;
+        /** @type {string[]} */
+        const ids = (await readJson(store, K.myCards(owner), EVENTUAL)) || [];
+        const rows = await readManyJson(store, ids.map((id) => K.card(id)), EVENTUAL);
+        const out = rows.filter(Boolean).map((/** @type {any} */ c) => ({ card: c, fills: fillsOf(c) }));
+        libraries.set(owner, out);
+        return out;
+      }
+
       const bundled = [];
       for (const d of decks) {
         const own = d.cardIds.map((/** @type {string} */ id) => cardById.get(id)).filter(Boolean);
@@ -1680,11 +1867,27 @@ export default async (req) => {
         const held = new Set(own.map((/** @type {any} */ c) => c.id));
         const values = [];
         for (const owner of from) {
-          /** @type {string[]} */
-          const ids = (await readJson(store, K.myCards(owner), EVENTUAL)) || [];
-          const rows = await readManyJson(store, ids.map((id) => K.card(id)), EVENTUAL);
-          for (const c of rows) {
-            if (!c || !fillNames(c).some((name) => wanted.has(name))) continue;
+          for (const { card: c, fills } of await libraryOf(owner)) {
+            /*
+             * What a card answers to, through the one answer to that —
+             * which is its group tags, the ID the teacher gave it, and the
+             * kind of word it said it was.
+             *
+             * It used to be the tags alone, so two of the four ways a
+             * blank is filled never reached a student: `{{colour-red}}`
+             * and `{{noun}}` found nothing on the device, and the sentence
+             * that asked for one was quietly never dealt — while the
+             * teacher's own Examples list, which reads the whole library,
+             * showed it working. The same call now answers on both sides.
+             *
+             * `{{word}}` is deliberately not among them: it is answered by
+             * any word at all, so matching it here would send a student
+             * every word their teachers have ever written. It is filled on
+             * the device instead, out of the decks the student holds,
+             * which is what it has always been filled from — see fillsOf,
+             * which adds that name only for a caller that asks for it.
+             */
+            if (!fills.some((name) => wanted.has(name))) continue;
             if (d.lang && c.lang && c.lang !== d.lang) continue;
             if (held.has(c.id)) continue;
             held.add(c.id);
