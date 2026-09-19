@@ -46,7 +46,7 @@ await build({
   logLevel: "silent",
 });
 const { shapeOf, shapeChoices, shapeLabel, categoryChoices, categoryOffers, tableFor,
-  initialForms, initialCells, initialCategory, storedFormsOf, asideOf, tableCellsOf,
+  initialForms, initialCells, initialCategory, initialFrames, storedFormsOf, asideOf, tableCellsOf,
   canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked,
   partLends, setPartFlags, keptNotAsked } =
   await import(path.join(out, "card-editor.js"));
@@ -1632,6 +1632,40 @@ test("a card stored as a value opens with nothing asked and everything still len
   assert.equal("lend" in plain[0], false, "and gains no field it did not have");
 });
 
+test("the card's own word keeps both its answers through an open and a save", () => {
+  /*
+   * The two ticks are one answer each, and the word carried only the
+   * first of them into the editor. A sub-form is spread whole and so
+   * never lost it; the card's own word is copied field by field, and
+   * `lend` was missing from the copy — so a name, which is the card the
+   * split exists for, opened with "lent to sentences" off and was saved
+   * that way by anybody who touched it. Every {{name}} lost it.
+   */
+  const name = /** @type {any} */ ({
+    id: "r", lang: "ar-PS", fills: ["name"], drill: false,
+    forms: [{ id: "r", ar: "رافاييل", en: "Raphael", lat: "rafael", ask: false, lend: true }],
+  });
+  const opened = initialForms(name, null);
+  assert.equal(partAsked(opened[0]), false, "still not a question on its own");
+  assert.equal(partLends(opened[0]), true, "and still lent to the sentences that ask for it");
+
+  /* And the other way round: a word worth asking about and deliberately
+     kept out of the frames stays out of them. */
+  const kept = initialForms(/** @type {any} */ ({
+    id: "k", lang: "ar-PS", forms: [{ id: "k", ar: "كتاب", en: "book", lat: "kitaab", lend: false }],
+  }), null);
+  assert.equal(partAsked(kept[0]), true);
+  assert.equal(partLends(kept[0]), false);
+
+  /* A card written before the split carries neither field and is read the
+     way it always was: nothing asked, nothing lent. */
+  const old = initialForms(/** @type {any} */ ({
+    id: "o", lang: "ar-PS", drill: false,
+    forms: [{ id: "o", ar: "سام", en: "Sam", lat: "saam", ask: false }],
+  }), null);
+  assert.equal(partLends(old[0]), false, "absent is a reading, not a gap");
+});
+
 test("what is saved says whether the card is a question at all", () => {
   /* `drill` reaches further than the per-form ticks — a card marked as a
      value stays out of the matching grids and out of the wrong answers a
@@ -1861,6 +1895,49 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
   assert.equal(written.forms[2].row, "attached", "and the cell still placed");
   assert.equal(written.category, "noun");
   assert.equal(written.note, "about the book");
+});
+
+test("a verb's own sentence does not block the save, and is not lost by it", () => {
+  /*
+   * A frame is the sentence a verb stands in its own place in — a row and
+   * no column, which is neither an ordinary form nor a cell of the table.
+   * It used to open among the ordinary forms, and a card that is not a
+   * sentence with braces in one of its forms is exactly what the editor
+   * refuses to save. So a verb card carrying one could not be saved at
+   * all, whatever the teacher had come to change, and the only way out the
+   * screen named was to delete the braces — which is to delete the
+   * sentence.
+   */
+  const verb = /** @type {any} */ ({
+    id: "v", lang: "ar-PS", category: "verb",
+    forms: [
+      { id: "v", ar: "أكل", en: "to eat", lat: "akal" },
+      { id: "vf", ar: "{{name}} {{verb}} {{object}}", en: "{{name}} eats {{object}}", lat: "", row: "past" },
+      cellOf("past", "he", { ar: "أكل", id: "vc" }),
+    ],
+  });
+
+  const forms = initialForms(verb, null);
+  assert.deepEqual(forms.map((/** @type {any} */ f) => f.ar), ["أكل"],
+    "the frame is not one of the blocks a teacher types in");
+  const frames = initialFrames(verb);
+  assert.deepEqual(frames.map((/** @type {any} */ f) => f.ar), ["{{name}} {{verb}} {{object}}"],
+    "it is held aside");
+
+  /* And it comes back out on the card, still placed in its row. */
+  const written = writtenCard({
+    word: {
+      shownSpec: null, ownForms: forms, tableCells: [], keptFrames: frames, forms,
+      note: "", standsIn: false, name: "", uses: [], fills: "", category: "verb",
+    },
+    talk: {},
+    shape: "word",
+    chosen: [],
+  });
+  const back = written.forms.find((/** @type {any} */ f) => f.row === "past" && !f.col);
+  assert.ok(back, "the verb's own sentence was dropped by the save");
+  assert.equal(back.ar, "{{name}} {{verb}} {{object}}");
+  assert.equal(back.en, "{{name}} eats {{object}}");
 });
 
 test("a sentence keeps what the teacher calls it, and a word is named by its own words", () => {

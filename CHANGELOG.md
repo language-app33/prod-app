@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.194 — 19 September 2026
+## 0.195 — 19 September 2026
 
 **Arabic verbs have a plural *you* at last.** A verb card laid its forms out
 under seven people — I, you (m), you (f), he, she, we, they — and Arabic
@@ -36,6 +36,82 @@ out to be — so what a plural name fills is still *they*.
 
 Hebrew shares the same list of people, and had the gap for the same reason.
 It gains the same column.
+
+## 0.194 — 19 September 2026
+
+An audit of how cards, kinds, forms and blanks hold together, and the
+repairs it turned up. Nothing on the screen has moved; what has changed is
+what the app does with what you have written.
+
+**A name stopped quietly losing its job.** A card set to "not asked on its
+own, but lent to sentences" — Raphael, for "my name is {{name}}" — opened
+with that second tick switched off. It was not something you did: opening
+the card was enough, and the next save, even one that only added a
+recording, stored it as lent to nothing. Every sentence that asked for that
+name lost it, with nothing said. Cards already saved that way are read
+correctly again the moment they are opened.
+
+**A sentence nobody could answer is no longer asked.** Where a sentence
+needs a form that agrees with the word beside it — a feminine adjective, the
+plural of a verb — and that box was left empty, the app put the sentence up
+with its own braces showing, marked it wrong, and asked it again in every
+session after that, for ever, because the turn only moves on a right
+answer. Such a sentence is now simply not dealt, and comes back by itself
+the moment the missing form is written. A sentence that runs out of words
+mid-session is withdrawn the same way.
+
+**Students now get the words their sentences need.** A blank can name what
+fills it in four ways. Only one of them — the group tags you write by hand —
+was actually sent to a student's device. A sentence asking for `{{noun}}`,
+or for one card by its ID, arrived with nothing behind it and was never
+asked, while your own preview of that card showed it working, because the
+preview reads your whole collection and the student's device only holds what
+was sent.
+
+**Vietnamese words count as words.** The app worked out whether a card was a
+word by counting the spaces in it, which is right for Arabic and wrong for
+Vietnamese, where a single word is written as its syllables with spaces
+between them. So *cảm ơn* was a phrase, and roughly every Vietnamese word
+longer than one syllable was left out of `{{word}}` — the blank that means
+"any word in the language" — with nothing on the screen to say so. What
+settles it now is what you already said the card is: a card you have called
+a noun, a verb or a name is a word, in every language.
+
+**Two people saving at once no longer costs a card.** Saving read a deck's
+contents, added to them, and wrote the lot back. Two saves in flight at the
+same moment — two tabs, two teachers, a queue of offline edits going up —
+each read the same starting point and the second wrote over the first. What
+it cost was a card that had been saved, was on the server, and was in no
+deck and no collection, so nothing afterwards would find it and nobody was
+told. Each save now changes only its own card's place in the list.
+
+**And the server now checks what it is given.** It trusted the app to have
+checked already, which is fine until a save arrives from a tab left open
+since before a rule existed. A card with a blank in it is stored as a
+sentence whatever the sender claims, rather than being turned into a word
+with braces in it that the editor then refuses to save. An ID a second card
+already answers to is refused outright, which the editor has always done
+while you are looking at the screen. And a recording is kept only under a
+name a recording can actually have.
+
+**A verb's own sentence no longer blocks its card.** A verb card carrying
+the sentence it stands in could not be saved at all — the editor read the
+sentence as a stray blank on a word and refused, and the only way out it
+offered was to delete the sentence. It is now left alone and saved
+untouched. Writing one still needs a screen that does not exist yet.
+
+**And a group can no longer be given a card's name.** The ID box has always
+refused a name a group already holds. The group box did not refuse a name a
+card's ID holds, so the same collision was one tap away on the other side of
+the same screen.
+
+**Faster where it was slow.** Dealing a session on a large collection is
+about three times quicker, and the work behind each answer is down by about
+a third. Typing an answer no longer re-does the work of filling in the
+sentence on every keystroke, and neither does typing in the card editor,
+which was building every filled-in example of a card behind a fold that was
+shut. Fetching course material no longer re-reads each teacher's whole
+collection once per deck.
 
 ## 0.193 — 19 September 2026
 
