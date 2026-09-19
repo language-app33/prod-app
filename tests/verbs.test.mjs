@@ -145,6 +145,47 @@ test("the subject's grammar picks the column", () => {
   assert.equal(must(personFor(arabic, { number: "plural" }), "they").id, "they");
 });
 
+test("a verb is marked for a room as well as a person", () => {
+  /*
+   * The plural *you*, which was missing until 0.194 — and missing in a way
+   * nothing could catch, because a column that does not exist asks no
+   * question and fails no test. The forms it costs are ordinary ones a
+   * beginner needs: إنتو بتاكلوا, and the command كولوا, which is what you
+   * say to a room and therefore the imperative anybody says most.
+   *
+   * Checked on both packs that declare it, because they share one list and
+   * a language losing it again would lose it quietly.
+   */
+  for (const id of ["ar-PS", "he-IL"]) {
+    const spec = must(verbOf(LANGUAGES[id]), `${id}'s verb table`);
+    const cols = personsOf(spec).map((p) => p.id);
+    assert.ok(cols.includes("you-pl"), `${id} marks a verb for the plural you`);
+    /* Distinct from "they": one is who is being spoken to and the other is
+       who is being spoken about, and Arabic writes them differently in
+       every row. */
+    assert.ok(cols.includes("they"));
+    /* Between "we" and "they", which is where the paradigm puts it and
+       where the pronouns on the end of a word already put theirs. */
+    assert.deepEqual(cols.slice(-3), ["we", "you-pl", "they"]);
+    /* And it picks nothing, for the reason the singular *you*s do not: a
+       noun dropped into a subject is never the person being addressed. A
+       plural subject still reaches "they" and could never reach here. */
+    assert.equal(must(personFor(spec, { number: "plural" }), "they").id, "they");
+    assert.equal(
+      must(personFor(spec, { number: "plural", gender: "feminine" }), "they").id,
+      "they",
+    );
+  }
+  /* The command is addressed, so it has a cell for each of the three
+     persons that can be addressed and for nobody else — the teacher fills
+     those and leaves the rest of the row blank. */
+  const commands = tableOf(toEat, arabic).filter((c) => c.row === "command");
+  assert.deepEqual(
+    commands.map((c) => c.col).filter((col) => col.startsWith("you")),
+    ["you-m", "you-f", "you-pl"],
+  );
+});
+
 test("the most specific column wins, whatever order they are declared in", () => {
   /* "she" asks for number and gender; "they" for number alone. A singular
      feminine matches only one of them, but the rule that decides is the

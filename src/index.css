@@ -818,7 +818,7 @@ button {
 .at-cellfields { flex:1; min-width:0; display:flex; gap:8px; }
 .at-cellfields > * { flex:1; min-width:0; }
 /* The recording button stays on the line whatever the fields do: it is one
-   tap per cell, and a table of twenty-one cells would be twice the height
+   tap per cell, and a table of twenty-four cells would be twice the height
    if each carried the list and the explanation the forms below get. Square,
    and lit once there is something recorded.
 
@@ -831,7 +831,7 @@ button {
 .at-cellrow > .at-cellmic.on { border-color: var(--accent); color: var(--accent); }
 .at-cellrow > .at-cellmic:disabled { opacity:.4; cursor:default; }
 /* On a phone the three fields go to a grid rather than a column: stacked,
-   a cell is three boxes tall and a table of twenty-one is most of a
+   a cell is three boxes tall and a table of twenty-four is most of a
    morning's scrolling. The script and how it is said share the first line
    — both are short — and the meaning takes the second, which is also the
    one most often left to the row's English. Two lines either way, because

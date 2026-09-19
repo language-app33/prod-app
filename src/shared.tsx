@@ -2106,7 +2106,7 @@ function ReadForm({ form, lang, title, what, reader }: {
  * One of the tables a card lays its forms out in.
  *
  * Down the page and gathered under the row each cell sits on, which is how
- * the editor draws the same table and for the same reason: a grid of seven
+ * the editor draws the same table and for the same reason: a grid of eight
  * columns is how a grammar book prints one and is unusable on a phone. The
  * heading names the table, and names the form it hangs off where a card
  * carries one per form — the pronouns on the end of a word.

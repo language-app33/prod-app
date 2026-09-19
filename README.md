@@ -190,7 +190,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   yet through the steps somewhere, *Young* is graduated everywhere it is
   open, *Mature* is three weeks out everywhere.
 - **One tense of a verb is ever new at a time.** Where a language lays its
-  verbs out in a table — Arabic in seven persons and three tenses, Huế in
+  verbs out in a table — Arabic in eight persons and three tenses, Huế in
   one person and four markers — each cell of it is a sub-form, drilled and
   scheduled in its own right by the exercises every other form gets. The
   rows open in the order the language teaches them, one waiting on the one
@@ -200,7 +200,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   it is the card, none of it is demanded before a card can be saved, and a
   box left empty is a form nobody has written. Arabic and Hebrew named the
   he-past — the form a dictionary lists — as a cell that stood in for the
-  card's own word until 0.194, which hid the block asking for the word,
+  card's own word until 0.197, which hid the block asking for the word,
   saved the card as that cell, and refused a verb until that one box was
   filled in. What it was for, a card whose face reads *he ate* being listed
   as *to eat*, is the card's `name`, which any verb can carry. A verb card

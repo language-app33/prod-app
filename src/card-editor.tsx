@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
-import { cellsIn, isCell, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
+import { cellsIn, framesOf, isCell, isFrame, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 import type { Node } from "./shared.tsx";
 import {
@@ -938,7 +938,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   onRemoveBlank?: (name: string) => void;
   /**
    * What to call this box where the label above it does not say — in a
-   * table, where one heading stands over twenty-one boxes and only the row
+   * table, where one heading stands over twenty-four boxes and only the row
    * and column say which is which. The two boxes beside it in a cell have
    * carried their own names since the table was written; this one had
    * none, so a box of the table was the one field on the screen a reader
@@ -947,7 +947,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   label?: string;
   /**
    * A shorter box, for where there are many of them. A verb's table is
-   * twenty-one of these on one screen, and at the size a single field is
+   * twenty-four of these on one screen, and at the size a single field is
    * written at it scrolls for a thousand pixels. Only the script shrinks —
    * still the largest thing on its line, because it is the thing being
    * read — and only where a caller asks.
@@ -1358,7 +1358,7 @@ const fieldName = (field: string, lang: Lang): string =>
  * downstream — the schedule, the recordings, the sync, the export — goes
  * on working without having been told what a verb is.
  *
- * Laid out down the page rather than across it. A grid of seven columns is
+ * Laid out down the page rather than across it. A grid of eight columns is
  * the way a grammar book prints one, and it is unusable on the phone this
  * app is mostly opened on; one line per cell, gathered under its tense,
  * says the same thing and can be typed with a thumb. The tenses are in the
@@ -1370,7 +1370,7 @@ const fieldName = (field: string, lang: Lang): string =>
  * of them from one word — "ate" giving "I ate", "she ate" — and it is gone
  * for the reason set out in verbs.ts: what it produced was wrong in the
  * present, where English inflects and the app must not know that it does.
- * Seventeen boxes is more typing than three and it is typing that produces
+ * Nineteen boxes is more typing than three and it is typing that produces
  * something true.
  */
 /* What to call one cell out loud — "past · she". Read off the language's
@@ -1445,7 +1445,7 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
   const named = persons.some((p) => p.label);
   /* A box for the pronunciation only where the language asks for one to be
      written. Huế calls it a note and never drills it, so a column of them
-     across a whole table would be twenty-one boxes nothing reads — the
+     across a whole table would be twenty-four boxes nothing reads — the
      note belongs on the verb itself, which still has its own field below. */
   const saysHow = lang.translitDrilled !== false;
 
@@ -1503,7 +1503,7 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
                 </div>
                 {/* One button rather than the Recordings block the forms
                     below get: a list and an explanation under every one of
-                    twenty-one cells would be the table's whole height
+                    twenty-four cells would be the table's whole height
                     again. It says how many there are, and opens the same
                     screen. Off until there is a word to say — a recording
                     of an empty cell is a recording of nothing. */}
@@ -2410,12 +2410,53 @@ export function initialForms(
       /* Whether the card's own word is asked about. Carried only where it
          is off, which is what the field means everywhere else too. */
       ...(word.ask === false ? { ask: false } : null),
+      /*
+       * And whether it is lent to sentences, which is the other half of
+       * the same answer and was not carried here at all.
+       *
+       * A sub-form is spread whole below and so has always kept it; the
+       * card's own word is copied field by field, and the field was
+       * missing from the copy. What that cost is the card the split was
+       * made for: a name is stored `ask: false, lend: true`, opened with
+       * an absent `lend` — which beside `ask: false` reads as *not lent*
+       * — and saved back unlent, so every sentence asking for {{name}}
+       * quietly lost it. The reverse went the same way: a word kept out
+       * of sentences on purpose was lent again by being opened. Carried
+       * only where it was said, because absent is a reading and not a
+       * gap — see isLent.
+       */
+      ...(typeof word.lend === "boolean" ? { lend: word.lend } : null),
     },
   ];
-  for (const s of subFormsOf(card).filter((f) => !isCell(f))) {
+  /*
+   * And the forms under it — but not a cell of a table, which is edited as
+   * a table, and not the verb's own sentence, which is neither.
+   *
+   * A frame carries a row and no column (see isFrame): it is the sentence
+   * a verb stands in its own place in, `{{name}} {{verb}} {{object}}`. It
+   * is not a cell, so it used to land here among the ordinary forms — and
+   * a card that is not a sentence with braces in one of its forms is
+   * exactly what `strayHoles` refuses to save. So a verb card carrying one
+   * could not be saved at all, whatever the teacher had come to change,
+   * and the only way out the screen offered was to delete the braces,
+   * which is to delete the sentence. Kept aside and put back untouched at
+   * save — see `keptFrames`.
+   */
+  for (const s of subFormsOf(card).filter((f) => !isCell(f) && !isFrame(f))) {
     out.push({ ...blankForm(), ...s, id: String(s.id || "") || formName(out) });
   }
   return asValue(card, out);
+}
+
+/*
+ * A verb's own sentences, kept exactly as they were stored.
+ *
+ * Nothing on this screen writes one and nothing on it edits one, so the
+ * whole of what the editor owes them is not to lose them: they are lifted
+ * out before the forms are drawn and put back when the card is saved.
+ */
+export function initialFrames(card: Card | null): Record<string, any>[] {
+  return card ? framesOf(card).map((f) => ({ ...f })) : [];
 }
 
 /*
@@ -2465,7 +2506,7 @@ const withoutCardDims = (dims: GrammarDim[]) => (answer: Record<string, any>) =>
 /*
  * The cells a card opens with — every sub-form that sits in a table.
  *
- * Whatever the card carries, and nothing else. Until 0.194 a verb in a
+ * Whatever the card carries, and nothing else. Until 0.197 a verb in a
  * language whose pack named a cell as the form a dictionary lists had the
  * card's own word copied into that cell on the way in, because the block
  * asking for the word was not shown there and the word had to be
@@ -2833,6 +2874,12 @@ export interface Asked {
   en: string;
 }
 
+/* One empty list rather than a new one per render, so a card with no
+   blanks in it holds the memos below still. */
+const NO_HOLES: string[] = [];
+/* The same, for the filled examples while the section is folded away. */
+const NO_ASKED: Asked[] = [];
+
 /** The word, its forms, its tables and everything asked of them. */
 export function useWordDraft({ card, lang, allCards, draft, shape }: {
   card: Card | null;
@@ -2857,6 +2904,9 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      rather than inside it because the two are edited in different shapes
      — a list of blocks, and a table — and joined again at save. */
   const [cells, setCells] = useState<Record<string, any>[]>(() => initialCells(card));
+  /* And the verb's own sentences, which this screen neither writes nor
+     edits and must not drop — see initialFrames. */
+  const [keptFrames] = useState<Record<string, any>[]>(() => initialFrames(card));
   /* What the teacher says this word is — see initialCategory — and, from
      that, which table it lays its forms out in. */
   const [category, setCategory] = useState<string>(() => initialCategory(card, lang, cells));
@@ -3143,9 +3193,20 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      them. A frame whose English has a hole and whose script has not is a
      question that asks for a name and marks an answer that never contained
      one, so it is not a card that can be saved. */
-  /* Memoised for what reads it below: a fresh array every render would
-     re-fill the preview sentences on every keystroke in any field. */
-  const holes = useMemo(() => (scene ? [] : slotsOf(main)), [scene, main]);
+  /*
+   * Memoised for what reads it below: a fresh array every render would
+   * re-fill the preview sentences on every keystroke in any field.
+   *
+   * On its own contents and not on the form it was read from. `main` is a
+   * new object every render — a keystroke makes one — so a memo held
+   * against it was a memo that never hit, and the whole of the preview was
+   * rebuilt on every character. Which blanks a card leaves changes when
+   * somebody puts one in or takes one out, and that is what this key says.
+   */
+  const holeNames = scene ? NO_HOLES : slotsOf(main);
+  const holeKey = holeNames.join("\u0000");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const holes = useMemo(() => holeNames, [holeKey]);
   /*
    * Every blank this card stands in, as it stands right now.
    *
@@ -3231,6 +3292,30 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     for (const c of allCards || []) {
       if (lang && c.lang && c.lang !== lang.id) continue;
       for (const name of fillsOf(c, kindOf(c, lang))) out.set(name, (out.get(name) || 0) + 1);
+    }
+    return out;
+  }, [allCards, lang]);
+
+  /*
+   * The names one card each answers to, which nothing else may take.
+   *
+   * An ID reaches one card and no other, and that is the whole of what it
+   * is for — so a group tag of the same name is a second thing answering
+   * to one `{{x}}`, and neither can be pointed at afterwards. The ID box
+   * has refused a name a group already holds since it was written; the
+   * group box refused only the groups, so the same collision was one tap
+   * away on the other side of the screen.
+   *
+   * IDs and nothing else. A group tag may share a name with a kind of word
+   * the language declares, and does: Arabic declares `name`, and
+   * `{{name}}` is the oldest frame in the app.
+   */
+  const refsTaken = useMemo(() => {
+    const out = [];
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      const own = cardRef(c);
+      if (own) out.push(own);
     }
     return out;
   }, [allCards, lang]);
@@ -3426,10 +3511,15 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * blank. It was worked out twice, identically, by the first two of those,
    * which is two answers to one question waiting to disagree.
    */
+  /* Against the blanks rather than against `main`, which is a new object
+     on every keystroke: what comes back is a function of the names in the
+     holes and of the collection, and valuesFor reads nothing else off the
+     form it is handed. */
   const fillers = useMemo(() => {
     if (scene || !holes.length) return {} as Record<string, Value[]>;
     return fillersFor(main, allCards || [], lang);
-  }, [scene, holes, main, allCards, lang]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, holes, allCards, lang]);
 
   /*
    * How many sentences this card is met as: every word behind one blank,
@@ -3459,11 +3549,15 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * nothing fills are all `examplesOf` in card-facts.ts, which the
    * view-only screen draws the same sentences with. Two accounts of what a
    * teacher has written is one too many.
+   *
+   * Built where it is read — see BlanksBlock, which knows whether the
+   * section is open — and not here, where nothing knew. A frame the whole
+   * collection fills is met as hundreds of sentences, each of them three
+   * strings to fill and compare, and all of them were being built on
+   * every keystroke in any field of the card, behind a fold that was shut.
+   * The count above is what the shut section shows, and that is counted
+   * rather than built.
    */
-  const asked = useMemo(
-    () => (scene ? [] : examplesOf(main, holes, fillers)),
-    [scene, holes, main, fillers],
-  );
 
   /* Which blanks have nothing to put in them — the reason a card with a
      hole in it is never asked, named rather than left to be discovered. */
@@ -3690,6 +3784,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     dropFill,
     fillsOffer,
     defaultTags,
+    refsTaken,
     ownFills,
     ref,
     setRef,
@@ -3724,11 +3819,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     sentence: shape === "sentence",
     strayHoles,
     tableCells,
+    keptFrames,
     trouble,
     blanksAround,
     blankOffer,
     dropBlank,
-    asked,
     combos,
     starved,
     fillers,
@@ -3984,12 +4079,17 @@ function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
   );
 }
 
-function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck }: {
+function KindBlock({ card, lang, scene, shape, word, naming, decks, chosen, onToggleDeck }: {
   card: Card | null;
   lang: Lang;
   scene: boolean;
   shape: CardShape;
   word: WordDraft;
+  /** Whether this card is one whose own words do not name it, and which of
+      the two it is — the wording is all that turns on the answer. Decided
+      by the editor, which is where the kinds of card are told apart; null
+      on a card named by its own word. See NameBlock. */
+  naming: "verb" | "sentence" | null;
   decks: Deck[];
   chosen: string[];
   onToggleDeck: (id: string, on: boolean) => void;
@@ -4046,6 +4146,15 @@ function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck
           Asked only of a word: a conversation has turns where a word
           has forms, and there is nothing for a table to lay out. */}
       <WordKind word={word} />
+      {/* ---- and what it is called ----
+
+          Directly under the subtype, because it is the same sort of thing:
+          one fact about the whole card, settled once and then read. It
+          belongs to the card rather than to any of its words — which is
+          exactly why the card's own words cannot supply it — so it is asked
+          here with the other facts about the card, and not in a framed
+          section of its own halfway down the screen. */}
+      {naming && <NameBlock word={word} of={naming} />}
       {/* And what follows from the answer that is about the word rather
           than about its forms — see WordGrammar. Under the kind because it
           is asked on the strength of it: a noun is asked whether it is a
@@ -4118,6 +4227,13 @@ const storedHelp = (spec: VerbSpec | null): string => {
  * different sentence in each place. The editor says which it is; nothing
  * here reads the card to find out.
  *
+ * A field rather than a section of its own. What a card is called is a fact
+ * about the card, in the same class as what kind of card it is and what
+ * kind of word — so it is asked where those are asked, under the answer it
+ * follows from, and wears the same heading they do. A framed block with one
+ * text box in it, standing between the card and its words, read as a stage
+ * of the form rather than as the label it is.
+ *
  * Offered and never demanded, on either. A verb with no name is listed as
  * its own word, which is what every other card is listed as.
  */
@@ -4125,56 +4241,50 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
   const { name, setName } = word;
   const verb = of === "verb";
   return (
-    <>
-    {/* ---- what to call it ----
+    /* ---- what to call it ----
 
-        A verb has as many words as it has persons and tenses, and the
-        one at the top of the card is the one the teacher happened to
-        write it under — so a list can read "he ate" where the card is
-        about eating. A sentence is listed as itself, braces and all:
-        "{{name}} is heavy" names the shape of the card rather than
-        what it is for, and every frame in a deck reads as the hole in
-        it. Nothing is wrong with either card; neither simply has a
-        name of its own to be listed under.
+       A verb has as many words as it has persons and tenses, and the
+       one at the top of the card is the one the teacher happened to
+       write it under — so a list can read "he ate" where the card is
+       about eating. A sentence is listed as itself, braces and
+       all: "{{name}} is heavy" names the shape of the card rather
+       than what it is for, and every frame in a deck reads as the
+       hole in it. Nothing is wrong with either card; neither simply
+       has a name of its own to be listed under.
 
-        Not the block 0.114 took away. That one asked for the script,
-        the pronunciation, the English and the recordings a second
-        time, and the two copies had to be kept in step by hand. This
-        asks for one thing the card cannot supply, and nothing is
-        drilled on it: it is a label, and the microcopy says so. */}
-      <div className="at-formblock at-mt5">
-        <div className="at-formhead">
-          <span className="at-formnum">What to call it</span>
-          <span className="at-formrole">How this card is listed.</span>
-        </div>
-        <Field label="Name">
-          <input
-            className="at-input"
-            value={name}
-            placeholder={verb ? "to eat" : "saying where you live"}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </Field>
-        <Help>
-          {verb ? (
-            <>
-              How this card is listed and searched. Without one it is
-              listed as the word at the top of the card, which is one form
-              of the verb rather than the verb. Nobody is ever asked this:
-              what is practised is the word and its table.
-            </>
-          ) : (
-            <>
-              How this card is listed and searched. Without one it is listed
-              as the sentence itself, blanks and all — which names the shape
-              of the card rather than what it is for. Nobody is ever asked
-              this: what is practised is the sentence with its blanks filled
-              in.
-            </>
-          )}
-        </Help>
-      </div>
-    </>
+       Not the block 0.114 took away. That one asked for the script,
+       the pronunciation, the English and the recordings a second
+       time, and the two copies had to be kept in step by hand. This
+       asks for one thing the card cannot supply, and nothing is
+       drilled on it: it is a label, and the microcopy says so. */
+    <Field
+      label="Name"
+      lede="How this card is listed and searched."
+      className="at-mt3"
+    >
+      <input
+        className="at-input"
+        value={name}
+        placeholder={verb ? "to eat" : "saying where you live"}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <Help>
+        {verb ? (
+          <>
+            Without one it is listed as the word at the top of the card,
+            which is one form of the verb rather than the verb. Nobody is
+            ever asked this: what is practised is the word and its table.
+          </>
+        ) : (
+          <>
+            Without one it is listed as the sentence itself, blanks and all
+            — which names the shape of the card rather than what it is for.
+            Nobody is ever asked this: what is practised is the sentence
+            with its blanks filled in.
+          </>
+        )}
+      </Help>
+    </Field>
   );
 }
 
@@ -5258,7 +5368,7 @@ function StripAsk({ word }: { word: WordDraft }) {
 
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
-    holes, starved, asked, combos, fillers, fills, fillsOffer, addFill,
+    holes, starved, combos, fillers, fills, fillsOffer, addFill,
     main, trouble, category, sentence, strayHoles,
   } = word;
   /*
@@ -5271,6 +5381,21 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
    * which is the thing worth knowing without opening it.
    */
   const [examplesOpen, setExamplesOpen] = useState(false);
+  /*
+   * And the sentences themselves, built only once somebody asks to see
+   * them.
+   *
+   * A frame the whole collection fills is met as hundreds of sentences,
+   * each of them three strings to fill; building them all is what the
+   * fold exists to put off, and the list was being built on every
+   * keystroke in any field of the card with the fold still shut. The
+   * heading's count is `combos`, which is counted and not built, so
+   * nothing above needs this.
+   */
+  const asked = useMemo(
+    () => (examplesOpen ? examplesOf(main, holes, fillers) : NO_ASKED),
+    [examplesOpen, main, holes, fillers],
+  );
   /* A sentence fills nothing — see fillsOf, which is the one answer to
      that and which this only reports. So the second subsection has nothing
      to offer one, except where it already carries names, which it has to go
@@ -5588,7 +5713,15 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                    includes the ones that follow from the card: a group
                    called `noun` would be a second thing answering to
                    `{{noun}}`. */
-                taken={offered.map((b) => b.name).concat(word.defaultTags.map((t) => t.name))}
+                /* And every ID a card answers to, which a group of the
+                   same name would be a second answer to — see refsTaken.
+                   The ID box has always refused a name a group holds;
+                   this is the same refusal from the other side. */
+                taken={offered
+                  .map((b) => b.name)
+                  .concat(word.defaultTags.map((t) => t.name))
+                  .concat(word.refsTaken)
+                  .concat(word.refName ? [word.refName] : [])}
                 onName={addFill}
               />
             )}
@@ -5742,10 +5875,14 @@ export function writtenCard({ word, talk, shape, chosen }: {
   chosen: string[];
 }) {
   const scene = shape === "scene";
-  const { shownSpec, tableCells, forms, note, isVerb, name, uses, fills, category, refName, spread, stripped } = word;
+  const { shownSpec, tableCells, keptFrames = [], forms, note, isVerb, name, uses, fills, category, refName, spread, stripped } = word;
   /* The card's own word and the forms beside it, then the cells of
-     whatever table is on screen — which is the whole of what a card is. */
-  const written = shownSpec ? forms.concat(tableCells as typeof forms) : forms;
+     whatever table is on screen, then the verb's own sentences back on the
+     end exactly as they were found: this screen does not write those, so
+     the whole of what it owes them is not to lose them — see
+     initialFrames. */
+  const written = (shownSpec ? forms.concat(tableCells as typeof forms) : forms)
+    .concat(keptFrames as typeof forms);
   return {
     forms: written,
     note,
@@ -5852,16 +5989,16 @@ function WordEditor({ word, lang, allCards, selfId }: {
 }
 
 /*
- * A verb: what to call it, the verb itself, and then the table its rows
- * open one at a time. The table editor with a name on the front — the
- * word at the top of a verb card is one of its forms, so a list of verbs
- * reads better for being told what each card is about.
+ * A verb: the verb itself, then the table whose rows open one at a time,
+ * then any form the card already carried outside it.
  *
  * The card's own word is asked for here as on every other card. It was
  * not, on the two languages whose pack named a cell as the form a
  * dictionary lists: there the block was hidden, the cell was what the card
  * was saved as, and a verb could not be saved until that one box was
- * filled in. See NameBlock for what is left of that.
+ * filled in. What to call the card instead of its own word is asked up in
+ * "This card", with the other facts about the card, and is offered on
+ * every verb now rather than on those two languages' alone.
  *
  * No form can be added: a verb's forms are its table, and a spelling is an
  * accepted answer, not a form.
@@ -5874,7 +6011,6 @@ function VerbEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
-      <NameBlock word={word} of="verb" />
       {word.forms.map((f, i) => (
         <FormBlock
           key={i}
@@ -5902,13 +6038,13 @@ function VerbEditor({ word, lang, allCards, selfId }: {
 }
 
 /*
- * A word with a table of its forms beside it that cites nothing — an
- * adjective's feminine and plural, a number's feminine. The verb's editor
- * without the verb: no name to list it under, and the card's own word
- * keeps its block, because the table is forms of it rather than a stand-in
- * for it. No form can be added, for the reason a verb's cannot: the table
- * is the forms, and a spelling is an accepted answer. A form the card
- * already carries is still shown rather than quietly dropped.
+ * A word with a table of its forms beside it whose rows do not open one at
+ * a time — an adjective's feminine and plural, a number's feminine. The
+ * verb's editor without the verb: no name to list it under, because a word
+ * with an adjective's table is named by its own word. No form can be
+ * added, for the reason a verb's cannot: the table is the forms, and a
+ * spelling is an accepted answer. A form the card already carries is still
+ * shown rather than quietly dropped.
  */
 function TableEditor({ word, lang, allCards, selfId }: {
   word: WordDraft;
@@ -5995,10 +6131,11 @@ function AttachedEditor({ word, lang, allCards, selfId }: {
  * is on screen: the words, then the blanks with what fills each and the
  * sentences a student will actually be asked.
  *
- * What to call it comes first, as it does on a verb and for the same
- * reason: what is saved on the card is a frame with a hole in it, so a
- * list of sentences reads as a list of holes unless the teacher says what
- * each one is for.
+ * What to call it is asked up in "This card", as it is on a verb and for
+ * the same reason: what is saved on the card is a frame with a hole in it,
+ * so a list of sentences reads as a list of holes unless the teacher says
+ * what each one is for — which is a fact about the card rather than about
+ * its words.
  *
  * No part of speech and no table, because a sentence is not a word. No
  * button to add another form either — a second way of saying the same
@@ -6037,7 +6174,6 @@ function SentenceEditor({ word, lang, allCards, selfId }: {
   };
   return (
     <>
-      <NameBlock word={word} of="sentence" />
       {word.forms.map((f, i) => (
         <FormBlock
           key={i}
@@ -6268,6 +6404,14 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             scene={scene}
             shape={shape}
             word={word}
+            /* Whether the card's own words name it, decided here with the
+               rest of what tells the kinds apart: a sentence never names
+               itself, and a verb is written under whichever of its forms
+               the teacher put at the top. Everything else is listed under
+               its own word. */
+            naming={
+              layout === "sentence" ? "sentence" : layout === "verb" ? "verb" : null
+            }
             decks={decks || []}
             chosen={chosen}
             onToggleDeck={(id, on) =>

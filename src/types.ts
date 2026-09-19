@@ -115,7 +115,7 @@ export interface ExerciseSpec {
 
    The two axes a verb's forms are laid out on. Which of them exist, what
    they are called and what order they are taught in is the language pack's
-   answer and never the app's: Arabic declares seven persons and three
+   answer and never the app's: Arabic declares eight persons and three
    tenses, Huế one person and four, and a language whose verbs do not vary
    declares no table at all. Nothing outside the pack knows what a tense
    is — only that a table has rows and columns and that a cell is one thing

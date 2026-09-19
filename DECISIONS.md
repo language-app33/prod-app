@@ -407,20 +407,20 @@ degrees: a row opens once every cell of the row above it is mastered. It is
 enforced in one place — `openTypes` returns nothing for a cell behind its
 gate — and that one place is why it also throttles correctly: a closed cell
 contributes no open types, so `familyMaturity` does not count it, and a
-verb's twenty-one cells therefore cannot make its card read *new* for ever
+verb's twenty-four cells therefore cannot make its card read *new* for ever
 and starve the whole language of room for new cards. A row the teacher left
 blank is passed straight through, the way a level with no material is.
 
 **What it costs.** Two flat fields on a form where the app otherwise avoids
 storing positions, and a server that now has to carry them through its
 sub-form whitelist. The sub-form cap went from twelve to sixty-four: twelve
-is three fewer than Arabic's smallest useful table, so a teacher would have
-filled in twenty-one forms, saved, and got back the first twelve with no
-error anywhere.
+is half of Arabic's smallest useful table, so a teacher would have filled in
+twenty-four forms, saved, and got back the first twelve with no error
+anywhere.
 
 **A cell's English is typed, and briefly was not.** There was a box per row
 that wrote every cell in it from one word, composing "she" and "ate" into
-"she ate", so a teacher wrote three words instead of seventeen. It shipped,
+"she ate", so a teacher wrote three words instead of nineteen. It shipped,
 and it was wrong in the place a learner meets first: English inflects the
 present and nothing else, so "eat" composed across a row gave "he eat" and
 "she eat" beside "I eat" and "we eat", and a command composed across every
