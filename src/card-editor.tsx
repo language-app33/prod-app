@@ -2177,7 +2177,7 @@ const waitsOnWord = (spec: VerbSpec | null | undefined): boolean =>
  * The three kinds of card, and what each of them is.
  *
  * **What kind of card this is, is settled once and never again.** Since
- * 0.186 it is settled before the editor opens at all: New card asks which
+ * 0.187 it is settled before the editor opens at all: New card asks which
  * of the three, and what comes up is a screen for making that one — see
  * NewCardKind. From the first save it is a fact about the card, shown and
  * not offered, and it never was offered afterwards.
@@ -5026,7 +5026,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                 strayHoles.length > 1 ? "are blanks" : "is a blank"
               }, and only a sentence can have one.`}
             </p>
-            {/* One way out, since 0.186: what kind of card this is was
+            {/* One way out, since 0.187: what kind of card this is was
                 answered before the screen opened, so there is nothing here
                 to call a sentence. */}
             <Help>

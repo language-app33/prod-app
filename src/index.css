@@ -3048,6 +3048,58 @@ body.at-screening .at-chromebar { display:none; }
 .at-elexample { font-family: var(--ui); font-size:13px; color: var(--muted); margin:4px 0 0;
   padding-inline-start:10px; border-inline-start:2px solid var(--line); }
 
+/* --- the text styles -----------------------------------------------
+   Admin > App, beside the components. A name, the size it comes out at,
+   and the style drawn at that size — so "too small" can be said about a
+   particular one rather than about the screen it was noticed on.
+
+   Nothing here sets a size on what it frames: the specimen has to be
+   free to be whatever size its own class makes it, which is the whole
+   point of the section. */
+.at-ts { margin-top: var(--s4); }
+/* The scale, as a ruler: the token, what it is worth, and a letter drawn
+   at it, so the six steps can be compared by eye rather than by arithmetic. */
+.at-tsscale { border:2px solid var(--line); border-radius: var(--r); background: var(--well);
+  padding: var(--s3) var(--s4); }
+.at-tsscalerow { display:flex; align-items:baseline; gap: var(--s3); padding: var(--s2) 0;
+  border-top:1px solid var(--line); }
+.at-tsscalerow:first-child { border-top:0; }
+.at-tsruler { font-family: var(--ui); font-weight:800; color: var(--text); line-height:1;
+  margin-inline-start:auto; }
+.at-tsgroup { margin-top: var(--s6); }
+.at-tsrow { border-top:1px solid var(--line); padding: var(--s4) 0; }
+.at-tsrow:last-child { border-bottom:1px solid var(--line); }
+.at-tshead { display:flex; align-items:baseline; gap: var(--s3); flex-wrap:wrap; }
+.at-tsname { font-family: var(--mono); font-size:13px; font-weight:800; color: var(--ink);
+  word-break:break-all; }
+/* The measured size. The answer most readers came for, so it is the one
+   thing on the row that is not grey. */
+.at-tssize { font-family: var(--mono); font-size:13px; font-weight:800; color: var(--brass);
+  white-space:nowrap; margin-inline-start:auto; }
+/* What the stylesheet says, where that is not the number above — a named
+   size, or a calculation against a scale. */
+.at-tsdecl { display:block; font-family: var(--mono); font-size:11px; color: var(--muted);
+  margin-top:2px; word-break:break-all; }
+.at-tswhat { font-family: var(--ui); font-size:14px; color: var(--text-soft); margin:4px 0 0; }
+/* The specimen itself, in a well of its own so the type has a ground to
+   sit on and cannot be mistaken for the page's own writing. A script
+   specimen can be wider than the column, so it scrolls rather than
+   dragging the page sideways. */
+.at-tsspec { margin-top: var(--s3); padding: var(--s3) var(--s4); border:1px solid var(--line);
+  border-radius:10px; background: var(--surface); overflow-x:auto; }
+.at-tsspec > :first-child, .at-tsspec .at-tsscript > :first-child { margin-top:0; }
+.at-tsspec > :last-child, .at-tsspec .at-tsscript > :last-child { margin-bottom:0; }
+/* A screen's head reserves a band at the top for the chrome it has to
+   clear. There is no chrome over a specimen, so the band is 46px of
+   nothing above the title being shown — the same correction the component
+   gallery gives the mode selector, and for the same reason. */
+.at-tsspec .at-screenhead { padding-top:14px; }
+/* The taught language's own face, as the trainer sets it on the app root.
+   A class that declares a face of its own — the interface one, for a
+   meaning or a romanisation — still wins, which is what it does in the
+   app. */
+.at-tsscript { font-family: var(--sfont); }
+
 /* ---- numbers: the parts a language builds them out of ----
 
    Two screens share these. The teacher's grid is a row per part — the

@@ -333,7 +333,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   written against, and the three kinds are asked, dealt and filled in
   three different ways, so a card changing kind is a card whose past means
   something it no longer is. It was the first field inside the editor
-  until 0.186, which put a teacher in a screen for making a card before
+  until 0.187, which put a teacher in a screen for making a card before
   asking what sort of card it was going to be — and before 0.180 a word
   with no table could be called a sentence and back again. Whoever wants
   the other kind wants another card. The same rule holds where the editor

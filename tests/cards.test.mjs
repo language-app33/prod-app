@@ -507,7 +507,7 @@ test("a card is a word, a sentence or a conversation, and says which by what it 
   assert.equal(shapeOf(worded("{{noun}} كبير")), "sentence");
   /* And turns win over blanks, because a conversation is a different
      shape of card rather than a longer one. Read off the card rather than
-     handed in: since 0.186 the only thing that says which kind a card is
+     handed in: since 0.187 the only thing that says which kind a card is
      without reading one is the answer given before it existed. */
   assert.equal(shapeOf(worded("{{noun}}", { lines: [{ who: 0, ar: "a" }] })), "scene");
 });

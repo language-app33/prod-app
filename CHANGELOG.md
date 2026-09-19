@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.186 — 19 September 2026
+## 0.187 — 19 September 2026
 
 **New card now asks which of the three kinds you are making, before the
 editor opens.** Word or phrase, sentence, or conversation — each with a
@@ -31,6 +31,29 @@ refused, and used to offer two ways out — call it a sentence, or take the
 braces out. There is no calling it a sentence any more, so it names the
 one that is left and says where the other is: start a new card and pick
 Sentence.
+
+## 0.186 — 19 September 2026
+
+**The app's text styles are now listed in Admin → App, drawn at the size
+they are drawn at in the app.** The components have been shown there for a
+while, so that what exists can be seen rather than remembered; the sizes
+they are set in could not be, and "make it bigger" has meant a different
+paragraph every time it was asked.
+
+Fifty of them, grouped by the job they do — headings and labels, body text,
+numbers and small print, controls, a question and an answer, cards and
+lists. Each says what it is and where it turns up, and is shown as itself:
+the real class on a real element, at the size it would be on that screen,
+with the language being taught laid out in its own face and at its own
+scale the way the practice screens lay it out.
+
+Beside each one is the size it actually comes out at, measured off the
+specimen rather than copied from the stylesheet — so a named size, a
+calculation against a script's scale and a verdict sized off the width of
+the phone all answer in pixels. Where the stylesheet writes it differently,
+its own words are underneath. The six named sizes it declares are listed
+above the lot, each drawn at what it is worth.
+
 
 ## 0.185 — 19 September 2026
 

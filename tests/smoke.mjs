@@ -2209,6 +2209,48 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("it goes with the component that raised it", !document.querySelector(".at-snack"));
 }
 
+/* ---- the text styles ----
+   Beside the gallery on the same tab, and the same promise: every row is
+   the real class on a real element, so rendering the lot is what catches a
+   specimen that has stopped being the style it claims to be. The sizes it
+   shows are measured off those specimens in a browser; here there is no
+   stylesheet, so what is checked is that it says so by falling back to the
+   stylesheet's own words rather than reporting the browser's 16px default
+   for everything. */
+{
+  const before = errors.length;
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const { TextStyles } = await import(path.join(out, "gallery.js"));
+  const stylesRoot = createRoot(host);
+  stylesRoot.render(React.createElement(TextStyles));
+  await sleep(200);
+
+  const shown = host.textContent;
+  check("the text styles render", /Every size a person actually reads/.test(shown), shown.slice(0, 80));
+  check("no console errors rendering the text styles", errors.length === before,
+    errors.slice(before, before + 3).join(" | "));
+
+  const { TEXT_STYLES } = await import(path.resolve("src/text-styles.ts"));
+  const listed = TEXT_STYLES.flatMap((/** @type {any} */ [, styles]) => styles);
+  const drawn = [...host.querySelectorAll("[data-ts]")].map((e) => e.getAttribute("data-ts"));
+  const undrawn = listed
+    .map((/** @type {any} */ s) => s.name)
+    .filter((/** @type {string} */ n) => !drawn.includes(n));
+  check("every style listed is drawn as a specimen", undrawn.length === 0,
+    `not drawn: ${undrawn.join(", ")}`);
+
+  /* No stylesheet, so no measurement — and a row with nothing measured
+     shows what the stylesheet says instead of a number that would be the
+     browser's default dressed up as the app's. */
+  check("with no stylesheet applied it falls back to the declared size",
+    shown.includes("var(--fs-md)") && shown.includes("calc(54px * var(--sscale, 1))"),
+    shown.slice(0, 200));
+
+  stylesRoot.unmount();
+  host.remove();
+}
+
 /* ---- the app chrome cannot be wedged hidden ----
    The space selector and corner menu are hidden by a body class while a
    screen is open. It used to come off only when a counter emptied, so an
@@ -3854,7 +3896,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
   /* The three shapes a card comes in, asked before the editor opens.
 
-     It was the first field inside the editor until 0.186, which put a
+     It was the first field inside the editor until 0.187, which put a
      teacher in a screen for making a card and then asked what sort of card
      it was going to be. The three are not variations on one form — a
      conversation has speakers and turns where a word has forms — so the
@@ -4233,7 +4275,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /only a sentence can have one/.test(document.body.textContent || ""),
     ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
       .find((t) => /only a sentence/.test(t))) || "(nothing said)");
-  /* One way out, since 0.186: the kind was answered before this screen
+  /* One way out, since 0.187: the kind was answered before this screen
      opened, so there is nothing here to call a sentence. */
   check("and the way out is named: take the braces out, or start a sentence",
     /Take the braces out of its words/.test(document.body.textContent || "") &&
@@ -4242,7 +4284,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       .find((t) => /Take the braces out/.test(t))) || "(nothing said)");
 
   /* So a sentence is made as one, from the beginning — which is the whole
-     of what changed in 0.186. */
+     of what changed in 0.187. */
   await leaveScreen();
   await newCard();
   await pickCardKind(/^Sentence/);
@@ -4705,7 +4747,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
       /* And the other half comes alive on a word — which is a different
          card, not this one called something else: a sentence goes on being
-         one, and since 0.186 there is nowhere to say otherwise. */
+         one, and since 0.187 there is nowhere to say otherwise. */
       await leaveScreen();
       await newCard();
       await pickCardKind(/^Word or phrase/);
