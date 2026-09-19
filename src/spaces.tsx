@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import * as API from "./courses-api.ts";
 import type { Card, CardForm, Course, Deck, Flag, Form, Lang, LangId, User } from "./types.ts";
 import type { FilterGroup, Node } from "./shared.tsx";
-import { CardEditor, ScriptInput } from "./card-editor.tsx";
+import { CardEditor, NewCardKind, ScriptInput } from "./card-editor.tsx";
+import type { CardShape } from "./card-editor.tsx";
 import { formsOf, leadOf } from "./cards.ts";
 import {
   bandsOf,
@@ -4412,9 +4413,23 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     card: Card | null;
     decks: string[];
     lang?: LangId;
-    scene?: boolean;
+    /* Which of the three is being made, where a card is being made — the
+       answer given on the way in, before the editor opened. A card that
+       exists says what it is itself. */
+    making?: CardShape;
     draft?: Record<string, any>;
   } | null>(null);
+  /*
+   * A card being started: everything settled about it so far, and nothing
+   * typed yet.
+   *
+   * New card asks which of the three kinds it is before the editor opens,
+   * because the three are not variations on one form — see NewCardKind.
+   * This is what the question is asked on top of: which decks it is going
+   * into, and which language it is in, both of which are known by the time
+   * the button is pressed or asked for first where they are not.
+   */
+  const [making, setMaking] = useState<{ decks: string[]; lang?: LangId } | null>(null);
   /* How many cards are waiting for a connection, so the space can say so
      rather than leaving a teacher to wonder where their work went. */
   const [kept, setKept] = useState(() => waitingToSend(CARD_OUTBOX));
@@ -5062,6 +5077,23 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
     );
   }
 
+  /* ---- and before it, the one question the editor cannot ask ----
+     Which of the three kinds is being made. It is asked here rather than
+     inside the editor because what the editor opens as follows from it:
+     a screen for writing a conversation should not be called "New card"
+     and then be full of turns. */
+  if (making) {
+    return (
+      <NewCardKind
+        onClose={() => setMaking(null)}
+        onPick={(shape) => {
+          setEditing({ card: null, decks: making.decks, lang: making.lang, making: shape });
+          setMaking(null);
+        }}
+      />
+    );
+  }
+
   /* ---- the card editor takes over the screen ---- */
   if (editing) {
     const forDeck = editing.decks[0]
@@ -5081,7 +5113,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
         busy={busy}
         onClose={() => setEditing(null)}
         allCards={cards}
-        scene={editing.scene || isDialog(editing.card)}
+        making={editing.making}
         draft={editing.draft || null}
         onSave={({ forms, note, name, category, sentence, decks: inDecks, uses, fills, ref, spread, drill, scene: written }) =>
           run(
@@ -5379,10 +5411,8 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                  conversation had a second button here, which made it read
                  as a separate sort of thing to make — and meant the Cards
                  tab, with only the one button, could not make one at all.
-                 The kind is the first field in the editor now. */
-              onNew={() =>
-                setEditing({ card: null, decks: [d.id], lang: (langOfDeck(d) || {}).id })
-              }
+                 Which kind is asked on the way in, before the editor. */
+              onNew={() => setMaking({ decks: [d.id], lang: (langOfDeck(d) || {}).id })}
               selected={selCards}
               onSelectedChange={setSelCards}
               bulkActions={[
@@ -5754,11 +5784,11 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                     <Button variant="primary"
                       disabled={!newCardLang}
                       onClick={() => {
-                        setEditing({ card: null, decks: [], lang: newCardLang });
+                        setMaking({ decks: [], lang: newCardLang });
                         setNewCardLang(null);
                       }}
                     >
-                      Start the card
+                      Next
                     </Button>
                   </div>
                 </Screen>
@@ -6036,7 +6066,7 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                 }
                 onNew={() => {
                   if (mustAsk) setNewCardLang(knownLangs[0] || "");
-                  else setEditing({ card: null, decks: [], lang: soleLang });
+                  else setMaking({ decks: [], lang: soleLang });
                 }}
                 selected={selCards}
                 onSelectedChange={setSelCards}

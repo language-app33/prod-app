@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.186 — 19 September 2026
+
+**New card now asks which of the three kinds you are making, before the
+editor opens.** Word or phrase, sentence, or conversation — each with a
+line saying what it is — and what comes up is a screen for making that
+one: named for it, laid out for it, and asking nothing further about it.
+
+It was the first field *inside* the editor, which put you in a screen for
+making a card and then asked what sort of card it was going to be. The
+three are not variations on one form. A conversation has speakers and
+turns where a word has forms; a sentence has blanks and fills nothing;
+each is asked, dealt and filled by a different path. The question belongs
+before the door.
+
+Nothing else about the flow changes. Which decks it goes in, and which
+language it is in where you teach more than one, are asked as they were.
+A card that already exists opens as what it is, as it has since 0.180.
+
+**One line changed with it.** A word with braces typed into it is still
+refused, and used to offer two ways out — call it a sentence, or take the
+braces out. There is no calling it a sentence any more, so it names the
+one that is left and says where the other is: start a new card and pick
+Sentence.
+
 ## 0.185 — 19 September 2026
 
 **Which decks a card goes in is a section of its own,** directly under

@@ -3852,16 +3852,75 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click([...inFrame.querySelectorAll("button")].find((b) => /^New card$/.test((b.textContent || "").trim())));
   await sleep(450);
 
-  /* The three shapes a card comes in, and nothing about tables: "This is a
-     verb" was a tick under this selector, which asked one question about
-     what a card is in two controls stacked on each other. */
-  const kinds = [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')];
-  check("a new card asks what kind of card it is",
-    kinds.length === 3 &&
-      /Word/.test(kinds[0].textContent || "") &&
-      /Sentence/.test(kinds[1].textContent || "") &&
-      /Conversation/.test(kinds[2].textContent || ""),
-    kinds.map((b) => b.textContent).join(" | ") || "(no kind picker)");
+  /* The three shapes a card comes in, asked before the editor opens.
+
+     It was the first field inside the editor until 0.186, which put a
+     teacher in a screen for making a card and then asked what sort of card
+     it was going to be. The three are not variations on one form — a
+     conversation has speakers and turns where a word has forms — so the
+     question comes first and what opens is a screen for making that one. */
+  const kindRows = () => [...document.querySelectorAll(
+    '[role="radiogroup"][aria-label="What kind of card is this?"] .at-tickrow')];
+  check("New card asks what kind of card it is, before the editor",
+    kindRows().length === 3 &&
+      /^Word or phrase/.test((kindRows()[0].textContent || "").trim()) &&
+      /^Sentence/.test((kindRows()[1].textContent || "").trim()) &&
+      /^Conversation/.test((kindRows()[2].textContent || "").trim()),
+    kindRows().map((r) => (r.textContent || "").slice(0, 18)).join(" | ") || "(no kind picker)");
+  check("each of the three saying what it is",
+    kindRows().length === 3 && kindRows().every((r) => !!r.querySelector("i")),
+    kindRows().map((r) => ((r.querySelector("i") || {}).textContent || "—").slice(0, 30)).join(" | "));
+  check("and nothing chosen for the teacher, because nothing here can be worked out",
+    kindRows().every((r) => !(/** @type {any} */ (r.querySelector("input")).checked)),
+    kindRows().map((r) => /** @type {any} */ (r.querySelector("input")).checked).join(" "));
+  const startBtn = () => /** @type {any} */ (buttonNamed(/^Start the card$/) || null);
+  check("and there is no way on until one is picked",
+    !!startBtn() && startBtn().disabled,
+    startBtn() ? (startBtn().disabled ? "refused" : "offered") : "(no button)");
+
+  /* Picking one opens the editor for that one — named for it, and asking
+     nothing further about it. */
+  const pickCardKind = async (/** @type {RegExp} */ want) => {
+    const row = kindRows().find((r) => want.test((r.textContent || "").trim()));
+    click(row ? row.querySelector("input") : null);
+    await sleep(200);
+    click(startBtn());
+    await sleep(450);
+  };
+  const screenTitle = () =>
+    ((document.querySelector(".at-screen.over .at-screenhead h2") || {}).textContent || "").trim();
+  const leaveScreen = async () => {
+    click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+    await sleep(350);
+  };
+  const newCard = async () => {
+    click([...document.querySelectorAll("button")].find((b) => /^New card$/.test((b.textContent || "").trim())));
+    await sleep(450);
+  };
+
+  /* A conversation is made the same way as everything else: by answering
+     this question. It had a button of its own once, and then a segment
+     inside the editor that turned a half-written word into one. */
+  await pickCardKind(/^Conversation/);
+  const talkEditor = [...document.querySelectorAll(".at-screen.over")].pop();
+  const talkText = talkEditor ? (talkEditor.textContent || "").replace(/\s+/g, " ") : "";
+  check("picking Conversation opens the editor for one",
+    /The scene/.test(talkText) && /Who is in it/.test(talkText) &&
+      [...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length === 1,
+    talkText.slice(0, 100) || "(no editor open)");
+  check("and the screen is named for what is being made",
+    screenTitle() === "New conversation", screenTitle() || "(no title)");
+
+  await leaveScreen();
+  await newCard();
+  await pickCardKind(/^Word or phrase/);
+  check("and picking the ordinary kind opens a screen for that one, named for it",
+    screenTitle() === "New word or phrase", screenTitle() || "(no editor)");
+  check("which says what kind of card it is and does not ask again",
+    !document.querySelector('[role="group"][aria-label="The kind of card"]') &&
+      /settled when it was made/.test(document.body.textContent || ""),
+    document.querySelector('[role="group"][aria-label="The kind of card"]')
+      ? "still asked" : "said, not asked");
   /* And, underneath, what kind of word it is — which is a second question
      and not a third answer to the first. The list is the language's own,
      and what follows from the answer is which table the card is offered.
@@ -3896,19 +3955,6 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and a click outside puts the list away without answering it",
     !formRows().length && !!wordKindBtn() && /Not said yet/.test(wordKindBtn().textContent || ""),
     wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(no button)");
-  /* And it is the wrapping variant, not the compact one. The compact track
-     sizes every option to the longest label and never wraps, so three of
-     them is three times "Conversation" — wider than any phone, which is
-     how it came to run off the side of the screen. jsdom does no layout, so
-     what is checked is which of the two tracks it is; that the wrapped one
-     fits is measured in a browser. */
-  const kindTrack = document.querySelector('[role="group"][aria-label="The kind of card"]');
-  check("and the answers are on a track that wraps rather than one that overflows",
-    !!kindTrack && !kindTrack.classList.contains("sm"),
-    kindTrack ? kindTrack.className : "(no kind picker)");
-  check("and starts on the ordinary kind",
-    !!kinds[0] && kinds[0].getAttribute("aria-pressed") === "true",
-    kinds.map((b) => `${b.textContent}=${b.getAttribute("aria-pressed")}`).join(" "));
 
   /* ---- where the card goes, beside what kind of card it is ----
      Both are facts about the card rather than about its words, and this
@@ -3962,25 +4008,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       deckBtn() ? deckBtn().className : "no button");
   }
 
-  click(kinds.find((b) => /Conversation/.test(b.textContent || "")));
-  await sleep(250);
-  const editor = [...document.querySelectorAll(".at-screen.over")].pop();
-  const editorText = editor ? (editor.textContent || "").replace(/\s+/g, " ") : "";
-  check("choosing Conversation turns the same editor into one",
-    /The scene/.test(editorText) && /Who is in it/.test(editorText) &&
-      [...document.querySelectorAll('[role="group"][aria-label="Who says line 1"]')].length === 1,
-    editorText.slice(0, 100) || "(no editor open)");
-  check("without ever having left the card editor",
-    /^New card$/.test((([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim()),
-    (([...document.querySelectorAll(".at-screenhead h2")].pop() || {}).textContent || "").trim() || "(no title)");
-
   /* ---- each accepted answer, and how that one is said ----
      A card may accept two spellings, and each is its own word with its own
      pronunciation. One transliteration under the pair belonged to one of
      them and lied about the other — and a question built from it could
      show one pronunciation and mark the other spelling right. */
-  click(kinds[0]);
-  await sleep(250);
   /* Boxes rather than inputs: a sentence's fields hold its blanks as
      pills, which an input cannot — see fieldNamed below. */
   const saidFields = () =>
@@ -4196,27 +4228,32 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      hid the table and offered to drop every box in it on the next save.
      It is refused now, and both ways out are named, because the two
      things it can mean are opposite and only the teacher knows which. */
-  const kindSeg = (/** @type {RegExp} */ re) => /** @type {any} */ (
-    [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-      .find((b) => re.test((b.textContent || "").trim())) || null);
   check("a blank typed into a word is refused rather than quietly allowed",
     !!saveBtn() && saveBtn().disabled &&
       /only a sentence can have one/.test(document.body.textContent || ""),
     ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
       .find((t) => /only a sentence/.test(t))) || "(nothing said)");
-  check("and the way out is named: call it a sentence, or take the braces out",
-    /Call this card a sentence/.test(document.body.textContent || ""),
+  /* One way out, since 0.186: the kind was answered before this screen
+     opened, so there is nothing here to call a sentence. */
+  check("and the way out is named: take the braces out, or start a sentence",
+    /Take the braces out of its words/.test(document.body.textContent || "") &&
+      /start a new card and pick Sentence/.test(document.body.textContent || ""),
     ([...document.querySelectorAll(".at-hint")].map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
-      .find((t) => /Call this card a sentence/.test(t))) || "(nothing said)");
+      .find((t) => /Take the braces out/.test(t))) || "(nothing said)");
 
-  /* Said once, and kept: the kind is the teacher's answer from here on,
-     not something worked out from the braces every time the card is
-     opened. */
-  click(kindSeg(/^Sentence$/));
+  /* So a sentence is made as one, from the beginning — which is the whole
+     of what changed in 0.186. */
+  await leaveScreen();
+  await newCard();
+  await pickCardKind(/^Sentence/);
+  check("a sentence is made by saying so before the editor, not by typing braces",
+    screenTitle() === "New sentence" &&
+      !/only a sentence can have one/.test(document.body.textContent || ""),
+    screenTitle() || "(no editor)");
+  typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
+  await sleep(80);
+  typeInto(fieldNamed(/^English$/), "My name is {{name}}");
   await sleep(300);
-  check("calling it a sentence is what makes the blank allowed",
-    !/only a sentence can have one/.test(document.body.textContent || ""),
-    /only a sentence can have one/.test(document.body.textContent || "") ? "still refused" : "allowed");
   check("a card with a hole in one field only cannot be saved",
     !!saveBtn() && saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
@@ -4542,22 +4579,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
        A card made of blanks is what the blanks are for, and until 0.139
        there was no way to say you were writing one: the teacher typed
-       braces into a word card and hoped. Choosing it puts the card's own
+       braces into a word card and hoped. Saying so puts the card's own
        editor up — the sentence, its blanks, and nothing about parts of
        speech or tables, because a sentence is not a word. */
-    const shapeBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
-      [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-        .find((b) => re.test((b.textContent || "").trim())) || null);
     const blockNames = () =>
       [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
 
-    check("a card can be called a sentence, beside a word and a conversation",
-      !!shapeBtn(/^Sentence$/),
-      [...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-        .map((b) => b.textContent).join(" | ") || "(no kind picker)");
-    click(shapeBtn(/^Sentence$/));
-    await sleep(300);
-    check("choosing it names the block after what is in it",
+    check("the editor is the sentence's own, named after what is in it",
       blockNames().includes("The sentence"), blockNames().join(" | "));
     /* And asks what to call it, exactly as a verb is asked. A sentence is
        saved as a frame with a hole in it, so a list of sentences reads as
@@ -4626,20 +4654,6 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        it is a word again is saying its blanks should not be there, which
        is refused rather than acted on: the braces are the teacher's words
        and nothing here is going to delete them for them. */
-    click(shapeBtn(/^Word$/));
-    await sleep(300);
-    const backEn = fieldNamed(/^English$/);
-    check("and it can be called a word again, with what was typed still there",
-      blockNames().includes("Form 1") && !!backEn && /\{\{noun\}\}/.test(backEn.value),
-      blockNames().join(" | "));
-    check("but a word carrying blanks is refused, naming both of them",
-      !!saveBtn() && saveBtn().disabled &&
-        /\{\{name\}\} and \{\{noun\}\} are blanks/.test(document.body.textContent || ""),
-      ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
-        .find((t) => /are blanks/.test(t))) || "(nothing said)");
-    /* Back to what it is, for the rest of the walk. */
-    click(shapeBtn(/^Sentence$/));
-    await sleep(300);
 
     /* ---- the section's other half: this card filling somebody else's ----
 
@@ -4670,7 +4684,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const idHalf = () => inHalf(CARDID, ".at-hint, .at-idrow, .at-shutrow")
         .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
       check("the ID is one of them, with the line saying what it is for",
-        /reaching this one card from another card/.test(idHalf()) && /name-is/.test(idHalf()),
+        /reaching this one card from another card/.test(idHalf()) &&
+          !!inHalf(CARDID, 'input[aria-label="The card\'s ID"]').length,
         idHalf() || "(nothing there)");
       /* A card with a blank of its own fills none — a sentence dropped
          into somebody else's hole is a sentence with a gap where the point
@@ -4681,21 +4696,22 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         /fills none/.test(((blanks() || {}).textContent) || "") && !newBox(),
         newBox() ? "offered anyway" : "said, and not offered");
 
-      /* Out of the frame and into a word, and the other half comes alive.
-         Both halves of that: the blanks come out of the words, and the
-         card is called what it now is. A sentence goes on being one until
-         somebody says otherwise — that is the whole of 0.176 — so taking
-         the braces out is no longer enough on its own, and the card that
-         fills somebody else's blank has to be a word to be offered the
-         question at all. */
+      /* The card that fills somebody else's blank has to be a word to be
+         offered the question at all: a sentence dropped into a hole is a
+         sentence with a gap where the point was. */
+      check("a sentence is offered no group to join, because it fills none",
+        !inHalf(FILLS, ".at-ticklist .at-tickrow").length,
+        `${inHalf(FILLS, ".at-ticklist .at-tickrow").length} groups offered`);
+
+      /* And the other half comes alive on a word — which is a different
+         card, not this one called something else: a sentence goes on being
+         one, and since 0.186 there is nowhere to say otherwise. */
+      await leaveScreen();
+      await newCard();
+      await pickCardKind(/^Word or phrase/);
       typeInto(fieldNamed(/^Arabic script and transliteration$/i), "rafa");
       await sleep(80);
       typeInto(fieldNamed(/^English$/), "Raphael");
-      await sleep(200);
-      check("a sentence stays one until it is called something else",
-        !inHalf(FILLS, ".at-ticklist .at-tickrow").length,
-        `${inHalf(FILLS, ".at-ticklist .at-tickrow").length} groups offered`);
-      click(shapeBtn(/^Word$/));
       await sleep(300);
 
       /* The blanks it may fill, as a list on the screen. It was a menu
@@ -5114,39 +5130,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
         .find((t) => /put aside/.test(t))) || "(nothing said)");
 
-    /* And calling it a sentence says the same thing, because it drops a
-       table just as surely — and a sentence is asked no radio, so a
-       warning that lived inside one would have been the silent half of
-       the same drop. */
-    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-      .find((b) => /^Sentence$/.test((b.textContent || "").trim())));
-    await sleep(300);
-    check("and calling it a sentence says it too, where there is no radio to say it under",
-      /table is put aside/.test(document.body.textContent || ""),
-      ([...document.querySelectorAll(".at-formneed.unmet")]
-        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())
-        .find((t) => /put aside/.test(t))) || "(nothing said)");
-    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-      .find((b) => /^Word$/.test((b.textContent || "").trim())));
-    await sleep(300);
-
-    /* And the third answer is reachable from the other two, which the tick
-       never was: a card ticked verb and then switched to a conversation
-       kept its cells and saved a scene carrying a table nothing would show
-       again. Choosing one answer now clears the other. */
-    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-      .find((b) => /Conversation/.test(b.textContent || "")));
-    await sleep(300);
-    check("a verb can be made a conversation, and the table goes with the forms",
-      !cellNamed("Arabic script for past · he") && !block(/^Form 1$|^The verb$/) &&
-        /What it is called/.test(document.body.textContent || ""),
-      block(/^Form 1$|^The verb$/) ? "the form blocks are still up" : "the scene is up");
-    /* Back to a word, and then to a verb: the kind and what its forms are
-       are two questions, so coming back from a conversation is answering
-       the first one again before the second is even asked. */
-    click([...document.querySelectorAll('[role="group"][aria-label="The kind of card"] .at-seg')]
-      .find((b) => /^Word$/.test((b.textContent || "").trim())));
-    await sleep(300);
+    /* And back, which is the other half of saying it: the table is not
+       thrown away until the card is saved, so answering again brings every
+       box back. What kind of *card* this is cannot be answered again at
+       all — it was settled before this screen opened — so the one way a
+       table can be put aside is this question. */
     await pickKind(/^Verb/);
     check("and coming back brings the table with its cells still in it",
       !!cellNamed("Arabic script for past · he") &&

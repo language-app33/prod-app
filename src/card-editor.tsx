@@ -34,7 +34,7 @@ import {
   supportsContext,
   scriptVars,
 } from "./languages.ts";
-import { MAX_SPEAKERS, namedPart, sideOf } from "./dialogs.ts";
+import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, packAnswers } from "./answers.ts";
 import { cardRef, dropRail, fillNames, fillsOf, fillText, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, valuesFor, valuesForTurn, withoutSlot, withSlotAt, WORD_SLOT } from "./variables.ts";
 import type { Value } from "./variables.ts";
@@ -2076,12 +2076,12 @@ export type CardShape = "word" | "sentence" | "scene";
 export type CardForms = string;
 
 /**
- * Which of the three a card opens as.
+ * Which of the three a card is.
  *
  * A conversation by its turns, as everything else reads one. A **sentence**
  * by the teacher's own answer, kept on the card — see `isSentence`, which
  * carries the rule and the reading of a card written before there was
- * anything to keep.
+ * anything to keep. Anything else is a word.
  *
  * It was read off the braces until 0.176, and that is the thing this no
  * longer does. The editor asked which kind of card this was, offered three
@@ -2091,9 +2091,12 @@ export type CardForms = string;
  * a table under it came back as a sentence, hid the table and offered to
  * drop it. Reading a card is not the same as being told, and the kind of
  * card is something a teacher is entitled to say.
+ *
+ * Asked of a card that exists. A card being made has been answered before
+ * this screen opened — see NewCardKind — and the answer is handed in.
  */
-export const shapeOf = (card: Card | null | undefined, scene: boolean): CardShape =>
-  scene ? "scene" : isSentence(card) ? "sentence" : "word";
+export const shapeOf = (card: Card | null | undefined): CardShape =>
+  isDialog(card as any) ? "scene" : isSentence(card) ? "sentence" : "word";
 
 /*
  * What a word can be, as the radio asks it.
@@ -2171,13 +2174,13 @@ const waitsOnWord = (spec: VerbSpec | null | undefined): boolean =>
   !!spec && (spec.gate || "word") === "word";
 
 /*
- * Which answers are open, which is only ever asked of a card that does not
- * exist yet.
+ * The three kinds of card, and what each of them is.
  *
- * **What kind of card this is, is settled once and never again.** It is
- * asked while the card is being made, when nothing has been written and
- * nothing can be lost by any answer; from the first save it is a fact
- * about the card, shown and not offered.
+ * **What kind of card this is, is settled once and never again.** Since
+ * 0.186 it is settled before the editor opens at all: New card asks which
+ * of the three, and what comes up is a screen for making that one — see
+ * NewCardKind. From the first save it is a fact about the card, shown and
+ * not offered, and it never was offered afterwards.
  *
  * A conversation was already like this — a scene with four turns on it
  * would have nowhere to put them — and a word with a table was half like
@@ -2193,16 +2196,26 @@ const waitsOnWord = (spec: VerbSpec | null | undefined): boolean =>
  * Whoever wanted the other one wants a new card, which costs them the
  * typing and costs nobody a schedule.
  */
-export const shapeChoices = (
-  { saved }: { saved: boolean },
-): { value: CardShape; label: string }[] =>
-  saved
-    ? []
-    : [
-        { value: "word", label: "Word" },
-        { value: "sentence", label: "Sentence" },
-        { value: "scene", label: "Conversation" },
-      ];
+export const shapeChoices = (): { value: CardShape; label: string; note: string }[] =>
+  [
+    { value: "word", label: "Word or phrase", note: shapeHelp("word") },
+    { value: "sentence", label: "Sentence", note: shapeHelp("sentence") },
+    { value: "scene", label: "Conversation", note: shapeHelp("scene") },
+  ];
+
+/** What one of them is called, for the screen that is making one. */
+export const shapeLabel = (shape: CardShape): string =>
+  (shapeChoices().find((c) => c.value === shape) || { label: "card" }).label;
+
+/* What each of the three is, in one sentence — said to somebody choosing
+   between them and to somebody reading what their card already is, which
+   is the same sentence and so is written once. */
+export const shapeHelp = (shape: CardShape): string =>
+  shape === "scene"
+    ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
+    : shape === "sentence"
+      ? "A sentence with a blank in it, filled by another card — a noun, a verb, or a blank you name — and by a different one each time it is asked."
+      : "One thing to learn, with its meaning. Whether it counts as a word or a phrase is read off what you write.";
 
 /* ------------------------------------------------------------------
    What a card is, before anything is drawn
@@ -3544,11 +3557,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
        the shell's state; every block below reads it from here so that none
        of them works it out again. */
     sentence: shape === "sentence",
-    /* And whether this card exists yet, which decides what a block may
-       offer: the kind of card is chosen once, while it is being made, and
-       from the first save it is a fact — so a block that would otherwise
-       say "call it a sentence" has to know. See shapeChoices. */
-    saved: !!card,
     strayHoles,
     ownForms,
     tableCells,
@@ -3759,23 +3767,11 @@ function WordKind({ word }: { word: WordDraft }) {
   );
 }
 
-/* What each of the three is, in one sentence — said to somebody choosing
-   between them and to somebody reading what their card already is, which
-   is the same sentence and so is written once. */
-const shapeHelp = (shape: CardShape): string =>
-  shape === "scene"
-    ? "Turns, in order, with somebody saying each one. Every turn is practised in its own right, and the whole scene as well."
-    : shape === "sentence"
-      ? "A sentence with a blank in it, filled by another card — a noun, a verb, or a blank you name — and by a different one each time it is asked."
-      : "One thing to learn, with its meaning. Whether it counts as a word or a phrase is read off what you write.";
-
-function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, chosen, onToggleDeck }: {
+function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck }: {
   card: Card | null;
   lang: Lang;
   scene: boolean;
   shape: CardShape;
-  choices: { value: CardShape; label: string }[];
-  onShape: (next: CardShape) => void;
   word: WordDraft;
   decks: Deck[];
   chosen: string[];
@@ -3784,62 +3780,40 @@ function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, ch
   const { category, aside, storedForms } = word;
   return (
     <>
-    {/* What kind of card this is — the first thing about it, and for
-        a new one the first decision. Word, phrase and sentence are
-        not offered because they are not chosen: the language reads
-        them off the text. Whether somebody answers it is the one
-        thing no amount of reading the script will tell you.
+    {/* What kind of card this is — the first thing about it, and no
+        longer a question here: it is answered before this screen opens
+        and cannot be answered again. See NewCardKind, and shapeChoices
+        for why it is settled once.
 
-        Two questions, not one. A verb was a third answer here for a
-        release, and it stopped working the moment there was a second
-        table to offer: four answers on a track that already ran off a
-        phone at three, and a list mixing "a different shape of card"
-        with "a word with more said about it". What a word lays out is
-        asked underneath, where the answers are alternatives to each
-        other. */}
+        What a *word* lays out is a different question and is asked
+        underneath. The two were one control for a release — a verb was a
+        third answer beside Word and Conversation — and it stopped working
+        the moment there was a second table to offer: four answers on a
+        track that already ran off a phone at three, and a list mixing "a
+        different shape of card" with "a word with more said about it". */}
     <div className="at-formblock">
       <div className="at-formhead">
         <span className="at-formnum">The kind of card</span>
-        {card && (
-          <span className="at-formrole">
-            {/* What the card is, said in the line beside the heading. A
-                sentence says so itself rather than falling through to
-                what its words look like: `kindOf` reads the text, and a
-                frame of three words reads as a phrase — which is a
-                sentence card labelled "Phrase" directly under the answer
-                calling it a sentence. */}
-            {shape === "sentence"
-              ? "Sentence"
-              : categoryLabel(lang, category) || kindLabel(kindOf(card, lang))}
-          </span>
-        )}
+        <span className="at-formrole">
+          {/* What the card is, said in the line beside the heading. A
+              sentence says so itself rather than falling through to
+              what its words look like: `kindOf` reads the text, and a
+              frame of three words reads as a phrase — which is a
+              sentence card labelled "Phrase" directly under the answer
+              calling it a sentence. And a card being written has no
+              words to read yet, so it says what it was started as. */}
+          {shape !== "word"
+            ? shapeLabel(shape)
+            : card
+              ? categoryLabel(lang, category) || kindLabel(kindOf(card, lang))
+              : categoryLabel(lang, category) || shapeLabel(shape)}
+        </span>
       </div>
-      {choices.length > 1 ? (
-        <>
-          {/* Full-width, for the reason the language picker above is:
-              the compact variant sizes every option to the longest
-              label and never wraps. */}
-          <Segmented
-            size={null}
-            label="The kind of card"
-            options={choices}
-            value={shape}
-            onChange={onShape}
-          />
-          <Help>{shapeHelp(shape)}</Help>
-        </>
-      ) : (
-        <>
-          {/* And on a card that exists, what it is. The same sentence,
-              because it is the same question — answered rather than
-              asked. */}
-          <Help>{shapeHelp(shape)}</Help>
-          <Help>
-            What kind of card this is was settled when it was made and does
-            not change. A card of another kind is another card.
-          </Help>
-        </>
-      )}
+      <Help>{shapeHelp(shape)}</Help>
+      <Help>
+        What kind of card this is was settled when it was made and does
+        not change. A card of another kind is another card.
+      </Help>
 
       {/* ---- and what kind of word it is ----
 
@@ -3858,11 +3832,11 @@ function KindBlock({ card, lang, scene, shape, choices, onShape, word, decks, ch
           has forms, and there is nothing for a table to lay out. */}
       <WordKind word={word} />
       {/* A table put aside is not thrown away until the card is saved, and
-          saying so is the only warning there is. Outside the radio above,
-          because calling the card a sentence puts a table aside as surely
-          as calling it something else does — and a sentence is asked no
-          radio, so a warning that lived inside one would have been the
-          silent half of the same drop. */}
+          saying so is the only warning there is. Outside the question
+          above rather than inside it, because it is about what the card
+          holds rather than about the answer: what put the table aside was
+          answering that question, and what brings it back is answering it
+          again. */}
       {aside > 0 && (
         <p className="at-formneed unmet">
           {word.shownSpec ? "Its other table is" : "Its table is"} put aside —{" "}
@@ -4953,7 +4927,7 @@ function RenameAsk({ word }: { word: WordDraft }) {
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, asked, combos, fillers, fills, fillsOffer, addFill,
-    main, trouble, category, sentence, saved, strayHoles,
+    main, trouble, category, sentence, strayHoles,
   } = word;
   /*
    * Whether the filled examples are open. Folded away to start with, and
@@ -5052,10 +5026,15 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                 strayHoles.length > 1 ? "are blanks" : "is a blank"
               }, and only a sentence can have one.`}
             </p>
+            {/* One way out, since 0.186: what kind of card this is was
+                answered before the screen opened, so there is nothing here
+                to call a sentence. */}
             <Help>
-              {saved
-                ? "Take the braces out of its words. A word is a thing to learn; a sentence is the frame it is met in, and the blank is what makes it one — and what kind of card this is was settled when it was made. To have the sentence, write it as a new card."
-                : "Call this card a sentence at the top of the screen, or take the braces out of its words. A word is a thing to learn; a sentence is the frame it is met in, and the blank is what makes it one."}
+              Take the braces out of its words. A word is a thing to learn;
+              a sentence is the frame it is met in, and the blank is what
+              makes it one — and what kind of card this is was settled
+              before this screen opened. To write the sentence, start a new
+              card and pick Sentence.
             </Help>
           </>
         )}
@@ -5835,7 +5814,59 @@ const citedLabel = (spec: VerbSpec | null | undefined): string => {
   return [tense && tense.label, person && person.label].filter(Boolean).join(" · ");
 };
 
-export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, scene: opensAsScene = false, draft = null }: {
+/*
+ * Which of the three is being made — asked before the editor opens.
+ *
+ * It was the first field *inside* the editor, which put a teacher in a
+ * screen for making a card and then asked what sort of card it was going
+ * to be. The three are not variations on one form: a conversation has
+ * speakers and turns where a word has forms, a sentence has blanks and
+ * fills nothing, and each is dealt and filled by a different path. So the
+ * question belongs before the door, and what opens is a screen for making
+ * that one — titled with it, laid out for it, and asking nothing further
+ * about it.
+ *
+ * A screen rather than a menu because each answer needs a line saying what
+ * it is, which is the same reason what kind of word it is, is a list of
+ * rows; and because this is the one decision about a card that cannot be
+ * taken back once it is saved (see shapeChoices), so it is worth the tap
+ * it costs to read the three.
+ */
+export function NewCardKind({ onPick, onClose }: {
+  onPick: (shape: CardShape) => void;
+  onClose: () => void;
+}) {
+  /* Nothing is chosen to begin with. A card is one of three things and the
+     app has no opinion about which; a preselected answer here would be the
+     app answering the one question it cannot work out. */
+  const [shape, setShape] = useState<CardShape | null>(null);
+  return (
+    <Screen title="New card" onBack={onClose}>
+      <RadioGroup
+        label="What kind of card is this?"
+        name="new-card-kind"
+        options={shapeChoices()}
+        value={shape}
+        onChange={setShape}
+      />
+      <Help>
+        It cannot be changed afterwards: a card is what a student&rsquo;s
+        record of it hangs on, and what other cards&rsquo; blanks are
+        written against.
+      </Help>
+      <div className="at-row at-mt5">
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" disabled={!shape} onClick={() => shape && onPick(shape)}>
+          Start the card
+        </Button>
+      </div>
+    </Screen>
+  );
+}
+
+export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDelete, onClose, busy, confirming, making = "word", draft = null }: {
   card: Card | null;
   lang: Lang;
   decks: Deck[];
@@ -5846,39 +5877,28 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   onClose: () => void;
   busy?: boolean;
   confirming?: Node;
-  scene?: boolean;
+  /**
+   * Which of the three is being made, where a card is being made.
+   *
+   * A conversation used to have a button of its own, which made it read as
+   * a separate sort of thing rather than a kind of card — and meant the
+   * Cards tab, with one New button, could not make one at all. Then the
+   * question was the first field inside this screen, which put a teacher
+   * in a screen for making a card before asking what sort of card it was
+   * going to be. It is asked before the door now: New card asks, and this
+   * opens for the answer — see NewCardKind. Read only when `card` is null;
+   * a card that exists says what it is itself.
+   */
+  making?: CardShape;
   draft?: Record<string, any> | null;
 }) {
-  /*
-   * A conversation is a kind of card, not a separate thing to make.
-   *
-   * It used to have a button of its own, which meant a teacher chose
-   * between "a card" and "a conversation" before reaching the editor — and
-   * the Cards tab, having only the one button, could not make one at all.
-   * The choice is here now, among the fields, which is where every other
-   * decision about a card is made — and it is made once. An existing
-   * card's kind is shown and not offered, whichever of the three it is:
-   * see shapeChoices.
-   */
-  const [shape, setShape] = useState<CardShape>(() => shapeOf(card, opensAsScene));
+  /* And from here down there is one kind of card on this screen and it
+     does not change. It is the card's own answer where there is a card,
+     and the answer given before this opened where there is not. */
+  const shape = card ? shapeOf(card) : making;
   const scene = shape === "scene";
   const word = useWordDraft({ card, lang, allCards, draft, shape });
   const talk = useSceneDraft({ card });
-  const choices = shapeChoices({ saved: !!card });
-  /*
-   * Choosing a kind, and choosing what a word lays out, are two questions
-   * and each sets its own flag — so the two can never say a card is a
-   * conversation with a table, which they could, and a scene saved that way
-   * carried cells nothing would ever show again.
-   *
-   * A part of speech belongs to a word. A conversation and a sentence are
-   * neither, so the answer is put down on the way out of "word" rather
-   * than carried along to be saved on a card it does not describe.
-   */
-  const chooseShape = (next: CardShape) => {
-    setShape(next);
-    if (next !== "word") word.setCategory("");
-  };
   const [chosen, setChosen] = useState(inDecks || []);
   const canSave = scene ? talk.canSave : word.canSave;
   /* Which of the six editors this card gets: a conversation, a sentence,
@@ -5910,7 +5930,10 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
            after the thing it happened to be editing, which made a
            conversation read as a different sort of object rather than a
            card with turns on it. What kind it is, is said inside. */
-        title={card ? "Edit card" : "New card"}
+        /* Named for what is being made, which is settled before this
+           opens: a screen for writing a conversation should not be called
+           "New card" and then be full of turns. */
+        title={card ? "Edit card" : `New ${shapeLabel(shape).toLowerCase()}`}
         onBack={onClose}
         action={
           <Button variant="primary" size="sm"
@@ -5939,8 +5962,6 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
             lang={lang}
             scene={scene}
             shape={shape}
-            choices={choices}
-            onShape={chooseShape}
             word={word}
             decks={decks || []}
             chosen={chosen}

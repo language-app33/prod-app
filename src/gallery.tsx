@@ -161,6 +161,7 @@ const PLACES: Record<string, [string, string]> = {
   AttachedEditor: [TEACH, "Editing a card · a word with attached pronouns"],
   TableEditor: [TEACH, "Editing a card · a word with a table of its forms beside it"],
   SceneEditor: [TEACH, "Editing a card · a conversation"],
+  NewCardKind: [TEACH, "Making a card · which of the three kinds it is"],
   KindBlock: [TEACH, "Editing a card · what kind of card it is"],
   WordKind: [TEACH, "Editing a card · what kind of word it is"],
   NameBlock: [TEACH, "Editing a card · what to call a verb"],
