@@ -166,6 +166,7 @@ const PLACES: Record<string, [string, string]> = {
   NewCardKind: [TEACH, "Making a card · which of the three kinds it is"],
   KindBlock: [TEACH, "Editing a card · what kind of card it is"],
   WordKind: [TEACH, "Editing a card · what kind of word it is"],
+  WordGrammar: [TEACH, "Editing a card · what is true of the word itself"],
   NameBlock: [TEACH, "Editing a card · what to call a verb"],
   TableBlock: [TEACH, "Editing a card · the table a card carries"],
   SceneBlock: [TEACH, "Editing a card · the scene"],

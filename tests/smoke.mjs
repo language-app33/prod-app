@@ -5233,6 +5233,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const tables = () => boxes(/attached pronouns|agreement|counted|for (present|past|command) · /);
       const dimGroups = () => [...document.querySelectorAll('[role="radiogroup"]')]
         .map((g) => g.getAttribute("aria-label") || "").filter((l) => / of accepted answer| of this answer/.test(l));
+      /* What the card itself is asked, which since 0.191 is a line of
+         radios under the kind of word rather than an axis on every
+         answer. */
+      const cardAxis = () => /** @type {any} */ (
+        document.querySelector('[role="radiogroup"][aria-label="Person or thing"]') || null);
+      const axisPicks = () => [...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
+        .map((i) => i.getAttribute("aria-label") || "");
       const askAxes = async () => {
         click(grammarBtn());
         await sleep(200);
@@ -5254,12 +5261,38 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("and not whether it is a person or a thing",
         nameAxes.includes("Number") && nameAxes.includes("Gender") && !nameAxes.includes("Person or thing"),
         nameAxes.join(" | ") || "(no axes)");
+      check("which is asked of nothing that is not asked it",
+        !cardAxis(), cardAxis() ? "the kind block asks it anyway" : "not asked");
 
       await pickKind(/^Noun/);
       const nounAxes = grammarBtn() ? await askAxes() : [];
-      check("a noun is asked whether it is a person or a thing, which is what an adjective beside a plural reads",
-        nounAxes.includes("Person or thing") && boxes(/attached pronouns · me$/).length > 0,
+      /* Person or thing is one fact about the card — as true of the plural
+         as of the singular — so it is asked once, under the kind of word,
+         and not of each accepted answer of each form. */
+      check("a noun is asked whether it is a person or a thing, beside the kind of word it is",
+        !!cardAxis() && !nounAxes.includes("Person or thing"),
+        `${cardAxis() ? "asked once" : "not asked"} · answer axes ${nounAxes.join(" | ") || "(none)"}`);
+      check("and it is one line of radios, a thing or a person, in the block that says what kind it is",
+        !!cardAxis() && !!cardAxis().closest(".at-formblock") &&
+          /The kind of card/.test(((cardAxis().closest(".at-formblock").querySelector(".at-formnum")) || {}).textContent || "") &&
+          ["a thing", "a person"].every((v) => axisPicks().includes(v)),
+        axisPicks().join(" | ") || "(no radios)");
+      check("while its number and gender stay with the answer they are about",
+        nounAxes.includes("Number") && nounAxes.includes("Gender") &&
+          boxes(/attached pronouns · me$/).length > 0,
         nounAxes.join(" | ") || "(no axes)");
+      /* A thing until somebody says otherwise, and what they say is kept:
+         it is one answer for the card, so there is nowhere else for it to
+         be read back off. */
+      const axisOn = () => [...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
+        .filter((i) => /** @type {any} */ (i).checked)
+        .map((i) => i.getAttribute("aria-label") || "")
+        .join("");
+      check("and it starts as a thing, which is what most nouns are", axisOn() === "a thing", axisOn() || "(nothing chosen)");
+      click([...(cardAxis() ? cardAxis().querySelectorAll('input[type="radio"]') : [])]
+        .find((i) => i.getAttribute("aria-label") === "a person"));
+      await sleep(200);
+      check("saying it is a person is the card's answer and stays said", axisOn() === "a person", axisOn() || "(nothing chosen)");
 
       await pickKind(/^Adjective/);
       check("an adjective lays out its feminine and plural, and nothing else",

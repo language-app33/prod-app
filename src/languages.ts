@@ -1173,6 +1173,10 @@ export const GRAMMAR: Record<string, GrammarDim> = {
       ["person", "a person"],
     ],
     default: "thing",
+    /* A fact about the word and not about one of its spellings: كتاب and
+       its plural كتب are both things, and so is either way of spelling
+       either of them. Asked once beside the kind of word — see perCard. */
+    perCard: true,
     short: { thing: "", person: "" },
     /* Silent on a tag and never silent in the picker — the article is what
        goes, not the word. */
@@ -1230,6 +1234,25 @@ export const dimsFor = (
   const own = kind && kind.grammar;
   return own ? dimsOf(lang).filter((d) => own.includes(d.field)) : dimsOf(lang);
 };
+
+/**
+ * The same list, cut in two by what each axis is about.
+ *
+ * An accepted answer carries its own number and gender, because two
+ * spellings may differ in exactly those. Whether the word is a person or a
+ * thing is not that kind of fact — it is as true of the plural as of the
+ * singular — so it is asked once about the card and written onto every
+ * form, which is where `valueOf` reads a word's grammar. See perCard.
+ */
+export const answerDims = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): GrammarDim[] => dimsFor(lang, category).filter((d) => !d.perCard);
+
+export const cardDims = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): GrammarDim[] => dimsFor(lang, category).filter((d) => d.perCard);
 
 /*
  * The persons a language with subject agreement declares, ready to be

@@ -20,8 +20,9 @@ import {
   categoriesOf,
   categoryOf,
   categoryLabel,
+  answerDims,
   briefOf,
-  dimsFor,
+  cardDims,
   lendsForm,
   dimValues,
   specOf,
@@ -36,7 +37,7 @@ import {
   scriptVars,
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
-import { answerRows, packAnswers } from "./answers.ts";
+import { answerRows, answersOf, packAnswers } from "./answers.ts";
 import { cardRef, dropRail, fillNames, fillsOf, fillText, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, valuesFor, valuesForTurn, withoutSlot, withSlotAt, WORD_SLOT } from "./variables.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
@@ -192,8 +193,10 @@ function GrammarRadios({ dims, values, onPick, of }: {
   dims: GrammarDim[];
   values: Record<string, any>;
   onPick: (field: string, value: string) => void;
-  /** Which answer these belong to, as a screen reader should hear it. */
-  of: string;
+  /** Which answer these belong to, as a screen reader should hear it.
+      Left out where they belong to the card, which has only one of each
+      and needs nothing said to tell them apart. */
+  of?: string;
 }) {
   /* What makes a row exclusive to the browser. A card shows several forms
      at once and each shows every answer it accepts, so a name built out of
@@ -206,7 +209,7 @@ function GrammarRadios({ dims, values, onPick, of }: {
         <div
           className="at-dimrow"
           role="radiogroup"
-          aria-label={`${dim.label} ${of}`}
+          aria-label={of ? `${dim.label} ${of}` : dim.label}
           key={dim.field}
         >
           <span className="at-dimname">{dim.label}</span>
@@ -255,10 +258,11 @@ function GrammarRadios({ dims, values, onPick, of }: {
  */
 function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
   lang: Lang;
-  /* The axes this word is asked about — the kind of word's own list, not
-     the pack's: a preposition has neither number nor gender, and a form
-     that shows the controls anyway is a form asking a question nobody can
-     answer. See dimsFor. What is stored is never narrowed by this. */
+  /* The axes this *answer* is asked about — the kind of word's own list
+     and not the pack's, less whatever is true of the card rather than of
+     one of its answers: a preposition has neither number nor gender, and
+     person-or-thing is asked once beside the kind of word. See answerDims.
+     What is stored is never narrowed by this. */
   dims: GrammarDim[];
   form: Record<string, any>;
   onChange: (next: { ar: string; lat: string; answers: Record<string, any>[] }) => void;
@@ -2386,6 +2390,50 @@ export function initialForms(
 }
 
 /*
+ * One value per card for the axes that are about the card.
+ *
+ * Whether a noun is a person or a thing is as true of its plural as of its
+ * singular — see perCard — so the draft settles it on the way in rather
+ * than leaving one answer on each form to disagree with the next. What a
+ * card already says is what it settles on: the first answer that names the
+ * axis, because the picker this replaces wrote onto answers, and the lead
+ * form's own value otherwise, which is what an import, the server and
+ * every card written before that picker existed set.
+ *
+ * It goes onto every form, where `valueOf` reads a word's grammar and
+ * where the agreement rules therefore find it, and comes off the answers,
+ * which have no business holding a fact about the whole card.
+ */
+export function oneValuePerCard(
+  lang: Lang | null | undefined,
+  forms: Record<string, any>[],
+): Record<string, any>[] {
+  const dims = cardDims(lang, null);
+  if (!dims.length) return forms;
+  const fields = answerFields();
+  const lead = forms[0] || {};
+  const settled: Record<string, string> = {};
+  for (const dim of dims) {
+    const said = answersOf(lead, fields)
+      .map((a) => String(a[dim.field] || "").trim())
+      .find(Boolean);
+    settled[dim.field] = said || String(lead[dim.field] || "").trim();
+  }
+  return forms.map((form) => ({
+    ...form,
+    ...settled,
+    ...(Array.isArray(form.answers) ? { answers: form.answers.map(withoutCardDims(dims)) } : null),
+  }));
+}
+
+/** An accepted answer with the card's own axes taken off it. */
+const withoutCardDims = (dims: GrammarDim[]) => (answer: Record<string, any>) => {
+  const out = { ...answer };
+  for (const dim of dims) delete out[dim.field];
+  return out;
+};
+
+/*
  * The cells a card opens with — every sub-form that sits in a table.
  *
  * Only a card whose table cites a cell has its dictionary form seeded, and
@@ -2798,7 +2846,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   /* The axes this language uses, straight from its declaration. Arabic gets
      number and gender; Huế gets the addressee and no gender at all. */
   const drillsTranslit = (lang || {}).translitDrilled !== false;
-  const [forms, setForms] = useState(() => initialForms(card, draft));
+  const [forms, setForms] = useState(() => oneValuePerCard(lang, initialForms(card, draft)));
   /* The card's cells, whichever tables they sit in. Kept beside `forms`
      rather than inside it because the two are edited in different shapes
      — a list of blocks, and a table — and joined again at save. */
@@ -3483,6 +3531,34 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const setForm: (i: number, next: any) => void = (i, next) => setForms((f) => f.map((x, j) => (j === i ? next : x)));
 
   /*
+   * An axis that belongs to the card, answered for all of it at once.
+   *
+   * Person or thing is one fact with one answer — see perCard — so it is
+   * written onto every form, which is where every reader of a word's
+   * grammar looks, and taken off the answers, which are not where a fact
+   * about the whole card belongs. A form added later starts from the
+   * card's answer for the same reason: see blankForm's callers below.
+   */
+  const setCardDim = (field: string, value: string) =>
+    setForms((f) =>
+      f.map((form) => ({
+        ...form,
+        [field]: value,
+        ...(Array.isArray(form.answers)
+          ? { answers: form.answers.map(withoutCardDims(cardDims(lang, null))) }
+          : null),
+      })),
+    );
+  /* What the card says today, read off its own word: every form carries
+     the same answer, and the lead form is the one that cannot be removed. */
+  const cardGrammar = (): Record<string, string> => {
+    const lead = forms[0] || {};
+    const out: Record<string, string> = {};
+    for (const dim of cardDims(lang, null)) out[dim.field] = String(lead[dim.field] || "");
+    return out;
+  };
+
+  /*
    * Take a blank out of a form, in all three of its fields at once.
    *
    * The cross on a pill, and backspace beside one. The other half of the
@@ -3534,8 +3610,13 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
 
   /* Another form, named so that its own cells can point at it. No number
      override beyond the name: blankForm takes the language's declared
-     default, so what a new form starts as is settled in one place. */
-  const addForm = () => setForms((f) => f.concat([{ ...blankForm(), id: formName(f) }]));
+     default, so what a new form starts as is settled in one place. What
+     the card has already said about itself comes with it, though — a
+     plural of the word is as much a person as the word is, and a form
+     starting on the default would be the card disagreeing with itself
+     about something it was never asked twice. */
+  const addForm = () =>
+    setForms((f) => f.concat([{ ...blankForm(), ...cardGrammar(), id: formName(f) }]));
   /* A second form usually differs from the first in a field or two, so it
      starts from the one in hand rather than empty, directly beneath its
      source. A name of its own, no recordings and no table: the copy is a
@@ -3639,6 +3720,8 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     addForm,
     duplicateForm,
     removeForm,
+    setCardDim,
+    cardGrammar,
     drillsTranslit,
     forms,
     setForms,
@@ -3911,6 +3994,41 @@ function WordKind({ word }: { word: WordDraft }) {
   );
 }
 
+/*
+ * What is true of the word itself, under the answer that decides whether
+ * it is asked at all.
+ *
+ * Whether a noun is a person or a thing is not a fact about one of its
+ * spellings, or about its singular as against its plural: it is one fact
+ * about the card, and what it decides is what agrees with it — in Arabic a
+ * plural of things takes the feminine singular adjective and a plural of
+ * people the plural. It was asked of every accepted answer of every form,
+ * which is a card invited to disagree with itself about something it
+ * cannot disagree about, and asked where nobody would look for it.
+ *
+ * Here, because here is where the question it follows from was answered: a
+ * noun is asked, and nothing else is. Which axes those are is the
+ * language's to say — see perCard — so nothing here names one.
+ *
+ * Silent until the kind of word is settled, where the language has kinds
+ * to offer: the axes are read off that answer, so asking before it is
+ * given would be asking on the strength of the whole pack's list.
+ */
+function WordGrammar({ lang, word }: { lang: Lang; word: WordDraft }) {
+  const { category, categoryOffer, cardGrammar, setCardDim } = word;
+  const dims = cardDims(lang, category);
+  if (!dims.length || (categoryOffer.length && !category)) return null;
+  return (
+    <div className="at-field at-mt3">
+      <GrammarRadios dims={dims} values={cardGrammar()} onPick={setCardDim} />
+      <Help>
+        True of the whole card, its other forms included. It is what the
+        words beside it agree with.
+      </Help>
+    </div>
+  );
+}
+
 function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck }: {
   card: Card | null;
   lang: Lang;
@@ -3975,6 +4093,11 @@ function KindBlock({ card, lang, scene, shape, word, decks, chosen, onToggleDeck
           Asked only of a word: a conversation has turns where a word
           has forms, and there is nothing for a table to lay out. */}
       <WordKind word={word} />
+      {/* And what follows from the answer that is about the word rather
+          than about its forms — see WordGrammar. Under the kind because it
+          is asked on the strength of it: a noun is asked whether it is a
+          person or a thing and nothing else is. */}
+      {shape === "word" && <WordGrammar lang={lang} word={word} />}
       {/* A table put aside is not thrown away until the card is saved, and
           saying so is the only warning there is. Outside the question
           above rather than inside it, because it is about what the card
@@ -4439,7 +4562,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, blanks, childre
     <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
       <ScriptAnswers
         lang={lang}
-        dims={dimsFor(lang, word.category)}
+        dims={answerDims(lang, word.category)}
         form={f}
         onChange={(next) => setForm(i, { ...f, ...next })}
         blanks={blanks}

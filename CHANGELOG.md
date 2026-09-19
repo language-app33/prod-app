@@ -8,6 +8,26 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.191 — 19 September 2026
+
+**Whether a word is a person or a thing is now asked once, beside the kind
+of word it is.** It is a fact about the card — a book is a thing whether it
+is one book or several, and whichever way you spell it — and it was being
+asked of every accepted answer of every form, where a card could answer it
+one way on its singular and the other way on its plural, and where nobody
+would think to look for it.
+
+It sits under *What kind of word*, on the cards that are asked it at all:
+in Arabic and Hebrew that is nouns, because the question exists for what
+stands beside them — a plural of things takes the feminine adjective and a
+plural of people the plural. Opening a card settles it on what the card
+already says, so nothing has to be answered again, and a form added later
+starts from the card's answer instead of the default.
+
+Number and gender stay where they were, with the answer they are about:
+two spellings may be a masculine and a feminine, which is the whole reason
+they live there.
+
 ## 0.190 — 19 September 2026
 
 **What an accepted answer is grammatically is now one line per question.**

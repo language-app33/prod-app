@@ -380,6 +380,19 @@ export interface GrammarDim {
   brief?: Record<string, string>;
   /** What a new or unreadable value becomes. */
   default?: string;
+  /**
+   * Whether the axis is a fact about the card rather than about one of its
+   * accepted answers.
+   *
+   * Most of them are about the answer: two spellings may be a masculine
+   * and a feminine, which is why grammar moved onto the answer at all. One
+   * is not — whether a noun is a person or a thing is as true of its plural
+   * as of its singular, and of both its spellings — and asking it of every
+   * answer is asking a card to disagree with itself about something it
+   * cannot disagree about. Asked once, beside the kind of word; stored on
+   * every form, which is where the agreement rules read it.
+   */
+  perCard?: boolean;
   retired?: boolean;
 }
 
