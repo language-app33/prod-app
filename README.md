@@ -319,28 +319,28 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   pins the answer the next time it is saved. The other half of the rule is
   a refusal — `strayHoles` in `src/card-editor.tsx` stops a save of any
   card that is not a sentence and has braces in one of its own forms, and
-  on a card being written it names both ways out, because "I meant a
-  sentence" and "I mistyped" are opposite and only the teacher knows
-  which. On a card that exists there is one way out, which is the rule
-  below.
+  names the one way out, which is to take them out. To have the sentence
+  you start one, which is the rule below.
 
-  **And what kind of card it is, is settled when the card is made.** The
-  question is asked once, while the card is being written and nothing can
-  be lost by any answer; from the first save the block says what the card
-  is rather than offering to change it — `shapeChoices` in
-  `src/card-editor.tsx`, which answers nothing to a saved card of any of
-  the three. A card is what a student's whole record hangs on, what every
-  other card's blanks are written against, and the three kinds are asked,
-  dealt and filled in three different ways, so a card changing kind is a
-  card whose past means something it no longer is. A conversation was
-  already fixed — a scene with four turns on it has nowhere to put them —
-  and a word with a table was half fixed, because the table is content;
-  the pair that stayed open was a word and a sentence with nothing in the
-  way. Whoever wants the other kind wants another card. The same rule
-  holds where the editor cannot be reached — `keptKind` in
-  `server/api/courses.js` takes a saved card's kind from the card as
-  stored, through the same `isDialog` and `isSentence` the app reads it
-  through, so a stale build or a queued save cannot change one.
+  **And what kind of card it is, is settled before the editor opens.**
+  New card asks which of the three — `NewCardKind` in
+  `src/card-editor.tsx`, over `shapeChoices`, which is the one list of
+  what the three are and what each means — and what comes up is a screen
+  for making that one, named for it and asking nothing further about it.
+  The editor says what the card is and never offers to change it; a card
+  that exists answers for itself through `shapeOf`. A card is what a
+  student's whole record hangs on, what every other card's blanks are
+  written against, and the three kinds are asked, dealt and filled in
+  three different ways, so a card changing kind is a card whose past means
+  something it no longer is. It was the first field inside the editor
+  until 0.187, which put a teacher in a screen for making a card before
+  asking what sort of card it was going to be — and before 0.180 a word
+  with no table could be called a sentence and back again. Whoever wants
+  the other kind wants another card. The same rule holds where the editor
+  cannot be reached — `keptKind` in `server/api/courses.js` takes a saved
+  card's kind from the card as stored, through the same `isDialog` and
+  `isSentence` the app reads it through, so a stale build or a queued save
+  cannot change one.
 
   **The editor's Blanks section is four named subsections, and they are
   not the same shape, because they are not the same question.**

@@ -45,7 +45,7 @@ await build({
   loader: { ".jsx": "jsx" },
   logLevel: "silent",
 });
-const { shapeOf, shapeChoices, categoryChoices, categoryOffers, tableFor,
+const { shapeOf, shapeChoices, shapeLabel, categoryChoices, categoryOffers, tableFor,
   initialForms, initialCells, initialCategory, storedFormsOf, asideOf, tableCellsOf,
   canSaveWord, canSaveScene, writtenCard, writtenLines, ownerLabel, askParts, partAsked,
   partLends, setPartFlags, keptNotAsked } =
@@ -496,31 +496,37 @@ test("and an item that was never a course card has only the one name", () => {
  * rows, and it is a sentence when its own word has a blank in it.
  */
 test("a card is a word, a sentence or a conversation, and says which by what it holds", () => {
-  assert.equal(shapeOf(null, false), "word");
-  assert.equal(shapeOf(null, true), "scene");
-  const worded = (/** @type {any} */ ar) => ({ id: "c", forms: [{ id: "c", ar, en: "x", lat: "" }] });
-  assert.equal(shapeOf(worded("كتاب"), false), "word");
-  /* The braces are in the text, so there is nothing to guess at: a card
-     with a blank in it is a sentence whichever editor wrote it. */
-  assert.equal(shapeOf(worded("{{noun}} كبير"), false), "sentence");
+  const worded = (/** @type {any} */ ar, /** @type {any} */ rest = {}) =>
+    ({ id: "c", forms: [{ id: "c", ar, en: "x", lat: "" }], ...rest });
+  assert.equal(shapeOf(null), "word", "and nothing at all is nothing to read");
+  assert.equal(shapeOf(worded("كتاب")), "word");
+  /* The teacher's own answer, kept on the card since 0.176 — and behind
+     it, for a card written before there was anything to keep, the braces
+     in its words. */
+  assert.equal(shapeOf(worded("كتاب", { sentence: true })), "sentence");
+  assert.equal(shapeOf(worded("{{noun}} كبير")), "sentence");
   /* And turns win over blanks, because a conversation is a different
-     shape of card rather than a longer one. */
-  assert.equal(shapeOf(worded("{{noun}}"), true), "scene");
+     shape of card rather than a longer one. Read off the card rather than
+     handed in: since 0.187 the only thing that says which kind a card is
+     without reading one is the answer given before it existed. */
+  assert.equal(shapeOf(worded("{{noun}}", { lines: [{ who: 0, ar: "a" }] })), "scene");
 });
 
-test("a new card may be any of the three, and a written one is what it was made as", () => {
-  const values = (/** @type {any} */ o) => shapeChoices(o).map((/** @type {any} */ c) => c.value);
-  /* Asked once, while the card is being written and nothing can be lost
-     by any answer. */
-  assert.deepEqual(values({ saved: false }), ["word", "sentence", "scene"]);
-  /* And never again, whichever of the three it is: a card is what a
-     student's whole record hangs on and what every other card's blanks
-     are written against, so the block says what it is rather than
-     offering to change it. A conversation was always like this — a scene
-     with four turns on it has nowhere to put them — and a word with a
-     table was half like it; the pair that stayed open until 0.180 was a
-     word and a sentence with nothing in the way. */
-  assert.deepEqual(values({ saved: true }), []);
+test("the three kinds a card can be, each with a line saying what it is", () => {
+  /* Asked once, before the editor opens — and never again, whichever of
+     the three it is: a card is what a student's whole record hangs on and
+     what every other card's blanks are written against, so the editor
+     says what it is rather than offering to change it. A conversation was
+     always like this — a scene with four turns on it has nowhere to put
+     them — and a word with a table was half like it; the pair that stayed
+     open until 0.180 was a word and a sentence with nothing in the way. */
+  assert.deepEqual(shapeChoices().map((/** @type {any} */ c) => c.value),
+    ["word", "sentence", "scene"]);
+  /* Every answer carries what it means, which is why the question is a
+     screen of rows rather than a track of segments. */
+  assert.ok(shapeChoices().every((/** @type {any} */ c) => c.label && c.note));
+  assert.equal(shapeLabel("word"), "Word or phrase");
+  assert.equal(shapeLabel("scene"), "Conversation");
 });
 
 test("and a word is asked what kind of word it is, in the language's own list", () => {
