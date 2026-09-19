@@ -16,8 +16,8 @@ import { cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots 
 import type { Reader, TableGroup } from "./card-facts.ts";
 import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
   examplesOf, fillersOn, IN_NO_DECK, isTableCell, lexicalKeys, lexicalLabel, NO_PART, NOT_DRILLED,
-  tablesOn, tableTitle, unnamedOn } from "./card-facts.ts";
-import { colOf, personsOf, rowOf, tensesOf } from "./verbs.ts";
+  rowsLine, tablesOn, tableTitle, unnamedOn } from "./card-facts.ts";
+import { colOf, personsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
 import { isOffline, watchNet } from "./net.ts";
 
 /*
@@ -2204,8 +2204,16 @@ function ReadBlanks({ card, lang, cards }: {
       </p>
       {holes.map((slot) => {
         const words = (fillers && fillers[slot]) || [];
+        /* And which tenses this blank asks its verbs for, where the
+           sentence has narrowed it to some — the one thing about a blank
+           that is the teacher's answer rather than a fact read off the
+           card's own words. Silent where it admits every tense, which is
+           what a blank nobody has narrowed means. */
+        const only = rowsLine(lang, slotRows(lead, slot));
         return (
           <ReadRow key={slot} label={<span className="at-slot">{slot}</span>}>
+            <>
+            {only ? <p className="at-hint">{`${slot} · ${only}`}</p> : null}
             {!fillers ? null : words.length ? (
               <ul className="at-filllist">
                 {words.slice(0, FILLS_SHOWN).map((value, i) => (
@@ -2226,6 +2234,7 @@ function ReadBlanks({ card, lang, cards }: {
             ) : (
               "Nothing fills it yet"
             )}
+            </>
           </ReadRow>
         );
       })}

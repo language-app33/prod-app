@@ -499,6 +499,39 @@ test("a caller may say which of a card's forms it lends, and this module does no
   assert.deepEqual(valuesFor(frame, [card], "ar-PS").adjective.map((/** @type {any} */ v) => v.id), ["big", "big-f"]);
 });
 
+test("a blank may take some of a card's forms and not others, and each blank on its own", () => {
+  /* The second question valuesFor asks of a pool, and it is about the hole
+     rather than about the card: which of the forms a card lends *this*
+     blank will have. Nothing here knows what a tense is — the caller says
+     which forms a slot admits, exactly as it says which forms a card
+     lends. */
+  const pool = [{
+    id: "eat", lang: "ar-PS", category: "verb", fills: ["verb2"],
+    forms: [
+      { id: "eat", ar: "akal", en: "to eat", lat: "" },
+      { id: "eat-past", ar: "akal", en: "he ate", lat: "", row: "past", col: "he" },
+      { id: "eat-now", ar: "byaakul", en: "he eats", lat: "", row: "present", col: "he" },
+    ],
+  }, {
+    id: "rafa", lang: "ar-PS", fills: ["verb", "verb2"],
+    forms: [{ id: "rafa", ar: "rafa", en: "Raphael", lat: "" }],
+  }];
+  const frame = { ar: "{{verb}} w {{verb2}}", en: "{{verb}} and {{verb2}}", lat: "{{verb}} w {{verb2}}" };
+  const kind = () => "";
+  const only = (/** @type {string} */ slot) => (/** @type {any} */ c, /** @type {any} */ f, /** @type {string} */ s) =>
+    s !== slot || c.category !== "verb" || !!f.row;
+  const have = valuesFor(frame, pool, "ar-PS", kind, undefined, only("verb"));
+  assert.deepEqual(have.verb.map((/** @type {any} */ v) => v.id), ["eat-past", "eat-now", "rafa"],
+    "the blank that was narrowed takes what it admits, and the card that has no rows is untouched");
+  assert.deepEqual(have.verb2.map((/** @type {any} */ v) => v.id), ["eat", "eat-past", "eat-now", "rafa"],
+    "and the blank beside it is filled as it always was");
+  assert.deepEqual(
+    valuesFor(frame, pool, "ar-PS", kind).verb.map((/** @type {any} */ v) => v.id),
+    ["eat", "eat-past", "eat-now", "rafa"],
+    "a caller with nothing to say about the hole gets every form, as before",
+  );
+});
+
 test("a plural stands in a sentence its singular does not", () => {
   const frame = { ar: "{{noun}} hown", en: "{{noun}} here", lat: "" };
   const pool = [{

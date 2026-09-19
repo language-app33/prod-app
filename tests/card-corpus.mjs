@@ -155,6 +155,27 @@ const sentence = {
   ],
 };
 
+/* A sentence that has narrowed a blank: the verbs in it stand in the past
+   and nowhere else, which is the one thing about a blank that is the
+   teacher's answer rather than a fact read off the card's own words. */
+const tensed = {
+  id: "srv-tensed",
+  lang: AR,
+  sentence: true,
+  category: "",
+  name: "yesterday {{name}} {{verb}}",
+  decks: ["deck-2"],
+  forms: [
+    {
+      id: "y1",
+      ar: "مبارح {{name}} {{verb}}",
+      en: "yesterday {{name}} {{verb}}",
+      lat: "mbaari7 {{name}} {{verb}}",
+      tenses: { verb: ["past"] },
+    },
+  ],
+};
+
 /* A value: there to stand in somebody else's hole, and not a question of
    its own. */
 const value = {
@@ -248,6 +269,7 @@ export const CORPUS = [
   { what: "a word with the pronouns on its end, on two of its forms", card: attached },
   { what: "a verb with its table, saved as the form a dictionary lists", card: verb },
   { what: "a sentence with two blanks in it", card: sentence },
+  { what: "a sentence whose verb blank asks for one tense", card: tensed },
   { what: "a value that fills other cards' blanks and is not asked itself", card: value },
   { what: "a part of a number, carrying what it is worth", card: part },
   { what: "a conversation with its speakers, its setting and a turn kept unasked", card: scene },

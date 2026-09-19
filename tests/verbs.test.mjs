@@ -41,6 +41,8 @@ import {
   personFor,
   personsOf,
   rowOf,
+  slotRows,
+  standsInRows,
   subjectSlot,
   tableCount,
   tableOf,
@@ -717,4 +719,54 @@ test("Hebrew agrees in number and gender at once", () => {
   assert.equal(must(agreedValue(card, he, word, beside({ number: "plural", gender: "feminine" })), "fp").ar, "גדולות");
   assert.equal(must(agreedValue(card, he, word, beside({ number: "plural", gender: "masculine" })), "mp").ar, "גדולים");
   assert.equal(agreedValue(card, he, word, beside({ number: "singular", gender: "masculine" })), word);
+});
+
+/* ---- which tenses a sentence wants its verbs in ----
+
+   A frame is the only thing that knows when what it describes happened, so
+   it is the only thing that can say which rows of a verb's table belong in
+   it. Both halves are checked: what a sentence says, and what that does to
+   a word standing in the hole. */
+
+test("a blank nobody has narrowed asks for every tense", () => {
+  assert.deepEqual(slotRows({ ar: "{{verb}}" }, "verb"), [],
+    "a form with no answer on it says nothing");
+  assert.deepEqual(slotRows({ tenses: {} }, "verb"), []);
+  assert.deepEqual(slotRows({ tenses: { verb: [] } }, "verb"), [],
+    "and an empty list is the same answer as none");
+  assert.deepEqual(slotRows({ tenses: { other: ["past"] } }, "verb"), [],
+    "a blank is narrowed on its own, never by its neighbour");
+});
+
+test("and one that has been says so, once per row and narrowed like a name", () => {
+  const frame = { tenses: { verb: [" past ", "past", "present", ""] } };
+  assert.deepEqual(slotRows(frame, "verb"), ["past", "present"]);
+  assert.deepEqual(slotRows(frame, " verb "), ["past", "present"],
+    "the blank is asked for by its name whatever spacing it arrives in");
+});
+
+test("a word with tenses stands in a narrowed blank through its table and nowhere else", () => {
+  const past = cell("past", "he", "أكل", "he ate");
+  const present = cell("present", "he", "بياكل", "he eats");
+  const headword = { id: "eat", ar: "أكل", en: "to eat", lat: "" };
+  assert.equal(standsInRows(arabic, past, ["past"]), true);
+  assert.equal(standsInRows(arabic, present, ["past"]), false);
+  assert.equal(standsInRows(arabic, headword, ["past"]), false,
+    "the dictionary form is in no row, so a blank asking for one does not take it");
+  assert.equal(standsInRows(arabic, headword, []), true,
+    "and a blank that asks for every tense takes it exactly as it always did");
+});
+
+test("and a word of a kind that has no tenses is untouched by the narrowing", () => {
+  const raphael = { id: "r", ar: "رافائيل", en: "Raphael", lat: "" };
+  assert.equal(standsInRows(null, raphael, ["past"]), true,
+    "a name in a blank that verbs also fill is in no tense at all");
+});
+
+test("none of it knows what a tense is: Huế narrows by its own rows", () => {
+  const marked = { id: "vi-past", row: "past", col: "any", ar: "đã ăn", en: "ate", lat: "" };
+  const plain = { id: "vi-plain", row: "plain", col: "any", ar: "ăn", en: "eat", lat: "" };
+  assert.equal(standsInRows(viet, marked, ["past"]), true);
+  assert.equal(standsInRows(viet, plain, ["past"]), false);
+  assert.equal(standsInRows(viet, plain, ["plain", "future"]), true);
 });

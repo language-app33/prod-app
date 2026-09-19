@@ -2762,3 +2762,68 @@ with `reader="both"`, and each field says whether it is the teacher's
 business or everybody's. It replaced `whereItLives`, which was one panel's
 worth of the same question. Nothing is a student's alone: there is no fact
 about a card its teacher may not see.
+
+---
+
+## A sentence says which tenses its blanks want, and it says it per blank
+
+**19 September 2026** · `src/verbs.ts` (`slotRows`, `standsInRows`),
+`src/languages.ts` (`tensedOf`, `blankAdmits`), `CardForm.tenses`
+
+Every form a card carries lends itself to somebody else's blank, and for a
+verb that means every cell of its table. So "Yesterday {{name}} {{verb}} an
+apple" was met as the present, then the past, then the command, and two of
+those three say something nobody means. Nothing about the verb card was
+wrong — a verb *is* all of its tenses — and nothing about the blank could
+be read off the words either: when the sentence happened is a fact about
+the sentence, and the sentence was the one thing with no way to say it.
+
+So a frame may narrow a blank to some rows of the table, and the answer
+lives on the form beside the blank it is about.
+
+**Per blank rather than per card.** A sentence with two verbs in it can
+want two different tenses — "while" is a whole class of sentence — and the
+subsection that asks this already lists one chip per blank, so the question
+lands beside the thing it is about. One answer for the whole card would
+have been fewer ticks and a sentence nobody could write.
+
+**Nothing ticked is every tense.** There is no "any" to choose, because an
+empty list and an absent answer are the same answer: a card written before
+this is read exactly as it was, nothing has to be migrated, and unticking
+the last tense is how a teacher takes the narrowing off. The alternative —
+storing "all" explicitly — buys nothing and needs a migration to mean it.
+
+**A narrowed blank reaches a word through its table and nowhere else.** A
+verb's dictionary form sits in no row: Huế cites the bare verb, and Arabic
+cites a cell the table already lends. Letting it stand in a blank asking
+for the past would put the headword in "Yesterday …" on every language and
+print Arabic's past-he twice, so it does not. The cost is a verb card
+somebody wrote with no table at all: it has no past to offer and drops out
+of a past-only blank, which is true and is visible — the blank's own chip
+says how many words are behind it, and the examples below say what they
+make.
+
+**And only words that have tenses are narrowed.** A name standing in the
+same hole is in no tense; dropping it would answer a question nobody asked.
+Which kinds of word have tenses is the pack's answer, not a name this code
+knows — `tensedOf` is "a table with more than one row", which is the exact
+mirror of `agreementOf`'s "one row and a column that picks". A pack whose
+verbs take one form declares no such table and is asked nothing, which is
+the whole of "for languages that have different forms for different
+tenses" in code.
+
+**Offered by what is behind the blank, not by what it is called.** A
+teacher who gathers their verbs under a tag of their own has a hole full of
+verbs and a name that says nothing about it, so the ticks follow the words
+(`tensedBlanks`). It costs a walk of the collection per card opened, which
+the same screen already does twice over to count what is behind each name.
+
+**What it cost elsewhere.** `valuesFor` grew a second predicate. It already
+took "which of a card's forms does it lend", which is a fact about the
+card; this is "which of them will this hole have", which is a fact about
+the hole, and the two are asked at different moments — so they are two
+arguments rather than one with more parameters. The session reads it in a
+third place, because its pool of values is indexed once for the whole
+collection by the blank's name: what the *index* holds is what fills
+`{{verb}}` for anybody, and what *this frame* wants is asked as the frame
+is filled.

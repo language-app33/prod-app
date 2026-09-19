@@ -665,6 +665,18 @@ export function valuesFor(
   kindOf?: (card: WithSlots) => string,
   /** Which of a card's forms it lends — see lentBy. Without it, all of them. */
   lends?: (card: WithSlots, form: WithSlots) => boolean,
+  /**
+   * And which of those forms one blank of *this* frame admits, where the
+   * frame has narrowed one — "Yesterday {{name}} {{verb}}" wanting the
+   * past of its verbs and every form of everything else.
+   *
+   * A second question rather than a third argument to the first, because
+   * the two are about different things: what a card lends is a fact about
+   * the card, and this is a fact about the hole it is being offered to.
+   * Which rows a hole admits is a language's answer — see blankAdmits —
+   * so it is passed in; this module knows none.
+   */
+  admits?: (card: WithSlots, form: WithSlots, slot: string) => boolean,
 ): Record<string, Value[]> {
   const wanted = slotsOf(form);
   const out: Record<string, Value[]> = {};
@@ -675,12 +687,18 @@ export function valuesFor(
     const slots = fillsOf(card, kindOf ? kindOf(card) : "");
     if (!slots.length) continue;
     /* Every form of it, not only its own word: a plural is a word a
-       sentence can be about, and so is one cell of a verb's table. */
-    for (const value of valuesOf(card, [], lends ? (f) => lends(card, f) : undefined)) {
+       sentence can be about, and so is one cell of a verb's table. The
+       form comes back beside the words it lends, because the hole may
+       have something to ask about where in the table it sits. */
+    for (const lent of lentBy(card, [], lends ? (f) => lends(card, f) : undefined)) {
       /* A card may stand in more than one hole now: the one it names, the
          kind of word it says it is, and the built-in that every word
          fills. */
-      for (const slot of slots) if (out[slot]) out[slot].push(value);
+      for (const slot of slots) {
+        if (!out[slot]) continue;
+        if (admits && !admits(card, lent.form, slot)) continue;
+        out[slot].push(lent.value);
+      }
     }
   }
   return out;

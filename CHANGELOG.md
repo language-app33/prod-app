@@ -8,6 +8,33 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.196 — 19 September 2026
+
+**A sentence can say which tense it wants its verbs in.** Write "yesterday
+{{name}} {{verb}}" and the app had to meet it with every form of every
+verb you have: *yesterday Raphael eats*, *yesterday Raphael eat!*, and the
+one sentence you meant somewhere among them. Nothing was wrong with the
+verb card — a verb is all of its tenses — and nothing was wrong with the
+sentence either. There was simply nowhere to say when it happened.
+
+There is now. Under *Blanks in this card*, a blank that verbs fill is
+offered a tick per tense, in the order your language teaches them. Tick the
+past and that sentence is asked with the past forms alone; the examples
+underneath show you exactly what it comes out as before you save. Each
+blank is asked on its own, so a sentence with two verbs in it can want two
+different tenses.
+
+Nothing ticked means any tense, which is what every sentence you have
+already written says — none of them change. Unticking the last tense is how
+you take it off again. A word in the hole that has no tenses at all — a
+name, a noun — stands there whatever you tick: only the verbs are narrowed.
+One thing worth knowing: a sentence narrowed to a tense takes the verbs
+through their tables, so a verb card you wrote as a bare word, with no
+table filled in, has no past to offer and will not appear in a past-only
+sentence. The blank says how many words are behind it, so you can see it.
+
+Languages whose verbs have one form are not asked the question.
+
 ## 0.195 — 19 September 2026
 
 **Arabic verbs have a plural *you* at last.** A verb card laid its forms out

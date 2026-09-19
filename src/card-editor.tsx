@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
-import { cellsIn, citationOf, citedWord, framesOf, isCell, isFrame, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
+import { cellsIn, citationOf, citedWord, framesOf, isCell, isFrame, personsOf, rowIdsOf, slotRows, tensesOf } from "./verbs.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 import type { Node } from "./shared.tsx";
 import {
@@ -37,7 +37,7 @@ import {
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
 import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT } from "./variables.ts";
-import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor } from "./card-facts.ts";
+import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -2461,6 +2461,58 @@ export function initialFrames(card: Card | null): Record<string, any>[] {
 }
 
 /*
+ * Which tenses each of a sentence's blanks already asks its verbs for.
+ *
+ * Read off the card's own word, which is where the save writes it, and
+ * through the same answer the question itself reads it through — see
+ * slotRows, which narrows each row to a name and reads an absent answer as
+ * every tense. A card that has narrowed nothing opens with nothing, which
+ * is every card written before the teacher was asked.
+ */
+export function initialRows(card: Card | null): Record<string, string[]> {
+  const lead = card ? leadOf(card) : null;
+  const out: Record<string, string[]> = {};
+  for (const slot of slotsOf(lead)) {
+    const rows = slotRows(lead, slot);
+    if (rows.length) out[slot] = rows;
+  }
+  return out;
+}
+
+/*
+ * The same forms, each saying what its blanks ask their verbs for.
+ *
+ * One answer for the card written onto every form of it, because the
+ * blanks are the card's and every field that has words in it leaves the
+ * same ones. Stored only where something is actually narrowed: a blank
+ * admitting every tense says nothing, which is what an absent answer has
+ * always meant and what keeps a card the teacher has not touched byte for
+ * byte what it was.
+ *
+ * And only for the blanks the card still leaves, so a tense picked for a
+ * blank that has since been taken out of the words goes with it rather
+ * than sitting on the card answering for a hole nobody can see.
+ */
+export function withRows(
+  forms: Record<string, any>[],
+  rows: Record<string, string[]>,
+  holes: string[],
+): Record<string, any>[] {
+  const said: Record<string, string[]> = {};
+  for (const slot of holes) {
+    const picked = (rows || {})[slot] || [];
+    if (picked.length) said[slot] = picked;
+  }
+  const any = Object.keys(said).length > 0;
+  return forms.map((form) => {
+    const next = { ...form };
+    if (any) next.tenses = said;
+    else delete next.tenses;
+    return next;
+  });
+}
+
+/*
  * One value per card for the axes that are about the card.
  *
  * Whether a noun is a person or a thing is as true of its plural as of its
@@ -3210,6 +3262,26 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const [recording, setRecording] = useState<number | null>(null);
 
   /*
+   * Which tenses each of this sentence's blanks wants its verbs in.
+   *
+   * One answer for the card, kept beside `fills` and the ID rather than
+   * inside `forms`, because a blank is a fact about the sentence and every
+   * form of it leaves the same ones — which is what the save has always
+   * insisted on. Written onto each form at the end, where the reader that
+   * fills a hole looks; see `withRows` and the note on CardForm.tenses.
+   *
+   * Read back off the card's own word, which is where it was written. A
+   * card that has narrowed nothing carries nothing and starts empty, which
+   * is every card written before this.
+   */
+  const [blankRows, setBlankRows] = useState<Record<string, string[]>>(() => initialRows(card));
+  /* One blank's answer, replaced. An empty list is stored as no answer at
+     all — see withRows — so unticking the last tense is how a teacher says
+     "any tense" again, and there is no third state to explain. */
+  const setBlankRow = (slot: string, rows: string[]) =>
+    setBlankRows((was) => ({ ...was, [slot]: rows }));
+
+  /*
    * The card's own word — off the cited cell where the table stands in for
    * it, and the block's own fields everywhere else.
    *
@@ -3219,7 +3291,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * leaves, what is sent — then reads one value whichever kind of card it
    * is. The clips travel with it so the card's face can still be heard.
    */
-  const main = standsIn ? citedWord(forms[0], citedAt) : forms[0];
+  const lead = standsIn ? citedWord(forms[0], citedAt) : forms[0];
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
@@ -3242,14 +3314,24 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * changes when somebody puts one in or takes one out, and that is what
    * this key says.
    */
-  const holeNames = scene ? NO_HOLES : slotsOf(main);
+  const holeNames = scene ? NO_HOLES : slotsOf(lead);
   const holeKey = holeNames.join("\u0000");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const holes = useMemo(() => holeNames, [holeKey]);
   /* The card's word as it will be saved, then whatever else it carries —
      so a hole the cited cell leaves is checked against the fields beside
-     it rather than against a block nobody is filling in. */
-  const ownForms = [main].concat(forms.slice(1));
+     it rather than against a block nobody is filling in. Each of them
+     carrying what its blanks ask their verbs for, which is one answer for
+     the card and is written where the reader of a blank looks. */
+  const ownForms = withRows([lead].concat(forms.slice(1)), blankRows, holes);
+  /* And the card's own word as it will be saved, which is what everything
+     below reads: the holes it leaves, the words behind them, the sentences
+     it is met as, and what the save sends. */
+  const main = ownForms[0];
+  /* What the narrowing comes to as one string, for the memos below: a
+     fresh map every render would re-fill the preview on every keystroke,
+     and what they actually depend on is which tenses are ticked. */
+  const rowsKey = holes.map((slot) => `${slot}:${(blankRows[slot] || []).join(",")}`).join("\u0000");
   /*
    * Every blank this card stands in, as it stands right now.
    *
@@ -3558,11 +3640,26 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    */
   /* Against the blanks rather than against `main`, which is a new object
      on every keystroke: what comes back is a function of the names in the
-     holes and of the collection, and valuesFor reads nothing else off the
-     form it is handed. */
+     holes, the tenses they ask for and the collection, and fillersFor reads
+     nothing else off the form it is handed. */
   const fillers = useMemo(() => {
     if (scene || !holes.length) return {} as Record<string, Value[]>;
     return fillersFor(main, allCards || [], lang);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, holes, rowsKey, allCards, lang]);
+
+  /*
+   * And which of those blanks have words with tenses behind them — the
+   * ones there is anything to ask a teacher about.
+   *
+   * Asked of the collection rather than of the blank's name, so a teacher
+   * who gathers their verbs under a tag of their own is asked too; empty in
+   * a language whose verbs take one form, where the question means nothing.
+   * See tensedBlanks, which is the one answer to it.
+   */
+  const tensed = useMemo(() => {
+    if (scene || !holes.length) return new Map<string, VerbSpec>();
+    return tensedBlanks(main, allCards || [], lang);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, holes, allCards, lang]);
 
@@ -3878,6 +3975,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     combos,
     starved,
     fillers,
+    /* Which tenses each blank asks its verbs for, which blanks there is
+       anything to ask about, and how one of them is answered. */
+    blankRows,
+    setBlankRow,
+    tensed,
     canSave,
     setForm,
     parts,
@@ -5417,7 +5519,7 @@ function StripAsk({ word }: { word: WordDraft }) {
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, combos, fillers, fills, fillsOffer, addFill,
-    main, trouble, category, sentence, strayHoles,
+    main, trouble, category, sentence, strayHoles, tensed, blankRows, setBlankRow,
   } = word;
   /*
    * Whether the filled examples are open. Folded away to start with, and
@@ -5579,6 +5681,55 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             ))}
           </div>
         )}
+
+        {/* ---- which tenses a blank asks its verbs for ----
+
+            The one thing in this subsection that is not a readout, and it
+            is here because it is a fact about the blank rather than about
+            the words behind it: "Yesterday {{name}} {{verb}} an apple" is
+            met as the present, the past and the command one after another,
+            and two of those say something nobody means. The sentence is
+            the only place that can say so — the verb card is right to
+            carry every tense, and the frame is what fixes when it
+            happened.
+
+            Only where there is something to ask: a blank with no tensed
+            word behind it, and a language whose verbs take one form, are
+            offered nothing rather than an empty list of ticks. See
+            tensedBlanks.
+
+            Nothing ticked is every tense, which is what a card written
+            before this says and what a frame about nothing in particular
+            wants — so unticking the last one is how a teacher takes the
+            narrowing off, and there is no third state to explain. */}
+        {sentence && holes.map((slot) => {
+          const spec = tensed.get(slot);
+          if (!spec) return null;
+          const picked = blankRows[slot] || [];
+          const rows = tensesOf(spec);
+          return (
+            <Field
+              key={slot}
+              label={<>Tenses <BlankNames names={[slot]} /> asks its verbs for</>}
+              hint={
+                picked.length
+                  ? `Only the ${rowsLine(lang, picked)}. Words with no tenses stand in it as they always did.`
+                  : "Any tense. Tick one or more to ask this sentence in those alone."
+              }
+            >
+              <CheckList
+                options={rows.map((t) => ({ id: t.id, title: t.label || t.id }))}
+                chosen={picked}
+                onToggle={(id, wasOn) =>
+                  setBlankRow(
+                    slot,
+                    wasOn ? picked.filter((r) => r !== id) : rows.map((t) => t.id).filter((r) => r === id || picked.includes(r)),
+                  )
+                }
+              />
+            </Field>
+          );
+        })}
 
         {/* Still possible on a card written before the button, or by
             typing the braces by hand, so still said — in one line. Only on

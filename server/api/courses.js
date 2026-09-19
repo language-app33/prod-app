@@ -10,9 +10,12 @@ import { createHash, randomBytes } from "node:crypto";
    that adding an axis to a language does not silently drop it here. */
 import { answerFields, grammarFields } from "../../src/languages.ts";
 import { answersOf } from "../../src/answers.ts";
-import { cardRef, fillNames, fillsOf, isSentence, slotsOf } from "../../src/variables.ts";
+import { cardRef, fillNames, fillsOf, isSentence, MAX_FILLS, slotName, slotsOf } from "../../src/variables.ts";
 import { isDialog } from "../../src/dialogs.ts";
 import { formsOf } from "../../src/cards.ts";
+/* And which tenses a sentence's blanks ask their verbs for, read the one
+   way the app reads it. */
+import { slotRows } from "../../src/verbs.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -1103,6 +1106,16 @@ export default async (req) => {
             ...Object.fromEntries(
               grammarFields().map((g) => [g, String(f[g] || "").slice(0, 40)])
             ),
+            /* Which tenses this form's blanks ask their verbs for, where
+               it is a sentence that has narrowed one. A map from the
+               blank's name to the rows it admits — the names narrowed the
+               way every name that goes between braces is, and the rows to
+               the shape an id can take, because which rows a language has
+               is the language's business and the server does not know one
+               language from another. Absent where nothing is narrowed,
+               which is every card written before the teacher was asked
+               and every frame that wants any tense. */
+            ...slotTenses(f),
             /* Where this form sits in the card's verb table, when it is a
                cell of one. Stored as given, like the grammar values above
                and for the same reason: which rows and columns a language
@@ -1289,6 +1302,37 @@ export default async (req) => {
            which form it belonged to would be two cells in one place. */
         const of = idish(form.of);
         return row && col ? { row, col, ...(of ? { of } : {}) } : {};
+      }
+
+      /* And which tenses a sentence's blanks ask their verbs for, when it
+         has narrowed any. Read through the same answer the app reads it
+         through — see slotRows in src/verbs.ts, which narrows each row and
+         reads an empty list as every tense — so a blank stored here and a
+         blank filled on a device cannot come to disagree. The names are
+         narrowed like every other name that goes between braces, and the
+         whole thing is capped for the reason everything else here is: this
+         is written into a document handed to every student in the course.
+
+         Spread into the form, so a form that has narrowed nothing gains no
+         field at all rather than an empty map. */
+      /** @param {Record<string, any>} form */
+      function slotTenses(form) {
+        /** @type {Record<string, string[]>} */
+        const out = {};
+        const said = form && typeof form.tenses === "object" ? form.tenses : null;
+        for (const name of Object.keys(said || {}).slice(0, MAX_FILLS)) {
+          const slot = slotName(name);
+          if (!slot) continue;
+          /* Through slotRows, which is what the app reads the list with,
+             and then each row narrowed to the shape a pack can name — the
+             way a cell's row is above, and for the same reason. Filed
+             under the narrowed name on the way in, because that is the
+             name the braces in the card's own words are matched on. */
+          const one = { tenses: { [slot]: said[name] } };
+          const rows = [...new Set(slotRows(one, slot).map(idish))].filter(Boolean).slice(0, 24);
+          if (rows.length) out[slot] = rows;
+        }
+        return Object.keys(out).length ? { tenses: out } : {};
       }
 
       /*
