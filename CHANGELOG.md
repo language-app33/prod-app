@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.185 — 19 September 2026
+## 0.186 — 19 September 2026
 
 **The app's text styles are now listed in Admin → App, drawn at the size
 they are drawn at in the app.** The components have been shown there for a
@@ -29,6 +29,28 @@ calculation against a script's scale and a verdict sized off the width of
 the phone all answer in pixels. Where the stylesheet writes it differently,
 its own words are underneath. The six named sizes it declares are listed
 above the lot, each drawn at what it is worth.
+
+## 0.185 — 19 September 2026
+
+**Which decks a card goes in is a section of its own,** directly under
+what kind of card it is, rather than a button at the foot of that block
+where it read as one more thing about the kind.
+
+**A form block says less and lines up better.** The "The word itself"
+heading over each form's own fields is gone — the block above it already
+says which form it is — and so is the line under it listing what the card
+cannot be saved without. The word, how it is said and its grammar now all
+start at the same left edge; they were stepped in from each other, which
+is the first thing the eye checks on a form.
+
+The **+** that adds another accepted answer is the height of the field it
+adds to and starts where that field starts. It was a twelve-pixel sliver
+dropped eight pixels down the side of a forty-eight-pixel box: it read as
+something that had slipped, and it was a tap target two letters wide.
+
+And *What is drilled* under each form is now **How this form can be
+practiced**, with the paragraph under it about what switching a tick off
+does taken away. The two ticks say what they do.
 
 ## 0.184 — 18 September 2026
 

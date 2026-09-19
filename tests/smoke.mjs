@@ -3965,6 +3965,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       .find((b) => /^Decks/.test(b.getAttribute("aria-label") || "")) || null);
     check("a new card says where it goes, at the top", !!deckBtn(),
       deckBtn() ? (deckBtn().textContent || "").trim() : "no button");
+    /* A section of its own, directly under what kind of card this is: it
+       is a fact about the card rather than about the kind, and at the foot
+       of that block it read as one more thing about the kind. */
+    const named = () => [...document.querySelectorAll(".at-formblock .at-formnum")]
+      .map((n) => (n.textContent || "").trim());
+    check("and the decks are a section of their own, under the kind of card",
+      named().indexOf("Decks") === named().indexOf("The kind of card") + 1 &&
+        !!deckBtn() && !!deckBtn().closest(".at-formblock") &&
+        /^Decks$/.test(((deckBtn().closest(".at-formblock").querySelector(".at-formnum") || {}).textContent || "").trim()),
+      named().join(" | "));
     check("and says it is in none yet",
       !!deckBtn() && /in no deck/i.test(deckBtn().getAttribute("aria-label") || ""),
       deckBtn() ? deckBtn().getAttribute("aria-label") : "no button");
@@ -4598,8 +4608,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
     check("a sentence can be given a name to be listed under, as a verb can",
       !!sentenceName, blockNames().join(" | "));
+    /* Above the sentence, which is what "at the top" is for — the two
+       sections over it are what kind of card this is and which decks it
+       goes in, both facts about the card rather than about its words. */
     check("and it is asked at the top, above the sentence itself",
-      blockNames().indexOf("What to call it") === 1 &&
+      blockNames().indexOf("What to call it") ===
+        blockNames().indexOf("Decks") + 1 &&
         blockNames().indexOf("What to call it") < blockNames().indexOf("The sentence"),
       blockNames().join(" | "));
     check("and says what a blank one falls back to, and that nothing is asked about it",
@@ -4898,15 +4912,21 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const formBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
         /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
       const parts = formBlock ? [...formBlock.querySelectorAll(".at-part")] : [];
-      check("a form is cut into subsections, each named across the top",
-        parts.length >= 1 &&
-          /^The word itself$/.test(((parts[0].querySelector(".at-groupline") || {}).textContent || "").trim()),
-        parts.map((g) => ((g.querySelector(".at-groupline") || {}).textContent || "").trim()).join(" | ")
-          || "(no subsections)");
+      /* The form's own fields are the one subsection with no name across
+         the top: the block above already says which form this is, and the
+         others are named because they are additions to it. */
+      check("a form is cut into subsections, and its own fields are the unnamed one",
+        parts.length >= 1 && !parts[0].querySelector(".at-groupline"),
+        parts.map((g) => ((g.querySelector(".at-groupline") || {}).textContent || "").trim() || "(unnamed)")
+          .join(" | ") || "(no subsections)");
       const drills = parts.length ? parts[0].querySelector(".at-drills") : null;
       check("an ordinary word says what of it is drilled, beside the word", !!drills,
         [...document.querySelectorAll(".at-formnum, .at-groupline")]
           .map((n) => n.textContent).join(" | "));
+      check("named for what it answers about, which is this form",
+        !!drills && /^How this form can be practiced$/.test(
+          ((drills.querySelector(".at-drillhead") || {}).textContent || "").trim()),
+        drills ? ((drills.querySelector(".at-drillhead") || {}).textContent || "").trim() : "(no heading)");
       const only = drills ? [...drills.querySelectorAll(".at-tickrow")] : [];
       check("two ticks — on its own, and inside sentence cards — both on",
         only.length === 2 && /On its own/.test(only[0].textContent || "") &&
@@ -5455,9 +5475,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     const named = partsOf().map((g) =>
       ((g.querySelector(".at-groupline") || {}).textContent || "").trim());
     check("the form is cut into the word and the pronouns on its end",
-      named.length === 2 && /^The word itself$/.test(named[0]) &&
-        /^Its attached pronouns$/.test(named[1]),
-      named.join(" | ") || "(no subsections)");
+      named.length === 2 && named[0] === "" && /^Its attached pronouns$/.test(named[1]),
+      named.map((n) => n || "(unnamed)").join(" | ") || "(no subsections)");
     const drillsIn = () => partsOf().map((g) => g.querySelector(".at-drills"));
     check("and each of them says for itself what is drilled",
       drillsIn().length === 2 && drillsIn().every(Boolean),
@@ -5494,12 +5513,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     check("and the word itself is still drilled",
       back.length === 2 && tickIn(back[0], /On its own/).checked,
       back.length === 2 ? String(!!(tickIn(back[0], /On its own/) || {}).checked) : "(no ticks)");
+    /* And the table itself is untouched by the tick: the whole reason
+       this is a tick rather than a Delete button is that the words, the
+       recordings and every student's progress stay exactly where they
+       were. What the box still holds is the evidence. */
     check("while the table stays on the card, recordings and progress and all",
-      !!me && me.value === "قلمي" &&
-        back.length === 2 && /stays on the card/.test((back[1] || {}).textContent || ""),
-      back.length === 2 && back[1]
-        ? (back[1].textContent || "").replace(/\s+/g, " ").slice(-140)
-        : "(no ticks)");
+      !!me && me.value === "قلمي",
+      me ? `"${me.value}"` : "(no such box)");
   }
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
