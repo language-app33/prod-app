@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
-import { cellsIn, citationOf, citedWord, isCell, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
+import { cellsIn, isCell, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 import type { Node } from "./shared.tsx";
 import {
@@ -941,8 +941,8 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
    * table, where one heading stands over twenty-one boxes and only the row
    * and column say which is which. The two boxes beside it in a cell have
    * carried their own names since the table was written; this one had
-   * none, which on the languages whose dictionary form is a cell now
-   * leaves the field the whole card is identified by unnamed.
+   * none, so a box of the table was the one field on the screen a reader
+   * could not be told the name of.
    */
   label?: string;
   /**
@@ -1466,14 +1466,13 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
             const which = [ofLabel, tense.label, person.label].filter(Boolean).join(" · ");
             const written = !!(cell && String(cell.ar || "").trim());
             const heard = cell ? clipsOf(cell).length : 0;
-            /* Nothing marks the cell a dictionary would list this verb
-               under. It used to carry a gold label reading "· the
-               dictionary form", which made one row of the table a
-               different width and a different colour from the rest and
-               asked the teacher to hold a piece of grammar theory in mind
-               while typing. The cell is a cell. Where it matters — a verb
-               cannot be saved without it — the editor says so at the
-               moment it matters, and not before. */
+            /* Nothing marks any cell out from the others, and nothing
+               is demanded of one. The he-past used to carry a gold label
+               reading "· the dictionary form" — a row of the table a
+               different width and colour from the rest, and a piece of
+               grammar theory to hold in mind while typing — because a
+               verb could not be saved until it was filled in. Neither the
+               label nor the rule is left: a cell is a cell. */
             return (
               <div className="at-cellrow" key={person.id}>
                 {named && <span className="at-celllabel">{person.label}</span>}
@@ -2466,18 +2465,14 @@ const withoutCardDims = (dims: GrammarDim[]) => (answer: Record<string, any>) =>
 /*
  * The cells a card opens with — every sub-form that sits in a table.
  *
- * Only a card whose table cites a cell has its dictionary form seeded, and
- * only where the card already carries that table: a plain word has no
- * table, and seeding one would be answering the selector on the teacher's
- * behalf. That table and not any card with a cell — a word with pronouns
- * on its end has cells too, and seeding the dictionary form into one of
- * those opened it on the verb table with its pronouns put aside, which the
- * next save then dropped.
+ * Whatever the card carries, and nothing else. Until 0.194 a verb in a
+ * language whose pack named a cell as the form a dictionary lists had the
+ * card's own word copied into that cell on the way in, because the block
+ * asking for the word was not shown there and the word had to be
+ * somewhere. The block is shown on every card now, so there is nothing to
+ * move and nothing to seed.
  */
-export function initialCells(
-  card: Card | null,
-  lang: Lang | null | undefined,
-): Record<string, any>[] {
+export function initialCells(card: Card | null): Record<string, any>[] {
   /*
    * Every cell gets a name on the way in, the way a plain form does.
    *
@@ -2497,11 +2492,7 @@ export function initialCells(
   for (const s of subFormsOf(card).filter((s) => isCell(s))) {
     had.push({ ...blankForm(), ...s, id: String(s.id || "") || formName(taken()) });
   }
-  const cited = Object.values(tablesOf(lang)).find(
-    (spec) => citationOf(spec) && cellsIn({ subs: had }, spec).length,
-  );
-  /* The card's own word, through leadOf as everything else reads it. */
-  return asValue(card, cited ? seedCited(had, leadOf(card), cited, taken()) : had);
+  return asValue(card, had);
 }
 
 /*
@@ -2720,16 +2711,13 @@ export function askParts(
   },
 ): AskPart[] {
   const out: AskPart[] = [];
-  /* Two facts about the table say how its cells are listed: whether every
-     form carries one, and whether the card's own word is one of its cells.
-     A table that cites is a verb's, in every pack today, which is what the
-     wording below says. */
+  /* One fact about the table says how its cells are listed: whether every
+     form carries one, or the card does. */
   const perForm = !!(spec && spec.perForm);
-  const cite = citationOf(spec);
   forms.forEach((f, i) => {
     out.push({
       id: `form:${i}`,
-      title: i === 0 ? (cite ? "The verb" : "The main form") : `Form ${i + 1}`,
+      title: i === 0 ? "The main form" : `Form ${i + 1}`,
       note: String(f.ar || "").trim() || String(f.en || "").trim() || "nothing written yet",
       on: partAsked(f),
       lends: partLends(f),
@@ -2750,15 +2738,13 @@ export function askParts(
     });
   });
   if (spec && !perForm) {
-    /* The table the card carries. Every cell but the one the card's own
-       word is: that cell is the word, and it is the line above. */
-    const table = cellsIn({ subs: cells }, spec).filter(
-      (c) => hasWords(c) && !(cite && c.row === cite.row && c.col === cite.col),
-    );
+    /* The table the card carries, which is every cell written in it: the
+       card's own word is the line above and is not one of them. */
+    const table = cellsIn({ subs: cells }, spec).filter(hasWords);
     if (table.length) {
       out.push({
         id: "table:",
-        title: cite ? "The conjugated forms" : `Its ${spec.label || "table"}`,
+        title: `Its ${spec.label || "table"}`,
         note: `${plural(table.length, "form")} written`,
         on: table.some(partAsked),
         lends: table.some(partLends),
@@ -2870,7 +2856,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   /* The card's cells, whichever tables they sit in. Kept beside `forms`
      rather than inside it because the two are edited in different shapes
      — a list of blocks, and a table — and joined again at save. */
-  const [cells, setCells] = useState<Record<string, any>[]>(() => initialCells(card, lang));
+  const [cells, setCells] = useState<Record<string, any>[]>(() => initialCells(card));
   /* What the teacher says this word is — see initialCategory — and, from
      that, which table it lays its forms out in. */
   const [category, setCategory] = useState<string>(() => initialCategory(card, lang, cells));
@@ -2896,38 +2882,15 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      cell and a form are told apart by nothing but their names. */
   const mintCell = () => formName([...forms, ...cells]);
   /*
-   * On the way in to a table that cites a cell — a verb's — the card's own
-   * word moves into the cell about to hold it, rather than being left
-   * behind in a block that has just disappeared; and only into an empty
-   * cell, because a card that already has a table knows better than the
-   * block does. Nothing of the sort for a table that cites nothing: the
-   * word stays the word, and the cells are forms of it rather than a
-   * stand-in for it.
-   */
-  const chooseCategory = (next: string) => {
-    setCategory(next);
-    const spec = specOf(lang, tableFor(lang, next));
-    if (citationOf(spec)) setCells((x) => seedCited(x, forms[0], spec, forms));
-  };
-  /*
-   * Whether the table holds the card's own word as well as its forms.
+   * Whether this card is a verb — a table of its own whose rows open one
+   * at a time.
    *
-   * Arabic and Hebrew have no infinitive: a dictionary lists the he-past,
-   * which is a cell of this very table, and the pack says so. So on those
-   * two the cell carries everything the card's own word does — the script,
-   * the pronunciation, the English and the recordings — and a block asking
-   * for them again was asking the teacher to type the same word twice and
-   * then keep the two in step by hand. It is not shown. Huế cites the bare
-   * verb, which is a word and not a cell, so there the block is the verb
-   * and stays.
-   *
-   * What the card is saved as comes off the cell, which is what makes the
-   * block safe to take away: the face in every list, the meaning, the
-   * recordings. Everything that reads a card goes on reading a card.
+   * Only two things read it: the name to list the card under, which a verb
+   * is offered because its word is one form among many, and the shell's
+   * choice of editor. Read here so the two cannot come to disagree about
+   * what a verb is.
    */
-  const cite = citationOf(shownSpec);
-  const citedAt = cite ? cells.find((c) => c.row === cite.row && c.col === cite.col) || null : null;
-  const standsIn = !!cite;
+  const isVerb = !!shownSpec && !perForm && (shownSpec.gate || "word") === "rows";
   /* Which cell of which table has the recording screen open, by where it
      sits rather than by its place in the list: the list is rewritten
      whenever a cell is typed into, so an index would point at a different
@@ -3160,16 +3123,16 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const [recording, setRecording] = useState<number | null>(null);
 
   /*
-   * The card's own word — off the cited cell where the table stands in for
-   * it, and the block's own fields everywhere else.
+   * The card's own word: the first block's own fields, on every kind of
+   * card there is.
    *
-   * Derived rather than written into `forms` as the teacher types: a copy
-   * kept in step by an effect is a copy that can fall out of step, and
-   * everything below this line — what can be saved, which holes the card
-   * leaves, what is sent — then reads one value whichever kind of card it
-   * is. The clips travel with it so the card's face can still be heard.
+   * It was read off a cell of the table on the two languages whose pack
+   * named one as the form a dictionary lists — so the block was not shown
+   * there and the cell was what the card was saved as, which is why this
+   * line existed. No pack names one now: a verb's word is the verb, and
+   * its table is forms of it, in every language.
    */
-  const main = standsIn ? citedWord(forms[0], citedAt) : forms[0];
+  const main = forms[0];
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
@@ -3183,10 +3146,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   /* Memoised for what reads it below: a fresh array every render would
      re-fill the preview sentences on every keystroke in any field. */
   const holes = useMemo(() => (scene ? [] : slotsOf(main)), [scene, main]);
-  /* The card's word as it will be saved, then whatever else it carries —
-     so a hole the cited cell leaves is checked against the fields beside
-     it rather than against a block nobody is filling in. */
-  const ownForms = [main].concat(forms.slice(1));
   /*
    * Every blank this card stands in, as it stands right now.
    *
@@ -3222,7 +3181,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   /* The cells of the table on screen, as they will be saved — see
      tableCellsOf. */
   const tableCells = tableCellsOf(cells, shownSpec, forms);
-  const trouble = scene ? null : ownForms.map((f) => slotTrouble(f)).find(Boolean) || null;
+  const trouble = scene ? null : forms.map((f) => slotTrouble(f)).find(Boolean) || null;
 
   /*
    * The blanks on a card that is not a sentence, which is a card that
@@ -3251,13 +3210,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const strayHoles = useMemo(() => {
     if (scene || shape === "sentence") return [];
     const out: string[] = [];
-    for (const form of ownForms) {
+    for (const form of forms) {
       for (const slot of slotsOf(form)) if (!out.includes(slot)) out.push(slot);
     }
     return out;
-    /* eslint-disable-next-line react-hooks/exhaustive-deps -- ownForms is a
-       fresh array every render; what it is made of is what matters. */
-  }, [scene, shape, main, forms]);
+  }, [scene, shape, forms]);
 
   /*
    * How many cards stand in each name, counted the one way it is counted.
@@ -3665,15 +3622,13 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
        and is saved by nobody until it is the one being looked at. */
     const inShown = (c: Record<string, any>) =>
       !!shownSpec && rowIdsOf(shownSpec).has(String(c.row || ""));
-    const isCited = (c: Record<string, any>) =>
-      !!cite && c.row === cite.row && c.col === cite.col;
     /* A table, whichever form it hangs off — the card's own word where
-       the id names none. Every cell but the one that is the card's own
-       word, which is the line about the word. */
+       the id names none. Every cell of it: the card's own word is a line
+       of its own and is not one of them. */
     if (id.startsWith("table:")) {
       const of = id.slice("table:".length);
       setCells((x) =>
-        x.map((c) => (inShown(c) && !isCited(c) && String(c.of || "") === of ? set(c) : c)),
+        x.map((c) => (inShown(c) && String(c.of || "") === of ? set(c) : c)),
       );
       return;
     }
@@ -3683,7 +3638,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setCells((x) =>
       x.map((c) => {
         if (!inShown(c)) return c;
-        if (i === 0 && isCited(c)) return set(c);
         /* A table whose cells wait on the word follows the word off: under
            a form nobody is asked about they could never open. */
         if (which === "ask" && !on && waitsOnWord(shownSpec) && String(c.of || "") === mine) {
@@ -3719,12 +3673,10 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     table,
     shownSpec,
     perForm,
-    cite,
     storedForms,
     categoryOffer,
     aside,
-    chooseCategory,
-    standsIn,
+    isVerb,
     recordingCell,
     setRecordingCell,
     cellHere,
@@ -3771,7 +3723,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
        of them works it out again. */
     sentence: shape === "sentence",
     strayHoles,
-    ownForms,
     tableCells,
     trouble,
     blanksAround,
@@ -3920,7 +3871,7 @@ export type SceneDraft = ReturnType<typeof useSceneDraft>;
 const SUBTYPE_LEDE = "Each subtype has specific fields, forms, structures, etc.";
 
 function WordKind({ word }: { word: WordDraft }) {
-  const { category, chooseCategory, categoryOffer } = word;
+  const { category, setCategory, categoryOffer } = word;
   const { open, setOpen, mine } = usePicker();
   const said = categoryOffer.find((c) => c.value === category) || null;
   if (!categoryOffer.length) return null;
@@ -3976,7 +3927,7 @@ function WordKind({ word }: { word: WordDraft }) {
               options={categoryOffer}
               value={category}
               onChange={(v) => {
-                chooseCategory(v);
+                setCategory(v);
                 setOpen(false);
               }}
             />
@@ -4155,37 +4106,36 @@ const storedHelp = (spec: VerbSpec | null): string => {
  * What to call a card its own words do not name.
  *
  * Two cards are in that position and they got there the same way: what is
- * saved on them is not what they are about. A verb in a language with no
- * infinitive is saved as the cell a dictionary lists, and a sentence is
- * saved as a frame with a hole in it. One field, asked in both places,
- * because it is one question — what goes at the top of the tile — and a
- * teacher who has met it on a verb has met it here.
+ * saved on them is not quite what they are about. A verb is saved as one
+ * form of itself — whichever the teacher writes at the top, he-ate as
+ * often as anything else — and a sentence is saved as a frame with a hole
+ * in it. One field, asked in both places, because it is one question —
+ * what goes at the top of the tile — and a teacher who has met it on a
+ * verb has met it here.
  *
  * Which of the two is asking decides only the wording: what a blank one
  * falls back to is the one thing the teacher needs told, and it is a
  * different sentence in each place. The editor says which it is; nothing
  * here reads the card to find out.
+ *
+ * Offered and never demanded, on either. A verb with no name is listed as
+ * its own word, which is what every other card is listed as.
  */
 function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
-  const { shownSpec, name, setName } = word;
+  const { name, setName } = word;
   const verb = of === "verb";
-  /* A verb only where the table stands in for the card's own word. Where a
-     language cites nothing — Huế cites the bare verb — the card has a word
-     of its own and is named by it. A sentence always: every one of them is
-     a frame, which is the whole of what a sentence is. */
-  if (verb && (!shownSpec || !citationOf(shownSpec))) return null;
   return (
     <>
     {/* ---- what to call it ----
 
-        A verb in a language with no infinitive is saved as the form a
-        dictionary lists — Arabic's he-past — so a list read as "he
-        ate", which names one cell of the table rather than the verb
-        the card is about. A sentence is listed as itself, braces and
-        all: "{{name}} is heavy" names the shape of the card rather
-        than what it is for, and every frame in a deck reads as the
-        hole in it. Nothing is wrong with either card; neither simply
-        has a name of its own to be listed under.
+        A verb has as many words as it has persons and tenses, and the
+        one at the top of the card is the one the teacher happened to
+        write it under — so a list can read "he ate" where the card is
+        about eating. A sentence is listed as itself, braces and all:
+        "{{name}} is heavy" names the shape of the card rather than
+        what it is for, and every frame in a deck reads as the hole in
+        it. Nothing is wrong with either card; neither simply has a
+        name of its own to be listed under.
 
         Not the block 0.114 took away. That one asked for the script,
         the pronunciation, the English and the recordings a second
@@ -4209,9 +4159,9 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
           {verb ? (
             <>
               How this card is listed and searched. Without one it is
-              listed as {citedLabel(shownSpec)} — the box a dictionary lists
-              the verb under — which names that form rather than the verb.
-              Nobody is ever asked this: the table is what is practised.
+              listed as the word at the top of the card, which is one form
+              of the verb rather than the verb. Nobody is ever asked this:
+              what is practised is the word and its table.
             </>
           ) : (
             <>
@@ -4228,10 +4178,11 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
   );
 }
 
-/* The table a card carries — a verb's, an adjective's — and the one line
-   that unblocks Save when a cited cell is empty. */
+/* The table a card carries — a verb's, an adjective's. Nothing in it is
+   demanded of anybody: a table is forms of the card's word, and a box left
+   empty is a form the teacher has not written. */
 function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
-  const { shownSpec, parts, cells, setCells, mintCell, setRecordingCell, standsIn, canSave } = word;
+  const { shownSpec, parts, cells, setCells, mintCell, setRecordingCell } = word;
   /* The table's own line of what is drilled — see askParts, which lists
      nothing for a table nobody has written yet. */
   const mine = parts.find((p) => p.id === "table:");
@@ -4254,18 +4205,6 @@ function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           onChange={setCells}
           onRecord={(row, col) => setRecordingCell({ of: "", ofLabel: "", row, col })}
         />
-        {/* Only when it is in the way. A line explaining which box a
-            dictionary lists the verb under, standing there whether or
-            not anything was wrong with the card, was a paragraph of
-            theory between the teacher and the table. A Save that
-            stays grey with nothing saying why is worse, so what is
-            left is the one sentence that unblocks it, at the moment
-            it is true and not before. */}
-        {standsIn && !canSave && (
-          <p className="at-formneed unmet">
-            Fill in {citedLabel(shownSpec)}, plus its English.
-          </p>
-        )}
         {/* And whether the table is drilled, under the table rather than
             in a list at the bottom of the screen. A section of its own
             because this table is the card's rather than a form's: its
@@ -5803,8 +5742,10 @@ export function writtenCard({ word, talk, shape, chosen }: {
   chosen: string[];
 }) {
   const scene = shape === "scene";
-  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, category, refName, spread, stripped } = word;
-  const written = shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms;
+  const { shownSpec, tableCells, forms, note, isVerb, name, uses, fills, category, refName, spread, stripped } = word;
+  /* The card's own word and the forms beside it, then the cells of
+     whatever table is on screen — which is the whole of what a card is. */
+  const written = shownSpec ? forms.concat(tableCells as typeof forms) : forms;
   return {
     forms: written,
     note,
@@ -5822,7 +5763,7 @@ export function writtenCard({ word, talk, shape, chosen }: {
     sentence: shape === "sentence",
     /* And what to call it, where its own words do not: the two cards that
        are saved as something other than what they are about. */
-    name: standsIn || shape === "sentence" ? name.trim() : "",
+    name: isVerb || shape === "sentence" ? name.trim() : "",
     decks: chosen,
     uses,
     fills,
@@ -5911,11 +5852,19 @@ function WordEditor({ word, lang, allCards, selfId }: {
 }
 
 /*
- * A verb: what to call it and its table first, then any form the card
- * already carried outside the table. Where the language cites a cell of
- * the table as the dictionary form, the card's own word is that cell and
- * has no block of its own. No form can be added: a verb's forms are its
- * table, and a spelling is an accepted answer, not a form.
+ * A verb: what to call it, the verb itself, and then the table its rows
+ * open one at a time. The table editor with a name on the front — the
+ * word at the top of a verb card is one of its forms, so a list of verbs
+ * reads better for being told what each card is about.
+ *
+ * The card's own word is asked for here as on every other card. It was
+ * not, on the two languages whose pack named a cell as the form a
+ * dictionary lists: there the block was hidden, the cell was what the card
+ * was saved as, and a verb could not be saved until that one box was
+ * filled in. See NameBlock for what is left of that.
+ *
+ * No form can be added: a verb's forms are its table, and a spelling is an
+ * accepted answer, not a form.
  */
 function VerbEditor({ word, lang, allCards, selfId }: {
   word: WordDraft;
@@ -5925,10 +5874,8 @@ function VerbEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
-      {word.standsIn && <NameBlock word={word} of="verb" />}
-      <TableBlock word={word} lang={lang} />
+      <NameBlock word={word} of="verb" />
       {word.forms.map((f, i) => (
-        i === 0 && word.standsIn ? null :
         <FormBlock
           key={i}
           word={word}
@@ -5939,6 +5886,7 @@ function VerbEditor({ word, lang, allCards, selfId }: {
           role={i === 0 ? "This is the verb itself." : formRole(i)}
         />
       ))}
+      <TableBlock word={word} lang={lang} />
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
@@ -6168,59 +6116,6 @@ function SceneEditor({ talk, lang, allCards, selfId }: {
 }
 
 /*
- * The card's own word, put into the cell that stands in for it.
- *
- * On a language that cites a cell the block asking for the word is not
- * shown, so the word has to be somewhere the teacher can see and edit it,
- * and the cell a dictionary would list it under is that place. Run when a
- * plain word is first called a verb, and when a card written before this
- * is opened — a table whose cited cell nobody ever filled would otherwise
- * hide the card's word behind a block that is no longer on screen.
- *
- * Never over a cell that already says something: a table the teacher has
- * filled in knows better than a word field they have not looked at in
- * weeks. Never from an empty word either, which is every new card.
- */
-const seedCited = (
-  cells: Record<string, any>[],
-  word: Record<string, any> | null | undefined,
-  spec: VerbSpec | null | undefined,
-  /* The names already spoken for on this card — its forms and its other
-     cells — so the cell this mints cannot answer to one of them. */
-  taken: { id?: string }[] = [],
-): Record<string, any>[] => {
-  const to = citationOf(spec);
-  if (!to || !word || !String(word.ar || "").trim()) return cells;
-  if (cells.some((c) => c.row === to.row && c.col === to.col && String(c.ar || "").trim())) return cells;
-  return cells
-    .filter((c) => !(c.row === to.row && c.col === to.col))
-    .concat([{
-      ...blankForm(),
-      ar: word.ar || "",
-      en: word.en || "",
-      lat: word.lat || "",
-      clips: word.clips || [],
-      slowClips: word.slowClips || [],
-      row: to.row,
-      col: to.col,
-      /* Named like every other cell — see initialCells. */
-      id: formName(cells.concat(taken as any)),
-    }]);
-};
-
-/* What to call the cell a dictionary lists the verb under, in the pack's
-   own words for its rows and columns — "past · he". A pack whose columns
-   are unlabelled leaves the row standing on its own, for the same reason
-   the table does not print "any" over a language with one person. */
-const citedLabel = (spec: VerbSpec | null | undefined): string => {
-  const cite = citationOf(spec);
-  if (!cite) return "";
-  const tense = tensesOf(spec).find((t) => t.id === cite.row);
-  const person = personsOf(spec).find((p) => p.id === cite.col);
-  return [tense && tense.label, person && person.label].filter(Boolean).join(" · ");
-};
-
-/*
  * Which of the three is being made — asked before the editor opens.
  *
  * It was the first field *inside* the editor, which put a teacher in a
@@ -6319,7 +6214,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
         ? "word"
         : word.perForm
           ? "attached"
-          : (word.shownSpec.gate || "word") === "rows"
+          : word.isVerb
             ? "verb"
             : "table";
   const selfId = (card && card.id) || "";

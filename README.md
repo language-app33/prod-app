@@ -195,16 +195,16 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   scheduled in its own right by the exercises every other form gets. The
   rows open in the order the language teaches them, one waiting on the one
   above it being mastered, so the past of a verb is not asked until its
-  present is known and a lapse closes the rows above. Where a language has
-  no infinitive it names the cell a dictionary would list instead — Arabic
-  cites the he-past — and that cell stands in for the card's own word
-  rather than the two being drilled as one word twice. On those languages
-  it stands in for it in the editor as well: the block asking for the
-  card's own word is not shown, the cell is what the card is saved as, and
-  a word first called a verb moves into that cell rather than being asked
-  for twice. Where a language cites nothing — Huế cites the bare verb,
-  which is a word and not a cell — the block is the verb and stays. A verb card may also
-  carry a sentence with its own place marked in it — `{{name}} {{verb}}
+  present is known and a lapse closes the rows above. **The card's own word
+  is the verb, in every language**, and the table is forms of it: no cell of
+  it is the card, none of it is demanded before a card can be saved, and a
+  box left empty is a form nobody has written. Arabic and Hebrew named the
+  he-past — the form a dictionary lists — as a cell that stood in for the
+  card's own word until 0.194, which hid the block asking for the word,
+  saved the card as that cell, and refused a verb until that one box was
+  filled in. What it was for, a card whose face reads *he ate* being listed
+  as *to eat*, is the card's `name`, which any verb can carry. A verb card
+  may also carry a sentence with its own place marked in it — `{{name}} {{verb}}
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already
   carries. See `src/verbs.ts`.
@@ -226,8 +226,9 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   in. A table says what its cells wait on (the row above, as a verb's do,
   or the word itself, as pronouns do — which also means one exercise a
   level once the word is known) and whether every form carries one or the
-  card does; the trainer reads those two facts and knows no table by name
-  except the verb's, which its own sentence and the dictionary form ask for.
+  card does, and what to call it to a teacher; the trainer reads those
+  facts and knows no table by name except the verb's, which a verb's own
+  sentence asks for.
   What kind of word a card is decides which table it is offered and which
   grammar axes it is asked about — a preposition has neither number nor
   gender, a noun is asked whether it is a person or a thing — and nothing

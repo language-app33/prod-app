@@ -948,12 +948,11 @@ export function CardTile({ card, lang, showLat, meta, bar, actions, onClick, cla
       {/*
         * A name, where the card has one, is what it is listed under.
         *
-        * A verb in a language with no infinitive is saved as the form a
-        * dictionary lists, so a list read as "he ate" — which names one
-        * cell of its table rather than the verb. Where the teacher has said
-        * what to call it, that is the headline and the dictionary form's
-        * own meaning goes: the name is the card's meaning now, and "he ate"
-        * under "to eat" reads as a correction of it.
+        * A verb is saved under one of its own forms, so a list can read
+        * "he ate" — which names that form rather than the verb. Where the
+        * teacher has said what to call it, that is the headline and the
+        * word's own meaning goes: the name is the card's meaning now, and
+        * "he ate" under "to eat" reads as a correction of it.
         *
         * Written in `dir="auto"` and without the script's font or sizing,
         * because a name is whatever the teacher typed — "to eat" as often
@@ -3657,8 +3656,8 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
      *
      * These did not come across at all until 0.131, which meant a verb's
      * table reached a student as a heap of alternate forms: no row opened
-     * before another, the word a dictionary lists was drilled twice over,
-     * and no sentence ever agreed with what filled it. Everything that
+     * before another, and no sentence ever agreed with what filled it.
+     * Everything that
      * reads a table reads these three fields — see src/verbs.ts — so
      * everything that reads a table read nothing.
      *
@@ -3776,7 +3775,7 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
     ...(typeof card.sentence === "boolean" ? { sentence: card.sentence } : null),
     ...(card.drill === false ? { drill: false } : null),
     /* And what the teacher calls it, where its own words do not name it —
-       a verb saved as the form a dictionary lists. Carried for the same
+       a verb listed under one of its forms. Carried for the same
        reason those two are: it is the teacher's words and nothing here
        could work it out. Left off where there is none, so an ordinary card
        does not start carrying an empty one. */

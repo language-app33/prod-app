@@ -274,81 +274,20 @@ export const personsOf = (spec: VerbSpec | null | undefined): VerbPerson[] =>
  * more work than three, and it is work that produces something true.
  */
 
-/* ---- the citation form ---- */
-
-/**
- * Which cell of the table is the verb as a dictionary names it, if any.
+/*
+ * There was a **citation form** here: a cell the pack named as the one a
+ * dictionary lists — Arabic's he-past — which stood in for the card's own
+ * word. The card had no word block of its own on those languages, the
+ * cell was what it was saved as, and a verb could not be saved until that
+ * one box and its English were filled in.
  *
- * Arabic has no infinitive: *to eat* is listed under the he-past, which is
- * a cell of this very table. Where a language says so, the card's own word
- * and that cell are the same word, and only one of them is a thing to
- * learn. Where it says nothing — Huế cites the bare verb, which is a word
- * and not a cell — there is nothing to reconcile.
+ * It is gone, and a verb is now the same shape in every language: the
+ * card's own word is the verb, the table is forms of it, and no cell of
+ * the table is demanded of anybody. What the cited cell was really for —
+ * a card whose face read "he ate" needing to be listed as "to eat" — is
+ * the card's `name`, which every verb can carry and nothing else had to
+ * know about.
  */
-export function citationOf(spec: VerbSpec | null | undefined): { row: string; col: string } | null {
-  const cite = spec && spec.citation;
-  const row = str(cite && cite.row);
-  const col = str(cite && cite.col);
-  if (!row || !col) return null;
-  /* Only a cell the table actually has. A pack naming a row or a column it
-     does not declare is naming nothing, and reconciling a card's word with
-     a cell that cannot exist would silence the word for ever. */
-  if (!tensesOf(spec).some((t) => t.id === row)) return null;
-  if (!personsOf(spec).some((p) => p.id === col)) return null;
-  return { row, col };
-}
-
-/** Whether this form is the cell the language cites. */
-export function isCitation(spec: VerbSpec | null | undefined, cell: unknown): boolean {
-  const cite = citationOf(spec);
-  return !!cite && rowOf(cell) === cite.row && colOf(cell) === cite.col;
-}
-
-/**
- * The cell standing in for the card's own word, where there is one filled.
- *
- * Null where the language cites nothing, and null where it cites a cell
- * the teacher has left blank — in which case the card's word is all there
- * is of the verb, and goes on being practised as itself.
- */
-export function citedCell(
-  card: unknown,
-  spec: VerbSpec | null | undefined,
-): Form | null {
-  const cite = citationOf(spec);
-  if (!cite) return null;
-  const cell = cellAt(card, cite.row, cite.col);
-  return cell && str(cell.ar) ? cell : null;
-}
-
-/**
- * The card's own word, taken off the cell that stands in for it.
- *
- * Where a language cites a cell, that cell holds everything the card's own
- * word does — the script, the pronunciation, the English, the recordings —
- * so the editor stops asking for them a second time and reads them off the
- * table instead. The card is still saved with a word of its own: the face
- * every list shows, what a search matches, what a tile is labelled. This
- * is where that word comes from.
- *
- * Everything else about the form is kept. The word is what the cell knows;
- * whether the card is drilled, which variable it fills, what deck it is in
- * are facts about the card and are none of the cell's business.
- *
- * An empty cell gives an empty word rather than the last one typed, which
- * is what lets the editor refuse to save a verb whose dictionary form has
- * been left blank instead of quietly keeping a word nothing points at.
- */
-export function citedWord<T extends Record<string, unknown>>(own: T, cell: unknown): T {
-  return {
-    ...own,
-    ar: str(field(cell, "ar")),
-    en: str(field(cell, "en")),
-    lat: str(field(cell, "lat")),
-    clips: field(cell, "clips") || [],
-    slowClips: field(cell, "slowClips") || [],
-  };
-}
 
 /* ---- agreement: which cell a subject calls for ---- */
 
@@ -514,12 +453,9 @@ export function openRows(
  * of a row nobody has reached is not a hard question, it is one that
  * should not be on the table yet.
  *
- * The cell a language cites is the exception, and has to be: it is the
- * word on the front of the card, met the day the card is. Arabic's is in
- * the past, which is the second row — so without this a learner would hold
- * a card reading *to eat* whose word they were not shown until they had
- * mastered the whole present tense. It is an ordinary cell of its row for
- * every other purpose, and the rest of that row still waits.
+ * Every cell, with no exception for the one a dictionary would list the
+ * verb under: the card's own word is the verb and is met the day the card
+ * is, and the table is forms of it, each waiting its turn.
  */
 export function cellIsOpen(
   card: unknown,
@@ -528,7 +464,6 @@ export function cellIsOpen(
   mastered: (cell: Form) => boolean,
 ): boolean {
   if (!isCell(cell)) return true;
-  if (isCitation(spec, cell)) return true;
   /* Against its own table: a row of the plural's is held up by the plural's
      cells above it, and not by the singular's. */
   return openRows(card, spec, mastered, ownerOf(cell)).includes(rowOf(cell));

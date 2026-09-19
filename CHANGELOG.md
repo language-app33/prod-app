@@ -8,6 +8,42 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.194 — 19 September 2026
+
+**A verb no longer has to be written in one particular box before it can be
+saved.**
+
+In Arabic and Hebrew the app treated one cell of a verb's table — the
+he-past, the form a dictionary lists — as the card itself. The block asking
+for the word was not shown, what you typed in it was moved into that cell,
+and Save stayed grey until that box and its English were filled in, with a
+line underneath saying *Fill in past · he*. Writing a verb you only wanted
+the present of meant filling in a tense you had not taught yet.
+
+A verb is now written the way every other card is: its own word at the top,
+and a table of its forms under it. Nothing in the table is required — a box
+left empty is a form nobody has written yet — and a verb with an empty table
+saves like any other word. Vietnamese verbs already worked this way; the two
+Semitic languages have joined them.
+
+**What to call it is still there**, on every verb now rather than on some of
+them. A verb is listed under whichever of its forms you wrote at the top, so
+a list can read *he ate* where the card is about eating; type *to eat* into
+*What to call it* and that is the headline. Nobody is ever asked it — it is a
+label.
+
+**On a verb you wrote before this**, the dictionary form is now on the card
+twice: once as the card's own word, where the editor put it, and once in the
+he-past box of the table. Both are practised now, where the word alone used
+to be kept quiet. Nothing has been lost and no progress has moved; if you
+would rather not meet it twice, clear whichever of the two boxes you do not
+want.
+
+**And the he-past waits its turn like any other form.** It used to be shown
+from the day a card was met, because it was the card. It is a cell of the
+past tense now, so it opens once the present is known — which is the rule the
+rest of the table has always followed.
+
 ## 0.193 — 19 September 2026
 
 **Writing a card is one sheet now, not a stack of boxes.** Every section of

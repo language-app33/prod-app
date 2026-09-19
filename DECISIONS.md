@@ -2762,3 +2762,47 @@ with `reader="both"`, and each field says whether it is the teacher's
 business or everybody's. It replaced `whereItLives`, which was one panel's
 worth of the same question. Nothing is a student's alone: there is no fact
 about a card its teacher may not see.
+
+---
+
+## The dictionary form is gone; a verb is its own word and a table
+
+**19 September 2026** · `src/verbs.ts`, `src/languages.ts`, `src/card-editor.tsx`
+
+A pack could name one cell of a verb's table as the form a dictionary lists
+— Arabic and Hebrew both named the he-past — and that cell then *stood in
+for the card's own word*. The editor hid the block asking for the word,
+copied whatever had been typed there into the cell, saved the card as the
+cell, kept the cell open from the day the card was met whatever row it sat
+in, and silenced the card's own word so one word was not drilled twice. A
+verb could not be saved until that one box and its English were filled in.
+
+It was a true fact about Arabic, and it bought one thing: a card whose face
+would otherwise read *he ate* being listed as *to eat*. `name` — the field
+a sentence already had, asked of a verb in 0.177 — buys that for nothing.
+Everything else it bought was work: five functions in `verbs.ts`, a seeding
+pass on the way into the editor, a hidden block, a gate exception in the
+scheduler, a save that was refused with a line naming a grammatical cell,
+and a rule that two things a teacher could see on screen were secretly one.
+
+**So a verb is now the same shape in every language.** The card's own word
+is the verb, asked for in the block every other card has and demanded the
+way every other card's is. The table is forms of that word: every cell
+ordinary, every cell optional, every row waiting on the one above it. What
+the card is listed under is the name, offered on every verb and required on
+none.
+
+**What it costs.** A verb written before this carries the dictionary form
+twice — once as the card's own word, where the editor put it, and once in
+the table's he-past box. Both are drilled now, where the word alone used to
+be silent, so such a card has one more thing to practise until somebody
+clears one of the two boxes. Nothing is lost and no progress moves: both
+were already on the card, with their own schedules and recordings. The
+alternative was a migration that could only work by remembering the rule
+this entry is about removing.
+
+**And the he-past is now an ordinary cell of the second row**, so it opens
+when the present is mastered rather than on the day the card is met. That
+is the ladder's own rule — recognised before produced, one tense new at a
+time — applied to a cell that used to be exempt from it because it was
+pretending to be the card.

@@ -57,7 +57,7 @@ import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
 import { cardRef, fillNames, fillText, isLent, slotsOf, splitSlots, valuesFor, valuesForTurn } from "./variables.ts";
-import { citationOf, colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, tensesOf } from "./verbs.ts";
+import { colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
    the reason the other pure modules are: the same questions are asked of a
@@ -230,11 +230,11 @@ export function cellTitle(spec: VerbSpec | null, cell: Held): string {
     .join(" · ");
 }
 
-/** What a table is called to a reader. A verb's declares no name — it is
-    known by its rows — so it is named for what it holds, in the words the
-    editor's own list of parts uses. */
+/** What a table is called to a reader, in the pack's own word for it —
+    "conjugations", "attached pronouns". A table that names itself nothing
+    is named for what every table holds. */
 export const tableTitle = (spec: VerbSpec | null): string =>
-  (spec && spec.label) || (citationOf(spec) ? "The conjugated forms" : "Its forms");
+  (spec && spec.label) || "Its forms";
 
 export interface TableGroup {
   spec: VerbSpec;
@@ -560,7 +560,7 @@ export const CARD_FACTS: FieldRule[] = [
     key: "name",
     on: "card",
     label: "Listed as",
-    what: "What to call the card where its own words do not name it: a verb saved as the form a dictionary lists, a sentence saved as a frame.",
+    what: "What to call the card where its own words do not name it: a verb listed under one of its forms, a sentence saved as a frame.",
     reader: "both",
     shown: asWritten,
   },

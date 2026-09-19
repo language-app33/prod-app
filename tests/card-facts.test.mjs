@@ -60,11 +60,10 @@ const { writtenCard } = await import(path.join(out, "card-editor.js"));
  */
 const draft = {
   shownSpec: null,
-  ownForms: [{ id: "f1", ar: "كِتاب", en: "book", lat: "kitaab" }],
   tableCells: [],
   forms: [{ id: "f1", ar: "كِتاب", en: "book", lat: "kitaab" }],
   note: "",
-  standsIn: false,
+  isVerb: false,
   name: "",
   uses: [],
   fills: [],

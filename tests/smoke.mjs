@@ -200,8 +200,8 @@ const twoGenders = {
 };
 /* A word with pronouns on its end, as a teacher saved it: one cell, in the
    attached table's row. It is here to be *reopened* — the editor used to
-   read any cell as a verb's, seed the dictionary form, and open the card on
-   the verb table with its pronouns put aside, which a save then dropped. */
+   read any cell as a verb's and open the card on the verb table with its
+   pronouns put aside, which a save then dropped. */
 const penWithPronouns = {
   id: "k888888888888", owner: "t-1", ar: "قلم", en: "pen", lat: "qalam",
   note: "", lang: "ar-PS", number: "singular", gender: "masculine", classifier: "",
@@ -2084,12 +2084,12 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("every component in the library has a row", missing.length === 0, `missing: ${missing.join(", ")}`);
 
   /* A card the teacher has named is listed under that name rather than
-     under its own words — a verb whose word is the form a dictionary lists
-     names one cell of its table, not the verb. The name is the headline,
-     and it stands in for the meaning line rather than sitting above it, so
-     "to eat" is not followed by "he ate" correcting it. Drawn in the
-     interface face rather than the taught script's: a name is whatever was
-     typed, and every size in the stylesheet is tuned against the script. */
+     under its own words — a verb written under one of its forms names that
+     form, not the verb. The name is the headline, and it stands in for the
+     meaning line rather than sitting above it, so "to eat" is not followed
+     by "he ate" correcting it. Drawn in the interface face rather than the
+     taught script's: a name is whatever was typed, and every size in the
+     stylesheet is tuned against the script. */
   const named = host.querySelector(".at-mininame");
   check("a card with a name of its own is listed under it",
     !!named && /to eat/.test(named.textContent || ""),
@@ -2098,7 +2098,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("and the script it is built on is still shown underneath",
     !!namedTile && /\u0623\u0643\u0644/.test((namedTile.querySelector(".ar") || {}).textContent || ""),
     namedTile ? (namedTile.textContent || "").replace(/\s+/g, " ").trim() : "(no tile)");
-  check("while the dictionary form's own meaning is not",
+  check("while the named form's own meaning is not",
     !!namedTile && !/he ate/.test(namedTile.textContent || ""),
     namedTile ? (namedTile.textContent || "").replace(/\s+/g, " ").trim() : "(no tile)");
 
@@ -5056,13 +5056,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     }
   }
 
-  /* ---- a verb, where the dictionary form is a cell of its own table ----
+  /* ---- a verb: its own word, and a table nothing is demanded of ----
 
-     Arabic has no infinitive: a dictionary lists the he-past, which is a
-     cell of the table. So on this language the cell carries everything the
-     card's own word does, and the block asking for it again was asking for
-     the same word twice and then for the two to be kept in step by hand.
-     The block is not shown; the cell is the card. */
+     Arabic used to name the he-past as the form a dictionary lists, and
+     that cell then stood in for the card's own word: the block asking for
+     the word was not shown, the cell was what the card was saved as, and
+     a verb could not be saved until that one box and its English were
+     filled in. A verb is the same shape as every other card now — its own
+     word, and a table of forms of it — and what the cited cell was for is
+     the name the card can be listed under. */
   {
     /* Back to a plain word, out of the frame the walk above left behind. */
     typeInto(fieldNamed(/^Arabic script and transliteration$/i), "akal");
@@ -5139,28 +5141,23 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .map((/** @type {any} */ b) => b.checked).join(" "));
     click(document.querySelector(".at-screenhead h2"));
     await sleep(200);
-    check("choosing it takes the block away rather than asking for the word twice",
-      !block(/^The verb$/),
+    check("the card's own word keeps its block, and what was typed is in it",
+      !!block(/^The verb$/) &&
+        fieldNamed(/^Arabic script and transliteration$/i).value === "akal",
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
-    /* And the word is not left behind in a block that has just gone: it
-       moves into the cell that is about to hold it, which is also the
-       clearest way to be told which cell that is. */
+    /* And nothing of it is copied into the table: every box of it is a
+       form of the word the teacher writes, and they are all optional. */
     const cellNamed = (/** @type {string} */ label) =>
       /** @type {any} */ ([...document.querySelectorAll("input")]
         .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
     const script = cellNamed("Arabic script for past · he");
     const meaning = cellNamed("English for past · he");
-    check("the word moves into the dictionary form's own cell",
-      !!script && script.value === "akal" && !!meaning && meaning.value === "to eat",
+    check("and nothing is written into the box a dictionary lists the verb under",
+      !!script && script.value === "" && !!meaning && meaning.value === "",
       script ? `script "${script.value}", English "${meaning ? meaning.value : "—"}"` : "no such cell");
-    /* And the table says nothing about which cell that is. A gold "· the
-       dictionary form" label made one row a different width and colour
-       from the rest and asked for a piece of grammar theory to be held in
-       mind while typing; where it matters, the editor says so below. */
-    /* And it can be given a name. A verb in a language with no infinitive
-       is saved as the form a dictionary lists, so a list read "أكل · he
-       ate" — one cell of the table rather than the verb the card is
-       about. */
+    /* And it can be given a name. A verb is saved as one of its forms —
+       whichever the teacher writes at the top — so a list can read "أكل ·
+       he ate" where the card is about eating. */
     const nameBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
       /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
     check("a verb can be given a name to be listed under", !!nameBlock,
@@ -5178,29 +5175,33 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!nameBlock && /listed and searched/.test(nameBlock.textContent || "") &&
         /Nobody is ever asked this/.test(nameBlock.textContent || ""),
       nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
-    check("naming the box it would otherwise be listed under",
-      !!nameBlock && /past · he/.test(nameBlock.textContent || ""),
+    check("saying what it falls back to, which is the word at the top",
+      !!nameBlock && /the word at the top of the card/.test(nameBlock.textContent || ""),
       nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
 
-    check("without the table labelling the cell it went into",
+    check("without the table labelling any cell as the dictionary form",
       !/the dictionary form/i.test(document.body.textContent || ""),
       /the dictionary form/i.test(document.body.textContent || "") ? "still labelled" : "the table is plain");
-    check("and the card can be saved on the strength of it",
+    /* And an empty table saves: no box of it is demanded of anybody, which
+       is the whole of what a verb stopped asking for. */
+    check("and the card saves with its table left empty",
       !!saveBtn() && !saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
 
-    /* Empty that cell and there is no card: it is the face, the meaning
-       and what the card is searched by, so the editor refuses and says
-       which cell it wants rather than greying Save with no reason. */
-    typeInto(script, "");
+    /* What is demanded is what every card is: its own word. Empty it and
+       the editor refuses, exactly as it does on a plain word. */
+    const own = fieldNamed(/^Arabic script and transliteration$/i);
+    typeInto(own, "");
     await sleep(200);
-    check("emptying it is refused, because it is the card itself",
+    check("and a verb with no word of its own is refused, as any card is",
       !!saveBtn() && saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "still offered"}`);
-    check("and the editor names the cell it is waiting for",
-      /Fill in past · he/.test(document.body.textContent || ""),
+    check("with nothing said about any box of the table",
+      !/Fill in past/.test(document.body.textContent || ""),
       ([...document.querySelectorAll(".at-formneed.unmet")]
         .map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+    typeInto(own, "akal");
+    await sleep(200);
 
     /* A verb is not offered a form outside its table. The offer used to be
        a quieter-worded button that revealed a block which was not there —
@@ -5236,8 +5237,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
 
-    /* The cited cell was emptied above to see Save refuse; fill it again,
-       so what follows is about a table with something in it. */
+    /* Something in the table, so what follows is about one with a box
+       written in it. */
     typeInto(cellNamed("Arabic script for past · he"), "akal");
     await sleep(200);
 
@@ -5414,10 +5415,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     kindSegs.map((b) => b.textContent).join(" | ") || "(the kind is settled, and says so)");
 
   await pickKind(/^Verb/);
-  const cited = /** @type {any} */ ([...document.querySelectorAll("input")]
+  const cell = /** @type {any} */ ([...document.querySelectorAll("input")]
     .find((i) => (i.getAttribute("aria-label") || "") === "Arabic script for past · he") || null);
-  check("calling it one moves its word into the box a dictionary lists it under",
-    !!cited && cited.value === "كتاب", cited ? `"${cited.value}"` : "no such cell");
+  /* The card's own word, which the verb's editor asks for as every other
+     editor does — the block is the first on the screen and is marked as
+     the card's own. */
+  const ownWord = /** @type {any} */ (
+    document.querySelector(".at-formblock.main .at-field input, .at-formblock.main .at-field [contenteditable]"));
+  check("calling it one lays the table out empty, beside the word it already had",
+    !!cell && cell.value === "" && !!ownWord && ownWord.value === "كتاب",
+    cell ? `the past · he box holds "${cell.value}" · the word is "${ownWord ? ownWord.value : "—"}"` : "no such cell");
   /* And the plural it already carried is still on screen: it is saved
      either way, so hiding it would read as having lost it. */
   check("and the form it already had is still there",
@@ -5497,9 +5504,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and not the verb's table as well",
     !attachedCell("Arabic script for past · he"),
     attachedCell("Arabic script for past · he") ? "both tables are up" : "one table at a time");
-  /* The word's own block stays. A verb whose dictionary form is a cell
-     replaces it; an attached pronoun is a form of the word, not a
-     stand-in for it. */
+  /* The word's own block stays, as it does on every card: a table is
+     forms of the word, never a stand-in for it. */
   const blockOrder = () =>
     [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
   check("while the word itself keeps its own block, being what these are forms of",
@@ -5580,10 +5586,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
 /* ---- a saved word with pronouns on its end opens as what it is ----
 
-   The editor seeded a verb's dictionary form into any card that had a cell,
-   and a cell of the attached table is a cell. So a saved attached-pronoun
-   card in Arabic opened on the verb table, its pronouns put aside, the radio
-   hidden because the stored card is attached — and Save dropped them. */
+   The editor read any card that had a cell as a verb's, and a cell of the
+   attached table is a cell. So a saved attached-pronoun card in Arabic
+   opened on the verb table, its pronouns put aside, the radio hidden
+   because the stored card is attached — and Save dropped them. */
 {
   const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
   const tile = [...frame.querySelectorAll(".at-minicard")]

@@ -787,8 +787,8 @@ test("and a form whose card nobody can name stands on its own", () => {
  * Where a cell sits did not come across at all until 0.131 — the teacher's
  * card carried a row and a column and the item built from it carried
  * neither — so a verb's table reached a student as a heap of alternate
- * forms: no row opened before another, the word a dictionary lists was
- * drilled twice over, and no sentence ever agreed with what filled it.
+ * forms: no row opened before another, and no sentence ever agreed with
+ * what filled it.
  * Everything that reads a table reads these three fields, so everything
  * that reads a table read nothing.
  */
@@ -1344,29 +1344,29 @@ test("a card opens with its own word first, then its forms, each with a name", (
   assert.equal(saved[2].id, "fkeep", "and one that has a name keeps it");
 });
 
-test("only a verb has its dictionary form seeded", () => {
-  /* A word with pronouns on its end has cells, and is not a verb. Seeding
-     it opened the card on the verb table and dropped the pronouns on save. */
+test("a card opens with the cells it carries and no others", () => {
+  /* A word with pronouns on its end has cells, and is not a verb. */
   const pen = /** @type {any} */ ({ id: "p", ar: "قلم", en: "pen", subs: [cellOf("attached", "me", { ar: "قلمي" })] });
-  const cells = initialCells(pen, arLang);
+  const cells = initialCells(pen);
   assert.deepEqual(cells.map((/** @type {any} */ c) => [c.row, c.col]), [["attached", "me"]]);
   assert.equal(initialCategory(pen, LANGUAGES["ar-PS"], cells), "noun");
 
-  /* A verb whose cited cell nobody filled gets its word put there. */
+  /* A verb's word is its own and is never copied into a box of the table:
+     until 0.194 Arabic's he-past was filled in from it, because the block
+     asking for the word was not shown on that language. */
   const eat = /** @type {any} */ ({ id: "e", ar: "أكل", en: "to eat", subs: [cellOf("present", "he", { ar: "بياكل" })] });
-  const seeded = initialCells(eat, arLang);
-  assert.ok(seeded.some((/** @type {any} */ c) => c.row === "past" && c.col === "he" && c.ar === "أكل"));
-  assert.equal(initialCategory(eat, LANGUAGES["ar-PS"], seeded), "verb");
+  const opened = initialCells(eat);
+  assert.deepEqual(opened.map((/** @type {any} */ c) => [c.row, c.col]), [["present", "he"]]);
+  assert.equal(initialCategory(eat, LANGUAGES["ar-PS"], opened), "verb");
 
   /* And a plain word has no table at all. */
-  assert.deepEqual(initialCells(/** @type {any} */ ({ id: "w", ar: "شمس", en: "sun", subs: [] }), arLang), []);
+  assert.deepEqual(initialCells(/** @type {any} */ ({ id: "w", ar: "شمس", en: "sun", subs: [] })), []);
   assert.equal(initialCategory(/** @type {any} */ ({ id: "w" }), LANGUAGES["ar-PS"], []), "");
 
-  /* An adjective's table cites nothing, so nothing is seeded — and a card
-     carrying one opens as an adjective, read the way the tables are
-     declared. */
+  /* And a card carrying an adjective's table opens as an adjective, read
+     the way the tables are declared. */
   const big = /** @type {any} */ ({ id: "b", ar: "كبير", en: "big", subs: [cellOf("agreement", "feminine", { ar: "كبيرة" })] });
-  const bigCells = initialCells(big, arLang);
+  const bigCells = initialCells(big);
   assert.deepEqual(bigCells.map((/** @type {any} */ c) => [c.row, c.col]), [["agreement", "feminine"]]);
   assert.equal(initialCategory(big, arLang, bigCells), "adjective");
   assert.equal(initialCategory(big, arLang, [cellOf("counted", "feminine")]), "number");
@@ -1507,7 +1507,7 @@ test("a card reopens saying what of it is drilled", () => {
     ],
   });
   const forms = initialForms(saved, null);
-  const cells = initialCells(saved, arLang);
+  const cells = initialCells(saved);
   assert.equal(partAsked(forms[0]), false, "the card's own word");
   assert.equal(partAsked(forms[1]), true, "and a form nobody said anything about");
   assert.equal(partAsked(cells[0]), false, "and the cell");
@@ -1524,19 +1524,20 @@ test("a form switched off takes its own table off the list with it", () => {
   assert.equal(parts[0].on, false);
 });
 
-test("a verb is its word and its conjugations, and the cited cell is the word", () => {
-  /* Arabic cites the he-past, so that cell *is* the card's own word and is
-     the line about the word — not one of the twenty others. */
+test("a verb is its word and its conjugations, and every cell is a conjugation", () => {
+  /* The card's own word is the line about the word, and the table's line
+     covers every box written in it — the he-past included, which used to
+     be the word itself on this language. */
   const forms = [{ ar: "أكل", en: "to eat" }];
   const cells = [cellOf("past", "he", { ar: "أكل" }), cellOf("present", "he", { ar: "بياكل" })];
   const parts = askParts({ forms, cells, spec: arVerb });
   assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0", "table:"]);
-  assert.equal(parts[0].title, "The verb");
-  assert.match(parts[1].note, /1 form/, "the cited cell is the word, not a conjugation");
+  assert.equal(parts[0].title, "The main form");
+  assert.match(parts[1].note, /2 forms/, "both boxes are conjugations");
 
-  /* With nothing but the cited cell written there is no table to ask about. */
+  /* And a table nobody has written anything in is not listed at all. */
   assert.deepEqual(
-    askParts({ forms, cells: [cellOf("past", "he", { ar: "أكل" })], spec: arVerb }).map((/** @type {any} */ p) => p.id),
+    askParts({ forms, cells: [], spec: arVerb }).map((/** @type {any} */ p) => p.id),
     ["form:0"],
   );
 });
@@ -1640,8 +1641,8 @@ test("what is saved says whether the card is a question at all", () => {
   const save = (/** @type {any} */ forms) =>
     writtenCard({
       word: {
-        shownSpec: null, ownForms: forms, tableCells: [], forms,
-        note: "", standsIn: false, name: "", uses: [], fills: "name", category: "",
+        shownSpec: null, tableCells: [], forms,
+        note: "", isVerb: false, name: "", uses: [], fills: "name", category: "",
       },
       talk: {},
       shape: "word",
@@ -1794,7 +1795,7 @@ test("every cell of a table is given a name, and keeps the one it has", () => {
     cellOf("past", "he", { ar: "أكل", id: "fkept" }),
     cellOf("past", "she", { ar: "أكلت" }),
     cellOf("present", "he", { ar: "بياكل" }),
-  ] }), arLang);
+  ] }));
   assert.equal(cells.length, 3);
   assert.equal(cells[0].id, "fkept", "a cell that has a name keeps it");
   for (const c of cells) assert.match(String(c.id), /^f[a-z0-9]+$/, `${c.row}·${c.col} is named`);
@@ -1835,15 +1836,14 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
 
   /* And back into the teacher's editor, out of it, and up. */
   const forms = initialForms(/** @type {any} */ (card), null);
-  const cells = initialCells(/** @type {any} */ (card), arLang);
+  const cells = initialCells(/** @type {any} */ (card));
   const written = writtenCard({
     word: {
       shownSpec: specOf(arLang, "attached"),
-      ownForms: forms,
       tableCells: cells,
       forms,
       note: card.note,
-      standsIn: false,
+      isVerb: false,
       name: "",
       uses: [],
       fills: "",
@@ -1878,11 +1878,10 @@ test("a sentence keeps what the teacher calls it, and a word is named by its own
    */
   const draft = {
     shownSpec: null,
-    ownForms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }],
     tableCells: [],
-    forms: [],
+    forms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }],
     note: "",
-    standsIn: false,
+    isVerb: false,
     name: "  introducing yourself  ",
     uses: [],
     fills: "",

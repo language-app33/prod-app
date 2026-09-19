@@ -5187,16 +5187,16 @@ export function TeachSpace({ account, languages, settings, onTry, resume, onClos
                             ...dimValues(main),
                             /* And whether the card's own word is asked
                                about, as against the forms under it: a verb
-                               whose table is the lesson and whose
-                               dictionary form is there to be read. */
+                               whose table is the lesson and whose own word
+                               is there to be read. */
                             ask: main.ask !== false,
                           },
                           ...subs.filter((f: any) => f.ar.trim() || f.en.trim()),
                         ],
                         note: note.trim(),
                         /* What to call it in a list, where its own words do
-                           not name it — a verb saved as the form a
-                           dictionary lists. Empty on every other card. */
+                           not name it — a verb listed under one of its
+                           forms. Empty on every other card. */
                         name,
                         /* And what the teacher says the word is — a noun, a
                            verb, a name. Which table the editor offers

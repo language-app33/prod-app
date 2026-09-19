@@ -321,11 +321,10 @@ test("a verb's cells come back knowing where they sit, and a whole table fits", 
   assert.ok(she, "the she-past cell came back placed");
   assert.equal(she.ar, "past-she");
 
-  /* And what the teacher calls it. A verb with no infinitive is saved as
-     the form a dictionary lists, so without a name a list reads "أكل · he
-     ate" — one cell of the table rather than the verb. The server stores
-     it as given: a name is the teacher's words, and nothing here knows one
-     language from another. */
+  /* And what the teacher calls it. A verb is saved under one of its own
+     forms, so without a name a list can read "أكل · he ate" — that form
+     rather than the verb. The server stores it as given: a name is the
+     teacher's words, and nothing here knows one language from another. */
   const named = await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: { card: carded({ ar: "أكل", en: "he ate" }, cells,
