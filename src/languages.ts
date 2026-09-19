@@ -1994,8 +1994,9 @@ export const specOf = (lang: Lang | null | undefined, name: string | null | unde
   (name && tablesOf(lang)[name]) || null;
 
 /** The rows and columns a language lays its verbs out on, where it has any.
-    Kept by name: a verb's own sentence wants the verb table in particular,
-    not whichever table a card happens to carry. */
+    Kept by name: a verb's own sentence and the dictionary form both want
+    the verb table in particular, not whichever table a card happens to
+    carry. */
 export const verbOf = (lang: Lang | null | undefined): VerbSpec | null => specOf(lang, "verb");
 
 /** And the pronouns it attaches to a word, where it attaches any. */
@@ -2454,7 +2455,10 @@ export const LANGUAGES: Record<LangId, Lang> = {
           { id: "past", label: "past" },
           { id: "command", label: "command" },
         ],
-        label: "conjugations",
+        /* There is no infinitive. A dictionary lists أكل — he ate — and
+           that is a cell of this table, so the card's own word and that
+           cell are one word, not two things to learn. */
+        citation: { row: "past", col: "he" },
         gate: "rows",
       },
       /* And the pronouns that attach to the end of a word — كتابي is my
@@ -2592,7 +2596,6 @@ export const LANGUAGES: Record<LangId, Lang> = {
           { id: "ongoing", label: "ongoing (đang)" },
           { id: "future", label: "future (sẽ)" },
         ],
-        label: "conjugations",
         gate: "rows",
       },
       /*
@@ -2731,7 +2734,10 @@ export const LANGUAGES: Record<LangId, Lang> = {
           { id: "future", label: "future" },
           { id: "command", label: "command" },
         ],
-        label: "conjugations",
+        /* Cited the same way and for the same reason as Arabic: the
+           he-past is the form a dictionary lists, and it is a cell of
+           this table. */
+        citation: { row: "past", col: "he" },
         gate: "rows",
       },
       /* The same endings, and the same reason: ספרי is my book. */

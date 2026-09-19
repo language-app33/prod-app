@@ -994,7 +994,7 @@ export default async (req) => {
       }
       const fields = {
         /* What to call the card in a list, where its own words do not name
-           it — a verb listed under one of its forms. Stored as given
+           it — a verb saved as the form a dictionary lists. Stored as given
            and capped like every other line of text here: the server does
            not know one language from another, and a name is the teacher's
            words rather than anything it can check. */

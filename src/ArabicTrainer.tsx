@@ -164,6 +164,8 @@ import {
   cellsIn,
   hasCells,
   ownSlot,
+  citedCell,
+  isCitation,
   openRows,
   ownerOf,
   rowOf,
@@ -1050,9 +1052,8 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
 /* ------------------------------------------------------------------
    The units a verb card asks nothing of
 
-   One reason a form carries no questions of its own, and a set of them,
-   because every reader has the same question: is there anything to ask
-   here?
+   Two reasons a form carries no questions of its own, and one set, because
+   every reader has the same question: is there anything to ask here?
 
    A cell of a row nobody has reached. The rows are not as hard as each
    other — somebody who can say what they *do* has something to hang the
@@ -1061,11 +1062,12 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
    mastered, which is the bar a level asks of the level below it applied
    down the other axis.
 
-   The card's own word was the other reason until 0.199, on the languages
-   whose pack named a cell as the form a dictionary lists: the word and
-   that cell were one word, so the word was silenced and the cell drilled.
-   No pack names one now — a verb's word is the verb in every language,
-   and its table is forms of it.
+   And the card's own word, where the language cites a cell that is the
+   same word. Arabic has no infinitive: a dictionary lists the he-past, so
+   a card reading *to eat* and the cell under he · past hold one word
+   between them, and drilling both is drilling it twice. The word stays on
+   the card, as its face and its dictionary meaning; the cell is what is
+   practised, and is met the day the card is.
 
    Held at module level for the reason the three indexes above are: a form
    is asked about one at a time, and it carries no pointer back to the card
@@ -1258,26 +1260,35 @@ export function quietUnits(items: Item[], settings: Settings): Set<string> {
  * rows below it shut for ever.
  */
 function quietRows(card: Item, spec: VerbSpec, lang: Lang, out: Set<string>) {
-  const open = openRows(card, spec, (cell) => {
-    /* The ladder as it stands for this cell alone, and deliberately not
-       through openTypes: that one asks this very gate, and a gate that
-       asks itself would read a cell closed by the row above as having
-       nothing left to master — which would open every row at once. The
-       quiet window is left out for the same reason it is applied after
-       the ladder there: a listening exercise silenced for a quarter of
-       an hour is still something to master, not a gap to slip through. */
-    const supported = availableTypes(cell, lang);
-    const climbing = openTypesOf(supported, (t) => statesOf(cell)[t]);
-    /* Nothing to ask, so nothing to wait for: a cell the material cannot
-       put a question to must not hold the rows below it shut for ever. */
-    if (!climbing.length) return true;
-    return climbing.every((t) => {
-      const s = statesOf(cell)[t];
-      return !!s && mastered(s);
+  {
+    const open = openRows(card, spec, (cell) => {
+      /* The ladder as it stands for this cell alone, and deliberately not
+         through openTypes: that one asks this very gate, and a gate that
+         asks itself would read a cell closed by the row above as having
+         nothing left to master — which would open every row at once. The
+         quiet window is left out for the same reason it is applied after
+         the ladder there: a listening exercise silenced for a quarter of
+         an hour is still something to master, not a gap to slip through. */
+      const supported = availableTypes(cell, lang);
+      const climbing = openTypesOf(supported, (t) => statesOf(cell)[t]);
+      /* Nothing to ask, so nothing to wait for: a cell the material cannot
+         put a question to must not hold the rows below it shut for ever. */
+      if (!climbing.length) return true;
+      return climbing.every((t) => {
+        const s = statesOf(cell)[t];
+        return !!s && mastered(s);
+      });
     });
-  });
-  for (const cell of cellsIn(card, spec)) {
-    if (!open.includes(rowOf(cell))) out.add(cell.id);
+    for (const cell of cellsIn(card, spec)) {
+      /* The cited cell is the word on the front of the card and is met the
+         day the card is, whichever row it happens to sit in. */
+      if (isCitation(spec, cell)) continue;
+      if (!open.includes(rowOf(cell))) out.add(cell.id);
+    }
+    /* And the card's own word, where a filled cell says the same word. An
+       unfilled one leaves the word as all there is of the verb, so it goes
+       on being practised as itself. */
+    if (citedCell(card, spec)) out.add(card.id);
   }
 }
 
@@ -2345,8 +2356,8 @@ function isDrillable(it: Item, settings: Settings) {
      conversation whose every line is ready to be asked. */
   /* A card whose own word the teacher keeps without asking about it
      qualifies the same way a scene does — through what is left. A verb
-     whose word is there to be read and whose table is the lesson is the
-     ordinary case of this; so is the other way round. Asking
+     whose dictionary form is the question and whose table is there to be
+     read is the ordinary case of this; so is the other way round. Asking
      the card alone would hide every one of them from the list of what can
      be practised while its forms were being practised. */
   if (isDialog(it) || !isAsked(leadOf(it))) return drillableUnits(it, settings).length > 0;

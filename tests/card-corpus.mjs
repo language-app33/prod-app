@@ -120,8 +120,8 @@ const attached = {
   ],
 };
 
-/* A verb, whose table belongs to the card, written under one of its own
-   forms — which is why it carries a name. */
+/* A verb, whose table belongs to the card, saved as the form a dictionary
+   lists — which is why it carries a name. */
 const verb = {
   id: "srv-verb",
   lang: AR,
@@ -267,7 +267,7 @@ const legacy = {
 export const CORPUS = [
   { what: "a word with two accepted answers, both speeds of recording and a form kept unasked", card: noun },
   { what: "a word with the pronouns on its end, on two of its forms", card: attached },
-  { what: "a verb with its table, listed under a name of its own", card: verb },
+  { what: "a verb with its table, saved as the form a dictionary lists", card: verb },
   { what: "a sentence with two blanks in it", card: sentence },
   { what: "a sentence whose verb blank asks for one tense", card: tensed },
   { what: "a value that fills other cards' blanks and is not asked itself", card: value },

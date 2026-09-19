@@ -64,7 +64,7 @@ const draft = {
   tableCells: [],
   forms: [{ id: "f1", ar: "كِتاب", en: "book", lat: "kitaab" }],
   note: "",
-  isVerb: false,
+  standsIn: false,
   name: "",
   uses: [],
   fills: [],

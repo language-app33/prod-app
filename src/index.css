@@ -1242,7 +1242,7 @@ button {
   line-clamp:2; font-size:calc(12px * var(--tile, 1)); font-weight:600; color: var(--muted);
   overflow:hidden; word-break:break-word; }
 /* What the teacher calls the card, where its own words do not name it — a
-   verb listed under one of its forms. The headline, above the script,
+   verb saved as the form a dictionary lists. The headline, above the script,
    because it is what the card is; the script keeps its line underneath so a
    card list does not stop showing the language.
 

@@ -186,9 +186,26 @@ export interface VerbSpec {
    * them, and the card is the word. Absent means the card's.
    */
   perForm?: boolean;
-  /** What to call it to a teacher — "attached pronouns", "conjugations",
-      "feminine and plural". Absent reads as "forms". */
+  /** What to call it to a teacher — "attached pronouns", "feminine and
+      plural". Absent on the verb's, which is called by its rows. */
   label?: string;
+  /**
+   * Which cell of the table is the verb as a dictionary names it.
+   *
+   * Arabic has no infinitive: *to eat* is listed under أكل, which is the
+   * he-past form and so a cell of this very table. Without saying so, a
+   * card's own word and that cell are the same word drilled twice —
+   * asked, marked and scheduled as if they were two things to learn.
+   *
+   * Naming it says they are one. The card's word keeps its face and its
+   * dictionary meaning, and the cell is what is practised.
+   *
+   * Absent where the language has a form of its own for the purpose: Huế
+   * cites the bare verb, which is a card's word and not a cell, and
+   * English would cite an infinitive. There is nothing to reconcile in
+   * either, and nothing changes for them.
+   */
+  citation?: { row: string; col: string };
 }
 
 /* ---- numbers ----
@@ -812,9 +829,9 @@ export type Card = {
   /**
    * What to call the card in a list, where its own words do not name it.
    *
-   * A verb is saved under one of its own forms — whichever the teacher
-   * writes at the top of the card — so a list can read "أكل · he ate",
-   * which names that form rather than the verb. A sentence is
+   * A verb in a language with no infinitive is saved as the form a
+   * dictionary lists — Arabic's he-past — so a list read "أكل · he ate",
+   * which names one cell of its table rather than the verb. A sentence is
    * saved as a frame, so a list read "{{name}} is heavy", which names the
    * hole in it rather than what it is for. A name is the teacher's answer
    * to both. Absent on every other card, which is named by the word it
