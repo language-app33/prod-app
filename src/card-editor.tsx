@@ -2951,12 +2951,17 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const [ref, setRef] = useState<string>(savedRef);
   const [refOpen, setRefOpen] = useState<boolean>(!savedRef);
   const refName = slotName(ref);
-  /* What already answers to the name being typed — another card's ID, or a
-     group tag. Both go between braces, so a name is free of both or it is
-     not free. */
+  /* The names nothing else may be called, which is the same list a blank
+     can be written against: the kinds of word this language declares fill
+     a hole of their own name with nothing ticked, so a card called `noun`
+     would be one more thing answering to `{{noun}}`. */
+  const kindNames = useMemo(() => categoriesOf(lang).map((c) => c.id), [lang]);
+  /* What already answers to the name being typed — another card's ID, a
+     group tag, or a kind of word. All of them go between braces, so a name
+     is free of all of them or it is not free. */
   const refHeld = useMemo(
-    () => (refName ? refClash(refName, (allCards || []) as unknown as Record<string, unknown>[], (card && card.id) || "") : null),
-    [refName, allCards, card],
+    () => (refName ? refClash(refName, (allCards || []) as unknown as Record<string, unknown>[], (card && card.id) || "", kindNames) : null),
+    [refName, allCards, card, kindNames],
   );
   const refFree = !!refName && !refHeld;
   /* The same question asked of any name, for the other half of the
@@ -2964,7 +2969,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      answering to one `{{x}}`, which is the whole of what the ID is for
      preventing. */
   const nameHeld = (name: string) =>
-    refClash(name, (allCards || []) as unknown as Record<string, unknown>[], (card && card.id) || "");
+    refClash(name, (allCards || []) as unknown as Record<string, unknown>[], (card && card.id) || "", kindNames);
   /*
    * A rename the teacher has said should follow the name everywhere.
    *
@@ -3042,6 +3047,41 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setAsking(null);
   };
   const dropAsk = () => setAsking(null);
+  /*
+   * And the groups the teacher has taken off every card.
+   *
+   * The same journey a rename everywhere makes, and for the same reason: a
+   * tag is a name several cards share, the only place a stale one is
+   * visible is a card that carries it, and the editor holds one card. So
+   * the answer is carried out with the card being saved and the screen
+   * that owns the collection does the walking.
+   *
+   * There is no "only here" to ask for: taking this one card out of the
+   * group is the tick on the row, two rows up from the question. So the
+   * one question is whether to do it at all, and what it costs is the
+   * cards that fill the group and the sentences left asking for it.
+   */
+  const [stripped, setStripped] = useState<string[]>([]);
+  /* The group being taken off, while the question is up, with the two
+     counts the answer turns on. Null the rest of the time. */
+  const [dropping, setDropping] = useState<{ name: string; fills: number; leaves: number } | null>(null);
+  const askStrip = (name: string, fillCount: number, leaveCount: number) =>
+    setDropping({ name, fills: fillCount, leaves: leaveCount });
+  const dropStrip = () => setDropping(null);
+  const answerStrip = () => {
+    if (!dropping) return;
+    /* Where the name will have got to by the time this is carried out: the
+       screen applies the renames first, so a tag renamed everywhere and
+       then taken off in one sitting has to be taken off where it lands.
+       The rename itself stands — it rewrote the sentences' braces too, and
+       taking a group off the words says nothing about those. */
+    const landed = spread.find((r) => r.from === dropping.name);
+    const target = landed ? landed.to : dropping.name;
+    setStripped((was) => (was.includes(target) ? was : was.concat([target])));
+    dropFill(dropping.name);
+    if (target !== dropping.name) dropFill(target);
+    setDropping(null);
+  };
   /* Which words this phrase teaches. Confirmed, never assumed: the matcher
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
@@ -3080,8 +3120,27 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      it rather than against a block nobody is filling in. */
   const ownForms = [main].concat(forms.slice(1));
   /*
-   * Whether "inside sentence cards" is a question worth asking of this
-   * card at all.
+   * Every blank this card stands in, as it stands right now.
+   *
+   * Asked of fillsOf over the draft, because that is the one answer to
+   * what a card fills: nothing on this screen can come to disagree with
+   * what actually happens at question time, and all of it follows a group
+   * being joined, an ID being typed or a kind of word being answered
+   * without being told.
+   */
+  const ownFills = useMemo(
+    () =>
+      scene
+        ? []
+        : fillsOf(
+            { fills, category, ref: refName, sentence: shape === "sentence" },
+            guessKind(main.ar || main.en || main.lat, lang),
+          ),
+    [scene, fills, category, refName, shape, main, lang],
+  );
+  /*
+   * And so, whether "inside sentence cards" is a question worth asking of
+   * this card at all.
    *
    * A tick that does nothing is worse than no tick, and on two kinds of
    * card the answer is settled before anybody reaches it. A sentence is
@@ -3090,18 +3149,8 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * all — one in no group, with no ID, saying it is no kind of word, and
    * whose own word is too long to be the one every frame borrows — is
    * lent nowhere whatever is ticked.
-   *
-   * Asked of fillsOf over the draft as it stands, because that is the one
-   * answer to what a card stands in: this cannot come to disagree with
-   * what actually happens at question time, and it follows a group being
-   * joined or an ID being typed without being told.
    */
-  const canLend =
-    !scene &&
-    fillsOf(
-      { fills, category, ref: refName, sentence: shape === "sentence" },
-      guessKind(main.ar || main.en || main.lat, lang),
-    ).length > 0;
+  const canLend = ownFills.length > 0;
   /* The cells of the table on screen, as they will be saved — see
      tableCellsOf. */
   const tableCells = tableCellsOf(cells, shownSpec, forms);
@@ -3143,6 +3192,25 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   }, [scene, shape, main, forms]);
 
   /*
+   * How many cards stand in each name, counted the one way it is counted.
+   *
+   * Through `fillsOf`, which is the answer the question itself fills a
+   * hole from: a card's group tags, its ID, the kind of word it says it
+   * is, and `{{word}}` where it is one. Anything that counts a name by
+   * reading only one of those is counting a half — which is what the rows
+   * below did until 0.189, each keeping its own half and neither being
+   * the number a teacher wanted.
+   */
+  const behind = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const c of allCards || []) {
+      if (lang && c.lang && c.lang !== lang.id) continue;
+      for (const name of fillsOf(c, kindOf(c, lang))) out.set(name, (out.get(name) || 0) + 1);
+    }
+    return out;
+  }, [allCards, lang]);
+
+  /*
    * The blanks this language already knows about, and what each is worth.
    *
    * Two numbers, because they answer two different questions a teacher has
@@ -3154,23 +3222,16 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * on.
    */
   const blanksAround = useMemo(() => {
-    const words = new Map<string, number>();
+    const named = new Map<string, number>();
     const used = new Map<string, number>();
-    const said = new Map<string, number>();
-    let anyWord = 0;
     for (const c of allCards || []) {
       if (lang && c.lang && c.lang !== lang.id) continue;
-      /* What a card fills — see fillsOf, which is the one answer and which
-         this has to agree with. A sentence fills nothing at all, whether or
-         not it has got its blanks yet: it is a sentence, not a word. Every
-         name it gives, because a card may now say it fills several and each
-         of them is a blank with one more word behind it. */
-      const named = fillNames(c);
+      /* Which names a card writes on itself, as against which it fills:
+         `wrote` is the one fact that tells a group somebody named from a
+         kind of word the language declares, and the two can be the same
+         string. A sentence writes none — it is a sentence, not a word. */
       if (!isSentence(c)) {
-        for (const name of named) words.set(name, (words.get(name) || 0) + 1);
-        if (!named.length && kindOf(c, lang) === "word") anyWord++;
-        const category = String(c.category || "").toLowerCase();
-        if (category) said.set(category, (said.get(category) || 0) + 1);
+        for (const name of fillNames(c)) named.set(name, (named.get(name) || 0) + 1);
       }
       for (const slot of slotsOf(c)) used.set(slot, (used.get(slot) || 0) + 1);
     }
@@ -3188,20 +3249,20 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     const builtIn = [
       {
         name: WORD_SLOT,
-        words: anyWord,
+        words: behind.get(WORD_SLOT) || 0,
         used: used.get(WORD_SLOT) || 0,
-        wrote: words.get(WORD_SLOT) || 0,
+        wrote: named.get(WORD_SLOT) || 0,
         built: "any" as const,
       },
       ...categoriesOf(lang).map((c) => ({
         name: c.id,
-        words: said.get(c.id) || 0,
+        words: behind.get(c.id) || 0,
         used: used.get(c.id) || 0,
-        wrote: words.get(c.id) || 0,
+        wrote: named.get(c.id) || 0,
         built: "category" as const,
       })),
     ];
-    const names = [...new Set([...words.keys(), ...used.keys()])]
+    const names = [...new Set([...named.keys(), ...used.keys()])]
       .filter((n) => !builtIn.some((b) => b.name === n))
       .sort();
     /* One row shape over both kinds, so a reader can ask any row whether
@@ -3211,13 +3272,13 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
       ...builtIn,
       ...names.map((name) => ({
         name,
-        words: words.get(name) || 0,
+        words: behind.get(name) || 0,
         used: used.get(name) || 0,
-        wrote: words.get(name) || 0,
+        wrote: named.get(name) || 0,
       })),
     ];
     return rows;
-  }, [allCards, lang]);
+  }, [allCards, lang, behind]);
 
   /*
    * The blanks this card can be offered to fill: the ones somebody wrote.
@@ -3243,6 +3304,34 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * typed, or one an older release ticked — because a list that hides what
    * the card holds is a list you cannot take it off in.
    */
+  /*
+   * The tags a card wears without being given them.
+   *
+   * A card fills `{{noun}}` by saying it is a noun and `{{word}}` by being
+   * a word — fillsOf adds both with nothing ticked — so these are not
+   * things to answer here. They are shown all the same, since 0.189,
+   * because leaving them out left a teacher reading a list of the blanks
+   * their card fills that did not have the blanks their card fills in it:
+   * the commonest two, on most cards. Grouped, and flat rather than
+   * ticked, because the answer is the kind of word above and there is
+   * nothing on this row to press.
+   */
+  const defaultTags = useMemo(
+    () =>
+      categoriesOf(lang)
+        .map((c) => ({
+          name: c.id,
+          what: `Any ${c.label.toLowerCase()}`,
+          words: behind.get(c.id) || 0,
+        }))
+        .concat([{
+          name: WORD_SLOT,
+          what: "Any single word",
+          words: behind.get(WORD_SLOT) || 0,
+        }]),
+    [lang, behind],
+  );
+
   const fillsOffer = useMemo(() => {
     const written = blanksAround.filter(
       (b) => b.name !== WORD_SLOT && (b.used > 0 || b.wrote > 0),
@@ -3274,29 +3363,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const blankOffer = useMemo(() => {
     const named = (id: string) =>
       (categoriesOf(lang).find((c) => c.id === id) || { label: id }).label;
-    /*
-     * How many words are behind each name, counted the way the question
-     * will count them: through `fillsOf`, which is the one answer to what
-     * a card fills and which the trainer fills a hole from.
-     *
-     * Not off the rows above, which keep the two halves of a name apart —
-     * how many cards *say* they are a noun, and how many *tag* themselves
-     * with the word. A name can be both: Arabic declares `name` as a kind
-     * of word and `{{name}}` is the oldest frame in the app, filled by the
-     * names a teacher has tagged. Counting one half and calling it the
-     * total told a teacher that the blank they were about to write had
-     * nothing behind it while two cards stood ready to fill it.
-     */
-    const behind = new Map<string, number>();
-    for (const c of allCards || []) {
-      if (lang && c.lang && c.lang !== lang.id) continue;
-      for (const name of fillsOf(c, kindOf(c, lang))) {
-        behind.set(name, (behind.get(name) || 0) + 1);
-      }
-    }
+    /* How many words are behind each name — `behind`, which counts the way
+       the question will: through fillsOf, and once for the whole screen. */
     const rows: BlankOffer[] = [];
     for (const b of blanksAround) {
-      const words = behind.get(b.name) || 0;
+      const words = b.words;
       if (b.built === "any") {
         rows.push({ name: b.name, kind: "any", words, note: "Any word in the language" });
       } else if (b.built === "category") {
@@ -3320,7 +3391,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
       });
     }
     return rows.sort((a, b) => a.name.localeCompare(b.name));
-  }, [blanksAround, allCards, lang, card]);
+  }, [blanksAround, behind, allCards, lang, card]);
 
   /*
    * The words each of this card's blanks can be filled with, today.
@@ -3597,6 +3668,8 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     addFill,
     dropFill,
     fillsOffer,
+    defaultTags,
+    ownFills,
     ref,
     setRef,
     refName,
@@ -3612,6 +3685,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     answerAsk,
     dropAsk,
     spread,
+    stripped,
+    dropping,
+    askStrip,
+    answerStrip,
+    dropStrip,
     uses,
     setUses,
     recording,
@@ -4819,7 +4897,9 @@ function IdBox({ word }: { word: WordDraft }) {
             <p className="at-formneed unmet">
               {refHeld.kind === "card"
                 ? `Taken — ${who || "another card"} already has this ID. Choose another.`
-                : "Taken — a group tag already answers to this name. Choose another."}
+                : refHeld.kind === "category"
+                  ? "Taken — that is a kind of word, and every word of that kind already fills it. Choose another."
+                  : "Taken — a group tag already answers to this name. Choose another."}
             </p>
           )}
           {refName && refName !== ref && (
@@ -4856,7 +4936,9 @@ function TagList({ word, rows }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
 }) {
-  const { fills, addFill, dropFill, renameFill, nameHeld } = word;
+  const {
+    fills, addFill, dropFill, renameFill, nameHeld, askStrip, defaultTags, ownFills,
+  } = word;
   const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
   /* A tag may be renamed onto another tag — two groups becoming one is a
      thing a teacher may mean — but never onto a card's ID, which would
@@ -4864,16 +4946,58 @@ function TagList({ word, rows }: {
   const clash = renaming ? nameHeld(slotName(renaming.to)) : null;
   const canRename = !!renaming && !!slotName(renaming.to) &&
     slotName(renaming.to) !== renaming.from && (!clash || clash.kind === "group");
+  /* The two runs, named: the tags that follow from the card, and the ones
+     a teacher keeps. They are one list because they are one namespace —
+     every one of them is a name a sentence writes between braces — and two
+     runs because only the second is a question. */
+  const fixed = (
+    <>
+      <p className="at-eyebrow">Default tags</p>
+      {defaultTags.map((t) => {
+        const on = ownFills.includes(t.name);
+        return (
+          <div className={`at-tagfixed${on ? " on" : ""}`} key={t.name}>
+            {/* The mark keeps its room where it is not drawn, so the names
+                read as a column rather than stepping in and out. */}
+            <span className={`at-tagmark${on ? "" : " off"}`}>
+              <Icon name="check" size={16} />
+            </span>
+            <span className="at-tickbody">
+              <b>{t.name}</b>
+              <i>
+                {[
+                  t.what,
+                  t.words
+                    ? `${plural(t.words, "word")} fill${t.words === 1 ? "s" : ""} it`
+                    : "nothing fills it yet",
+                ].join(" · ")}
+              </i>
+            </span>
+          </div>
+        );
+      })}
+      <Help>
+        These follow from the card: the one that matches what kind of word
+        you said it is, and <code>{`{{${WORD_SLOT}}}`}</code>, which every
+        single word fills. Change them by changing the kind of word, above.
+      </Help>
+      <p className="at-eyebrow at-mt3">Your own tags</p>
+    </>
+  );
   if (!rows.length) {
     return (
-      <p className="at-hint">
-        No group has been named yet. Type one above — the first of its kind has
-        to be named by somebody.
-      </p>
+      <div className="at-ticklist">
+        {fixed}
+        <p className="at-hint">
+          No group has been named yet. Type one above — the first of its kind
+          has to be named by somebody.
+        </p>
+      </div>
     );
   }
   return (
     <div className="at-ticklist">
+      {fixed}
       {rows.map((b) => {
         const on = fills.includes(b.name);
         if (renaming && renaming.from === b.name) {
@@ -4933,6 +5057,21 @@ function TagList({ word, rows }: {
               label={`Rename the group ${b.name}`}
               onClick={() => setRenaming({ from: b.name, to: b.name })}
             />
+            {/* And the bin, beside the pencil, for the same reason the
+                pencil is here: a group nobody wants any more is only
+                visible from a card that is in it. Only where cards
+                actually fill it — on a name a sentence leaves and nothing
+                fills, there is nothing to take off anybody, and a button
+                that would do nothing is worse than no button. Taking this
+                one card out is the tick to its left, so this can mean the
+                one thing. */}
+            {b.wrote > 0 && (
+              <IconButton
+                icon="delete"
+                label={`Take the group ${b.name} off every card`}
+                onClick={() => askStrip(b.name, b.wrote, b.used)}
+              />
+            )}
           </div>
         );
       })}
@@ -4986,6 +5125,60 @@ function RenameAsk({ word }: { word: WordDraft }) {
       confirmLabel="Change it everywhere"
       onCancel={dropAsk}
       onConfirm={() => answerAsk(true)}
+    />
+  );
+}
+
+/*
+ * And the one question taking a group off every card has to ask.
+ *
+ * Not "are you sure" — "here is what it costs". The two numbers on the row
+ * are the two halves of that: how many cards fill the group, which is what
+ * loses the tag, and how many leave a blank of the name, which is what
+ * goes on asking for a word that will not come. The second is the half
+ * nobody would think of, and the half that is not undone by ticking the
+ * group back on to one card.
+ *
+ * What is *not* lost is worth as many words as what is: a tag is a name,
+ * and taking it off a card takes nothing else off — not the word, not its
+ * recordings, and not a day of anybody's progress on it.
+ */
+function StripAsk({ word }: { word: WordDraft }) {
+  const { dropping, answerStrip, dropStrip } = word;
+  if (!dropping) return null;
+  return (
+    <ConfirmModal
+      danger
+      title={`Take ${dropping.name} off every card?`}
+      confirmLabel="Take it off every card"
+      body={
+        <>
+          {/* Counted rather than made the subject of a sentence: "1 card
+              lose the tag" is what writing it the other way round gets
+              you, on the one card that is the commonest case of all. */}
+          <p>
+            The tag comes off <strong>{plural(dropping.fills, "card")}</strong>,
+            and nothing else goes with it — the words, the recordings and
+            every day of progress a student has made on them stay exactly as
+            they are.
+          </p>
+          {dropping.leaves ? (
+            <p>
+              A <BlankName name={dropping.name} /> blank is left by{" "}
+              {plural(dropping.leaves, "card")}, and it goes on being asked.
+              With nothing filling it, there is no word to put in the hole
+              until something fills it again.
+            </p>
+          ) : (
+            <p>
+              No card leaves a <BlankName name={dropping.name} /> blank, so
+              the name goes with the last card that filled it.
+            </p>
+          )}
+        </>
+      }
+      onCancel={dropStrip}
+      onConfirm={answerStrip}
     />
   );
 }
@@ -5318,7 +5511,11 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               <BlankNameBox
                 label="Name a group this card joins"
                 placeholder="A new group, like colours"
-                taken={offered.map((b) => b.name)}
+                /* Every name already on the list, which since 0.189
+                   includes the ones that follow from the card: a group
+                   called `noun` would be a second thing answering to
+                   `{{noun}}`. */
+                taken={offered.map((b) => b.name).concat(word.defaultTags.map((t) => t.name))}
                 onName={addFill}
               />
             )}
@@ -5385,10 +5582,12 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         )}
         </div>
       </div>
-      {/* And the question a rename asks, over the whole app: it is about
-          cards this screen is not editing, so it cannot be answered
-          beside the row it came from. */}
+      {/* And the two questions that are about cards this screen is not
+          editing, so neither can be answered beside the row it came
+          from: where a rename follows the name to, and whether a group
+          comes off the collection. */}
       <RenameAsk word={word} />
+      <StripAsk word={word} />
     </>
   );
 }
@@ -5470,7 +5669,7 @@ export function writtenCard({ word, talk, shape, chosen }: {
   chosen: string[];
 }) {
   const scene = shape === "scene";
-  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, category, refName, spread } = word;
+  const { shownSpec, ownForms, tableCells, forms, note, standsIn, name, uses, fills, category, refName, spread, stripped } = word;
   const written = shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms;
   return {
     forms: written,
@@ -5501,6 +5700,9 @@ export function writtenCard({ word, talk, shape, chosen }: {
        other card. The editor holds one card and saves one card; this is
        what it hands the screen that holds the rest. */
     spread: scene ? [] : spread,
+    /* And the groups the teacher took off the collection altogether, which
+       travel the same way and are applied after the renames. */
+    stripped: scene ? [] : stripped,
     /*
      * And whether the card is a question at all, which is no longer a
      * question anybody is asked.
@@ -5938,7 +6140,7 @@ export function CardEditor({ card, lang, decks, inDecks, allCards, onSave, onDel
   decks: Deck[];
   inDecks?: string[];
   allCards: Card[];
-  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
+  onSave: (written: { forms: any, note: string, name: string, category: string, sentence: boolean, decks: string[], uses: string[], fills: string[], ref: string, spread: { from: string, to: string }[], stripped: string[], drill: boolean, scene: { title: string, setting: string, speakers: string[], you: number | null, lines: any[] } | null, }) => void;
   onDelete?: () => void;
   onClose: () => void;
   busy?: boolean;

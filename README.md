@@ -286,10 +286,13 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   any of a group. The ID is the teacher's, optional, given whenever they
   want one and stored in `ref`; `cardRef` reads it and narrows it the way every
   other name that goes between braces is narrowed, so what the editor
-  checked and what the server stored cannot come apart. Both kinds of name
-  are one namespace, because both are what a sentence writes between
-  braces: `refClash` refuses a name another card's ID or anybody's group
-  tag already answers to, while the teacher is still looking at it.
+  checked and what the server stored cannot come apart. All four kinds of
+  name are one namespace, because all four are what a sentence writes
+  between braces: `refClash` refuses a name that another card's ID,
+  anybody's group tag, a kind of word the language declares or the built-in
+  `{{word}}` already answers to, while the teacher is still looking at it.
+  It is the editor that refuses, not the server, so a name that collided
+  before the rule existed is stored and read as it always was.
   Every form of a filler lends itself, not only its
   own word: a plural stands in a sentence its singular does not, gated on
   what that form itself has climbed. A card with a blank in it never fills
@@ -432,17 +435,44 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   what a card fills is nowhere in its words and nothing can be read off, so
   it is the teacher's answer and this is where they give it — a box that
   names a new group, above the groups somebody has written, with this
-  card's ticked. A kind of word is not among them, because a
-  card fills `{{noun}}` by saying it is a noun and `{{word}}` by being a
-  word: a tick for either would change nothing. What is offered is what
-  somebody *wrote* rather than what is not built in, because a language
-  may declare a kind of word whose name a teacher also uses by hand —
-  Arabic declares `name`, and `{{name}}` is the oldest frame in the app. A
-  card that leaves a blank of its own fills none, so on one of those this
-  subsection says that rather than offering a control there is no answer
-  to. Every row carries the pencil that renames the tag, because a tag is a
-  name several cards share and the only place a misspelt one is visible is
-  a card that has it.
+  card's ticked.
+
+  **Two runs, because a card wears two sorts of tag.** The first is what
+  follows from the card: the kind of word it says it is, and `{{word}}`
+  where it is one, each filled with nothing ticked (`fillsOf`). Those are
+  shown flat rather than ticked — the answer to them is the kind of word,
+  further up the screen — with the ones this card actually fills marked,
+  and every one of them saying how many words are behind it. They were left
+  out until 0.189, on the grounds that a tick for one would do nothing,
+  which is true and was the wrong conclusion: it left a teacher reading a
+  list of the blanks their card fills that did not have the commonest two
+  in it. The second run is the tags somebody wrote, ticked, each with the
+  pencil that renames it — because a tag is a name several cards share and
+  the only place a misspelt one is visible is a card that has it. What that
+  run offers is what somebody *wrote* rather than what is not built in,
+  because a language may declare a kind of word whose name a teacher also
+  uses by hand — Arabic declares `name`, and `{{name}}` is the oldest frame
+  in the app. A card that leaves a blank of its own fills none, so on one
+  of those the subsection says that rather than offering a control there is
+  no answer to.
+
+  **And beside the pencil, on a group cards actually fill, the bin that
+  takes it off all of them.** For the same reason the pencil is there, and
+  offered nowhere else: a group nobody wants any more is only visible from
+  a card that is in it. There is no "only here" to ask for — taking this
+  card out of the group is the tick two rows to the left — so the one
+  question is whether to do it at all, and what it asks is what it costs:
+  how many cards lose the tag, that they lose nothing else, and that the
+  sentences leaving a blank of that name go on asking for it with nothing
+  to fill it. It is called *taking a group off every card* and not
+  *deleting a tag* because that is all it is: `droppedIn` in
+  `src/variables.ts` takes the tags off the words and never the braces off
+  a sentence, so a name outlives the last card that filled it for exactly
+  as long as some sentence still writes it. Rewriting those sentences would
+  be acting on an absence — the teacher said nothing about them. The editor
+  holds one card, so the answer travels out beside a rename's and the Cards
+  screen does the walking, after the renames and over the same pool, so a
+  tag renamed and then taken off in one sitting comes off where it landed.
 
   **Renaming either asks one question: does the name follow, or does this
   card alone move?** A name lives in two sorts of place — on the card that

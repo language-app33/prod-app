@@ -30,6 +30,65 @@ to the full words as soon as there is room for them.
 language does not insist on now starts its line with *not set*, which
 there was previously no way back to.
 
+## 0.189 — 19 September 2026
+
+**The card's group tags now show the tags a card wears anyway.** A card
+fills `{{noun}}` by saying it is a noun, and `{{word}}` by being a single
+word, without anybody ticking anything — and that list used to leave both
+out, on the grounds that a tick for either would do nothing. True, and the
+wrong conclusion: it meant reading a list of the blanks your card fills
+that did not have the commonest two in it.
+
+They are listed now, grouped together above the tags you keep, with the
+ones this card actually fills marked and each saying how many words are
+behind it. They are flat rather than ticked, because there is nothing on
+those rows to answer — what changes them is the kind of word, further up
+the screen.
+
+**And a card can no longer be given an ID that a kind of word already
+answers to.** A card ID, a group tag, a kind of word and `{{word}}` all go
+between braces, so they are one namespace — but only the first two were
+checked. Calling a card `noun` left `{{noun}}` pulling that one card *and*
+every noun. The editor refuses it now and says why, the same way it
+refuses a name another card or group already holds. Cards written before
+the rule are untouched.
+
+**One number, counted once.** How many words are behind a blank was worked
+out in two places, each reading half the answer — how many cards *say*
+they are a noun, and how many *tag* themselves with the word. A name can
+be both. They are one count now, taken the way the question itself takes
+it.
+
+## 0.188 — 19 September 2026
+
+**A group tag can be taken off every card.** Until now a teacher could name
+a group, tick cards into it and rename it, but never get rid of one: a tag
+typed in a hurry, or a group that stopped being useful, sat in the list on
+every card for good, and the only way to empty it was to open each card in
+it and untick.
+
+The bin is beside the pencil on the group's own row while a card is being
+edited, which is where the pencil is for the same reason — a group nobody
+wants any more is only visible from a card that is in it. It appears only
+on a group that cards actually fill; on a name a sentence leaves and
+nothing fills there is nothing to take off anybody.
+
+It asks once, and what it asks is what it costs rather than whether you are
+sure: how many cards lose the tag, and that they lose nothing else — not
+their words, not their recordings, and not a day of anybody's progress. And
+the half nobody would think of, which is the half that ticking the group
+back onto one card does not undo: the sentences that leave a blank of that
+name go on asking for it, with no word to put in the hole until something
+fills it again.
+
+Which is why it says *take it off every card* rather than *delete*. A tag
+is not a thing the app keeps a list of — it exists exactly while some card
+carries it or some sentence asks for it — so taking it off the last card
+that filled it makes the name disappear only when no sentence is still
+writing it. Nothing rewrites a sentence here: a teacher taking a group off
+their words has said nothing about the sentences that use it.
+
+
 ## 0.187 — 19 September 2026
 
 **New card now asks which of the three kinds you are making, before the

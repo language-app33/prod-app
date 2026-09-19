@@ -163,23 +163,34 @@ export const cardRef = (card: WithSlots | null | undefined): string =>
 /*
  * Whether a name is already answered to by something else.
  *
- * Both halves of the Blanks section put a name between braces — a card's
- * ID and a group tag — so the two share one namespace and a name has to be
- * free of both. Comes back as what holds it, so the editor can say which
- * card that is rather than "taken"; null where the name is free.
+ * Everything that reaches a card reaches it between braces — a card's ID,
+ * a group tag, a kind of word, and the built-in `{{word}}` — so the four
+ * share one namespace and a name has to be free of all of them. Comes back
+ * as what holds it, so the editor can say which card that is rather than
+ * "taken"; null where the name is free.
  *
  * `self` is the card being edited, which is never a clash with itself.
  * `{{word}}` is spoken for by every word in the language, so nothing may
  * be called it.
+ *
+ * `kinds` is the parts of speech the language declares, which fill a hole
+ * of their own name without anybody ticking anything — see fillsOf. They
+ * are passed in for the reason the kind of a card is: which strings a
+ * language declares is the language pack's business and this module knows
+ * no language. Left out, they are not checked, which is what every caller
+ * got before 0.189 — and what let a card be given the ID `noun` while
+ * every noun went on filling the same hole.
  */
 export function refClash(
   name: string,
   pool: WithSlots[],
   self = "",
-): { kind: "card" | "group"; card?: WithSlots } | null {
+  kinds: string[] = [],
+): { kind: "card" | "group" | "category"; card?: WithSlots } | null {
   const want = slotName(name);
   if (!want) return null;
   if (want === WORD_SLOT) return { kind: "group" };
+  if (kinds.includes(want)) return { kind: "category" };
   for (const card of pool || []) {
     if (String((card && card.id) || "") === self) continue;
     if (cardRef(card) === want) return { kind: "card", card };
@@ -237,6 +248,31 @@ export function renamedIn<T extends WithSlots>(card: T, from: string, to: string
     moved = true;
   }
   return moved ? (out as T) : null;
+}
+
+/*
+ * One card, with a group tag taken off it.
+ *
+ * What "take this group off every card" means, and the whole of it: the
+ * tags a card carries, never the braces a sentence writes. A sentence
+ * asking for `{{colour}}` goes on asking for it — the name is still a
+ * blank, now with nothing behind it — because a teacher taking a group off
+ * their words has said nothing about the sentences that use it, and
+ * rewriting those would be acting on an absence. It is also why the app
+ * calls this taking a group off every card rather than deleting a tag: the
+ * name outlives the last card that filled it for exactly as long as some
+ * sentence still asks for it.
+ *
+ * Null where nothing moved, as renamedIn is, which is the answer for
+ * almost every card in the collection: the caller saves what comes back
+ * and lets the rest alone.
+ */
+export function droppedIn<T extends WithSlots>(card: T, name: string): T | null {
+  const want = slotName(name);
+  if (!want || !card) return null;
+  const tags = fillNames(card);
+  if (!tags.includes(want)) return null;
+  return { ...card, fills: tags.filter((tag) => tag !== want) } as unknown as T;
 }
 
 /** One string, with one slot renamed — `{{name}}` to `{{name-is}}`. */

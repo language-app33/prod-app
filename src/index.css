@@ -733,6 +733,21 @@ button {
 /* An ID is a name written between braces on another card, so it is read in
    the face those are read in. A part of speech is a word. */
 .at-idname { font-family: var(--mono); }
+/* ---- a tag a card wears without being given it ----
+   Its kind of word, and the built-in every single word fills. A row in the
+   same list as the tags a teacher ticks, because it is one namespace — but
+   flat rather than ticked, because there is nothing on it to answer: the
+   question is the kind of word, further up the screen. Dashed says so; the
+   one that applies is marked and takes the solid rim a ticked row has. */
+.at-tagfixed { display:flex; align-items:center; gap:10px;
+  border:2px dashed var(--line); border-radius: var(--r-sm);
+  background: var(--well); padding:10px 12px; }
+.at-tagfixed.on { border-style:solid; border-color: var(--accent); }
+.at-tagmark { flex:0 0 auto; display:inline-flex; width:20px; justify-content:center;
+  color: var(--accent); }
+.at-tagmark.off { visibility:hidden; }
+.at-ticklist > .at-eyebrow { margin:2px 0 0; }
+.at-ticklist > .at-hint { margin:0; }
 /* One group tag: the tick that joins it, and the pencil that renames it.
    Two questions about one row, so they are two controls — a row that
    renamed the group when you meant to join it would be unusable. */

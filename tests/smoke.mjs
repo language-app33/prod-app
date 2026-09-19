@@ -4242,6 +4242,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
         .find((t) => /already/.test(t))) || "(nothing said)");
 
+    /* And a kind of word is taken too, since 0.189: a card called `noun`
+       would be one more thing answering to `{{noun}}`, beside every noun
+       in the language — which is the one thing an ID is for preventing. */
+    typeInto(idBox(), "verb");
+    await sleep(200);
+    check("a kind of word is taken as surely as another card's name is",
+      !!withLabel("Lock this ID") && withLabel("Lock this ID").disabled &&
+        /that is a kind of word/.test(document.body.textContent || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())
+        .find((t) => /kind of word/.test(t))) || "(nothing said)");
+
     typeInto(idBox(), "name-is");
     await sleep(200);
     check("and a free one lights the tick, with nothing else said",
@@ -4780,10 +4791,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("the groups it can join are a list on the screen, not a menu to open",
         fillList().length > 0 && !inHalf(FILLS, ".at-choosebtn").length,
         fillNames().join(", ") || "(no list)");
-      /* And blank ids, not kinds of card. A card fills {{noun}} by saying
-         it is a noun, so a tick for it would do nothing — while {{name}},
-         which this language also declares as a kind of word, is the oldest
-         blank in the app and has to stay. Written, not built in. */
+      /* The ticked list is the tags somebody wrote. A card fills {{noun}}
+         by saying it is a noun, so a tick for it would do nothing — while
+         {{name}}, which this language also declares as a kind of word, is
+         the oldest blank in the app and has to stay. Written, not built
+         in. */
       check("and they are the group tags somebody wrote, not the kinds of card",
         fillNames().includes("name") &&
           !["word", "noun", "verb", "adjective", "pronoun", "preposition"]
@@ -4792,6 +4804,51 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("with what each is worth, which is whether to tick it",
         fillList().every((r) => /\d/.test(((r.querySelector("i") || {}).textContent) || "")),
         fillList().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
+
+      /* ---- and above them, the tags the card wears anyway ----
+
+         A card fills its kind of word and {{word}} with nothing ticked, so
+         leaving those out left a teacher reading a list of the blanks
+         their card fills that did not have the commonest two in it. They
+         are shown since 0.189 — grouped, flat rather than ticked, because
+         the answer to them is the kind of word further up the screen. */
+      {
+        const fixed = () => inHalf(FILLS, ".at-tagfixed");
+        const fixedNames = () => fixed()
+          .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+        const runs = () => inHalf(FILLS, ".at-eyebrow")
+          .map((n) => (n.textContent || "").trim());
+        check("the default tags are listed too, in a run of their own",
+          runs()[0] === "Default tags" && runs().includes("Your own tags"),
+          runs().join(" | ") || "(no runs)");
+        check("and they are the kinds of word, plus the one every word fills",
+          ["noun", "verb", "adjective", "name", "word"]
+            .every((n) => fixedNames().includes(n)),
+          fixedNames().join(", ") || "(none listed)");
+        check("each saying what it takes and how many words are behind it",
+          fixed().length > 0 && fixed().every((r) =>
+            /^Any /.test(((r.querySelector("i") || {}).textContent) || "")),
+          fixed().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
+        /* The card on screen is a word nobody has said the kind of, so
+           {{word}} is marked and no kind of word is. */
+        const marked = () => fixed()
+          .filter((r) => !((r.className || "").includes("off")) && (r.className || "").includes("on"))
+          .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+        check("and the ones this card actually fills are marked",
+          JSON.stringify(marked()) === JSON.stringify(["word"]),
+          marked().join(", ") || "(none marked)");
+        /* And none of them can be typed in as a group, because each is
+           already a name on this list. */
+        const newInput = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew input")[0] || null);
+        const addBtn = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew button")[0] || null);
+        typeInto(newInput(), "noun");
+        await sleep(200);
+        check("and a group cannot be named after one of them",
+          !!addBtn() && addBtn().disabled,
+          addBtn() ? (addBtn().disabled ? "refused" : "offered") : "(no button)");
+        typeInto(newInput(), "");
+        await sleep(150);
+      }
 
       /* And the box that names a new one, above the list rather than at
          the bottom of a menu: naming the first blank of a kind is the one
@@ -4854,6 +4911,72 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           .map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
           .find((t) => /borrow/.test(t))) || "(nothing said)");
 
+      const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
+      const modalBtns = () => modal() ? [...modal().querySelectorAll("button")] : [];
+      const modalBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        modalBtns().find((b) => re.test((b.textContent || "").trim())) || null);
+
+      /* ---- taking one off every card ----
+
+         The other thing done to a name several cards share, beside the
+         pencil and for the same reason: a group nobody wants any more is
+         only visible from a card that is in it. It can mean one thing —
+         taking this card out is the tick two rows to its left — so the
+         question is whether to do it at all, and what it costs. */
+      const bin = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        (fillRow(re) ? fillRow(re).parentElement : document)
+          .querySelector('button[aria-label^="Take the group"]') || null);
+      check("a group cards actually fill offers to come off all of them",
+        !!bin(/^name$/), bin(/^name$/) ? "there" : "(no bin)");
+      /* And one nothing fills does not: there is nothing to take off
+         anybody, and a button that would do nothing is worse than none. */
+      check("while one nobody fills yet does not, having nothing to come off",
+        !bin(/^greeting$/), bin(/^greeting$/) ? "offered anyway" : "not offered");
+
+      click(bin(/^name$/));
+      await sleep(300);
+      check("the bin asks before it reaches past this card",
+        !!modal() && /^Take name off every card\?$/.test(
+          ((modal().querySelector(".at-modaltitle") || {}).textContent || "").trim()),
+        modal() ? ((modal().querySelector(".at-modaltitle") || {}).textContent || "").trim() : "(nothing asked)");
+      /* Not "are you sure" — what it costs, in both directions: the cards
+         that lose the tag and keep everything else, and the sentences left
+         asking for a name nothing answers to. That second half is the one
+         nobody would think of and the one that re-ticking cannot undo. */
+      const asked = () => ((modal() || {}).textContent || "").replace(/\s+/g, " ");
+      check("and says what goes with it, and what does not",
+        /The tag comes off/.test(asked()) && /progress/.test(asked()),
+        asked().slice(0, 160) || "(nothing said)");
+      check("including the sentences that go on asking for the name",
+        /goes on being asked/.test(asked()),
+        asked().slice(0, 240) || "(nothing said)");
+
+      /* Answered no, nothing has happened. */
+      click(modalBtn(/^Cancel$/));
+      await sleep(250);
+      check("answering no leaves the group exactly as it was",
+        !modal() && JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
+        ticked().join(", ") || "(none ticked)");
+
+      click(bin(/^name$/));
+      await sleep(300);
+      click(modalBtn(/^Take it off every card$/));
+      await sleep(300);
+      check("and answering yes takes it off this card with the rest",
+        !modal() && JSON.stringify(ticked()) === JSON.stringify(["greeting"]),
+        ticked().join(", ") || "(none ticked)");
+      /* The row stays, because the list is the collection as it is stored
+         and nothing is stored until the card is saved — the same way a
+         rename leaves the old name on the list until then. */
+      check("the row stays until the save that carries the answer out",
+        fillNames().includes("name"), fillNames().join(", "));
+
+      /* Ticked back on, so the walk below meets the card it expects: this
+         card is in the group again, and the answer it carries out is the
+         one being tested here rather than a card that quietly left. */
+      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      await sleep(250);
+
       /* And unticking is how one is taken off. */
       click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
       await sleep(250);
@@ -4893,10 +5016,6 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .find((b) => b.getAttribute("aria-label") === "Rename the group name"));
       await sleep(300);
 
-      const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
-      const modalBtns = () => modal() ? [...modal().querySelectorAll("button")] : [];
-      const modalBtn = (/** @type {RegExp} */ re) => /** @type {any} */ (
-        modalBtns().find((b) => re.test((b.textContent || "").trim())) || null);
       check("renaming a tag asks whether the name follows it everywhere",
         !!modal() && !!modalBtn(/^Change it everywhere$/) && !!modalBtn(/^Only here$/),
         modalBtns().map((b) => (b.textContent || "").trim()).join(" | ") || "(nothing asked)");
