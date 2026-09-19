@@ -57,6 +57,9 @@ const ComponentGallery = React.lazy(() =>
 const ScreenElements = React.lazy(() =>
   import("./gallery.tsx").then((m) => ({ default: m.ScreenElements })),
 );
+const TextStyles = React.lazy(() =>
+  import("./gallery.tsx").then((m) => ({ default: m.TextStyles })),
+);
 import {
   contextCoverage,
   dimValues,
@@ -1423,6 +1426,7 @@ export function AdminSpace({ account, languages, onClose }: {
      which is a lot of markup to carry on a tab that is mostly about backups. */
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [elementsOpen, setElementsOpen] = useState(false);
+  const [stylesOpen, setStylesOpen] = useState(false);
   const [selDecks, setSelDecks] = useState(() => new Set<string>());
   const [selFlags, setSelFlags] = useState(() => new Set<string>());
   /* The flagged card being looked at: { flag, card, error }. The card
@@ -2718,6 +2722,26 @@ export function AdminSpace({ account, languages, onClose }: {
               {galleryOpen && (
                 <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
                   <ComponentGallery />
+                </React.Suspense>
+              )}
+
+              <p className="at-eyebrow at-mt6">Text styles</p>
+              <Help>
+                Every size a person actually reads, drawn at the size it is drawn at in the
+                app and labelled with what that size comes out as. The same reason the
+                components are here: a size is worth pointing at by name — “at-hint is too
+                small” — rather than by describing the paragraph it was noticed in.
+              </Help>
+              <Button
+                className="at-mt3"
+                icon={stylesOpen ? "close" : "view"}
+                onClick={() => setStylesOpen((v) => !v)}
+              >
+                {stylesOpen ? "Hide the text styles" : "Show the text styles"}
+              </Button>
+              {stylesOpen && (
+                <React.Suspense fallback={<Notice kind="busy">Loading…</Notice>}>
+                  <TextStyles />
                 </React.Suspense>
               )}
 

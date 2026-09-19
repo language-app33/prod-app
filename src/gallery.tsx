@@ -23,7 +23,9 @@ interface Use {
 import React, { useState } from "react";
 import { COMPONENT_USES } from "./component-uses.js";
 import { SCREEN_ELEMENTS, NAMING } from "./screen-elements.ts";
-import { LANGUAGES } from "./languages.ts";
+import { TEXT_STYLES, TYPE_SCALE } from "./text-styles.ts";
+import type { TextStyle } from "./text-styles.ts";
+import { LANGUAGES, scriptVars } from "./languages.ts";
 import {
   Button,
   CardReadout,
@@ -393,6 +395,134 @@ export function ScreenElements() {
               <code className="at-elname">{name}</code>
               <p className="at-elwhat">{what}</p>
               {example ? <p className="at-elexample">{example}</p> : null}
+            </div>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/*
+ * The text styles, drawn at the size they are drawn at in the app.
+ *
+ * A specimen is the real class on a real element, so the sizes on this
+ * screen are the app's sizes rather than a picture of them — and the
+ * number beside each one is measured off that specimen rather than
+ * copied out of the stylesheet, which is what makes a token, a calc and
+ * a script's own scale all answer in pixels.
+ */
+
+/* The pack the script specimens are laid out with — the real one, as the
+   trainer lays a question out. */
+const TEXT_LANG = LANGUAGES["ar-PS"];
+
+function Specimen({ style }: { style: TextStyle }) {
+  const Tag = (style.tag || "p") as "p";
+  const body = (
+    <Tag className={style.cls} data-ts={style.name}>
+      {style.example}
+    </Tag>
+  );
+  const inner = style.wrap ? <div className={style.wrap}>{body}</div> : body;
+  if (!style.script) return inner;
+  /* The same three things the trainer sets on the app root, so a script
+     size resolves here exactly as it resolves there. The face as well as
+     the scale: a rule that takes its font-family from an inline style in
+     the app — a card's word, a tile's script — would otherwise be drawn
+     in the interface face and read as the wrong thing entirely. */
+  return (
+    <div
+      className="at-tsscript"
+      style={{
+        "--sfont": TEXT_LANG.fontStack,
+        "--sdir": TEXT_LANG.direction || "ltr",
+        ...scriptVars(TEXT_LANG),
+      } as React.CSSProperties}
+    >
+      {inner}
+    </div>
+  );
+}
+
+export function TextStyles() {
+  const host = React.useRef<HTMLDivElement | null>(null);
+  const [sizes, setSizes] = useState<Record<string, string>>({});
+
+  React.useLayoutEffect(() => {
+    const root = host.current;
+    if (!root || typeof window === "undefined" || !window.getComputedStyle) return;
+    /* Nothing worth measuring where the app's own stylesheet has not been
+       applied — a test renderer, or the moment before the CSS lands. Every
+       element would answer with the browser's own default and the list
+       would read 16px all the way down, which is worse than no number at
+       all. The token is the proof the stylesheet is in scope. */
+    if (!window.getComputedStyle(root).getPropertyValue("--fs-md").trim()) return;
+    const found: Record<string, string> = {};
+    for (const el of root.querySelectorAll("[data-ts]")) {
+      const name = el.getAttribute("data-ts");
+      const px = parseFloat(window.getComputedStyle(el).fontSize);
+      /* A tenth of a pixel, because a calc against a script's scale lands
+         between whole ones and rounding it away would make two different
+         sizes read as one. */
+      if (name && px) found[name] = `${Math.round(px * 10) / 10}px`;
+    }
+    setSizes(found);
+  }, []);
+
+  return (
+    <div className="at-ts" ref={host}>
+      <Lede>
+        Every size a person actually reads, drawn here at the size it is
+        drawn at in the app. Ask for a change by the name in{" "}
+        <code>code</code> — “at-hint is too small” — rather than by
+        describing which grey paragraph is meant.
+      </Lede>
+      <Help>
+        The number beside each name is measured off the specimen next to it,
+        so it is the size on this screen rather than what the stylesheet was
+        written to say. Where the two are written differently — a named
+        size, or a calculation against the script's own scale — the
+        stylesheet's own words are underneath.
+      </Help>
+
+      <p className="at-eyebrow at-mt5">The named sizes</p>
+      <Help className="at-mb3">
+        The scale the stylesheet declares at the top. Much of the app writes
+        its size out in pixels instead, which is why the list below is
+        longer than these six.
+      </Help>
+      <div className="at-tsscale">
+        {TYPE_SCALE.map(([token, size]) => (
+          <div className="at-tsscalerow" key={token}>
+            <code className="at-tsname">{token}</code>
+            <span className="at-tssize">{size}</span>
+            <span className="at-tsruler" style={{ fontSize: `var(${token})` }}>
+              Aa
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {TEXT_STYLES.map(([group, styles]) => (
+        <section className="at-tsgroup" key={group}>
+          <p className="at-eyebrow">{group}</p>
+          {styles.map((style) => (
+            <div className="at-tsrow" key={style.name}>
+              <div className="at-tshead">
+                <code className="at-tsname">{style.name}</code>
+                <span className="at-tssize">{sizes[style.name] || style.size}</span>
+              </div>
+              {/* The stylesheet's own words, where they are not simply the
+                  number already shown — there is nothing to add by
+                  printing 14px twice. */}
+              {(sizes[style.name] || style.size) !== style.size ? (
+                <code className="at-tsdecl">{style.size}</code>
+              ) : null}
+              <p className="at-tswhat">{style.what}</p>
+              <div className="at-tsspec">
+                <Specimen style={style} />
+              </div>
             </div>
           ))}
         </section>

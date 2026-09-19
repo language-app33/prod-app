@@ -2209,6 +2209,48 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   check("it goes with the component that raised it", !document.querySelector(".at-snack"));
 }
 
+/* ---- the text styles ----
+   Beside the gallery on the same tab, and the same promise: every row is
+   the real class on a real element, so rendering the lot is what catches a
+   specimen that has stopped being the style it claims to be. The sizes it
+   shows are measured off those specimens in a browser; here there is no
+   stylesheet, so what is checked is that it says so by falling back to the
+   stylesheet's own words rather than reporting the browser's 16px default
+   for everything. */
+{
+  const before = errors.length;
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const { TextStyles } = await import(path.join(out, "gallery.js"));
+  const stylesRoot = createRoot(host);
+  stylesRoot.render(React.createElement(TextStyles));
+  await sleep(200);
+
+  const shown = host.textContent;
+  check("the text styles render", /Every size a person actually reads/.test(shown), shown.slice(0, 80));
+  check("no console errors rendering the text styles", errors.length === before,
+    errors.slice(before, before + 3).join(" | "));
+
+  const { TEXT_STYLES } = await import(path.resolve("src/text-styles.ts"));
+  const listed = TEXT_STYLES.flatMap((/** @type {any} */ [, styles]) => styles);
+  const drawn = [...host.querySelectorAll("[data-ts]")].map((e) => e.getAttribute("data-ts"));
+  const undrawn = listed
+    .map((/** @type {any} */ s) => s.name)
+    .filter((/** @type {string} */ n) => !drawn.includes(n));
+  check("every style listed is drawn as a specimen", undrawn.length === 0,
+    `not drawn: ${undrawn.join(", ")}`);
+
+  /* No stylesheet, so no measurement — and a row with nothing measured
+     shows what the stylesheet says instead of a number that would be the
+     browser's default dressed up as the app's. */
+  check("with no stylesheet applied it falls back to the declared size",
+    shown.includes("var(--fs-md)") && shown.includes("calc(54px * var(--sscale, 1))"),
+    shown.slice(0, 200));
+
+  stylesRoot.unmount();
+  host.remove();
+}
+
 /* ---- the app chrome cannot be wedged hidden ----
    The space selector and corner menu are hidden by a body class while a
    screen is open. It used to come off only when a counter emptied, so an
