@@ -227,6 +227,20 @@ const bigWithForms = {
     row: "agreement", col: "feminine",
   }],
 };
+/* A verb as a teacher saved it: the word a dictionary lists, and cells in
+   two of the three rows Arabic declares. It is here so that a sentence
+   leaving a {{verb}} blank has verbs behind it — which is what the tense
+   question further down is asked about, and what it narrows. */
+const toEat = {
+  id: "kaaaaaaaaaaaa", owner: "t-1", ar: "أكل", en: "to eat", lat: "akal",
+  note: "", lang: "ar-PS", name: "to eat", category: "verb",
+  clips: [], uses: [], rev: 1, updated: 1, created: 7,
+  subs: [
+    { ar: "أكل", en: "he ate", lat: "akal", row: "past", col: "he", clips: [] },
+    { ar: "أكلت", en: "she ate", lat: "akalat", row: "past", col: "she", clips: [] },
+    { ar: "بياكل", en: "he eats", lat: "byaakul", row: "present", col: "he", clips: [] },
+  ],
+};
 const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
 const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
@@ -340,6 +354,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...twoGenders, decks: [] },
           { ...penWithPronouns, decks: [] },
           { ...bigWithForms, decks: [] },
+          { ...toEat, decks: [] },
         ],
       });
     }
@@ -4371,6 +4386,35 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!saveBtn() && !saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "still refused" : "offered"}`);
 
+  /* ---- which way a field with blanks in it reads ----
+
+     A blank is drawn as a pill and a blank's name is Latin, so a field
+     that asked the browser to lay itself out by its own first strong
+     character — dir="auto" — was answered about the pill. An Arabic
+     sentence beginning with a blank came out running left to right, and
+     so did a field holding nothing but blanks, which every field of a
+     frame is while it is being written. The words decide now, and where
+     there are none the language does. */
+  {
+    const script = () => fieldNamed(/^Arabic script and transliteration$/i);
+    const dirOfScript = () => (script() ? script().getAttribute("dir") : "(no field)");
+    typeInto(script(), "{{name}}");
+    await sleep(200);
+    check("a field holding nothing but blanks reads the way the language does",
+      dirOfScript() === "rtl", `dir=${dirOfScript()}`);
+    typeInto(script(), "{{name}} اسمي");
+    await sleep(200);
+    check("and so does an Arabic sentence that begins with one",
+      dirOfScript() === "rtl", `dir=${dirOfScript()}`);
+    /* And what the teacher wrote still decides, which is what laying a
+       field out by its own text was for: a phrase in another script does
+       not take the deck's direction. */
+    typeInto(script(), "ismi {{name}}");
+    await sleep(200);
+    check("while the words themselves still decide where there are any",
+      dirOfScript() === "ltr", `dir=${dirOfScript()}`);
+  }
+
   /* ---- blanks ----
 
      The section was called Variables and did two opposite jobs at once,
@@ -4750,6 +4794,88 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     check("and a blank named after a kind of word is filled by the words of that kind",
       nounLines().length > 0 && nounLines().every((line) => /teacher/.test(line)),
       nounLines().join(" / ") || "(none shown)");
+
+    /* ---- which tenses a blank asks its verbs for ----
+
+       A verb card is right to carry every tense, and the sentence is what
+       says when the thing happened: "yesterday {{name}} {{verb}}" is met
+       as the present, the past and the command one after another, and two
+       of those say something nobody means. So the one thing in this
+       subsection that is not a readout is here — under the blanks, because
+       it is a fact about a blank rather than about the words behind it.
+
+       Only where there is something to ask. {{name}} and {{noun}} above
+       are filled by words with no tenses, and neither was offered a row of
+       ticks; a language whose verbs take one form would be offered none
+       either. */
+    {
+      const tenseRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow");
+      const tenseNames = () => tenseRows()
+        .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+      const tenseRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        tenseRows().find((r) => re.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
+      const tenseSaid = () => inHalf(HOLES, ".at-field .at-label, .at-field .at-hint")
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
+
+      check("a blank with no verbs behind it is asked nothing about tenses",
+        !tenseRows().length, tenseNames().join(", ") || "(nothing asked)");
+
+      typeInto(ar(), "mbaari7 {{name}} {{verb}}");
+      await sleep(80);
+      typeInto(en(), "yesterday {{name}} {{verb}}");
+      await sleep(320);
+      check("a blank that verbs fill is asked which tenses it wants them in",
+        JSON.stringify(tenseNames()) === JSON.stringify(["present", "past", "command"]),
+        tenseNames().join(", ") || "(nothing asked)");
+      check("and says which blank it is about, and that nothing ticked is any tense",
+        /verb/.test(tenseSaid()) && /Any tense/.test(tenseSaid()),
+        tenseSaid() || "(nothing said)");
+
+      /* Every form of every verb, until the teacher says otherwise — which
+         is what every sentence written before this was met as. */
+      if (fold() && fold().getAttribute("aria-expanded") === "false") {
+        click(fold());
+        await sleep(200);
+      }
+      const verbLines = () => [...((blanks() || document).querySelectorAll(".at-askedline .at-askedmeans"))]
+        .map((n) => (n.textContent || "").trim());
+      check("and until it does, the sentence is met in every one of them",
+        verbLines().some((l) => /he ate/.test(l)) && verbLines().some((l) => /he eats/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+
+      click(/** @type {any} */ (tenseRow(/^past$/)).querySelector("input"));
+      await sleep(320);
+      check("ticking one takes the sentence down to the verbs of that tense",
+        verbLines().length > 0 && verbLines().every((l) => /ate/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+      check("and the dictionary form goes with them, being in no tense at all",
+        !verbLines().some((l) => /to eat/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+      /* The word in the other hole is not a verb, so nothing here touches
+         it: a name is in no tense, and dropping it would answer a question
+         nobody asked. */
+      check("while the words in the blank beside it stand where they always did",
+        verbLines().some((l) => /Raphael/.test(l)) && verbLines().some((l) => /Victor/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+      check("and the section says what it has been narrowed to",
+        /past/.test(tenseSaid()) && !/Any tense/.test(tenseSaid()),
+        tenseSaid() || "(nothing said)");
+
+      /* And unticking the last one is how it is taken off again, which is
+         why there is no third state to explain. */
+      click(/** @type {any} */ (tenseRow(/^past$/)).querySelector("input"));
+      await sleep(320);
+      check("unticking the last one gives the sentence every tense back",
+        verbLines().some((l) => /he eats/.test(l)) && /Any tense/.test(tenseSaid()),
+        tenseSaid() || "(nothing said)");
+
+      /* Left as the teacher found it, so what follows is about the same
+         sentence the checks above were written against. */
+      typeInto(ar(), "ismi {{name}} {{noun}}");
+      await sleep(80);
+      typeInto(en(), "My name is {{name}} {{noun}}");
+      await sleep(320);
+    }
 
     /* And back, because a word and a sentence are the same card written
        two ways. What was typed is still there — and, since 0.176, saying

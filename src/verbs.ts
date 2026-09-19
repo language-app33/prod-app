@@ -407,6 +407,64 @@ export function agreedCell(
   return cellAt(card, row, person.id);
 }
 
+/* ---- which tenses a sentence wants its verbs in ---- */
+
+/**
+ * The rows a sentence admits in one of its blanks.
+ *
+ * "{{name}} {{verb}} an apple" is met as every form of every verb — the
+ * present, then the past, then the command — which is right for a frame
+ * about nothing in particular and wrong for "Yesterday {{name}} {{verb}}
+ * an apple", where two of those three say something nobody means. So a
+ * sentence may narrow a blank to the rows it wants its verbs in, and this
+ * is where that answer is read.
+ *
+ * Written on the form that leaves the blank, beside the blank itself, for
+ * the reason a frame's record of what it has already met lives there: it
+ * is a fact about the sentence rather than about the words that fill it.
+ *
+ * **Empty means every row**, which is what every card written before this
+ * says and what a teacher who has narrowed nothing means. The narrowing is
+ * stored only where there is one, so there is nothing to migrate and a
+ * blank nobody has thought about is filled exactly as it was.
+ */
+export function slotRows(form: unknown, slot: string): string[] {
+  const want = str(slot);
+  const said = field(form, "tenses");
+  if (!want || !said || typeof said !== "object") return [];
+  const list = (said as Record<string, unknown>)[want];
+  const out: string[] = [];
+  for (const one of Array.isArray(list) ? list : []) {
+    const row = str(one);
+    if (row && !out.includes(row)) out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Whether one form of a card may stand in a blank narrowed to those rows.
+ *
+ * `spec` is the table the card is laid out in tenses by, where it is laid
+ * out in any — null for a name, a noun, a word of a kind with no rows, and
+ * for a language whose verbs have one form. **Such a word is untouched by
+ * the narrowing**: a name standing in a blank that verbs also fill is in no
+ * tense at all, and dropping it would answer a question nobody asked.
+ *
+ * A word that *is* laid out in tenses stands in a narrowed blank through
+ * its table and nowhere else. The card's own word sits in no row — it is
+ * the verb, and the rows are forms of it — so a blank asking for the past
+ * is filled with the past forms, and not with everything that merely
+ * belongs to a verb.
+ */
+export function standsInRows(
+  spec: VerbSpec | null | undefined,
+  form: unknown,
+  rows: string[],
+): boolean {
+  if (!rows.length || !spec) return true;
+  return rows.includes(rowOf(form));
+}
+
 /* ---- the gate: one tense of a verb is ever new at a time ---- */
 
 /**

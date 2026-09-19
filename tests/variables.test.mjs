@@ -39,6 +39,7 @@ import {
   withoutSlot,
   movedSlot,
   dropRail,
+  wordsDir,
   MAX_FILLS,
   valuesAt,
   metKey,
@@ -499,6 +500,39 @@ test("a caller may say which of a card's forms it lends, and this module does no
   assert.deepEqual(valuesFor(frame, [card], "ar-PS").adjective.map((/** @type {any} */ v) => v.id), ["big", "big-f"]);
 });
 
+test("a blank may take some of a card's forms and not others, and each blank on its own", () => {
+  /* The second question valuesFor asks of a pool, and it is about the hole
+     rather than about the card: which of the forms a card lends *this*
+     blank will have. Nothing here knows what a tense is — the caller says
+     which forms a slot admits, exactly as it says which forms a card
+     lends. */
+  const pool = [{
+    id: "eat", lang: "ar-PS", category: "verb", fills: ["verb2"],
+    forms: [
+      { id: "eat", ar: "akal", en: "to eat", lat: "" },
+      { id: "eat-past", ar: "akal", en: "he ate", lat: "", row: "past", col: "he" },
+      { id: "eat-now", ar: "byaakul", en: "he eats", lat: "", row: "present", col: "he" },
+    ],
+  }, {
+    id: "rafa", lang: "ar-PS", fills: ["verb", "verb2"],
+    forms: [{ id: "rafa", ar: "rafa", en: "Raphael", lat: "" }],
+  }];
+  const frame = { ar: "{{verb}} w {{verb2}}", en: "{{verb}} and {{verb2}}", lat: "{{verb}} w {{verb2}}" };
+  const kind = () => "";
+  const only = (/** @type {string} */ slot) => (/** @type {any} */ c, /** @type {any} */ f, /** @type {string} */ s) =>
+    s !== slot || c.category !== "verb" || !!f.row;
+  const have = valuesFor(frame, pool, "ar-PS", kind, undefined, only("verb"));
+  assert.deepEqual(have.verb.map((/** @type {any} */ v) => v.id), ["eat-past", "eat-now", "rafa"],
+    "the blank that was narrowed takes what it admits, and the card that has no rows is untouched");
+  assert.deepEqual(have.verb2.map((/** @type {any} */ v) => v.id), ["eat", "eat-past", "eat-now", "rafa"],
+    "and the blank beside it is filled as it always was");
+  assert.deepEqual(
+    valuesFor(frame, pool, "ar-PS", kind).verb.map((/** @type {any} */ v) => v.id),
+    ["eat", "eat-past", "eat-now", "rafa"],
+    "a caller with nothing to say about the hole gets every form, as before",
+  );
+});
+
 test("a plural stands in a sentence its singular does not", () => {
   const frame = { ar: "{{noun}} hown", en: "{{noun}} here", lat: "" };
   const pool = [{
@@ -907,6 +941,35 @@ test("a blank dragged across its own field is moved, not copied", () => {
   assert.equal(movedSlot("ismi hina", "name", 9), "ismi hina {{name}}");
   /* And it is still one blank afterwards, never two. */
   assert.deepEqual(slotsIn(movedSlot(whole, "name", 18)), ["name"]);
+});
+
+test("a field of blanks reads the way the language does, not the way their names do", () => {
+  /* The bug this is here for: a blank is drawn as a pill and a blank's
+     name is Latin, so the browser's own dir="auto" read the name and laid
+     an Arabic sentence out left to right. A blank is not a word — it
+     stands for whatever is poured into it — so it says nothing about
+     which way the field reads. */
+  assert.equal(wordsDir("{{name}} اسمي", "rtl"), "rtl");
+  assert.equal(wordsDir("اسمي {{name}}", "rtl"), "rtl");
+  /* A field holding nothing but blanks is every field of a frame while it
+     is being written, and there is nothing in it to read: the language's
+     own direction stands, so the pills start where its words would. */
+  assert.equal(wordsDir("{{name}}", "rtl"), "rtl");
+  assert.equal(wordsDir("{{name}} {{food}}", "rtl"), "rtl");
+  assert.equal(wordsDir("", "rtl"), "rtl");
+  assert.equal(wordsDir(null, "rtl"), "rtl");
+  /* Nor do the digits and the punctuation around them, which are not
+     strong either way. */
+  assert.equal(wordsDir("{{name}} 7 — 8", "rtl"), "rtl");
+
+  /* What the teacher wrote still decides, which is the whole of what
+     dir="auto" was there for: a phrase pasted in another script lays
+     itself out by what it is rather than by the deck it landed in. */
+  assert.equal(wordsDir("My name is {{name}}", "rtl"), "ltr");
+  assert.equal(wordsDir("اسمي {{name}}", "ltr"), "rtl");
+  assert.equal(wordsDir("tên tôi là {{name}}", "ltr"), "ltr");
+  /* And a Hebrew deck is a right-to-left deck by the same reading. */
+  assert.equal(wordsDir("{{name}} שמי", "ltr"), "rtl");
 });
 
 test("where each blank sits, so one of them can be picked up", () => {

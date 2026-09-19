@@ -153,6 +153,7 @@ import {
   tablesOf,
   verbOf,
   agreementOf,
+  blankAdmits,
   lendsForm,
   NUMBER_EQUIVALENT,
 } from "./languages.ts";
@@ -166,6 +167,7 @@ import {
   openRows,
   ownerOf,
   rowOf,
+  slotRows,
   subjectSlot,
 } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
@@ -929,8 +931,36 @@ function fillsFor(unit: Form, langId?: LangId): Record<string, Value[]> {
   if (!slots.length) return {};
   const id = langId || (unit && unit.lang) || activeLang().id;
   const out: Record<string, Value[]> = {};
-  for (const slot of slots) out[slot] = VALUE_INDEX.get(valueKey(id, slot)) || [];
+  for (const slot of slots) out[slot] = askedIn(unit, slot, VALUE_INDEX.get(valueKey(id, slot)) || []);
   return out;
+}
+
+/*
+ * And of those, the ones this frame wants — once it has said which tenses
+ * its verbs should stand in.
+ *
+ * The index is built once for the whole collection and keyed by the blank's
+ * name, because what fills `{{verb}}` is the same list whoever asks. Which
+ * of that list *this sentence* wants is a fact about the sentence — "Yesterday
+ * {{name}} {{verb}}" wants the past and nothing else — so it is asked here,
+ * where the frame is in hand, rather than in the index.
+ *
+ * Off the form each value came from, which is what VALUE_OWNER is for: a
+ * value carries the words a card lends and not where in a table they sit.
+ * A value whose owner has gone — a card withdrawn while a session held it —
+ * is kept rather than dropped, on the same principle as everything else
+ * that reads a card: half of it is worth more than none.
+ */
+function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
+  const rows = slotRows(unit, slot);
+  if (!rows.length) return list;
+  const admits = (lang: Lang) => blankAdmits(lang, () => rows);
+  return list.filter((value) => {
+    const owner = VALUE_OWNER.get(refOf(value));
+    if (!owner) return true;
+    const lang = LANGUAGES[String(owner.card.lang || "")] || activeLang();
+    return admits(lang)(owner.card, owner.form, slot);
+  });
 }
 
 /*
@@ -1031,7 +1061,7 @@ function sceneOf(unitId: string): { card: Item, at: number } | null {
    mastered, which is the bar a level asks of the level below it applied
    down the other axis.
 
-   The card's own word was the other reason until 0.197, on the languages
+   The card's own word was the other reason until 0.199, on the languages
    whose pack named a cell as the form a dictionary lists: the word and
    that cell were one word, so the word was silenced and the cell drilled.
    No pack names one now — a verb's word is the verb in every language,

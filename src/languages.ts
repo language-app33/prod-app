@@ -38,6 +38,10 @@ import type {
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
 import { answersOf } from "./answers.ts";
 import { leadOf } from "./cards.ts";
+/* And what a row is, for the one rule below that reads one: verbs.ts
+   knows what a table is made of and no language at all, which is the
+   same direction every other import here goes. */
+import { standsInRows } from "./verbs.ts";
 import type { AnswerField, WithAnswers } from "./answers.ts";
 
 
@@ -2038,6 +2042,57 @@ export const agreementOf = (
   const spec = kind ? specOf(lang, kind.table) : null;
   if (!spec || spec.tenses.length !== 1) return null;
   return spec.persons.some((p) => p.picks && Object.keys(p.picks).length) ? spec : null;
+};
+
+/**
+ * The table a word of this kind takes more than one tense in, where the
+ * pack lays it out in any.
+ *
+ * The other end of the question agreementOf asks. A table with one row
+ * says one thing about a word and the sentence beside it never has to
+ * choose — the pronouns on the end of a noun, an adjective's feminine —
+ * and a table with several rows is a word that is a different word
+ * depending on when it happened. Only the second is worth a sentence
+ * saying which rows it wants, so only the second is answered here.
+ *
+ * Read off the kind of word rather than off a name, so a pack that lays
+ * something other than its verbs out in tenses is answered too, and a pack
+ * whose verbs take one form — a language with no tense to speak of — is
+ * answered with null and asked nothing.
+ */
+export const tensedOf = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): VerbSpec | null => {
+  const kind = categoryOf(lang, category);
+  const spec = kind ? specOf(lang, kind.table) : null;
+  return spec && spec.tenses.length > 1 ? spec : null;
+};
+
+/**
+ * Which of a card's forms one blank of a sentence admits, once that
+ * sentence has said which tenses it wants its verbs in.
+ *
+ * The language half of the rule; the rest is standsInRows in verbs.ts,
+ * which knows what a row is and nothing about what a verb is. One answer,
+ * read by the session, the teacher's preview and the teaching space alike,
+ * so the three cannot disagree about what is behind a blank.
+ *
+ * `rowsFor` is asked per blank rather than handed a list, because a
+ * sentence narrows each of its blanks on its own: "Yesterday {{name}}
+ * {{verb}} while {{name2}} {{verb2}}" is two questions about two holes.
+ */
+export const blankAdmits = (
+  lang: Lang | null | undefined,
+  rowsFor: (slot: string) => string[],
+): ((
+  card: { category?: string } | null | undefined,
+  form: Record<string, unknown>,
+  slot: string,
+) => boolean) => (card, form, slot) => {
+  const rows = rowsFor(slot) || [];
+  if (!rows.length) return true;
+  return standsInRows(tensedOf(lang, card && card.category), form, rows);
 };
 
 /* Every value any dimension can hold, for validating stored cards without

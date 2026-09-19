@@ -1352,7 +1352,7 @@ test("a card opens with the cells it carries and no others", () => {
   assert.equal(initialCategory(pen, LANGUAGES["ar-PS"], cells), "noun");
 
   /* A verb's word is its own and is never copied into a box of the table:
-     until 0.197 Arabic's he-past was filled in from it, because the block
+     until 0.199 Arabic's he-past was filled in from it, because the block
      asking for the word was not shown on that language. */
   const eat = /** @type {any} */ ({ id: "e", ar: "أكل", en: "to eat", subs: [cellOf("present", "he", { ar: "بياكل" })] });
   const opened = initialCells(eat);
@@ -1675,7 +1675,7 @@ test("what is saved says whether the card is a question at all", () => {
   const save = (/** @type {any} */ forms) =>
     writtenCard({
       word: {
-        shownSpec: null, tableCells: [], forms,
+        shownSpec: null, ownForms: forms, tableCells: [], forms,
         note: "", isVerb: false, name: "", uses: [], fills: "name", category: "",
       },
       talk: {},
@@ -1874,6 +1874,7 @@ test("a card goes to a device, comes back through a refresh, and is saved unchan
   const written = writtenCard({
     word: {
       shownSpec: specOf(arLang, "attached"),
+      ownForms: forms,
       tableCells: cells,
       forms,
       note: card.note,
@@ -1927,7 +1928,7 @@ test("a verb's own sentence does not block the save, and is not lost by it", () 
   /* And it comes back out on the card, still placed in its row. */
   const written = writtenCard({
     word: {
-      shownSpec: null, tableCells: [], keptFrames: frames, forms,
+      shownSpec: null, ownForms: forms, tableCells: [], keptFrames: frames, forms,
       note: "", isVerb: true, name: "", uses: [], fills: "", category: "verb",
     },
     talk: {},
@@ -1955,6 +1956,7 @@ test("a sentence keeps what the teacher calls it, and a word is named by its own
    */
   const draft = {
     shownSpec: null,
+    ownForms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }],
     tableCells: [],
     forms: [{ ar: "ismi {{name}}", en: "My name is {{name}}", lat: "" }],
     note: "",

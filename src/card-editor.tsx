@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import * as API from "./courses-api.ts";
 import type { Card, Deck, GrammarDim, Lang, VerbSpec, VerbTense } from "./types.ts";
-import { cellsIn, framesOf, isCell, isFrame, personsOf, rowIdsOf, tensesOf } from "./verbs.ts";
+import { cellsIn, framesOf, isCell, isFrame, personsOf, rowIdsOf, slotRows, tensesOf } from "./verbs.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 import type { Node } from "./shared.tsx";
 import {
@@ -36,8 +36,8 @@ import {
 } from "./languages.ts";
 import { MAX_SPEAKERS, isDialog, namedPart, sideOf } from "./dialogs.ts";
 import { answerRows, answersOf, packAnswers } from "./answers.ts";
-import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT } from "./variables.ts";
-import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor } from "./card-facts.ts";
+import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
+import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import type { Answer } from "./answers.ts";
 import {
@@ -313,6 +313,7 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                 onChange={(v) => edit(i, { text: v })}
                 label={lang.scriptLabel}
                 lang={lang}
+                script
               >
                 {(box) => (
                   <ScriptInput
@@ -964,13 +965,17 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   const look = {
     className: "at-input",
     lang: lang.id,
-    /* The text decides, once there is any: dir="auto" lays the field out
-       by its own first strong character, so a pasted Arabic phrase reads
+    /* The words decide, once there are any: the field is laid out by its
+       own first strong character, so a pasted Arabic phrase reads
        right-to-left even if the deck is labelled with another language.
        Trusting the deck's direction is what put pasted words in the
-       wrong order. While the field is empty there is nothing to go on,
-       so the language's own direction places the caret. */
-    dir: value ? "auto" : lang.direction,
+       wrong order. What the browser's own `dir="auto"` would read and
+       `wordsDir` does not is the blanks — their names are Latin, so a
+       sentence starting with one, or a field still holding nothing else,
+       came out running the wrong way. While there is nothing written
+       there is nothing to go on, and the language's own direction places
+       the pills and the caret. */
+    dir: wordsDir(value, lang.direction),
     /* The room for the keys button is reserved by .at-inputwrap in the
        stylesheet — physical right, not logical, because the button is
        at right:8px whichever way the text runs. */
@@ -1803,12 +1808,23 @@ interface BlankWiring {
  * of them in the language's own script with a keypad hanging off it — and
  * a component that drew all three would be a fourth description of them.
  */
-function BlankField({ wiring, value, onChange, label, lang, children }: {
+function BlankField({ wiring, value, onChange, label, lang, script = false, children }: {
   wiring: BlankWiring;
   value: string;
   onChange: (v: string) => void;
   label: string;
   lang: Lang;
+  /**
+   * Whether this field is written in the taught script.
+   *
+   * The rail under it is the field's own words laid out again, so it is
+   * laid out the way the field is or it is a picture of a different
+   * sentence: the script's face and the script's direction on the field
+   * that is in the script, and the page's own on the two beside it that
+   * are Latin. It read every field as the script before this, so the
+   * English of an Arabic card was dragged through back to front.
+   */
+  script?: boolean;
   children: (box: React.MutableRefObject<BlankBox | null>) => Node;
 }) {
   const box: React.MutableRefObject<BlankBox | null> = useRef(null);
@@ -1821,6 +1837,7 @@ function BlankField({ wiring, value, onChange, label, lang, children }: {
         onChange={onChange}
         label={label}
         lang={lang}
+        script={script}
         box={box}
       />
     </>
@@ -1833,12 +1850,14 @@ function BlankField({ wiring, value, onChange, label, lang, children }: {
    as a chip that does not work. */
 const DRAG_SLOP = 8;
 
-function BlankBar({ wiring, value, onChange, label, lang, box }: {
+function BlankBar({ wiring, value, onChange, label, lang, script = false, box }: {
   wiring: BlankWiring;
   value: string;
   onChange: (v: string) => void;
   label: string;
   lang: Lang;
+  /** Whether the field above is in the taught script — see BlankField. */
+  script?: boolean;
   box: React.MutableRefObject<BlankBox | null>;
 }) {
   /* Which blank is being dragged, and which gap the finger is over. Null
@@ -1963,9 +1982,13 @@ function BlankBar({ wiring, value, onChange, label, lang, box }: {
       {dragging && (
         <div
           className="at-blankrail"
-          lang={lang.id}
-          dir={lang.direction}
-          style={{ fontFamily: lang.fontStack, ...scriptVars(lang) }}
+          lang={script ? lang.id : undefined}
+          /* The same answer the field above reached, from the same
+             function, so the words on the rail stand where the words in
+             the field stand — and the gap a finger is over is the gap it
+             looks like it is over. */
+          dir={script ? wordsDir(value, lang.direction) : undefined}
+          style={script ? { fontFamily: lang.fontStack, ...scriptVars(lang) } : undefined}
         >
           {rail.points.map((at, i) => (
             <React.Fragment key={at}>
@@ -2460,6 +2483,58 @@ export function initialFrames(card: Card | null): Record<string, any>[] {
 }
 
 /*
+ * Which tenses each of a sentence's blanks already asks its verbs for.
+ *
+ * Read off the card's own word, which is where the save writes it, and
+ * through the same answer the question itself reads it through — see
+ * slotRows, which narrows each row to a name and reads an absent answer as
+ * every tense. A card that has narrowed nothing opens with nothing, which
+ * is every card written before the teacher was asked.
+ */
+export function initialRows(card: Card | null): Record<string, string[]> {
+  const lead = card ? leadOf(card) : null;
+  const out: Record<string, string[]> = {};
+  for (const slot of slotsOf(lead)) {
+    const rows = slotRows(lead, slot);
+    if (rows.length) out[slot] = rows;
+  }
+  return out;
+}
+
+/*
+ * The same forms, each saying what its blanks ask their verbs for.
+ *
+ * One answer for the card written onto every form of it, because the
+ * blanks are the card's and every field that has words in it leaves the
+ * same ones. Stored only where something is actually narrowed: a blank
+ * admitting every tense says nothing, which is what an absent answer has
+ * always meant and what keeps a card the teacher has not touched byte for
+ * byte what it was.
+ *
+ * And only for the blanks the card still leaves, so a tense picked for a
+ * blank that has since been taken out of the words goes with it rather
+ * than sitting on the card answering for a hole nobody can see.
+ */
+export function withRows(
+  forms: Record<string, any>[],
+  rows: Record<string, string[]>,
+  holes: string[],
+): Record<string, any>[] {
+  const said: Record<string, string[]> = {};
+  for (const slot of holes) {
+    const picked = (rows || {})[slot] || [];
+    if (picked.length) said[slot] = picked;
+  }
+  const any = Object.keys(said).length > 0;
+  return forms.map((form) => {
+    const next = { ...form };
+    if (any) next.tenses = said;
+    else delete next.tenses;
+    return next;
+  });
+}
+
+/*
  * One value per card for the axes that are about the card.
  *
  * Whether a noun is a person or a thing is as true of its plural as of its
@@ -2506,7 +2581,7 @@ const withoutCardDims = (dims: GrammarDim[]) => (answer: Record<string, any>) =>
 /*
  * The cells a card opens with — every sub-form that sits in a table.
  *
- * Whatever the card carries, and nothing else. Until 0.197 a verb in a
+ * Whatever the card carries, and nothing else. Until 0.199 a verb in a
  * language whose pack named a cell as the form a dictionary lists had the
  * card's own word copied into that cell on the way in, because the block
  * asking for the word was not shown there and the word had to be
@@ -3173,6 +3248,26 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   const [recording, setRecording] = useState<number | null>(null);
 
   /*
+   * Which tenses each of this sentence's blanks wants its verbs in.
+   *
+   * One answer for the card, kept beside `fills` and the ID rather than
+   * inside `forms`, because a blank is a fact about the sentence and every
+   * form of it leaves the same ones — which is what the save has always
+   * insisted on. Written onto each form at the end, where the reader that
+   * fills a hole looks; see `withRows` and the note on CardForm.tenses.
+   *
+   * Read back off the card's own word, which is where it was written. A
+   * card that has narrowed nothing carries nothing and starts empty, which
+   * is every card written before this.
+   */
+  const [blankRows, setBlankRows] = useState<Record<string, string[]>>(() => initialRows(card));
+  /* One blank's answer, replaced. An empty list is stored as no answer at
+     all — see withRows — so unticking the last tense is how a teacher says
+     "any tense" again, and there is no third state to explain. */
+  const setBlankRow = (slot: string, rows: string[]) =>
+    setBlankRows((was) => ({ ...was, [slot]: rows }));
+
+  /*
    * The card's own word: the first block's own fields, on every kind of
    * card there is.
    *
@@ -3182,7 +3277,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * line existed. No pack names one now: a verb's word is the verb, and
    * its table is forms of it, in every language.
    */
-  const main = forms[0];
+  const lead = forms[0];
   /* English, not "English or a transliteration": with typing the
      transliteration retired, a card carrying only the script and a
      romanisation supports one exercise type, and no student could ever
@@ -3203,10 +3298,22 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    * rebuilt on every character. Which blanks a card leaves changes when
    * somebody puts one in or takes one out, and that is what this key says.
    */
-  const holeNames = scene ? NO_HOLES : slotsOf(main);
+  const holeNames = scene ? NO_HOLES : slotsOf(lead);
   const holeKey = holeNames.join("\u0000");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const holes = useMemo(() => holeNames, [holeKey]);
+  /* The card's forms as they will be saved, each carrying what its blanks
+     ask their verbs for — one answer for the card, written where the
+     reader of a blank looks. */
+  const ownForms = withRows(forms, blankRows, holes);
+  /* And the card's own word as it will be saved, which is what everything
+     below reads: the holes it leaves, the words behind them, the sentences
+     it is met as, and what the save sends. */
+  const main = ownForms[0];
+  /* What the narrowing comes to as one string, for the memos below: a
+     fresh map every render would re-fill the preview on every keystroke,
+     and what they actually depend on is which tenses are ticked. */
+  const rowsKey = holes.map((slot) => `${slot}:${(blankRows[slot] || []).join(",")}`).join("\u0000");
   /*
    * Every blank this card stands in, as it stands right now.
    *
@@ -3513,11 +3620,26 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
    */
   /* Against the blanks rather than against `main`, which is a new object
      on every keystroke: what comes back is a function of the names in the
-     holes and of the collection, and valuesFor reads nothing else off the
-     form it is handed. */
+     holes, the tenses they ask for and the collection, and fillersFor reads
+     nothing else off the form it is handed. */
   const fillers = useMemo(() => {
     if (scene || !holes.length) return {} as Record<string, Value[]>;
     return fillersFor(main, allCards || [], lang);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene, holes, rowsKey, allCards, lang]);
+
+  /*
+   * And which of those blanks have words with tenses behind them — the
+   * ones there is anything to ask a teacher about.
+   *
+   * Asked of the collection rather than of the blank's name, so a teacher
+   * who gathers their verbs under a tag of their own is asked too; empty in
+   * a language whose verbs take one form, where the question means nothing.
+   * See tensedBlanks, which is the one answer to it.
+   */
+  const tensed = useMemo(() => {
+    if (scene || !holes.length) return new Map<string, VerbSpec>();
+    return tensedBlanks(main, allCards || [], lang);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene, holes, allCards, lang]);
 
@@ -3810,6 +3932,10 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setUses,
     recording,
     setRecording,
+    /* The card's own forms as they will be saved — the word, the forms
+       beside it, each carrying what its blanks ask their verbs for — and
+       the first of them, which is the card's own word. */
+    ownForms,
     main,
     holes,
     /* Whether the teacher has called this a sentence, which is the one
@@ -3827,6 +3953,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     combos,
     starved,
     fillers,
+    /* Which tenses each blank asks its verbs for, which blanks there is
+       anything to ask about, and how one of them is answered. */
+    blankRows,
+    setBlankRow,
+    tensed,
     canSave,
     setForm,
     parts,
@@ -5369,7 +5500,7 @@ function StripAsk({ word }: { word: WordDraft }) {
 function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const {
     holes, starved, combos, fillers, fills, fillsOffer, addFill,
-    main, trouble, category, sentence, strayHoles,
+    main, trouble, category, sentence, strayHoles, tensed, blankRows, setBlankRow,
   } = word;
   /*
    * Whether the filled examples are open. Folded away to start with, and
@@ -5531,6 +5662,55 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             ))}
           </div>
         )}
+
+        {/* ---- which tenses a blank asks its verbs for ----
+
+            The one thing in this subsection that is not a readout, and it
+            is here because it is a fact about the blank rather than about
+            the words behind it: "Yesterday {{name}} {{verb}} an apple" is
+            met as the present, the past and the command one after another,
+            and two of those say something nobody means. The sentence is
+            the only place that can say so — the verb card is right to
+            carry every tense, and the frame is what fixes when it
+            happened.
+
+            Only where there is something to ask: a blank with no tensed
+            word behind it, and a language whose verbs take one form, are
+            offered nothing rather than an empty list of ticks. See
+            tensedBlanks.
+
+            Nothing ticked is every tense, which is what a card written
+            before this says and what a frame about nothing in particular
+            wants — so unticking the last one is how a teacher takes the
+            narrowing off, and there is no third state to explain. */}
+        {sentence && holes.map((slot) => {
+          const spec = tensed.get(slot);
+          if (!spec) return null;
+          const picked = blankRows[slot] || [];
+          const rows = tensesOf(spec);
+          return (
+            <Field
+              key={slot}
+              label={<>Tenses <BlankNames names={[slot]} /> asks its verbs for</>}
+              hint={
+                picked.length
+                  ? `Only the ${rowsLine(lang, picked)}. Words with no tenses stand in it as they always did.`
+                  : "Any tense. Tick one or more to ask this sentence in those alone."
+              }
+            >
+              <CheckList
+                options={rows.map((t) => ({ id: t.id, title: t.label || t.id }))}
+                chosen={picked}
+                onToggle={(id, wasOn) =>
+                  setBlankRow(
+                    slot,
+                    wasOn ? picked.filter((r) => r !== id) : rows.map((t) => t.id).filter((r) => r === id || picked.includes(r)),
+                  )
+                }
+              />
+            </Field>
+          );
+        })}
 
         {/* Still possible on a card written before the button, or by
             typing the braces by hand, so still said — in one line. Only on
@@ -5875,13 +6055,13 @@ export function writtenCard({ word, talk, shape, chosen }: {
   chosen: string[];
 }) {
   const scene = shape === "scene";
-  const { shownSpec, tableCells, keptFrames = [], forms, note, isVerb, name, uses, fills, category, refName, spread, stripped } = word;
+  const { shownSpec, ownForms, tableCells, keptFrames = [], forms, note, isVerb, name, uses, fills, category, refName, spread, stripped } = word;
   /* The card's own word and the forms beside it, then the cells of
      whatever table is on screen, then the verb's own sentences back on the
      end exactly as they were found: this screen does not write those, so
      the whole of what it owes them is not to lose them — see
      initialFrames. */
-  const written = (shownSpec ? forms.concat(tableCells as typeof forms) : forms)
+  const written = (shownSpec ? ownForms.concat(tableCells as typeof forms) : ownForms)
     .concat(keptFrames as typeof forms);
   return {
     forms: written,

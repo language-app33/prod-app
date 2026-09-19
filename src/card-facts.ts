@@ -51,13 +51,13 @@
 
 import type { Form, GrammarDim, Lang, VerbSpec } from "./types.ts";
 import { answersOf, splitAlternatives } from "./answers.ts";
-import { answerFields, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf } from "./languages.ts";
+import { answerFields, blankAdmits, categoryLabel, GRAMMAR, kindOf, lendsForm, tablesOf, tensedOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf, namedPart, speakerName } from "./dialogs.ts";
 import { isAsked } from "./scheduler.ts";
 import type { Value } from "./variables.ts";
-import { cardRef, fillNames, fillText, isLent, slotsOf, splitSlots, valuesFor, valuesForTurn } from "./variables.ts";
-import { colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, tensesOf } from "./verbs.ts";
+import { cardRef, fillNames, fillsOf, fillText, isLent, slotsOf, splitSlots, valuesFor, valuesForTurn } from "./variables.ts";
+import { colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
 
 /* A card, a form of one, a turn of one, or a half-written draft — open for
    the reason the other pure modules are: the same questions are asked of a
@@ -220,6 +220,27 @@ export function specForCell(lang: Lang | null | undefined, cell: Held): VerbSpec
   return null;
 }
 
+/** What one row is called, in the language's own word for it — "past" —
+    found by the row itself, because a row id names no other table. */
+export function rowLabel(lang: Lang | null | undefined, row: string): string {
+  const spec = specForCell(lang, { row });
+  const tense = tensesOf(spec).find((t) => t.id === str(row));
+  return tense ? tense.label : str(row);
+}
+
+/**
+ * A handful of rows as one line — "past and present".
+ *
+ * What a sentence has narrowed a blank to, said the way a teacher would
+ * say it rather than as a list of ids. Empty for no rows at all, which is
+ * a blank that admits every tense and has nothing to say about it.
+ */
+export function rowsLine(lang: Lang | null | undefined, rows: string[]): string {
+  const said = (rows || []).map((row) => rowLabel(lang, row)).filter(Boolean);
+  if (said.length < 2) return said[0] || "";
+  return `${said.slice(0, -1).join(", ")} and ${said[said.length - 1]}`;
+}
+
 /** What to call one cell out loud — "past · she" — in the language's own
     labels, which is what the editor's own table calls it. */
 export function cellTitle(spec: VerbSpec | null, cell: Held): string {
@@ -332,7 +353,46 @@ export function fillersFor(
     (lang && lang.id) || undefined,
     (c) => kindOf(c, lang),
     (c, f) => lendsForm(lang, c)(f),
+    /* And the tenses this frame asks its verbs in, where it has narrowed a
+       blank to some — see slotRows, which answers "every one of them" for
+       every blank nobody has narrowed. */
+    blankAdmits(lang, (slot) => slotRows(form, slot)),
   );
+}
+
+/**
+ * Which of a form's blanks have words with tenses behind them, and which
+ * table those words take their rows from.
+ *
+ * The question the editor has to answer before it can offer a teacher
+ * anything to tick: *is there a verb in this hole*. Asked of the words
+ * actually behind the blank rather than of its name, because a teacher who
+ * gathers their verbs under a group tag of their own has a hole full of
+ * verbs and a name that says nothing about it — and because a blank named
+ * after the part of speech is filled by verbs only where the pack declares
+ * that part of speech in the first place.
+ *
+ * Empty in a language whose verbs take one form, which is the whole of
+ * what "for languages that have different forms for different tenses"
+ * comes to in code: see tensedOf, which is the one answer to it.
+ */
+export function tensedBlanks(
+  form: Held | null | undefined,
+  pool: Held[],
+  lang: Lang | null | undefined,
+): Map<string, VerbSpec> {
+  const out = new Map<string, VerbSpec>();
+  const holes = slotsOf(form);
+  if (!holes.length) return out;
+  for (const card of pool || []) {
+    if (lang && card.lang && card.lang !== lang.id) continue;
+    const spec = tensedOf(lang, str(card.category));
+    if (!spec) continue;
+    const names = fillsOf(card, kindOf(card, lang));
+    for (const slot of holes) if (!out.has(slot) && names.includes(slot)) out.set(slot, spec);
+    if (out.size === holes.length) break;
+  }
+  return out;
 }
 
 /**
@@ -728,10 +788,22 @@ export const CARD_FACTS: FieldRule[] = [
     label: "",
     what: "Which row of its table this form sits in — which tense. Drawn under that row's heading rather than said as a field.",
     reader: "both",
+    shown: (value, ctx) => [rowLabel(ctx.lang, str(value))],
+  },
+  {
+    key: "tenses",
+    on: "form",
+    label: "Tenses its blanks ask for",
+    what: "Which tenses a sentence wants the verbs in one of its blanks to stand in. A blank that says nothing is met in every tense, which is what a frame about nothing in particular wants.",
+    reader: "both",
     shown: (value, ctx) => {
-      const spec = specForCell(ctx.lang, { row: value });
-      const tense = tensesOf(spec).find((t) => t.id === str(value));
-      return [tense ? tense.label : str(value)];
+      const said = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+      const out: string[] = [];
+      for (const slot of Object.keys(said)) {
+        const line = rowsLine(ctx.lang, slotRows({ tenses: said }, slot));
+        if (line) out.push(`${slot} · ${line}`);
+      }
+      return out;
     },
   },
   {
