@@ -530,6 +530,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   screen shows the braces: a card listed anywhere draws its blanks the
   same way, through `splitSlots`.
 
+  **Which way such a field reads is decided by its words and not by its
+  blanks.** A blank is named in Latin letters whatever the card is written
+  in, so `dir="auto"` — which reads the first strong character of
+  everything in the box, the pill included — laid an Arabic sentence
+  beginning with a blank out from the left, and did the same to a field
+  holding nothing but blanks, which every field of a frame is while one is
+  being written. `wordsDir` in `src/variables.ts` is the one answer to it:
+  the blanks are passed over, what the teacher wrote decides exactly as
+  `dir="auto"` would have decided it, and a field with no words in it yet
+  takes the language's own direction. The rail a blank is dragged along
+  asks the same function, so the words on it stand where the words in the
+  field stand and the gap under a thumb is the gap it looks like.
+
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the
   word it came from. Three limits, in `fillerMarks` in `src/grade.ts`: only

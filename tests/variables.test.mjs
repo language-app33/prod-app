@@ -39,6 +39,7 @@ import {
   withoutSlot,
   movedSlot,
   dropRail,
+  wordsDir,
   MAX_FILLS,
   valuesAt,
   metKey,
@@ -940,6 +941,35 @@ test("a blank dragged across its own field is moved, not copied", () => {
   assert.equal(movedSlot("ismi hina", "name", 9), "ismi hina {{name}}");
   /* And it is still one blank afterwards, never two. */
   assert.deepEqual(slotsIn(movedSlot(whole, "name", 18)), ["name"]);
+});
+
+test("a field of blanks reads the way the language does, not the way their names do", () => {
+  /* The bug this is here for: a blank is drawn as a pill and a blank's
+     name is Latin, so the browser's own dir="auto" read the name and laid
+     an Arabic sentence out left to right. A blank is not a word — it
+     stands for whatever is poured into it — so it says nothing about
+     which way the field reads. */
+  assert.equal(wordsDir("{{name}} اسمي", "rtl"), "rtl");
+  assert.equal(wordsDir("اسمي {{name}}", "rtl"), "rtl");
+  /* A field holding nothing but blanks is every field of a frame while it
+     is being written, and there is nothing in it to read: the language's
+     own direction stands, so the pills start where its words would. */
+  assert.equal(wordsDir("{{name}}", "rtl"), "rtl");
+  assert.equal(wordsDir("{{name}} {{food}}", "rtl"), "rtl");
+  assert.equal(wordsDir("", "rtl"), "rtl");
+  assert.equal(wordsDir(null, "rtl"), "rtl");
+  /* Nor do the digits and the punctuation around them, which are not
+     strong either way. */
+  assert.equal(wordsDir("{{name}} 7 — 8", "rtl"), "rtl");
+
+  /* What the teacher wrote still decides, which is the whole of what
+     dir="auto" was there for: a phrase pasted in another script lays
+     itself out by what it is rather than by the deck it landed in. */
+  assert.equal(wordsDir("My name is {{name}}", "rtl"), "ltr");
+  assert.equal(wordsDir("اسمي {{name}}", "ltr"), "rtl");
+  assert.equal(wordsDir("tên tôi là {{name}}", "ltr"), "ltr");
+  /* And a Hebrew deck is a right-to-left deck by the same reading. */
+  assert.equal(wordsDir("{{name}} שמי", "ltr"), "rtl");
 });
 
 test("where each blank sits, so one of them can be picked up", () => {

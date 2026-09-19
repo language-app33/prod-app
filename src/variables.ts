@@ -569,6 +569,53 @@ export function splitSlots(value: string | null | undefined): { text: string; sl
   return out;
 }
 
+/*
+ * The blocks a right-to-left script is written in — Hebrew, Arabic,
+ * Syriac, Thaana, N'Ko, Samaritan and the rest of that run, the Arabic
+ * presentation forms, and the old right-to-left alphabets up past the
+ * basic plane. Everything else that is a letter is read the other way,
+ * which is the second test below and the only other answer there is.
+ */
+const RTL_LETTER = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u;
+const ANY_LETTER = /\p{L}/u;
+
+/**
+ * Which way a field reads, when some of what is in it is a blank.
+ *
+ * `dir="auto"` is the browser's answer to this question and it is the
+ * wrong one on a field that holds blanks. It reads the first strong
+ * character of everything inside the box, and a blank is drawn as a pill
+ * whose name is Latin — `{{name}}`, always, because a blank is named in
+ * the characters `slotName` allows and those are Latin. So an Arabic
+ * sentence beginning with a blank was laid out left to right, with its
+ * words in the wrong order and its caret at the wrong end; and a field
+ * holding nothing *but* blanks — which every field of a frame is while it
+ * is being written — lined its pills up from the left on a card whose
+ * every other field starts at the right.
+ *
+ * A blank is not a word. It stands for whatever is poured into it, which
+ * is a card in the language the frame is written in, so it says nothing
+ * about which way the frame reads and is passed over here. What is left
+ * is what the teacher actually wrote, and its first strong character
+ * decides exactly as `dir="auto"` would have decided it — so a phrase
+ * pasted in another script still lays itself out by what it is, which is
+ * the thing `dir="auto"` was there for.
+ *
+ * Where nothing is written — an empty field, or one holding only blanks —
+ * there is nothing to read and the caller's fallback stands: the
+ * language's own direction, which is where its words will start.
+ */
+export function wordsDir(value: string | null | undefined, fallback: string): string {
+  for (const run of splitSlots(value)) {
+    if (run.slot) continue;
+    for (const ch of run.text) {
+      if (RTL_LETTER.test(ch)) return "rtl";
+      if (ANY_LETTER.test(ch)) return "ltr";
+    }
+  }
+  return fallback;
+}
+
 /**
  * Every variable a form names, across the fields it is written in.
  *

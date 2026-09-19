@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.196 — 19 September 2026
+## 0.198 — 19 September 2026
 
 **A sentence can say which tense it wants its verbs in.** Write "yesterday
 {{name}} {{verb}}" and the app had to meet it with every form of every
@@ -34,6 +34,49 @@ table filled in, has no past to offer and will not appear in a past-only
 sentence. The blank says how many words are behind it, so you can see it.
 
 Languages whose verbs have one form are not asked the question.
+## 0.197 — 19 September 2026
+
+**A sentence in Arabic or Hebrew stopped reading backwards while you wrote
+it.** A blank in a card's field is drawn as a pill with its name on it, and
+a blank's name is always written in Latin letters — `name`, `colour-red`.
+The field worked out which way to lay itself out from the first letter in
+it, counted the name on the pill as one of those letters, and so read an
+Arabic sentence that began with a blank from the left. A field holding
+nothing but blanks — which every field of a sentence is for the first few
+seconds of writing one — did the same, and lined its pills up from the left
+on a card whose every other field starts at the right.
+
+It reads what you wrote now, and passes over the blanks, because a blank is
+not a word: it stands for whatever is put in it, which is a word in the card's
+own language. So a sentence in the script starts at the right whether it
+begins with a blank, ends with one, or is still nothing but blanks — and a
+phrase pasted in another script still lays itself out by what it is, which
+is what reading the field was for. Nothing you have saved changes; what was
+stored was always right, and only the writing of it was upside down.
+
+Three things came with it. The words shown under a field while a blank is
+being dragged along it now run the way that field runs, so the gap your
+thumb is over is the gap it looks like it is over — and the English of an
+Arabic card is no longer dragged through back to front in an Arabic face.
+The pill itself sits the right way round in a right-to-left sentence, with
+the cross that takes it off on the end the sentence ends at. And a blank's
+name is left reading left to right wherever it stands, so a name with a
+dash or a digit in it cannot come apart in the middle of Arabic.
+
+## 0.196 — 19 September 2026
+
+**What a card is called is asked with the rest of what the card is.** A verb
+and a sentence are both saved as something other than what they are about —
+a verb as the form a dictionary lists, a sentence as a frame with a hole in
+it — so each can be given a name to be listed under instead. That question
+had a framed section of its own, standing between the card and its words and
+reading as a stage of the form rather than as the label it is.
+
+It is now a field in "This card", directly under what subtype the card is,
+and its name is set the same way: both are one fact about the whole card,
+settled once and then read. Nothing else changes — the same box, the same
+wording about what a card with no name falls back to, and the same nothing
+asked about it.
 
 ## 0.195 — 19 September 2026
 
