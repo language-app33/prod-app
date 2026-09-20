@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type {
-  Course, Deck, Doc, ExerciseState, FlagKind, FlagVerdict, Form, Item,
+  Course, DayMoves, Deck, Doc, ExerciseState, FlagKind, FlagVerdict, Form, Item,
   Lang, LangId, Millis, Question, SavedSession, Settings, User,
  VerbSpec, } from "./types.ts";
 import type { Node } from "./shared.tsx";
@@ -184,8 +184,10 @@ import {
   teachesNumbers,
 } from "./numbers.ts";
 import {
-  climbed,
+  cleared,
   formatGap,
+  movedTo,
+  recentDays,
   freshState,
   hasLevelAbove,
   learnt,
@@ -214,7 +216,7 @@ import {
   inOrder,
   shuffled,
 } from "./scheduler.ts";
-import type { Standing } from "./scheduler.ts";
+import type { Move, Standing } from "./scheduler.ts";
 import { PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "./chance.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { canAsk } from "./offers.ts";
@@ -269,6 +271,77 @@ const itemDifficulty = (it: Item, settings: Settings): string =>
    answer said twice rather than two answers that can drift. */
 const cardStandings = (it: Item, settings: Settings): Standing[] =>
   standingsOf(it, (u) => laddered(u, settings));
+
+/* ------------------------------------------------------------------
+   What one answer moved
+
+   The ladder takes days to climb and four more to keep, so a screen that
+   only says where cards stand says the same thing for days at a time —
+   and a learner who has just worked hard is told nothing happened. What
+   they did is true and sayable; these two are what make it sayable.
+
+   Both are here rather than in the scheduler because they need to know
+   what a card is asked, which is a matter of the learner's settings.
+   `movedTo` — the judgement itself, read off the one standing every
+   screen reads — is the scheduler's.
+   ------------------------------------------------------------------ */
+
+/**
+ * Which of the cards this answer marked have moved, and how.
+ *
+ * Compared card by card across the one write that changed them, because
+ * afterwards there is nothing left to compare: a card's standing says
+ * where it is and never that it got there tonight.
+ *
+ * Only the cards actually named by the marks are walked. One answer can
+ * mark several — a grid marks five, a sentence credits every word that
+ * stood in it — and every one of those is a card that may have moved; the
+ * rest of the collection cannot have.
+ */
+export function movesAmong(
+  before: Item[],
+  after: Item[],
+  marks: { id: string }[],
+  settings: Settings,
+): { id: string; move: Move }[] {
+  const out: { id: string; move: Move }[] = [];
+  const was = new Map(before.map((it) => [it.id, it]));
+  const now = new Map(after.map((it) => [it.id, it]));
+  for (const id of new Set(marks.map((m) => m.id))) {
+    const had = was.get(id);
+    const has = now.get(id);
+    if (!had || !has) continue;
+    const move = movedTo(
+      standing(cardStandings(had, settings)),
+      standing(cardStandings(has, settings)),
+    );
+    if (move) out.push({ id, move });
+  }
+  return out;
+}
+
+/**
+ * The news so far, with this answer's added.
+ *
+ * One entry per card, keeping the largest thing that has happened to it:
+ * a card that rises a rung early in a sitting and clears before the end
+ * is one piece of news rather than two, and the one worth telling is the
+ * later one. Order is kept, so what moved first is still listed first.
+ */
+const MOVE_RANK: Record<string, number> = { up: 1, cleared: 2, learnt: 3 };
+
+export function mergeMoves(
+  had: { id: string; move: Move }[],
+  fresh: { id: string; move: Move }[],
+): { id: string; move: Move }[] {
+  const out = had.slice();
+  for (const one of fresh) {
+    const at = out.findIndex((x) => x.id === one.id);
+    if (at < 0) out.push(one);
+    else if (MOVE_RANK[one.move] > MOVE_RANK[out[at].move]) out[at] = { ...out[at], move: one.move };
+  }
+  return out;
+}
 
 /* Marking an answer: what it counts as, and what that writes onto the card
    it was about. A module of its own so the one path that moves a learner's
@@ -395,6 +468,26 @@ const LEVEL_NAME: Record<number, string> = {
 };
 
 /*
+ * The same four, written to be read inside a sentence.
+ *
+ * The names above are headings, and two of them are questions while two
+ * are instructions — which is right over a tile and falls apart the
+ * moment one is put in a line of prose. "airport — up to which word it
+ * is" was what the screen at the end of a session actually said, having
+ * borrowed the heading and hoped.
+ *
+ * So the same four levels said as things a card can be up to, which is
+ * what a sentence about a card moving needs. Level one is here for
+ * completeness and is never reached *up to* — it is where a card starts.
+ */
+const LEVEL_REACHED: Record<number, string> = {
+  1: "what it means",
+  2: "telling it apart from other words",
+  3: "writing it from a cue",
+  4: "writing it from its meaning",
+};
+
+/*
  * The tiles at the top of Progress, in the order a card climbs them.
  *
  * Named rather than numbered. "Level 3" says where a card sits and
@@ -409,6 +502,15 @@ const LEVEL_NAME: Record<number, string> = {
  * Learnt is the one that has to carry across a screen, so it gets the
  * badge, the larger glyph and a tile of its own colour — it is what the
  * rest of them are climbing towards.
+ *
+ * **Cleared has a tile of its own**, between the top level and Learnt.
+ * Without one, a card worked all the way up tonight sat under "write it
+ * from its meaning" beside cards that had only just reached that rung,
+ * and the number that moved on the evening somebody did the work was
+ * indistinguishable from the number that did not. It is the one milestone
+ * effort buys on the day it is spent, and it was invisible. A tick rather
+ * than the badge, and brass rather than jade: the work is done and the app
+ * is still checking.
  */
 const LADDER_TILES: { key: string; label: string; icon: string }[] = [
   { key: "all", label: "All cards", icon: "cards" },
@@ -416,13 +518,14 @@ const LADDER_TILES: { key: string; label: string; icon: string }[] = [
   { key: "l2", label: LEVEL_NAME[2], icon: "search" },
   { key: "l3", label: LEVEL_NAME[3], icon: "copy" },
   { key: "l4", label: LEVEL_NAME[4], icon: "edit" },
+  { key: "cleared", label: "Cleared", icon: "check" },
   { key: "done", label: "Learnt", icon: "verify" },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
   none: "Not started",
   learning: "Learning",
-  climbed: "Climbed",
+  cleared: "Cleared",
   done: "Done",
   paused: "Paused",
 };
@@ -458,11 +561,11 @@ const CLIMB_COLOR: string[] = [
 const STATUS_COLOR: Record<string, string> = {
   none: "var(--muted)",
   learning: "var(--brass)",
-  /* Climbed borrows the top level's colour rather than the finished one.
-     It is the last rung reached and not the badge, and painting it jade
-     would tell a learner they were done with a word the app is still
-     checking. */
-  climbed: LEVEL_COLOR[4],
+  /* Cleared wears the brass the app uses for work under way rather than
+     the jade it uses for finished. It is the last rung reached and not
+     the badge, and painting it jade would tell a learner they were done
+     with a card the app is still checking. */
+  cleared: "var(--brass)",
   done: "var(--jade)",
   paused: "var(--rose)",
 };
@@ -482,26 +585,28 @@ const STATUS_COLOR: Record<string, string> = {
  * "Learnt", where they are all in the same state and the list is drawn
  * without headings.
  */
+/* "Cleared" is not among them either, and for the same reason as "Done":
+   a card at the top of its ladder is under its own tile, not inside a
+   level's list. */
 const STATUS_RUNS = [
   { key: "paused", label: STATUS_LABEL.paused },
-  { key: "climbed", label: STATUS_LABEL.climbed },
   { key: "learning", label: STATUS_LABEL.learning },
   { key: "none", label: STATUS_LABEL.none },
 ];
 
 /* What a card's tile and its readout say, from the one standing.
 
-   "Learnt" names the whole card rather than a level: the ladder climbed
-   and the passes made, which is the only sense in which this app
-   finishes a word. "Climbed" is the state in between, and it is worth a
-   sentence rather than a word — a learner who has just worked a word all
-   the way up and is told it is not learnt deserves to know what is left,
-   and the answer is two returns and nothing they can do tonight. */
+   "Learnt" names the whole card rather than a level: the ladder up and
+   the passes made, which is the only sense in which this app finishes a
+   card. "Cleared" is the state in between, and it is worth a sentence
+   rather than a word — a learner who has just worked a card all the way
+   up and is told it is not learnt deserves to know what is left, and the
+   answer is two returns and nothing they can do tonight. */
 function standingLabel(at: Standing | null): string {
   if (!at) return "Can't practice yet";
   if (at.status === "done") return "Learnt";
-  if (at.status === "climbed") {
-    return `Climbed · ${PASSES_TO_LEARN - at.passes} ${
+  if (at.status === "cleared") {
+    return `Cleared · ${PASSES_TO_LEARN - at.passes} ${
       PASSES_TO_LEARN - at.passes === 1 ? "review" : "reviews"
     } to go`;
   }
@@ -515,7 +620,7 @@ function standingLabel(at: Standing | null): string {
 function standingShort(at: Standing | null): string {
   if (!at) return "Can't practice yet";
   if (at.status === "done") return "Learnt";
-  if (at.status === "climbed") return "Climbed";
+  if (at.status === "cleared") return "Cleared";
   return `Level ${at.level}`;
 }
 
@@ -3133,7 +3238,7 @@ function pickableTypes(unit: Form, settings: Settings) {
   const types = askableTypes(unit, settings);
   const fresh = types.every((t) => stateOf(unit, t).phase === "new");
   const ladder = laddered(unit, settings);
-  const passing = climbed(ladder, (t) => stateOf(unit, t));
+  const passing = cleared(ladder, (t) => stateOf(unit, t));
   const top = topLevelOf(ladder);
   return inOrder(types, (t) => {
     const ready = stateReady(stateOf(unit, t)) ? 0 : 2;
@@ -6465,6 +6570,19 @@ export default function ArabicTrainer() {
   const [alsoOpen, setAlsoOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [tally, setTally] = useState({ ok: 0, no: 0 });
+  /*
+   * What this sitting moved, for the screen at the end of it.
+   *
+   * The cards that went up a rung, cleared, or were learnt while the
+   * session was running — collected as they happen, because a card's
+   * standing afterwards says where it is and not that it arrived there
+   * tonight. Cleared with the tally, on every way of starting a session.
+   *
+   * One entry per card, keeping the largest thing that happened to it: a
+   * card that rises a level early on and clears before the end is one
+   * piece of news, not two.
+   */
+  const [moved, setMoved] = useState<{ id: string; move: Move }[]>([]);
 
   const timer: React.MutableRefObject<ReturnType<typeof setTimeout> | null> = useRef(null);
   /* How many changes are in memory and not yet on the disk. Zero means the
@@ -7300,6 +7418,7 @@ export default function ArabicTrainer() {
     setSession({ ...built, practice: true, startedAt: now(), endsAt: 0 });
     setQi(0);
     setTally({ ok: 0, no: 0 });
+    setMoved([]);
     resetExercise();
     /* Out of the teaching space and onto the screen questions are asked
        on, which is the only one there is. Where it came from is
@@ -7387,6 +7506,7 @@ export default function ArabicTrainer() {
     });
     setQi(0);
     setTally({ ok: 0, no: 0 });
+    setMoved([]);
     resetExercise();
     setTab("home"); // a session started from anywhere is run on the home screen
   }
@@ -7654,6 +7774,7 @@ export default function ArabicTrainer() {
     setSession({ ...built, practice: false, startedAt: now(), endsAt: 0 });
     setQi(0);
     setTally({ ok: 0, no: 0 });
+    setMoved([]);
     resetExercise();
     setTab("home");
   }
@@ -7679,6 +7800,7 @@ export default function ArabicTrainer() {
     setSession({ ...built, practice: false, startedAt: now(), endsAt: 0 });
     setQi(0);
     setTally({ ok: 0, no: 0 });
+    setMoved([]);
     resetExercise();
     setTab("home");
   }
@@ -7716,6 +7838,7 @@ export default function ArabicTrainer() {
     setSession({ ...built, practice });
     setQi(0);
     setTally({ ok: 0, no: 0 });
+    setMoved([]);
     resetExercise();
   }
 
@@ -8753,13 +8876,17 @@ export default function ArabicTrainer() {
       );
       rememberNumberReach(item, !!correct);
     }
+    /* Filled in by the write below and read after it. `persist` calls its
+       function there and then rather than queuing it, so by the time this
+       is read it holds what this answer actually moved. */
+    let moving: { id: string; move: Move }[] = [];
     persist((cur) => {
       const graded = gradeInto(cur.items, marks, {
         type: gradedType,
         level: levelOf(gradedType),
         keepMet: needsMetRecord,
         /* The ladder each marked form climbs, so a right answer given to
-           a climbed card's top question, when that question came round of
+           a cleared card's top question, when that question came round of
            its own accord, counts towards the two passes that make it
            learnt. Per form and not per card, because one answer marks
            several: a word standing in somebody else's sentence is credited
@@ -8774,13 +8901,38 @@ export default function ArabicTrainer() {
          mark was the question the lift moved — so the document is left
          exactly as it was. */
       if (!graded) return cur;
+      /*
+       * And what this answer moved, worked out here because here is the
+       * only place that holds the card both before and after it.
+       *
+       * A card's standing afterwards says where it is, never that it
+       * arrived there tonight, and nothing on a card records the day it
+       * moved. So the comparison has to be made at the moment, or the
+       * fact is gone — which is why both the screen at the end of the
+       * session and the lines on Progress are fed from this one place
+       * rather than worked out twice from different evidence.
+       */
+      const day = dayKey();
+      const stirred = movesAmong(cur.items, graded, marks, settings);
+      moving = stirred;
+      const kept = (cur.moves || {})[day];
+      const tally = {
+        up: (kept && kept.up) || 0,
+        cleared: (kept && kept.cleared) || 0,
+        learnt: (kept && kept.learnt) || 0,
+      };
+      for (const { move } of stirred) tally[move] += 1;
       return {
         ...cur,
         items: graded,
         /* One question answered, however many words it marked. */
-        log: { ...cur.log, [dayKey()]: (cur.log[dayKey()] || 0) + 1 },
+        log: { ...cur.log, [day]: (cur.log[day] || 0) + 1 },
+        ...(stirred.length ? { moves: { ...(cur.moves || {}), [day]: tally } } : null),
       };
     });
+    /* Onto the session's own list, outside the write: `persist` runs its
+       function there and then, so this is the same answer's news. */
+    if (moving.length) setMoved((was) => mergeMoves(was, moving));
     setTally((t) => ({
       ok: t.ok + (correct ? 1 : 0),
       no: t.no + (correct ? 0 : 1),
@@ -10030,6 +10182,7 @@ export default function ArabicTrainer() {
                     ? "Clean run. Every gap just got longer."
                     : `${tally.no} lapsed and will come back shortly.`}
                 </Help>
+                <WhatMoved moved={moved} items={items} settings={settings} />
                 <div className="at-row">
                   <Button variant="ghost" onClick={() => setSession(null)}>
                     Done
@@ -10071,7 +10224,7 @@ export default function ArabicTrainer() {
 
         {/* ============ PROGRESS ============ */}
         {tab === "progress" && (
-          <ProgressTab items={shown} myCourses={myCourses} settings={settings} />
+          <ProgressTab items={shown} myCourses={myCourses} settings={settings} moves={data.moves} />
         )}
 
         {/* ============ SETTINGS ============ */}
@@ -10410,6 +10563,86 @@ function Climb({ items, settings }: { items: Item[]; settings: Settings }) {
           )}
         </span>
       </div>
+    </div>
+  );
+}
+
+/*
+ * What this sitting moved, under the score.
+ *
+ * The one screen a learner sees without going to look for it, arriving
+ * at the moment they have just done the work — which is why it, rather
+ * than the Progress tab, is where the news belongs.
+ *
+ * **Each line says what they can now do, not a level number.** The levels
+ * already have names, and "you can now write it from a cue" is a better
+ * sentence than "level 3" for somebody who has just earned it. Learnt and
+ * cleared say themselves.
+ *
+ * **Nothing at all when nothing moved**, which for an established learner
+ * is most sittings. A heading with nothing under it would land as a
+ * reminder that nothing happened, and the line above this already says
+ * the true thing — the gaps grew, and that is progress the ladder does
+ * not show.
+ *
+ * **And nothing about going backwards.** A card missed twice running
+ * loses the levels above it, and that is on the card's own screen, said
+ * as *paused*, where somebody looking for the reason will find it. Here
+ * it would be an evening's work answered with a loss.
+ */
+const MOVE_ORDER: Move[] = ["learnt", "cleared", "up"];
+const MOVES_SHOWN = 4;
+
+function WhatMoved({
+  moved,
+  items,
+  settings,
+}: {
+  moved: { id: string; move: Move }[];
+  items: Item[];
+  settings: Settings;
+}) {
+  const lines = useMemo(() => {
+    const byId = new Map(items.map((it) => [it.id, it]));
+    /* Biggest news first, and the order they moved in within each kind. */
+    const sorted = MOVE_ORDER.flatMap((kind) => moved.filter((m) => m.move === kind));
+    return sorted
+      .map(({ id, move }) => {
+        const card = byId.get(id);
+        if (!card) return null;
+        const name = leadOf(card).en || leadOf(card).ar || "";
+        if (!name) return null;
+        if (move === "learnt") return { id, name, said: "learnt" };
+        if (move === "cleared") return { id, name, said: "cleared" };
+        /* Where it got to, in the words the rest of the app uses for it —
+           and said as something a card is *up to* rather than as
+           something the learner can now do. Reaching a level means the
+           app has started asking it, not that it has been answered, and
+           "you can now write it from its meaning" would be telling
+           somebody they had done the very thing they are about to be
+           asked. A card with no standing has nothing to report and is
+           dropped rather than given a number. */
+        const at = standing(cardStandings(card, settings));
+        const level = at && LEVEL_REACHED[at.level];
+        return level ? { id, name, said: `up to ${level}` } : null;
+      })
+      .filter(Boolean) as { id: string; name: string; said: string }[];
+  }, [moved, items, settings]);
+
+  if (!lines.length) return null;
+  const shown = lines.slice(0, MOVES_SHOWN);
+  const rest = lines.length - shown.length;
+  return (
+    <div className="at-moved" data-el="what-moved">
+      <p className="at-eyebrow">What moved</p>
+      <ul>
+        {shown.map(({ id, name, said }) => (
+          <li key={id}>
+            <b>{name}</b> — {said}
+          </li>
+        ))}
+      </ul>
+      {rest > 0 && <p className="at-movedrest">and {plural(rest, "more card")} moved up</p>}
     </div>
   );
 }
@@ -12899,10 +13132,88 @@ export function levelPercent(at: { done: number; of: number } | null | undefined
  * are climbing, so it is the thing shown, and the bars have gone with the
  * deck sections that carried them.
  */
-function ProgressTab({ items, myCourses = [], settings }: {
+/*
+ * What today and this week came to, above the ladder.
+ *
+ * The tiles below say where the collection stands, which is a stock-take:
+ * it says nearly the same thing on the day somebody works hard as on the
+ * day they do nothing, because a card takes days to clear and four more
+ * to be learnt. These two lines say what *changed*, which is the question
+ * a learner is actually asking when they open this tab after a session.
+ *
+ * Read off the record the grading keeps — see `moves` on the document —
+ * because nothing on a card remembers the day it moved. Everything else
+ * in this app can be worked out again from the cards; this cannot, which
+ * is why it is the one thing here that is written down rather than
+ * derived.
+ *
+ * **A line with nothing to say is not shown**, and nor is the block when
+ * neither has anything. A row of noughts on a quiet day is a reminder
+ * that nothing happened, which is the opposite of what this is for.
+ *
+ * A week is the last seven days including today, so "this week" always
+ * contains "today" and the two can never disagree about a card.
+ */
+const WEEK = 7;
+
+export function sumMoves(moves: Record<string, DayMoves> | undefined, days: string[]): DayMoves {
+  const out = { up: 0, cleared: 0, learnt: 0 };
+  for (const day of days) {
+    const one = (moves || {})[day];
+    if (!one) continue;
+    out.up += one.up || 0;
+    out.cleared += one.cleared || 0;
+    out.learnt += one.learnt || 0;
+  }
+  return out;
+}
+
+/* The three counts as one sentence, leaving out whichever are nought:
+   "9 moved up, 4 cleared, 2 learnt", and "2 learnt" on its own where
+   that is the whole of it. Empty where nothing moved, which is what tells
+   the line not to appear. */
+export function saidMoves(at: DayMoves): string {
+  const parts: string[] = [];
+  if (at.up) parts.push(`${plural(at.up, "card")} moved up`);
+  if (at.cleared) parts.push(`${at.cleared} cleared`);
+  if (at.learnt) parts.push(`${at.learnt} learnt`);
+  return parts.join(", ");
+}
+
+function Lately({ moves }: { moves?: Record<string, DayMoves> }) {
+  const said = useMemo(() => {
+    const days = recentDays(WEEK);
+    const today = saidMoves(sumMoves(moves, days.slice(0, 1)));
+    const week = saidMoves(sumMoves(moves, days));
+    /* The week is left out when it says exactly what today says, which is
+       every first day and every week whose work all happened this
+       evening. Two identical sentences under two different headings read
+       as a fault in the app rather than as a fact about the week. */
+    return { today, week: week === today ? "" : week };
+  }, [moves]);
+  if (!said.today && !said.week) return null;
+  return (
+    <div className="at-lately">
+      {said.today && (
+        <p>
+          <b>Today</b> — {said.today}
+        </p>
+      )}
+      {said.week && (
+        <p>
+          <b>This week</b> — {said.week}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ProgressTab({ items, myCourses = [], settings, moves }: {
   items: Item[];
   myCourses?: Course[];
   settings: Settings;
+  /** What the ladder did each day — see `moves` on the document. */
+  moves?: Record<string, DayMoves>;
 }) {
   const [viewing, setViewing] = useState<any | null>(null);
 
@@ -12943,14 +13254,20 @@ function ProgressTab({ items, myCourses = [], settings }: {
      to say four hundred and once to list them — is a walk of every card
      for nothing. */
   const byBucket = useMemo(() => {
-    const out: Record<string, Item[]> = { all: items, l1: [], l2: [], l3: [], l4: [], done: [] };
+    const out: Record<string, Item[]> = { all: items, l1: [], l2: [], l3: [], l4: [], cleared: [], done: [] };
     for (const it of items) {
       const at = progressOf.get(it.id);
       /* A card with nothing it can be asked yet — no meaning, or every
          exercise switched off — belongs to no level and is left out of
          all five, the way it always was left out of the four before. */
       if (!at) continue;
-      (out[at.status === "done" ? "done" : `l${at.level}`] || []).push(it);
+      /* Cleared and learnt are both the top of the ladder, and both come
+         out of the level they stand on: a card at the top is under its own
+         tile rather than under "write it from its meaning", which is the
+         whole reason the tile exists. */
+      const bucket =
+        at.status === "done" ? "done" : at.status === "cleared" ? "cleared" : `l${at.level}`;
+      (out[bucket] || []).push(it);
     }
     return out;
   }, [items, progressOf]);
@@ -13007,6 +13324,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
 
   return (
     <>
+      <Lately moves={moves} />
       <Section
         title="The ladder"
         lede="Where your cards are on the learning ladder. A card moves up a level once you have answered everything below it right twice running — and counts as learnt once it has come back twice since and you were right."
@@ -13027,7 +13345,13 @@ function ProgressTab({ items, myCourses = [], settings }: {
         {LADDER_TILES.map(({ key, label, icon }) => {
           const count = byBucket[key].length;
           const tone =
-            key === "all" ? "var(--text)" : key === "done" ? "var(--jade)" : LEVEL_COLOR[Number(key.slice(1))];
+            key === "all"
+              ? "var(--text)"
+              : key === "done"
+              ? "var(--jade)"
+              : key === "cleared"
+              ? STATUS_COLOR.cleared
+              : LEVEL_COLOR[Number(key.slice(1))];
           return (
             <button
               type="button"

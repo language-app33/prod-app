@@ -31,7 +31,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { PASSES_TO_LEARN, cameRound, climbed, freshState, reschedule, topLevelOf } from "./scheduler.ts";
+import { PASSES_TO_LEARN, cameRound, cleared, freshState, reschedule, topLevelOf } from "./scheduler.ts";
 import { levelOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf } from "./dialogs.ts";
@@ -299,7 +299,7 @@ export function markedState(
   }
   s.hist = (s.hist || []).concat([mark.correct ? 1 : 0]).slice(-6);
   /*
-   * And the pass, where this was the top of a climbed card's ladder.
+   * And the pass, where this was the top of a cleared card's ladder.
    *
    * Three things have to be true together, and `counting` — worked out by
    * the caller, which is the only place that can see the rest of the card
@@ -421,13 +421,13 @@ export function gradeInto(items: Item[], marks: Mark[], asking: Asking): Item[] 
     const before = (target.s && target.s[asking.type]) || freshState();
     /* Whether this answer can count towards a pass: the form's own ladder,
        already climbed, and the question asked standing on the top of it.
-       Read before the mark is written, so the answer that finishes a climb
-       is part of the climb rather than the first pass of it. */
+       Read before the mark is written, so the answer that clears a card
+       is part of the clearing rather than the first pass of it. */
     const keys = (asking.keysOf && asking.keysOf(target)) || [];
     const counting =
       keys.length > 0 &&
       levelOf(asking.type) === topLevelOf(keys) &&
-      climbed(keys, (k) => target.s && target.s[k]);
+      cleared(keys, (k) => target.s && target.s[k]);
     out[idx] = withMark(
       item,
       mark.subId,

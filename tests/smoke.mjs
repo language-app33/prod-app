@@ -1683,9 +1683,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      They were plain text, so the only way to find out which cards were
      still new was to read every deck. */
   const counts = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll("button.at-rung")]);
-  /* Every card, then one per level of the ladder, then the ones with
-     nothing left to open. They used to be the four maturities. */
-  check("every count at the top is a button", counts.length === 6, `${counts.length} tiles`);
+  /* Every card, then one per level of the ladder, then the ones that have
+     been all the way up, then the ones that have stuck. They used to be
+     the four maturities. */
+  check("every count at the top is a button", counts.length === 7, `${counts.length} tiles`);
   const live = counts.find((b) => !b.disabled);
   check("a count with cards behind it can be pressed", !!live,
     counts.map((b) => `${(b.textContent || "").replace(/\s+/g, " ")}${b.disabled ? " (off)" : ""}`).join(" · "));
@@ -1728,7 +1729,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     document.querySelectorAll(".at-cardgrid .at-minicard").length === 0,
     `${document.querySelectorAll(".at-cardgrid .at-minicard").length} still up`);
   check("which brings the tiles back",
-    document.querySelectorAll("button.at-rung").length === 6,
+    document.querySelectorAll("button.at-rung").length === 7,
     `${document.querySelectorAll("button.at-rung").length} tiles`);
 
   /* ---- the tiles say what a level asks, not what number it is ----
@@ -1738,11 +1739,20 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   {
     const named = counts.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
     check("every tile says what its level asks, in words",
-      counts.length === 6 && named.every((t) => /[A-Za-z]{3}/.test(t)) &&
+      counts.length === 7 && named.every((t) => /[A-Za-z]{3}/.test(t)) &&
         !named.some((t) => /^\d+\s*Level \d+$/.test(t)),
       named.join(" · "));
     check("in the same words a card's own screen uses",
       named.some((t) => /What it means/.test(t)) && named.some((t) => /Learnt/.test(t)),
+      named.join(" · "));
+    /* Cleared stands between the top level and Learnt, which is the whole
+       reason it exists: a card worked all the way up tonight used to be
+       filed under "write it from its meaning" beside cards that had only
+       just reached that rung. */
+    check("and a card up its whole ladder is counted apart from one still on the top rung",
+      named.findIndex((t) => /Cleared/.test(t)) ===
+        named.findIndex((t) => /Learnt/.test(t)) - 1 &&
+        named.some((t) => /Cleared/.test(t)),
       named.join(" · "));
     check("and each carries a drawing of what it asks",
       counts.every((b) => !!b.querySelector("svg")),

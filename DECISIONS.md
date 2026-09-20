@@ -2986,3 +2986,78 @@ learn it was nearly right — for no mark. Bounded at one retry per question,
 cleared with everything else the question carries, and it only applies where
 the answer is typed in the script, which is where spelling is the thing
 being asked.
+
+---
+
+## What changed, not only where things stand
+
+**20 September 2026** · `src/scheduler.ts` (`movedTo`, `recentDays`,
+`dayKey`), `src/ArabicTrainer.tsx` (`movesAmong`, `WhatMoved`, `Lately`),
+`src/sync.ts`, `src/types.ts` (`moves`)
+
+Every screen in this app was a stock-take: where each card stands, how far
+the deck has got, how many are learnt. There was nothing anywhere that
+said what *changed*.
+
+That was survivable while the ladder moved quickly and fatal once it did
+not. A card now takes days to reach the top and four more to be kept, so
+the tiles say nearly the same thing on the evening somebody works hard as
+on the day they do nothing — and the one number that does move, *learnt*,
+moves about once a fortnight for a new learner. Somebody who has just
+spent an hour is told, accurately and uselessly, that nothing has been
+learnt.
+
+**So the app now records movement.** One card, across one answer, judged
+from the same standing every screen reads: up a level, cleared, learnt, or
+nothing. It feeds the screen at the end of a session and a count per day
+on the document, and those two are the same comparison rather than two
+readings that could drift.
+
+**It has to be recorded, which nothing else here does.** Everything else
+in the document can be worked out again from the cards; this cannot. A
+card's standing says where it is and never that it arrived there tonight,
+so the comparison exists for one instant — inside the write that changed
+it — and is gone. That is why `moves` sits beside the activity log as
+stored state rather than being derived, and it is the only thing in this
+release that adds to what a device keeps and carries between devices.
+
+**What is deliberately not reported.** Going backwards. A card missed
+twice running loses the levels above it, and that is on the card's own
+screen, said as *paused*, where somebody looking for the reason will find
+it. Putting it here would answer an evening's work with a loss, on the one
+screen whose job is to say what the evening came to. The owner and I
+settled this explicitly; it is not an oversight.
+
+And nothing at all when nothing moved. For an established learner that is
+most sittings, and a heading with nothing under it lands as a reminder
+that nothing happened — which is precisely the complaint this was built
+to answer. The line already there is true and better: the gaps grew.
+
+**Two faults that only the running app showed**, both found by driving it
+in a browser rather than by any test:
+
+The level names are headings — two of them questions, two instructions —
+and the summary borrowed them for prose. The screen read *"airport — you
+can now which word it is"*. They now have a second form written for a
+sentence (`LEVEL_REACHED`), and the sentence says what a card is *up to*
+rather than what the learner can now do: reaching a level means the app
+has started asking it, not that it has been answered.
+
+And *Today* and *This week* said the same sentence twice, which is every
+first day and every week whose work all happened this evening. The week is
+left out when it would only repeat the day.
+
+**A note that came due.** `dayKey` was UTC, and the comment over it asked
+whoever first read the log back to fix it. This is that release: under UTC
+an evening session west of Greenwich was filed under tomorrow, so "Today"
+would have been wrong for a large share of learners. It is the local day
+now, built from the local parts so a daylight-saving change cannot shift
+it. Keys written before this are UTC; it affects counts already recorded
+and never the cards, and no screen ever showed either number until now.
+
+**What it cost.** One new thing stored and synced, merged by taking the
+larger of two days rather than the sum — adding them would double an
+evening every time a device synced twice. And the summary is fed from a
+value captured beside a write rather than from a re-read afterwards, which
+is sound only because `persist` runs its function there and then; a queued
+updater would have made it a lie.

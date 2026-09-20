@@ -240,6 +240,22 @@ export function mergeData(local: Doc, remote: WireDoc | null): Doc {
     log[day] = Math.max(n, log[day] || 0);
   }
 
+  /* --- and what the ladder did, by the same rule, one count at a time.
+     Adding them would double a day every time a device synced twice; the
+     larger of the two is the honest answer, and it is what the cards
+     themselves will bear out. A day recorded on the phone and not on the
+     laptop survives either way round. --- */
+  const moves: Record<string, { up: number; cleared: number; learnt: number }> = {};
+  for (const day of new Set([...Object.keys(remote.moves || {}), ...Object.keys(local.moves || {})])) {
+    const a = (remote.moves || {})[day] || { up: 0, cleared: 0, learnt: 0 };
+    const b = (local.moves || {})[day] || { up: 0, cleared: 0, learnt: 0 };
+    moves[day] = {
+      up: Math.max(a.up || 0, b.up || 0),
+      cleared: Math.max(a.cleared || 0, b.cleared || 0),
+      learnt: Math.max(a.learnt || 0, b.learnt || 0),
+    };
+  }
+
   /* --- settings: whichever was changed last --- */
   const settings =
     (local.settingsUpdated || 0) >= (remote.settingsUpdated || 0)
@@ -252,6 +268,7 @@ export function mergeData(local: Doc, remote: WireDoc | null): Doc {
     tombstones,
     parked,
     log,
+    moves,
     settings: { ...local.settings, ...settings },
     settingsUpdated: Math.max(local.settingsUpdated || 0, remote.settingsUpdated || 0),
   };
@@ -370,6 +387,7 @@ function forWire(data: Doc): Doc {
     tombstones: data.tombstones || {},
     parked: data.parked || {},
     log: data.log || {},
+    moves: data.moves || {},
     settings: data.settings,
     settingsUpdated: data.settingsUpdated || 0,
   };

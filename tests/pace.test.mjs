@@ -50,7 +50,7 @@ const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered }
   path.join(out, "trainer.js")
 );
 const { gradeInto } = await import(path.join(root, "src", "grade.ts"));
-const { mastered, climbed, learnt, unitsOf, MASTERED_DAYS, PASSES_TO_LEARN, FRONT_DOOR_CAP, IN_HAND_CAP } =
+const { mastered, cleared, learnt, unitsOf, MASTERED_DAYS, PASSES_TO_LEARN, FRONT_DOOR_CAP, IN_HAND_CAP } =
   await import(path.join(root, "src", "scheduler.ts"));
 const { handCounts } = await import(path.join(out, "trainer.js"));
 
@@ -92,7 +92,7 @@ function sitDown(/** @type {any[]} */ items, /** @type {number} */ at, /** @type
   for (const ex of built.exercises || []) {
     const marks = [{ id: ex.id, subId: ex.subId || null, rating: "good", correct: true, advance: true }];
     /* Handed the ladder, as the app hands it, so the passes that turn a
-       climbed card into a learnt one are counted here too. Without it the
+       cleared card into a learnt one are counted here too. Without it the
        simulation would measure the climb and nothing that follows it,
        which is half of what this release changed. */
     const next = gradeInto(cards, marks, {
@@ -125,7 +125,7 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
      level it has, and the day it had come back twice since and been kept.
      Effort is meant to move the first and not the second. */
   /** @type {Map<string, number>} */
-  const climbedOn = new Map();
+  const clearedOn = new Map();
   /** @type {Map<string, number>} */
   const learntOn = new Map();
 
@@ -150,9 +150,9 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
         }
         const up = unitsOf(it).every((/** @type {any} */ u) => {
           const keys = laddered(u.unit, settings);
-          return keys.length > 0 && climbed(keys, (/** @type {string} */ k) => (u.unit.s || {})[k]);
+          return keys.length > 0 && cleared(keys, (/** @type {string} */ k) => (u.unit.s || {})[k]);
         });
-        if (up && !climbedOn.has(it.id)) climbedOn.set(it.id, d);
+        if (up && !clearedOn.has(it.id)) clearedOn.set(it.id, d);
         const kept = unitsOf(it).every((/** @type {any} */ u) => {
           const keys = laddered(u.unit, settings);
           return keys.length > 0 && learnt(keys, (/** @type {string} */ k) => (u.unit.s || {})[k]);
@@ -166,21 +166,21 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
   const since = (/** @type {Map<string, number>} */ m) =>
     [...m.entries()].map(([id, d]) => d - (firstSeen.get(id) ?? 0)).sort((a, b) => a - b);
   const median = (/** @type {number[]} */ xs) => (xs.length ? xs[Math.floor(xs.length / 2)] : null);
-  const toClimb = since(climbedOn);
+  const toClear = since(clearedOn);
   const toLearn = since(learntOn);
   return {
     met: firstSeen.size,
     mastered: mastery.size,
-    climbed: climbedOn.size,
+    cleared: clearedOn.size,
     learnt: learntOn.size,
-    medianDaysToClimb: median(toClimb),
+    medianDaysToClear: median(toClear),
     medianDaysToLearn: median(toLearn),
     /* The gap between the two, per card: what the passes cost, which is
        the one thing effort is not allowed to shorten. */
     medianPassDays: median(
       [...learntOn.entries()]
-        .filter(([id]) => climbedOn.has(id))
-        .map(([id, d]) => d - (climbedOn.get(id) ?? 0))
+        .filter(([id]) => clearedOn.has(id))
+        .map(([id, d]) => d - (clearedOn.get(id) ?? 0))
         .sort((a, b) => a - b),
     ),
     asked,
@@ -354,17 +354,17 @@ test("and doing too much never beats doing the right amount", () => {
    single line of its output as a result.
    ------------------------------------------------------------------ */
 
-test("practising hard climbs a word faster than practising once a day", () => {
+test("practising hard clears a card faster than practising once a day", () => {
   const steady = live({ cards: courseOf(60), days: 12, sessionsPerDay: 1 });
   const keen = live({ cards: courseOf(60), days: 12, sessionsPerDay: 8 });
   console.log(
-    `    to climb a word: once a day ${steady.medianDaysToClimb}, ` +
-      `eight sittings a day ${keen.medianDaysToClimb} days`,
+    `    to clear a card: once a day ${steady.medianDaysToClear}, ` +
+      `eight sittings a day ${keen.medianDaysToClear} days`,
   );
-  assert.ok(keen.climbed > 0, "the keen learner climbed nothing in a fortnight");
+  assert.ok(keen.cleared > 0, "the keen learner cleared nothing in a fortnight");
   assert.ok(
-    (keen.medianDaysToClimb ?? 99) < (steady.medianDaysToClimb ?? 99),
-    `keen ${keen.medianDaysToClimb} against steady ${steady.medianDaysToClimb}: ` +
+    (keen.medianDaysToClear ?? 99) < (steady.medianDaysToClear ?? 99),
+    `keen ${keen.medianDaysToClear} against steady ${steady.medianDaysToClear}: ` +
       "an evening's work bought nothing, which is the whole fault this release was for",
   );
 });
@@ -380,15 +380,15 @@ test("and no amount of practice shortens the passes that follow", () => {
    */
   const keen = live({ cards: courseOf(60), days: 20, sessionsPerDay: 8 });
   console.log(
-    `    eight sittings a day: climbed ${keen.climbed}, learnt ${keen.learnt}, ` +
-      `median ${keen.medianPassDays} days from climbed to learnt`,
+    `    eight sittings a day: cleared ${keen.cleared}, learnt ${keen.learnt}, ` +
+      `median ${keen.medianPassDays} days from cleared to learnt`,
   );
   assert.ok(keen.learnt > 0, "nothing was ever kept");
   assert.ok(
     (keen.medianPassDays ?? 0) >= PASSES_TO_LEARN,
     `${keen.medianPassDays} days for ${PASSES_TO_LEARN} passes: a pass was made without a day passing`,
   );
-  /* And climbed is genuinely ahead of learnt, which is what gives a
+  /* And cleared is genuinely ahead of learnt, which is what gives a
      learner something to see on the day they do the work. */
-  assert.ok(keen.climbed >= keen.learnt, "more words learnt than climbed, which cannot happen");
+  assert.ok(keen.cleared >= keen.learnt, "more cards learnt than cleared, which cannot happen");
 });

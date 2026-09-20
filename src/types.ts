@@ -1233,9 +1233,42 @@ export interface Doc {
    */
   parked?: Record<string, Parked>;
   log: Record<string, any>;
+  /**
+   * What the ladder did each day: how many cards moved up a level, how
+   * many cleared, how many were learnt.
+   *
+   * Filed by the learner's own day, beside the count of questions in
+   * `log`, and the only record in the document of *change* rather than of
+   * where things stand. Everything else here is a stock-take: this is
+   * what lets Progress say what a day and a week came to, which no amount
+   * of reading the cards can reconstruct once they have moved on.
+   *
+   * Counted per card and once per kind: a card that moves up a level in
+   * the morning and clears at night is in both tallies, and one answered
+   * twice on the same rung is in neither.
+   *
+   * Absent on a document written before it existed, which reads as no
+   * history — so the lines that read it simply say nothing until a day
+   * has been recorded.
+   */
+  moves?: Record<string, DayMoves>;
   /** Every document has them; EMPTY is where the defaults live. */
   settings: Settings;
   settingsUpdated?: Millis;
+}
+
+/**
+ * One day's movement on the ladder.
+ *
+ * Three counts rather than one, because they are three different things
+ * to be told: a card moving up a rung is ordinary progress, a card
+ * clearing is the evening's work finished, and a card being learnt is the
+ * only one of the three that is permanent.
+ */
+export interface DayMoves {
+  up: number;
+  cleared: number;
+  learnt: number;
 }
 
 /**

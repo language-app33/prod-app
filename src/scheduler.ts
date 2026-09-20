@@ -515,7 +515,7 @@ export function missedTwice(s: ExerciseState): boolean {
  * which closes the level exactly as it always did. A question that has
  * never managed two of either in a row has established nothing and is not
  * solid, which is also what an empty `hist` says and why a document
- * written before `hist` existed reads as unclimbed rather than as
+ * written before `hist` existed reads as uncleared rather than as
  * finished.
  *
  * **What this replaced.** A level used to open on a *gap*: through the
@@ -542,14 +542,14 @@ export function solid(s: ExerciseState): boolean {
    * `hist` has been written on every marked answer since 0.155; the
    * ladder only began reading it here. A card at a ninety-day gap that
    * was last answered before that carries an empty history, and without
-   * this line it would read as having climbed nothing — the levels above
+   * this line it would read as having cleared nothing — the levels above
    * would shut and a learner would be asked what a word they have known
    * for a year means. Being in review is what the two cued levels used to
    * ask, so this is the old bar, applied only where there is nothing else
    * to go on.
    *
    * It is generous at the top, where the old bar was four days rather
-   * than review at all. Deliberately: the card reads as climbed and has
+   * than review at all. Deliberately: the card reads as cleared and has
    * its two passes still to make, which it makes on its next two reviews
    * — which is what those reviews were always going to be. The
    * alternative is taking a word away from somebody who has it.
@@ -645,7 +645,7 @@ export const hasLevelAbove = (keys: string[], key: string): boolean =>
 
    Now an evening's work climbs the card, and what the gap used to prove
    is asked afterwards instead, of the top of the ladder, where it means
-   the most: see `passes` below. A card that has climbed is not yet learnt.
+   the most: see `passes` below. A card that has cleared is not yet learnt.
 
    Nothing about the order changed, and nothing about the grace. A form
    with no recording has nothing on level three but its transliteration,
@@ -724,14 +724,14 @@ export function reachedLevel(
 }
 
 /* ------------------------------------------------------------------
-   Climbed, and then learnt
+   Cleared, and then learnt
 
    The ladder says what a card may be asked. These two say what the
    learner has actually got, and they are deliberately not the same thing:
-   a card is **climbed** when it has been up every level it has material
+   a card is **cleared** when it has been up every level it has material
    for, and **learnt** when it has come back twice since and been right.
 
-   Climbing is bought with effort and can all happen in one evening.
+   Clearing is bought with effort and can all happen in one evening.
    Being learnt cannot: the two passes are counted only on answers given
    when the question came round of its own accord, which is the one thing
    practising harder cannot manufacture — see `passes`, and the early
@@ -748,10 +748,15 @@ export function reachedLevel(
  *
  * Every key solid — the same reading `openTypes` makes on its way up, run
  * to the top instead of stopping at the first closed level. A form nobody
- * has answered has climbed nothing, as in `reachedLevel` and for the same
+ * has answered has cleared nothing, as in `reachedLevel` and for the same
  * reason.
+ *
+ * *Cleared* rather than *climbed*, which is what this was called for a
+ * release: the ladder is still climbed, and the card is what gets
+ * cleared. One word for the scheduler and the screen, which is the habit
+ * the rest of this file keeps — see `standings`.
  */
-export function climbed(
+export function cleared(
   types: string[],
   stateOf: (type: string) => ExerciseState | null | undefined,
 ): boolean {
@@ -769,7 +774,7 @@ export function climbed(
  * phrase and no recording may top out at writing from a cue, and a
  * conversation at putting a scene in order. Asking those to pass at a
  * level they have nothing on would make them learnt the moment they
- * climbed, with nothing ever checked.
+ * cleared, with nothing ever checked.
  */
 export const topLevelOf = (types: string[]): number =>
   types.reduce((top, t) => Math.max(top, levelOf(t)), 0);
@@ -778,7 +783,7 @@ export const topLevelOf = (types: string[]): number =>
  * How many passes a form has made — nought, one or two.
  *
  * A pass is every exercise on the top of its ladder answered right, on
- * time, since the card climbed. Two of them and the card is learnt.
+ * time, since the card cleared. Two of them and the card is learnt.
  *
  * **Counted per exercise and reported as the weakest**, which is what
  * makes "two passes" true of the card rather than of whichever question
@@ -811,9 +816,9 @@ export function passesMade(
 }
 
 /**
- * Whether the learner has kept this form, and not merely climbed it.
+ * Whether the learner has kept this form, and not merely cleared it.
  *
- * Climbed and two passes made. Both are read afresh, so a card that has
+ * Cleared and two passes made. Both are read afresh, so a card that has
  * slipped back down the ladder is not learnt however many passes it once
  * had — the passes are still on it, and come back with it.
  */
@@ -821,7 +826,7 @@ export function learnt(
   types: string[],
   stateOf: (type: string) => ExerciseState | null | undefined,
 ): boolean {
-  return climbed(types, stateOf) && passesMade(types, stateOf) >= PASSES_TO_LEARN;
+  return cleared(types, stateOf) && passesMade(types, stateOf) >= PASSES_TO_LEARN;
 }
 
 /* ------------------------------------------------------------------
@@ -1042,7 +1047,7 @@ export interface Standing {
   /**
    * "none" — open, and nothing on it answered yet.
    * "learning" — open, something answered, not all of it solid.
-   * "climbed" — the top of the ladder, up but not yet kept: every
+   * "cleared" — the top of the ladder, up but not yet kept: every
    *   question answered right twice running, and the passes still to
    *   make. Only ever the top row, because it is the only one with
    *   nothing above it to open.
@@ -1052,11 +1057,11 @@ export interface Standing {
    */
   status: string;
   /**
-   * How many passes the card has made, of the two that turn climbed into
+   * How many passes the card has made, of the two that turn cleared into
    * learnt — on the top row only, and nought everywhere else.
    *
    * On the row rather than beside the list because that is where a screen
-   * reads it: the one line a card puts up is its standing, and "climbed,
+   * reads it: the one line a card puts up is its standing, and "cleared,
    * one pass of two" is the whole of what a learner needs told.
    */
   passes: number;
@@ -1123,7 +1128,7 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
     const met = here.some(answered);
     const finished = done === under.length;
     /* The top of the ladder is the one row with nothing above it to open,
-       so "done" there cannot mean what it means lower down. It is climbed
+       so "done" there cannot mean what it means lower down. It is cleared
        until the passes are made and learnt after — and the difference is
        the whole of what this release added, said in the one place every
        screen reads. */
@@ -1134,7 +1139,7 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
       status: finished
         ? kept
           ? "done"
-          : "climbed"
+          : "cleared"
         : !open
         ? met && allMetBelow
           ? "paused"
@@ -1171,11 +1176,11 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
 export function standing(all: Standing[]): Standing | null {
   if (!all.length) return null;
   const last = all[all.length - 1];
-  /* Climbed is the top row as much as done is, and it is where the work
+  /* Cleared is the top row as much as done is, and it is where the work
      is: the card is up the ladder and coming back to be kept. Reporting
      the rung under it instead would say a learner had further to climb
      than they have. */
-  if (last.status === "done" || last.status === "climbed") return last;
+  if (last.status === "done" || last.status === "cleared") return last;
   const paused = all.filter((s) => s.status === "paused");
   if (paused.length) return paused[paused.length - 1];
   return all.find((s) => s.status !== "done") || last;
@@ -1199,14 +1204,99 @@ export function formatGap(ms: number): string {
 }
 
 /*
- * Which day an answer belongs to, for the activity log.
+ * Which day an answer belongs to, for the activity log and for what the
+ * ladder did.
  *
- * This is UTC, not the learner's own day, so an evening session west of
- * Greenwich is filed under tomorrow. Nothing reads the log yet, so it is
- * recorded here rather than fixed: whoever builds the first streak or
- * heatmap needs to pass the learner's offset in, and should find this
- * paragraph when they do.
+ * **The learner's own day**, and it used to be UTC. The note that stood
+ * here said as much and asked whoever first read the log back to fix it,
+ * which is this release: "Today — 3 cards moved up" is a sentence that
+ * has to agree with the learner's evening, and under UTC somebody
+ * practising after seven o'clock in California was filing their whole
+ * session under tomorrow. Nothing displayed it before, so nothing was
+ * visibly wrong; the moment anything says *today*, it is.
+ *
+ * Built out of the local parts rather than by shifting the timestamp,
+ * which is what keeps it right across a daylight-saving change: the date
+ * a learner would write down is the date this returns.
+ *
+ * **What it costs.** Keys written before this are UTC, so a day either
+ * side of a session that spanned midnight may now be read under a
+ * neighbouring key. It affects counts already recorded and never the
+ * cards themselves, the merge takes the larger of two days rather than
+ * adding them, and no screen has ever shown either number until now.
  */
 export function dayKey(t?: number, clock: Clock = REAL_CLOCK): string {
-  return new Date(t === undefined ? timeOf(clock) : t).toISOString().slice(0, 10);
+  const d = new Date(t === undefined ? timeOf(clock) : t);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * The last `n` days, today first, as the keys `dayKey` writes.
+ *
+ * Walked back a day at a time from midday rather than by subtracting
+ * twenty-four hours from now, so a clock going forward or back in the
+ * middle of the week cannot drop a day or repeat one.
+ */
+export function recentDays(n: number, clock: Clock = REAL_CLOCK): string[] {
+  const at = new Date(timeOf(clock));
+  const noon = new Date(at.getFullYear(), at.getMonth(), at.getDate(), 12, 0, 0);
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) {
+    out.push(dayKey(new Date(noon.getFullYear(), noon.getMonth(), noon.getDate() - i, 12).getTime()));
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------
+   What moved
+
+   Everything else in this file says where a card stands. This says what
+   changed, which is the one thing a stock-take cannot reconstruct: once
+   a card has moved, nothing on it records that it moved today rather
+   than a fortnight ago.
+
+   It exists because of what the ladder now costs a learner in patience.
+   A card takes days to clear and four more to be learnt, so a screen that
+   only ever says where things stand says the same thing for days at a
+   time — and somebody who has just worked hard is told nothing happened.
+   What they did is true and sayable, and this is what makes it sayable.
+   ------------------------------------------------------------------ */
+
+/**
+ * Which of the three kinds of movement an answer produced, if any.
+ *
+ * Read from the one line a card puts up — its standing — before the
+ * answer and after it, so a card is judged the way every screen judges
+ * it and the two cannot come to disagree.
+ *
+ * The order is deliberate. A card that rises a level *and* clears in the
+ * same answer is reported as cleared, because that is the larger thing
+ * that happened to it and telling a learner both would be counting one
+ * event twice.
+ *
+ * Null for everything else, which deliberately includes going *down*: a
+ * card that slipped back is not reported here, so nothing built on this
+ * can tell a learner their evening went backwards. What they have lost
+ * is on the card's own screen, said as *paused*, where somebody looking
+ * for the reason will find it.
+ */
+export type Move = "up" | "cleared" | "learnt";
+
+export function movedTo(
+  before: Standing | null,
+  after: Standing | null,
+): Move | null {
+  /* Nothing to compare is nothing to report, at either end. A card with
+     no standing before is one that had nothing it could be asked — a
+     teacher adding the material mid-session — and it has not moved up a
+     rung, it has only become practisable. Read without this it was news
+     every time, and the news was wrong. */
+  if (!before || !after) return null;
+  if (after.status === "done" && before.status !== "done") return "learnt";
+  if (after.status === "cleared" && before.status !== "cleared" && before.status !== "done") {
+    return "cleared";
+  }
+  if (after.level > before.level) return "up";
+  return null;
 }

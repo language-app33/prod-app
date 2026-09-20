@@ -8,6 +8,47 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.203 — 20 September 2026
+
+**The app now says what your session moved.**
+
+A card takes days to reach the top of its ladder and four more to be
+learnt, so a screen that only says where your cards *stand* says almost
+the same thing on the evening you work hard as on the day you do nothing.
+Four changes, and between them something visible moves in every session.
+
+**"Climbed" is now "Cleared."** The word for a card that has been all the
+way up its ladder but not yet come back twice to prove it stuck. The rule
+is exactly as it was; the word is better.
+
+**Cleared has its own count in Progress**, between the top level and
+Learnt. A card you worked all the way up tonight used to sit in the same
+pile as one that had only just reached the last rung, so the number that
+moved on the evening you did the work was indistinguishable from the
+number that did not. It is the one milestone effort buys on the day it is
+spent, and it was invisible.
+
+**The screen at the end of a session says what moved** — the cards that
+went up a level, cleared, or were learnt, each saying where it got to:
+
+> **airport** — cleared
+> **key** — up to writing it from a cue
+
+Four at most, the biggest news first, and the rest counted. When nothing
+moved, nothing is shown: the line above it already says the true thing,
+which is that your gaps grew.
+
+**And Progress opens with what today and this week came to** — *Today — 3
+cards moved up, 1 cleared*. A line with nothing to say is left out, so a
+quiet day shows nothing rather than a row of noughts, and the week is left
+out when it would only repeat the day.
+
+Two smaller things that came with it. A day is now **your** day rather
+than Greenwich's, so an evening session west of London is no longer filed
+under tomorrow — which nothing showed before and everything shows now.
+And a card that merely becomes practisable, because a teacher added the
+material, is no longer reported as having moved up a level.
+
 ## 0.202 — 20 September 2026
 
 **An evening's work now moves a word. Keeping it still takes days.**

@@ -1764,6 +1764,24 @@ button {
 .at-hint em { color: var(--text-soft); font-style:normal; }
 .at-card { background: var(--surface); border:2px solid var(--line); border-radius: var(--r-lg);
   padding:30px 22px; text-align:center; box-shadow: var(--shadow); }
+/*
+ * What the sitting moved, under the score.
+ *
+ * Read left-aligned inside a centred card, because these are sentences
+ * about particular cards rather than a headline — centred, a list of four
+ * of them is a ragged shape nobody can scan. Ruled off above so it is
+ * plainly a second thing the screen is saying rather than more of the
+ * line before it.
+ */
+.at-moved { margin:18px 0 4px; padding-top:16px; border-top:1px solid var(--line);
+  text-align:start; }
+.at-moved .at-eyebrow { margin:0 0 8px; }
+.at-moved ul { margin:0; padding:0; list-style:none; }
+.at-moved li { font-family: var(--ui); font-size: var(--fs-md); color: var(--text-soft);
+  line-height:1.5; margin-bottom:3px; }
+.at-moved li b { color: var(--text); font-weight:800; }
+.at-movedrest { margin:6px 0 0; font-family: var(--ui); font-size: var(--fs-sm);
+  color: var(--muted); }
 /* A question is not a card. It used to sit in a bordered, shadowed panel,
    which framed it as an object on a page — but there is only ever one
    question on the screen and nothing to tell it apart from, so the frame
@@ -2387,6 +2405,20 @@ button.at-stat:disabled { cursor:default; opacity:.55; }
    wider screen spreading them back into one long line is the row of
    unreadable captions this replaced. Two only where three will not fit —
    the same 320px exception the card grid makes. */
+/*
+ * What today and this week came to, above the ladder.
+ *
+ * Two lines and no tile. The tiles below are the stock-take and they are
+ * loud; this is a sentence, and it wants to read as one — so it is set
+ * like text with the label in bold rather than as a pair of numbers in
+ * boxes competing with the grid underneath.
+ */
+.at-lately { margin:0 0 16px; }
+.at-lately p { margin:0 0 3px; font-family: var(--ui); font-size: var(--fs-md);
+  color: var(--text-soft); line-height:1.45; }
+.at-lately p:last-child { margin-bottom:0; }
+.at-lately b { color: var(--text); font-weight:800; }
+
 .at-rungs { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
   gap:8px; margin-bottom:18px; }
 .at-rung { display:flex; flex-direction:column; align-items:flex-start; gap:1px;
@@ -2400,13 +2432,20 @@ button.at-stat:disabled { cursor:default; opacity:.55; }
   line-height:1.25; overflow-wrap:anywhere; }
 .at-rungstep { font-family: var(--ui); font-size:9px; font-weight:800; letter-spacing:.07em;
   text-transform:uppercase; color: var(--faint); margin-top:2px; }
-/* The one the other five are climbing towards, so it is the one that has
-   to carry across the room: its own ground, its own edge, and the icon in
-   a badge rather than sitting on the tile like the rest. */
-.at-rung.learnt { background: var(--jade-bg); border-color: var(--jade-soft); }
+/* The one the others are climbing towards, so it is the one that has to
+   carry across the room: its own ground, its own edge, and the icon in a
+   badge rather than sitting on the tile like the rest.
+
+   And the whole of the last row. Seven tiles in three columns leave one
+   over, and a lone tile in a corner reads as a tile that did not fit —
+   where this one standing across the foot of the grid reads as the thing
+   the six above it are for. It lays itself out along the row rather than
+   down it, so a full-width tile is not a tall empty box. */
+.at-rung.learnt { background: var(--jade-bg); border-color: var(--jade-soft);
+  grid-column: 1 / -1; flex-direction:row; align-items:center; gap:10px; }
 .at-rung.learnt .at-rungicon { background: var(--jade); color: var(--onjade);
   width:32px; height:32px; border-radius:50%; align-items:center; justify-content:center;
-  margin-bottom:6px; }
+  margin-bottom:0; flex:none; }
 .at-rung.learnt .at-rungname { color: var(--text); }
 .at-rung.on { border-color: var(--accent); }
 .at-rung:disabled { cursor:default; opacity:.5; }

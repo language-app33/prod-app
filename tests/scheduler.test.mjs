@@ -45,11 +45,13 @@ import {
   openTypes,
   reachedLevel,
   solid,
-  climbed,
+  cleared,
   learnt,
   passesMade,
   topLevelOf,
   cameRound,
+  movedTo,
+  recentDays,
   standings,
   standing,
   turnOf,
@@ -117,7 +119,7 @@ const sure = (/** @type {Partial<ExerciseState>} */ over = {}) =>
   state({ phase: "review", interval: 3, reps: 2, right: 2, hist: [1, 1], ...over });
 const once = () => state({ phase: "review", interval: 1, reps: 1, right: 1, hist: [1] });
 
-/* The same, with its passes made: what turns a climbed card into a learnt
+/* The same, with its passes made: what turns a cleared card into a learnt
    one. Only ever read on the top of a form's own ladder. */
 const kept = () => sure({ passes: 2 });
 
@@ -527,10 +529,10 @@ test("one rule for every level, whatever exercises a card happens to carry", () 
   assert.equal(solid(state({ hist: [1, 1, 0, 0, 1, 1] })), true, "recovered by two more");
   assert.equal(solid(state({ hist: [1] })), false, "one answer establishes nothing");
   assert.equal(solid(state({ hist: [1, 0, 1, 0] })), false, "nor does alternating");
-  assert.equal(solid(freshState()), false, "and a card never answered has climbed nothing");
+  assert.equal(solid(freshState()), false, "and a card never answered has cleared nothing");
   /* A question answered before outings were recorded is taken at its
      schedule's word — see `solid`. Documents written before 0.155 carry an
-     empty history, and reading those as unclimbed would take a word away
+     empty history, and reading those as uncleared would take a word away
      from somebody who has known it for a year. */
   assert.equal(solid(state({ hist: [], phase: "review", interval: 90 })), true,
     "no record at all, and plainly established");
@@ -557,7 +559,7 @@ test("a level with nothing on it is passed straight through", () => {
     ["ar2en", "match", "en2ar"]);
 });
 
-test("a whole ladder can be climbed in one sitting, and is not learnt for it", () => {
+test("a whole ladder can be cleared in one sitting, and is not learnt for it", () => {
   const ladder = ["ar2en", "match", "tr2ar", "en2ar"];
   const table = (/** @type {Record<string, ExerciseState>} */ s) => (/** @type {string} */ t) => s[t];
   assert.deepEqual(openTypes(ladder, table({})), ["ar2en"], "a word never met is read alone, and not yet told apart");
@@ -571,10 +573,10 @@ test("a whole ladder can be climbed in one sitting, and is not learnt for it", (
   const up = table({ ar2en: sure(), match: sure(), tr2ar: sure() });
   assert.deepEqual(openTypes(ladder, up), ladder, "writing from the meaning opens on the same rule");
 
-  /* Climbed is not learnt. Every rung up, no passes made: the card has
+  /* Cleared is not learnt. Every rung up, no passes made: the card has
      been to the top and has not yet come back. */
   const all = table({ ar2en: sure(), match: sure(), tr2ar: sure(), en2ar: sure() });
-  assert.equal(climbed(ladder, all), true);
+  assert.equal(cleared(ladder, all), true);
   assert.equal(passesMade(ladder, all), 0);
   assert.equal(learnt(ladder, all), false, "up the ladder is not the same as kept");
   /* One pass, then two. Counted on the top of the ladder alone — see
@@ -589,7 +591,7 @@ test("a whole ladder can be climbed in one sitting, and is not learnt for it", (
      coming round, and failing one of them twice running un-climbs the
      card however many passes its writing has made. */
   const slippedBelow = table({ ar2en: slippedTwice(10), match: sure(), tr2ar: sure(), en2ar: kept() });
-  assert.equal(climbed(ladder, slippedBelow), false);
+  assert.equal(cleared(ladder, slippedBelow), false);
   assert.equal(learnt(ladder, slippedBelow), false, "a word that can no longer be read is not a word kept");
   assert.equal(passesMade(ladder, slippedBelow), 2, "and the passes are still on it, for when it is back");
   /* The top of a ladder is the ladder's own, not the table's. A card with
@@ -857,19 +859,19 @@ test("a card is on one level, and every level below it is done", () => {
   assert.deepEqual(three.map((r) => r.status), ["done", "done", "done", "none"]);
   assert.equal(must(standing(three), "a standing").level, 4);
 
-  /* The top of the ladder reached is *climbed*, which names the card
+  /* The top of the ladder reached is *cleared*, which names the card
      rather than a level — and is not yet learnt. The row carries how many
      of the two passes are made, so the one line a screen shows can say
      what is left. */
   const all = at({ ar2en: done, match: done, tr2ar: done, en2ar: done });
-  assert.deepEqual(all.map((r) => r.status), ["done", "done", "done", "climbed"]);
-  assert.equal(must(standing(all), "a standing").status, "climbed");
+  assert.deepEqual(all.map((r) => r.status), ["done", "done", "done", "cleared"]);
+  assert.equal(must(standing(all), "a standing").status, "cleared");
   assert.equal(must(standing(all), "a standing").passes, 0);
 
   /* One pass made, then both — and only then does the card read as
      learnt. */
   const half = at({ ar2en: done, match: done, tr2ar: done, en2ar: sure({ passes: 1 }) });
-  assert.equal(must(standing(half), "a standing").status, "climbed");
+  assert.equal(must(standing(half), "a standing").status, "cleared");
   assert.equal(must(standing(half), "a standing").passes, 1);
   const kept2 = at({ ar2en: done, match: done, tr2ar: done, en2ar: kept() });
   assert.deepEqual(kept2.map((r) => r.status), ["done", "done", "done", "done"]);
@@ -877,7 +879,7 @@ test("a card is on one level, and every level below it is done", () => {
   /* Passes are read off the top of the ladder alone, so a lower rung
      carrying one by some accident of history changes nothing. */
   const oddly = at({ ar2en: sure({ passes: 2 }), match: done, tr2ar: done, en2ar: done });
-  assert.equal(must(standing(oddly), "a standing").status, "climbed");
+  assert.equal(must(standing(oddly), "a standing").status, "cleared");
 });
 
 test("a level a card has no material for is not one of its levels", () => {
@@ -999,7 +1001,7 @@ test("the count on a level is what has to hold for the next one to open", () => 
   /* Counted over the level and everything under it, because that is what
      openTypes asks. So the count reaching its total and the level being
      done are the same fact, and cannot drift apart — with the top row the
-     one exception, where the count is full and the card reads as climbed
+     one exception, where the count is full and the card reads as cleared
      until its passes are made. */
   /** @type {Record<string, ExerciseState>[]} */
   const tables = [{}, { ar2en: done }, { ar2en: done, match: done }, { ar2en: done, match: done, tr2ar: done }];
@@ -1054,10 +1056,10 @@ test("a family is only as far up the ladder as its weakest form", () => {
   const grown = { ar2en: sure(), match: sure(), tr2ar: sure(), en2ar: kept() };
   assert.equal(must(standing(standings(card({ s: grown }), rungs)), "a standing").status, "done");
   /* And the passes are the weakest form's too, so one plural still making
-     them holds the card at climbed however finished its own word is. */
+     them holds the card at cleared however finished its own word is. */
   const lagging = card({ s: grown, subs: [card({ id: "a-f1", s: { ...grown, en2ar: sure({ passes: 1 }) } })] });
   const behind = must(standing(standings(lagging, rungs)), "a standing");
-  assert.equal(behind.status, "climbed");
+  assert.equal(behind.status, "cleared");
   assert.equal(behind.passes, 1);
   /* One plural nobody has met holds the whole card on the bottom level,
      exactly as it holds the card out of the session's higher levels. */
@@ -1187,10 +1189,10 @@ test("at the top there is nothing to open, so the whole ladder is lifted", () =>
   for (const s of Object.values(out)) assert.equal(solid(s), true);
   assert.equal(hasLevelAbove(LADDER, "en2ar"), false);
   assert.equal(hasLevelAbove(LADDER, "tr2ar"), true);
-  /* Climbed, and not learnt: "too easy" is a statement about the ladder,
+  /* Cleared, and not learnt: "too easy" is a statement about the ladder,
      and the two passes are what the learner has to come back for. A lift
      that handed those over would make a card learnt on a button. */
-  assert.equal(climbed(LADDER, (k) => out[k]), true);
+  assert.equal(cleared(LADDER, (k) => out[k]), true);
   assert.equal(learnt(LADDER, (k) => out[k]), false);
 });
 
@@ -1335,4 +1337,68 @@ test("a card with no due date recorded is scheduled as it always was", () => {
      out from, so it falls back to the full step rather than to nothing. */
   const old = { ...freshState(), phase: "review", interval: 10, ease: 2.5, due: 0 };
   assert.equal(reschedule(old, "good", still).interval, 25);
+});
+
+/* ------------------------------------------------------------------
+   What moved
+
+   Everything above says where a card stands. This says what changed,
+   which is the one thing a stock-take cannot reconstruct: once a card has
+   moved, nothing on it records that it moved today rather than a
+   fortnight ago.
+   ------------------------------------------------------------------ */
+
+/** A standing, as the screens read one. */
+const at = (/** @type {number} */ level, /** @type {string} */ status) =>
+  ({ level, status, done: 0, of: 1, passes: 0 });
+
+test("a card is reported as moved up, cleared or learnt, and never as slipping", () => {
+  assert.equal(movedTo(at(1, "learning"), at(2, "none")), "up", "a rung gained");
+  assert.equal(movedTo(at(2, "none"), at(2, "learning")), null,
+    "answering on the same rung is not a move");
+  assert.equal(movedTo(null, at(1, "learning")), null,
+    "and meeting a card for the first time is not a move up");
+  assert.equal(movedTo(at(4, "learning"), at(4, "cleared")), "cleared");
+  assert.equal(movedTo(at(4, "cleared"), at(4, "done")), "learnt");
+  /* Reported once. A card already there has not moved there again — which
+     is what keeps a second answer on a cleared card from counting a
+     second time. */
+  assert.equal(movedTo(at(4, "cleared"), at(4, "cleared")), null);
+  assert.equal(movedTo(at(4, "done"), at(4, "done")), null);
+  /* The larger of the two where both happened at once: a card that rises
+     to the top rung and clears on the same answer is one piece of news. */
+  assert.equal(movedTo(at(3, "learning"), at(4, "cleared")), "cleared");
+  assert.equal(movedTo(at(3, "learning"), at(4, "done")), "learnt");
+  /* And nothing at all for going backwards, at any distance. */
+  assert.equal(movedTo(at(4, "done"), at(1, "learning")), null, "a card that slipped");
+  assert.equal(movedTo(at(4, "cleared"), at(2, "paused")), null, "or paused");
+  assert.equal(movedTo(at(2, "learning"), null), null, "or has nothing to practise at all");
+});
+
+test("the day a card moved is the learner's own day, not Greenwich's", () => {
+  /* The note that used to stand over dayKey asked whoever first read the
+     log back to fix this, which is what "Today — 3 cards moved up" now
+     needs: an evening session west of Greenwich was being filed under
+     tomorrow, so a learner's own evening's work was never under "today".
+     Read against the local parts, which is what a learner would write. */
+  const evening = new Date(2026, 8, 20, 21, 30, 0);
+  assert.equal(dayKey(evening.getTime()), "2026-09-20");
+  const earlyHours = new Date(2026, 8, 21, 0, 30, 0);
+  assert.equal(dayKey(earlyHours.getTime()), "2026-09-21", "and midnight still turns the day over");
+  /* Whatever the offset, the date is the one on the wall. */
+  assert.equal(dayKey(new Date(2026, 0, 1, 23, 59, 59).getTime()), "2026-01-01");
+  assert.equal(dayKey(new Date(2026, 11, 31, 0, 0, 1).getTime()), "2026-12-31");
+});
+
+test("a week is the last seven days, today first, with no day dropped or repeated", () => {
+  const days = recentDays(7, { now: () => new Date(2026, 8, 20, 21, 0, 0).getTime(), random: () => 0.5 });
+  assert.equal(days.length, 7);
+  assert.equal(days[0], "2026-09-20", "today leads");
+  assert.equal(days[6], "2026-09-14");
+  assert.equal(new Set(days).size, 7, "no day twice");
+  /* Walked from midday rather than by taking a day off the clock, so an
+     hour gained or lost in the middle of the week cannot swallow one. */
+  const spring = recentDays(7, { now: () => new Date(2026, 2, 31, 2, 0, 0).getTime(), random: () => 0.5 });
+  assert.equal(new Set(spring).size, 7, "no day twice across a clock change");
+  assert.equal(spring[0], "2026-03-31");
 });
