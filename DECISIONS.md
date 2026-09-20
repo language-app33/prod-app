@@ -407,20 +407,20 @@ degrees: a row opens once every cell of the row above it is mastered. It is
 enforced in one place — `openTypes` returns nothing for a cell behind its
 gate — and that one place is why it also throttles correctly: a closed cell
 contributes no open types, so `familyMaturity` does not count it, and a
-verb's twenty-one cells therefore cannot make its card read *new* for ever
+verb's twenty-four cells therefore cannot make its card read *new* for ever
 and starve the whole language of room for new cards. A row the teacher left
 blank is passed straight through, the way a level with no material is.
 
 **What it costs.** Two flat fields on a form where the app otherwise avoids
 storing positions, and a server that now has to carry them through its
 sub-form whitelist. The sub-form cap went from twelve to sixty-four: twelve
-is three fewer than Arabic's smallest useful table, so a teacher would have
-filled in twenty-one forms, saved, and got back the first twelve with no
-error anywhere.
+is half of Arabic's smallest useful table, so a teacher would have filled in
+twenty-four forms, saved, and got back the first twelve with no error
+anywhere.
 
 **A cell's English is typed, and briefly was not.** There was a box per row
 that wrote every cell in it from one word, composing "she" and "ate" into
-"she ate", so a teacher wrote three words instead of seventeen. It shipped,
+"she ate", so a teacher wrote three words instead of nineteen. It shipped,
 and it was wrong in the place a learner meets first: English inflects the
 present and nothing else, so "eat" composed across a row gave "he eat" and
 "she eat" beside "I eat" and "we eat", and a command composed across every
@@ -2762,3 +2762,114 @@ with `reader="both"`, and each field says whether it is the teacher's
 business or everybody's. It replaced `whereItLives`, which was one panel's
 worth of the same question. Nothing is a student's alone: there is no fact
 about a card its teacher may not see.
+
+---
+
+## A sentence says which tenses its blanks want, and it says it per blank
+
+**19 September 2026** · `src/verbs.ts` (`slotRows`, `standsInRows`),
+`src/languages.ts` (`tensedOf`, `blankAdmits`), `CardForm.tenses`
+
+Every form a card carries lends itself to somebody else's blank, and for a
+verb that means every cell of its table. So "Yesterday {{name}} {{verb}} an
+apple" was met as the present, then the past, then the command, and two of
+those three say something nobody means. Nothing about the verb card was
+wrong — a verb *is* all of its tenses — and nothing about the blank could
+be read off the words either: when the sentence happened is a fact about
+the sentence, and the sentence was the one thing with no way to say it.
+
+So a frame may narrow a blank to some rows of the table, and the answer
+lives on the form beside the blank it is about.
+
+**Per blank rather than per card.** A sentence with two verbs in it can
+want two different tenses — "while" is a whole class of sentence — and the
+subsection that asks this already lists one chip per blank, so the question
+lands beside the thing it is about. One answer for the whole card would
+have been fewer ticks and a sentence nobody could write.
+
+**Nothing ticked is every tense.** There is no "any" to choose, because an
+empty list and an absent answer are the same answer: a card written before
+this is read exactly as it was, nothing has to be migrated, and unticking
+the last tense is how a teacher takes the narrowing off. The alternative —
+storing "all" explicitly — buys nothing and needs a migration to mean it.
+
+**A narrowed blank reaches a word through its table and nowhere else.** A
+verb's dictionary form sits in no row: Huế cites the bare verb, and Arabic
+cites a cell the table already lends. Letting it stand in a blank asking
+for the past would put the headword in "Yesterday …" on every language and
+print Arabic's past-he twice, so it does not. The cost is a verb card
+somebody wrote with no table at all: it has no past to offer and drops out
+of a past-only blank, which is true and is visible — the blank's own chip
+says how many words are behind it, and the examples below say what they
+make.
+
+**And only words that have tenses are narrowed.** A name standing in the
+same hole is in no tense; dropping it would answer a question nobody asked.
+Which kinds of word have tenses is the pack's answer, not a name this code
+knows — `tensedOf` is "a table with more than one row", which is the exact
+mirror of `agreementOf`'s "one row and a column that picks". A pack whose
+verbs take one form declares no such table and is asked nothing, which is
+the whole of "for languages that have different forms for different
+tenses" in code.
+
+**Offered by what is behind the blank, not by what it is called.** A
+teacher who gathers their verbs under a tag of their own has a hole full of
+verbs and a name that says nothing about it, so the ticks follow the words
+(`tensedBlanks`). It costs a walk of the collection per card opened, which
+the same screen already does twice over to count what is behind each name.
+
+**What it cost elsewhere.** `valuesFor` grew a second predicate. It already
+took "which of a card's forms does it lend", which is a fact about the
+card; this is "which of them will this hole have", which is a fact about
+the hole, and the two are asked at different moments — so they are two
+arguments rather than one with more parameters. The session reads it in a
+third place, because its pool of values is indexed once for the whole
+collection by the blank's name: what the *index* holds is what fills
+`{{verb}}` for anybody, and what *this frame* wants is asked as the frame
+is filled.
+
+---
+
+## A verb is listed as its name, and no cell of its table is required
+
+**19 September 2026** · `src/card-editor.tsx` (`canSaveVerb`), `src/verbs.ts`
+
+Where a pack names a cell as the form a dictionary lists — Arabic's and
+Hebrew's he-past — that cell stands in for the card's own word: the editor
+does not ask for the word a second time, and the card is saved carrying
+what the cell holds. That much is right and stays. What came with it was
+not: the cell was the card's *face*, so the editor refused a verb until
+that one box and its English were filled in, and a deck of verbs read as a
+column of he-pasts.
+
+Both fall to the same answer. **The card's `name` is what a verb is listed
+as** — the field a sentence has had since 0.177, and the only thing on a
+verb that can stand for the whole of it. So it is asked for rather than
+offered on a verb whose table stands in for its word, and the cell a
+dictionary lists is an ordinary cell that may be left blank.
+
+**What a save is held to instead**: a name, and one form of the verb
+written with its English. The second is the old rule about inert cards —
+a form carrying only the script supports one exercise nobody could
+practise — asked of the table as a whole rather than of one named box.
+Which box it is, is the teacher's, which is the whole point: a course that
+has reached the present tense and not the past writes the present tense.
+
+**Why not drop the citation instead**, which was tried and reversed within
+the hour as 0.199. Taking it out gives a verb an ordinary word block at the
+top on every language, which asks a teacher for a word Arabic does not
+have, and then drills whatever they type beside the very cell that says the
+same thing. The citation is a true fact about those languages. What was
+wrong was never that a cell stood in for the word; it was that standing in
+for the word had been allowed to mean *required* and *listed as*.
+
+**What it costs.** A card whose teacher leaves the cited cell blank is
+saved with an empty word of its own — it is its name and its table. Two
+readers had to learn that. `isDrillable` asked the card's own word whether
+there was anything to practise, and now falls through to the card's forms
+where that word has nothing to ask, the way it already does for a scene
+and for a word nobody is asked about; without it the whole verb would have
+been dropped from every session while its table sat there full. And a
+teacher opening a verb written before this is asked for a name before they
+can save it again, which is that card being given something to be listed
+as instead of its he-past.

@@ -227,6 +227,20 @@ const bigWithForms = {
     row: "agreement", col: "feminine",
   }],
 };
+/* A verb as a teacher saved it: the word a dictionary lists, and cells in
+   two of the three rows Arabic declares. It is here so that a sentence
+   leaving a {{verb}} blank has verbs behind it — which is what the tense
+   question further down is asked about, and what it narrows. */
+const toEat = {
+  id: "kaaaaaaaaaaaa", owner: "t-1", ar: "أكل", en: "to eat", lat: "akal",
+  note: "", lang: "ar-PS", name: "to eat", category: "verb",
+  clips: [], uses: [], rev: 1, updated: 1, created: 7,
+  subs: [
+    { ar: "أكل", en: "he ate", lat: "akal", row: "past", col: "he", clips: [] },
+    { ar: "أكلت", en: "she ate", lat: "akalat", row: "past", col: "she", clips: [] },
+    { ar: "بياكل", en: "he eats", lat: "byaakul", row: "present", col: "he", clips: [] },
+  ],
+};
 const rafa = nameCard("k555555555555", "رافائيل", "Raphael", "rafaa'iil");
 const viktor = nameCard("k666666666666", "فيكتور", "Victor", "fiktoor");
 let materialHits = 0;
@@ -340,6 +354,7 @@ const fakeFetch = async (input, opts = {}) => {
           { ...twoGenders, decks: [] },
           { ...penWithPronouns, decks: [] },
           { ...bigWithForms, decks: [] },
+          { ...toEat, decks: [] },
         ],
       });
     }
@@ -3705,6 +3720,25 @@ const wordKindSaid = () => {
   const row = wordKindPencil() ? wordKindPencil().closest(".at-shutrow") : null;
   return ((row && row.querySelector(".at-shutname") || {}).textContent || "").trim();
 };
+/* "This card" — the block every editor opens with, and what it asks. What
+   a card is called lives in it since 0.194: a verb's name and a sentence's
+   are facts about the card, in the same class as what kind of card it is
+   and what kind of word, so they are asked where those are and wear the
+   same heading rather than a framed section of their own. */
+const thisCardBlock = () => /** @type {any} */ ([...document.querySelectorAll(".at-formblock")]
+  .find((b) => /^This card$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
+  || null);
+/* The questions it asks, in the order it asks them. */
+const thisCardAsks = () => {
+  const block = thisCardBlock();
+  return block ? [...block.querySelectorAll(".at-label")].map((l) => (l.textContent || "").trim()) : [];
+};
+const cardNameField = () => {
+  const block = thisCardBlock();
+  return /** @type {any} */ ((block && [...block.querySelectorAll(".at-field")]
+    .find((f) => /^Name$/.test(((f.querySelector(".at-label") || {}).textContent || "").trim())))
+    || null);
+};
 const formRows = () => [...document.querySelectorAll(
   '[role="radiogroup"][aria-label="What subtype"] .at-tickrow')];
 const openWordKind = async () => {
@@ -4352,6 +4386,35 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!saveBtn() && !saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "still refused" : "offered"}`);
 
+  /* ---- which way a field with blanks in it reads ----
+
+     A blank is drawn as a pill and a blank's name is Latin, so a field
+     that asked the browser to lay itself out by its own first strong
+     character — dir="auto" — was answered about the pill. An Arabic
+     sentence beginning with a blank came out running left to right, and
+     so did a field holding nothing but blanks, which every field of a
+     frame is while it is being written. The words decide now, and where
+     there are none the language does. */
+  {
+    const script = () => fieldNamed(/^Arabic script and transliteration$/i);
+    const dirOfScript = () => (script() ? script().getAttribute("dir") : "(no field)");
+    typeInto(script(), "{{name}}");
+    await sleep(200);
+    check("a field holding nothing but blanks reads the way the language does",
+      dirOfScript() === "rtl", `dir=${dirOfScript()}`);
+    typeInto(script(), "{{name}} اسمي");
+    await sleep(200);
+    check("and so does an Arabic sentence that begins with one",
+      dirOfScript() === "rtl", `dir=${dirOfScript()}`);
+    /* And what the teacher wrote still decides, which is what laying a
+       field out by its own text was for: a phrase in another script does
+       not take the deck's direction. */
+    typeInto(script(), "ismi {{name}}");
+    await sleep(200);
+    check("while the words themselves still decide where there are any",
+      dirOfScript() === "ltr", `dir=${dirOfScript()}`);
+  }
+
   /* ---- blanks ----
 
      The section was called Variables and did two opposite jobs at once,
@@ -4676,23 +4739,20 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     /* And asks what to call it, exactly as a verb is asked. A sentence is
        saved as a frame with a hole in it, so a list of sentences reads as
        a list of holes unless the teacher says what each one is for. */
-    const sentenceName = [...document.querySelectorAll(".at-formblock")].find((b) =>
-      /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+    const sentenceName = cardNameField();
     check("a sentence can be given a name to be listed under, as a verb can",
-      !!sentenceName, blockNames().join(" | "));
-    /* Above the sentence, which is what "at the top" is for — the two
-       sections over it are what kind of card this is and which decks it
-       goes in, both facts about the card rather than about its words. */
-    check("and it is asked at the top, above the sentence itself",
-      blockNames().indexOf("What to call it") ===
-        blockNames().indexOf("Decks") + 1 &&
-        blockNames().indexOf("What to call it") < blockNames().indexOf("The sentence"),
-      blockNames().join(" | "));
+      !!sentenceName, thisCardAsks().join(" | "));
+    /* In "This card" with the other facts about the card, and not in a
+       framed section of its own between the card and its words. */
+    check("and it is asked in This card, above the sentence itself",
+      !!sentenceName && thisCardAsks().includes("Name") &&
+        !blockNames().includes("What to call it"),
+      `${thisCardAsks().join(" | ")} · ${blockNames().join(" | ")}`);
     check("and says what a blank one falls back to, and that nothing is asked about it",
       !!sentenceName && /listed and searched/.test(sentenceName.textContent || "") &&
         /blanks and all/.test(sentenceName.textContent || "") &&
         /Nobody is ever asked this/.test(sentenceName.textContent || ""),
-      sentenceName ? (sentenceName.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no block)");
+      sentenceName ? (sentenceName.textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no field)");
     /* The control itself, not the list behind it: the list is on screen
        only while it is open, so a card that is still asked and shut would
        pass a check that only looked for the rows. */
@@ -4734,6 +4794,88 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     check("and a blank named after a kind of word is filled by the words of that kind",
       nounLines().length > 0 && nounLines().every((line) => /teacher/.test(line)),
       nounLines().join(" / ") || "(none shown)");
+
+    /* ---- which tenses a blank asks its verbs for ----
+
+       A verb card is right to carry every tense, and the sentence is what
+       says when the thing happened: "yesterday {{name}} {{verb}}" is met
+       as the present, the past and the command one after another, and two
+       of those say something nobody means. So the one thing in this
+       subsection that is not a readout is here — under the blanks, because
+       it is a fact about a blank rather than about the words behind it.
+
+       Only where there is something to ask. {{name}} and {{noun}} above
+       are filled by words with no tenses, and neither was offered a row of
+       ticks; a language whose verbs take one form would be offered none
+       either. */
+    {
+      const tenseRows = () => inHalf(HOLES, ".at-ticklist .at-tickrow");
+      const tenseNames = () => tenseRows()
+        .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+      const tenseRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
+        tenseRows().find((r) => re.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
+      const tenseSaid = () => inHalf(HOLES, ".at-field .at-label, .at-field .at-hint")
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
+
+      check("a blank with no verbs behind it is asked nothing about tenses",
+        !tenseRows().length, tenseNames().join(", ") || "(nothing asked)");
+
+      typeInto(ar(), "mbaari7 {{name}} {{verb}}");
+      await sleep(80);
+      typeInto(en(), "yesterday {{name}} {{verb}}");
+      await sleep(320);
+      check("a blank that verbs fill is asked which tenses it wants them in",
+        JSON.stringify(tenseNames()) === JSON.stringify(["present", "past", "command"]),
+        tenseNames().join(", ") || "(nothing asked)");
+      check("and says which blank it is about, and that nothing ticked is any tense",
+        /verb/.test(tenseSaid()) && /Any tense/.test(tenseSaid()),
+        tenseSaid() || "(nothing said)");
+
+      /* Every form of every verb, until the teacher says otherwise — which
+         is what every sentence written before this was met as. */
+      if (fold() && fold().getAttribute("aria-expanded") === "false") {
+        click(fold());
+        await sleep(200);
+      }
+      const verbLines = () => [...((blanks() || document).querySelectorAll(".at-askedline .at-askedmeans"))]
+        .map((n) => (n.textContent || "").trim());
+      check("and until it does, the sentence is met in every one of them",
+        verbLines().some((l) => /he ate/.test(l)) && verbLines().some((l) => /he eats/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+
+      click(/** @type {any} */ (tenseRow(/^past$/)).querySelector("input"));
+      await sleep(320);
+      check("ticking one takes the sentence down to the verbs of that tense",
+        verbLines().length > 0 && verbLines().every((l) => /ate/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+      check("and the dictionary form goes with them, being in no tense at all",
+        !verbLines().some((l) => /to eat/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+      /* The word in the other hole is not a verb, so nothing here touches
+         it: a name is in no tense, and dropping it would answer a question
+         nobody asked. */
+      check("while the words in the blank beside it stand where they always did",
+        verbLines().some((l) => /Raphael/.test(l)) && verbLines().some((l) => /Victor/.test(l)),
+        verbLines().join(" / ").slice(0, 160) || "(none shown)");
+      check("and the section says what it has been narrowed to",
+        /past/.test(tenseSaid()) && !/Any tense/.test(tenseSaid()),
+        tenseSaid() || "(nothing said)");
+
+      /* And unticking the last one is how it is taken off again, which is
+         why there is no third state to explain. */
+      click(/** @type {any} */ (tenseRow(/^past$/)).querySelector("input"));
+      await sleep(320);
+      check("unticking the last one gives the sentence every tense back",
+        verbLines().some((l) => /he eats/.test(l)) && /Any tense/.test(tenseSaid()),
+        tenseSaid() || "(nothing said)");
+
+      /* Left as the teacher found it, so what follows is about the same
+         sentence the checks above were written against. */
+      typeInto(ar(), "ismi {{name}} {{noun}}");
+      await sleep(80);
+      typeInto(en(), "My name is {{name}} {{noun}}");
+      await sleep(320);
+    }
 
     /* And back, because a word and a sentence are the same card written
        two ways. What was typed is still there — and, since 0.176, saying
@@ -5157,30 +5299,37 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        dictionary form" label made one row a different width and colour
        from the rest and asked for a piece of grammar theory to be held in
        mind while typing; where it matters, the editor says so below. */
-    /* And it can be given a name. A verb in a language with no infinitive
-       is saved as the form a dictionary lists, so a list read "أكل · he
-       ate" — one cell of the table rather than the verb the card is
-       about. */
-    const nameBlock = [...document.querySelectorAll(".at-formblock")].find((b) =>
-      /^What to call it$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
-    check("a verb can be given a name to be listed under", !!nameBlock,
-      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
-    /* Above the table, which is where it is decided rather than where it is
-       remembered — and the first thing on the screen after what kind of
-       card this is. */
+    /* And it is named. A verb has no one word of its own — it is a table
+       — so without a name a list would read "أكل · he ate", which is one
+       cell of the table rather than the verb the card is about. The name
+       is what a verb is listed as, so it is asked for rather than
+       offered, and the English just typed into the word is what it starts
+       as: nothing anybody wrote is lost by the block going away. */
+    const nameBlock = cardNameField();
+    check("a verb is asked what to call it", !!nameBlock,
+      thisCardAsks().join(" | "));
+    const nameBox = () => /** @type {any} */ (
+      (cardNameField() || { querySelector: () => null }).querySelector("input"));
+    check("and it starts as the meaning the word already had",
+      !!nameBox() && nameBox().value === "to eat",
+      nameBox() ? `"${nameBox().value}"` : "no such box");
+    /* In "This card" and directly under what subtype it is: both are one
+       fact about the whole card, settled once and then read, and neither
+       belongs to any one of its forms. Not a framed section of its own
+       standing between the card and its table. */
     const heads = [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
-    check("and it is asked above the first tense, not under the whole table",
-      heads.indexOf("What to call it") > -1 &&
-        heads.indexOf("What to call it") < heads.indexOf("present"),
-      heads.join(" | "));
+    check("and it is asked in This card, directly under what subtype it is",
+      thisCardAsks().indexOf("Name") === thisCardAsks().indexOf("What subtype") + 1 &&
+        !heads.includes("What to call it"),
+      `${thisCardAsks().join(" | ")} · ${heads.join(" | ")}`);
     /* And it says what it is for, and that nothing is asked about it. */
     check("and says it is a label rather than something practised",
       !!nameBlock && /listed and searched/.test(nameBlock.textContent || "") &&
         /Nobody is ever asked this/.test(nameBlock.textContent || ""),
-      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
+      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no field)");
     check("naming the box it would otherwise be listed under",
       !!nameBlock && /past · he/.test(nameBlock.textContent || ""),
-      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no block)");
+      nameBlock ? (nameBlock.textContent || "").replace(/\s+/g, " ").slice(0, 150) : "(no field)");
 
     check("without the table labelling the cell it went into",
       !/the dictionary form/i.test(document.body.textContent || ""),
@@ -5189,18 +5338,61 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!saveBtn() && !saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
 
-    /* Empty that cell and there is no card: it is the face, the meaning
-       and what the card is searched by, so the editor refuses and says
-       which cell it wants rather than greying Save with no reason. */
+    /*
+     * ---- no box of the table is the card ----
+     *
+     * The he-past is the form a dictionary lists and it used to be the
+     * card itself: the editor refused a verb until that one box and its
+     * English were filled in, whatever else was written. A teacher
+     * writing the present of a verb whose past they had not taught was
+     * writing half a card. It is an ordinary box now.
+     */
     typeInto(script, "");
+    typeInto(meaning, "");
     await sleep(200);
-    check("emptying it is refused, because it is the card itself",
+    typeInto(cellNamed("Arabic script for present · he"), "byaakul");
+    typeInto(cellNamed("English for present · he"), "he eats");
+    await sleep(250);
+    check("a verb with the box a dictionary lists left empty still saves",
+      !!saveBtn() && !saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
+    check("and nothing on the screen asks for that box",
+      !/past · he/.test(([...document.querySelectorAll(".at-formneed.unmet")]
+        .map((n) => n.textContent || "").join(" ")) || ""),
+      ([...document.querySelectorAll(".at-formneed.unmet")]
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+
+    /* What it is held to instead: a name, because that is what it is
+       listed as and nothing else on a verb can be, and one form of the
+       verb with its English, because a table with nothing in it teaches
+       nothing. */
+    typeInto(nameBox(), "");
+    await sleep(250);
+    check("a verb with no name is refused, because a name is what it is listed as",
       !!saveBtn() && saveBtn().disabled,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "still offered"}`);
-    check("and the editor names the cell it is waiting for",
-      /Fill in past · he/.test(document.body.textContent || ""),
+    check("and the line that says so is beside the name, not under the table",
+      !!cardNameField() && /listed as its name/.test(
+        (cardNameField().querySelector(".at-formneed.unmet") || {}).textContent || ""),
       ([...document.querySelectorAll(".at-formneed.unmet")]
-        .map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+        .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
+    typeInto(nameBox(), "to eat");
+    await sleep(250);
+
+    /* And with the whole table empty, the line is about the table as a
+       whole — any box of it, and the teacher chooses which. */
+    typeInto(cellNamed("Arabic script for present · he"), "");
+    typeInto(cellNamed("English for present · he"), "");
+    await sleep(250);
+    check("a verb with nothing written in its table is refused",
+      !!saveBtn() && saveBtn().disabled,
+      `save is ${saveBtn() && saveBtn().disabled ? "refused" : "still offered"}`);
+    const unmetLines = () => [...document.querySelectorAll(".at-formneed.unmet")]
+      .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim());
+    check("and what it asks for is any one form, not a named box",
+      unmetLines().some((t) => /at least one form of the verb/.test(t)) &&
+        !unmetLines().some((t) => /past · he/.test(t)),
+      unmetLines().join(" · ") || "(nothing said)");
 
     /* A verb is not offered a form outside its table. The offer used to be
        a quieter-worded button that revealed a block which was not there —
@@ -5236,9 +5428,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!block(/^Form 2$/),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
 
-    /* The cited cell was emptied above to see Save refuse; fill it again,
-       so what follows is about a table with something in it. */
+    /* The table was emptied above to see Save refuse; fill the box a
+       dictionary lists again, so what follows is about a table with
+       something in it and a card that saves. */
     typeInto(cellNamed("Arabic script for past · he"), "akal");
+    typeInto(cellNamed("English for past · he"), "he ate");
     await sleep(200);
 
     /* ---- each kind of word gets the editor its grammar wants ----
@@ -5535,6 +5729,61 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const own = mainField ? mainField.querySelector("input") : null;
   check("and calling it a word again leaves the word where it was",
     !!own && own.value === "كتاب", own ? `"${own.value}"` : "no field");
+
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+  click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
+  await sleep(300);
+}
+
+/* ---- a saved verb still says what kind of word it is ----
+
+   A verb is the one card whose table only one kind of word lays out, so
+   nothing is offered: choosing a kind that lays out another table would be
+   offering to throw this one away, and a list of one answer is not a
+   question. The section used to go with the list, and a teacher opening a
+   verb they had saved was shown no answer to "what kind of word is this"
+   at all — the card's plainest fact missing from the one screen that knows
+   it. It is shown and not asked now, the way the kind of card above it is
+   when it is settled. */
+{
+  const frame = must(document.querySelector(".at-screen.bare"), "the teaching space's frame");
+  /* The verb, which is listed under the name its teacher gave it. */
+  const tile = [...frame.querySelectorAll(".at-minicard")]
+    .find((t) => ((t.querySelector(".at-mininame") || {}).textContent || "").trim() === "to eat");
+  click(tile);
+  await sleep(450);
+  click([...document.querySelectorAll("button")].find((b) => /^Edit$/.test((b.textContent || "").trim())));
+  await sleep(450);
+
+  check("a saved verb is still asked nothing about its subtype",
+    !wordKindBtn() && !formRows().length,
+    wordKindBtn() ? "a list is offered" : "nothing is offered");
+  check("but the subtype is still on the screen, under its own heading",
+    thisCardAsks().includes("What subtype"),
+    thisCardAsks().join(" | ") || "(nothing asked)");
+  const subtypeRow = () => {
+    const block = thisCardBlock();
+    const field = block && [...block.querySelectorAll(".at-field")].find(
+      (f) => /^What subtype$/.test(((f.querySelector(".at-label") || {}).textContent || "").trim()));
+    return /** @type {any} */ (field ? field.querySelector(".at-shutrow") : null);
+  };
+  check("and it says Verb",
+    !!subtypeRow() && /^Verb/.test(
+      ((subtypeRow().querySelector(".at-shutname") || {}).textContent || "").trim()),
+    subtypeRow() ? (subtypeRow().textContent || "").replace(/\s+/g, " ").trim() : "(no row)");
+  /* With a padlock where the pencil sits on a question that can still be
+     answered again — the same row the kind of card wears one section up. */
+  check("with a padlock rather than a pencil, and says why",
+    !!subtypeRow() && !!subtypeRow().querySelector(".at-shutlock") && !wordKindPencil() &&
+      /cannot be changed while the card carries its table/.test(
+        (thisCardBlock().textContent || "")),
+    subtypeRow() && subtypeRow().querySelector(".at-shutlock") ? "locked" : "no padlock");
+  /* And the line that says what would unlock it is still at the foot of
+     the block: empty the table and it is a word again. */
+  check("and the block still says what a verb is and how it stops being one",
+    /Empty the table and it is a word again/.test(thisCardBlock().textContent || ""),
+    (thisCardBlock().textContent || "").replace(/\s+/g, " ").slice(-120));
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);

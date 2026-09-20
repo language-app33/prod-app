@@ -153,6 +153,7 @@ import {
   tablesOf,
   verbOf,
   agreementOf,
+  blankAdmits,
   lendsForm,
   NUMBER_EQUIVALENT,
 } from "./languages.ts";
@@ -168,6 +169,7 @@ import {
   openRows,
   ownerOf,
   rowOf,
+  slotRows,
   subjectSlot,
 } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
@@ -724,6 +726,7 @@ let CONTEXT_INDEX = new Map();
 
 function setContextIndex(map: Map<string, any[]>) {
   CONTEXT_INDEX = map || new Map();
+  forgetTypes();
 }
 
 /* ------------------------------------------------------------------
@@ -741,12 +744,32 @@ function setContextIndex(map: Map<string, any[]>) {
 
 let VALUE_INDEX: Map<string, Value[]> = new Map();
 
+/*
+ * What each form can be asked, kept for as long as the answer holds.
+ *
+ * Every index below it is something `availableTypes` reads, and that
+ * answer is asked of one form half a dozen times over in a single deal —
+ * so it is worth keeping, and it is only safe to keep while none of them
+ * has moved. Held against the form object itself, which a card edited or
+ * answered replaces, so a stale entry cannot outlive the form it is about
+ * even between the clearings.
+ */
+let TYPE_CACHE: WeakMap<Form, { lang: LangId; types: string[] }> = new WeakMap();
+
+/* Thrown away whole rather than picked over: the setters below run
+   together, in a handful of lines, and what each of them changes reaches
+   most of the answers in here. */
+function forgetTypes() {
+  TYPE_CACHE = new WeakMap();
+}
+
 /* Exported, with the key it is filed under, so a test can say "these words
    exist in this learner's deck" — the one fact a frame's whole behaviour
    turns on and nothing outside a render could otherwise state. The app
    fills it during render, from the cards in hand. */
 export function setValueIndex(map: Map<string, Value[]>) {
   VALUE_INDEX = map || new Map();
+  forgetTypes();
 }
 
 export const valueKey = (langId: LangId, slot: string) => `${langId}\u0000${slot}`;
@@ -910,8 +933,36 @@ function fillsFor(unit: Form, langId?: LangId): Record<string, Value[]> {
   if (!slots.length) return {};
   const id = langId || (unit && unit.lang) || activeLang().id;
   const out: Record<string, Value[]> = {};
-  for (const slot of slots) out[slot] = VALUE_INDEX.get(valueKey(id, slot)) || [];
+  for (const slot of slots) out[slot] = askedIn(unit, slot, VALUE_INDEX.get(valueKey(id, slot)) || []);
   return out;
+}
+
+/*
+ * And of those, the ones this frame wants — once it has said which tenses
+ * its verbs should stand in.
+ *
+ * The index is built once for the whole collection and keyed by the blank's
+ * name, because what fills `{{verb}}` is the same list whoever asks. Which
+ * of that list *this sentence* wants is a fact about the sentence — "Yesterday
+ * {{name}} {{verb}}" wants the past and nothing else — so it is asked here,
+ * where the frame is in hand, rather than in the index.
+ *
+ * Off the form each value came from, which is what VALUE_OWNER is for: a
+ * value carries the words a card lends and not where in a table they sit.
+ * A value whose owner has gone — a card withdrawn while a session held it —
+ * is kept rather than dropped, on the same principle as everything else
+ * that reads a card: half of it is worth more than none.
+ */
+function askedIn(unit: Form, slot: string, list: Value[]): Value[] {
+  const rows = slotRows(unit, slot);
+  if (!rows.length) return list;
+  const admits = (lang: Lang) => blankAdmits(lang, () => rows);
+  return list.filter((value) => {
+    const owner = VALUE_OWNER.get(refOf(value));
+    if (!owner) return true;
+    const lang = LANGUAGES[String(owner.card.lang || "")] || activeLang();
+    return admits(lang)(owner.card, owner.form, slot);
+  });
 }
 
 /*
@@ -951,7 +1002,29 @@ function fillableAt(unit: Form, key: string, settings: Settings): boolean {
   const slots = slotsOf(unit).filter((slot) => slot !== own);
   if (!slots.length) return true;
   const pools = fillsAt(unit, key, langOf(settingsFor(settings, unit)).id);
-  return slots.every((slot) => (pools[slot] || []).length > 0);
+  if (!slots.every((slot) => (pools[slot] || []).length > 0)) return false;
+  /*
+   * And that the words this turn picks actually make a sentence.
+   *
+   * A pool with something in it is not the same as a question that can be
+   * drawn: an adjective agreeing with a feminine noun wants its feminine,
+   * and a teacher who left that box empty leaves this turn with nothing to
+   * put in the hole. Counting the pools alone called that fillable, so the
+   * frame was dealt and then drawn with its braces showing, marked against
+   * them, and — because the turn only moves on a right answer — asked
+   * again every session for ever.
+   *
+   * So the deal asks the same walk the screen asks, on the same turn, and
+   * a combination that cannot be made is simply not offered. It is one
+   * turn's answer rather than the card's: the next turn round reaches for
+   * different words, and this comes back the moment one of them agrees.
+   *
+   * Without the card, which is what the verb's own place would need and
+   * which this is not handed. That place is not filled from the cards and
+   * is gated by its table — see the note above — so it is left out of this
+   * walk exactly as it is left out of the count above.
+   */
+  return !!fillFor(unit, key, null);
 }
 
 /* ------------------------------------------------------------------
@@ -968,6 +1041,7 @@ let DIALOG_INDEX: Map<string, { card: Item, at: number }> = new Map();
 
 function setDialogIndex(map: Map<string, { card: Item, at: number }>) {
   DIALOG_INDEX = map || new Map();
+  forgetTypes();
 }
 
 /* The scene a line stands in, or null for anything that is not a line. */
@@ -1385,10 +1459,20 @@ export function installIndexes(items: Item[], settings: Settings): void {
   setContextIndex(contextIndexOf(items, settings));
   setDialogIndex(buildDialogIndex(items));
   setValueIndex(valueIndexOf(items, settings));
+  /*
+   * The counts before the three walks that read them, and not after.
+   *
+   * Each of these setters throws away what a form can be asked, because
+   * each of them changes it — so one that lands in the middle of the
+   * walks below undoes the work they have just done, and the three of
+   * them read the same ladder for the same forms three times over. They
+   * do not depend on each other, so the order is free, and putting the
+   * last of the setters first means the answers are worked out once.
+   */
+  setMateCounts(countMates(items, settings));
   const reach = valueReachOf(items, settings);
   setValueReach(reach.map);
   setValueOwner(reach.owner);
-  setMateCounts(countMates(items, settings));
   setQuietUnits(quietUnits(items, settings));
   setEasedUnits(easedUnits(items, settings));
 }
@@ -1412,6 +1496,7 @@ let MATE_COUNTS: Map<LangId, number> = new Map();
    table has to be able to say the deck is not empty. */
 export function setMateCounts(map: Map<LangId, number>) {
   MATE_COUNTS = map || new Map();
+  forgetTypes();
 }
 
 /* Everything else in this language that could stand beside it. Its own
@@ -1570,9 +1655,27 @@ export function agreeTook(
   return out;
 }
 
-function castFill(
-  resolved: { unit: Form, parent: Item, isSub: boolean } | null,
+/*
+ * The words that stand in this question's holes, this time round — or
+ * nothing, where there is no set of them that makes a sentence.
+ *
+ * One walk, asked by both the people who need it: the deal, to decide
+ * whether this is a question at all (fillableAt), and the screen, to draw
+ * it (castFill). They used to be two — a count of the pools on one side
+ * and a fill on the other — and the difference between them was a question
+ * that passed the count, failed the fill, and was drawn with its own
+ * braces showing.
+ *
+ * `card` is the card the form belongs to, and is wanted for one thing: the
+ * verb's own place in its own sentence, which is filled from the card's
+ * table rather than from the pool. A caller that has not got it passes
+ * null and that place is left alone, which is what the gate on the table
+ * already decides.
+ */
+function fillFor(
+  unit: Form,
   type: string,
+  card: Item | null,
   /*
    * A teacher trying one of their own exercises out, which is not somebody
    * learning: the card is their material rather than anything this device
@@ -1581,41 +1684,57 @@ function castFill(
    * a preview of the question.
    */
   preview = false,
-) {
-  if (!resolved) return resolved;
-  const slots = slotsOf(resolved.unit);
-  if (!slots.length) return resolved;
-  const seen = turnOf(resolved.unit.s && resolved.unit.s[type]);
+): Record<string, Value> | null {
+  const slots = slotsOf(unit);
+  const seen = turnOf(unit.s && unit.s[type]);
   /* The verb's own place is not filled from the cards: it is filled from
      the card's own table, by whatever fills the subject. So it is left out
      of the draw and put back below. Only on the card's own sentence — see
      ownSlot — because the same name on a sentence card is an ordinary
      blank, filled by the verbs like any other. */
-  const own = ownSlot(resolved.unit);
+  const own = ownSlot(unit);
   const drawn = slots.filter((slot) => slot !== own);
-  const pool = preview ? fillsFor(resolved.unit) : fillsAt(resolved.unit, type);
+  const pool = preview ? fillsFor(unit) : fillsAt(unit, type);
   const turned = valuesForTurn(drawn, pool, seen);
-  if (!turned) return resolved;
+  if (!turned) return null;
   /* An agreeing card lent its own word; the form that agrees with the
      slot beside it goes in its place. Nothing to put there — a cell the
-     teacher left blank — leaves the sentence as it stands, the way an
-     unfilled hole is, so it reads as the gap it is. */
+     teacher left blank — is no question: there is nothing to ask and
+     nothing to invent, so the whole combination comes back empty. */
   const took = agreeTook(
     turned,
     drawn,
     (v) => VALUE_OWNER.get(refOf(v)) || null,
-    (card) => LANGUAGES[String(card.lang || "")] || activeLang(),
+    (c) => LANGUAGES[String(c.lang || "")] || activeLang(),
   );
-  if (!took) return resolved;
-  if (slots.length !== drawn.length) {
-    const agreed = verbValue(resolved, took);
+  if (!took) return null;
+  if (card && slots.length !== drawn.length) {
+    const agreed = verbValue({ unit, parent: card }, took);
     /* No cell for what filled the subject — a sentence wanting the plural
-       of a verb whose plural the teacher left blank. Nothing to ask, and
-       nothing to invent: left as it stands, the way an unfilled hole is,
-       so it reads as the bug it is rather than as a silent gap. */
-    if (!agreed) return resolved;
+       of a verb whose plural the teacher left blank. The same answer for
+       the same reason. */
+    if (!agreed) return null;
     took[own] = agreed;
   }
+  return took;
+}
+
+function castFill(
+  resolved: { unit: Form, parent: Item, isSub: boolean } | null,
+  type: string,
+  preview = false,
+) {
+  if (!resolved) return resolved;
+  if (!slotsOf(resolved.unit).length) return resolved;
+  const took = fillFor(resolved.unit, type, resolved.parent, preview);
+  /*
+   * Nothing that could go in the holes. The deal does not offer such a
+   * question and the queue drops one that has become so — see fillableAt
+   * and requeueUnaskable — so what is left here is the sliver between an
+   * answer and the next draw. Left exactly as it stands rather than half
+   * filled, and gone by the time anybody could read it.
+   */
+  if (!took) return resolved;
   const unit = (fillForm(resolved.unit, took) as any);
   return {
     ...resolved,
@@ -1929,8 +2048,14 @@ export function requeueUnaskable(exercises: Question[], from: number, items: Ite
        takes its questions with it. */
     if (!resolved) continue;
     /* Asked of the gate rather than of the clock or the connection, so this
-       answers the same way whenever it is called — including from a test. */
-    const open = openTypes(resolved.unit, settings);
+       answers the same way whenever it is called — including from a test.
+
+       Through askableTypes and not openTypes, which is the same door the
+       deal uses: a sentence whose last filler lapsed between two questions
+       is as unaskable as a recording that never downloaded, and reading
+       the ladder alone left it in the queue to be drawn with its holes
+       empty. */
+    const open = askableTypes(resolved.unit, settings);
     /* Still askable: left exactly as it is, cursor and all. */
     if (open.includes(ex.type)) {
       tail.push(ex);
@@ -1963,7 +2088,35 @@ export function requeueUnaskable(exercises: Question[], from: number, items: Ite
    holds, and the preview rows, the weak-card count and unitFullyLearnt all
    ask it that. Silencing here would make a card look broken, or call it
    fully learnt while a third of its exercises were merely paused. */
-function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.id)): string[] {
+function availableTypes(
+  it: Form,
+  lang: Lang = activeLang(),
+  /*
+   * Which scene this unit stands in. Left undefined by nearly every
+   * caller, which means "the one it is actually in" — and is the case the
+   * cache below answers. A caller that names a scene of its own is asking
+   * a hypothetical and is worked out afresh.
+   */
+  scene: { card: Item, at: number } | null | undefined = undefined,
+): string[] {
+  const own = scene === undefined;
+  const at = own ? sceneOf(it.id) : scene;
+  /*
+   * Asked over and over of the same form, so the answer is kept.
+   *
+   * Building a session asks this through six different doors for every
+   * form of every card — what the card supports, what it has reached,
+   * what may be dealt, whether it is urgent, how the hand counts — and
+   * each of them walks fifteen exercise types asking whether this one can
+   * be put to somebody. The answer was the same fifteen times.
+   *
+   * Held against the form itself, so a card edited or answered arrives as
+   * a new object with nothing remembered about it, and thrown away whole
+   * whenever anything it reads changes — see forgetTypes, which every one
+   * of those setters calls.
+   */
+  const held = own ? TYPE_CACHE.get(it) : null;
+  if (held && held.lang === lang.id) return held.types;
   /* What its variables can be filled with, if it has any: a hole with
      nothing to put in it is not a question, and a card whose words change
      cannot be the one on a recording. Both are answered inside canAsk. */
@@ -1973,13 +2126,15 @@ function availableTypes(it: Form, lang: Lang = activeLang(), scene = sceneOf(it.
      and two answers to it would be two apps disagreeing about what a card
      supports. */
   const values = fillsFor(it, lang.id);
-  return TYPES.filter((t) =>
+  const types = TYPES.filter((t) =>
     canAsk(
-      { unit: it, scene, contexts: contextsFor(it.id), values, mates: matesFor(it) },
+      { unit: it, scene: at, contexts: contextsFor(it.id), values, mates: matesFor(it) },
       t,
       lang
     )
   );
+  if (own) TYPE_CACHE.set(it, { lang: lang.id, types });
+  return types;
 }
 
 /*
@@ -2204,9 +2359,20 @@ function isDrillable(it: Item, settings: Settings) {
      whose dictionary form is the question and whose table is there to be
      read is the ordinary case of this; so is the other way round. Asking
      the card alone would hide every one of them from the list of what can
-     be practised while its forms were being practised. */
-  if (isDialog(it) || !isAsked(leadOf(it))) return drillableUnits(it, settings).length > 0;
-  return enabledTypes(leadOf(it), settings).length >= 2;
+     be practised while its forms were being practised.
+
+     And a card whose own word has nothing to ask at all, which since
+     0.200 is a verb on a language that cites a cell and whose teacher has
+     not written that one: the card's word is read off that cell, so it is
+     empty, and the verb is in its table. Nothing is loosened by this —
+     a word supporting one exercise is still not a card, which is what the
+     line below says — only a card supporting none through its own word is
+     asked what its forms can do before it is turned away. */
+  const lead = leadOf(it);
+  if (isDialog(it) || !isAsked(lead) || !enabledTypes(lead, settings).length) {
+    return drillableUnits(it, settings).length > 0;
+  }
+  return enabledTypes(lead, settings).length >= 2;
 }
 
 /*
@@ -6853,6 +7019,16 @@ export default function ArabicTrainer() {
   );
   setValueIndex(valueIndex);
 
+  /* And how many words each language has to pair against.
+
+     Before the three walks below rather than in among them: each of these
+     setters throws away what a form can be asked, and one landing in the
+     middle of the walks makes them read the same ladder over again. They
+     do not depend on each other — see installIndexes, which is the same
+     order for the same reason. */
+  const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
+  setMateCounts(mateCounts);
+
   /*
    * And how far the learner has got with each of them.
    *
@@ -6866,10 +7042,6 @@ export default function ArabicTrainer() {
   const valueReach = useMemo(() => valueReachOf(asking, settings), [asking, settings]);
   setValueReach(valueReach.map);
   setValueOwner(valueReach.owner);
-
-  /* And how many words each language has to pair against. */
-  const mateCounts = useMemo(() => countMates(asking, settings), [asking, settings]);
-  setMateCounts(mateCounts);
 
   /* And which cells of a verb's table are still behind their row's gate.
      Last of the four, and deliberately after the mate counts: working a
@@ -7553,15 +7725,30 @@ export default function ArabicTrainer() {
      anything reads it, so the prompt, the marking and the answer screen
      cannot disagree — and filling first, because the other two narrow the
      words it writes. */
-  const resolved = exercise
-    ? castMeaning(
-        castAnswer(
-          castFill(resolveUnit(asking, exercise), exercise.type, !!(session && session.trial)),
-          exercise.type
-        ),
-        exercise.type
-      )
-    : null;
+  /*
+   * Worked out once per question rather than once per render.
+   *
+   * Filling a sentence walks the pool behind each of its holes and narrows
+   * every value to what the learner has reached; narrowing the answer and
+   * the meaning walk the card again. None of it is a function of what
+   * somebody is typing, and all of it was being redone on every keystroke
+   * in the answer box — on a phone, with a frame to draw afterwards.
+   *
+   * What it is a function of is the question and the cards, both of which
+   * are here: a card edited, a value that has caught up or lapsed, and an
+   * answer given all arrive as a new `asking`.
+   */
+  const trial = !!(session && session.trial);
+  const resolved = useMemo(
+    () =>
+      exercise
+        ? castMeaning(
+            castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type),
+            exercise.type
+          )
+        : null,
+    [asking, exercise, trial]
+  );
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
   const isSub = !!(resolved && resolved.isSub);

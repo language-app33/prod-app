@@ -41,6 +41,8 @@ import {
   personFor,
   personsOf,
   rowOf,
+  slotRows,
+  standsInRows,
   subjectSlot,
   tableCount,
   tableOf,
@@ -147,6 +149,47 @@ test("the subject's grammar picks the column", () => {
   /* "they" asks for number alone, so either gender reaches it. */
   assert.equal(must(personFor(arabic, { number: "plural", gender: "feminine" }), "they").id, "they");
   assert.equal(must(personFor(arabic, { number: "plural" }), "they").id, "they");
+});
+
+test("a verb is marked for a room as well as a person", () => {
+  /*
+   * The plural *you*, which was missing until 0.194 — and missing in a way
+   * nothing could catch, because a column that does not exist asks no
+   * question and fails no test. The forms it costs are ordinary ones a
+   * beginner needs: إنتو بتاكلوا, and the command كولوا, which is what you
+   * say to a room and therefore the imperative anybody says most.
+   *
+   * Checked on both packs that declare it, because they share one list and
+   * a language losing it again would lose it quietly.
+   */
+  for (const id of ["ar-PS", "he-IL"]) {
+    const spec = must(verbOf(LANGUAGES[id]), `${id}'s verb table`);
+    const cols = personsOf(spec).map((p) => p.id);
+    assert.ok(cols.includes("you-pl"), `${id} marks a verb for the plural you`);
+    /* Distinct from "they": one is who is being spoken to and the other is
+       who is being spoken about, and Arabic writes them differently in
+       every row. */
+    assert.ok(cols.includes("they"));
+    /* Between "we" and "they", which is where the paradigm puts it and
+       where the pronouns on the end of a word already put theirs. */
+    assert.deepEqual(cols.slice(-3), ["we", "you-pl", "they"]);
+    /* And it picks nothing, for the reason the singular *you*s do not: a
+       noun dropped into a subject is never the person being addressed. A
+       plural subject still reaches "they" and could never reach here. */
+    assert.equal(must(personFor(spec, { number: "plural" }), "they").id, "they");
+    assert.equal(
+      must(personFor(spec, { number: "plural", gender: "feminine" }), "they").id,
+      "they",
+    );
+  }
+  /* The command is addressed, so it has a cell for each of the three
+     persons that can be addressed and for nobody else — the teacher fills
+     those and leaves the rest of the row blank. */
+  const commands = tableOf(toEat, arabic).filter((c) => c.row === "command");
+  assert.deepEqual(
+    commands.map((c) => c.col).filter((col) => col.startsWith("you")),
+    ["you-m", "you-f", "you-pl"],
+  );
 });
 
 test("the most specific column wins, whatever order they are declared in", () => {
@@ -676,4 +719,54 @@ test("Hebrew agrees in number and gender at once", () => {
   assert.equal(must(agreedValue(card, he, word, beside({ number: "plural", gender: "feminine" })), "fp").ar, "גדולות");
   assert.equal(must(agreedValue(card, he, word, beside({ number: "plural", gender: "masculine" })), "mp").ar, "גדולים");
   assert.equal(agreedValue(card, he, word, beside({ number: "singular", gender: "masculine" })), word);
+});
+
+/* ---- which tenses a sentence wants its verbs in ----
+
+   A frame is the only thing that knows when what it describes happened, so
+   it is the only thing that can say which rows of a verb's table belong in
+   it. Both halves are checked: what a sentence says, and what that does to
+   a word standing in the hole. */
+
+test("a blank nobody has narrowed asks for every tense", () => {
+  assert.deepEqual(slotRows({ ar: "{{verb}}" }, "verb"), [],
+    "a form with no answer on it says nothing");
+  assert.deepEqual(slotRows({ tenses: {} }, "verb"), []);
+  assert.deepEqual(slotRows({ tenses: { verb: [] } }, "verb"), [],
+    "and an empty list is the same answer as none");
+  assert.deepEqual(slotRows({ tenses: { other: ["past"] } }, "verb"), [],
+    "a blank is narrowed on its own, never by its neighbour");
+});
+
+test("and one that has been says so, once per row and narrowed like a name", () => {
+  const frame = { tenses: { verb: [" past ", "past", "present", ""] } };
+  assert.deepEqual(slotRows(frame, "verb"), ["past", "present"]);
+  assert.deepEqual(slotRows(frame, " verb "), ["past", "present"],
+    "the blank is asked for by its name whatever spacing it arrives in");
+});
+
+test("a word with tenses stands in a narrowed blank through its table and nowhere else", () => {
+  const past = cell("past", "he", "أكل", "he ate");
+  const present = cell("present", "he", "بياكل", "he eats");
+  const headword = { id: "eat", ar: "أكل", en: "to eat", lat: "" };
+  assert.equal(standsInRows(arabic, past, ["past"]), true);
+  assert.equal(standsInRows(arabic, present, ["past"]), false);
+  assert.equal(standsInRows(arabic, headword, ["past"]), false,
+    "the dictionary form is in no row, so a blank asking for one does not take it");
+  assert.equal(standsInRows(arabic, headword, []), true,
+    "and a blank that asks for every tense takes it exactly as it always did");
+});
+
+test("and a word of a kind that has no tenses is untouched by the narrowing", () => {
+  const raphael = { id: "r", ar: "رافائيل", en: "Raphael", lat: "" };
+  assert.equal(standsInRows(null, raphael, ["past"]), true,
+    "a name in a blank that verbs also fill is in no tense at all");
+});
+
+test("none of it knows what a tense is: Huế narrows by its own rows", () => {
+  const marked = { id: "vi-past", row: "past", col: "any", ar: "đã ăn", en: "ate", lat: "" };
+  const plain = { id: "vi-plain", row: "plain", col: "any", ar: "ăn", en: "eat", lat: "" };
+  assert.equal(standsInRows(viet, marked, ["past"]), true);
+  assert.equal(standsInRows(viet, plain, ["past"]), false);
+  assert.equal(standsInRows(viet, plain, ["plain", "future"]), true);
 });

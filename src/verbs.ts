@@ -23,7 +23,7 @@
  * calls for, and which rows are open yet.
  *
  * Which rows and columns exist is the language's answer, never this
- * module's. Arabic declares seven persons and three tenses; Huế declares
+ * module's. Arabic declares eight persons and three tenses; Huế declares
  * one person and four; a language that declares none has no verb tables
  * and every function here comes back empty. Nothing below knows what a
  * tense is — only that a table has two axes, that the rows are in the
@@ -258,7 +258,7 @@ export const personsOf = (spec: VerbSpec | null | undefined): VerbPerson[] =>
  *
  * There was a function here that made one from the row's English and the
  * column's label — "she" and "ate" giving "she ate" — so that a teacher
- * wrote three words instead of seventeen. It is gone, and the reason is
+ * wrote three words instead of nineteen. It is gone, and the reason is
  * worth keeping: it could not be right, and it was wrong in the place a
  * learner would meet first.
  *
@@ -270,7 +270,7 @@ export const personsOf = (spec: VerbSpec | null | undefined): VerbPerson[] =>
  * and a rule that knew better would be a rule about English, living in a
  * file whose whole point is that it knows no language at all.
  *
- * So each cell carries the words it was given. Seventeen boxes typed is
+ * So each cell carries the words it was given. Nineteen boxes typed is
  * more work than three, and it is work that produces something true.
  */
 
@@ -327,17 +327,21 @@ export function citedCell(
  * Where a language cites a cell, that cell holds everything the card's own
  * word does — the script, the pronunciation, the English, the recordings —
  * so the editor stops asking for them a second time and reads them off the
- * table instead. The card is still saved with a word of its own: the face
- * every list shows, what a search matches, what a tile is labelled. This
- * is where that word comes from.
+ * table instead. The card is still saved with a word of its own, which is
+ * what a search matches and what the script line of a tile shows. This is
+ * where that word comes from.
  *
  * Everything else about the form is kept. The word is what the cell knows;
  * whether the card is drilled, which variable it fills, what deck it is in
  * are facts about the card and are none of the cell's business.
  *
- * An empty cell gives an empty word rather than the last one typed, which
- * is what lets the editor refuse to save a verb whose dictionary form has
- * been left blank instead of quietly keeping a word nothing points at.
+ * **An empty cell gives an empty word**, rather than the last one typed:
+ * a card labelled with a word no cell holds would be the one thing worse
+ * than a card with no word at all. That used to be what stopped the save,
+ * because a card with no word had nothing to be listed as. It does not any
+ * more — a verb is listed as its name, which is asked for instead, and the
+ * cell a dictionary lists is an ordinary cell that may be left blank until
+ * the teacher reaches that tense. See canSaveVerb in card-editor.tsx.
  */
 export function citedWord<T extends Record<string, unknown>>(own: T, cell: unknown): T {
   return {
@@ -466,6 +470,64 @@ export function agreedCell(
   const person = personFor(spec, grammar);
   if (!person) return null;
   return cellAt(card, row, person.id);
+}
+
+/* ---- which tenses a sentence wants its verbs in ---- */
+
+/**
+ * The rows a sentence admits in one of its blanks.
+ *
+ * "{{name}} {{verb}} an apple" is met as every form of every verb — the
+ * present, then the past, then the command — which is right for a frame
+ * about nothing in particular and wrong for "Yesterday {{name}} {{verb}}
+ * an apple", where two of those three say something nobody means. So a
+ * sentence may narrow a blank to the rows it wants its verbs in, and this
+ * is where that answer is read.
+ *
+ * Written on the form that leaves the blank, beside the blank itself, for
+ * the reason a frame's record of what it has already met lives there: it
+ * is a fact about the sentence rather than about the words that fill it.
+ *
+ * **Empty means every row**, which is what every card written before this
+ * says and what a teacher who has narrowed nothing means. The narrowing is
+ * stored only where there is one, so there is nothing to migrate and a
+ * blank nobody has thought about is filled exactly as it was.
+ */
+export function slotRows(form: unknown, slot: string): string[] {
+  const want = str(slot);
+  const said = field(form, "tenses");
+  if (!want || !said || typeof said !== "object") return [];
+  const list = (said as Record<string, unknown>)[want];
+  const out: string[] = [];
+  for (const one of Array.isArray(list) ? list : []) {
+    const row = str(one);
+    if (row && !out.includes(row)) out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Whether one form of a card may stand in a blank narrowed to those rows.
+ *
+ * `spec` is the table the card is laid out in tenses by, where it is laid
+ * out in any — null for a name, a noun, a word of a kind with no rows, and
+ * for a language whose verbs have one form. **Such a word is untouched by
+ * the narrowing**: a name standing in a blank that verbs also fill is in no
+ * tense at all, and dropping it would answer a question nobody asked.
+ *
+ * A word that *is* laid out in tenses stands in a narrowed blank through
+ * its table and nowhere else. Its own word is not one of the rows — Huế
+ * cites the bare verb, and Arabic cites a cell the table already lends — so
+ * a blank asking for the past is filled with the past forms, and not with
+ * everything that merely belongs to a verb.
+ */
+export function standsInRows(
+  spec: VerbSpec | null | undefined,
+  form: unknown,
+  rows: string[],
+): boolean {
+  if (!rows.length || !spec) return true;
+  return rows.includes(rowOf(form));
 }
 
 /* ---- the gate: one tense of a verb is ever new at a time ---- */

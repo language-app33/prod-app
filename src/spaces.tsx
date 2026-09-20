@@ -65,13 +65,13 @@ import {
   contextCoverage,
   dimValues,
   exOf,
-  kindOf,
   supportsContext,
   LANGUAGES,
   DEFAULT_LANGUAGE,
-  scriptVars, lendsForm } from "./languages.ts";
+  scriptVars } from "./languages.ts";
 import { isDialog, linesOf } from "./dialogs.ts";
-import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf, valuesFor } from "./variables.ts";
+import { cardRef, droppedIn, fillNames, hasSlots, renamedIn, slotsOf } from "./variables.ts";
+import { fillersFor } from "./card-facts.ts";
 import { linkReport, pairsIn } from "./context-links.ts";
 import { buildContextIndex } from "./context-index.ts";
 import { offersFor } from "./offers.ts";
@@ -3560,12 +3560,12 @@ function TryExercises({ card, cards, lang, onTry, back }: {
      for a reason nobody can see. Their whole library, not one deck: a value
      is borrowed by whichever phrase has a hole of its name. */
   const values = useMemo(
-    /* The kind goes in so that {{word}} finds its fillers here too: it is
-       filled by any word in the language with nothing written on it, and a
-       teacher trying an exercise should see the same words a learner will
-       be shown. */
-    () => (unit: Form) =>
-      valuesFor(unit, material, lang && lang.id, (c) => kindOf(c, lang), (c, f) => lendsForm(lang, c)(f)),
+    /* Through the one door three screens ask this at — see fillersFor,
+       which knows that {{word}} is filled by any word in the language with
+       nothing written on it, which forms a card lends, and which tenses
+       the frame has narrowed its blanks to. This was that question written
+       out a second time, which is two answers to it waiting to disagree. */
+    () => (unit: Form) => fillersFor(unit, material, lang),
     [material, lang]
   );
 

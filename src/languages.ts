@@ -38,6 +38,10 @@ import type {
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
 import { answersOf } from "./answers.ts";
 import { leadOf } from "./cards.ts";
+/* And what a row is, for the one rule below that reads one: verbs.ts
+   knows what a table is made of and no language at all, which is the
+   same direction every other import here goes. */
+import { standsInRows } from "./verbs.ts";
 import type { AnswerField, WithAnswers } from "./answers.ts";
 
 
@@ -673,6 +677,25 @@ export const kindOf = (
   lang: { guessKind?: (text: string) => string } | null = null,
 ): string => {
   if (isDialog(card)) return DIALOG_KIND;
+  /*
+   * A card that says what kind of word it is, is a word.
+   *
+   * The teacher answered this in a drop-down — a noun, a verb, a name —
+   * and that answer is worth more than any count of the spaces in the
+   * text, because it is a fact about the card rather than a guess at one.
+   * It is read before the stored `kind`, which is itself only the guess
+   * this function used to make, cached at the moment the card was typed.
+   *
+   * What it costs to guess instead is a language: Vietnamese writes a word
+   * as its syllables with spaces between them, so *cảm ơn* is one word
+   * and the rule below counts two — and every such card was left out of
+   * `{{word}}`, which is the blank that means "any word in the language".
+   * Roughly every Vietnamese word of more than one syllable, with nothing
+   * on the screen to say so and nothing a teacher could do about it. The
+   * kind of word is asked of every card in every language, so every
+   * language gets the answer.
+   */
+  if (card && card.category) return "word";
   if (card && card.kind) return card.kind;
   /* Guessed from the card's own word, which since 0.138 is the first of
      its forms rather than the card itself. A plain form is its own lead,
@@ -1260,9 +1283,22 @@ export const cardDims = (
  * spread into a pack.
  *
  * Here rather than written out twice because Arabic and Hebrew mark a verb
- * for the same seven — the two are not related by accident — and a pack
+ * for the same eight — the two are not related by accident — and a pack
  * that wants six or nine simply writes its own. Nothing reads this but the
  * packs below.
+ *
+ * There were seven until 0.195, and the missing one was the plural *you*.
+ * It was never a decision: the worked example in the proposal this feature
+ * was built from drew seven columns and put the plural forms in the *they*
+ * column — including كولو in the command row, which is a command and
+ * therefore cannot be *they*'s at all. The pack was written from the
+ * picture. What it cost a learner was إنتو بتاكلوا, أكلتوا and كولوا —
+ * among them the one imperative anybody says most, the one addressed to
+ * more than one person — and a teacher who typed the plural command
+ * somewhere had put it under a person who cannot be told to do anything.
+ * The pronouns a word takes on its end were written later and from the
+ * pronouns rather than from the picture, which is why that table has had
+ * all eight the whole time.
  *
  * `picks` is the agreement rule, and it is deliberately only on the third
  * person: those are the columns a *noun* in the subject can call for. A
@@ -1271,7 +1307,10 @@ export const cardDims = (
  * "you" — a frame that wants those says so itself. "they" asks for number
  * alone, so a plural of either gender reaches it; the two singulars ask
  * for both and therefore win over it wherever they match, by the
- * most-specific rule in verbs.ts.
+ * most-specific rule in verbs.ts. The plural *you* picks nothing either,
+ * and for the same reason the singular ones do not: it is who a sentence
+ * is addressed to, never who a noun in its subject turns out to be. So a
+ * plural filler still reaches "they", as it always did.
  */
 const SUBJECT_PERSONS: VerbPerson[] = [
   { id: "i", label: "I" },
@@ -1280,6 +1319,11 @@ const SUBJECT_PERSONS: VerbPerson[] = [
   { id: "he", label: "he", picks: { number: "singular", gender: "masculine" } },
   { id: "she", label: "she", picks: { number: "singular", gender: "feminine" } },
   { id: "we", label: "we" },
+  /* Between "we" and "they", where the paradigm puts it and where the
+     pronouns on the end of a word already put theirs: a column is a column
+     of two tables now, and a teacher reading down one should not meet them
+     in two different orders. */
+  { id: "you-pl", label: "you (pl)" },
   { id: "they", label: "they", picks: { number: "plural" } },
 ];
 
@@ -2001,6 +2045,57 @@ export const agreementOf = (
   return spec.persons.some((p) => p.picks && Object.keys(p.picks).length) ? spec : null;
 };
 
+/**
+ * The table a word of this kind takes more than one tense in, where the
+ * pack lays it out in any.
+ *
+ * The other end of the question agreementOf asks. A table with one row
+ * says one thing about a word and the sentence beside it never has to
+ * choose — the pronouns on the end of a noun, an adjective's feminine —
+ * and a table with several rows is a word that is a different word
+ * depending on when it happened. Only the second is worth a sentence
+ * saying which rows it wants, so only the second is answered here.
+ *
+ * Read off the kind of word rather than off a name, so a pack that lays
+ * something other than its verbs out in tenses is answered too, and a pack
+ * whose verbs take one form — a language with no tense to speak of — is
+ * answered with null and asked nothing.
+ */
+export const tensedOf = (
+  lang: Lang | null | undefined,
+  category: string | null | undefined,
+): VerbSpec | null => {
+  const kind = categoryOf(lang, category);
+  const spec = kind ? specOf(lang, kind.table) : null;
+  return spec && spec.tenses.length > 1 ? spec : null;
+};
+
+/**
+ * Which of a card's forms one blank of a sentence admits, once that
+ * sentence has said which tenses it wants its verbs in.
+ *
+ * The language half of the rule; the rest is standsInRows in verbs.ts,
+ * which knows what a row is and nothing about what a verb is. One answer,
+ * read by the session, the teacher's preview and the teaching space alike,
+ * so the three cannot disagree about what is behind a blank.
+ *
+ * `rowsFor` is asked per blank rather than handed a list, because a
+ * sentence narrows each of its blanks on its own: "Yesterday {{name}}
+ * {{verb}} while {{name2}} {{verb2}}" is two questions about two holes.
+ */
+export const blankAdmits = (
+  lang: Lang | null | undefined,
+  rowsFor: (slot: string) => string[],
+): ((
+  card: { category?: string } | null | undefined,
+  form: Record<string, unknown>,
+  slot: string,
+) => boolean) => (card, form, slot) => {
+  const rows = rowsFor(slot) || [];
+  if (!rows.length) return true;
+  return standsInRows(tensedOf(lang, card && card.category), form, rows);
+};
+
 /* Every value any dimension can hold, for validating stored cards without
    knowing which language wrote them. */
 export const DIM_VALUES: Record<string, string[]> = {};
@@ -2626,7 +2721,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* Nouns carry number and gender, and adjectives agree with both —
        the same two axes Arabic declares. */
     grammar: ["number", "gender"],
-    /* Marked for the same seven persons as Arabic, and for the same reason
+    /* Marked for the same eight persons as Arabic, and for the same reason
        — so the same columns, declared once above. The rows are its own:
        Hebrew's future is a form of the verb rather than a word in front of
        it, and is taught after the past. */

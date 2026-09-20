@@ -190,7 +190,7 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   yet through the steps somewhere, *Young* is graduated everywhere it is
   open, *Mature* is three weeks out everywhere.
 - **One tense of a verb is ever new at a time.** Where a language lays its
-  verbs out in a table — Arabic in seven persons and three tenses, Huế in
+  verbs out in a table — Arabic in eight persons and three tenses, Huế in
   one person and four markers — each cell of it is a sub-form, drilled and
   scheduled in its own right by the exercises every other form gets. The
   rows open in the order the language teaches them, one waiting on the one
@@ -203,7 +203,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   card's own word is not shown, the cell is what the card is saved as, and
   a word first called a verb moves into that cell rather than being asked
   for twice. Where a language cites nothing — Huế cites the bare verb,
-  which is a word and not a cell — the block is the verb and stays. A verb card may also
+  which is a word and not a cell — the block is the verb and stays.
+
+  **No cell of the table is required, and none of them is what the card is
+  listed as.** A verb is listed as its `name` — the teacher's own words for
+  it, *to eat* — which is the one thing about the whole card that can stand
+  for all of it, and is therefore asked for rather than offered on a verb
+  whose table stands in for its word. What a save is held to besides is one
+  form written with its English, whichever form that is: a teacher who has
+  taught the present and not the past writes the present. The cited cell
+  was demanded until 0.200, because it was also the card's face; it is an
+  ordinary box now, and a card whose teacher has left it blank carries no
+  word of its own and is its name and its table. `canSaveVerb` in
+  `src/card-editor.tsx`. A verb card may also
   carry a sentence with its own place marked in it — `{{name}} {{verb}}
   {{object}}` — and the form that stands there is the one whatever filled
   the subject calls for, read off the number and gender its card already
@@ -239,6 +251,12 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   the same state: decided once, read often, and changed on purpose rather
   than by a stray tap. Every answer carries a line saying what it gets
   you, which is why the list inside is rows and not a track of segments.
+  Where a saved card's table is laid out by one kind of word and no other
+  — a verb's, in every pack today — there is nothing to choose between, so
+  the answer is shown and not asked: the same row with a padlock where the
+  pencil sits, as the kind of card above it wears. The question going away
+  is right; the fact going with it is what left a saved verb saying
+  nothing about what kind of word it was.
 - **A form can be kept without being asked about, and lent without being
   asked.** A card is a word and a pile of forms of it — other spellings,
   the pronouns on its end, every person and tense of a verb — and a
@@ -348,15 +366,40 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   **The editor's Blanks section is four named subsections, and they are
   not the same shape, because they are not the same question.**
 
-  *Blanks in this card* is a **readout**, and has nothing to decide. What
-  a card leaves is written in its own words — the braces are in the text —
-  so the holes are a fact about the card and this subsection's whole job
+  *Blanks in this card* is a **readout with one question in it**. What a
+  card leaves is written in its own words — the braces are in the text —
+  so the holes are a fact about the card and most of this subsection's job
   is to say what that fact is worth: each hole, and, when one is pointed
   at, the words that will go in it. That last is the only place a teacher
   can see whether the right vocabulary is behind a blank without leaving
   the card. A blank lives in the fields, so that is where it is put in and
   taken out; every field with words in it must leave the same blanks, and
   `slotTrouble` refuses the save and names the field that is short of one.
+
+  **And which tenses a blank asks its verbs for, which is the one thing
+  about a hole that cannot be read off anything.** A verb card is right to
+  carry every tense — that is what the table is — and the sentence is what
+  says when the thing happened: "Yesterday {{name}} {{verb}} an apple" was
+  met as the present, then the past, then the command, and two of those
+  say something nobody means. So under a blank that verbs fill is a tick
+  per tense, in the order the language teaches them. **Nothing ticked is
+  every tense**, which is what every card written before this says and what
+  a frame about nothing in particular wants, so unticking the last one is
+  how the narrowing comes off and there is no third state to explain.
+  A word narrowed to the past stands in the hole **through its table and
+  nowhere else** — the dictionary form is in no row, and Arabic's is a cell
+  the table already lends — while a word of a kind that has no tenses, a
+  name in the same hole, is there whatever is ticked. `slotRows` and
+  `standsInRows` in `src/verbs.ts` are the two halves of the rule and know
+  no language; `tensedOf` and `blankAdmits` in `src/languages.ts` are which
+  kinds of word have tenses to be asked about, which is why a pack whose
+  verbs take one form is asked nothing. The question is offered wherever
+  the *words behind* a blank have tenses rather than wherever the blank is
+  named after the part of speech, so a teacher who gathers their verbs
+  under a tag of their own is asked too — `tensedBlanks` in
+  `src/card-facts.ts`. Stored on the form beside the holes it is about, and
+  read by the session, the teacher's preview and the read-out through the
+  one door they all ask this at.
 
   **And it is put in rather than typed.** Under each of a sentence's three
   fields is a **bar**: a chip for every blank the card knows, and a button
@@ -504,6 +547,19 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   `src/variables.ts`, which is where a blank's spacing is decided. No
   screen shows the braces: a card listed anywhere draws its blanks the
   same way, through `splitSlots`.
+
+  **Which way such a field reads is decided by its words and not by its
+  blanks.** A blank is named in Latin letters whatever the card is written
+  in, so `dir="auto"` — which reads the first strong character of
+  everything in the box, the pill included — laid an Arabic sentence
+  beginning with a blank out from the left, and did the same to a field
+  holding nothing but blanks, which every field of a frame is while one is
+  being written. `wordsDir` in `src/variables.ts` is the one answer to it:
+  the blanks are passed over, what the teacher wrote decides exactly as
+  `dir="auto"` would have decided it, and a field with no words in it yet
+  takes the language's own direction. The rail a blank is dragged along
+  asks the same function, so the words on it stand where the words in the
+  field stand and the gap under a thumb is the gap it looks like.
 
   **Answering a sentence credits the words that stood in it**, on the form
   that was actually shown — the feminine an adjective agreed into, not the

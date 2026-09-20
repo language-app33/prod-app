@@ -8,6 +8,237 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.201 — 19 September 2026
+
+**Fixed: a saved verb stopped saying what kind of word it was.**
+
+*What subtype* is answered once and then read, and on a verb there is
+nothing to answer it with a second time: a verb's table is laid out by
+that one kind of word, and offering any other kind would be offering to
+throw the table away. So the drop-down was not shown — and the answer went
+with it, which meant opening a verb you had saved showed no subtype at
+all, on the one screen that knows it.
+
+The answer is there now, under its own heading, with a padlock where the
+pencil sits on a question that can still be answered again — the same row
+the kind of card wears one section above. The line at the foot of the
+block still says what a verb is and how it stops being one: empty the
+table and it is a word again.
+
+## 0.200 — 19 September 2026
+
+**A verb is listed as what you call it, and no box of its table is
+required.**
+
+In Arabic and Hebrew a verb has no one word of its own — it is a table,
+and every box in it is a form — so the app used the box a dictionary lists
+the verb under, the he-past, as the card itself. Two things followed, and
+both were wrong. A deck of verbs read as a column of he-pasts: *he ate*,
+*he drank*, *he went*, each naming one form rather than the verb the card
+was about. And Save stayed grey until that one box and its English were
+filled in, so writing the present tense of a verb whose past you had not
+taught yet meant filling in the past anyway.
+
+**What a verb is listed as is now its name** — *to eat* — which is asked
+for on the card rather than offered. It is the one thing about a verb that
+can stand for the whole of it. Call a word a verb and the meaning you had
+already typed becomes that name, so nothing you wrote is lost.
+
+**And the he-past is an ordinary box.** Write the present alone, or the
+command alone, or all twenty-four: what a save now asks for is a name and
+one form of the verb with its English, and which form is your business.
+The line under the table says that when it is true, in those words,
+instead of naming a box.
+
+A verb you wrote before this is untouched, and is still listed by its name
+where you gave it one. Where you did not, the next time you open it the
+editor asks for one — that is the card being given something to be listed
+as instead of its he-past.
+
+## 0.199 — 19 September 2026 — withdrawn
+
+This release gave every verb an ordinary word block at the top and took
+the dictionary form out altogether. That was the wrong fix: a verb in
+Arabic or Hebrew has no single word of its own, which is why its table
+stands in for one, and the block asked for a word that would then be
+drilled twice. It was reversed the same day, and what it was trying to fix
+is fixed in 0.200 instead.
+
+## 0.198 — 19 September 2026
+
+**A sentence can say which tense it wants its verbs in.** Write "yesterday
+{{name}} {{verb}}" and the app had to meet it with every form of every
+verb you have: *yesterday Raphael eats*, *yesterday Raphael eat!*, and the
+one sentence you meant somewhere among them. Nothing was wrong with the
+verb card — a verb is all of its tenses — and nothing was wrong with the
+sentence either. There was simply nowhere to say when it happened.
+
+There is now. Under *Blanks in this card*, a blank that verbs fill is
+offered a tick per tense, in the order your language teaches them. Tick the
+past and that sentence is asked with the past forms alone; the examples
+underneath show you exactly what it comes out as before you save. Each
+blank is asked on its own, so a sentence with two verbs in it can want two
+different tenses.
+
+Nothing ticked means any tense, which is what every sentence you have
+already written says — none of them change. Unticking the last tense is how
+you take it off again. A word in the hole that has no tenses at all — a
+name, a noun — stands there whatever you tick: only the verbs are narrowed.
+One thing worth knowing: a sentence narrowed to a tense takes the verbs
+through their tables, so a verb card you wrote as a bare word, with no
+table filled in, has no past to offer and will not appear in a past-only
+sentence. The blank says how many words are behind it, so you can see it.
+
+Languages whose verbs have one form are not asked the question.
+## 0.197 — 19 September 2026
+
+**A sentence in Arabic or Hebrew stopped reading backwards while you wrote
+it.** A blank in a card's field is drawn as a pill with its name on it, and
+a blank's name is always written in Latin letters — `name`, `colour-red`.
+The field worked out which way to lay itself out from the first letter in
+it, counted the name on the pill as one of those letters, and so read an
+Arabic sentence that began with a blank from the left. A field holding
+nothing but blanks — which every field of a sentence is for the first few
+seconds of writing one — did the same, and lined its pills up from the left
+on a card whose every other field starts at the right.
+
+It reads what you wrote now, and passes over the blanks, because a blank is
+not a word: it stands for whatever is put in it, which is a word in the card's
+own language. So a sentence in the script starts at the right whether it
+begins with a blank, ends with one, or is still nothing but blanks — and a
+phrase pasted in another script still lays itself out by what it is, which
+is what reading the field was for. Nothing you have saved changes; what was
+stored was always right, and only the writing of it was upside down.
+
+Three things came with it. The words shown under a field while a blank is
+being dragged along it now run the way that field runs, so the gap your
+thumb is over is the gap it looks like it is over — and the English of an
+Arabic card is no longer dragged through back to front in an Arabic face.
+The pill itself sits the right way round in a right-to-left sentence, with
+the cross that takes it off on the end the sentence ends at. And a blank's
+name is left reading left to right wherever it stands, so a name with a
+dash or a digit in it cannot come apart in the middle of Arabic.
+
+## 0.196 — 19 September 2026
+
+**What a card is called is asked with the rest of what the card is.** A verb
+and a sentence are both saved as something other than what they are about —
+a verb as the form a dictionary lists, a sentence as a frame with a hole in
+it — so each can be given a name to be listed under instead. That question
+had a framed section of its own, standing between the card and its words and
+reading as a stage of the form rather than as the label it is.
+
+It is now a field in "This card", directly under what subtype the card is,
+and its name is set the same way: both are one fact about the whole card,
+settled once and then read. Nothing else changes — the same box, the same
+wording about what a card with no name falls back to, and the same nothing
+asked about it.
+
+## 0.195 — 19 September 2026
+
+**Arabic verbs have a plural *you* at last.** A verb card laid its forms out
+under seven people — I, you (m), you (f), he, she, we, they — and Arabic
+marks a verb for eight. The one missing was the *you* you say to a room:
+إنتو. So there was nowhere to write بتاكلوا and nowhere to write أكلتوا, and
+nowhere at all for كولوا — which, of every command in the language, is the
+one a learner hears and says most, because most of the time you are talking
+to more than one person.
+
+It was never a decision. The grid in the write-up this feature was built
+from was drawn with seven columns, and the plural forms were put in the
+*they* column to fit — including the command, which cannot be *they*'s at
+all, since you cannot tell *them* to do anything. The table was then built
+from the picture. The pronouns that go on the end of a word were written
+later and from the pronouns themselves, which is why that table has had all
+eight of them the whole time.
+
+The column sits where the paradigm puts it, between *we* and *they*.
+Nothing you have already written moves or changes: every verb card you have
+gains one more empty box per tense, to fill in when you get to it, and a
+card with nothing in the new box is asked exactly what it was asked
+yesterday. As with every other person, a sentence never puts a subject in
+it — *you* is who is being spoken to, not who a name in the sentence turns
+out to be — so what a plural name fills is still *they*.
+
+Hebrew shares the same list of people, and had the gap for the same reason.
+It gains the same column.
+
+## 0.194 — 19 September 2026
+
+An audit of how cards, kinds, forms and blanks hold together, and the
+repairs it turned up. Nothing on the screen has moved; what has changed is
+what the app does with what you have written.
+
+**A name stopped quietly losing its job.** A card set to "not asked on its
+own, but lent to sentences" — Raphael, for "my name is {{name}}" — opened
+with that second tick switched off. It was not something you did: opening
+the card was enough, and the next save, even one that only added a
+recording, stored it as lent to nothing. Every sentence that asked for that
+name lost it, with nothing said. Cards already saved that way are read
+correctly again the moment they are opened.
+
+**A sentence nobody could answer is no longer asked.** Where a sentence
+needs a form that agrees with the word beside it — a feminine adjective, the
+plural of a verb — and that box was left empty, the app put the sentence up
+with its own braces showing, marked it wrong, and asked it again in every
+session after that, for ever, because the turn only moves on a right
+answer. Such a sentence is now simply not dealt, and comes back by itself
+the moment the missing form is written. A sentence that runs out of words
+mid-session is withdrawn the same way.
+
+**Students now get the words their sentences need.** A blank can name what
+fills it in four ways. Only one of them — the group tags you write by hand —
+was actually sent to a student's device. A sentence asking for `{{noun}}`,
+or for one card by its ID, arrived with nothing behind it and was never
+asked, while your own preview of that card showed it working, because the
+preview reads your whole collection and the student's device only holds what
+was sent.
+
+**Vietnamese words count as words.** The app worked out whether a card was a
+word by counting the spaces in it, which is right for Arabic and wrong for
+Vietnamese, where a single word is written as its syllables with spaces
+between them. So *cảm ơn* was a phrase, and roughly every Vietnamese word
+longer than one syllable was left out of `{{word}}` — the blank that means
+"any word in the language" — with nothing on the screen to say so. What
+settles it now is what you already said the card is: a card you have called
+a noun, a verb or a name is a word, in every language.
+
+**Two people saving at once no longer costs a card.** Saving read a deck's
+contents, added to them, and wrote the lot back. Two saves in flight at the
+same moment — two tabs, two teachers, a queue of offline edits going up —
+each read the same starting point and the second wrote over the first. What
+it cost was a card that had been saved, was on the server, and was in no
+deck and no collection, so nothing afterwards would find it and nobody was
+told. Each save now changes only its own card's place in the list.
+
+**And the server now checks what it is given.** It trusted the app to have
+checked already, which is fine until a save arrives from a tab left open
+since before a rule existed. A card with a blank in it is stored as a
+sentence whatever the sender claims, rather than being turned into a word
+with braces in it that the editor then refuses to save. An ID a second card
+already answers to is refused outright, which the editor has always done
+while you are looking at the screen. And a recording is kept only under a
+name a recording can actually have.
+
+**A verb's own sentence no longer blocks its card.** A verb card carrying
+the sentence it stands in could not be saved at all — the editor read the
+sentence as a stray blank on a word and refused, and the only way out it
+offered was to delete the sentence. It is now left alone and saved
+untouched. Writing one still needs a screen that does not exist yet.
+
+**And a group can no longer be given a card's name.** The ID box has always
+refused a name a group already holds. The group box did not refuse a name a
+card's ID holds, so the same collision was one tap away on the other side of
+the same screen.
+
+**Faster where it was slow.** Dealing a session on a large collection is
+about three times quicker, and the work behind each answer is down by about
+a third. Typing an answer no longer re-does the work of filling in the
+sentence on every keystroke, and neither does typing in the card editor,
+which was building every filled-in example of a card behind a fold that was
+shut. Fetching course material no longer re-reads each teacher's whole
+collection once per deck.
+
 ## 0.193 — 19 September 2026
 
 **Writing a card is one sheet now, not a stack of boxes.** Every section of

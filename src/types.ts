@@ -115,7 +115,7 @@ export interface ExerciseSpec {
 
    The two axes a verb's forms are laid out on. Which of them exist, what
    they are called and what order they are taught in is the language pack's
-   answer and never the app's: Arabic declares seven persons and three
+   answer and never the app's: Arabic declares eight persons and three
    tenses, Huế one person and four, and a language whose verbs do not vary
    declares no table at all. Nothing outside the pack knows what a tense
    is — only that a table has rows and columns and that a cell is one thing
@@ -721,6 +721,30 @@ export interface CardForm {
    * this out only where the two answers differ.
    */
   lend?: boolean;
+  /**
+   * Which tenses each of a sentence's blanks wants its verbs to stand in:
+   * the blank's name, and the rows of the table it admits.
+   *
+   * A verb card is right to carry every tense, and the frame is what says
+   * when the thing happened. "Yesterday {{name}} {{verb}} an apple" was
+   * met as the present, the past and the command one after another, and
+   * two of those say something nobody means — so the sentence is where
+   * that is settled, because it is the only place that can settle it.
+   *
+   * **Absent, and an empty list, both mean every tense**, which is what
+   * every card written before this says and what a frame about nothing in
+   * particular wants: there is nothing to migrate, and a blank nobody has
+   * thought about is filled exactly as it was. Only rows narrow — a word
+   * of a kind that has no tenses, a name standing in the same hole, is
+   * there whatever is ticked. See slotRows and standsInRows in
+   * src/verbs.ts, which are the one answer to both halves.
+   *
+   * On the form because a blank is left in a form's own words, beside the
+   * frame's record of which values it has already been met with. One
+   * answer for the card all the same: every form of a sentence leaves the
+   * same blanks, so the editor writes the same map onto each of them.
+   */
+  tenses?: Record<string, string[]>;
 }
 
 /**
