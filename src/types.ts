@@ -935,8 +935,28 @@ export interface ExerciseState {
   /**
    * The last six outings, 1 right and 0 wrong. Numbers rather than booleans
    * because they are what the stored documents already hold.
+   *
+   * It carries the ladder as well as the record. Two of these right in a
+   * row is what opens the level above, and two wrong in a row is what
+   * shuts it — see `solid` and `missedTwice` in the scheduler.
    */
   hist: number[];
+  /**
+   * How many times this question has come round of its own accord, since
+   * the card climbed, and been answered right.
+   *
+   * Nought, one or two; two on every exercise at the top of a card's
+   * ladder is what makes the card *learnt* rather than merely climbed. Only
+   * an answer given when the question was actually due counts, so no
+   * amount of practice in one evening can make it up — see `passesMade`.
+   * A miss puts it back to nought.
+   *
+   * Absent on a document written before it existed, which reads as nought:
+   * a card climbed under the old rules has its passes still to make, and
+   * makes them on the next two reviews, which is what those reviews were
+   * always going to be.
+   */
+  passes?: number;
   updated: Millis;
 }
 
@@ -1213,9 +1233,42 @@ export interface Doc {
    */
   parked?: Record<string, Parked>;
   log: Record<string, any>;
+  /**
+   * What the ladder did each day: how many cards moved up a level, how
+   * many cleared, how many were learnt.
+   *
+   * Filed by the learner's own day, beside the count of questions in
+   * `log`, and the only record in the document of *change* rather than of
+   * where things stand. Everything else here is a stock-take: this is
+   * what lets Progress say what a day and a week came to, which no amount
+   * of reading the cards can reconstruct once they have moved on.
+   *
+   * Counted per card and once per kind: a card that moves up a level in
+   * the morning and clears at night is in both tallies, and one answered
+   * twice on the same rung is in neither.
+   *
+   * Absent on a document written before it existed, which reads as no
+   * history — so the lines that read it simply say nothing until a day
+   * has been recorded.
+   */
+  moves?: Record<string, DayMoves>;
   /** Every document has them; EMPTY is where the defaults live. */
   settings: Settings;
   settingsUpdated?: Millis;
+}
+
+/**
+ * One day's movement on the ladder.
+ *
+ * Three counts rather than one, because they are three different things
+ * to be told: a card moving up a rung is ordinary progress, a card
+ * clearing is the evening's work finished, and a card being learnt is the
+ * only one of the three that is permanent.
+ */
+export interface DayMoves {
+  up: number;
+  cleared: number;
+  learnt: number;
 }
 
 /**

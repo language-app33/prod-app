@@ -88,7 +88,7 @@ function lettersOf(s: string, letter: Letter): { keys: string[]; at: number[] } 
  * letters written the wrong way round rather than as two missing and two
  * too many — the same number of edits, and the first is what happened.
  */
-function misses(a: string[], b: string[]): { aBad: boolean[]; bBad: boolean[] } {
+function misses(a: string[], b: string[]): { aBad: boolean[]; bBad: boolean[]; cost: number } {
   const n = a.length;
   const m = b.length;
   const d: number[][] = [];
@@ -129,7 +129,92 @@ function misses(a: string[], b: string[]): { aBad: boolean[]; bBad: boolean[] } 
       j -= 1;
     }
   }
-  return { aBad, bBad };
+  return { aBad, bBad, cost: d[n][m] };
+}
+
+/**
+ * How many letters a spelling is out — the edit distance, and nothing
+ * about where.
+ *
+ * The count of marks is not this number and cannot stand in for it: a
+ * letter written in place of another marks both sides and is one mistake,
+ * a letter too many marks one side and is also one mistake. Anything
+ * deciding *how wrong* a word is has to ask the distance itself.
+ *
+ * Infinity where there is nothing to compare, so a caller can treat "no
+ * answer" and "miles out" alike without a special case.
+ */
+export function spellDistance(
+  given: string,
+  expected: string | string[],
+  letter?: Letter | null,
+): number {
+  const wrote = String(given == null ? "" : given);
+  const forms = (Array.isArray(expected) ? expected : [expected])
+    .map((f) => String(f == null ? "" : f))
+    .filter((f) => f.trim());
+  if (!letter || !wrote.trim() || !forms.length) return Infinity;
+  const mine = lettersOf(wrote, letter);
+  return forms.reduce(
+    (best, form) => Math.min(best, misses(mine.keys, lettersOf(form, letter).keys).cost),
+    Infinity,
+  );
+}
+
+/**
+ * How long a word has to be before one letter out is read as a slip.
+ *
+ * Four. On a three-letter word one letter is a third of it, and the
+ * script this app is mostly used for is full of three-letter words that
+ * are one letter apart and mean different things — a rule that forgave
+ * those would be forgiving the learner for writing a word they did not
+ * mean. Measured in the language's own letters, so the harakat a learner
+ * did or did not write neither lengthens a word nor shortens it.
+ *
+ * Measured on the **answer** and not on what was typed. The two come
+ * apart in exactly the case this rule is most for: a letter left out of a
+ * four-letter word leaves three on the screen, and asking the typed word
+ * to be four letters long would throw out one of the three things a typo
+ * is.
+ */
+export const TYPO_MIN_LETTERS = 4;
+
+/**
+ * Whether a wrong answer is one letter out of a word long enough for that
+ * to be a slip of the finger.
+ *
+ * It is the whole of the leniency, and it is deliberately narrow. One
+ * letter wrong, one missing or one too many — the three things a typo
+ * is — on an answer of at least four letters, and the app gives the
+ * learner the benefit of the doubt: the question is asked again rather
+ * than counted as a miss. Two letters out is not a typo, and on a short
+ * word one letter is a different word.
+ *
+ * Judged against the spelling the learner came closest to, as the marking
+ * is — and the length is that same spelling's. A card accepting a long
+ * word and a short one, whose learner writes something a letter off the
+ * short one, is not handed the long one's length to clear the bar with.
+ *
+ * It says nothing about what the app does next; that is `submit` in the
+ * trainer, which is also where the reason it matters is written down.
+ */
+export function typoed(
+  given: string,
+  expected: string | string[],
+  letter?: Letter | null,
+): boolean {
+  const wrote = String(given == null ? "" : given);
+  const forms = (Array.isArray(expected) ? expected : [expected])
+    .map((f) => String(f == null ? "" : f))
+    .filter((f) => f.trim());
+  if (!letter || !wrote.trim() || !forms.length) return false;
+  const mine = lettersOf(wrote, letter);
+  return forms.some((form) => {
+    const want = lettersOf(form, letter);
+    return (
+      want.keys.length >= TYPO_MIN_LETTERS && misses(mine.keys, want.keys).cost === 1
+    );
+  });
 }
 
 /*

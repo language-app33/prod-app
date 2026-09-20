@@ -41,7 +41,8 @@ await build({
 });
 const { varyTypes, requeueMissed, isUrgent, buildSession, buildManualSession, installIndexes,
   fillersIn, buildNumberSession, numberFillers, isMadeUpNumber, NUMBER_SESSION_SIZE,
-  NUMBERS_PER_BAND, buildWeakSession, weakness, isWeak } = await import(path.join(out, "trainer.js"));
+  NUMBERS_PER_BAND, buildWeakSession, weakness, isWeak, movesAmong, mergeMoves,
+  saidMoves, sumMoves } = await import(path.join(out, "trainer.js"));
 const { TYPES, NUMBER_EQUIVALENT } = await import(path.join(here, "..", "src", "languages.ts"));
 const { FRONT_DOOR_CAP } = await import(path.join(here, "..", "src", "scheduler.ts"));
 
@@ -767,7 +768,10 @@ test("the count beside the button and the session it opens are the same test", (
 /** A schedule that is long since done, for opening a table's gate. */
 const mature = () => ({
   phase: "review", step: 0, ease: 2.5, interval: 30, due: Date.now() + 30 * 86400000,
-  reps: 9, lapses: 0, right: 9, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1], updated: 1,
+  reps: 9, lapses: 0, right: 9, wrong: 0, skips: 0, near: 0, hints: 0,
+  /* Right twice running and both passes made: up the ladder and kept
+     there, which is what the gates on a table's cells read. */
+  hist: [1, 1], passes: 2, updated: 1,
 });
 
 /** The form a question is actually asked of, filled in as the app fills it. */
@@ -1238,4 +1242,106 @@ test("a part the learner does not hold is not credited", () => {
   assert.deepEqual(numberFillers(made, new Map(), "ar2en", settings), [],
     "nothing is invented for a part that is not there",
   );
+});
+
+/* ------------------------------------------------------------------
+   What a sitting moved
+
+   The screen at the end of a session says what changed, and the lines on
+   Progress count the same thing. Both are fed from one comparison made at
+   the moment of the answer, because afterwards there is nothing left to
+   compare: a card's standing says where it is and never that it arrived
+   there tonight.
+   ------------------------------------------------------------------ */
+
+/** A schedule key right twice running, and due. */
+const upAt = (/** @type {number} */ passes = 0) => ({
+  phase: "review", step: 0, ease: 2.5, interval: 3, due: Date.now() + 3 * 86400000,
+  reps: 6, lapses: 0, right: 6, wrong: 0, skips: 0, near: 0, hints: 0,
+  hist: [1, 1], passes, updated: 1,
+});
+const onlyOnce = () => ({ ...upAt(), hist: [1] });
+/** A word card whose ladder stands wherever the states put it. */
+const standingAt = (/** @type {string} */ id, /** @type {Record<string, any>} */ s) => ({
+  id, tags: [], created: 1, lang: "ar-PS", kind: "word",
+  forms: [{ id, ar: "مَطار", en: "airport", lat: "mataar", lang: "ar-PS", s }],
+});
+
+test("a card that goes up a rung is reported, and one answered on the same rung is not", () => {
+  const before = [standingAt("c1", { ar2en: onlyOnce() })];
+  installIndexes(before, settings);
+  /* The reading answered right a second time: the level above opens, so
+     the card has moved up. */
+  const after = [standingAt("c1", { ar2en: upAt() })];
+  assert.deepEqual(movesAmong(before, after, [{ id: "c1" }], settings), [{ id: "c1", move: "up" }]);
+  /* And answering again on the same rung moves nothing. */
+  assert.deepEqual(movesAmong(after, after, [{ id: "c1" }], settings), []);
+});
+
+test("clearing and learning are each reported once, and by their own name", () => {
+  installIndexes([standingAt("c1", {})], settings);
+  const nearly = [standingAt("c1", { ar2en: upAt(), match: upAt(), tr2ar: upAt(), en2ar: onlyOnce() })];
+  const up = [standingAt("c1", { ar2en: upAt(), match: upAt(), tr2ar: upAt(), en2ar: upAt() })];
+  assert.deepEqual(movesAmong(nearly, up, [{ id: "c1" }], settings), [{ id: "c1", move: "cleared" }]);
+  const kept = [standingAt("c1", { ar2en: upAt(), match: upAt(), tr2ar: upAt(), en2ar: upAt(2) })];
+  assert.deepEqual(movesAmong(up, kept, [{ id: "c1" }], settings), [{ id: "c1", move: "learnt" }]);
+  /* Already there is not news again. */
+  assert.deepEqual(movesAmong(kept, kept, [{ id: "c1" }], settings), []);
+});
+
+test("only the cards the answer marked are looked at", () => {
+  installIndexes([standingAt("c1", {}), standingAt("c2", {})], settings);
+  /* One answer can mark several — a grid marks five, a sentence credits
+     every word that stood in it — and every one of those may have moved.
+     Nothing else in the collection can have, so nothing else is walked. */
+  const before = [standingAt("c1", { ar2en: onlyOnce() }), standingAt("c2", { ar2en: onlyOnce() })];
+  const after = [standingAt("c1", { ar2en: upAt() }), standingAt("c2", { ar2en: upAt() })];
+  assert.deepEqual(movesAmong(before, after, [{ id: "c1" }], settings), [{ id: "c1", move: "up" }],
+    "the card that was not marked is not reported, however it stands");
+  assert.equal(movesAmong(before, after, [{ id: "c1" }, { id: "c2" }], settings).length, 2);
+  /* A card named by a mark and no longer in the collection — withdrawn
+     while it was on screen — is passed over rather than crashing. */
+  assert.deepEqual(movesAmong(before, after, [{ id: "gone" }], settings), []);
+});
+
+test("a card that moves twice in one sitting is one piece of news, and the larger one", () => {
+  const had = mergeMoves([], [{ id: "c1", move: "up" }, { id: "c2", move: "up" }]);
+  assert.equal(had.length, 2);
+  const then = mergeMoves(had, [{ id: "c1", move: "cleared" }]);
+  assert.deepEqual(then, [{ id: "c1", move: "cleared" }, { id: "c2", move: "up" }],
+    "kept in the order they first moved, at the largest thing that happened");
+  /* And never downgraded: a later answer on a cleared card does not put
+     it back to a rung. */
+  assert.deepEqual(mergeMoves(then, [{ id: "c1", move: "up" }])[0], { id: "c1", move: "cleared" });
+  assert.deepEqual(mergeMoves(then, [{ id: "c1", move: "learnt" }])[0], { id: "c1", move: "learnt" });
+});
+
+/* ------------------------------------------------------------------
+   What today and this week came to
+
+   Two lines above the ladder. The tiles under them are a stock-take and
+   say nearly the same thing on a hard day as on an idle one; these say
+   what changed, which is what somebody opening the tab after a session
+   is actually asking.
+   ------------------------------------------------------------------ */
+
+test("a count of nought is left out of the sentence, and all three leave nothing", () => {
+  assert.equal(saidMoves({ up: 3, cleared: 1, learnt: 2 }), "3 cards moved up, 1 cleared, 2 learnt");
+  assert.equal(saidMoves({ up: 0, cleared: 0, learnt: 2 }), "2 learnt",
+    "a quiet kind is not reported as a nought");
+  assert.equal(saidMoves({ up: 1, cleared: 0, learnt: 0 }), "1 card moved up", "and one card is one card");
+  assert.equal(saidMoves({ up: 0, cleared: 0, learnt: 0 }), "",
+    "nothing at all is nothing to say — which is what keeps the line off a quiet day");
+});
+
+test("a week is the sum of its days, and a missing day is nought rather than a crash", () => {
+  const moves = {
+    "2026-09-20": { up: 3, cleared: 1, learnt: 0 },
+    "2026-09-18": { up: 2, cleared: 0, learnt: 1 },
+  };
+  assert.deepEqual(sumMoves(moves, ["2026-09-20"]), { up: 3, cleared: 1, learnt: 0 });
+  assert.deepEqual(sumMoves(moves, ["2026-09-20", "2026-09-19", "2026-09-18"]),
+    { up: 5, cleared: 1, learnt: 1 }, "the day in between is simply absent");
+  assert.deepEqual(sumMoves(undefined, ["2026-09-20"]), { up: 0, cleared: 0, learnt: 0 },
+    "and a document written before any of this was recorded reads as nothing");
 });

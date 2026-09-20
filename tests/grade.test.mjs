@@ -451,3 +451,99 @@ test("a sentence's own record of what filled it does not reach the words it borr
   assert.ok(keyOf(graded[1].forms[0], "ar2en"), "but is credited for the answer");
   assert.equal(keyOf(graded[1].forms[0], "ar2en").right, 1);
 });
+
+/* ------------------------------------------------------------------
+   Climbed, and then learnt
+
+   The ladder is climbed by answering: two right in a row on every
+   exercise below opens the level above, and an evening's work can take a
+   card all the way up. What it cannot do is make the card *learnt* —
+   that asks two more answers, each given when the question came round of
+   its own accord. This is where those are counted.
+   ------------------------------------------------------------------ */
+
+/* One exercise on each level, which is what a plain word climbs with. */
+const RUNGS = ["ar2en", "match", "tr2ar", "en2ar"];
+/** Right twice running, and due. */
+const up = (/** @type {Record<string, any>} */ over = {}) => ({
+  ...inReview(3), hist: [1, 1], passes: 0, ...over,
+});
+/** A climbed card: every rung solid. @returns {any} */
+const climber = (/** @type {Record<string, any>} */ over = {}) =>
+  card({ forms: [{ id: "k", ar: "كِتاب", en: "book", lat: "kitaab",
+    s: Object.fromEntries(RUNGS.map((t) => [t, up()])), ...over }] });
+const rightNow = (/** @type {string} */ type, /** @type {any[]} */ items, /** @type {any} */ at = clock) =>
+  wrote(items, [{ id: "k", subId: null, rating: "good", correct: true, advance: true }],
+    { type, clock: at, keysOf: () => RUNGS });
+
+test("a pass is counted on the top of a climbed card's ladder, and nowhere else", () => {
+  const out = rightNow("en2ar", [climber()]);
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes, 1, "the top rung, answered on time");
+  /* A rung below the top is not what the passes are counted on: the other
+     questions keep coming round, and getting one right is not a return on
+     the word being written from its meaning. */
+  const lower = rightNow("ar2en", [climber()]);
+  assert.equal(keyOf(lower[0].forms[0], "ar2en").passes || 0, 0);
+});
+
+test("a card that has not climbed makes no passes, however well it is answered", () => {
+  /* The writing answered right on a card whose reading is still one
+     answer old: the card is not up its ladder, so nothing is being kept
+     yet. */
+  const partway = card({ forms: [{ id: "k", ar: "كِتاب", en: "book", lat: "kitaab",
+    s: { ar2en: { ...inReview(3), hist: [1] }, match: up(), tr2ar: up(), en2ar: up() } }] });
+  const out = rightNow("en2ar", [partway]);
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes || 0, 0);
+});
+
+test("the answer that finishes a climb is part of the climb, not the first pass of it", () => {
+  /* One right answer on the top rung so far: this answer is what makes it
+     solid, and the card climbed. It must not also count as a return. */
+  const nearly = card({ forms: [{ id: "k", ar: "كِتاب", en: "book", lat: "kitaab",
+    s: { ar2en: up(), match: up(), tr2ar: up(), en2ar: { ...inReview(1), hist: [1] } } }] });
+  const out = rightNow("en2ar", [nearly]);
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes || 0, 0, "climbed today, kept on no day");
+});
+
+test("practising early is counted and makes no pass", () => {
+  /* The rule that stops the whole thing being crammed, and it is the same
+     line that already stops a drilled card inflating its own gaps: an
+     answer given before the question came round moves nothing. */
+  const early = { now: () => T - 2 * DAY, random: () => 0.5 };
+  const out = rightNow("en2ar", [climber()], early);
+  const after = keyOf(out[0].forms[0], "en2ar");
+  assert.equal(after.passes || 0, 0, "no pass for a question gone looking for");
+  assert.equal(after.right, 5, "and the answer is still counted");
+});
+
+test("practice never makes a pass either, however due the question was", () => {
+  const out = wrote([climber()],
+    [{ id: "k", subId: null, rating: "good", correct: true, advance: false }],
+    { type: "en2ar", clock, keysOf: () => RUNGS });
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes || 0, 0);
+});
+
+test("a miss puts the passes back to nought", () => {
+  const made = climber();
+  made.forms[0].s.en2ar = up({ passes: 1 });
+  const out = wrote([made],
+    [{ id: "k", subId: null, rating: "again", correct: false, advance: true }],
+    { type: "en2ar", clock, keysOf: () => RUNGS });
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes, 0);
+});
+
+test("two passes and no more: the count stops where the badge does", () => {
+  const made = climber();
+  made.forms[0].s.en2ar = up({ passes: 2 });
+  const out = rightNow("en2ar", [made]);
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes, 2);
+});
+
+test("with no ladder handed in, nothing counts towards a pass", () => {
+  /* The safe way round: a caller that does not say what the card climbs
+     with cannot make a pass appear by accident. */
+  const out = wrote([climber()],
+    [{ id: "k", subId: null, rating: "good", correct: true, advance: true }],
+    { type: "en2ar", clock });
+  assert.equal(keyOf(out[0].forms[0], "en2ar").passes || 0, 0);
+});

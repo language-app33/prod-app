@@ -511,3 +511,46 @@ test("work set aside when a card went away is kept by whichever device saw it go
     "and one set aside longer ago than a headstone lasts is let go");
   assert.deepEqual(mergeData(out, theirs).parked, out.parked, "merging is idempotent");
 });
+
+/* ------------------------------------------------------------------
+   What the ladder did, merged
+
+   The one record in the document of *change* rather than of where things
+   stand, which means it is also the one that cannot be checked against
+   the cards afterwards. So the merge has to be the kind that survives
+   being run twice — the same rule the activity log beside it uses.
+   ------------------------------------------------------------------ */
+
+const moved = (/** @type {Record<string, any>} */ moves) => doc([], { moves });
+
+test("a day's movement takes the larger of two devices, never the sum", () => {
+  /* The same evening synced twice must not read as twice the evening.
+     Adding them is the obvious rule and the wrong one: a phone that syncs
+     three times would triple a day nobody worked harder on. */
+  const phone = moved({ "2026-09-20": { up: 3, cleared: 1, learnt: 0 } });
+  const laptop = moved({ "2026-09-20": { up: 2, cleared: 1, learnt: 2 } });
+  const both = mergeData(phone, laptop).moves || {};
+  assert.deepEqual(both["2026-09-20"], { up: 3, cleared: 1, learnt: 2 },
+    "each count taken on its own merits");
+  /* Idempotent, and the same answer whichever way round. */
+  assert.deepEqual((mergeData(mergeData(phone, laptop), laptop).moves || {})["2026-09-20"],
+    { up: 3, cleared: 1, learnt: 2 }, "merging twice changes nothing");
+  assert.deepEqual((mergeData(laptop, phone).moves || {})["2026-09-20"],
+    { up: 3, cleared: 1, learnt: 2 }, "and neither side is privileged");
+});
+
+test("a day only one device recorded survives the merge either way round", () => {
+  const tuesday = moved({ "2026-09-15": { up: 4, cleared: 0, learnt: 1 } });
+  const empty = doc([]);
+  assert.deepEqual((mergeData(empty, tuesday).moves || {})["2026-09-15"],
+    { up: 4, cleared: 0, learnt: 1 });
+  assert.deepEqual((mergeData(tuesday, empty).moves || {})["2026-09-15"],
+    { up: 4, cleared: 0, learnt: 1 });
+});
+
+test("a document written before any of this was recorded merges to nothing rather than crashing", () => {
+  /* Every field of an arriving document is optional, because one written
+     a year ago carries only what existed then. */
+  const old = /** @type {any} */ ({ version: 3, items: [], tombstones: {}, log: {} });
+  assert.deepEqual(mergeData(doc([]), old).moves, {});
+});

@@ -11,7 +11,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { spellRuns } from "../src/spelling.ts";
+import { TYPO_MIN_LETTERS, spellDistance, spellRuns, typoed } from "../src/spelling.ts";
 import { LANGUAGES } from "../src/languages.ts";
 import { must } from "./helpers.mjs";
 
@@ -176,4 +176,66 @@ test("every character comes back, in order, whatever was marked", () => {
       `theirs: ${expected}`,
     );
   }
+});
+
+/* ------------------------------------------------------------------
+   One letter out is a slip of the finger
+
+   The benefit of the doubt, and deliberately a narrow one: the question
+   is asked again rather than counted as a miss, so a mistyped letter
+   cannot put a card's passes back to nought and cost four days. What is
+   checked here is mostly where the doubt runs out — two letters, and
+   short words, where one letter is a different word rather than a slip.
+   ------------------------------------------------------------------ */
+
+/** Whether a language would read this answer as a typo. */
+const slip = (
+  /** @type {any} */ lang,
+  /** @type {string} */ given,
+  /** @type {string | string[]} */ expected,
+  /** @type {any} */ settings = {},
+) => typoed(given, expected, foldOf(lang, settings));
+
+test("a typo is one letter out, in any of the three ways a letter goes wrong", () => {
+  /* كِتاب — four letters, so long enough for one of them to be a slip. */
+  assert.equal(slip(ar, "كتاب", "كتاب"), false, "a right answer is not a typo");
+  assert.equal(slip(ar, "كتاث", "كتاب"), true, "one letter written in place of another");
+  assert.equal(slip(ar, "كتا", "كتاب"), true, "one letter left out");
+  assert.equal(slip(ar, "كتااب", "كتاب"), true, "one letter too many");
+  assert.equal(slip(ar, "كثاث", "كتاب"), false, "two letters out is not a typo");
+  assert.equal(slip(ar, "", "كتاب"), false, "and nothing written is not a typo either");
+});
+
+test("the doubt runs out on a short word, where one letter is a different word", () => {
+  /* بيت — three letters. One of them is a third of the word, and this
+     script is full of three-letter words a letter apart. */
+  assert.equal(slip(ar, "بنت", "بيت"), false, "three letters is under the bar");
+  assert.equal(slip(ar, "كتاب", "كتاث"), true, "four is over it");
+  assert.equal(TYPO_MIN_LETTERS, 4);
+  /* And the bar is the *answer's* length, not the typed word's — which is
+     what keeps a letter left out of a four-letter word a typo, since what
+     is on the screen is then three letters long. */
+  assert.equal(slip(ar, "كتا", "كتاب"), true);
+});
+
+test("what counts as a letter is the language's own fold, here as everywhere", () => {
+  /* Harakat fold to nothing, so they neither lengthen a word nor count as
+     a letter to get wrong: a spelling right in its letters and wrong in
+     its marks is nought letters out, which is the near miss the pack
+     already has a verdict for and not a typo. */
+  assert.equal(slip(ar, "كِتاب", "كتاب"), false, "harakat are not a letter out");
+  assert.equal(slip(ar, "كَتاث", "كتاب"), true, "and do not stop the letter under them being one");
+  /* Vietnamese tones the same way, where the pack folds them. */
+  assert.equal(spellDistance("khống", "không", foldOf(vi, {})), 0,
+    "a tone mark folds away, so the word is nought letters out");
+  assert.equal(spellDistance("khong", "không", foldOf(vi, {})), 1,
+    "but ô and o are two letters and not one letter marked");
+});
+
+test("the closest accepted spelling is the one judged against", () => {
+  /* A card taking two words is judged on the one the learner was plainly
+     reaching for, as the marking is — not on whichever the teacher typed
+     first. */
+  assert.equal(slip(ar, "سفار", ["كتاب", "سفر"]), false, "two out of the near one, not one out of the far");
+  assert.equal(slip(ar, "كتاث", ["كتاب", "سفر"]), true);
 });

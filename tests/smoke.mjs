@@ -1683,9 +1683,10 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
      They were plain text, so the only way to find out which cards were
      still new was to read every deck. */
   const counts = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll("button.at-rung")]);
-  /* Every card, then one per level of the ladder, then the ones with
-     nothing left to open. They used to be the four maturities. */
-  check("every count at the top is a button", counts.length === 6, `${counts.length} tiles`);
+  /* Every card, then one per level of the ladder, then the ones that have
+     been all the way up, then the ones that have stuck. They used to be
+     the four maturities. */
+  check("every count at the top is a button", counts.length === 7, `${counts.length} tiles`);
   const live = counts.find((b) => !b.disabled);
   check("a count with cards behind it can be pressed", !!live,
     counts.map((b) => `${(b.textContent || "").replace(/\s+/g, " ")}${b.disabled ? " (off)" : ""}`).join(" · "));
@@ -1728,7 +1729,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     document.querySelectorAll(".at-cardgrid .at-minicard").length === 0,
     `${document.querySelectorAll(".at-cardgrid .at-minicard").length} still up`);
   check("which brings the tiles back",
-    document.querySelectorAll("button.at-rung").length === 6,
+    document.querySelectorAll("button.at-rung").length === 7,
     `${document.querySelectorAll("button.at-rung").length} tiles`);
 
   /* ---- the tiles say what a level asks, not what number it is ----
@@ -1738,11 +1739,20 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
   {
     const named = counts.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim());
     check("every tile says what its level asks, in words",
-      counts.length === 6 && named.every((t) => /[A-Za-z]{3}/.test(t)) &&
+      counts.length === 7 && named.every((t) => /[A-Za-z]{3}/.test(t)) &&
         !named.some((t) => /^\d+\s*Level \d+$/.test(t)),
       named.join(" · "));
     check("in the same words a card's own screen uses",
       named.some((t) => /What it means/.test(t)) && named.some((t) => /Learnt/.test(t)),
+      named.join(" · "));
+    /* Cleared stands between the top level and Learnt, which is the whole
+       reason it exists: a card worked all the way up tonight used to be
+       filed under "write it from its meaning" beside cards that had only
+       just reached that rung. */
+    check("and a card up its whole ladder is counted apart from one still on the top rung",
+      named.findIndex((t) => /Cleared/.test(t)) ===
+        named.findIndex((t) => /Learnt/.test(t)) - 1 &&
+        named.some((t) => /Cleared/.test(t)),
       named.join(" · "));
     check("and each carries a drawing of what it asks",
       counts.every((b) => !!b.querySelector("svg")),
@@ -3654,16 +3664,41 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
     "the input's value descriptor",
   ).set;
-  /* كتاب with its last letter written wrong: one letter out of four, which
-     is what a real misspelling looks like and what the marking calls a near
-     miss. */
-  must(setValue, "the input's value setter").call(box, "كتاف");
-  if (box) box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  /* One letter out of four is a typo, and since 0.202 a typo is not marked
+     at all: the question is asked again, once, and the second try is what
+     counts. So the first attempt here is spent on the benefit of the
+     doubt — and on checking that the app does not point at the letter
+     while the retry is still to come, which would make the retry a
+     copying exercise. */
+  const typeIn = (/** @type {string} */ word) => {
+    must(setValue, "the input's value setter").call(box, word);
+    if (box) box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  typeIn("كتاف");
   await sleep(60);
   click(buttonNamed(/^Check$/));
   await sleep(350);
 
   const spelt = () => /** @type {any} */ (document.querySelector('[data-el="answer-spelt"]'));
+  check("one letter out is given the benefit of the doubt and asked again",
+    !!document.querySelector('[data-el="answer-input"]') && !document.querySelector('[data-el="verdict"]'),
+    document.querySelector('[data-el="verdict"]')
+      ? `marked instead: ${(document.querySelector('[data-el="verdict"]') || {}).textContent}`
+      : "asked again");
+  check("and the retry is not told which letter was wrong",
+    !spelt(),
+    spelt() ? `marked: ${(spelt().textContent || "").trim()}` : "nothing pointed at");
+  check("with the box emptied to write it again",
+    ((/** @type {any} */ (document.querySelector('[data-el="answer-input"]')) || {}).value || "") === "",
+    `"${(/** @type {any} */ (document.querySelector('[data-el="answer-input"]')) || {}).value}"`);
+
+  /* Wrong a second time, and now it is a miss with the full marking under
+     it — which is the behaviour every check below was written for. */
+  typeIn("كتاف");
+  await sleep(60);
+  click(buttonNamed(/^Check$/));
+  await sleep(350);
+
   const marksIn = (/** @type {Element | null} */ el) =>
     [...(el ? el.querySelectorAll("mark.at-spellwrong") : [])]
       .map((m) => (m.textContent || "").trim());

@@ -8,6 +8,93 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.203 — 20 September 2026
+
+**The app now says what your session moved.**
+
+A card takes days to reach the top of its ladder and four more to be
+learnt, so a screen that only says where your cards *stand* says almost
+the same thing on the evening you work hard as on the day you do nothing.
+Four changes, and between them something visible moves in every session.
+
+**"Climbed" is now "Cleared."** The word for a card that has been all the
+way up its ladder but not yet come back twice to prove it stuck. The rule
+is exactly as it was; the word is better.
+
+**Cleared has its own count in Progress**, between the top level and
+Learnt. A card you worked all the way up tonight used to sit in the same
+pile as one that had only just reached the last rung, so the number that
+moved on the evening you did the work was indistinguishable from the
+number that did not. It is the one milestone effort buys on the day it is
+spent, and it was invisible.
+
+**The screen at the end of a session says what moved** — the cards that
+went up a level, cleared, or were learnt, each saying where it got to:
+
+> **airport** — cleared
+> **key** — up to writing it from a cue
+
+Four at most, the biggest news first, and the rest counted. When nothing
+moved, nothing is shown: the line above it already says the true thing,
+which is that your gaps grew.
+
+**And Progress opens with what today and this week came to** — *Today — 3
+cards moved up, 1 cleared*. A line with nothing to say is left out, so a
+quiet day shows nothing rather than a row of noughts, and the week is left
+out when it would only repeat the day.
+
+Two smaller things that came with it. A day is now **your** day rather
+than Greenwich's, so an evening session west of London is no longer filed
+under tomorrow — which nothing showed before and everything shows now.
+And a card that merely becomes practisable, because a teacher added the
+material, is no longer reported as having moved up a level.
+
+## 0.202 — 20 September 2026
+
+**An evening's work now moves a word. Keeping it still takes days.**
+
+A word climbed its four levels at the speed of a calendar and not at the
+speed you worked. Each level waited on a gap — a day below, four days
+before the app would ask you to write a word from its meaning — so the
+fastest anyone could finish a word was about eight days, and a whole
+evening spent on one bought nothing a week of idleness would not have
+given you anyway. That is the wrong bargain for an app you open when you
+have time.
+
+So the ladder is climbed by answering now: **get a question right twice
+running and the level above it opens**, whatever the clock says. Sit down
+for an evening and a word can go all the way to the top in one sitting.
+Getting a question wrong twice running still shuts the levels above it,
+exactly as before, and one miss is still forgiven — it is the same
+sentence read from the other end.
+
+What the waiting was protecting has not been given up; it has moved to
+where it means more. A word that has been all the way up is now
+**Climbed**, and it is not **Learnt** until it has come back **twice** of
+its own accord and been answered right. Those two returns sit behind the
+ordinary gaps, so they take about four days and cannot be hurried:
+practising a card again the same evening counts, as it always has, and
+makes no return. Effort buys the climb; time buys the keeping.
+
+The card's own screen says which it is and what is left — *Climbed · 2
+reviews to go*. A word that slips back down the ladder stops being learnt
+until it is recovered, and its returns are waiting for it when it is.
+
+**And one letter out is now treated as a typo.** On a word of four
+letters or more, an answer a single letter off — one wrong, one missing,
+one too many — is not marked against you. The question is simply asked
+again. Two letters out is still a miss, and on a short word one letter is
+a different word rather than a slip, so those are unchanged. The second
+try does not show you which letter was wrong: that marking is what the
+app is for on a script you are still learning, and showing it before the
+retry would turn the retry into copying. Get it wrong again and the full
+side-by-side marking is there as usual.
+
+Nothing about how much you are asked has changed. Every question keeps
+its own timing and comes round on its own; a card working through its two
+returns is simply dealt the question those returns depend on first, so
+the word is not held back waiting for the right question to come up.
+
 ## 0.201 — 19 September 2026
 
 **Fixed: a saved verb stopped saying what kind of word it was.**

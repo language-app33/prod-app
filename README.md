@@ -22,18 +22,48 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   | 3 | write it from a cue | {translit} → script · listen → script · listen → tone · choose the reply · put a scene in order |
   | 4 | write it from its meaning | English → script · fill the gap · phrase heard → script |
 
-  Levels 2 and 3 open on *graduated* — through the learning steps and in
-  review, at whatever interval. Both are still cued: the word is on the
-  screen to be told apart, or its pronunciation is, and neither asks for
-  recall from the meaning alone. Level 4 opens on *mastered* — in review,
-  with an interval of at least four days — so the strict bar stands where
-  writing from memory begins. A level a card has no material for is passed
-  straight through. Missing a question below twice running — wrong, seen
-  again, wrong again — closes the levels above until it is recovered; a
-  single miss is forgiven, and `holding` in the scheduler is the whole of
-  that. Each exercise declares its own level in `src/languages.ts`
-  and each level its own bar, in `LEVEL_BARS` beside them; `openTypes` in
-  the scheduler reads both.
+  **A level opens on two right answers in a row**, and closes on two
+  wrong. One rule for all four, read off the record of outings rather than
+  off any gap: `solid` in the scheduler, which is `missedTwice` walked the
+  other way. So one miss is forgiven — wrong, seen again, wrong again is
+  what shuts the levels above until it is recovered — and a whole ladder
+  can be climbed in one sitting. A level a card has no material for is
+  passed straight through. Each exercise declares its own level in
+  `src/languages.ts`; `openTypes` in the scheduler reads them.
+
+  **Clearing a card is bought with effort; keeping it is bought with
+  time.** They used to be one thing. Every level waited on an interval — a
+  day below, four days before the writing — so the ladder could only be
+  climbed at the speed a calendar allows, eight days was the floor for
+  anybody, and an evening's work bought nothing. The gap has not gone; it
+  is asked *after* the climb instead, where it means the most. A form that
+  has been up every level it has is **cleared**; it is **learnt** once every
+  exercise on the top of its own ladder has been answered right twice
+  more, each time on a question that came round of its own accord.
+  `cleared`, `passesMade` and `learnt` in the scheduler, counted in
+  `markedState` and gated on `cameRound` — the same line that already
+  stops an early answer growing a gap, which is why no amount of practice
+  in one evening can make a pass. Two passes: `PASSES_TO_LEARN`.
+
+  The top of a form's ladder is the form's own, read with `topLevelOf`
+  rather than from `TOP_LEVEL`, so a conversation that tops out at putting
+  a scene in order makes its passes there. Counting them at the top alone
+  is what keeps the badge off the deal of the cards — a session hands a
+  card two of its eight questions, so waiting on all of them would land
+  "learnt" whenever the last straggler happened to come up. What makes
+  that safe is that the rest of the ladder is still asked and still
+  counted: missing one of those twice running takes the card back off
+  cleared, and it stops being learnt until it is recovered. Its passes are waiting for it
+  when it is.
+
+  **One letter out is a typo, not a miss.** On an answer of four letters or
+  more — measured in the language's own letters — a spelling a single
+  letter off is not marked at all: the question is asked again, once, and
+  what counts is the second try. `typoed` in `src/spelling.ts`, and
+  `TYPO_MIN_LETTERS` for why three-letter words are left out of it, this
+  being a script full of them that are one letter apart. The retry does
+  not show which letter was wrong; the marking below is what it would
+  show, and showing it first would make the retry a copying exercise.
 
   **A misspelt answer says which letter.** "Not quite" and the word
   underneath is a true thing to say and a poor thing to learn from: on a
@@ -62,15 +92,36 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
 
   **The same ladder is what a learner is shown.** `standings` in the
   scheduler reads a card as one row per level it has material on, each
-  *not started*, *learning*, *done* or *paused* — paused being a level
-  that had opened and has been shut again by a question further down being
-  missed twice running, which is the one thing about the ladder nobody
-  could otherwise make sense of. A
+  *not started*, *learning*, *cleared*, *done* or *paused* — paused being
+  a level that had opened and has been shut again by a question further
+  down being missed twice running, which is the one thing about the ladder
+  nobody could otherwise make sense of. A
   level is *done* exactly when `openTypes` opens the one above it, so the
   screen and the scheduler cannot come to disagree; a test walks every
-  combination to hold them together. `standing` picks the one row to put
-  on a card. The Progress tab counts cards by level, and a card's own
-  screen lists them.
+  combination to hold them together. The top row is the one exception,
+  having nothing above it to open: it is *cleared* until the card's passes
+  are made and *done* — learnt — after, and it carries how many of them
+  there are, so one line can say *Cleared · 2 reviews to go*. `standing`
+  picks the one row to put on a card. The Progress tab counts cards by
+  level — with cleared a tile of its own between the top level and learnt,
+  so the one milestone an evening's work buys is not hidden inside the
+  rung below it — and a card's own screen lists them.
+
+  **And what changed is shown as well as where things stand.** A ladder
+  that takes days to climb and four more to keep makes a stock-take say
+  nearly the same thing on a hard day as on an idle one, so the app also
+  says what *moved*: `movedTo` in the scheduler judges one card across one
+  answer, from the same standing every screen reads, and reports it as up
+  a level, cleared or learnt — never as slipping, which is the card's own
+  screen's to say, as *paused*. `movesAmong` runs it over the cards an
+  answer marked, which is the only moment both the before and the after
+  exist; afterwards nothing on a card records the day it moved. It feeds
+  two things at once: the screen at the end of a session, which lists them
+  and is absent altogether when nothing moved, and `moves` on the
+  document — a count per day, beside the activity log and merged the same
+  way, which is what lets Progress open with what today and this week came
+  to. `dayKey` is the learner's own day now rather than Greenwich's, which
+  the note over it had been asking of whoever first read the log back.
 
   **And it is the first thing the home screen shows.** `Climb`, above Start
   session, draws the same ladder in one line: a ring of how much of the

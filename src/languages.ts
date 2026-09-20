@@ -3375,61 +3375,28 @@ export function keysFor(form: WithAnswers | null | undefined, type: string): str
 }
 
 /*
- * What a level asks of the levels below it before it opens.
+ * The top of the ladder.
  *
- * *Graduated* is through the learning steps and in review at all;
- * *mastered* is in review with four days of interval or more, which is a
- * further right answer the next day and another a few days after that.
+ * There was a table of bars here, saying what each level asked of the
+ * levels below it before it opened: through the learning steps for the
+ * cued levels, four days of interval for writing from the meaning. It is
+ * gone, and one rule stands in its place — **a level opens when every
+ * exercise below it has been answered right twice running** — which lives
+ * in `solid` in the scheduler because it is read off the record of
+ * answers rather than off anything a language declares.
  *
- * The two cued levels — telling a word apart from others, and writing it
- * from a pronunciation or a recording that carries it — open on
- * graduated, the way the matching grid has since 0.85 and for the same
- * reason. Asking a four-day interval of every recognition exercise first
- * meant four right answers each, three days at the very fastest, and in
- * practice a week or more of a card being asked nothing but which of
- * four: new cards went on arriving at the bottom while nothing climbed,
- * which is the passive-vocabulary plateau written into the schedule. A
- * cued question is not recall from the meaning alone, and a first
- * fortnight that never asks for the word is the wrong fortnight.
- *
- * Level four keeps the four-day bar, so the strict gate stands exactly
- * where production from the meaning alone begins — the one place where
- * opening early means asking for something that has not been taught yet.
- * Missing a question below twice running still closes the levels above,
- * because graduated is false in relearning — see `holding` in the
- * scheduler, which is what forgives the first miss.
- *
- * Written once per level rather than on each exercise. It was on each of
- * them for a day: nine declarations of one fact, kept in step by a test,
- * with the level-one entries saying "mastered" for a bar nothing reads and
- * `openTypes` quietly taking the loosest of whatever a card happened to
- * carry — so a card whose only level-two exercise was the gap-fill could
- * climb by a stricter rule than the card beside it. Level 1 is here for
- * completeness; nothing stands below it, so it opens from the first
- * session whatever it says.
+ * What the four-day bar was protecting has not been given up. It was the
+ * only thing standing between a learner and the top of a ladder they had
+ * met that morning, and it did that job by making the whole climb wait on
+ * a calendar: eight days was the floor for anybody, however hard they
+ * worked, because the bar under the writing and the bar on the writing
+ * ran end to end. So it now stands *after* the climb instead of inside
+ * it, as the two passes a card makes before it counts as learnt — see
+ * `passesMade` in the scheduler. Effort buys the climb; the gap is what
+ * buys the keeping, and it is also still what lets a new word out of the
+ * front door.
  */
-/* The top of the ladder, read off the bars rather than written down twice:
-   a fifth level would be a line in the table below and nothing else. */
 export const TOP_LEVEL = 4;
-
-export const LEVEL_BARS: Record<number, "graduated" | "mastered"> = {
-  1: "graduated",
-  2: "graduated",
-  3: "graduated",
-  4: "mastered",
-};
-
-/* And what the levels below an exercise must reach for it to open, which
-   is the bar of the level it stands on. */
-export const barOf = (key: string): "graduated" | "mastered" => LEVEL_BARS[levelOf(key)] || "mastered";
-
-/* Read the other way round: what a level has to reach to be done with —
-   which is whatever the level above it asks of everything below. The top of
-   the ladder has nothing above it and asks the strictest the app has, so
-   "done" means the same thing there as everywhere else: nothing is left to
-   open, and the card is learnt. */
-export const barAfterLevel = (level: number): "graduated" | "mastered" =>
-  LEVEL_BARS[level + 1] || "mastered";
 
 /* How every language marks what is typed, gathered into the one flat
    record the settings are stored as and the pack `check` functions read. */

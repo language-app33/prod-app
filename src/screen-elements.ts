@@ -19,6 +19,7 @@
 export const BOTH = "On both screens";
 export const QUESTION = "The question screen";
 export const ANSWER = "The answer screen";
+export const END = "The screen at the end";
 
 /* [name, what it is, an example of what it holds] */
 export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
@@ -92,6 +93,9 @@ export const SCREEN_ELEMENTS: [string, [string, string, string][]][] = [
     ["flag-note", "The lower half of Something else — the problem in your own words, there from the start.", ""],
     ["flag-note-input", "The box you type it into. Nothing is sent until there is something in it.", ""],
     ["continue-button", "The way on, in the bar at the foot.", "Continue"],
+  ]],
+  [END, [
+    ["what-moved", "The cards this sitting moved up a level, cleared, or learnt — left out altogether when none did.", "airport — learnt · key — up to writing it from a cue"],
   ]],
 ];
 
