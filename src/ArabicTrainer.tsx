@@ -184,10 +184,14 @@ import {
   teachesNumbers,
 } from "./numbers.ts";
 import {
+  climbed,
   formatGap,
   freshState,
   hasLevelAbove,
+  learnt,
   liftLevel,
+  topLevelOf,
+  PASSES_TO_LEARN,
   freshStates,
   isAsked,
   itemDifficulty as itemDifficultyOf,
@@ -247,7 +251,7 @@ import {
 } from "./answers.ts";
 import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
-import { spellRuns } from "./spelling.ts";
+import { spellRuns, typoed } from "./spelling.ts";
 import type { Run } from "./spelling.ts";
 
 /*
@@ -418,6 +422,7 @@ const LADDER_TILES: { key: string; label: string; icon: string }[] = [
 const STATUS_LABEL: Record<string, string> = {
   none: "Not started",
   learning: "Learning",
+  climbed: "Climbed",
   done: "Done",
   paused: "Paused",
 };
@@ -453,6 +458,11 @@ const CLIMB_COLOR: string[] = [
 const STATUS_COLOR: Record<string, string> = {
   none: "var(--muted)",
   learning: "var(--brass)",
+  /* Climbed borrows the top level's colour rather than the finished one.
+     It is the last rung reached and not the badge, and painting it jade
+     would tell a learner they were done with a word the app is still
+     checking. */
+  climbed: LEVEL_COLOR[4],
   done: "var(--jade)",
   paused: "var(--rose)",
 };
@@ -474,17 +484,27 @@ const STATUS_COLOR: Record<string, string> = {
  */
 const STATUS_RUNS = [
   { key: "paused", label: STATUS_LABEL.paused },
+  { key: "climbed", label: STATUS_LABEL.climbed },
   { key: "learning", label: STATUS_LABEL.learning },
   { key: "none", label: STATUS_LABEL.none },
 ];
 
-/* What a card's tile and its readout say, from the one standing. "Done"
-   names the whole card rather than a level: there is nothing above it
-   left to open, which is the only sense in which this app finishes a
-   word. */
+/* What a card's tile and its readout say, from the one standing.
+
+   "Learnt" names the whole card rather than a level: the ladder climbed
+   and the passes made, which is the only sense in which this app
+   finishes a word. "Climbed" is the state in between, and it is worth a
+   sentence rather than a word — a learner who has just worked a word all
+   the way up and is told it is not learnt deserves to know what is left,
+   and the answer is two returns and nothing they can do tonight. */
 function standingLabel(at: Standing | null): string {
   if (!at) return "Can't practice yet";
   if (at.status === "done") return "Learnt";
+  if (at.status === "climbed") {
+    return `Climbed · ${PASSES_TO_LEARN - at.passes} ${
+      PASSES_TO_LEARN - at.passes === 1 ? "review" : "reviews"
+    } to go`;
+  }
   return `Level ${at.level} · ${STATUS_LABEL[at.status] || at.status}`;
 }
 
@@ -494,7 +514,9 @@ function standingLabel(at: Standing | null): string {
    Not…", which is a worse answer than the level on its own. */
 function standingShort(at: Standing | null): string {
   if (!at) return "Can't practice yet";
-  return at.status === "done" ? "Learnt" : `Level ${at.level}`;
+  if (at.status === "done") return "Learnt";
+  if (at.status === "climbed") return "Climbed";
+  return `Level ${at.level}`;
 }
 
 /* ------------------------------------------------------------------
@@ -1145,11 +1167,19 @@ const easedTo = (unit: Form, keys: string[]): string[] =>
 /*
  * Which cells those are, across every card in hand.
  *
- * A cell is eased when the form its table hangs off has reached the top of
- * its own ladder. Read off that form rather than off the cell — the same
- * arrangement the gate above makes, and for the same reason: the cell is
- * what is being decided about, so asking it would be asking the answer to
- * write itself.
+ * A cell is eased when the form its table hangs off has been *learnt* —
+ * up its whole ladder and kept there, both passes made. Read off that form
+ * rather than off the cell, which is the same arrangement the gate above
+ * makes and for the same reason: the cell is what is being decided about,
+ * so asking it would be asking the answer to write itself.
+ *
+ * Learnt and not merely climbed, because what this thins out is the
+ * questioning of eight endings on a word the learner already has, and
+ * "already has" is what learnt means. It used to read the top of the
+ * ladder being open, which was the same thing while the ladder itself
+ * waited four days on everything under the writing; now that the ladder
+ * can be climbed in an evening it is not, and easing on the climb would
+ * quietly stop asking about a word met that morning.
  *
  * Read afresh every time, so a lapse on the word puts its cells back on the
  * full ladder — the ladder's own habit, and nothing is lost by it: the keys
@@ -1169,7 +1199,7 @@ export function easedUnits(items: Item[], settings: Settings): Set<string> {
         const mine = cellsIn(card, spec, of);
         if (!mine.length) continue;
         const supported = availableTypes(unit, lang);
-        if (!reachedLevel(supported, (t) => statesOf(unit)[t], TOP_LEVEL)) continue;
+        if (!learnt(supported, (t) => statesOf(unit)[t])) continue;
         for (const cell of mine) out.add(cell.id);
       }
     }
@@ -3088,14 +3118,28 @@ function sceneUnmet(card: Item, settings: Settings) {
  * Without this a unit was always drilled in the first two or three types
  * of the table, and the other half of what a card supports was practised
  * only when those had been answered into the future.
+ *
+ * And one thing ahead of both, for a card that has climbed its ladder and
+ * is making its passes: its top question first. A session hands a unit two
+ * of its questions, so a card with eight of them due has a one-in-four
+ * chance of being asked the one its passes are counted on — and a learner
+ * who sits down once a day would wait days for it to come up, which is
+ * the badge arriving by luck rather than by what they know. It is only an
+ * ordering, and only among what is due: nothing is suppressed, the other
+ * questions are still due and come up in the sittings after this one, and
+ * the same number of questions gets asked either way.
  */
 function pickableTypes(unit: Form, settings: Settings) {
   const types = askableTypes(unit, settings);
   const fresh = types.every((t) => stateOf(unit, t).phase === "new");
+  const ladder = laddered(unit, settings);
+  const passing = climbed(ladder, (t) => stateOf(unit, t));
+  const top = topLevelOf(ladder);
   return inOrder(types, (t) => {
     const ready = stateReady(stateOf(unit, t)) ? 0 : 2;
     const gentle = fresh && !specOf(t).gentle ? 1 : 0;
-    return ready + gentle;
+    const waiting = passing && ready === 0 && levelOf(t) === top ? -1 : 0;
+    return ready + gentle + waiting;
   });
 }
 
@@ -6369,6 +6413,20 @@ export default function ArabicTrainer() {
   const [matched, setMatched] = useState<Record<string, string>>({});
   const [skipped, setSkipped] = useState(false);
   const [overridden, setOverridden] = useState(false);
+  /*
+   * The benefit of the doubt, once per question.
+   *
+   * An answer one letter out of a word long enough for that to be a slip
+   * is not marked at all: the question stays on the screen and is asked
+   * again, and this is what stops it being asked a third time. See
+   * `submit` for the rule and for why the letter is not pointed at while
+   * the second try is still to come.
+   *
+   * Once per question and not once per session, because it is a statement
+   * about *this* answer to *this* question. Cleared with everything else
+   * the question carries, in resetExercise.
+   */
+  const [retried, setRetried] = useState(false);
   const [flaggedNow, setFlaggedNow] = useState(false);
   /* The question the learner said was too easy, whose form has already
      been moved up its ladder — so the grading on Continue leaves that
@@ -7708,6 +7766,7 @@ export default function ArabicTrainer() {
     setMatched({});
     setSkipped(false);
     setOverridden(false);
+    setRetried(false);
     setFlaggedNow(false);
     setEasedFor(null);
     setAlsoOpen(false);
@@ -8194,6 +8253,32 @@ export default function ArabicTrainer() {
   const gridMarks = () =>
     grid.words.map((w) => ({ unit: w, right: (matched[w.id] || "") === String(w.en || "") }));
 
+  /*
+   * Whether this answer is a slip of the finger rather than a miss.
+   *
+   * One letter out of a word of at least four — see `typoed` in
+   * spelling.ts, which owns the rule and counts letters the way the
+   * language does. Only where the answer was typed in the script, which is
+   * the same door the letter-by-letter marking comes through: a meaning
+   * typed in English is already marked on a distance that forgives more
+   * than a letter, and there is no spelling in tapping one of four.
+   *
+   * Not where the answer was put on the screen, or the question skipped.
+   * A learner who has been shown the word and copied it one letter wrong
+   * has not made a typo; they have failed to copy, and a second go at a
+   * word that is still in front of them proves nothing.
+   */
+  const typoNow = (result: { ok?: boolean }) => {
+    if (result.ok || retried || skipped || toldAnswer) return false;
+    if (!spec || spec.answerMode !== "ar" || spec.answerField !== "ar") return false;
+    const fold = qLang.letter;
+    if (!fold) return false;
+    const accepted = answersOf(item, answerFields())
+      .map((a) => a.text)
+      .filter(Boolean);
+    return typoed(typed, accepted, (ch) => fold(ch, qSettings));
+  };
+
   function submit() {
     if (!item || checked) return;
     const result =
@@ -8202,6 +8287,28 @@ export default function ArabicTrainer() {
           ? { ok: true, reason: "exact" }
           : { ok: false, reason: "wrong" }
         : checkAnswer(typed, item, exercise.type, qSettings);
+    /*
+     * One letter out: the question is asked again and nothing is marked.
+     *
+     * The answer is not filed, the schedule does not move, and — where the
+     * card is making its passes — the count of them is not put back to
+     * nought, which is the whole reason this exists. Four days of a
+     * learner's progress should not turn on a mistyped letter.
+     *
+     * **And the letter is not pointed at.** The marking that lines the two
+     * spellings up is the best thing this app does for somebody learning a
+     * script, and showing it here would turn the second try into copying
+     * out a correction. So the second try gets a word and no more; if it
+     * is wrong too, the full marking is there under it, as it always was.
+     */
+    if (typoNow(result)) {
+      setRetried(true);
+      setTyped("");
+      sfx("wrong");
+      flash("Almost — one letter out. Try it again.");
+      if (inputRef.current) inputRef.current.focus();
+      return;
+    }
     sfx(result.ok ? "correct" : "wrong");
     setPairs(relatedWords(asking, qLang, item.ar));
     /* Pinned before the verdict, so what the mark reads is what was on the
@@ -8651,6 +8758,13 @@ export default function ArabicTrainer() {
         type: gradedType,
         level: levelOf(gradedType),
         keepMet: needsMetRecord,
+        /* The ladder each marked form climbs, so a right answer given to
+           a climbed card's top question, when that question came round of
+           its own accord, counts towards the two passes that make it
+           learnt. Per form and not per card, because one answer marks
+           several: a word standing in somebody else's sentence is credited
+           on its own ladder. */
+        keysOf: (unit: Form) => laddered(unit, settings),
         /* The question a lift has already moved up its ladder: answered,
            and neither rewarded nor lapsed. */
         spare: eased ? { id: parentItem.id, subId: exercise.subId || null } : null,
@@ -12895,7 +13009,7 @@ function ProgressTab({ items, myCourses = [], settings }: {
     <>
       <Section
         title="The ladder"
-        lede="Where your cards are on the learning ladder. A card moves up a level when the previous level is mastered."
+        lede="Where your cards are on the learning ladder. A card moves up a level once you have answered everything below it right twice running — and counts as learnt once it has come back twice since and you were right."
       >
 
       {/* A number you want to see the cards behind is a number worth

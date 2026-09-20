@@ -767,7 +767,10 @@ test("the count beside the button and the session it opens are the same test", (
 /** A schedule that is long since done, for opening a table's gate. */
 const mature = () => ({
   phase: "review", step: 0, ease: 2.5, interval: 30, due: Date.now() + 30 * 86400000,
-  reps: 9, lapses: 0, right: 9, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1], updated: 1,
+  reps: 9, lapses: 0, right: 9, wrong: 0, skips: 0, near: 0, hints: 0,
+  /* Right twice running and both passes made: up the ladder and kept
+     there, which is what the gates on a table's cells read. */
+  hist: [1, 1], passes: 2, updated: 1,
 });
 
 /** The form a question is actually asked of, filled in as the app fills it. */

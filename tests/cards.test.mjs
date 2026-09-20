@@ -1168,9 +1168,13 @@ test("a known word's cells are asked one exercise a level", () => {
  */
 const settings = { language: "ar-PS", kinds: {} };
 /** @param {string} phase @param {number} interval */
-const state = (phase, interval) => ({
+/* Right twice running, which is what the ladder reads — see `solid` in
+   the scheduler. The interval is still here because other things read it;
+   the ladder itself no longer does. */
+const state = (phase, interval, over = {}) => ({
   phase, step: 0, ease: 2.5, interval, due: 0, reps: 3, lapses: 0,
-  right: 3, wrong: 0, skips: 0, near: 0, hints: 0, hist: [], updated: 0,
+  right: 3, wrong: 0, skips: 0, near: 0, hints: 0, hist: [1, 1], passes: 0, updated: 0,
+  ...over,
 });
 /** Every exercise a form could be asked, at one standing. */
 const allAt = (/** @type {any} */ s) =>
@@ -1220,10 +1224,11 @@ test("a form's pronouns wait on that form, not on the card's own word", () => {
  */
 test("a known word's cells are eased, and only those", () => {
   const learning = easedUnits([bookCard({ s: allAt(state("review", 1)) })], settings);
-  assert.equal(learning.size, 0, "a word merely being reviewed eases nothing");
+  assert.equal(learning.size, 0,
+    "a word up its ladder but still making its passes eases nothing — climbed is not learnt");
 
-  const known = easedUnits([bookCard({ s: allAt(state("review", 40)) })], settings);
-  assert.ok(known.has("s-me"), "the word's own cells are eased once it is mastered");
+  const known = easedUnits([bookCard({ s: allAt(state("review", 40, { passes: 2 })) })], settings);
+  assert.ok(known.has("s-me"), "the word's own cells are eased once it is learnt");
   assert.equal(known.has("p-me"), false, "the plural's are not, the plural not being there yet");
   assert.equal(known.has("pl"), false, "and a form that is not a cell is never eased");
 });
@@ -1252,8 +1257,8 @@ test("an adjective's forms wait on the word, and ease once it is known", () => {
   const warm = quietUnits([bigCard({ s: allAt(state("review", 1)) })], settings);
   assert.equal(warm.has("big-f"), false, "and open with it");
   assert.equal(warm.has("big-pl"), false);
-  const known = easedUnits([bigCard({ s: allAt(state("review", 40)) })], settings);
-  assert.ok(known.has("big-f") && known.has("big-pl"), "eased once the word is mastered");
+  const known = easedUnits([bigCard({ s: allAt(state("review", 40, { passes: 2 })) })], settings);
+  assert.ok(known.has("big-f") && known.has("big-pl"), "eased once the word is learnt");
 });
 
 test("a card carrying two tables is gated on both", () => {

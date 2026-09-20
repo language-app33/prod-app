@@ -46,13 +46,12 @@ await build({
   },
 });
 
-const { buildSession, installIndexes, setOfflineNow, setAudibleClips } = await import(
+const { buildSession, installIndexes, setOfflineNow, setAudibleClips, laddered } = await import(
   path.join(out, "trainer.js")
 );
 const { gradeInto } = await import(path.join(root, "src", "grade.ts"));
-const { mastered, unitsOf, MASTERED_DAYS, FRONT_DOOR_CAP, IN_HAND_CAP } = await import(
-  path.join(root, "src", "scheduler.ts")
-);
+const { mastered, climbed, learnt, unitsOf, MASTERED_DAYS, PASSES_TO_LEARN, FRONT_DOOR_CAP, IN_HAND_CAP } =
+  await import(path.join(root, "src", "scheduler.ts"));
 const { handCounts } = await import(path.join(out, "trainer.js"));
 
 const DAY = 86400000;
@@ -92,7 +91,16 @@ function sitDown(/** @type {any[]} */ items, /** @type {number} */ at, /** @type
   let cards = items;
   for (const ex of built.exercises || []) {
     const marks = [{ id: ex.id, subId: ex.subId || null, rating: "good", correct: true, advance: true }];
-    const next = gradeInto(cards, marks, { type: ex.type, clock, how: {} });
+    /* Handed the ladder, as the app hands it, so the passes that turn a
+       climbed card into a learnt one are counted here too. Without it the
+       simulation would measure the climb and nothing that follows it,
+       which is half of what this release changed. */
+    const next = gradeInto(cards, marks, {
+      type: ex.type,
+      clock,
+      how: {},
+      keysOf: (/** @type {any} */ unit) => laddered(unit, settings),
+    });
     if (next) cards = next;
   }
   return { cards, asked: (built.exercises || []).length };
@@ -113,6 +121,13 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
   const firstSeen = new Map();
   /** @type {Map<string, number>} */
   const mastery = new Map();
+  /* And the two this release is about: the day a card had been up every
+     level it has, and the day it had come back twice since and been kept.
+     Effort is meant to move the first and not the second. */
+  /** @type {Map<string, number>} */
+  const climbedOn = new Map();
+  /** @type {Map<string, number>} */
+  const learntOn = new Map();
 
   for (let d = 0; d < days; d += 1) {
     for (let s = 0; s < sessionsPerDay; s += 1) {
@@ -133,14 +148,41 @@ function live({ cards, days, budget = 18, sessionsPerDay = 1 }) {
           });
           if (all) mastery.set(it.id, d);
         }
+        const up = unitsOf(it).every((/** @type {any} */ u) => {
+          const keys = laddered(u.unit, settings);
+          return keys.length > 0 && climbed(keys, (/** @type {string} */ k) => (u.unit.s || {})[k]);
+        });
+        if (up && !climbedOn.has(it.id)) climbedOn.set(it.id, d);
+        const kept = unitsOf(it).every((/** @type {any} */ u) => {
+          const keys = laddered(u.unit, settings);
+          return keys.length > 0 && learnt(keys, (/** @type {string} */ k) => (u.unit.s || {})[k]);
+        });
+        if (kept && !learntOn.has(it.id)) learntOn.set(it.id, d);
       }
     }
   }
 
   const days_to_master = [...mastery.entries()].map(([id, d]) => d - (firstSeen.get(id) ?? 0));
+  const since = (/** @type {Map<string, number>} */ m) =>
+    [...m.entries()].map(([id, d]) => d - (firstSeen.get(id) ?? 0)).sort((a, b) => a - b);
+  const median = (/** @type {number[]} */ xs) => (xs.length ? xs[Math.floor(xs.length / 2)] : null);
+  const toClimb = since(climbedOn);
+  const toLearn = since(learntOn);
   return {
     met: firstSeen.size,
     mastered: mastery.size,
+    climbed: climbedOn.size,
+    learnt: learntOn.size,
+    medianDaysToClimb: median(toClimb),
+    medianDaysToLearn: median(toLearn),
+    /* The gap between the two, per card: what the passes cost, which is
+       the one thing effort is not allowed to shorten. */
+    medianPassDays: median(
+      [...learntOn.entries()]
+        .filter(([id]) => climbedOn.has(id))
+        .map(([id, d]) => d - (climbedOn.get(id) ?? 0))
+        .sort((a, b) => a - b),
+    ),
     asked,
     /* The number the last attempt at this regressed. */
     medianDaysToMaster: days_to_master.length
@@ -289,4 +331,64 @@ test("and doing too much never beats doing the right amount", () => {
   const peaks = liveKeeping({ cards: courseOf(60), days: 10, sessionsPerDay: 30 });
   assert.ok(peaks.peakFront <= FRONT_DOOR_CAP, `front door reached ${peaks.peakFront}`);
   assert.ok(peaks.peakInHand <= IN_HAND_CAP, `words in hand reached ${peaks.peakInHand}`);
+});
+
+/* ------------------------------------------------------------------
+   Effort buys the climb; time buys the keeping
+
+   The release this was written for split what used to be one thing. A
+   level used to open on a *gap* — through the learning steps below, four
+   days of interval for the writing — so the ladder could only be climbed
+   at the speed a calendar allows and an evening's work bought nothing.
+   Now a level opens on two right answers in a row, and the gap is asked
+   afterwards instead, as the two passes a card makes before it counts as
+   learnt.
+
+   So there are two claims to hold on to, and they pull opposite ways.
+   Practising harder has to move the first. Nothing may move the second.
+
+   These are read as directions rather than as numbers. The session
+   builder shuffles what its ranking calls equal, using the real random
+   rather than the clock handed in, so every figure this file prints moves
+   a little between runs — which is worth knowing before reading any
+   single line of its output as a result.
+   ------------------------------------------------------------------ */
+
+test("practising hard climbs a word faster than practising once a day", () => {
+  const steady = live({ cards: courseOf(60), days: 12, sessionsPerDay: 1 });
+  const keen = live({ cards: courseOf(60), days: 12, sessionsPerDay: 8 });
+  console.log(
+    `    to climb a word: once a day ${steady.medianDaysToClimb}, ` +
+      `eight sittings a day ${keen.medianDaysToClimb} days`,
+  );
+  assert.ok(keen.climbed > 0, "the keen learner climbed nothing in a fortnight");
+  assert.ok(
+    (keen.medianDaysToClimb ?? 99) < (steady.medianDaysToClimb ?? 99),
+    `keen ${keen.medianDaysToClimb} against steady ${steady.medianDaysToClimb}: ` +
+      "an evening's work bought nothing, which is the whole fault this release was for",
+  );
+});
+
+test("and no amount of practice shortens the passes that follow", () => {
+  /*
+   * The other half, and the one that matters more. A pass is counted only
+   * on an answer given when the question came round of its own accord, so
+   * a learner drilling a card all evening cannot make one — and the two
+   * of them sit behind gaps that start at a day and grow. Two reviews is
+   * therefore never less than two days for anybody, and in practice
+   * closer to four.
+   */
+  const keen = live({ cards: courseOf(60), days: 20, sessionsPerDay: 8 });
+  console.log(
+    `    eight sittings a day: climbed ${keen.climbed}, learnt ${keen.learnt}, ` +
+      `median ${keen.medianPassDays} days from climbed to learnt`,
+  );
+  assert.ok(keen.learnt > 0, "nothing was ever kept");
+  assert.ok(
+    (keen.medianPassDays ?? 0) >= PASSES_TO_LEARN,
+    `${keen.medianPassDays} days for ${PASSES_TO_LEARN} passes: a pass was made without a day passing`,
+  );
+  /* And climbed is genuinely ahead of learnt, which is what gives a
+     learner something to see on the day they do the work. */
+  assert.ok(keen.climbed >= keen.learnt, "more words learnt than climbed, which cannot happen");
 });

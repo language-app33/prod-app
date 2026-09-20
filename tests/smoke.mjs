@@ -3654,16 +3654,41 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
     "the input's value descriptor",
   ).set;
-  /* كتاب with its last letter written wrong: one letter out of four, which
-     is what a real misspelling looks like and what the marking calls a near
-     miss. */
-  must(setValue, "the input's value setter").call(box, "كتاف");
-  if (box) box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  /* One letter out of four is a typo, and since 0.202 a typo is not marked
+     at all: the question is asked again, once, and the second try is what
+     counts. So the first attempt here is spent on the benefit of the
+     doubt — and on checking that the app does not point at the letter
+     while the retry is still to come, which would make the retry a
+     copying exercise. */
+  const typeIn = (/** @type {string} */ word) => {
+    must(setValue, "the input's value setter").call(box, word);
+    if (box) box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+  typeIn("كتاف");
   await sleep(60);
   click(buttonNamed(/^Check$/));
   await sleep(350);
 
   const spelt = () => /** @type {any} */ (document.querySelector('[data-el="answer-spelt"]'));
+  check("one letter out is given the benefit of the doubt and asked again",
+    !!document.querySelector('[data-el="answer-input"]') && !document.querySelector('[data-el="verdict"]'),
+    document.querySelector('[data-el="verdict"]')
+      ? `marked instead: ${(document.querySelector('[data-el="verdict"]') || {}).textContent}`
+      : "asked again");
+  check("and the retry is not told which letter was wrong",
+    !spelt(),
+    spelt() ? `marked: ${(spelt().textContent || "").trim()}` : "nothing pointed at");
+  check("with the box emptied to write it again",
+    ((/** @type {any} */ (document.querySelector('[data-el="answer-input"]')) || {}).value || "") === "",
+    `"${(/** @type {any} */ (document.querySelector('[data-el="answer-input"]')) || {}).value}"`);
+
+  /* Wrong a second time, and now it is a miss with the full marking under
+     it — which is the behaviour every check below was written for. */
+  typeIn("كتاف");
+  await sleep(60);
+  click(buttonNamed(/^Check$/));
+  await sleep(350);
+
   const marksIn = (/** @type {Element | null} */ el) =>
     [...(el ? el.querySelectorAll("mark.at-spellwrong") : [])]
       .map((m) => (m.textContent || "").trim());

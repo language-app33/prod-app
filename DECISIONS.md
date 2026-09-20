@@ -2873,3 +2873,116 @@ been dropped from every session while its table sat there full. And a
 teacher opening a verb written before this is asked for a name before they
 can save it again, which is that card being given something to be listed
 as instead of its he-past.
+
+---
+
+## The ladder is climbed by answering, and kept by coming back
+
+**20 September 2026** · `src/scheduler.ts` (`solid`, `climbed`, `passesMade`,
+`learnt`, `cameRound`), `src/grade.ts` (`markedState`), `src/languages.ts`,
+`tests/pace.test.mjs`
+
+A level used to open on a *gap*: through the learning steps for the three
+cued levels, four days of interval before the app would ask a word to be
+written from its meaning alone. It is now two right answers in a row, on
+every exercise below, for all four levels alike — and the gap is asked
+afterwards, as two returns a card makes before it counts as learnt.
+
+**Why.** The gap made the ladder a clock. The four-day bar under the
+writing and the four-day bar on the writing ran end to end, so the fastest
+anybody could finish a word was about eight days however hard they worked,
+and an evening spent on one word bought nothing that a week of doing
+nothing would not have given them anyway. For an app people open when they
+happen to have an hour, that is the wrong bargain: effort has to show on
+the day it is spent, or there is no reason to spend it.
+
+**What was kept.** Everything the gap was actually protecting. A word is
+still not *learnt* until it has come back twice of its own accord and been
+right, and a pass is counted only on an answer given when the question was
+genuinely due — `cameRound`, which is the same test `reschedule` already
+made before growing an interval. So the climb can be crammed and the
+keeping cannot, which is the whole shape of it: **effort buys the climb,
+time buys the keeping.** What lets a new word out of the front door was not
+touched at all and still asks four days of the bottom level (`recognised`),
+so no amount of practice empties the front door faster than it ever did.
+
+**Passes are counted on the top of the ladder alone.** The alternative was
+every question the card has, and it makes the badge hostage to the deal: a
+session hands a card two of its eight questions, so "learnt" would arrive
+whenever the last straggler happened to come up rather than when anything
+was proved. Writing a word from its meaning is the question that subsumes
+the others. What makes it safe rather than merely shorter is that the rest
+of the ladder is still asked and still counted — missing one of those
+twice running un-climbs the card and takes the badge back, and the passes
+are still on it for when it recovers.
+
+**What it cost.** Three things, and the third is the one to watch.
+
+The rule is looser than what it replaced. "Learnt" used to mean every
+exercise on the card had matured; it now means the card is up its ladder
+and its top question has been kept twice. A card can be learnt with a
+listening question that has only ever been answered twice. That is a
+deliberate trade for a badge that arrives when the learner has done
+something rather than when the shuffle gets round to them, and it is
+guarded by the lapse rule above rather than by the badge itself.
+
+Easing moved with it. A word's grammatical cells are thinned to one
+question a level once the word is known, and "known" used to be read as
+the top of the ladder being open — the same thing, while the ladder itself
+waited four days. It is read as `learnt` now. Left alone it would have
+started thinning the questioning of eight endings on a word met that
+morning.
+
+And the pace file is noisier than it looks. `buildSession` shuffles what
+its ranking calls equal using the real random rather than the clock handed
+in, so every number that file prints moves between runs — two identical
+runs of the ninety-day case differed by eight on "mastered" and by two days
+on the median. The measurements added for this release are therefore
+directional: that a keen learner climbs faster than a steady one, and that
+nobody's passes take less than two days. Reading any single figure it
+prints as a result is a mistake, and was nearly made while writing this.
+
+---
+
+## One letter out is a typo, and gets a second try
+
+**20 September 2026** · `src/spelling.ts` (`typoed`, `spellDistance`),
+`src/ArabicTrainer.tsx` (`submit`)
+
+An answer one letter off a word of four letters or more is not marked at
+all. The question is asked again, once, and the second try is what counts.
+
+It exists because of what a miss now costs. A wrong answer puts a card's
+passes back to nought, which is four days of a learner's progress — and a
+mistyped letter on a script keyboard is not forgetting a word. The three
+shapes a slip takes are all of them: one letter wrong, one missing, one too
+many, which is an edit distance of one and not a count of marks, since a
+letter written in place of another marks both sides and is still one
+mistake.
+
+**Where the doubt runs out.** Four letters, measured in the language's own
+fold and on the *answer* rather than on what was typed — a letter left out
+of a four-letter word leaves three on the screen, and asking the typed word
+to be long enough would throw out the very case this is most for. Under
+four it is off: this is a script full of three-letter words a letter apart
+that mean different things, and forgiving those would be forgiving somebody
+for writing a word they did not mean. Judged against the accepted spelling
+the learner came closest to, and against *that* spelling's length, so a card
+taking a long word and a short one cannot lend the long one's length to a
+slip on the short one.
+
+**The retry does not say which letter.** The side-by-side marking is the
+best thing this app does for somebody still reading a script letter by
+letter, and putting it up before the second try would turn the second try
+into copying out a correction. So the retry gets four words and no more,
+and the full marking is there under the answer if the second try is wrong
+too. It is also off where the answer was shown or the question skipped: a
+learner who has been handed the word and copied it one letter wrong has not
+made a typo.
+
+**What it cost.** A learner who genuinely half-knows a word gets one free
+look at their own attempt, which is a small amount of information — they
+learn it was nearly right — for no mark. Bounded at one retry per question,
+cleared with everything else the question carries, and it only applies where
+the answer is typed in the script, which is where spelling is the thing
+being asked.

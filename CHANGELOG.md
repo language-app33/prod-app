@@ -8,6 +8,52 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.202 — 20 September 2026
+
+**An evening's work now moves a word. Keeping it still takes days.**
+
+A word climbed its four levels at the speed of a calendar and not at the
+speed you worked. Each level waited on a gap — a day below, four days
+before the app would ask you to write a word from its meaning — so the
+fastest anyone could finish a word was about eight days, and a whole
+evening spent on one bought nothing a week of idleness would not have
+given you anyway. That is the wrong bargain for an app you open when you
+have time.
+
+So the ladder is climbed by answering now: **get a question right twice
+running and the level above it opens**, whatever the clock says. Sit down
+for an evening and a word can go all the way to the top in one sitting.
+Getting a question wrong twice running still shuts the levels above it,
+exactly as before, and one miss is still forgiven — it is the same
+sentence read from the other end.
+
+What the waiting was protecting has not been given up; it has moved to
+where it means more. A word that has been all the way up is now
+**Climbed**, and it is not **Learnt** until it has come back **twice** of
+its own accord and been answered right. Those two returns sit behind the
+ordinary gaps, so they take about four days and cannot be hurried:
+practising a card again the same evening counts, as it always has, and
+makes no return. Effort buys the climb; time buys the keeping.
+
+The card's own screen says which it is and what is left — *Climbed · 2
+reviews to go*. A word that slips back down the ladder stops being learnt
+until it is recovered, and its returns are waiting for it when it is.
+
+**And one letter out is now treated as a typo.** On a word of four
+letters or more, an answer a single letter off — one wrong, one missing,
+one too many — is not marked against you. The question is simply asked
+again. Two letters out is still a miss, and on a short word one letter is
+a different word rather than a slip, so those are unchanged. The second
+try does not show you which letter was wrong: that marking is what the
+app is for on a script you are still learning, and showing it before the
+retry would turn the retry into copying. Get it wrong again and the full
+side-by-side marking is there as usual.
+
+Nothing about how much you are asked has changed. Every question keeps
+its own timing and comes round on its own; a card working through its two
+returns is simply dealt the question those returns depend on first, so
+the word is not held back waiting for the right question to come up.
+
 ## 0.201 — 19 September 2026
 
 **Fixed: a saved verb stopped saying what kind of word it was.**

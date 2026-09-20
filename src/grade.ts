@@ -31,7 +31,8 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { freshState, reschedule } from "./scheduler.ts";
+import { PASSES_TO_LEARN, cameRound, climbed, freshState, reschedule, topLevelOf } from "./scheduler.ts";
+import { levelOf } from "./languages.ts";
 import { formsOf, leadOf } from "./cards.ts";
 import { linesOf } from "./dialogs.ts";
 import { noteMet } from "./variables.ts";
@@ -235,6 +236,23 @@ export interface Asking {
   /** Which values are worth recording as met — the ones with no ladder. */
   keepMet?: (ref: string) => boolean;
   /**
+   * The schedule keys a form climbs with, for the one judgement this
+   * module cannot make on its own: whether the card had already climbed
+   * its whole ladder before this answer, and whether the question asked
+   * stands on the top of it. Both together are what lets an answer count
+   * towards a pass — see `markedState`.
+   *
+   * Passed as a function of the form rather than as a list, because one
+   * answer marks several cards: a word standing in somebody else's
+   * sentence is credited on its own ladder, and its ladder is not the
+   * ladder of the sentence that carried it.
+   *
+   * Absent in a caller that does not care — a test marking one answer,
+   * say — and then nothing counts towards a pass, which is the safe way
+   * round: a pass never appears by accident.
+   */
+  keysOf?: (unit: Form) => string[];
+  /**
    * The one question a lift has already moved up its ladder, where there
    * is one: the answer given to it is neither rewarded nor lapsed. Any
    * other word on the same grid is still marked.
@@ -261,6 +279,7 @@ export function markedState(
   mark: Pick<Mark, "rating" | "correct" | "advance">,
   how: Answered = {},
   clock?: Clock,
+  counting?: boolean,
 ): ExerciseState {
   const { checked, skipped, hintAtAnswer } = how;
   let s: ExerciseState;
@@ -279,6 +298,26 @@ export function markedState(
     s.near = (s.near || 0) + 1;
   }
   s.hist = (s.hist || []).concat([mark.correct ? 1 : 0]).slice(-6);
+  /*
+   * And the pass, where this was the top of a climbed card's ladder.
+   *
+   * Three things have to be true together, and `counting` — worked out by
+   * the caller, which is the only place that can see the rest of the card
+   * — carries the two this function could not know: that the card had
+   * already climbed before this answer, and that the question is on the
+   * top of its own ladder. What is left here is the one the state itself
+   * knows: that the question came round rather than being practised.
+   *
+   * A wrong answer puts it back to nought, wherever the card is. That is
+   * the decision that a word just forgotten has not been kept, and it is
+   * the reason a typo is not allowed to reach this far — one letter out
+   * is re-asked instead, so an evening's carelessness does not cost a
+   * learner four days. See `typoed` below.
+   */
+  if (!mark.correct) s.passes = 0;
+  else if (counting && mark.advance && cameRound(before, clock)) {
+    s.passes = Math.min(PASSES_TO_LEARN, (before.passes || 0) + 1);
+  }
   s.updated = now(clock);
   return s;
 }
@@ -380,10 +419,19 @@ export function gradeInto(items: Item[], marks: Mark[], asking: Asking): Item[] 
       continue;
     }
     const before = (target.s && target.s[asking.type]) || freshState();
+    /* Whether this answer can count towards a pass: the form's own ladder,
+       already climbed, and the question asked standing on the top of it.
+       Read before the mark is written, so the answer that finishes a climb
+       is part of the climb rather than the first pass of it. */
+    const keys = (asking.keysOf && asking.keysOf(target)) || [];
+    const counting =
+      keys.length > 0 &&
+      levelOf(asking.type) === topLevelOf(keys) &&
+      climbed(keys, (k) => target.s && target.s[k]);
     out[idx] = withMark(
       item,
       mark.subId,
-      markedState(before, mark, asking.how, asking.clock),
+      markedState(before, mark, asking.how, asking.clock, counting),
       asking,
       mark.filled,
     );

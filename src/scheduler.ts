@@ -22,7 +22,7 @@
  */
 
 import type { Clock, ExerciseState, Form, Item } from "./types.ts";
-import { TYPES, barAfterLevel, barOf, levelOf } from "./languages.ts";
+import { TYPES, levelOf } from "./languages.ts";
 import { leadOf, subFormsOf } from "./cards.ts";
 
 export const DAY = 86400000;
@@ -123,6 +123,7 @@ export function freshState(): ExerciseState {
     near: 0,
     hints: 0,
     hist: [],
+    passes: 0,
     updated: 0,
   };
 }
@@ -398,6 +399,25 @@ export function reschedule(prev: ExerciseState, rating: string, clock: Clock = R
   return s;
 }
 
+/**
+ * Whether this question came round of its own accord, rather than being
+ * gone looking for.
+ *
+ * The same test `reschedule` makes before it grows a gap, asked by name so
+ * that what counts towards a pass and what counts towards an interval
+ * cannot drift apart. In review, and due: a question still on its learning
+ * steps has not yet been away from the learner, and one answered early was
+ * chosen by them rather than by the schedule.
+ *
+ * It is the whole of why a pass cannot be crammed. Everything else about
+ * this release lets effort buy progress; this is the one place it cannot,
+ * and it is deliberately the same line that already stops a drilled card
+ * from inflating its own gaps.
+ */
+export function cameRound(s: ExerciseState, clock: Clock = REAL_CLOCK): boolean {
+  return s.phase === "review" && !!s.due && s.due <= timeOf(clock);
+}
+
 /* A state with no record yet has never been asked and so is ready by
    definition. In memory every state should exist; this is the guard for
    the render that happens before a lift catches up. */
@@ -477,54 +497,100 @@ export function missedTwice(s: ExerciseState): boolean {
 }
 
 /*
- * Whether this exercise holds the levels above it open.
+ * Right twice running, on the same question — and what opens the level
+ * above it.
  *
- * The bar itself is unchanged and is still what a level is *reached* by.
- * What this adds is one slip's grace: getting a question wrong once no
- * longer shuts everything above it, because a single miss is as often a
- * lapse of attention as a gap in knowing. Wrong twice running is the gap,
- * and that closes them exactly as a single miss used to.
+ * The mirror of `missedTwice`, read off the same record and for the same
+ * reason. Two rights on the end of `hist` is answered, put away, answered
+ * again: not a guess, and not one lucky sitting. Two wrongs is the gap
+ * that shuts the level. So the rule is one sentence in both directions —
+ * **two right in a row opens a level, two wrong in a row closes it** —
+ * and a single answer either way moves nothing, which is the grace
+ * `holding` used to carry.
  *
- * Nothing about how a miss is *scheduled* changes. The question still
- * comes back in ten minutes, still costs the word its ease, still halves
- * the gap. This decides one thing only: whether the ladder above it shuts
- * while that is being put right.
+ * Walking back from the end is what gives that grace without anything
+ * stored. The most recent pair to agree with itself is the verdict: a
+ * question right, right, then missed once reads back (0,1) — no pair —
+ * then (1,1), and stands. Miss it again and the pair on the end is (0,0),
+ * which closes the level exactly as it always did. A question that has
+ * never managed two of either in a row has established nothing and is not
+ * solid, which is also what an empty `hist` says and why a document
+ * written before `hist` existed reads as unclimbed rather than as
+ * finished.
  *
- * The last clause is what keeps the grace honest. Read without it, a word
- * that had only ever scraped into review would have its first miss hold
- * open a level it was never good enough for — grace that promotes rather
- * than forgives. Asking the bar what it makes of the state *but for the
- * lapse* answers that: at the lower levels, being in relearning proves it
- * had graduated, so the grace always applies; at the top, where the bar is
- * a four-day gap and a miss halves it, a word that only just reached the
- * top can fall under the bar on its own merits and still shut the level.
- * Narrow — gaps outgrow it within a fortnight — and the right way to be
- * wrong.
+ * **What this replaced.** A level used to open on a *gap*: through the
+ * learning steps for the cued levels, four days of interval for writing
+ * from the meaning. That made the ladder a clock rather than a record of
+ * what the learner had done, and it is why an evening's work could not
+ * move a word: the four-day bar on the top level and the four-day bar
+ * under it ran end to end, so the fastest a card could be learnt was
+ * eight days however hard anybody tried. The gap has not gone anywhere —
+ * it is what `passes` below now asks, after the climb rather than during
+ * it, and it is still what lets a new word out of the front door. See
+ * `recognised`.
  */
-export function holding(s: ExerciseState, bar: (st: ExerciseState) => boolean): boolean {
-  if (bar(s)) return true;
-  if (s.phase !== "relearning" || missedTwice(s)) return false;
-  return bar({ ...s, phase: "review" });
+export function solid(s: ExerciseState): boolean {
+  const h = s.hist || [];
+  for (let i = h.length - 1; i > 0; i--) {
+    if (h[i] && h[i - 1]) return true;
+    if (!h[i] && !h[i - 1]) return false;
+  }
+  /*
+   * And a question answered before any of this was recorded is taken at
+   * its schedule's word.
+   *
+   * `hist` has been written on every marked answer since 0.155; the
+   * ladder only began reading it here. A card at a ninety-day gap that
+   * was last answered before that carries an empty history, and without
+   * this line it would read as having climbed nothing — the levels above
+   * would shut and a learner would be asked what a word they have known
+   * for a year means. Being in review is what the two cued levels used to
+   * ask, so this is the old bar, applied only where there is nothing else
+   * to go on.
+   *
+   * It is generous at the top, where the old bar was four days rather
+   * than review at all. Deliberately: the card reads as climbed and has
+   * its two passes still to make, which it makes on its next two reviews
+   * — which is what those reviews were always going to be. The
+   * alternative is taking a word away from somebody who has it.
+   *
+   * One answer is enough to leave this behind, and from then on the
+   * record decides. A history of one is information and is not treated as
+   * silence: it says the question has been answered once since the app
+   * started counting, which is not twice.
+   */
+  return h.length === 0 && s.phase === "review";
 }
 
 /**
  * The states to write so that a form climbs one level of its ladder, and
  * no further — what "this was too easy" does.
  *
- * The bar is the *next* level's, applied to every key below it, because
- * that is what opens a level (see openTypes): graduated for levels two and
- * three, mastered for four — so climbing from three re-raises levels one
- * and two as well. A form with no level above the one asked is counted as
- * mastered throughout, which is what "done" means at the top. The next
- * level's own keys are not touched, so the one after it stays shut.
+ * Applied to every key below the *next* level, because that is what opens
+ * a level (see openTypes) — so climbing from three re-raises levels one
+ * and two as well. A form with no level above the one asked has its whole
+ * ladder written, which is what "done" means at the top. The next level's
+ * own keys are not touched, so the one after it stays shut.
  *
  * Written directly rather than through `reschedule` with an "easy": a key
  * already in review would be pushed far past where it was, and the count
  * of right answers — which is what rotates a card's spellings and blanks —
- * would move for questions never answered. A state already at the bar is
- * left alone; one that is not becomes a review state at the smallest
- * interval that meets the bar, keeping any larger interval it already had,
- * and stamped now so a sync keeps it.
+ * would move for questions never answered. A key already solid is left
+ * alone; one that is not is given the two right answers in a row the
+ * ladder asks for, and stamped now so a sync keeps it.
+ *
+ * A key already in review keeps the gap it had. "Too easy" is a statement
+ * about the *ladder* — stop asking me this, I can write the word — and
+ * under the rule above the ladder is a record of answers rather than of
+ * gaps. Writing a four-day interval here as well would hand the card its
+ * passes too, and those are the one thing that cannot be claimed: they
+ * are what the learner has to come back for.
+ *
+ * A key that is *not* in review is put there at a day, because that is
+ * the other half of what the learner asked for: a key left new or sitting
+ * on a ten-minute learning step would be dealt again the moment the
+ * session was rebuilt, which is the app going on asking the question it
+ * was just told not to.
  *
  * The keys are the form's own ladder, handed in, so a level the form has
  * no material at is simply absent — the same reading openTypes makes.
@@ -539,22 +605,23 @@ export function liftLevel(
   const from = levelOf(key);
   const levels = [...new Set(keys.map(levelOf))].sort((a, b) => a - b);
   const next = levels.find((l) => l > from);
-  const bar = next === undefined ? "mastered" : barAfterLevel(next - 1);
   const under = next === undefined ? keys : keys.filter((k) => levelOf(k) < next);
-  const met = bar === "graduated" ? graduated : mastered;
-  const days = bar === "graduated" ? GRADUATE_DAYS : MASTERED_DAYS;
   const out: Record<string, ExerciseState> = {};
   for (const k of under) {
     const s = stateOf(k) || freshState();
-    if (met(s)) continue;
-    const interval = Math.max(s.interval || 0, days);
-    out[k] = { ...s, phase: "review", step: 0, interval, due: at + interval * DAY, updated: at };
+    if (solid(s)) continue;
+    const hist = (s.hist || []).concat([1, 1]).slice(-6);
+    const grown =
+      s.phase === "review"
+        ? {}
+        : { phase: "review", step: 0, interval: Math.max(s.interval || 0, GRADUATE_DAYS), due: at + Math.max(s.interval || 0, GRADUATE_DAYS) * DAY };
+    out[k] = { ...s, ...grown, hist, updated: at };
   }
   return out;
 }
 
 /** Whether a form has a level above the one this key is on — false at the
-    top, where liftLevel counts it as mastered instead of moving it up. */
+    top, where liftLevel writes the whole ladder instead of moving it up. */
 export const hasLevelAbove = (keys: string[], key: string): boolean =>
   keys.some((k) => levelOf(k) > levelOf(key));
 
@@ -565,30 +632,28 @@ export const hasLevelAbove = (keys: string[], key: string): boolean =>
    level — recognising the word alone, telling it apart from others,
    production from a cue, production from the meaning — and a level is open
    for a form only once every exercise on the levels below it that the form
-   supports has reached the level's bar.
+   supports has been answered right twice running. `solid`, above, and one
+   rule for all four levels rather than a table of bars.
 
-   The bar is graduated — through the learning steps and in review, at
-   whatever interval — for the two levels that are still cued: telling a
-   word apart from others, and writing it from a pronunciation or a
-   recording that carries it. Both show the learner the word, neither is
-   recall from the meaning alone, and asking a four-day interval of every
-   recognition exercise first held a card on multiple choice for a week or
-   more before it was ever asked for the word.
+   **The ladder is climbed by answering, and kept by coming back.** Those
+   were one thing and are now two. A level used to open on a gap — through
+   the learning steps below, a four-day interval for the writing — which
+   meant the ladder could only be climbed at the speed a calendar allows:
+   four days for the lower levels to mature and four more for the top one,
+   in that order, so eight days was the floor for anybody however hard
+   they worked. An evening's work bought nothing a week's idleness did not.
 
-   Level four — writing it from its meaning, with nothing on the screen to
-   go on — keeps the four-day bar, so the strict gate stands where
-   production from memory actually begins.
+   Now an evening's work climbs the card, and what the gap used to prove
+   is asked afterwards instead, of the top of the ladder, where it means
+   the most: see `passes` below. A card that has climbed is not yet learnt.
 
-   Which bar a level asks is the level's own business, and is written down
-   once each in LEVEL_BARS in languages.ts. A form with no recording has
-   nothing on level three but its transliteration, and that alone is what
-   it must reach to open level four; a form with nothing at all on a level
-   passes straight through it.
-
-   Whether the bar is met is read afresh every time, so missing a question
-   on the bottom level twice running closes the ones above it until it is
-   recovered: somebody who can no longer read a word is not asked to write
-   it. One miss is forgiven — see `holding`.
+   Nothing about the order changed, and nothing about the grace. A form
+   with no recording has nothing on level three but its transliteration,
+   and that alone is what it must reach to open level four; a form with
+   nothing at all on a level passes straight through it. Missing a
+   question twice running still closes the levels above it until it is
+   recovered — one miss is forgiven, and that is `solid` read from the
+   other end.
    ------------------------------------------------------------------ */
 
 /**
@@ -604,19 +669,14 @@ export function openTypes(types: string[], stateOf: (type: string) => ExerciseSt
   const levels = [...new Set(types.map(levelOf))].sort((a, b) => a - b);
   for (const level of levels) {
     const here = types.filter((t) => levelOf(t) === level);
-    /* The bar belongs to the level rather than to the exercise, so every
-       card reaches a level the same way whichever of its exercises happen
-       to stand there — see LEVEL_BARS in languages.ts. Asked of the first
-       here because they all answer alike; `here` is never empty, being the
-       exercises the level was read off. */
-    const bar = barOf(here[0]) === "graduated" ? graduated : mastered;
     const lower = types.filter((t) => levelOf(t) < level);
-    /* Through `holding`, so one miss below does not shut this level — see
-       there. The screen reads the same judgement through `standings`, and
-       a test walks every combination to keep the two from drifting. */
+    /* Through `solid`, so one miss below does not shut this level and two
+       running do — see there. The screen reads the same judgement through
+       `standings`, and a test walks every combination to keep the two from
+       drifting. */
     const reached = lower.every((t) => {
       const s = stateOf(t);
-      return !!s && holding(s, bar);
+      return !!s && solid(s);
     });
     if (!reached) break;
     out.push(...here);
@@ -655,16 +715,113 @@ export function reachedLevel(
     return !!s && s.phase !== "new";
   });
   if (!met) return false;
-  /* The bar this level asks of everything under it, which is the bar
-     openTypes reads off the level itself — barAfterLevel(level - 1) is
-     LEVEL_BARS[level], named from the other end. */
-  const bar = barAfterLevel(level - 1) === "graduated" ? graduated : mastered;
   return types
     .filter((t) => levelOf(t) < level)
     .every((t) => {
       const s = stateOf(t);
-      return !!s && holding(s, bar);
+      return !!s && solid(s);
     });
+}
+
+/* ------------------------------------------------------------------
+   Climbed, and then learnt
+
+   The ladder says what a card may be asked. These two say what the
+   learner has actually got, and they are deliberately not the same thing:
+   a card is **climbed** when it has been up every level it has material
+   for, and **learnt** when it has come back twice since and been right.
+
+   Climbing is bought with effort and can all happen in one evening.
+   Being learnt cannot: the two passes are counted only on answers given
+   when the question came round of its own accord, which is the one thing
+   practising harder cannot manufacture — see `passes`, and the early
+   return in `reschedule` that is the same idea one layer down.
+
+   Which is the whole of what this release did. Effort used to buy
+   nothing, because the ladder was a clock; now effort buys the climb and
+   time buys the keeping, and the two are shown to the learner under those
+   two names.
+   ------------------------------------------------------------------ */
+
+/**
+ * Whether a form has been up every level it has material for.
+ *
+ * Every key solid — the same reading `openTypes` makes on its way up, run
+ * to the top instead of stopping at the first closed level. A form nobody
+ * has answered has climbed nothing, as in `reachedLevel` and for the same
+ * reason.
+ */
+export function climbed(
+  types: string[],
+  stateOf: (type: string) => ExerciseState | null | undefined,
+): boolean {
+  if (!types.length) return false;
+  return types.every((t) => {
+    const s = stateOf(t);
+    return !!s && solid(s);
+  });
+}
+
+/**
+ * The top of a form's own ladder — the highest level it has material for.
+ *
+ * Read off the keys rather than from TOP_LEVEL, because a card with no
+ * phrase and no recording may top out at writing from a cue, and a
+ * conversation at putting a scene in order. Asking those to pass at a
+ * level they have nothing on would make them learnt the moment they
+ * climbed, with nothing ever checked.
+ */
+export const topLevelOf = (types: string[]): number =>
+  types.reduce((top, t) => Math.max(top, levelOf(t)), 0);
+
+/**
+ * How many passes a form has made — nought, one or two.
+ *
+ * A pass is every exercise on the top of its ladder answered right, on
+ * time, since the card climbed. Two of them and the card is learnt.
+ *
+ * **Counted per exercise and reported as the weakest**, which is what
+ * makes "two passes" true of the card rather than of whichever question
+ * happened to come up. Where a card's top level holds one exercise — most
+ * of them — the two readings are the same number.
+ *
+ * **Why the top level alone.** The alternative was every question the
+ * card has, and it makes the badge hostage to the deal: a session hands a
+ * card two of its eight questions, so "learnt" would land whenever the
+ * last straggler happened to be dealt rather than when anything was
+ * proved. Writing the word from its meaning is the question that subsumes
+ * the others, and it is the one worth waiting on. The others have not
+ * stopped being asked — they keep their own gaps and come round on their
+ * own, and missing one of them twice running still shuts the levels above
+ * and takes the card back off learnt, which is the guard that makes this
+ * safe rather than merely shorter.
+ */
+export const PASSES_TO_LEARN = 2;
+
+export function passesMade(
+  types: string[],
+  stateOf: (type: string) => ExerciseState | null | undefined,
+): number {
+  const top = types.filter((t) => levelOf(t) === topLevelOf(types));
+  if (!top.length) return 0;
+  return top.reduce((least, t) => {
+    const s = stateOf(t);
+    return Math.min(least, (s && s.passes) || 0);
+  }, PASSES_TO_LEARN);
+}
+
+/**
+ * Whether the learner has kept this form, and not merely climbed it.
+ *
+ * Climbed and two passes made. Both are read afresh, so a card that has
+ * slipped back down the ladder is not learnt however many passes it once
+ * had — the passes are still on it, and come back with it.
+ */
+export function learnt(
+  types: string[],
+  stateOf: (type: string) => ExerciseState | null | undefined,
+): boolean {
+  return climbed(types, stateOf) && passesMade(types, stateOf) >= PASSES_TO_LEARN;
 }
 
 /* ------------------------------------------------------------------
@@ -885,10 +1042,24 @@ export interface Standing {
   /**
    * "none" — open, and nothing on it answered yet.
    * "learning" — open, something answered, not all of it solid.
-   * "done" — solid enough that the level above it opens.
+   * "climbed" — the top of the ladder, up but not yet kept: every
+   *   question answered right twice running, and the passes still to
+   *   make. Only ever the top row, because it is the only one with
+   *   nothing above it to open.
+   * "done" — solid enough that the level above it opens, and at the top
+   *   of the ladder the card's passes made as well, which is *learnt*.
    * "paused" — it had opened, and a slip further down has shut it again.
    */
   status: string;
+  /**
+   * How many passes the card has made, of the two that turn climbed into
+   * learnt — on the top row only, and nought everywhere else.
+   *
+   * On the row rather than beside the list because that is where a screen
+   * reads it: the one line a card puts up is its standing, and "climbed,
+   * one pass of two" is the whole of what a learner needs told.
+   */
+  passes: number;
   /**
    * How many of the exercises that must hold for the next level to open
    * are there yet, and how many there are. That is everything on this
@@ -915,8 +1086,17 @@ export interface Standing {
 export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing[] {
   /* Every key the card climbs with, filed under its level. */
   const at: Map<number, (ExerciseState | null | undefined)[]> = new Map();
+  /* And how many passes the card has made, which is its weakest form's —
+     read off each form's *own* top level rather than off the card's,
+     because a plural that tops out at writing from a cue makes its passes
+     there and has nothing on the level above to make them on. Same
+     reading `passesMade` makes, and a family is as far along as its
+     weakest form, the way the rest of this function has it. */
+  let passes = PASSES_TO_LEARN;
   for (const { unit } of unitsOf(it)) {
-    for (const t of typesOf(unit)) {
+    const keys = typesOf(unit);
+    if (keys.length) passes = Math.min(passes, passesMade(keys, (k) => unit.s && unit.s[k]));
+    for (const t of keys) {
       const level = levelOf(t);
       at.set(level, (at.get(level) || []).concat([unit.s && unit.s[t]]));
     }
@@ -935,18 +1115,26 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
   const answered = (s: ExerciseState | null | undefined) => !!s && s.phase !== "new";
   for (const level of levels) {
     const here = at.get(level) || [];
-    const bar = barAfterLevel(level) === "graduated" ? graduated : mastered;
     /* Counted over this level and everything under it — see `done` above. */
     const under = levels.filter((l) => l <= level).flatMap((l) => at.get(l) || []);
-    /* The same `holding` openTypes gates on, so a single miss neither
-       shuts a level nor reports one as paused. */
-    const done = under.filter((s) => !!s && holding(s, bar)).length;
+    /* The same `solid` openTypes gates on, so a single miss neither shuts
+       a level nor reports one as paused. */
+    const done = under.filter((s) => !!s && solid(s)).length;
     const met = here.some(answered);
     const finished = done === under.length;
+    /* The top of the ladder is the one row with nothing above it to open,
+       so "done" there cannot mean what it means lower down. It is climbed
+       until the passes are made and learnt after — and the difference is
+       the whole of what this release added, said in the one place every
+       screen reads. */
+    const top = level === levels[levels.length - 1];
+    const kept = !top || passes >= PASSES_TO_LEARN;
     out.push({
       level,
       status: finished
-        ? "done"
+        ? kept
+          ? "done"
+          : "climbed"
         : !open
         ? met && allMetBelow
           ? "paused"
@@ -956,6 +1144,7 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
         : "none",
       done,
       of: under.length,
+      passes: top ? passes : 0,
     });
     open = finished;
     allMetBelow = allMetBelow && here.every(answered);
@@ -982,7 +1171,11 @@ export function standings(it: Item, typesOf: (unit: Form) => string[]): Standing
 export function standing(all: Standing[]): Standing | null {
   if (!all.length) return null;
   const last = all[all.length - 1];
-  if (last.status === "done") return last;
+  /* Climbed is the top row as much as done is, and it is where the work
+     is: the card is up the ladder and coming back to be kept. Reporting
+     the rung under it instead would say a learner had further to climb
+     than they have. */
+  if (last.status === "done" || last.status === "climbed") return last;
   const paused = all.filter((s) => s.status === "paused");
   if (paused.length) return paused[paused.length - 1];
   return all.find((s) => s.status !== "done") || last;

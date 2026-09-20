@@ -35,7 +35,6 @@ import {
   labelFor,
   showsOneAnswer,
   answerOf,
-  barOf,
   exOf,
   isListening,
   keyFor,
@@ -459,7 +458,6 @@ test("everything that looks up an exercise takes a key as readily as a type", ()
   for (const type of TYPES) {
     const key = keyFor(type, 1);
     assert.equal(levelOf(key), levelOf(type), `${type}: level`);
-    assert.equal(barOf(key), barOf(type), `${type}: bar`);
     assert.equal(isListening(key), isListening(type), `${type}: listening`);
     assert.equal(showsOneAnswer(key), showsOneAnswer(type), `${type}: the rule`);
     const one = must(exOf(key, LANGUAGES["ar-PS"]), `${type}: wording`);
@@ -504,9 +502,10 @@ test("a card with two answers carries a schedule for each, where it shows one", 
 });
 
 test("the ladder reads a key the way it read a type", () => {
-  /* The second answer climbs its own ladder: mastered at level one on the
-     first spelling does not open level two on the second. */
-  const done = { phase: "review", interval: 30 };
+  /* The second answer climbs its own ladder: right twice running at level
+     one on the first spelling does not open the level above on the
+     second. */
+  const done = { phase: "review", interval: 30, hist: [1, 1] };
   const keys = ["ar2en", "ar2en@1", "en2ar"];
   /** @type {Record<string, any>} */
   const states = { ar2en: done };
