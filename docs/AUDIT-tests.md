@@ -2,12 +2,12 @@
 
 **22 September 2026 · release 0.212, commit 1296f5a · re-checked against 0.213 (64b000e) and 0.214 (3e327bd), which landed on `beta` during the audit: the full check is green on both (950 unit tests, 703 walk checks), and nothing below changes.**
 
-> **Every finding in this note was addressed in 0.216.** This document is
+> **Every finding in this note was addressed in 0.218.** This document is
 > kept as it was written, because the reasoning is the record of why they
 > were there; the release entry in `CHANGELOG.md` says what changed, and
 > *What was done about it* at the foot of this note says what was closed,
 > what was found to be a false alarm, and what was deliberately left. The
-> suite went from 950 unit tests and 703 walk checks to 1,029 and 739.
+> suite went from 950 unit tests and 703 walk checks to 1,029 and 744.
 >
 > Two of the findings below were wrong, and are marked where they appear:
 > the "automatic difficulty" score is live rather than dead code, and the
@@ -379,9 +379,10 @@ than it was before the session. That is the "wiring" the decision log
 
 ## What was done about it
 
-**22 September 2026, release 0.216.** Every finding above was worked
+**22 September 2026, release 0.218.** Every finding above was worked
 through in one round. The suite went from **950 unit tests to 1,029**, and
-the walk from **703 checks to 739**; `npm run check` is green, and the walk
+the walk from **703 checks to 744** (five of those came with 0.216 and
+0.217, which landed alongside); `npm run check` is green, and the walk
 is green under four seeds.
 
 ### The four pieces, as proposed
@@ -421,7 +422,7 @@ exercises to the ordinary keys its component words climb. In the walk, a
 teacher's number document alone is now enough to practise from, and the
 answer is filed against the card the document built.
 
-**4. The walk, tightened and widened** — 703 checks to 739.
+**4. The walk, tightened and widened** — 36 checks added.
 
 The save check was rewritten. It was worse than this note said: it read
 `it.s` and `it.subs`, which is how a card was stored three shapes ago, so

@@ -8,6 +8,104 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.218 — 22 September 2026
+
+**Nothing you can see; the tests the audit asked for.** 0.215 published a
+note on the checks that run before every deploy: what they cover, and
+whether they would actually go red if the thing they are about broke. This
+is the work it proposed, all of it. There are 1,029 automated checks now
+where there were 950, and the walk that drives the whole app end to end
+makes 744 where it made 703.
+
+What was missing, and now is not:
+
+- **The phone's side of syncing.** Merging two devices' work was tested
+  thoroughly; the part that fetches, merges, sends back and tries again
+  when another device got there first was tested by nothing, and neither
+  was what the app does when the server says no. That is the corner the
+  worst bug in this app's history lived in. Every refusal the server can
+  give now has a test saying what the app does with it.
+- **Ten things the server can be asked** that nothing had ever asked it,
+  among them a teacher deleting a deck and a teacher taking one out of a
+  course — the two the September audit found destroying students' work.
+- **Numbers and times as questions.** The words were checked against a
+  table a speaker signed; the questions built from them never were. Now a
+  session is dealt from a teacher's number document, the answers are
+  marked, and a number is met on screen.
+- **Four screens nothing had ever drawn**: the way into the app for
+  somebody new, the three settings screens, a number question, and putting
+  a conversation back in order.
+- **The one check that an answer had been saved.** It was reading the
+  shape cards were stored in three versions ago, so it compared nothing
+  with nothing and would have passed with saving switched off. It now
+  follows the answer to the disk.
+
+Two small things in the app changed along the way: setting a course's
+language no longer accepts a blank one made of spaces, and two pieces of
+the server that could never run — older copies of closing an account and
+of removing somebody, left behind when the two were made to share one
+routine — are gone, so the file no longer says two different things about
+what either does.
+
+## 0.217 — 22 September 2026
+
+**The forms of a card are one section, and each of them is a panel in it.**
+
+Every form on the card screen was a section of the screen in its own
+right: its name set at page-heading size, standing outside the box its
+fields were in, with a rule between one form and the next. On a card with
+four of them that was the screen announcing four subjects where there is
+one word.
+
+There is a **Forms** heading now, at the size the card's other sections
+are headed, and under it the forms are panels — the name **inside** the
+panel and a size down, the two field names under it (*Arabic*, *English*)
+a size down again, and nothing drawn between one panel and the next.
+
+**And the record button moved up.** It sits at the right of the form's own
+name, where Duplicate and Remove already were, rather than under the
+pronunciation. A form with two accepted answers still keeps one button per
+answer, beside the word it is of — there the button has to say which of
+the two it records, and a button up in the heading could not.
+
+**One line fewer under a heading.** The rule between *How this card can be
+practiced* and the ticks below it was drawing a line between a heading and
+the thing it heads; the rule that separates one group of ticks from the
+next is still there.
+
+## 0.216 — 22 September 2026
+
+**Every shape of a word is a section of its own, named in the language.**
+
+A word and the shapes it takes beside a noun are the same kind of thing,
+and the screen has spent five releases saying otherwise in different
+ways: a heading further down the page, full blocks that took three
+screens, a short list that made them look like something less than the
+word, and then the word folded into that list, which cost it a second
+accepted answer.
+
+They are four sections now — in Palestinian Arabic **Masculine**,
+**Feminine**, **Plural**, **Dual**; in Hebrew masculine, feminine,
+masculine plural and feminine plural — and each is written in exactly the
+fields the word is written in. That means each one now has what only the
+word had: **a second accepted answer**, and **a recording of its own per
+answer**. If the feminine has two acceptable spellings, you can write
+both and record each.
+
+What made that affordable is that the boxes got short two releases ago.
+Full blocks were right in principle and unusable in practice while each
+of them was a screen high; at the size they are now, four sections fit
+where two used to.
+
+**And the word is called what it is.** It was *Form 1*, then *The main
+form* — the app naming its own layout while the three boxes under it were
+named after the language. It is **Masculine**, out of the same place the
+other three names come from, so a language that arranges its adjectives
+differently says so itself.
+
+**The line under the heading is gone.** It explained where the word's
+other shapes were written; the four headings say that, in fewer words and
+in the language's own.
 ## 0.215 — 22 September 2026
 
 **Nothing you can see; an audit of the tests.** `docs/AUDIT-tests.md` asks
