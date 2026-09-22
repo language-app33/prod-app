@@ -439,6 +439,23 @@ const climbed = () =>
     ])
   );
 
+/* And the same card two returns later: up every level and kept.
+ *
+ * Clearing is bought with effort and can all happen in one evening; being
+ * learnt cannot, because the two passes are only counted on answers given
+ * when the question came round of its own accord. So a card in this state
+ * is not one a walk can produce — it is days of real time — and without
+ * one in the fixture the Learnt tile is empty and everything the Progress
+ * screen says about a learnt card goes unchecked.
+ *
+ * The passes are the whole of the difference: nothing here is due any
+ * sooner or asked any differently, so a card handed this instead of
+ * `climbed` sits where it sat and is filed one tile further along. */
+const kept = () =>
+  Object.fromEntries(
+    Object.entries(climbed()).map(([t, s]) => [t, { ...s, passes: 2 }])
+  );
+
 /* ---- what the device held before this build: a signed-in account and a
    document from an older build carrying its own private sync key ---- */
 localStorage.setItem("arabic-account", JSON.stringify(account));
@@ -514,9 +531,14 @@ remoteDocs.set(realToken, {
          one of its forms has something due, so a plural left untouched
          would carry the whole card into sessions that are meant to leave
          it alone. */
+      /* And it is the one card in the fixture that has been *kept* as
+         well as climbed — see `kept` — so that the Learnt tile on Progress
+         has something behind it. It changes nothing about what is due or
+         what can be asked of it, which is what makes it safe to be the
+         card two other walks lean on. */
       { id: "srvk111111111111", ar: "كتاب", en: "book", lat: "kitaab", kind: "word", tags: ["Lesson 1"],
-        created: 1, updated: 5, s: climbed(),
-        subs: [{ id: "srvk111111111111-f0", ar: "كتب", en: "books", lat: "kutub", s: climbed() }] },
+        created: 1, updated: 5, s: kept(),
+        subs: [{ id: "srvk111111111111-f0", ar: "كتب", en: "books", lat: "kutub", s: kept() }] },
       /* One card in a second language, which is what makes this device a
          two-language one: the switch at the top of Learning is there for
          somebody learning more than one and nobody else, so without this
@@ -1771,6 +1793,48 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     check("with Learnt marked out from the rest",
       !!learnt && learnt.className.includes("learnt"),
       learnt ? learnt.className : "no Learnt tile");
+  }
+
+  /* ---- and the two at the top say when each card comes back ----
+     Cleared and Learnt are the tiles where the climb is over and what is
+     left is time. The bar a level's list draws would be full on every card
+     there — a column of hundreds telling two cards apart from nothing — so
+     each one says when it is next asked instead. That was on the card's
+     own screen and nowhere in the list, which left a card coming back
+     tonight looking exactly like one coming back in a month. */
+  {
+    const top = counts.filter((b) => /Cleared|Learnt/.test(b.textContent || ""));
+    check("both tiles at the top of the ladder are there to open", top.length === 2,
+      counts.map((b) => (b.textContent || "").replace(/\s+/g, " ").trim()).join(" · "));
+    const openable = top.filter((b) => !b.disabled);
+    /* Asserted rather than assumed: with neither tile holding a card the
+       three checks below would pass by never running, and the fixture is
+       what puts cards up there. */
+    check("and at least one of them has cards behind it", openable.length > 0,
+      top.map((b) => `${(b.textContent || "").replace(/\s+/g, " ").trim()}${b.disabled ? " (off)" : ""}`).join(" · "));
+    for (const tile of openable) {
+      const name = (tile.textContent || "").replace(/\s+/g, " ").trim().replace(/^\d+\s*/, "");
+      click(tile);
+      await sleep(300);
+      const cards = [...document.querySelectorAll(".at-cardgrid .at-minicard")];
+      const said = cards.map((t) => ((t.querySelector(".at-minimeta") || {}).textContent || "").trim());
+      check(`${name}: every card says when it is next reviewed`,
+        cards.length > 0 && said.every((l) => /^(Next review in \S+|Review due now)$/.test(l)),
+        said.join(" · ").slice(0, 140) || "(no small print)");
+      /* As how long away it is, rather than a date to count from: hours
+         while it is hours, days once it is days. */
+      check(`${name}: as a gap, in hours or days`,
+        said.every((l) => l === "Review due now" || /in \d+(\.\d+)?(m|h|d|mo|y)$/.test(l)),
+        said.join(" · ").slice(0, 140));
+      /* And no bar, which is the whole reason there is a line here at all. */
+      check(`${name}: and no bar, which would be full on every one of them`,
+        !cards.some((t) => t.querySelector(".at-minibar")),
+        `${cards.filter((t) => t.querySelector(".at-minibar")).length} of ${cards.length} barred`);
+      const over = [...document.querySelectorAll(".at-screen.over")].pop();
+      click([...(over ? over.querySelectorAll("button") : [])]
+        .find((b) => b.getAttribute("aria-label") === "Back"));
+      await sleep(250);
+    }
   }
 
   /* ---- and the decks, as how far each is from finished ----
