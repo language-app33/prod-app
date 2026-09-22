@@ -49,14 +49,36 @@ import { RecordingScreen, ScriptInput } from "./card-editor.tsx";
 /**
  * The numbers a teacher is shown without asking.
  *
- * Every shape a language can get wrong, and no more than fits on a screen:
- * the ones that inflect, the ones that fuse, the ones with a nothing in
- * the middle of them, and one of each scale. A spread of pretty numbers
- * would say the system works and prove very little.
+ * Not a count and not a spread: **one number per shape a language can get
+ * wrong**, and no more than fits on a screen. Four and five are missing
+ * because they say nothing three and seven do not already say, and a
+ * hundred rows of that would hide the dozen rows that matter. What each
+ * one is here for:
+ *
+ *   * **0** — its own code path in every composer, said before any
+ *     building starts. It has been wrong once already.
+ *   * **1, 2** — the two that inflect for what they count, nearly
+ *     everywhere.
+ *   * **3, 7** — the run where a Semitic numeral reverses polarity and
+ *     takes its bound form. One from each end of it.
+ *   * **10, 11, 12, 19** — the teens, and the boundary at each end.
+ *   * **20, 21, 25, 34, 47, 99** — a bare ten, and units in company: the
+ *     one that changes after a single ten, the one that changes only
+ *     after two, and one that changes for nothing.
+ *   * **100, 101, 110, 200, 300, 525, 999** — the scales that have a word
+ *     of their own, the ones that fuse, and a place with a nothing in it.
+ *   * **1,000 up** — one of each scale, the same three shapes again where
+ *     a count stands in front of a scale word, and 1,525 for a joining
+ *     word in a long number.
+ *
+ * Which shapes matter is a fact about the language, so the honest version
+ * of this is a list each composer declares. That is worth doing and is on
+ * the backlog; until then this is one list chosen to cover all three, and
+ * *Try a number* is how a teacher checks anything it misses.
  */
 const SAMPLE = [
-  1, 2, 3, 7, 10, 11, 12, 19, 20, 21, 25, 47, 99, 100, 101, 110, 200, 300, 525, 999,
-  1000, 1001, 2000, 3000, 11000, 45000, 100000, 1000000, 2000000, 1525,
+  0, 1, 2, 3, 7, 10, 11, 12, 19, 20, 21, 25, 34, 47, 99, 100, 101, 110, 200, 300,
+  525, 999, 1000, 1001, 2000, 3000, 11000, 45000, 100000, 1000000, 2000000, 1525,
 ];
 
 const TIME_SAMPLE: [number, number][] = [
@@ -304,17 +326,12 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord, on
         title="What a student will be asked"
         lede="Tap any line to write it out yourself, where the app has it wrong."
         action={
-          <div className="at-row">
-            <Button size="sm" onClick={onTry}>
-              Try a number
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => setExtra((e) => e.concat([Math.floor(seeded(`more ${e.length}`)() * 9999999)]))}
-            >
-              Another
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            onClick={() => setExtra((e) => e.concat([Math.floor(seeded(`more ${e.length}`)() * 9999999)]))}
+          >
+            Another
+          </Button>
         }
         className="at-mt5"
       >
@@ -322,20 +339,36 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord, on
           {shown.map((value, i) => {
             const said = render(value);
             const key = String(value);
+            /* A number the system cannot finish yet still shows what it
+               got, because that is what tells a teacher which box to go
+               and fill — but it is marked, and quietly greyed. Half of
+               forty-seven is the word for seven, and a row that showed it
+               like any other would be the screen saying this language
+               calls 47 "seven". */
+            const part = !said.text || blocking(said.warnings as never).length > 0;
             return (
               <button
                 className="at-numsamplerow at-tappable"
                 key={`${value}-${i}`}
+                data-part={part ? "" : undefined}
                 onClick={() => onWrite(key)}
               >
                 <span className="at-numfig">{value.toLocaleString("en")}</span>
                 <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
                   {said.text || "—"}
                 </span>
-                {draft.overrides[key] ? <Meta>yours</Meta> : null}
+                {draft.overrides[key] ? <Meta>yours</Meta> : part ? <Meta>not yet</Meta> : null}
               </button>
             );
           })}
+        </div>
+        {/* Under the list rather than beside its title: the header takes
+            one small control, and this is the more useful of the two —
+            the list answers "is this right" for thirty numbers somebody
+            else chose, and this answers it for the one you are actually
+            wondering about. */}
+        <div className="at-row">
+          <Button onClick={onTry}>Try a number</Button>
         </div>
       </Section>
 

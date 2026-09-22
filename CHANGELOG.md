@@ -8,6 +8,33 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.206 — 22 September 2026
+
+**Two buttons that were off the side of the screen, and a number that
+looked finished when it was not.**
+
+*Try a number* and *Another* sat beside the title of the sample list, and
+on a phone the pair of them ran past the right edge — visible in neither
+sense: you could not read them and you could not tap them. The row of
+buttons beside a heading only ever has room for one, so *Try a number* has
+moved to where it belongs: its own full-width button directly under the
+list of numbers, which is the thing it is about.
+
+And while looking at that screen on a phone: a number the system cannot
+say in full yet was showing whatever it managed as though that were the
+answer. With *seven* written and *forty* not, 47 read as the word for
+seven — the screen saying, in effect, that this is what your language
+calls forty-seven. Those lines are greyed and marked **not yet** now. What
+it managed is still shown, because that is what tells you which box to go
+and fill.
+
+**Nought is in the list.** The sample is one number per shape a language
+can get wrong rather than a count — four and five say nothing three and
+seven do not already say — but nought has a path of its own in every
+language and had been left out of the very list that would have caught it
+going wrong. It is there now, and so is one number that exercises a rule
+only Huế has.
+
 ## 0.205 — 22 September 2026
 
 **Three things the number screen was missing.**

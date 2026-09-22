@@ -541,6 +541,15 @@ export function Section({ title, count, lede, action, children, className = "" }
   title?: Node;
   count?: number;
   lede?: Node;
+  /**
+   * One small control, beside the title.
+   *
+   * One, because the header is a flex row that shrinks its title and
+   * cannot shrink a button: a pair of them has a min-content width of
+   * both their labels, and the second goes off the side of the screen
+   * where nobody can see it or reach it. A row of buttons is `.at-row`
+   * under the section's own content, which is built to fit.
+   */
   action?: Node;
   children?: Node;
   className?: string;

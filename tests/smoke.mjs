@@ -6683,6 +6683,19 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!seven && /sab3a/.test(seven.textContent || ""),
     seven ? (seven.textContent || "").trim() : `${rows.length} preview rows`);
 
+  /* A number the system cannot finish yet is marked as such, greyed,
+     rather than showing the half of it it managed as though that were the
+     answer. Nothing else on the screen is written down twice, so a row
+     that looked finished would be the screen saying this language calls
+     47 "seven". */
+  const partRows = [...panel().querySelectorAll(".at-numsamplerow[data-part]")];
+  check("a number it cannot say in full yet says so on the line",
+    partRows.length > 10 && /not yet/.test((partRows[0] || {}).textContent || ""),
+    `${partRows.length} of ${rows.length} marked · ${((partRows[0] || {}).textContent || "").trim()}`);
+  check("and the one it can say is not marked",
+    !!seven && !seven.hasAttribute("data-part"),
+    seven ? (seven.textContent || "").trim() : "(no row)");
+
   /* And a filled box asks how it sounds, on the same condition the Record
      button appears on: there is a word here to say. */
   const sevenLat = boxNamed("Transliteration for 7, counting");

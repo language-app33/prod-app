@@ -74,6 +74,16 @@ since 0.152 and what the port kept deliberately. The written language would
 have the bound form there too. A correction for whoever reads the Hebrew
 table, because changing it changes what an existing learner sees.
 
+## A preview each language chooses
+
+The list of numbers under *What a student will be asked* is one list for
+all three languages, chosen by eye to cover the shapes any of them can get
+wrong. It is Arabic-shaped, and it shows: the unit that changes after two
+tens is a Huế rule, and it is in there because somebody remembered, not
+because Huế asked for it. A composer already declares which boxes it needs
+and which ranges it can build; which numbers are worth showing is the same
+kind of answer and belongs beside them.
+
 ## One system per course
 
 A teacher of two courses in one language who wants different words in each.
