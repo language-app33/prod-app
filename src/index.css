@@ -2216,12 +2216,28 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    reason and in the same words: a single-line field centres its text, so
    the height is set outright and the vertical padding goes.
 
+   The height is the one the shapes beside the word are already written
+   in — see .at-cellrow, which is drawn with the same boxes. It used to be
+   56px, which made the word's three boxes visibly taller than the three
+   under every shape of it, and a card is one list of forms whichever
+   block a form is in. `--formbox` is named on the editor's screen so
+   neither place can drift from the other.
+
    Not on a sentence — see the editor, which leaves the class off where a
-   field holds blanks and wraps. */
-.at-part.evenfields .at-answerpair > .at-altfield > .at-inputwrap > .at-input,
-.at-part.evenfields .at-answerpair > .at-answersaid,
-.at-part.evenfields .at-altrow > .at-altfield > .at-input {
-  height:56px; box-sizing:border-box; padding-block:0; line-height:normal; }
+   field holds blanks and wraps.
+
+   Written under .at-screen.over, which the card editor always is, for the
+   specificity as much as for the scope: the rule that tightens every field
+   while the on-screen keypad is up sets padding as a shorthand, and these
+   boxes have to keep theirs at nothing or the text is squeezed out of a
+   height that no longer has room for it. */
+.at-screen.over { --formbox: 43px; }
+.at-screen.over .at-part.evenfields .at-answerpair > .at-altfield > .at-inputwrap > .at-input,
+.at-screen.over .at-part.evenfields .at-answerpair > .at-answersaid,
+.at-screen.over .at-part.evenfields .at-altrow > .at-altfield > .at-input,
+.at-screen.over .at-cellrow .at-cellfields > .at-input,
+.at-screen.over .at-cellrow .at-cellfields > .at-inputwrap > .at-input {
+  height: var(--formbox, 43px); box-sizing:border-box; padding-block:0; line-height:normal; }
 /* Which side the button takes is the script's business, not the page's: it
    belongs at the end of the line, which is the left in Arabic. Marked with
    a class rather than left to logical properties, because the button
@@ -3243,6 +3259,12 @@ body.at-screening .at-chromebar { display:none; }
    phone is 390 pixels wide. */
 .at-answerabout { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:6px; }
 .at-answerabout > .at-btn, .at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
+/* Except the one that leaves the screen. Recording is the only thing on
+   this line that opens somewhere else, and at the grammar button's size it
+   read as the smaller of the two rather than as the one to press. A shade
+   more type and a shade more padding; the row stretches them to a shared
+   height, so the pair still lines up. */
+.at-answerabout > .at-answerrec { font-size:13px; padding:6px 11px; }
 .at-answerdims { display:flex; flex-direction:column; gap:6px; margin-top:8px;
   padding:8px 12px; background: var(--well); border-radius: var(--r-sm);
   container-type: inline-size; }

@@ -438,6 +438,13 @@ function ScriptAnswers({ lang, dims, form, of = "", onChange, blanks, onRemoveBl
               variant="ghost"
               size="sm"
               icon="mic"
+              iconSize={17}
+              /* A shade larger than the grammar button beside it, which is
+                 a word and a chevron; this is the one thing on the line a
+                 teacher taps to leave the screen, and it was reading as
+                 the smaller of the two. Both keep the same box, because
+                 the row stretches them together. */
+              className="at-answerrec"
               /* Nothing to record until there is a word to say. The same
                  rule a cell of a table follows — see CellFields. */
               disabled={!String(row.text || "").trim()}

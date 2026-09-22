@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.214 — 22 September 2026
+
+**The word is written in the same boxes its other forms are.**
+
+0.213 made the three boxes under the word one height, and picked a height
+of its own — taller than the three under each of the shapes beside it. So
+a card read as one kind of field up top and a smaller kind below, when it
+is one list of forms either way. They are the shorter height now, the one
+the other forms have always had, and the two are written from one number
+so neither can drift.
+
+**And the record button is a little larger.** It is the one thing on that
+line that opens another screen, and at the grammar button's size it read
+as the smaller of the two rather than as the one to press.
+
 ## 0.213 — 22 September 2026
 
 **Three boxes of one size, a box that says what goes in it, and a
