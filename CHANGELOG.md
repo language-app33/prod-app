@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.214 — 22 September 2026
+
+**Nothing you can see; an audit of the tests.** `docs/AUDIT-tests.md` asks
+two things of the checks that run on every push: does every part of the
+app that matters have a test at all, and would the test go red if the
+thing it is about broke? The second was answered by breaking the app on
+purpose, about five hundred times, one small change at a time, and
+counting how often the tests noticed.
+
+Where the app's rules live — the ladder, cleared and learnt, what being
+due does, the caps on new words, the typo and the letter-by-letter
+marking, blanks, verb tables, the numbers and the clock — they are well
+tested and the tests bite. The gaps are at the edges: the phone's side of
+sync (fetch, merge, send back, retry) has no test although the merge does;
+ten of the server's forty-six actions have none, among them a teacher
+deleting or detaching a deck; the number and time questions are never
+asked in any test; and several screens have never been rendered by one —
+signing up, Settings, the admin space, joining a course, putting a scene
+in order. The note ranks them, says what each would cost to close, and
+proposes a fix round of about two days. Nothing in the app changed.
+
 ## 0.213 — 22 September 2026
 
 **Three boxes of one size, a box that says what goes in it, and a
