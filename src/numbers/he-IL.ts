@@ -24,7 +24,6 @@
  */
 import type {
   Composer,
-  CountedNoun,
   FormKey,
   NounForm,
   NumberSystem,
@@ -35,6 +34,7 @@ import type {
 } from "./types.ts";
 import { NUMBER_CEILING } from "./types.ts";
 import { Build } from "./build.ts";
+import { chunksOf, nounTextOf } from "./compose.ts";
 import type { VerbSpec } from "../types.ts";
 
 export const HE_COMPOSER_VERSION = 1;
@@ -233,9 +233,7 @@ function numeral(b: Build, n: number, how: FormKey): string {
   if (n === 0) return b.word("unit.0", "standalone");
 
   const pieces: string[] = [];
-  const millions = Math.floor(n / 1000000);
-  const thousands = Math.floor((n % 1000000) / 1000);
-  const rest = n % 1000;
+  const { millions, thousands, rest } = chunksOf(n);
   const m = scale(b, millions, 1000000, "million", "m");
   if (m) pieces.push(m);
   const t = scale(b, thousands, 1000, "thousand", "construct.m");
@@ -246,19 +244,6 @@ function numeral(b: Build, n: number, how: FormKey): string {
 
 /** Hebrew has no dual to count with: everything past one is the plural. */
 const nounFormFor = (n: number): NounForm => (n === 1 ? "sg" : "pl");
-
-function nounText(b: Build, noun: CountedNoun, form: NounForm): string {
-  const want = form === "pl" ? noun.pl : noun.sg;
-  const text = String(want || "").trim();
-  if (text) {
-    b.tokens.push({ text, noun: noun.id });
-    return text;
-  }
-  b.warn({ code: "missing-noun-form", detail: `${noun.id}.${form}` });
-  const fallback = String(noun.sg || "").trim();
-  if (fallback) b.tokens.push({ text: fallback, noun: noun.id });
-  return fallback;
-}
 
 export function renderHe(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Rendering {
   const b = build(sys);
@@ -280,7 +265,7 @@ export function renderHe(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Ren
      that is not simply "the numeral, then the noun". */
   const how: FormKey = n === 2 ? (noun.gender === "f" ? "construct.f" : "construct.m") : noun.gender;
   const said = numeral(b, n, how);
-  const word = nounText(b, noun, form);
+  const word = nounTextOf(b, noun, form);
   const text = (n === 1 ? [word, said] : [said, word]).filter(Boolean).join(" ");
   return { text, tokens: b.tokens, nounForm: form, warnings: b.warnings };
 }

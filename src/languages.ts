@@ -2426,6 +2426,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
     /* Ten before unit, one joining word in the whole number, and counted
        in the feminine. See src/numbers/he-IL.ts. */
     composer: composerFor("he-IL"),
+    times: timeComposerFor("he-IL"),
     verdicts: {
       partial: "Right letters, wrong niqqud",
       missing: "Letters right — add the niqqud",

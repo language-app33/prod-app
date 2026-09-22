@@ -19,7 +19,11 @@ import { readFileSync } from "node:fs";
 
 import { must } from "./helpers.mjs";
 import { renderAr } from "../src/numbers/ar-PS.ts";
-import { arTimeComposer, hour12Of, periodFor, renderArTime, roundToMark } from "../src/numbers/ar-PS.time.ts";
+import { arTimeComposer, renderArTime } from "../src/numbers/ar-PS.time.ts";
+/* The arithmetic a clock is made of is shared by every language that
+   tells the time — see compose.ts. Asked of it directly, because what is
+   checked below is the carry and the wrap, not the dialect. */
+import { hour12Of, periodFor, roundToMark } from "../src/numbers/compose.ts";
 
 const numbers = JSON.parse(
   readFileSync(new URL("./golden/ar-PS.numbers.json", import.meta.url), "utf8"),

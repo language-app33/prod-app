@@ -288,6 +288,7 @@ const readMinuteExpr = (v: unknown): MinuteExpr | null => {
   return {
     text,
     refHour: v.refHour === "next" ? "next" : "same",
+    ...(v.lead === true ? { lead: true } : null),
     ...(en ? { en } : null),
     ...(audio.length ? { audio } : null),
   };

@@ -824,7 +824,9 @@ src/
                    turns a system into the cards and skills a device holds,
                    `range.ts` decides what a skill can be asked and picks
                    it, `migrate.ts` reads a teacher's old number cards into
-                   a system, and one file per language holds that
+                   a system, `compose.ts` is what two composers turned out
+                   to share — chunking, the counted noun and the whole of
+                   a clock — and one file per language holds that
                    language's rules. **No file here holds a word**: a
                    composer knows slot names, an order and how the
                    connector attaches, and every syllable comes from the

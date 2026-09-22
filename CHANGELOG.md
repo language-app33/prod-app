@@ -87,6 +87,13 @@ Recordings work as they always did: one per word, and a time may play its
 hour and its minutes one after the other. Nothing is stitched together
 inside a number.
 
+**Hebrew tells the time too.** The same screen, the same skills, with the
+two things Hebrew does differently written in the boxes rather than in the
+app: a time may be the numeral on its own, and *a quarter to eight* puts
+the minutes in front of the hour where Palestinian Arabic puts them after
+it. There is a line beside each five-minute mark to say which. Huế still
+has numbers and no clock — nobody has written one yet.
+
 **What went.** The old Numbers grid under Teaching → Cards, and the
 *Practise numbers* button on Learning: there is one screen and one way of
 asking now, and both of them are above. **Number** is no longer one of the

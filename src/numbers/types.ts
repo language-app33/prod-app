@@ -151,6 +151,17 @@ export interface NumberSystem {
 export interface MinuteExpr {
   text: string;
   refHour: "same" | "next";
+  /**
+   * Whether it is said in front of the hour rather than after it.
+   *
+   * A fact about the words and not about the clock, which is why it is
+   * written beside the expression rather than decided in code: one
+   * language says *the hour three, less a quarter* and another says *a
+   * quarter to three*, and both are counting back from the same hour.
+   * Absent means after, which is what every expression written before
+   * this was.
+   */
+  lead?: boolean;
   /** What it means, where the teacher wants it said in words. */
   en?: string;
   audio?: string[];

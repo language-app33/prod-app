@@ -591,7 +591,7 @@ function TimesTab({ lang, numbers, clock, setClock, hourReady, slots, render, on
 
       <Section
         title="Every five minutes"
-        lede="What is said at each mark, and whether it counts from this hour or the next one."
+        lede="What is said at each mark, which hour it counts from, and which side of the hour it goes."
         className="at-mt5"
       >
         <div className="at-numgrid">
@@ -625,6 +625,21 @@ function TimesTab({ lang, numbers, clock, setClock, hourReady, slots, render, on
                     ]}
                     value={(expr && expr.refHour) || "same"}
                     onChange={(v) => setExpr(mark, { refHour: v })}
+                  />
+                  {/* Which side of the hour it is said on. Two languages
+                      that count back from the next hour disagree about
+                      this — one says *the hour eight, less a quarter* and
+                      the other *a quarter to eight* — and it is a fact
+                      about the words, so it is written here rather than
+                      decided in code. */}
+                  <Segmented
+                    label="Said"
+                    options={[
+                      { value: "after" as const, label: "after the hour" },
+                      { value: "before" as const, label: "before it" },
+                    ]}
+                    value={expr && expr.lead ? "before" : "after"}
+                    onChange={(v) => setExpr(mark, { lead: v === "before" })}
                   />
                 </div>
               </div>

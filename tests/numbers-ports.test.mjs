@@ -112,9 +112,10 @@ test("the registry answers by language and says nothing about any of them", () =
   assert.equal(composerFor("xx-XX"), null);
   assert.equal(composerFor(null), null);
   /* Telling the time is a separate answer: a language may build numbers
-     and have nobody yet who knows its clock. */
+     and have nobody yet who knows its clock, which is where Huế still
+     stands. */
   assert.ok(timeComposerFor("ar-PS"));
-  assert.equal(timeComposerFor("he-IL"), null);
+  assert.ok(timeComposerFor("he-IL"));
   assert.equal(timeComposerFor("vi-Hue"), null);
 });
 

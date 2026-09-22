@@ -15,6 +15,7 @@ import type { Composer, TimeComposer } from "./types.ts";
 import { arComposer } from "./ar-PS.ts";
 import { arTimeComposer } from "./ar-PS.time.ts";
 import { heComposer } from "./he-IL.ts";
+import { heTimeComposer } from "./he-IL.time.ts";
 import { viComposer } from "./vi-Hue.ts";
 
 const COMPOSERS: Record<string, Composer> = {
@@ -25,6 +26,7 @@ const COMPOSERS: Record<string, Composer> = {
 
 const TIME_COMPOSERS: Record<string, TimeComposer> = {
   "ar-PS": arTimeComposer,
+  "he-IL": heTimeComposer,
 };
 
 /** How this language builds its numbers, or null where nobody has said. */

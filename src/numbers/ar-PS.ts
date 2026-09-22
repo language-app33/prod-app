@@ -32,7 +32,6 @@
  */
 import type {
   Composer,
-  CountedNoun,
   FormKey,
   NounForm,
   NumberSystem,
@@ -43,6 +42,7 @@ import type {
 } from "./types.ts";
 import { NUMBER_CEILING } from "./types.ts";
 import { Build } from "./build.ts";
+import { chunksOf, genderKeyOf, nounTextOf } from "./compose.ts";
 import type { VerbSpec } from "../types.ts";
 
 /** Bumped when a change here could make an existing override wrong. */
@@ -202,8 +202,7 @@ const build = (sys: NumberSystem) => new Build(sys, AR_SLOTS, FALLBACK);
 
 /* ---- composing ---- */
 
-const genderKey = (g: "m" | "f" | undefined, construct: boolean): FormKey =>
-  construct ? (g === "f" ? "construct.f" : "construct.m") : g === "f" ? "f" : "m";
+const genderKey = genderKeyOf;
 
 /**
  * Whether gender is a question this number asks at all.
@@ -298,9 +297,7 @@ function numeral(b: Build, n: number, gender: "m" | "f" | undefined, counted: bo
      building starts rather than falling through it and coming out empty. */
   if (n === 0) return b.word("unit.0", "standalone");
 
-  const millions = Math.floor(n / 1000000);
-  const thousands = Math.floor((n % 1000000) / 1000);
-  const rest = n % 1000;
+  const { millions, thousands, rest } = chunksOf(n);
   const pieces = [
     scale(b, millions, 1000000, "million"),
     scale(b, thousands, 1000, "thousand"),
@@ -321,21 +318,6 @@ function nounFormFor(n: number): NounForm {
   if (n >= 3 && n <= 10) return "pl";
   if (n === 0) return "pl";
   return "sg";
-}
-
-/** The noun in the face the numeral asked for, falling back to the
-    singular and saying so rather than leaving a hole in the phrase. */
-function nounText(b: Build, noun: CountedNoun, form: NounForm): string {
-  const want = form === "dual" ? noun.dual : form === "pl" ? noun.pl : noun.sg;
-  const text = String(want || "").trim();
-  if (text) {
-    b.tokens.push({ text, noun: noun.id });
-    return text;
-  }
-  b.warn({ code: "missing-noun-form", detail: `${noun.id}.${form}` });
-  const fallback = String(noun.sg || "").trim();
-  if (fallback) b.tokens.push({ text: fallback, noun: noun.id });
-  return fallback;
 }
 
 /**
@@ -365,12 +347,12 @@ export function renderAr(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Ren
      is the one place a number is said by not being said, and the reason
      this returns a phrase rather than a numeral. */
   if (n === 2) {
-    const text = nounText(b, noun, "dual");
+    const text = nounTextOf(b, noun, "dual");
     return { text, tokens: b.tokens, nounForm: "dual", warnings: b.warnings };
   }
 
   const said = numeral(b, n, gender, true);
-  const word = nounText(b, noun, form);
+  const word = nounTextOf(b, noun, form);
   /* One follows its noun; everything else leads. */
   const text = (n === 1 ? [word, said] : [said, word]).filter(Boolean).join(" ");
   return { text, tokens: b.tokens, nounForm: form, warnings: b.warnings };
