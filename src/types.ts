@@ -201,6 +201,22 @@ export interface VerbSpec {
       plural". Absent on the verb's, which is called by its rows. */
   label?: string;
   /**
+   * What the card's own word is, where the cells are the other shapes of
+   * it: an adjective's word is the masculine, and the table holds the
+   * feminine, the plural and the dual.
+   *
+   * Said so the word can be named alongside them instead of being the one
+   * with no name. It was "Form 1" and then "The main form", and both are
+   * the app talking about its own screen — beside three boxes called
+   * feminine, plural and dual, the honest fourth name is the fourth shape.
+   * Which shape that is, is the language's answer and not the app's.
+   *
+   * Absent where the cells are not shapes of the word: the pronouns on the
+   * end of it are a different word each, and a verb says which cell a
+   * dictionary lists it under with `citation` instead.
+   */
+  base?: string;
+  /**
    * Which cell of the table is the verb as a dictionary names it.
    *
    * Arabic has no infinitive: *to eat* is listed under أكل, which is the
@@ -409,6 +425,19 @@ export interface Lang {
    */
   direction: "rtl" | "ltr";
   scriptLabel: string;
+  /**
+   * The same word, written in the language.
+   *
+   * The placeholder in the box a teacher writes the language into, and the
+   * only thing on that line saying which script is wanted. The label above
+   * it used to say "Arabic script and transliteration", which named two
+   * fields in one heading and still left the box itself empty — a box with
+   * a name over it and nothing in it says nothing about what goes in it.
+   *
+   * Short: the name of the language, not of the dialect — `nativeName` is
+   * the dialect, and at the length of a sentence it is not a placeholder.
+   */
+  scriptNative: string;
   scriptShort: string;
   /** How to recognise the script. Latin-written languages have none. */
   script?: RegExp;

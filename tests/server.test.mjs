@@ -2787,4 +2787,665 @@ test("an unreadable record fails the request rather than reading as absent", asy
   assert.equal(listed.status, 500, "the request fails");
   assert.equal(listed.json.error, "server");
   assert.match(String(listed.json.detail), /unreadable/, "and says what could not be read");
+
+  /*
+   * And then it is put back, because every test in this file shares one
+   * store: a deck left unreadable makes every later listing fail for
+   * everybody, which is the assertion above coming true somewhere nobody
+   * was looking. It cost an afternoon once.
+   */
+  await store.set(`deck:${deck.json.deck.id}`, JSON.stringify(deck.json.deck));
+  const after = await api("/api/courses?action=my-decks", { key });
+  assert.equal(after.status, 200, `the store was left broken: ${after.text.slice(0, 200)}`);
+});
+
+/* ==================================================================
+   The actions nothing had ever requested
+
+   Ten of the endpoint's forty-six, found by reading which ones the tests
+   never named: a teacher deleting or detaching a deck, a recording being
+   uploaded, the two ways material is listed, and five things an
+   administrator can do. Every one has a wrapper in `src/courses-api.ts`,
+   so every one is reached by the app. Two of them — the deck pair — are
+   the actions the progress-durability audit found destroying a learner's
+   work, which is the strongest argument for their being here.
+   ================================================================== */
+
+/** An account, and its key. */
+const someone = async (/** @type {string} */ displayName) => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName } });
+  assert.equal(made.status, 200, made.text);
+  return { key: made.json.key, handle: made.json.user.handle };
+};
+
+/** An account that has claimed the admin key, which is what may make courses. */
+const anAdmin = async (/** @type {string} */ displayName) => {
+  const who = await someone(displayName);
+  const claim = await api("/api/courses?action=claim-admin", {
+    method: "POST", key: who.key, body: { adminKey: ADMIN_KEY },
+  });
+  assert.equal(claim.status, 200, claim.text);
+  return who;
+};
+
+/** A deck with one card in it, owned by whoever's key this is. */
+const aDeck = async (/** @type {string} */ key, /** @type {string} */ title) => {
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key, body: { title, lang: "ar-PS" },
+  });
+  assert.equal(deck.status, 200, deck.text);
+  const id = deck.json.deck.id;
+  const card = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: carded({ ar: "كتاب", en: "book", lat: "kitaab" }), decks: [id] },
+  });
+  assert.equal(card.status, 200, card.text);
+  return { id, cardId: card.json.card.id };
+};
+
+/** A course, made by an administrator. */
+const aCourse = async (/** @type {string} */ key, /** @type {string} */ title) => {
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key, body: { title, language: "ar-PS" },
+  });
+  assert.equal(course.status, 200, course.text);
+  return course.json.course;
+};
+
+/* ---- decks: taking one away, and taking it out of a course ---- */
+
+test("deleting a deck takes it off every course, and leaves the cards in the library", () => {
+  return (async () => {
+    const teacher = await anAdmin("Nadia");
+    const { id: deckId, cardId } = await aDeck(teacher.key, "Lesson 1");
+    const course = await aCourse(teacher.key, "Arabic 1");
+    await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId, courseId: course.id },
+    });
+
+    const gone = await api("/api/courses?action=delete-deck", {
+      method: "POST", key: teacher.key, body: { deckId },
+    });
+    assert.equal(gone.status, 200, gone.text);
+
+    /* Off the course it was attached to — and the course itself stays. */
+    const decks = await api(`/api/courses?action=course-decks&course=${course.id}`, { key: teacher.key });
+    assert.equal(decks.status, 200, decks.text);
+    assert.deepEqual(decks.json.decks.map((/** @type {any} */ d) => d.id), [],
+      "the deleted deck is still listed against its course");
+
+    /* Out of the teacher's own list. */
+    const mine = await api("/api/courses?action=my-decks", { key: teacher.key });
+    assert.ok(!mine.json.decks.some((/** @type {any} */ d) => d.id === deckId), "still in my decks");
+
+    /* And the card it held is the teacher's own and stays theirs: a deck
+       is a folder, not a bag the cards live inside. */
+    const cards = await api("/api/courses?action=my-cards", { key: teacher.key });
+    assert.ok(cards.json.cards.some((/** @type {any} */ c) => c.id === cardId),
+      "deleting the deck took its cards with it");
+  })();
+});
+
+test("a deck nobody owns and a deck somebody else owns are both refused", () => {
+  return (async () => {
+    const mine = await anAdmin("Omar");
+    const stranger = await someone("Rania");
+    const { id: deckId } = await aDeck(mine.key, "Mine");
+
+    const missing = await api("/api/courses?action=delete-deck", {
+      method: "POST", key: mine.key, body: { deckId: "dnope" },
+    });
+    assert.equal(missing.status, 404);
+    assert.equal(missing.json.error, "no-deck");
+
+    const theirs = await api("/api/courses?action=delete-deck", {
+      method: "POST", key: stranger.key, body: { deckId },
+    });
+    assert.equal(theirs.status, 403);
+    assert.equal(theirs.json.error, "not-yours");
+    /* And it is still there, which is what a refusal has to mean. */
+    const still = await api("/api/courses?action=my-decks", { key: mine.key });
+    assert.ok(still.json.decks.some((/** @type {any} */ d) => d.id === deckId));
+  })();
+});
+
+test("detaching a deck leaves the deck alone, and only the course loses it", () => {
+  return (async () => {
+    const teacher = await anAdmin("Hana");
+    const { id: deckId, cardId } = await aDeck(teacher.key, "Lesson 2");
+    const one = await aCourse(teacher.key, "Arabic A");
+    const two = await aCourse(teacher.key, "Arabic B");
+    for (const c of [one, two]) {
+      await api("/api/courses?action=attach-deck", {
+        method: "POST", key: teacher.key, body: { deckId, courseId: c.id },
+      });
+    }
+
+    const off = await api("/api/courses?action=detach-deck", {
+      method: "POST", key: teacher.key, body: { deckId, courseId: one.id },
+    });
+    assert.equal(off.status, 200, off.text);
+
+    const gone = await api(`/api/courses?action=course-decks&course=${one.id}`, { key: teacher.key });
+    assert.deepEqual(gone.json.decks.map((/** @type {any} */ d) => d.id), []);
+    /* The other course keeps it: detaching is about one link, not the deck. */
+    const kept = await api(`/api/courses?action=course-decks&course=${two.id}`, { key: teacher.key });
+    assert.deepEqual(kept.json.decks.map((/** @type {any} */ d) => d.id), [deckId]);
+    /* And the deck and its cards are untouched. */
+    const cards = await api(`/api/courses?action=deck-cards&deck=${deckId}`, { key: teacher.key });
+    assert.equal(cards.status, 200, cards.text);
+    assert.deepEqual(cards.json.cards.map((/** @type {any} */ c) => c.id), [cardId]);
+  })();
+});
+
+test("a teacher of neither the deck nor the course cannot attach one to the other", () => {
+  return (async () => {
+    /*
+     * Both halves are asked, and until now every teacher in these tests
+     * was an administrator — which passes the second half whatever the
+     * first says, so the check could have been inverted and nothing would
+     * have noticed. This one teaches a course and owns a deck, and the
+     * course and the deck are not the same pair.
+     */
+    const boss = await anAdmin("Layla");
+    const teacher = await someone("Samir");
+    const mine = await aDeck(teacher.key, "Samir's deck");
+    const hers = await aDeck(boss.key, "Layla's deck");
+    const theirCourse = await aCourse(boss.key, "Taught by Samir");
+    const otherCourse = await aCourse(boss.key, "Taught by nobody");
+    await api("/api/courses?action=assign-teacher", {
+      method: "POST", key: boss.key, body: { courseId: theirCourse.id, handle: teacher.handle },
+    });
+
+    /* Their own deck onto a course they do not teach. */
+    const notTeaching = await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId: mine.id, courseId: otherCourse.id },
+    });
+    assert.equal(notTeaching.status, 403, notTeaching.text);
+    assert.equal(notTeaching.json.error, "not-teaching");
+
+    /* Somebody else's deck onto a course they do teach. */
+    const notTheirs = await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId: hers.id, courseId: theirCourse.id },
+    });
+    assert.equal(notTheirs.status, 403, notTheirs.text);
+    assert.equal(notTheirs.json.error, "not-yours");
+
+    /* And with both halves true it goes through, so the refusals above are
+       the rule doing its job rather than the endpoint being shut. */
+    const allowed = await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId: mine.id, courseId: theirCourse.id },
+    });
+    assert.equal(allowed.status, 200, allowed.text);
+  })();
+});
+
+/* ---- what a course holds, and who may look ---- */
+
+test("a course's decks are listed to the people in it and to nobody else", () => {
+  return (async () => {
+    const teacher = await anAdmin("Zaid");
+    const student = await someone("Maya");
+    const outsider = await someone("Faris");
+    const { id: deckId } = await aDeck(teacher.key, "Week 1");
+    const course = await aCourse(teacher.key, "Arabic 2");
+    await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId, courseId: course.id },
+    });
+    await api("/api/courses?action=assign-student", {
+      method: "POST", key: teacher.key, body: { courseId: course.id, handle: student.handle },
+    });
+
+    const asStudent = await api(`/api/courses?action=course-decks&course=${course.id}`, { key: student.key });
+    assert.equal(asStudent.status, 200, asStudent.text);
+    assert.deepEqual(asStudent.json.decks.map((/** @type {any} */ d) => d.id), [deckId]);
+    assert.equal(asStudent.json.decks[0].ownerName, "Zaid", "who wrote it");
+    assert.equal(asStudent.json.decks[0].cardCount, 1, "and how much is in it");
+    /* The join code is how somebody gets in, so it is never handed to
+       somebody who is already in. */
+    assert.equal(asStudent.json.course.code, undefined);
+
+    const asOutsider = await api(`/api/courses?action=course-decks&course=${course.id}`, { key: outsider.key });
+    assert.equal(asOutsider.status, 403);
+    assert.equal(asOutsider.json.error, "not-in-course");
+
+    const missing = await api("/api/courses?action=course-decks&course=cnope", { key: teacher.key });
+    assert.equal(missing.status, 404);
+  })();
+});
+
+test("a deck's cards are readable by its owner and by the course it is in, and not by a stranger", () => {
+  return (async () => {
+    const teacher = await anAdmin("Bilal");
+    const student = await someone("Dina");
+    const stranger = await someone("Kamal");
+    const { id: deckId, cardId } = await aDeck(teacher.key, "Week 2");
+    const course = await aCourse(teacher.key, "Arabic 3");
+
+    const asOwner = await api(`/api/courses?action=deck-cards&deck=${deckId}`, { key: teacher.key });
+    assert.equal(asOwner.status, 200, asOwner.text);
+    assert.deepEqual(asOwner.json.cards.map((/** @type {any} */ c) => c.id), [cardId]);
+    assert.ok(asOwner.json.version, "with the deck's version, which is what a refresh compares");
+
+    /* Before it is attached, somebody in the course is a stranger to it. */
+    const tooEarly = await api(`/api/courses?action=deck-cards&deck=${deckId}`, { key: student.key });
+    assert.equal(tooEarly.status, 403);
+
+    await api("/api/courses?action=attach-deck", {
+      method: "POST", key: teacher.key, body: { deckId, courseId: course.id },
+    });
+    await api("/api/courses?action=assign-student", {
+      method: "POST", key: teacher.key, body: { courseId: course.id, handle: student.handle },
+    });
+    const asStudent = await api(`/api/courses?action=deck-cards&deck=${deckId}`, { key: student.key });
+    assert.equal(asStudent.status, 200, asStudent.text);
+    assert.deepEqual(asStudent.json.cards.map((/** @type {any} */ c) => c.id), [cardId]);
+
+    const asStranger = await api(`/api/courses?action=deck-cards&deck=${deckId}`, { key: stranger.key });
+    assert.equal(asStranger.status, 403);
+    assert.equal(asStranger.json.error, "no-access");
+
+    const missing = await api("/api/courses?action=deck-cards&deck=dnope", { key: teacher.key });
+    assert.equal(missing.status, 404);
+  })();
+});
+
+/* ---- recordings ---- */
+
+test("a recording is stored under the hash of its own bytes, and stored once", () => {
+  return (async () => {
+    const teacher = await anAdmin("Suha");
+    const hash = "b".repeat(64);
+    const data = "data:audio/webm;base64,AAAABBBB";
+
+    const first = await api("/api/courses?action=put-clip", {
+      method: "POST", key: teacher.key, body: { hash, data },
+    });
+    assert.equal(first.status, 200, first.text);
+    assert.equal(first.json.deduplicated, false, "the first upload stores it");
+
+    const again = await api("/api/courses?action=put-clip", {
+      method: "POST", key: teacher.key, body: { hash, data },
+    });
+    assert.equal(again.json.deduplicated, true, "and the second says it was already here");
+
+    const back = await api(`/api/courses?action=clip&hash=${hash}`, { key: teacher.key });
+    assert.equal(back.status, 200, back.text);
+    assert.equal(back.json.data, data);
+  })();
+});
+
+test("a recording with no name, no data or too much of it is refused", () => {
+  return (async () => {
+    const teacher = await anAdmin("Ghada");
+    const data = "data:audio/webm;base64,AAAA";
+
+    const unnamed = await api("/api/courses?action=put-clip", {
+      method: "POST", key: teacher.key, body: { hash: "not-a-hash", data },
+    });
+    assert.equal(unnamed.status, 400);
+    assert.equal(unnamed.json.error, "bad-hash");
+
+    /* Nothing to store, and more than may be stored, are one refusal: an
+       empty clip is as useless as an enormous one, and neither is worth a
+       key of its own. */
+    const empty = await api("/api/courses?action=put-clip", {
+      method: "POST", key: teacher.key, body: { hash: "c".repeat(64), data: "" },
+    });
+    assert.equal(empty.status, 400);
+    assert.equal(empty.json.error, "bad-clip");
+
+    const huge = await api("/api/courses?action=put-clip", {
+      method: "POST", key: teacher.key, body: { hash: "d".repeat(64), data: "x".repeat(1024 * 1024 + 1) },
+    });
+    assert.equal(huge.status, 400, huge.text);
+    assert.equal(huge.json.error, "bad-clip");
+
+    /* And neither was written. */
+    for (const h of ["c".repeat(64), "d".repeat(64)]) {
+      const back = await api(`/api/courses?action=clip&hash=${h}`, { key: teacher.key });
+      assert.equal(back.status, 404, `${h} was stored anyway`);
+    }
+  })();
+});
+
+/* ---- what an administrator can do ---- */
+
+test("removing a person takes their account, their key and their place on every roster", () => {
+  return (async () => {
+    const boss = await anAdmin("Iman");
+    const going = await someone("Tariq");
+    const staying = await someone("Nour");
+    const course = await aCourse(boss.key, "Arabic 4");
+    for (const who of [going, staying]) {
+      await api("/api/courses?action=assign-student", {
+        method: "POST", key: boss.key, body: { courseId: course.id, handle: who.handle },
+      });
+    }
+
+    const gone = await api("/api/courses?action=admin-delete-user", {
+      method: "POST", key: boss.key, body: { handle: going.handle },
+    });
+    assert.equal(gone.status, 200, gone.text);
+
+    /* Their key stops working, which is the part that matters most. */
+    const tries = await api("/api/courses?action=whoami", { key: going.key });
+    assert.equal(tries.status, 401);
+
+    /* Off the roster — and the person beside them is still on it, which is
+       what says the filter took the right one away. */
+    const roster = await api("/api/courses?action=admin-overview", { key: boss.key });
+    const row = must(
+      overviewOf(roster).courses.find((/** @type {any} */ c) => c.id === course.id),
+      "the course",
+    );
+    assert.ok(!row.students.includes(going.handle), "still on the roster");
+    assert.ok(row.students.includes(staying.handle), "and it took the wrong person off");
+  })();
+});
+
+test("removing somebody who is not there says so, and your own account has its own door", () => {
+  return (async () => {
+    const boss = await anAdmin("Rami");
+    const missing = await api("/api/courses?action=admin-delete-user", {
+      method: "POST", key: boss.key, body: { handle: "nobody-0000" },
+    });
+    assert.equal(missing.status, 404, missing.text);
+    assert.equal(missing.json.error, "no-user");
+
+    /* Closing your own account is the same walk and needs no administrator,
+       so this one is pointed at the door with its own name. */
+    const self = await api("/api/courses?action=admin-delete-user", {
+      method: "POST", key: boss.key, body: { handle: boss.handle },
+    });
+    assert.equal(self.status, 400);
+    assert.equal(self.json.error, "use-delete-account");
+    /* And they are still here. */
+    assert.equal((await api("/api/courses?action=whoami", { key: boss.key })).status, 200);
+  })();
+});
+
+test("removing a course releases its decks rather than destroying them", () => {
+  return (async () => {
+    const boss = await anAdmin("Salma");
+    const { id: deckId, cardId } = await aDeck(boss.key, "Week 3");
+    const course = await aCourse(boss.key, "Arabic 5");
+    await api("/api/courses?action=attach-deck", {
+      method: "POST", key: boss.key, body: { deckId, courseId: course.id },
+    });
+
+    const gone = await api("/api/courses?action=admin-delete-course", {
+      method: "POST", key: boss.key, body: { courseId: course.id },
+    });
+    assert.equal(gone.status, 200, gone.text);
+
+    const overview = await api("/api/courses?action=admin-overview", { key: boss.key });
+    assert.ok(!overviewOf(overview).courses.some((/** @type {any} */ c) => c.id === course.id));
+
+    /* The deck belongs to the teacher who made it, and so do its cards. */
+    const mine = await api("/api/courses?action=my-decks", { key: boss.key });
+    const deck = must(mine.json.decks.find((/** @type {any} */ d) => d.id === deckId), "the deck");
+    assert.equal(deck.cardCount, 1);
+    const cards = await api(`/api/courses?action=deck-cards&deck=${deckId}`, { key: boss.key });
+    assert.deepEqual(cards.json.cards.map((/** @type {any} */ c) => c.id), [cardId]);
+
+    const missing = await api("/api/courses?action=admin-delete-course", {
+      method: "POST", key: boss.key, body: { courseId: "cnope" },
+    });
+    assert.equal(missing.status, 404);
+  })();
+});
+
+test("a key can be reissued, and the old one stops working that moment", () => {
+  return (async () => {
+    const boss = await anAdmin("Widad");
+    const who = await someone("Basim");
+    const before = await api("/api/courses?action=whoami", { key: who.key });
+    assert.equal(before.status, 200);
+
+    const issued = await api("/api/courses?action=admin-reissue-key", {
+      method: "POST", key: boss.key, body: { handle: who.handle },
+    });
+    assert.equal(issued.status, 200, issued.text);
+    assert.ok(issued.json.key, "a new key comes back, since nobody can look one up later");
+    assert.notEqual(issued.json.key, who.key);
+
+    assert.equal((await api("/api/courses?action=whoami", { key: who.key })).status, 401,
+      "the old key still signs in");
+    const now = await api("/api/courses?action=whoami", { key: issued.json.key });
+    assert.equal(now.status, 200, now.text);
+    assert.equal(now.json.user.handle, who.handle, "and it is the same person");
+
+    const missing = await api("/api/courses?action=admin-reissue-key", {
+      method: "POST", key: boss.key, body: { handle: "nobody-0000" },
+    });
+    assert.equal(missing.status, 404);
+  })();
+});
+
+test("one of a course's two join codes can be replaced without disturbing the other", () => {
+  return (async () => {
+    /* Retiring a leaked teacher code must not turn away a whole class. */
+    const boss = await anAdmin("Hadil");
+    const course = await aCourse(boss.key, "Arabic 6");
+    const overview = () => api("/api/courses?action=admin-overview", { key: boss.key })
+      .then((r) => must(overviewOf(r).courses.find((/** @type {any} */ c) => c.id === course.id), "the course"));
+
+    const was = await overview();
+    const swapped = await api("/api/courses?action=admin-new-code", {
+      method: "POST", key: boss.key, body: { courseId: course.id, which: "teacher" },
+    });
+    assert.equal(swapped.status, 200, swapped.text);
+    assert.equal(swapped.json.which, "teacherCode", "it answers with the field it replaced");
+
+    const now = await overview();
+    assert.notEqual(now.teacherCode, was.teacherCode, "the teacher code is the same as it was");
+    assert.equal(now.code, was.code, "and the student code was replaced too");
+
+    /* The retired code no longer lets anybody in. */
+    const student = await someone("Yusuf");
+    const stale = await api("/api/courses?action=join-course", {
+      method: "POST", key: student.key, body: { code: was.teacherCode },
+    });
+    assert.equal(stale.status, 404, stale.text);
+    /* And the new one does. */
+    const fresh = await api("/api/courses?action=join-course", {
+      method: "POST", key: student.key, body: { code: now.teacherCode },
+    });
+    assert.equal(fresh.status, 200, fresh.text);
+  })();
+});
+
+test("a course made before there was a language to set can be given one", () => {
+  return (async () => {
+    const boss = await anAdmin("Manal");
+    const course = await aCourse(boss.key, "Arabic 7");
+    const set = await api("/api/courses?action=admin-course-language", {
+      method: "POST", key: boss.key, body: { courseId: course.id, language: "he-IL" },
+    });
+    assert.equal(set.status, 200, set.text);
+    assert.equal(set.json.language, "he-IL");
+
+    const overview = await api("/api/courses?action=admin-overview", { key: boss.key });
+    const row = must(
+      overviewOf(overview).courses.find((/** @type {any} */ c) => c.id === course.id),
+      "the course",
+    );
+    assert.equal(row.language, "he-IL");
+
+    const blank = await api("/api/courses?action=admin-course-language", {
+      method: "POST", key: boss.key, body: { courseId: course.id, language: "  " },
+    });
+    assert.equal(blank.status, 400);
+    assert.equal(blank.json.error, "language-required");
+  })();
+});
+
+test("none of the administrator's actions are open to somebody who is not one", () => {
+  return (async () => {
+    const boss = await anAdmin("Ahlam");
+    const ordinary = await someone("Jamil");
+    const course = await aCourse(boss.key, "Arabic 8");
+    for (const [action, body] of /** @type {[string, any][]} */ ([
+      ["admin-overview", null],
+      ["admin-delete-user", { handle: boss.handle }],
+      ["admin-delete-course", { courseId: course.id }],
+      ["admin-reissue-key", { handle: boss.handle }],
+      ["admin-new-code", { courseId: course.id }],
+      ["admin-course-language", { courseId: course.id, language: "he-IL" }],
+    ])) {
+      const res = await api(`/api/courses?action=${action}`, {
+        method: body ? "POST" : "GET", key: ordinary.key, ...(body ? { body } : {}),
+      });
+      assert.equal(res.status, 403, `${action} answered ${res.status}: ${res.text}`);
+    }
+    /* And the administrator is still there to prove the calls were real. */
+    assert.equal((await api("/api/courses?action=whoami", { key: boss.key })).status, 200);
+  })();
+});
+
+/* ---- the transport itself ---- */
+
+test("a body past the limit is refused with an answer, not by hanging up", () => {
+  return (async () => {
+    /*
+     * It used to destroy the socket, so the 413 the server then wrote had
+     * nowhere to go and the client saw a connection reset — which it could
+     * only report as "something went wrong". The rest of the body is read
+     * and thrown away so the refusal can be written on a socket that is
+     * still open.
+     */
+    const teacher = await anAdmin("Rawan");
+    const res = await api("/api/courses?action=save-card", {
+      method: "POST", key: teacher.key,
+      body: { card: carded({ ar: "ك", en: "b", lat: "b", note: "x".repeat(12 * 1024 * 1024) }), decks: [] },
+    });
+    assert.equal(res.status, 413, res.text.slice(0, 200));
+    assert.equal(res.json.error, "too-large");
+    assert.match(res.type, /application\/json/);
+  })();
+});
+
+test("a method the server does not serve is refused as JSON", () => {
+  return (async () => {
+    const res = await fetch(`${origin}/not-an-api-path`, { method: "PUT" });
+    assert.equal(res.status, 405);
+    assert.deepEqual(await res.json(), { error: "method" });
+  })();
+});
+
+/* ---- recordings and documents on the sync endpoint ----
+
+   Clips live under their own keys so a document sync does not have to
+   carry them, and `?audio=` is how one is addressed. The three methods
+   and the refusals were reached by nothing. */
+
+test("a recording is written, read back and removed under its own key", async () => {
+  const token = createHash("sha256").update("a clip passphrase").digest("hex");
+  const id = "clip_abc-123";
+  const data = "data:audio/webm;base64,AAAABBBB";
+
+  const missing = await api(`/api/sync?audio=${id}`, { token });
+  assert.equal(missing.status, 404, missing.text);
+  assert.equal(missing.json.error, "not-found");
+
+  const put = await api(`/api/sync?audio=${id}`, { method: "POST", token, body: { data } });
+  assert.equal(put.status, 200, put.text);
+
+  const got = await api(`/api/sync?audio=${id}`, { token });
+  assert.equal(got.status, 200, got.text);
+  assert.equal(got.json.data, data);
+  assert.equal(got.json.id, id);
+
+  /* A recording is keyed by the passphrase as well as its own id, so
+     another person's token finds nothing under the same name. */
+  const elsewhere = createHash("sha256").update("somebody else").digest("hex");
+  const theirs = await api(`/api/sync?audio=${id}`, { token: elsewhere });
+  assert.equal(theirs.status, 404);
+
+  const gone = await api(`/api/sync?audio=${id}`, { method: "DELETE", token });
+  assert.equal(gone.status, 200, gone.text);
+  assert.equal((await api(`/api/sync?audio=${id}`, { token })).status, 404);
+});
+
+test("a recording with a name that is not one, or nothing in it, is refused", async () => {
+  const token = createHash("sha256").update("another clip passphrase").digest("hex");
+
+  const badId = await api("/api/sync?audio=has%20a%20space", { token });
+  assert.equal(badId.status, 400);
+  assert.equal(badId.json.error, "bad-id");
+
+  const empty = await api("/api/sync?audio=c1", { method: "POST", token, body: { data: "" } });
+  assert.equal(empty.status, 400);
+  assert.equal(empty.json.error, "no-data");
+
+  const notJson = await fetch(`${origin}/api/sync?audio=c1`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-sync-token": token },
+    body: "{ not json",
+  });
+  assert.equal(notJson.status, 400);
+  assert.equal((await notJson.json()).error, "bad-json");
+});
+
+test("a recording past the limit is refused by size, and nothing is stored", async () => {
+  const token = createHash("sha256").update("a third clip passphrase").digest("hex");
+  const huge = await api("/api/sync?audio=big", {
+    method: "POST", token, body: { data: "x".repeat(4 * 1024 * 1024 + 1) },
+  });
+  assert.equal(huge.status, 413, huge.text.slice(0, 120));
+  assert.equal(huge.json.error, "too-large");
+  assert.equal((await api("/api/sync?audio=big", { token })).status, 404, "it was stored anyway");
+});
+
+test("a document can be forgotten, which is how an old key is cleared", async () => {
+  /* The one delete the app ever issues: a document left behind under a
+     private key an older build used, once this device has synced under
+     the shared one. */
+  const token = createHash("sha256").update("a passphrase to forget").digest("hex");
+  await api("/api/sync", { method: "POST", token, body: { data: { items: [{ id: "a" }] } } });
+  assert.deepEqual((await api("/api/sync", { token })).json.data, { items: [{ id: "a" }] });
+
+  const gone = await api("/api/sync", { method: "DELETE", token });
+  assert.equal(gone.status, 200, gone.text);
+  assert.deepEqual((await api("/api/sync", { token })).json, { etag: null, data: null });
+});
+
+test("a push that would empty a document that is not empty is refused, and says how much is there", async () => {
+  /*
+   * There is no legitimate way to reach it: a device with nothing on it
+   * pulls before it pushes, so its merge adopts whatever is here. What is
+   * left is a merge that lost everything, and one request would make that
+   * permanent.
+   */
+  const token = createHash("sha256").update("a passphrase worth keeping").digest("hex");
+  const first = await api("/api/sync", {
+    method: "POST", token, body: { data: { items: [{ id: "a" }, { id: "b" }] } },
+  });
+  assert.equal(first.status, 200, first.text);
+
+  const wipe = await api("/api/sync", {
+    method: "POST", token, body: { etag: first.json.etag, data: { items: [] } },
+  });
+  assert.equal(wipe.status, 409, wipe.text);
+  assert.equal(wipe.json.error, "would-empty");
+  assert.equal(wipe.json.held, 2, "and says what it is holding");
+  /* Nothing was written. */
+  assert.equal((await api("/api/sync", { token })).json.data.items.length, 2);
+
+  /* And a learner who has genuinely removed every card says so with the
+     headstones, which is what lets the write through. */
+  const said = await api("/api/sync", {
+    method: "POST", token,
+    body: { etag: first.json.etag, data: { items: [] }, allowEmpty: true },
+  });
+  assert.equal(said.status, 200, said.text);
+  assert.deepEqual((await api("/api/sync", { token })).json.data.items, []);
+});
+
+test("a method the sync endpoint does not serve is refused as JSON", async () => {
+  const token = createHash("sha256").update("a passphrase for a bad method").digest("hex");
+  const res = await fetch(`${origin}/api/sync`, { method: "PATCH", headers: { "x-sync-token": token } });
+  assert.equal(res.status, 405);
+  assert.deepEqual(await res.json(), { error: "method" });
 });

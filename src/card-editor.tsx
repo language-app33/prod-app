@@ -21,6 +21,7 @@ import {
   categoryOf,
   answerDims,
   categoryLabel,
+  cap,
   briefOf,
   cardDims,
   dimValues,
@@ -112,10 +113,23 @@ const blankLine = (taken: { id?: string }[] = []) => ({
    now a button. The list is local state seeded from the stored string —
    deriving it on every render would drop an added field the moment it was
    added, because an empty answer joins to nothing. */
-function Alternatives({ value, onChange, render, addLabel = "Add another accepted answer" }: {
+function Alternatives({ value, onChange, render, of = "", addLabel = "Add another accepted answer" }: {
   value?: string;
   onChange: (value: string) => void;
-  render: (value: string, onChange: (v: string) => void) => Node;
+  /* The third argument is what to call this box out loud, where the label
+     above it does not say on its own — see `of`. A caller drawing
+     something that carries its own name ignores it. */
+  render: (value: string, onChange: (v: string) => void, label: string | undefined) => Node;
+  /**
+   * Which form these belong to, where saying so is the only way to tell
+   * them apart.
+   *
+   * A card whose forms are laid out in a table has four blocks of
+   * identical fields under four headings, and a heading is not a label:
+   * somebody reading the screen aloud would meet four boxes all called
+   * "English" with no way to know which was the feminine's.
+   */
+  of?: string;
   addLabel?: string;
 }) {
   const [list, setList] = useState(() => splitAlternatives(value || ""));
@@ -146,18 +160,28 @@ function Alternatives({ value, onChange, render, addLabel = "Add another accepte
     sent.current = joined;
     onChange(joined);
   };
+  const named = (i: number) =>
+    of ? `English${list.length > 1 ? ` of accepted answer ${i + 1}` : ""} for ${of}` : undefined;
   return (
     <div className="at-alts">
       {list.map((v, i) => (
         <div className="at-altrow" key={i}>
           <div className="at-altfield">
-            {render(v, (nv) => commit(list.map((x, j) => (j === i ? nv : x))))}
+            {render(v, (nv) => commit(list.map((x, j) => (j === i ? nv : x))), named(i))}
           </div>
           {list.length > 1 && (
-            <IconButton icon="remove" label="Remove this answer" onClick={() => commit(list.filter((_, j) => j !== i))} />
+            <IconButton
+              icon="remove"
+              label={of ? `Remove this answer for ${of}` : "Remove this answer"}
+              onClick={() => commit(list.filter((_, j) => j !== i))}
+            />
           )}
           {i === list.length - 1 && (
-            <IconButton icon="add" label={addLabel} onClick={() => commit(list.concat([""]))} />
+            <IconButton
+              icon="add"
+              label={of ? `${addLabel} for ${of}` : addLabel}
+              onClick={() => commit(list.concat([""]))}
+            />
           )}
         </div>
       ))}
@@ -259,16 +283,41 @@ function GrammarRadios({ dims, values, onPick, of, bare }: {
  * most cards accept one answer and want the language's default, and four
  * pickers under every row would bury the words the card is actually about.
  */
-function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
+function ScriptAnswers({ lang, dims, rows, of = "", onEdit, onCommit, onRecord, ownRecorders, blanks, onRemoveBlank }: {
   lang: Lang;
+  /**
+   * Which form of the card these boxes belong to, where saying so is the
+   * only way to tell them apart.
+   *
+   * A card's own word needs nothing: there is one of it, and the heading
+   * above says which card. Its other forms are three blocks of identical
+   * fields under three headings, and a heading is not a label — somebody
+   * reading the screen aloud would meet four boxes all called the same
+   * thing and no way to know which was the feminine.
+   */
+  of?: string;
   /* The axes this *answer* is asked about — the kind of word's own list
      and not the pack's, less whatever is true of the card rather than of
      one of its answers: a preposition has neither number nor gender, and
      person-or-thing is asked once beside the kind of word. See answerDims.
      What is stored is never narrowed by this. */
   dims: GrammarDim[];
-  form: Record<string, any>;
-  onChange: (next: { ar: string; lat: string; answers: Record<string, any>[] }) => void;
+  /**
+   * The answers as they stand, held by the form above.
+   *
+   * Lifted out of here in 0.217, when the recording button moved up onto
+   * the form's own heading: the button has to know how many answers there
+   * are — with one it is the form's, with two it belongs beside the word
+   * it is of — and two components cannot each keep their own count of the
+   * same list without eventually disagreeing about it.
+   */
+  rows: Answer[];
+  onEdit: (i: number, patch: Partial<Answer>) => void;
+  onCommit: (next: Answer[]) => void;
+  onRecord: (i: number) => void;
+  /** Whether each answer carries its own recording button. False where
+      there is one of them and it rides in the heading instead. */
+  ownRecorders: boolean;
   /* What a sentence's fields need in order to have blanks put into them,
      and nothing on a word: only a sentence may have one. Two bars per row
      rather than one, because the script and how it is said are two fields
@@ -278,27 +327,13 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
   /** What the cross on a blank means here — see BlankText. */
   onRemoveBlank?: (name: string) => void;
 }) {
-  const fields = answerFields();
-  const [rows, setRows] = useState(() => answerRows(form, fields));
+  /* What a box is called: the field, which of the accepted answers it is
+     where there is more than one, and which form of the card. */
+  const named = (base: string, i: number) =>
+    [base, rows.length > 1 ? ` of accepted answer ${i + 1}` : "", of ? ` for ${of}` : ""].join("");
   const [open, setOpen] = useState<number | null>(null);
-  /* The same rule as Alternatives above, and for the same reason: these
-     rows were read off the form once, and a blank written into the card
-     from outside would otherwise change the card and not the screen. What
-     went up is what an outside change is measured against. */
-  const sent = useRef(`${form.ar || ""}\u0000${form.lat || ""}`);
-  useEffect(() => {
-    const now = `${form.ar || ""}\u0000${form.lat || ""}`;
-    if (now === sent.current) return;
-    sent.current = now;
-    setRows(answerRows(form, fields));
-  }, [form, fields]);
-  const commit = (next: Answer[]) => {
-    setRows(next);
-    const packed = packAnswers(next, fields);
-    sent.current = `${packed.ar}\u0000${packed.lat}`;
-    onChange(packed);
-  };
-  const edit = (i: number, patch: Partial<Answer>) => commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const commit = onCommit;
+  const edit = onEdit;
   const grammarOf = (row: Answer) =>
     dims.map((d) => labelFor({ [d.field]: row[d.field] }, lang)).filter(Boolean).join(" ");
   return (
@@ -326,7 +361,17 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                 )}
               </BlankField>
             ) : (
-              <ScriptInput lang={lang} value={row.text} onChange={(v) => edit(i, { text: v })} />
+              <ScriptInput
+                lang={lang}
+                value={row.text}
+                label={of ? named(lang.scriptLabel, i) : undefined}
+                /* The language's own name for itself, which is the only
+                   thing on this line saying which script is wanted now
+                   that the heading above says "Arabic" and not "Arabic
+                   script and transliteration". */
+                placeholder={lang.scriptNative}
+                onChange={(v) => edit(i, { text: v })}
+              />
             )}
           </div>
           {/* The buttons take a column of their own so that the answer and
@@ -362,11 +407,7 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                     box={box}
                     className="at-input"
                     value={row.lat}
-                    label={
-                      rows.length > 1
-                        ? `${lang.translitLabel} of accepted answer ${i + 1}`
-                        : lang.translitLabel
-                    }
+                    label={named(lang.translitLabel, i)}
                     placeholder={lang.translitLabel.toLowerCase()}
                     onChange={(v) => edit(i, { lat: v })}
                     onRemove={onRemoveBlank}
@@ -378,17 +419,23 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
             <input
               className="at-input at-answersaid"
               value={row.lat}
-              aria-label={
-                rows.length > 1
-                  ? `${lang.translitLabel} of accepted answer ${i + 1}`
-                  : lang.translitLabel
-              }
+              aria-label={named(lang.translitLabel, i)}
               placeholder={lang.translitLabel.toLowerCase()}
               onChange={(e) => edit(i, { lat: e.target.value })}
             />
           )}
-          {dims.length > 0 && (
-            <div className="at-answergrammar">
+          {/* What is true of this answer rather than of the card: what
+              grammar it carries, and how it sounds. Both are answers about
+              one of the words above and not about the pair of them, and
+              both are written small and under it for that reason.
+
+              The recordings were a field of their own further down, level
+              with the English — which said a recording was a third thing
+              the card had, beside the word and its meaning. It is not: it
+              is one of the accepted answers, said out loud, and a card
+              that accepts two had one set of clips over the pair. */}
+          <div className="at-answerabout">
+            {dims.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -400,14 +447,37 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                 {grammarOf(row) || "Grammar"}
                 <Icon name={open === i ? "chevronUp" : "chevronDown"} />
               </Button>
-              {open === i && (
-                <GrammarRadios
-                  dims={dims}
-                  values={row}
-                  of={`of accepted answer ${i + 1}`}
-                  onPick={(field, v) => edit(i, { [field]: v })}
-                />
-              )}
+            )}
+            {ownRecorders && (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mic"
+                iconSize={17}
+                /* A shade larger than the grammar button beside it, which
+                   is a word and a chevron; this is the one thing on the
+                   line a teacher taps to leave the screen, and it was
+                   reading as the smaller of the two. Both keep the same
+                   box, because the row stretches them together. */
+                className="at-answerrec"
+                /* Nothing to record until there is a word to say. The same
+                   rule a cell of a table follows — see CellFields. */
+                disabled={!String(row.text || "").trim()}
+                aria-label={soundLabel(clipsOf(row).length, named("Recordings", i))}
+                onClick={() => onRecord(i)}
+              >
+                {soundOf(clipsOf(row).length)}
+              </Button>
+            )}
+          </div>
+          {dims.length > 0 && open === i && (
+            <div className="at-answergrammar">
+              <GrammarRadios
+                dims={dims}
+                values={row}
+                of={`of accepted answer ${i + 1}`}
+                onPick={(field, v) => edit(i, { [field]: v })}
+              />
             </div>
           )}
         </div>
@@ -415,6 +485,17 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
     </div>
   );
 }
+
+/* What the button beside an answer reads, and what a screen reader is told
+   it is. Written once because the two must agree: the count is the whole
+   of what the button says, so a label saying something else would be the
+   only description of a button whose text is "2 recordings". */
+const soundOf = (made: number): string =>
+  /* `plural` counts as well as pluralising — "1 recording", "2 recordings"
+     — so the number is not written again in front of it. */
+  made ? plural(made, "recording") : "Record";
+const soundLabel = (made: number, of: string): string =>
+  made ? `${of} — ${made} made` : `${of} — none yet`;
 
 /* ------------------------------------------------------------------
    The field a blank stands in
@@ -920,7 +1001,7 @@ function BlankText({ value, onChange, onRemove, className = "", style, dir, lang
    laid out by its direction, with the on-screen keys a click away. A
    second implementation of it there would be a second place for the caret
    handling and the direction rule to drift. */
-export function ScriptInput({ lang, value, onChange, compact = false, label, box, onRemoveBlank }: {
+export function ScriptInput({ lang, value, onChange, compact = false, label, box, onRemoveBlank, placeholder }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
@@ -954,6 +1035,15 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
    * read — and only where a caller asks.
    */
   compact?: boolean;
+  /**
+   * What stands in the box while it is empty.
+   *
+   * Asked for rather than always the language's own name: a verb's table
+   * is twenty-four of these, and the same word greyed out in every one of
+   * them is noise. Where one box is the language — the card's own word —
+   * it is the only thing on the line that says which script is wanted.
+   */
+  placeholder?: string;
 }) {
   const [keys, setKeys] = useState(false);
   /* Either kind of box: an input, or the one a sentence's blanks are
@@ -965,6 +1055,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   const look = {
     className: "at-input",
     lang: lang.id,
+    placeholder: placeholder || undefined,
     /* The words decide, once there are any: the field is laid out by its
        own first strong character, so a pasted Arabic phrase reads
        right-to-left even if the deck is labelled with another language.
@@ -1392,6 +1483,113 @@ function cellLabel(spec: VerbSpec | null, at: { row: string, col: string }) {
   return [tense ? tense.label : at.row, person ? person.label : ""].filter(Boolean).join(" · ");
 }
 
+/**
+ * One cell written, added or dropped.
+ *
+ * A cell with nothing in any of its fields is not a blank the teacher is
+ * coming back to — it is a form the language has not got — so it leaves
+ * the list rather than being saved empty.
+ *
+ * In place, so a cell keeps where it sits in the list. Every keystroke
+ * used to drop the cell and push it back on the end, which on a student's
+ * device — where a form carrying no name of its own is known by its
+ * position — handed the cells below it the schedules of their neighbours.
+ * They carry names now, and the order is still worth keeping: it is what
+ * carries a table written before they had one across its first save.
+ *
+ * Written here rather than inside the grid because the same cells are
+ * also drawn as blocks, in the format the card's own word is written in —
+ * two ways of showing one table, and one way of changing it.
+ */
+/**
+ * One cell's boxes, and the one button that records it.
+ *
+ * The minimal way this app shows a form: the script, how it is said and
+ * what it means on one line, and a microphone that lights when there is
+ * something recorded. A list and an explanation under every one of a
+ * verb's twenty-four cells would be the table's whole height again, so a
+ * cell gets none — it says how many recordings there are and opens the
+ * same screen the forms below open.
+ *
+ * Written once because two things show a cell: the grid a verb's table is
+ * drawn as, and the short labelled list a card's other forms are drawn as
+ * where there are only a few of them. Same boxes either way; what differs
+ * is what stands over them.
+ */
+function CellFields({ lang, cell, which, saysHow, onChange, onRecord }: {
+  lang: Lang;
+  cell: Record<string, any> | null;
+  /** What to call this one where a label has to name it out loud — for a
+      screen reader, and on the recording screen's title. */
+  which: string;
+  /** Whether this language has a pronunciation worth writing per cell. */
+  saysHow: boolean;
+  onChange: (patch: Record<string, any>) => void;
+  onRecord: () => void;
+}) {
+  const written = !!(cell && String(cell.ar || "").trim());
+  const heard = cell ? clipsOf(cell).length : 0;
+  return (
+    <>
+      <div className="at-cellfields">
+        <ScriptInput
+          compact
+          lang={lang}
+          label={`${lang.scriptLabel} for ${which}`}
+          value={(cell && cell.ar) || ""}
+          onChange={(v) => onChange({ ar: v })}
+        />
+        {saysHow && (
+          <input
+            className="at-input"
+            aria-label={`${lang.translitLabel} for ${which}`}
+            value={(cell && cell.lat) || ""}
+            placeholder={lang.translitLabel.toLowerCase()}
+            onChange={(e) => onChange({ lat: e.target.value })}
+          />
+        )}
+        <input
+          className="at-input"
+          aria-label={`English for ${which}`}
+          value={(cell && cell.en) || ""}
+          placeholder="English"
+          onChange={(e) => onChange({ en: e.target.value })}
+        />
+      </div>
+      <IconButton
+        icon="mic"
+        label={heard ? `${plural(heard, "recording")} · ${which}` : `Record ${which}`}
+        className={`at-cellmic${heard ? " on" : ""}`}
+        disabled={!written}
+        onClick={onRecord}
+      />
+    </>
+  );
+}
+
+export function writeCell(
+  { cells, of, mint }: {
+    cells: Record<string, any>[];
+    /** Whose table: "" for the card's own, a form's name for that form's. */
+    of: string;
+    mint: () => string;
+  },
+  row: string,
+  col: string,
+  patch: Record<string, any>,
+): Record<string, any>[] {
+  const ours = (c: Record<string, any>) => String(c.of || "") === of;
+  const had = cells.find((c) => c.row === row && c.col === col && ours(c)) || null;
+  const next = {
+    ...(had || { ...blankForm(), row, col, ...(of ? { of } : null), id: mint() }),
+    ...patch,
+  };
+  if (!["ar", "en", "lat"].some((f) => String(next[f] || "").trim())) {
+    return cells.filter((c) => !(c.row === row && c.col === col && ours(c)));
+  }
+  return had ? cells.map((c) => (c === had ? next : c)) : cells.concat([next]);
+}
+
 function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, mint, onChange, onRecord }: {
   lang: Lang;
   spec: VerbSpec;
@@ -1421,33 +1619,8 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
   const at = (row: string, col: string) =>
     cells.find((c) => c.row === row && c.col === col && mine(c)) || null;
 
-  /* One cell written, added or dropped. A cell with nothing in any of its
-     fields is not a blank the teacher is coming back to — it is a form the
-     language has not got — so it leaves the list rather than being saved
-     empty. */
-  const write = (row: string, col: string, patch: Record<string, any>) => {
-    const had = at(row, col);
-    const next = {
-      ...(had || { ...blankForm(), row, col, ...(of ? { of } : null), id: mint() }),
-      ...patch,
-    };
-    const keep = ["ar", "en", "lat"].some((f) => String(next[f] || "").trim());
-    if (!keep) {
-      onChange(cells.filter((c) => !(c.row === row && c.col === col && mine(c))));
-      return;
-    }
-    /*
-     * In place, so a cell keeps where it sits in the list.
-     *
-     * Every keystroke used to drop the cell and push it back on the end,
-     * which on a student's device — where a form carrying no name of its
-     * own is known by its position — handed the cells below it the
-     * schedules of their neighbours. They carry names now, and the order
-     * is still worth keeping: it is what carries a table written before
-     * they had one across its first save.
-     */
-    onChange(had ? cells.map((c) => (c === had ? next : c)) : cells.concat([next]));
-  };
+  const write = (row: string, col: string, patch: Record<string, any>) =>
+    onChange(writeCell({ cells, of, mint }, row, col, patch));
 
   const persons = personsOf(spec);
   /* A language whose verbs do not vary by person has one column and no
@@ -1475,8 +1648,6 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
                them on screen: two forms of a word have a *me* apiece, and
                a box labelled only "me" would be two boxes with one name. */
             const which = [ofLabel, tense.label, person.label].filter(Boolean).join(" · ");
-            const written = !!(cell && String(cell.ar || "").trim());
-            const heard = cell ? clipsOf(cell).length : 0;
             /* Nothing marks the cell a dictionary would list this verb
                under. It used to carry a gold label reading "· the
                dictionary form", which made one row of the table a
@@ -1488,47 +1659,13 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
             return (
               <div className="at-cellrow" key={person.id}>
                 {named && <span className="at-celllabel">{person.label}</span>}
-                <div className="at-cellfields">
-                  <ScriptInput
-                    compact
-                    lang={lang}
-                    label={`${lang.scriptLabel} for ${which}`}
-                    value={(cell && cell.ar) || ""}
-                    onChange={(v) => write(tense.id, person.id, { ar: v })}
-                  />
-                  {saysHow && (
-                    <input
-                      className="at-input"
-                      aria-label={`${lang.translitLabel} for ${which}`}
-                      value={(cell && cell.lat) || ""}
-                      placeholder={lang.translitLabel.toLowerCase()}
-                      onChange={(e) => write(tense.id, person.id, { lat: e.target.value })}
-                    />
-                  )}
-                  <input
-                    className="at-input"
-                    aria-label={`English for ${which}`}
-                    value={(cell && cell.en) || ""}
-                    placeholder="English"
-                    onChange={(e) => write(tense.id, person.id, { en: e.target.value })}
-                  />
-                </div>
-                {/* One button rather than the Recordings block the forms
-                    below get: a list and an explanation under every one of
-                    twenty-four cells would be the table's whole height
-                    again. It says how many there are, and opens the same
-                    screen. Off until there is a word to say — a recording
-                    of an empty cell is a recording of nothing. */}
-                <IconButton
-                  icon="mic"
-                  label={
-                    heard
-                      ? `${heard} ${plural(heard, "recording")} · ${which}`
-                      : `Record ${which}`
-                  }
-                  className={`at-cellmic${heard ? " on" : ""}`}
-                  disabled={!written}
-                  onClick={() => onRecord(tense.id, person.id)}
+                <CellFields
+                  lang={lang}
+                  cell={cell}
+                  which={which}
+                  saysHow={saysHow}
+                  onChange={(patch) => write(tense.id, person.id, patch)}
+                  onRecord={() => onRecord(tense.id, person.id)}
                 />
               </div>
             );
@@ -3050,6 +3187,18 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      conversation and a sentence lay out nothing: they have turns and
      blanks where a word has forms. */
   const shownSpec = worded ? specOf(lang, table) : null;
+  /*
+   * Whether this kind of word lays something out everywhere *but here*.
+   *
+   * A category names a table, and a pack declares the tables it has: an
+   * adjective agrees in the two Semitic languages and nothing agrees in
+   * Huế, so an adjective there is the word and whatever forms a teacher
+   * writes. That is right, and it was silent — the screen came out
+   * identical to "Something else", which is indistinguishable from the
+   * app having lost the table. Said out loud below.
+   */
+  const tableMissing =
+    worded && !!(categoryOf(lang, category) || { table: "" }).table && !table;
   /* Whether every form carries the table, or the card does. */
   const perForm = !!(shownSpec && shownSpec.perForm);
   /* What the stored card already carries, which is what the radio may no
@@ -3343,10 +3492,12 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
   const [uses, setUses] = useState((card && card.uses) || []);
-  /* Which form's recordings are being made, or null. The screen for them
-     opens over this one and hands its results straight back into the form,
-     so nothing about a card is saved any earlier than it was. */
-  const [recording, setRecording] = useState<number | null>(null);
+  /* No "which form's recordings are being made" here any more. Recordings
+     belong to an accepted answer, and the rows an answer is edited in live
+     inside ScriptAnswers — so the screen for them opens from there, over
+     this one, the way every other Screen in the app does. The cells of a
+     table still open theirs from here: a cell is one box and holds no
+     list of answers. */
 
   /*
    * Which tenses each of this sentence's blanks wants its verbs in.
@@ -4003,6 +4154,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setCells,
     mintCell,
     category,
+    tableMissing,
     setCategory,
     table,
     shownSpec,
@@ -4053,8 +4205,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     dropStrip,
     uses,
     setUses,
-    recording,
-    setRecording,
     main,
     holes,
     /* Whether the teacher has called this a sentence, which is the one
@@ -4598,6 +4748,112 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
 
 /* The table a card carries — a verb's, an adjective's — and the one line
    that unblocks Save while the whole of it is empty. */
+/* A cell nobody has written yet, so an unwritten shape is still something
+   ScriptAnswers can open on. Shared and never changed: writing goes
+   through writeCell, which mints the real one. */
+const NO_CELL: Record<string, any> = {};
+
+/*
+ * The other forms a word takes, each a section of its own.
+ *
+ * This took four goes. They sat under a heading of their own further down
+ * the page, as though they were a second subject; then they were written
+ * as full blocks, which put them where they belong and made three shapes
+ * of one word take three screens; then they went short, as a name and
+ * three small boxes, which read as a list but said these were something
+ * less than the word above them; then the word was folded into that list,
+ * which cost it a second accepted answer and its recordings.
+ *
+ * The answer was that the boxes were too big, not that a shape of a word
+ * is a lesser thing. They are a section each now, written in exactly the
+ * fields the card's own word is written in — the same component, the same
+ * accepted answers, the same recording per answer — and the boxes are the
+ * short ones the whole editor now uses. A feminine is a form of the word
+ * in every sense the app has, and it is worth the same room.
+ *
+ * Which shape each section is, is the language's word for it: the column
+ * labels a pack declares. Nothing here is written in the editor's voice.
+ *
+ * The grid stays where a grid earns its keep: a verb's persons and tenses,
+ * and the pronouns on the end of every form of a word. Twenty-four cells
+ * are a table; three are three forms.
+ */
+function AgreementFields({ word, lang }: { word: WordDraft; lang: Lang }) {
+  const { shownSpec, cells, setCells, mintCell, drillsTranslit } = word;
+  if (!shownSpec || shownSpec.perForm) return null;
+  const rows = tensesOf(shownSpec);
+  const persons = personsOf(shownSpec);
+  /* A table with one row says nothing by naming it — an adjective's row is
+     called "agreement", which is the table and not a fact about the cell.
+     Two or more and the row is half of where a cell sits, so it is said. */
+  const named = rows.length > 1;
+  const at = (row: string, col: string) =>
+    cells.find((c) => c.row === row && c.col === col && !String(c.of || "")) || NO_CELL;
+
+  return (
+    <>
+      {rows.flatMap((row) =>
+        persons.map((person) => {
+          const name = person.label || person.id;
+          const which = named ? `${row.label} · ${name}` : name;
+          return (
+            <div className="at-formblock at-formtile" key={`${row.id}|${person.id}`}>
+              <FormFields
+                lang={lang}
+                form={at(row.id, person.id)}
+                /* None. What this shape is grammatically is the column it
+                   is in — that is the whole of what the table says — and
+                   asking a teacher to say it again under the box would be
+                   the screen asking a question it already knows. */
+                dims={[]}
+                of={which}
+                title={cap(which)}
+                drillsTranslit={drillsTranslit}
+                onChange={(patch) =>
+                  setCells(writeCell({ cells, of: "", mint: mintCell }, row.id, person.id, patch))
+                }
+              />
+            </div>
+          );
+        }),
+      )}
+    </>
+  );
+}
+
+/*
+ * How the card is practised, once rather than form by form.
+ *
+ * On a card that can hold only the one form, "this form" and "this card"
+ * are the same thing, and the ticks were tucked at the foot of the word's
+ * own fields as though they were another field of it. They are not: they
+ * are the answer to a question about the whole card, and on a card whose
+ * table is written there are two of them — the word, and the shapes beside
+ * it — which belong beside each other rather than a screen apart.
+ */
+function PracticeSection({ word }: { word: WordDraft }) {
+  const { parts } = word;
+  if (!parts.length) return null;
+  return (
+    <div className="at-formblock at-mt5">
+      <div className="at-formhead">
+        <span className="at-formnum">How this card can be practiced</span>
+      </div>
+      {parts.map((part) => (
+        <DrillChecks
+          key={part.id}
+          word={word}
+          part={part}
+          /* Named only where there is more than one answer to give: a card
+             with a word and nothing else has one, and a heading over a
+             single pair of ticks is the screen saying its own name twice. */
+          label={parts.length > 1 ? part.title : ""}
+        />
+      ))}
+    </div>
+  );
+}
+
 function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const { shownSpec, parts, cells, setCells, mintCell, setRecordingCell, needsForm } = word;
   /* The table's own line of what is drilled — see askParts, which lists
@@ -4853,22 +5109,344 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
     the editor's to say — "Form 2" on a word, "The verb" on a verb — and
     `children` sit after the fields, which is where a form's own pronoun
     table goes. */
-/* What a form is, said under its name. The line under a heading has room
-   for a sentence now that it is no longer squeezed in beside one, so the
-   first form says what the ones under it are for rather than leaving a
-   teacher to find the Add button and guess. */
+/*
+ * What a form is, said under its name.
+ *
+ * The line under a heading has room for a sentence now that it is no
+ * longer squeezed in beside one, so the first form says what the ones
+ * under it are for rather than leaving a teacher to find the Add button
+ * and guess.
+ *
+ * Which means it has to know whether there *is* an Add button. A card
+ * whose forms are laid out in a table has none, and the sentence written
+ * for the other kind was wrong on it twice over: it pointed below at
+ * nothing, and what it offered to add — a form for a different number or
+ * gender — is exactly what the table under it already is. An adjective
+ * read "you can add additional forms (for different numbers, gender)"
+ * directly above its own feminine and plural. Such a card says `laidOut`
+ * and gets the other sentence.
+ */
 export const formRole = (i: number): string =>
   i === 0
     ? "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
     : "Another form of the same card.";
 
-function FormBlock({ word, lang, index: i, form: f, title, role, blanks, children }: {
+/*
+ * What the card's own word is called on a card whose forms are a table.
+ *
+ * The language's word for it — an adjective's own word is the masculine —
+ * because the shapes beside it are named that way and one of the four
+ * named after the screen instead was the odd one out. A table that has
+ * not said keeps the app's own name rather than guessing, which is the
+ * rule the dual column follows too.
+ */
+export const baseName = (spec: VerbSpec | null): string =>
+  (spec && spec.base) || "The main form";
+
+/*
+ * One form, under its name: the language, what it means, and how it
+ * sounds.
+ *
+ * Written once because a card has more than one kind of form and they are
+ * all the same thing to write. The card's own word is one. So is each
+ * shape it takes beside a noun — an adjective's feminine is a form of the
+ * word in every sense that matters here, and drawing it in a smaller,
+ * different set of boxes said it was something less.
+ *
+ * What differs between them is only where the words are read from and
+ * written back to, which is the caller's business and arrives as
+ * `onChange`. `children` sit at the foot, which is where a form's own
+ * practice ticks go on the cards that keep them there.
+ *
+ * The heading is drawn here rather than by the block, and the form's
+ * accepted answers are held here rather than inside ScriptAnswers, for
+ * one reason: the recording button sits at the right of the heading while
+ * there is a single answer to record, and beside the word it is of once
+ * there are two. Whoever draws the heading has to know the count.
+ */
+function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, drillsTranslit, blanks, onRemoveBlank, onChange, children }: {
+  lang: Lang;
+  form: Record<string, any>;
+  /** The axes each accepted answer is asked about — see answerDims. */
+  dims: GrammarDim[];
+  /** Which form these boxes are, where a label has to say out loud — a
+      shape of the word has three boxes with the same names as the word's
+      own. Empty where there is only one form on the screen. */
+  of?: string;
+  /** What this form is called across the top of its block. */
+  title: string;
+  /** And the sentence under it, where there is anything to say. */
+  role?: string;
+  /** Whatever else belongs at the right of the heading — Duplicate,
+      Remove. The recording button joins them there. */
+  acts?: Node;
+  drillsTranslit: boolean;
+  blanks?: BlankWiring;
+  onRemoveBlank?: (name: string) => void;
+  /** What changed, to be merged into whatever holds this form. */
+  onChange: (patch: Record<string, any>) => void;
+  children?: Node;
+}) {
+  const fields = answerFields();
+  const [rows, setRows] = useState(() => answerRows(f, fields));
+  /* Which answer's recordings are being made, where any are. The screen is
+     rendered from here rather than beside the editor's other two, because
+     the rows live in this component's own state and a screen that wrote
+     into the card behind them would be overwritten by the next keystroke.
+     It is a Screen, so it stands over the editor wherever it is drawn. */
+  const [heard, setHeard] = useState<number | null>(null);
+  /* The same rule as Alternatives above, and for the same reason: these
+     rows were read off the form once, and a blank written into the card
+     from outside would otherwise change the card and not the screen. What
+     went up is what an outside change is measured against. */
+  const sent = useRef(`${f.ar || ""}\u0000${f.lat || ""}`);
+  useEffect(() => {
+    const now = `${f.ar || ""}\u0000${f.lat || ""}`;
+    if (now === sent.current) return;
+    sent.current = now;
+    setRows(answerRows(f, fields));
+  }, [f, fields]);
+  const commit = (next: Answer[]) => {
+    setRows(next);
+    const packed = packAnswers(next, fields);
+    sent.current = `${packed.ar}\u0000${packed.lat}`;
+    onChange(packed);
+  };
+  const edit = (i: number, patch: Partial<Answer>) =>
+    commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  /* One answer, so "record this form" and "record this answer" are the
+     same thing and the button belongs with the form's own name. Two, and
+     they are not: a button in the heading would be recording one of two
+     words with nothing saying which, so each goes back beside the word it
+     is of. The move happens at the moment a second answer appears, which
+     is already the moment the block changes shape. */
+  const inHead = rows.length === 1;
+  const recorder = (i: number) => (
+    <Button
+      variant="ghost"
+      size="sm"
+      icon="mic"
+      /* Nothing to record until there is a word to say. The same rule a
+         cell of a verb's table follows — see CellFields. */
+      disabled={!String(rows[i].text || "").trim()}
+      aria-label={soundLabel(clipsOf(rows[i]).length, of ? `Recordings for ${of}` : "Recordings")}
+      onClick={() => setHeard(i)}
+    >
+      {soundOf(clipsOf(rows[i]).length)}
+    </Button>
+  );
+  return (
+    <>
+    {/* ---- the form, in a panel with its name across the top ----
+       `evenfields` sets the three boxes of one answer to one height — see
+       the stylesheet, where the reason is. Not on a sentence: its fields
+       hold blanks as pills and wrap to as many lines as the sentence
+       needs, and a fixed height would cut the second one off.
+
+       The name used to stand outside the panel, at section size, with a
+       rule between one form and the next. On a card with four of them
+       that was four page-level headings for four boxes of two fields —
+       the screen announcing each form as though it were a subject of its
+       own. Inside and a size down, they are what they are: the panels are
+       the forms, and the section heading above them says so once. */}
+    <div className={`at-part${blanks ? "" : " evenfields"}`}>
+      <div className="at-formhead">
+        <span className="at-formnum">{title}</span>
+        {/* Only where there is something to say. A panel whose heading is
+            the language's own word for the form needs no sentence under
+            it telling a teacher what they can read. */}
+        {role ? <span className="at-formrole">{role}</span> : null}
+        {/* Kept together so the pair stays whole and the role text beside
+            them shortens instead of collapsing into a column. */}
+        <span className="at-formacts">
+          {acts}
+          {inHead && recorder(0)}
+        </span>
+      </div>
+      {/* An accepted answer, how it is said and how it sounds are written
+          together, because one transliteration under two spellings belongs
+          to one of them and lies about the other, and so does one
+          recording. Where the language has no transliteration to write,
+          this is the plain list it always was.
+
+          Headed with the language and nothing else. It used to name two of
+          the boxes under it — "Arabic script and transliteration" — which
+          was a heading doing the work of labels and still left the box
+          itself blank; the box says what it is now, in the language, and
+          the heading says which language. */}
+      <Field label={lang.scriptLabel}>
+        <ScriptAnswers
+          lang={lang}
+          dims={dims}
+          rows={rows}
+          of={of}
+          onEdit={edit}
+          onCommit={commit}
+          onRecord={setHeard}
+          ownRecorders={!inHead}
+          blanks={blanks}
+          onRemoveBlank={onRemoveBlank}
+        />
+        {!drillsTranslit && (
+          <Help>
+            {lang.name} is written in the Latin alphabet, so the{" "}
+            {lang.translitLabel.toLowerCase()} is never asked for — it is kept
+            beside the answer it belongs to, and read.
+          </Help>
+        )}
+      </Field>
+
+      <Field label="English">
+        <Alternatives
+          value={f.en}
+          of={of}
+          onChange={(v) => onChange({ en: v })}
+          render={(v, set, label) =>
+            blanks ? (
+              <BlankField wiring={blanks} value={v} onChange={set} label="English" lang={lang}>
+                {(box) => (
+                  <BlankText
+                    box={box}
+                    className="at-input"
+                    label="English"
+                    value={v}
+                    onChange={set}
+                    onRemove={onRemoveBlank}
+                  />
+                )}
+              </BlankField>
+            ) : (
+              <input
+                className="at-input"
+                aria-label={label}
+                value={v}
+                onChange={(e) => set(e.target.value)}
+              />
+            )
+          }
+        />
+      </Field>
+
+      {/* No Recordings field here. It stood level with the English, which
+          said a recording was a third thing the card had beside the word
+          and its meaning — and gave a card with two accepted answers one
+          set of clips over the pair. It is the form's, at the right of the
+          form's own name; where there are two answers it is each answer's,
+          beside the word it is of. */}
+
+      {children}
+    </div>
+    {heard !== null && rows[heard] && (
+      <RecordingScreen
+        title={rows.length > 1 ? `Recordings · accepted answer ${heard + 1}` : "Recordings"}
+        form={rows[heard] as { clips?: string[]; slowClips?: string[] }}
+        onChange={(next) => edit(heard, next)}
+        onClose={() => setHeard(null)}
+      />
+    )}
+    </>
+  );
+}
+
+/*
+ * The section the card's forms live in.
+ *
+ * One heading over all of them, at the size the card's other sections are
+ * headed. Before it there was none: each form was a section of the screen
+ * in its own right, ruled off from the one above, with its name set at
+ * page-heading size — which on a card with four forms was the screen
+ * announcing four subjects where there is one.
+ *
+ * The panels are the forms now, close together with nothing between them,
+ * and this says once what they all are.
+ */
+function FormsSection({ children }: { children?: Node }) {
+  return (
+    <div className="at-formblock">
+      <div className="at-formhead">
+        <span className="at-formnum">Forms</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/*
+ * The one thing kept about the card's own word that is never asked.
+ *
+ * A Vietnamese noun's classifier: part of knowing the word, and not an
+ * answer to anything — so it sits under a line saying as much rather than
+ * among the fields a student will meet. Number and gender used to stand
+ * here too, one set for the whole form. They belong to an answer — two
+ * spellings are two words, and one of them may be the feminine — so they
+ * went up beside the answer they are about, and the transliteration with
+ * them.
+ *
+ * Written on its own because two screens show it: a form block, and the
+ * one list a card whose forms are a table is written as. No pack today
+ * has both a classifier and such a table, and the day one does, the field
+ * should be there rather than quietly gone.
+ */
+function ReferenceField({ word, lang }: { word: WordDraft; lang: Lang }) {
+  const { forms, setForm } = word;
+  const f = forms[0];
+  const lexical = lang && lang.lexical;
+  if (!f || !lexical) return null;
+  /* No ticks under this one: it is never drilled and never lent, and the
+     name across the top is the whole of what there is to say. */
+  return (
+    <div className="at-part">
+      <p className="at-groupline">Reference — never drilled</p>
+      <Field label={lexical.label}>
+        <input
+          className="at-input"
+          value={(f as any)[lexical.key] || ""}
+          placeholder={lexical.help || ""}
+          onChange={(e) => setForm(0, { ...f, [lexical.key]: e.target.value })}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCopy = true, drills = true, blanks, children }: {
   word: WordDraft;
   lang: Lang;
   index: number;
   form: Record<string, any>;
   title: string;
   role: string;
+  /** What to call this form's boxes out loud, where the screen holds
+      several blocks of identical fields — see FormFields. Empty on a card
+      whose word is the only form written this way. */
+  of?: string;
+  /**
+   * Whether this form may be copied into another.
+   *
+   * False on a card whose forms are a table. Add-a-form was taken off
+   * those cards on the grounds that the table is the forms and a second
+   * spelling is an accepted answer — and Duplicate was left alone on the
+   * grounds that it is "a way out for somebody who has one, rather than
+   * an invitation to everybody who has not". That reasoning holds on a
+   * plain card, where Duplicate is only ever met on a second form somebody
+   * went and made. It does not hold here: the card's own word is a form
+   * block, so the invitation was on every adjective in the app, under a
+   * line telling teachers to accept it. Shutting the front door and
+   * leaving the side door open is not shutting the door.
+   *
+   * A form such a card already carries keeps its Remove: no new way in,
+   * and the way out stays.
+   */
+  canCopy?: boolean;
+  /**
+   * Whether the ticks that say how this form is practised sit at the foot
+   * of its fields.
+   *
+   * False where the card gathers them into a section of its own — see
+   * PracticeSection, which is what a card that can hold only one form
+   * does with them.
+   */
+  drills?: boolean;
   /* Handed down only by the sentence editor: a blank belongs in a sentence
      and nowhere else, so the bar is not drawn on a word, a verb or a
      conversation. What refuses a blank on those is the save — see
@@ -4877,7 +5455,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, blanks, childre
   blanks?: BlankWiring;
   children?: Node;
 }) {
-  const { drillsTranslit, parts, setForm, duplicateForm, removeForm, setRecording, dropBlank } = word;
+  const { drillsTranslit, parts, setForm, duplicateForm, removeForm, dropBlank } = word;
   /* This form's own two answers — see askParts, which lists one line per
      form whether or not anything is written in it yet: the answer is
      about the form, and a card being written from scratch should be able
@@ -4897,125 +5475,46 @@ function FormBlock({ word, lang, index: i, form: f, title, role, blanks, childre
   const takeOff = (name: string) => dropBlank(i, name);
   return (
     <>
-  <div className={`at-formblock${i === 0 ? " main" : ""}`}>
-    <div className="at-formhead">
-      <span className="at-formnum">{title}</span>
-      <span className="at-formrole">{role}</span>
-      {/* Kept together so the pair stays whole and the role text
-          beside them shortens instead of collapsing into a column. */}
-      <span className="at-formacts">
-        {/* A second form usually differs from the first in a field
-            or two, so start it from the one in hand rather than
-            empty. The copy lands directly beneath its source, where
-            the eye already is. Recordings are not carried over: the
-            copy is a different word, so the original's audio would
-            be wrong for it, and a wrong recording is worse than a
-            missing one. */}
-        <Button variant="ghost" size="sm" onClick={() => duplicateForm(i)}>
-          Duplicate
-        </Button>
-        {i > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => removeForm(i)}>
-            Remove
-          </Button>
-        )}
-      </span>
-    </div>
+  <div className={`at-formblock at-formtile${i === 0 ? " main" : ""}`}>
+    <FormFields
+      lang={lang}
+      form={f}
+      dims={answerDims(lang, word.category)}
+      of={of}
+      title={title}
+      role={role}
+      acts={
+        <>
+          {/* A second form usually differs from the first in a field
+              or two, so start it from the one in hand rather than
+              empty. The copy lands directly beneath its source, where
+              the eye already is. Recordings are not carried over: the
+              copy is a different word, so the original's audio would
+              be wrong for it, and a wrong recording is worse than a
+              missing one. */}
+          {canCopy && (
+            <Button variant="ghost" size="sm" onClick={() => duplicateForm(i)}>
+              Duplicate
+            </Button>
+          )}
+          {i > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => removeForm(i)}>
+              Remove
+            </Button>
+          )}
+        </>
+      }
+      drillsTranslit={drillsTranslit}
+      blanks={blanks}
+      onRemoveBlank={takeOff}
+      onChange={(patch) => setForm(i, { ...f, ...patch })}
+    >
+      {/* And whether this form is drilled, at the foot of the fields it is
+          about rather than in a list at the bottom of the screen. */}
+      {drills && mine && <DrillChecks word={word} part={mine} />}
+    </FormFields>
 
-    {/* ---- the form's own fields ----
-        A subsection rather than a run of fields under a coloured line:
-        a form block holds two or three different questions, and until
-        0.179 the only thing saying where one ended was that line.
-
-        The one subsection here with no name across the top. The others
-        are named because they are additions to the form — what is kept
-        for reading, the table on the end of the word — and this is the
-        form itself, under a block that already says which form it is.
-        A line naming it again, and a second line under that saying which
-        of the fields below are required, were two rows of the screen
-        telling a teacher what they could see. */}
-    <div className="at-part">
-
-    {/* An accepted answer and how it is said are written together,
-        because one transliteration under two spellings belongs to
-        one of them and lies about the other. Where the language
-        has no transliteration to write, this is the plain list it
-        always was. */}
-    <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
-      <ScriptAnswers
-        lang={lang}
-        dims={answerDims(lang, word.category)}
-        form={f}
-        onChange={(next) => setForm(i, { ...f, ...next })}
-        blanks={blanks}
-        onRemoveBlank={takeOff}
-      />
-      {!drillsTranslit && (
-        <Help>
-          {lang.name} is written in the Latin alphabet, so the{" "}
-          {lang.translitLabel.toLowerCase()} is never asked for — it is kept
-          beside the answer it belongs to, and read.
-        </Help>
-      )}
-    </Field>
-
-    <Field label="English">
-      <Alternatives
-        value={f.en}
-        onChange={(v) => setForm(i, { ...f, en: v })}
-        render={(v, set) =>
-          blanks ? (
-            <BlankField wiring={blanks} value={v} onChange={set} label="English" lang={lang}>
-              {(box) => (
-                <BlankText
-                  box={box}
-                  className="at-input"
-                  label="English"
-                  value={v}
-                  onChange={set}
-                  onRemove={takeOff}
-                />
-              )}
-            </BlankField>
-          ) : (
-            <input className="at-input" value={v} onChange={(e) => set(e.target.value)} />
-          )
-        }
-      />
-    </Field>
-
-    <div className="at-field">
-      <Recordings form={f} onOpen={() => setRecording(i)} />
-    </div>
-
-    {/* And whether this form is drilled, at the foot of the fields it is
-        about rather than in a list at the bottom of the screen. */}
-    {mine && <DrillChecks word={word} part={mine} />}
-    </div>
-
-    {/* Number and gender used to stand down here, one set for
-        the whole form. They belong to an answer — two spellings
-        are two words, and one of them may be the feminine — so
-        they are written beside the answer they are about, up
-        with it. The transliteration went the same way.
-
-        What is left is what is genuinely about the form rather
-        than about one of its answers. */}
-    {i === 0 && lang && lang.lexical && (
-      /* No ticks under this one: it is never drilled and never lent, and
-         the name across the top is the whole of what there is to say. */
-      <div className="at-part">
-        <p className="at-groupline">Reference — never drilled</p>
-        <Field label={lang.lexical.label}>
-          <input
-            className="at-input"
-            value={(f as any)[lang.lexical.key] || ""}
-            placeholder={lang.lexical.help || ""}
-            onChange={(e) => setForm(i, { ...f, [lang.lexical ? lang.lexical.key : ""]: e.target.value })}
-          />
-        </Field>
-      </div>
-    )}
+    {i === 0 && <ReferenceField word={word} lang={lang} />}
 
     {children}
   </div>
@@ -5181,7 +5680,7 @@ function DrillChecks({ word, part, label = "How this form can be practiced" }: {
   const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
   return (
     <div className="at-drills">
-      <span className="at-drillhead">{label}</span>
+      {label ? <span className="at-drillhead">{label}</span> : null}
       <CheckList
         options={[
           {
@@ -6175,7 +6674,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
  * included. Drawn by the shell after the Screen, so they stand above it.
  */
 function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }) {
-  const { forms, recording, setRecording, setForm, recordingCell, setRecordingCell, cellHere, setCells, shownSpec } = word;
+  const { recordingCell, setRecordingCell, cellHere, setCells, shownSpec } = word;
   const { lines, recordingLine, setRecordingLine, setLine } = talk;
   return (
     <>
@@ -6189,14 +6688,10 @@ function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }
         onClose={() => setRecordingLine(null)}
       />
     )}
-    {recording !== null && forms[recording] && (
-      <RecordingScreen
-        title={forms.length > 1 ? `Recordings · form ${recording + 1}` : "Recordings"}
-        form={forms[recording]}
-        onChange={(next) => setForm(recording, { ...forms[recording], ...next })}
-        onClose={() => setRecording(null)}
-      />
-    )}
+    {/* A form's own screen used to stand here. Recordings belong to an
+        accepted answer now, and ScriptAnswers opens theirs itself — it
+        owns the rows they are written into, and a screen reaching past it
+        into the card would be overwritten by the next keystroke. */}
     {recordingCell && cellHere && (
       <RecordingScreen
         /* Named out of whichever table is on screen. It used to be named
@@ -6331,18 +6826,27 @@ function WordEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
-      {word.forms.map((f, i) => (
-        <FormBlock
-          key={i}
-          word={word}
-          lang={lang}
-          index={i}
-          form={f}
-          title={`Form ${i + 1}`}
-          role={formRole(i)}
-        />
-      ))}
-      <AddFormButton word={word} />
+      {word.tableMissing ? (
+        <Help>
+          In {lang.name} this kind of word lays nothing out: it is the word and whatever forms you
+          write. Saying what it is still matters — it is how a sentence knows what may stand in its
+          blanks.
+        </Help>
+      ) : null}
+      <FormsSection>
+        {word.forms.map((f, i) => (
+          <FormBlock
+            key={i}
+            word={word}
+            lang={lang}
+            index={i}
+            form={f}
+            title={`Form ${i + 1}`}
+            role={formRole(i)}
+          />
+        ))}
+        <AddFormButton word={word} />
+      </FormsSection>
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
@@ -6374,18 +6878,20 @@ function VerbEditor({ word, lang, allCards, selfId }: {
   return (
     <>
       <TableBlock word={word} lang={lang} />
-      {word.forms.map((f, i) => (
-        i === 0 && word.standsIn ? null :
-        <FormBlock
-          key={i}
-          word={word}
-          lang={lang}
-          index={i}
-          form={f}
-          title={i === 0 ? "The verb" : `Form ${i + 1}`}
-          role={i === 0 ? "This is the verb itself." : formRole(i)}
-        />
-      ))}
+      <FormsSection>
+        {word.forms.map((f, i) => (
+          i === 0 && word.standsIn ? null :
+          <FormBlock
+            key={i}
+            word={word}
+            lang={lang}
+            index={i}
+            form={f}
+            title={i === 0 ? "The verb" : `Form ${i + 1}`}
+            role={i === 0 ? "This is the verb itself." : formRole(i)}
+          />
+        ))}
+      </FormsSection>
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
@@ -6402,12 +6908,12 @@ function VerbEditor({ word, lang, allCards, selfId }: {
 
 /*
  * A word with a table of its forms beside it that cites nothing — an
- * adjective's feminine and plural, a number's feminine. The verb's editor
- * without the verb: no name to list it under, and the card's own word
- * keeps its block, because the table is forms of it rather than a stand-in
- * for it. No form can be added, for the reason a verb's cannot: the table
- * is the forms, and a spelling is an accepted answer. A form the card
- * already carries is still shown rather than quietly dropped.
+ * adjective's feminine and plural. The verb's editor without the verb: no
+ * name to list it under, and the card's own word keeps its block, because
+ * the table is forms of it rather than a stand-in for it. No form can be
+ * added, for the reason a verb's cannot: the table is the forms, and a
+ * spelling is an accepted answer. A form the card already carries is still
+ * shown rather than quietly dropped.
  */
 function TableEditor({ word, lang, allCards, selfId }: {
   word: WordDraft;
@@ -6417,18 +6923,53 @@ function TableEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
-      {word.forms.map((f, i) => (
+      {/* Four sections, one per shape of the word, and the card's own word
+          is the first of them. It was "Form 1", then "The main form", and
+          both were the app naming its own layout while the three boxes
+          under it were named after the language — so it is named after the
+          language too, out of `VerbSpec.base`.
+
+          And no line under the heading. It said what the word was and
+          where its other shapes were written; the headings below say both,
+          in fewer words and in the language's own. A sentence explaining a
+          screen is worth having exactly while the screen cannot say it
+          itself. */}
+      <FormsSection>
         <FormBlock
-          key={i}
           word={word}
           lang={lang}
-          index={i}
-          form={f}
-          title={`Form ${i + 1}`}
-          role={formRole(i)}
+          index={0}
+          form={word.forms[0] || {}}
+          title={cap(baseName(word.shownSpec))}
+          role=""
+          /* Named out loud like the shapes below it: four panels of the
+             same fields under four headings are four boxes called "Arabic"
+             to anybody reading the screen aloud, and a heading is not a
+             label. */
+          of={baseName(word.shownSpec).toLowerCase()}
+          canCopy={false}
+          drills={false}
         />
-      ))}
-      <TableBlock word={word} lang={lang} />
+        <AgreementFields word={word} lang={lang} />
+        {/* A loose form from before the table: still shown, still
+            removable, and still numbered, because there it really is one of
+            several. It comes after the shapes so that the paradigm stays
+            together. */}
+        {word.forms.slice(1).map((f, j) => (
+          <FormBlock
+            key={j + 1}
+            word={word}
+            lang={lang}
+            index={j + 1}
+            form={f}
+            title={`Form ${j + 2}`}
+            role={formRole(j + 1)}
+            canCopy={false}
+            drills={false}
+          />
+        ))}
+      </FormsSection>
+      <PracticeSection word={word} />
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
@@ -6456,20 +6997,22 @@ function AttachedEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
-      {word.forms.map((f, i) => (
-        <FormBlock
-          key={i}
-          word={word}
-          lang={lang}
-          index={i}
-          form={f}
-          title={`Form ${i + 1}`}
-          role={formRole(i)}
-        >
-          <PronounTable word={word} lang={lang} index={i} form={f} />
-        </FormBlock>
-      ))}
-      <AddFormButton word={word} />
+      <FormsSection>
+        {word.forms.map((f, i) => (
+          <FormBlock
+            key={i}
+            word={word}
+            lang={lang}
+            index={i}
+            form={f}
+            title={`Form ${i + 1}`}
+            role={formRole(i)}
+          >
+            <PronounTable word={word} lang={lang} index={i} form={f} />
+          </FormBlock>
+        ))}
+        <AddFormButton word={word} />
+      </FormsSection>
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed

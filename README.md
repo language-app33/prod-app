@@ -283,8 +283,8 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   a shape you cannot read. Which table a cell belongs to is read off the row
   it sits in, so one card never lays out both.
 - **A language declares the tables it lays a word out in, by name.** A
-  verb's persons and tenses, the pronouns on the end of a word, an
-  adjective's feminine and plural, a number's feminine — each a table of
+  verb's persons and tenses, the pronouns on the end of a word, the forms
+  an adjective takes beside a noun, the faces a numeral wears — each a table of
   cells over the card's own sub-forms, told apart by the row a cell sits
   in. A table says what its cells wait on (the row above, as a verb's do,
   or the word itself, as pronouns do — which also means one exercise a

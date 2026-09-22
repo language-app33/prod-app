@@ -291,3 +291,32 @@ test("the wrong answers beside a time are the misreadings of a clock face", () =
     assert.ok(t.h >= 0 && t.h <= 23 && t.m >= 0 && t.m <= 59, `${t.h}:${t.m}`);
   }
 });
+
+test("no wrong answer is offered twice, however few marks the clock has", () => {
+  /*
+   * A language whose clock says only the hour and the half has two marks,
+   * so the mark before and the mark after a time are the same mark — and
+   * on the hour, both of them are the time being asked. Offered as they
+   * come, that question puts the right answer up as a wrong one, twice.
+   *
+   * The same guard keeps any two options apart, so this asks for that
+   * rather than for the one case: every time offered is distinct, and none
+   * of them is the answer.
+   */
+  for (const [h, m, marks] of /** @type {[number, number, number[]][]} */ ([
+    [7, 0, [0, 30]],
+    [7, 30, [30]],
+    [0, 0, [0, 30]],
+    [12, 0, [0, 15, 30, 45]],
+    [23, 45, [0, 15, 30, 45]],
+  ])) {
+    const near = confusableTimes(h, m, marks);
+    const keys = near.map((t) => `${t.h}:${t.m}`);
+    const where = `${h}:${String(m).padStart(2, "0")} with marks ${marks.join(",")}`;
+    assert.equal(new Set(keys).size, keys.length, `${where} offered one twice: ${keys.join(" ")}`);
+    assert.ok(!keys.includes(`${h}:${m}`), `${where} offered the answer itself`);
+    for (const t of near) {
+      assert.ok(t.h >= 0 && t.h <= 23 && t.m >= 0 && t.m <= 59, `${where} offered ${t.h}:${t.m}`);
+    }
+  }
+});

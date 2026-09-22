@@ -734,7 +734,7 @@ export const isListening = (key?: string | null): boolean => {
    carry no number label at all, not the letters "na". labelFor falls back to
    the raw value for anything missing here, so the empty string is load
    bearing. */
-export const NUMBER_SHORT: Record<string, string> = { singular: "sg.", plural: "pl.", na: "" };
+export const NUMBER_SHORT: Record<string, string> = { singular: "sg.", plural: "pl.", dual: "du.", na: "" };
 
 export const GENDER_SHORT: Record<string, string> = { masculine: "m.", feminine: "f.", neutral: "n." };
 
@@ -1286,6 +1286,16 @@ export const GRAMMAR: Record<string, GrammarDim> = {
     options: [
       ["singular", "singular"],
       ["plural", "plural"],
+      /* A pair, where a language counts one. Arabic and Hebrew both do —
+         كتابين, שעתיים — and Huế declares no axes at all, so nobody is
+         offered it who has no use for it.
+
+         Added here rather than appended after "na" because the list is
+         also the order the radios read in, and "one, several, doesn't
+         apply, two" is not an order. Safe to insert: normDimValue matches
+         the whole word first, and its two prefix passes only reach "du",
+         which no value stored under the old list begins with. */
+      ["dual", "dual"],
       ["na", "N/A"],
     ],
     /* Most words a teacher writes are not usefully singular or plural, and
@@ -1296,7 +1306,7 @@ export const GRAMMAR: Record<string, GrammarDim> = {
        line. The same abbreviations the card list uses, except that "na"
        has one here: a tag saying nothing is right, and a radio button
        labelled nothing is not. */
-    brief: { singular: "sg.", plural: "pl.", na: "N/A" },
+    brief: { singular: "sg.", plural: "pl.", dual: "du.", na: "N/A" },
   },
   gender: {
     label: "Gender",
@@ -1528,9 +1538,21 @@ const AR_AGREEMENT: VerbSpec = {
       ],
     },
     { id: "plural", label: "plural", picks: { number: "plural", human: "person" } },
+    /* A pair, which the dialect may or may not give the adjective a form
+       of its own for. One column rather than a masculine and a feminine
+       one: written Arabic tells them apart and this dialect mostly does
+       not, and a box nobody fills is a question nobody is asked — an
+       adjective with this empty is simply not offered beside a dual noun,
+       which is the app withholding rather than inventing. */
+    { id: "dual", label: "dual", picks: { number: "dual" } },
   ],
   tenses: [{ id: "agreement", label: "agreement" }],
-  label: "feminine and plural",
+  label: "feminine, plural and dual",
+  /* And the word itself, which is the masculine singular — named here so
+     it can stand at the head of that list rather than beside it with no
+     name. Nothing changes about it: it is still the card's own word and
+     still not a cell. */
+  base: "masculine",
   gate: "word",
 };
 
@@ -1538,11 +1560,34 @@ const AR_AGREEMENT: VerbSpec = {
 const HE_AGREEMENT: VerbSpec = {
   persons: [
     { id: "feminine", label: "feminine", picks: { number: "singular", gender: "feminine" } },
-    { id: "masc-plural", label: "masculine plural", picks: { number: "plural", gender: "masculine" } },
-    { id: "fem-plural", label: "feminine plural", picks: { number: "plural", gender: "feminine" } },
+    /* A pair takes the plural here, so these two answer for the dual as
+       well and Hebrew needs no column for it. The nouns have one —
+       שעתיים — and what stands beside them does not, which is why the
+       dual is a fact about the noun and never about the adjective. */
+    {
+      id: "masc-plural",
+      label: "masculine plural",
+      picks: [
+        { number: "plural", gender: "masculine" },
+        { number: "dual", gender: "masculine" },
+      ],
+    },
+    {
+      id: "fem-plural",
+      label: "feminine plural",
+      picks: [
+        { number: "plural", gender: "feminine" },
+        { number: "dual", gender: "feminine" },
+      ],
+    },
   ],
   tenses: [{ id: "agreement", label: "agreement" }],
   label: "feminine, masculine plural and feminine plural",
+  /* The masculine singular here too. Read down the four names — masculine,
+     feminine, masculine plural, feminine plural — and the first two are
+     singular by standing against the last two, which is how a paradigm is
+     written and why neither of them says so. */
+  base: "masculine",
   gate: "word",
 };
 
@@ -2115,7 +2160,12 @@ export const LANGUAGES: Record<LangId, Lang> = {
     name: "Palestinian Arabic",
     nativeName: "اللهجة الفلسطينية",
     direction: "rtl",
-    scriptLabel: "Arabic script",
+    /* The language, not the script it is written in. The box is headed
+       with this and holds the same word in the language — which is what a
+       teacher needs to know about an empty box, and says it without a
+       heading that has to name two fields at once. */
+    scriptLabel: "Arabic",
+    scriptNative: "العربية",
     scriptShort: "A",
     script: /[\u0600-\u06FF]/,
     /* The type scale every script rule multiplies by. font-size sets the em
@@ -2259,6 +2309,11 @@ export const LANGUAGES: Record<LangId, Lang> = {
     nativeName: "tiếng Huế",
     direction: "ltr",
     scriptLabel: "Vietnamese",
+    /* The language's own name for itself, which in a Latin-written
+       language looks much like the label above it — and is still what a
+       teacher sees in the box, with the tone marks that say which
+       Vietnamese this is. */
+    scriptNative: "Tiếng Việt",
     scriptShort: "V",
     /* Latin script fills far more of its em box than Arabic does, so the
        sizes tuned for Arabic came out oversized here. A starting guess,
@@ -2386,6 +2441,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
     nativeName: "עברית",
     direction: "rtl",
     scriptLabel: "Hebrew",
+    /* The same word the pack's own `nativeName` is, because in Hebrew the
+       language and the place it is spoken are not two names. */
+    scriptNative: "עברית",
     scriptShort: "H",
     script: /[֐-׿]/,
     sample: [

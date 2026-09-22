@@ -655,6 +655,7 @@ const big = {
   subs: [
     { id: "big-f", row: "agreement", col: "feminine", ar: "كبيرة", en: "big", lat: "kbiire" },
     { id: "big-pl", row: "agreement", col: "plural", ar: "كبار", en: "big", lat: "kbaar" },
+    { id: "big-du", row: "agreement", col: "dual", ar: "كبيرين", en: "big", lat: "kbiirein" },
   ],
 };
 const own = { id: "big", ar: "كبير", en: "big", lat: "kbiir" };
@@ -718,6 +719,44 @@ test("a column that picks on gender alone is chosen by gender alone", () => {
   assert.equal(must(agreedValue(three, byGender, word, beside({ number: "plural", gender: "feminine", human: "thing" })), "f").ar, "ثلاث");
   assert.equal(must(agreedValue(three, byGender, word, beside({ number: "singular", gender: "feminine", human: "thing" })), "f").ar, "ثلاث");
   assert.equal(agreedValue(three, byGender, word, beside({ number: "plural", gender: "masculine", human: "thing" })), word);
+});
+
+test("a pair takes the form beside a pair, where the language has one", () => {
+  /* The axis this could not say until now. A dual noun matched no column,
+     so the adjective fell back to the card's own word — the masculine
+     singular — which is the one wrong answer that looks like an answer. */
+  assert.equal(
+    must(agreedValue(big, arAgree, own, beside({ number: "dual", gender: "masculine", human: "thing" })), "du").ar,
+    "كبيرين",
+  );
+  /* And it is the noun's number that decides, not its gender: one column
+     for a pair, because this dialect mostly does not tell them apart. */
+  assert.equal(
+    must(agreedValue(big, arAgree, own, beside({ number: "dual", gender: "feminine", human: "person" })), "du").ar,
+    "كبيرين",
+  );
+  /* A teacher who does not use it leaves the box empty, and then nothing
+     is offered rather than the wrong thing — the same rule every blank
+     cell follows. */
+  const noDual = { ...big, subs: big.subs.slice(0, 2) };
+  assert.equal(agreedValue(noDual, arAgree, own, beside({ number: "dual", gender: "masculine" })), null);
+});
+
+test("and where it has none, a pair takes the plural", () => {
+  /* Hebrew nouns count in pairs — שעתיים — and what stands beside them
+     does not, so its plural columns answer for a dual noun and the table
+     gains no column. A dual that matched nothing would have been the
+     masculine singular again. */
+  const he = must(specOf(LANGUAGES["he-IL"], "agreement"), "Hebrew agreement");
+  assert.deepEqual(he.persons.map((p) => p.id), ["feminine", "masc-plural", "fem-plural"]);
+  const card = { id: "g", ar: "גדול", en: "big", lat: "", subs: [
+    { id: "g-f", row: "agreement", col: "feminine", ar: "גדולה", en: "big", lat: "" },
+    { id: "g-mp", row: "agreement", col: "masc-plural", ar: "גדולים", en: "big", lat: "" },
+    { id: "g-fp", row: "agreement", col: "fem-plural", ar: "גדולות", en: "big", lat: "" },
+  ] };
+  const word = { id: "g", ar: "גדול", en: "big", lat: "" };
+  assert.equal(must(agreedValue(card, he, word, beside({ number: "dual", gender: "masculine" })), "mp").ar, "גדולים");
+  assert.equal(must(agreedValue(card, he, word, beside({ number: "dual", gender: "feminine" })), "fp").ar, "גדולות");
 });
 
 test("Hebrew agrees in number and gender at once", () => {

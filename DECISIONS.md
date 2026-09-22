@@ -3237,3 +3237,99 @@ rather than the other way round. The two differences the Hebrew clock
 actually has — that the word opening a time is optional, and that counting
 back puts the minutes in front of the hour — are declared by the pack and
 written in the teacher's own system, not decided in shared code.
+
+---
+
+## A word keeps its block, however well the list would read without it
+
+**22 September 2026** · `src/card-editor.tsx` (`AgreementFields`,
+`TableEditor`), `src/types.ts` (`VerbSpec.base`)
+
+An adjective is one word and a handful of shapes of it. The editor draws
+the word in a block of named fields — its accepted answers, its English,
+its recordings — and the shapes in a second block of short one-line rows.
+One list in two hands, with a border between them, and nothing dividing
+them except which of the four the card is *about*, which the card's own
+title already says.
+
+So for one release they were merged: four rows of the same thing, a name
+and three boxes each. It read better, and it was wrong. A row cannot hold
+what a block holds, and the two things it dropped were the button that
+accepts a second spelling and the list of the word's recordings. A card
+accepting two answers is not an edge case here — it is the case this app's
+answer model was built around, and *write them yourself with a slash
+between* is not the same offer as a button.
+
+**So the rule.** Fields are not dropped to make a layout read as one
+thing. If the word and its shapes should look like one list, that is a
+question of how the two blocks are drawn — spacing, borders, headings —
+and it is answered there.
+
+**What survives from the attempt.** `base` on the table: what the card's
+own word is where the cells are shapes of it. Arabic and Hebrew both say
+*masculine*, and it is what the word's own section is headed, because
+three boxes named feminine, plural and dual over a block called "the main
+form" was the screen naming its own layout instead of the language. A
+table that says nothing keeps the app's own name rather than guessing,
+which is the rule the dual column follows too.
+
+**And the way it was settled, a release later.** The revisit this entry
+asked for — give the shapes the fields the word has, and the two really
+are the same kind of thing — is what happened. Every shape is a section
+of its own now, written by the same component, with its own accepted
+answers and a recording per answer. The four are drawn alike because they
+*are* alike, rather than by taking the word down to the smallest of them.
+
+What made that affordable was the boxes getting short first. The reason
+full blocks failed in 0.208 was that three shapes took three screens; at
+43 pixels a box they do not. Every attempt in between was trying to buy
+that with something else.
+
+**The rule stands either way.** Fields are not dropped to make a layout
+read as one thing. When two things should look alike, the answer is to
+give the lesser one what the greater has, or to make both smaller — never
+to take the greater one's away.
+
+---
+
+## A recording belongs to an accepted answer
+
+**22 September 2026** · `src/answers.ts`, `src/card-editor.tsx`
+(`ScriptAnswers`), `server/api/courses.js`
+
+Gender and number moved onto the answer in September because two accepted
+answers are two words: مبسوط from a man and مبسوطة from a woman, one thing
+to know and two right answers. The recordings stayed on the form, which is
+the same mistake one field later — a card with both spellings had one set
+of clips over the pair, so the question that asked for the feminine played
+whichever voice happened to be there, and there was nowhere to put the
+other.
+
+They are on the answer now, beside its grammar, and the button that makes
+one is under the answer it is of rather than in a field of its own level
+with the English. A recording is not a third thing a card has beside its
+word and its meaning; it is the word, said out loud.
+
+**How it stays compatible.** The form keeps `clips` and `slowClips`, and
+they are now every answer's put together — the same rule `ar` and `lat`
+follow, and for the same reason: the form is what the server, an export
+and every card list read, and it is what says which recordings a card
+still points at, which is what decides whether a stored blob is deleted. A
+card written before this has its clips on the form and none on its
+answers, and every answer reads the form's, which is what they meant when
+there was one set of them. A card with one answer is unchanged in every
+particular.
+
+**What it costs.** `withAnswer` — which narrows a card to the answer a
+question is about — now narrows `recs`, the shape a device keeps audio in,
+by matching clip names. That is a second place that has to know the two
+are the same thing, and it is guarded: a card whose answers name no
+recordings keeps the ones it had, so no existing card goes quiet. The
+server sieves an answer's clip names the way it always sieved a form's,
+and reads them when collecting what a card points at — the form's list is
+derived, and answering "is this blob still wanted?" off a derived field
+loses audio the day something writes a card without deriving it.
+
+**Revisit if** a third thing turns out to belong to an answer and not to
+the form. The pattern is now established twice, and the third time it is
+worth asking whether the form should hold anything about the words at all.

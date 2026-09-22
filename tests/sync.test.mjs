@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mergeData, compactItem, isFreshState, syncClips, clipIdsIn } from "../src/sync.ts";
 import { TYPES } from "../src/languages.ts";
+import { must } from "./helpers.mjs";
 /** @import { Doc, Item, WireDoc } from "../src/types.ts" */
 
 const fresh = () => ({
@@ -192,6 +193,41 @@ test("two devices answer different exercises on one card: both answers survive",
   assert.equal(statesOf(out).en2ar.reps, 7, "the laptop's work on another");
 });
 
+test("and the same for a turn of a conversation, which keeps its own progress", () => {
+  /*
+   * A scene's turns are a second list beside its forms, each drilled and
+   * scheduled in its own right — so they need the same type-by-type merge,
+   * and for the same reason. Practising a scene on two devices and losing
+   * one device's work would be the fault this whole file exists to catch,
+   * one list over.
+   */
+  /* Cast, as the fixtures above are: what a merge reads of a scene is its
+     turns and their schedules.
+     @returns {Item} */
+  const scene = (
+    /** @type {Record<string, any>} */ over,
+    /** @type {Record<string, any>} */ lineStates,
+  ) => /** @type {Item} */ (/** @type {unknown} */ ({
+    id: "c2", tags: [], created: 0, updated: 100,
+    forms: [{ id: "c2", ar: "", en: "At the door", lat: "", s: states() }],
+    lines: [
+      { id: "c2-l0", ar: "مرحبا", en: "hello", s: { ...states(), ...lineStates } },
+      { id: "c2-l1", ar: "أهلا", en: "hi", s: states() },
+    ],
+    ...over,
+  }));
+  const phone = scene({ updated: 200 }, { dlgpick: { ...fresh(), reps: 3, updated: 210 } });
+  const laptop = scene({ updated: 300 }, { rec2en: { ...fresh(), reps: 7, updated: 310 } });
+  const out = mergeData(doc([phone]), doc([laptop])).items[0];
+  const turn = must(must(out.lines, "the turns")[0], "the first turn").s;
+  assert.equal(must(turn, "its schedule").dlgpick.reps, 3, "the phone's work on the turn");
+  assert.equal(must(turn, "its schedule").rec2en.reps, 7, "and the laptop's");
+  /* The turn nobody answered comes through untouched rather than being
+     dropped along the way. */
+  assert.equal(must(out.lines, "the turns").length, 2);
+  assert.equal(must(out.lines, "the turns")[1].en, "hi");
+});
+
 test("an exercise only the other device has answered is carried across", () => {
   /* Both directions, because they are different branches. A device that
      has never answered a type drops it when it compacts, so the incoming
@@ -289,6 +325,15 @@ test("settings are one object, so a change on the losing device is lost", () => 
   assert.equal(out.settings.theme, "light");
   assert.equal(out.settings.sounds, "loud", "the phone's change to a different setting is lost");
   assert.equal(out.settingsUpdated, 300);
+
+  /* And the other way round, so it is the later stamp that is kept rather
+     than whichever side the merge happened to read second. The stamp is
+     what the *next* merge compares against, so a merge that lowered it
+     would hand the settings back to the other device on the sync after
+     this one. */
+  const back = mergeData(laptop, phone);
+  assert.equal(back.settings.theme, "light", "this device's own later change stands");
+  assert.equal(back.settingsUpdated, 300, "and the stamp still says when it happened");
 });
 
 test("merging a conflict twice changes nothing the second time", () => {
@@ -510,6 +555,27 @@ test("work set aside when a card went away is kept by whichever device saw it go
   assert.equal(drawer.gone, undefined,
     "and one set aside longer ago than a headstone lasts is let go");
   assert.deepEqual(mergeData(out, theirs).parked, out.parked, "merging is idempotent");
+});
+
+test("two devices that parked one card at the same moment keep this device's copy", () => {
+  /*
+   * The tie in the rule above. Neither parking is later, so something has
+   * to decide, and what decides is that the device doing the merging keeps
+   * what it had — which is what makes a merge re-run on the same device
+   * come back the same. (Two devices in this position each keep their own
+   * until one of them parks again; the stamps are milliseconds, so it
+   * takes both seeing the same card go in the same millisecond.)
+   */
+  const at = Date.now() - 1000;
+  /** @param {number} reps */
+  const saved = (reps) => ({ at, forms: { c1: { s: { ar2en: { ...fresh(), reps, updated: at } } } } });
+  const mine = doc([], { parked: { c1: saved(4) } });
+  /** @type {WireDoc} */
+  const theirs = { items: [], tombstones: {}, log: {}, parked: { c1: saved(1) } };
+  const out = mergeData(mine, theirs);
+  const drawer = /** @type {Record<string, any>} */ (out.parked);
+  assert.equal(drawer.c1.forms.c1.s.ar2en.reps, 4, "this device's copy stands");
+  assert.deepEqual(mergeData(out, theirs).parked, out.parked, "and stands again on a re-merge");
 });
 
 /* ------------------------------------------------------------------

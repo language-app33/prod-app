@@ -239,3 +239,50 @@ test("the closest accepted spelling is the one judged against", () => {
   assert.equal(slip(ar, "سفار", ["كتاب", "سفر"]), false, "two out of the near one, not one out of the far");
   assert.equal(slip(ar, "كتاث", ["كتاب", "سفر"]), true);
 });
+
+/* ------------------------------------------------------------------
+   Where there is nothing to compare
+   ------------------------------------------------------------------ */
+
+test("nothing to measure is measured as miles out, not as a near miss", () => {
+  /*
+   * `spellDistance` is what decides a typo — one letter out on a long
+   * enough word is re-asked rather than marked — so the three ways of
+   * having nothing to compare all have to come back Infinity. Asked the
+   * other way round, with all three wanted at once before giving up, an
+   * empty answer would be measured against the word as though the learner
+   * had written something, and a blank on a four-letter word would read as
+   * four letters out rather than as no answer at all.
+   */
+  assert.equal(spellDistance("", "كتاب", foldOf(ar, {})), Infinity, "nothing typed");
+  assert.equal(spellDistance("   ", "كتاب", foldOf(ar, {})), Infinity, "and whitespace is nothing typed");
+  assert.equal(spellDistance("كتاب", [], foldOf(ar, {})), Infinity, "no accepted spelling to compare against");
+  assert.equal(spellDistance("كتاب", ["", "  "], foldOf(ar, {})), Infinity, "nor any with a word in it");
+  assert.equal(spellDistance("كتاب", "كتاب", null), Infinity, "no fold, so no letters to count");
+  /* And each of them is therefore never a typo, whatever the lengths. */
+  assert.equal(typoed("", "كتاب", foldOf(ar, {})), false);
+  assert.equal(typoed("كتاب", [], foldOf(ar, {})), false);
+});
+
+test("an answer with no letters in it at all is a word missed, not a word misspelt", () => {
+  /*
+   * Punctuation, or a harakat on its own: the fold leaves nothing, so
+   * there is not one letter of theirs to point at. The mark belongs on the
+   * answer — these are the letters that are missing — and that is the only
+   * mark this case has.
+   *
+   * It is the opposite case to the one below it, and the guard that tells
+   * them apart asks whether the learner wrote any letters at all. Without
+   * that question an empty hand reads as "every letter wrong", which is
+   * the one shape the app deliberately does not paint.
+   */
+  const none = mark(ar, "؟؟", "كتاب");
+  assert.equal(none.wrong, true, "the answer's letters are marked as missing");
+  assert.equal(show(none.theirs), "[كتاب]");
+  assert.equal(show(none.yours), "؟؟", "and what they typed is given back unmarked");
+
+  /* Whereas a word in which not one letter belongs is a word nobody knew,
+     and painting all of it adds nothing to "wrong". */
+  const wrongWord = mark(ar, "مشسط", "كتاب");
+  assert.equal(wrongWord.wrong, false, "nothing to point at");
+});

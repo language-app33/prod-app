@@ -992,6 +992,14 @@ export const NOT_SHOWN: [string, string][] = [
   ["line.met", "And its record of what it has been met with."],
   ["line.recs", "Its recordings as a device holds them."],
   ["answer.at", "Where the answer sits in its form's list. Carried out of a read rather than stored — see PlacedAnswer."],
+  /* Shown once, on the form, rather than twice. The form's two lists are
+     every answer's put together — see packAnswers — so a read-out that
+     printed both would be counting the same recordings a second time
+     under a second heading. Which answer a recording belongs to is what
+     the editor shows and what a question uses; the read-out's question is
+     what the card holds. */
+  ["answer.clips", "How this one accepted answer sounds. Listed once, on the form, with every other answer's."],
+  ["answer.slowClips", "The same, said slowly."],
 ];
 
 const notShown = (): Map<string, string> => new Map(NOT_SHOWN);

@@ -49,6 +49,20 @@ const ar = LANGUAGES["ar-PS"];
 /* What a stored answer may carry, as the grammar table declares it. */
 const fields = answerFields();
 
+/* An answer's words and its grammar, without the two lists of recordings
+   every read hands back. Those are checked on their own further down; up
+   here they would be four extra lines in every expectation, about
+   something the test is not about.
+
+   Both lists are there whether or not there is anything in them, because
+   an absent list and an empty one mean different things to `withAnswer` —
+   which is the one thing about them these older assertions would
+   otherwise be quietly asserting. */
+/** @param {any} answer */
+const bare = ({ clips: _c, slowClips: _s, ...rest }) => rest;
+/** @param {any[]} list */
+const said = (list) => list.map(bare);
+
 /* Two spellings of one meaning, each said its own way. Written in the
    Latin alphabet here for the same reason every other test is: what is
    being checked is the pairing, not the script. */
@@ -56,7 +70,7 @@ const fields = answerFields();
 const two = () => ({ id: "w1", ar: "kitaab-script / safar-script", lat: "kitaab / safar", en: "book", recs: [], s: {} });
 
 test("each accepted answer carries its own transliteration", () => {
-  assert.deepEqual(answersOf(two(), fields), [
+  assert.deepEqual(said(answersOf(two(), fields)), [
     { text: "kitaab-script", lat: "kitaab", at: 0 },
     { text: "safar-script", lat: "safar", at: 1 },
   ]);
@@ -65,10 +79,10 @@ test("each accepted answer carries its own transliteration", () => {
 test("a card with one of each is what it always was", () => {
   /* Every card written before this existed. Nothing to migrate: one answer
      and one transliteration already pair correctly. */
-  assert.deepEqual(answersOf({ ar: "bayt", lat: "bayt-said" }, fields), [
+  assert.deepEqual(said(answersOf({ ar: "bayt", lat: "bayt-said" }, fields)), [
     { text: "bayt", lat: "bayt-said", at: 0 },
   ]);
-  assert.deepEqual(answersOf({ ar: "bayt" }, fields), [{ text: "bayt", lat: "", at: 0 }]);
+  assert.deepEqual(said(answersOf({ ar: "bayt" }, fields)), [{ text: "bayt", lat: "", at: 0 }]);
 });
 
 test("a transliteration written for the second answer stays with the second", () => {
@@ -76,7 +90,7 @@ test("a transliteration written for the second answer stays with the second", ()
      blank would hand the second answer's pronunciation to the first, which
      is worse than having none. */
   const form = { ar: "one / two", lat: " / two-said" };
-  assert.deepEqual(answersOf(form, fields), [
+  assert.deepEqual(said(answersOf(form, fields)), [
     { text: "one", lat: "", at: 0 },
     { text: "two", lat: "two-said", at: 1 },
   ]);
@@ -86,7 +100,7 @@ test("a transliteration written for the second answer stays with the second", ()
 test("an answer with no spelling is not an answer, and takes its cell with it", () => {
   /* A row somebody started and left. Kept, it would be an accepted answer
      of nothing — and every transliteration after it would slide. */
-  assert.deepEqual(answersOf({ ar: " / two", lat: "one-said / two-said" }, fields), [
+  assert.deepEqual(said(answersOf({ ar: " / two", lat: "one-said / two-said" }, fields)), [
     { text: "two", lat: "two-said", at: 1 },
   ]);
 });
@@ -112,8 +126,8 @@ test("the editor writes both strings at once, so they cannot drift", () => {
 });
 
 test("the rows an editor opens on are never none", () => {
-  assert.deepEqual(answerRows({}, fields), [{ text: "", lat: "" }]);
-  assert.deepEqual(answerRows({ ar: "one / two", lat: "one-said" }, fields), [
+  assert.deepEqual(said(answerRows({}, fields)), [{ text: "", lat: "" }]);
+  assert.deepEqual(said(answerRows({ ar: "one / two", lat: "one-said" }, fields)), [
     { text: "one", lat: "one-said" },
     { text: "two", lat: "" },
   ]);
@@ -126,6 +140,88 @@ test("splitting keeps blanks and joining drops only the trailing ones", () => {
   assert.equal(joinAlternatives(["a", "", "b"]), "a /  / b", "a blank in the middle is holding a place");
   assert.equal(joinAlternatives(["a", "", ""]), "a", "blanks at the end are rows nobody filled in");
   assert.equal(joinAlternatives(["", ""]), "");
+});
+
+/* ---- and how each of them sounds ----------------------------------
+   A recording belongs to the answer it is of, for the reason its gender
+   does: two accepted answers are two words, said two ways. What these
+   check is that the move takes nothing away from a card written before
+   it — and that an answer nobody recorded is silent rather than borrowing
+   the one beside it, which is the whole failure being fixed. */
+
+/* A recording is named by the hash of its own bytes. Any string will do
+   here: what is being checked is which answer holds which name. */
+const RECS = { a: "clip-a", b: "clip-b", slow: "clip-a-slow" };
+
+test("a recording belongs to the answer it is of", () => {
+  const packed = packAnswers([
+    { text: "one", lat: "one-said", clips: [RECS.a], slowClips: [RECS.slow] },
+    { text: "two", lat: "two-said", clips: [RECS.b] },
+  ], fields);
+  assert.deepEqual(packed.answers.map((a) => a.clips), [[RECS.a], [RECS.b]]);
+  assert.deepEqual(packed.answers.map((a) => a.slowClips), [[RECS.slow], undefined],
+    "an answer nobody recorded stores no empty list");
+  /* And the form carries every one of them, once each. That is what the
+     server, an export and every card list read, and it is what says which
+     recordings the card still points at — a clip nothing points at is
+     deleted. */
+  assert.deepEqual(packed.clips, [RECS.a, RECS.b]);
+  assert.deepEqual(packed.slowClips, [RECS.slow]);
+
+  /* Read back, each answer has its own again. */
+  assert.deepEqual(answersOf(packed, fields).map((a) => a.clips), [[RECS.a], [RECS.b]]);
+});
+
+test("a card recorded before they belonged to an answer gives its clips to each", () => {
+  /* The migration, stated as what it must not change. One answer and one
+     set of recordings already pair correctly; two answers and one set
+     meant the card's, and still do until somebody says otherwise. */
+  const old = { ar: "one / two", lat: "one-said / two-said", clips: [RECS.a], slowClips: [] };
+  assert.deepEqual(answersOf(old, fields).map((a) => a.clips), [[RECS.a], [RECS.a]]);
+  assert.deepEqual(answersOf({ ar: "bayt", clips: [RECS.a] }, fields)[0].clips, [RECS.a]);
+});
+
+test("a question about one answer plays that answer's recording", () => {
+  /* `recs` is the shape a device keeps its audio in, and its id is the
+     clip name the answer carries — which is all the matching needs. */
+  const card = {
+    ...packAnswers([
+      { text: "one", lat: "one-said", clips: [RECS.a] },
+      { text: "two", lat: "two-said", clips: [RECS.b] },
+    ], fields),
+    en: "book",
+    recs: [{ id: RECS.a, speed: "regular" }, { id: RECS.b, speed: "regular" }],
+  };
+  const second = withAnswer(card, answersOf(card, fields)[1]);
+  assert.deepEqual(second.recs.map((r) => r.id), [RECS.b]);
+  const first = withAnswer(card, answersOf(card, fields)[0]);
+  assert.deepEqual(first.recs.map((r) => r.id), [RECS.a]);
+});
+
+test("an answer nobody recorded is silent rather than borrowing the other's", () => {
+  const card = {
+    ...packAnswers([
+      { text: "one", lat: "one-said" },
+      { text: "two", lat: "two-said", clips: [RECS.b] },
+    ], fields),
+    recs: [{ id: RECS.b, speed: "regular" }],
+  };
+  assert.deepEqual(withAnswer(card, answersOf(card, fields)[0]).recs, [],
+    "the one thing a card must not do is play the wrong word");
+  assert.deepEqual(withAnswer(card, answersOf(card, fields)[1]).recs.map((r) => r.id), [RECS.b]);
+});
+
+test("a card whose answers name no recordings keeps the ones it had", () => {
+  /* Every card written before this. Its clips are the card's, they are
+     not claimed by either answer, and narrowing to one answer leaves them
+     exactly where they were. */
+  const card = {
+    ar: "one / two",
+    lat: "one-said / two-said",
+    answers: [{ text: "one", lat: "one-said" }, { text: "two", lat: "two-said" }],
+    recs: [{ id: RECS.a, speed: "regular" }],
+  };
+  assert.deepEqual(withAnswer(card, { text: "one", lat: "one-said" }).recs.map((r) => r.id), [RECS.a]);
 });
 
 test("a question about how a card sounds is a question about one answer", () => {
@@ -208,13 +304,13 @@ test("a card written before the change reads as one answer per set of values", (
      the grammar the form carried, because that is what it meant when there
      was one set of it. Nothing is invented and nothing is dropped. */
   const lifted = answersOf(beforeTheChange(), fields);
-  assert.deepEqual(lifted, [
+  assert.deepEqual(said(lifted), [
     { number: "singular", gender: "masculine", text: "mabsuut", lat: "mabsuut-said", at: 0 },
     { number: "singular", gender: "masculine", text: "mabsuuta", lat: "mabsuuta-said", at: 1 },
   ]);
   /* And a card with one answer — every ordinary card ever written — comes
      through in every particular. */
-  assert.deepEqual(answersOf({ ar: "bayt", lat: "beit", gender: "masculine" }, fields), [
+  assert.deepEqual(said(answersOf({ ar: "bayt", lat: "beit", gender: "masculine" }, fields)), [
     { gender: "masculine", text: "bayt", lat: "beit", at: 0 },
   ]);
 });
@@ -273,11 +369,11 @@ test("a stored answer is narrowed to what the language declares", () => {
     { text: " kitaab ", lat: 7, gender: "wobbly", number: "plural", nonsense: "hello" },
     fields,
   );
-  assert.deepEqual(read, { text: "kitaab", lat: "7", number: "plural" });
+  assert.deepEqual(bare(read), { text: "kitaab", lat: "7", number: "plural" });
   assert.equal("gender" in read, false, "a gender no language offers is not a gender");
   assert.equal("nonsense" in read, false, "a stored shape must not accumulate");
-  assert.deepEqual(readAnswer(null, fields), { text: "", lat: "" });
-  assert.deepEqual(readAnswer("just a string", fields), { text: "", lat: "" });
+  assert.deepEqual(bare(readAnswer(null, fields)), { text: "", lat: "" });
+  assert.deepEqual(bare(readAnswer("just a string", fields)), { text: "", lat: "" });
 });
 
 test("the delimited strings win where the array disagrees with them", () => {
