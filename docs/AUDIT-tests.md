@@ -90,8 +90,8 @@ so; a few numbers the app's behaviour hangs on (the two caps on new words,
 the three lines a scene needs to be put in order, the fifty-item outbox, the
 four-megabyte document limit) are read by the tests rather than stated by
 them, so changing one would change nothing red; and the "automatic
-difficulty" score that orders a session easiest-first is covered only at its
-edges.
+difficulty" score is exported, tested, and read by nothing — it is dead, and
+its tests are testing a thing the app no longer does.
 
 ## What is good, and worth keeping
 
@@ -271,7 +271,57 @@ that pass is in §6.
 
 ### 6. Survivors confirmed against everything
 
-*(filled in below from the verification run)*
+Twenty-six survivors that read as real were re-run against every unit test
+(`version.test.mjs` aside, which needs a `.git`), and the five in the session
+builder against the smoke walk as well. Three were caught by a test in
+another file, which is the suite working as it should: `isAsked` inverted
+(caught by the read-out, the ladder and the session tests), `wanted - 1`
+in pick options (caught by *the replies offered include the right one and
+never a copy of it*), and `MIN_ORDER_LINES` (caught by *a conversation is
+offered what a conversation can be asked*). **Twenty-three survived
+everything.** Grouped by what they mean:
+
+*Real gaps, worth a test each — an hour or two in all, and most belong in
+the fix round above:*
+
+- `grade.ts:306, :311` — `skips` and `near` reset to 1 instead of
+  accumulating. Nothing skips a question twice, or misses narrowly twice.
+- `grade.ts:350, :393` — a mark on a conversation turn matched by the
+  *wrong* line id goes unnoticed: no test marks a turn and checks which
+  line's schedule moved.
+- `grade.ts:442` — `fillerMarks` with exactly one filled word credits
+  nothing.
+- `chance.ts:77` — a pick question may offer the same meaning twice. The
+  grid has this test (`matchSet`); the choices do not.
+- `sync.ts:139` — a scene's turns merged under the wrong guard.
+  `sync.ts:231` — when both devices parked the same card, the older copy
+  can win.
+- `spelling.ts:156` — `typoed` runs on an empty answer or with no letter
+  fold. `spelling.ts:312` — *nothing marked when not one letter belongs*
+  is not pinned when nothing was typed at all.
+- `numbers/range.ts:421` — an impossible time (25:70) is offered.
+  `numbers/compose.ts:220` — "to the next hour" past 23:00 wraps to hour
+  24 rather than 0; the golden tables stop short of it.
+- `ArabicTrainer.tsx:3147` — a card the learner marked is not counted as
+  waiting. `:3169` — the session is cut before the last marked card, which
+  is the promise the README makes in *A learner can ask for a card*.
+  `:3012` — new cards no longer go behind the asked-for ones. `:2713` —
+  `hasRecentMistake` answers yes for a card with history and no recent
+  miss. `:2818` — a number question that cannot find three wrong options
+  is still asked as a pick. The walk has a section on asked-for cards
+  (`tests/smoke.mjs:3393`) and did not notice any of these.
+- `scheduler.ts:288` — a relearned card's interval floor moved from one
+  day to two.
+
+*Numbers nobody states (see §7):* `scheduler.ts:89` — `FRONT_DOOR_CAP`.
+
+*Boundaries that only matter on equal timestamps, harmless in practice:*
+`sync.ts:85`.
+
+*Dead code, so survival was expected:* `scheduler.ts:883, :895` —
+`difficultyScore` and `difficulty` are exported and nothing in `src/` or
+`server/` calls them; "easiest first" is ordered another way. Delete them
+rather than test them.
 
 ### 7. Numbers the tests read rather than state
 
