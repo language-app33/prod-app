@@ -1,0 +1,1340 @@
+{
+  "language": "vi-Hue",
+  "composerVersion": 1,
+  "reviewedBy": "the implementation this replaces",
+  "reviewedOn": "2026-09-22",
+  "note": [
+    "The table the Huế Vietnamese number composer is held to.",
+    "",
+    "Generated from the implementation that has been shipping since 0.152,",
+    "so every row is what a learner of this language has actually been",
+    "shown. The port is a rewrite of how the words are stored and asked for,",
+    "not of what they come out as: nothing below should differ by a character from what 0.152 said.",
+    "",
+    "Which means this table is not a review waiting to happen, the way the",
+    "Palestinian Arabic one is. It is a fence. If a row here ever changes,",
+    "somebody has changed what an existing learner sees, and that wants",
+    "saying out loud rather than merging."
+  ],
+  "system": {
+    "id": "golden-vi",
+    "owner": "golden",
+    "languageId": "vi-Hue",
+    "composerVersion": 1,
+    "audioPolicy": "components",
+    "rev": 1,
+    "created": 0,
+    "updated": 0,
+    "nouns": [],
+    "overrides": {},
+    "lexemes": {
+      "unit.0": {
+        "slot": "unit.0",
+        "forms": {
+          "standalone": "không",
+          "company": "lẻ"
+        }
+      },
+      "unit.1": {
+        "slot": "unit.1",
+        "forms": {
+          "standalone": "một",
+          "company": "mốt"
+        }
+      },
+      "unit.2": {
+        "slot": "unit.2",
+        "forms": {
+          "standalone": "hai"
+        }
+      },
+      "unit.3": {
+        "slot": "unit.3",
+        "forms": {
+          "standalone": "ba"
+        }
+      },
+      "unit.4": {
+        "slot": "unit.4",
+        "forms": {
+          "standalone": "bốn",
+          "company": "tư"
+        }
+      },
+      "unit.5": {
+        "slot": "unit.5",
+        "forms": {
+          "standalone": "năm",
+          "company": "lăm"
+        }
+      },
+      "unit.6": {
+        "slot": "unit.6",
+        "forms": {
+          "standalone": "sáu"
+        }
+      },
+      "unit.7": {
+        "slot": "unit.7",
+        "forms": {
+          "standalone": "bảy"
+        }
+      },
+      "unit.8": {
+        "slot": "unit.8",
+        "forms": {
+          "standalone": "tám"
+        }
+      },
+      "unit.9": {
+        "slot": "unit.9",
+        "forms": {
+          "standalone": "chín"
+        }
+      },
+      "unit.10": {
+        "slot": "unit.10",
+        "forms": {
+          "standalone": "mười",
+          "company": "mươi"
+        }
+      },
+      "hundred.n": {
+        "slot": "hundred.n",
+        "forms": {
+          "standalone": "trăm"
+        }
+      },
+      "thousand.n": {
+        "slot": "thousand.n",
+        "forms": {
+          "standalone": "nghìn"
+        }
+      },
+      "million.n": {
+        "slot": "million.n",
+        "forms": {
+          "standalone": "triệu"
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "n": 0,
+      "text": "không"
+    },
+    {
+      "n": 1,
+      "text": "một"
+    },
+    {
+      "n": 2,
+      "text": "hai"
+    },
+    {
+      "n": 3,
+      "text": "ba"
+    },
+    {
+      "n": 4,
+      "text": "bốn"
+    },
+    {
+      "n": 5,
+      "text": "năm"
+    },
+    {
+      "n": 6,
+      "text": "sáu"
+    },
+    {
+      "n": 7,
+      "text": "bảy"
+    },
+    {
+      "n": 8,
+      "text": "tám"
+    },
+    {
+      "n": 9,
+      "text": "chín"
+    },
+    {
+      "n": 10,
+      "text": "mười"
+    },
+    {
+      "n": 11,
+      "text": "mười một"
+    },
+    {
+      "n": 12,
+      "text": "mười hai"
+    },
+    {
+      "n": 13,
+      "text": "mười ba"
+    },
+    {
+      "n": 14,
+      "text": "mười bốn"
+    },
+    {
+      "n": 15,
+      "text": "mười lăm"
+    },
+    {
+      "n": 16,
+      "text": "mười sáu"
+    },
+    {
+      "n": 17,
+      "text": "mười bảy"
+    },
+    {
+      "n": 18,
+      "text": "mười tám"
+    },
+    {
+      "n": 19,
+      "text": "mười chín"
+    },
+    {
+      "n": 20,
+      "text": "hai mươi"
+    },
+    {
+      "n": 21,
+      "text": "hai mươi mốt"
+    },
+    {
+      "n": 22,
+      "text": "hai mươi hai"
+    },
+    {
+      "n": 23,
+      "text": "hai mươi ba"
+    },
+    {
+      "n": 24,
+      "text": "hai mươi tư"
+    },
+    {
+      "n": 25,
+      "text": "hai mươi lăm"
+    },
+    {
+      "n": 26,
+      "text": "hai mươi sáu"
+    },
+    {
+      "n": 27,
+      "text": "hai mươi bảy"
+    },
+    {
+      "n": 28,
+      "text": "hai mươi tám"
+    },
+    {
+      "n": 29,
+      "text": "hai mươi chín"
+    },
+    {
+      "n": 30,
+      "text": "ba mươi"
+    },
+    {
+      "n": 31,
+      "text": "ba mươi mốt"
+    },
+    {
+      "n": 32,
+      "text": "ba mươi hai"
+    },
+    {
+      "n": 33,
+      "text": "ba mươi ba"
+    },
+    {
+      "n": 34,
+      "text": "ba mươi tư"
+    },
+    {
+      "n": 35,
+      "text": "ba mươi lăm"
+    },
+    {
+      "n": 36,
+      "text": "ba mươi sáu"
+    },
+    {
+      "n": 37,
+      "text": "ba mươi bảy"
+    },
+    {
+      "n": 38,
+      "text": "ba mươi tám"
+    },
+    {
+      "n": 39,
+      "text": "ba mươi chín"
+    },
+    {
+      "n": 40,
+      "text": "bốn mươi"
+    },
+    {
+      "n": 41,
+      "text": "bốn mươi mốt"
+    },
+    {
+      "n": 42,
+      "text": "bốn mươi hai"
+    },
+    {
+      "n": 43,
+      "text": "bốn mươi ba"
+    },
+    {
+      "n": 44,
+      "text": "bốn mươi tư"
+    },
+    {
+      "n": 45,
+      "text": "bốn mươi lăm"
+    },
+    {
+      "n": 46,
+      "text": "bốn mươi sáu"
+    },
+    {
+      "n": 47,
+      "text": "bốn mươi bảy"
+    },
+    {
+      "n": 48,
+      "text": "bốn mươi tám"
+    },
+    {
+      "n": 49,
+      "text": "bốn mươi chín"
+    },
+    {
+      "n": 50,
+      "text": "năm mươi"
+    },
+    {
+      "n": 51,
+      "text": "năm mươi mốt"
+    },
+    {
+      "n": 52,
+      "text": "năm mươi hai"
+    },
+    {
+      "n": 53,
+      "text": "năm mươi ba"
+    },
+    {
+      "n": 54,
+      "text": "năm mươi tư"
+    },
+    {
+      "n": 55,
+      "text": "năm mươi lăm"
+    },
+    {
+      "n": 56,
+      "text": "năm mươi sáu"
+    },
+    {
+      "n": 57,
+      "text": "năm mươi bảy"
+    },
+    {
+      "n": 58,
+      "text": "năm mươi tám"
+    },
+    {
+      "n": 59,
+      "text": "năm mươi chín"
+    },
+    {
+      "n": 60,
+      "text": "sáu mươi"
+    },
+    {
+      "n": 61,
+      "text": "sáu mươi mốt"
+    },
+    {
+      "n": 62,
+      "text": "sáu mươi hai"
+    },
+    {
+      "n": 63,
+      "text": "sáu mươi ba"
+    },
+    {
+      "n": 64,
+      "text": "sáu mươi tư"
+    },
+    {
+      "n": 65,
+      "text": "sáu mươi lăm"
+    },
+    {
+      "n": 66,
+      "text": "sáu mươi sáu"
+    },
+    {
+      "n": 67,
+      "text": "sáu mươi bảy"
+    },
+    {
+      "n": 68,
+      "text": "sáu mươi tám"
+    },
+    {
+      "n": 69,
+      "text": "sáu mươi chín"
+    },
+    {
+      "n": 70,
+      "text": "bảy mươi"
+    },
+    {
+      "n": 71,
+      "text": "bảy mươi mốt"
+    },
+    {
+      "n": 72,
+      "text": "bảy mươi hai"
+    },
+    {
+      "n": 73,
+      "text": "bảy mươi ba"
+    },
+    {
+      "n": 74,
+      "text": "bảy mươi tư"
+    },
+    {
+      "n": 75,
+      "text": "bảy mươi lăm"
+    },
+    {
+      "n": 76,
+      "text": "bảy mươi sáu"
+    },
+    {
+      "n": 77,
+      "text": "bảy mươi bảy"
+    },
+    {
+      "n": 78,
+      "text": "bảy mươi tám"
+    },
+    {
+      "n": 79,
+      "text": "bảy mươi chín"
+    },
+    {
+      "n": 80,
+      "text": "tám mươi"
+    },
+    {
+      "n": 81,
+      "text": "tám mươi mốt"
+    },
+    {
+      "n": 82,
+      "text": "tám mươi hai"
+    },
+    {
+      "n": 83,
+      "text": "tám mươi ba"
+    },
+    {
+      "n": 84,
+      "text": "tám mươi tư"
+    },
+    {
+      "n": 85,
+      "text": "tám mươi lăm"
+    },
+    {
+      "n": 86,
+      "text": "tám mươi sáu"
+    },
+    {
+      "n": 87,
+      "text": "tám mươi bảy"
+    },
+    {
+      "n": 88,
+      "text": "tám mươi tám"
+    },
+    {
+      "n": 89,
+      "text": "tám mươi chín"
+    },
+    {
+      "n": 90,
+      "text": "chín mươi"
+    },
+    {
+      "n": 91,
+      "text": "chín mươi mốt"
+    },
+    {
+      "n": 92,
+      "text": "chín mươi hai"
+    },
+    {
+      "n": 93,
+      "text": "chín mươi ba"
+    },
+    {
+      "n": 94,
+      "text": "chín mươi tư"
+    },
+    {
+      "n": 95,
+      "text": "chín mươi lăm"
+    },
+    {
+      "n": 96,
+      "text": "chín mươi sáu"
+    },
+    {
+      "n": 97,
+      "text": "chín mươi bảy"
+    },
+    {
+      "n": 98,
+      "text": "chín mươi tám"
+    },
+    {
+      "n": 99,
+      "text": "chín mươi chín"
+    },
+    {
+      "n": 100,
+      "text": "một trăm"
+    },
+    {
+      "n": 101,
+      "text": "một trăm lẻ một"
+    },
+    {
+      "n": 102,
+      "text": "một trăm lẻ hai"
+    },
+    {
+      "n": 103,
+      "text": "một trăm lẻ ba"
+    },
+    {
+      "n": 104,
+      "text": "một trăm lẻ bốn"
+    },
+    {
+      "n": 105,
+      "text": "một trăm lẻ năm"
+    },
+    {
+      "n": 106,
+      "text": "một trăm lẻ sáu"
+    },
+    {
+      "n": 107,
+      "text": "một trăm lẻ bảy"
+    },
+    {
+      "n": 108,
+      "text": "một trăm lẻ tám"
+    },
+    {
+      "n": 109,
+      "text": "một trăm lẻ chín"
+    },
+    {
+      "n": 110,
+      "text": "một trăm mười"
+    },
+    {
+      "n": 111,
+      "text": "một trăm mười một"
+    },
+    {
+      "n": 112,
+      "text": "một trăm mười hai"
+    },
+    {
+      "n": 113,
+      "text": "một trăm mười ba"
+    },
+    {
+      "n": 114,
+      "text": "một trăm mười bốn"
+    },
+    {
+      "n": 115,
+      "text": "một trăm mười lăm"
+    },
+    {
+      "n": 116,
+      "text": "một trăm mười sáu"
+    },
+    {
+      "n": 117,
+      "text": "một trăm mười bảy"
+    },
+    {
+      "n": 118,
+      "text": "một trăm mười tám"
+    },
+    {
+      "n": 119,
+      "text": "một trăm mười chín"
+    },
+    {
+      "n": 120,
+      "text": "một trăm hai mươi"
+    },
+    {
+      "n": 121,
+      "text": "một trăm hai mươi mốt"
+    },
+    {
+      "n": 122,
+      "text": "một trăm hai mươi hai"
+    },
+    {
+      "n": 123,
+      "text": "một trăm hai mươi ba"
+    },
+    {
+      "n": 124,
+      "text": "một trăm hai mươi tư"
+    },
+    {
+      "n": 125,
+      "text": "một trăm hai mươi lăm"
+    },
+    {
+      "n": 126,
+      "text": "một trăm hai mươi sáu"
+    },
+    {
+      "n": 127,
+      "text": "một trăm hai mươi bảy"
+    },
+    {
+      "n": 128,
+      "text": "một trăm hai mươi tám"
+    },
+    {
+      "n": 129,
+      "text": "một trăm hai mươi chín"
+    },
+    {
+      "n": 130,
+      "text": "một trăm ba mươi"
+    },
+    {
+      "n": 199,
+      "text": "một trăm chín mươi chín"
+    },
+    {
+      "n": 200,
+      "text": "hai trăm"
+    },
+    {
+      "n": 201,
+      "text": "hai trăm lẻ một"
+    },
+    {
+      "n": 250,
+      "text": "hai trăm năm mươi"
+    },
+    {
+      "n": 300,
+      "text": "ba trăm"
+    },
+    {
+      "n": 305,
+      "text": "ba trăm lẻ năm"
+    },
+    {
+      "n": 400,
+      "text": "bốn trăm"
+    },
+    {
+      "n": 500,
+      "text": "năm trăm"
+    },
+    {
+      "n": 525,
+      "text": "năm trăm hai mươi lăm"
+    },
+    {
+      "n": 600,
+      "text": "sáu trăm"
+    },
+    {
+      "n": 700,
+      "text": "bảy trăm"
+    },
+    {
+      "n": 800,
+      "text": "tám trăm"
+    },
+    {
+      "n": 900,
+      "text": "chín trăm"
+    },
+    {
+      "n": 999,
+      "text": "chín trăm chín mươi chín"
+    },
+    {
+      "n": 1000,
+      "text": "một nghìn"
+    },
+    {
+      "n": 1001,
+      "text": "một nghìn không trăm lẻ một"
+    },
+    {
+      "n": 1005,
+      "text": "một nghìn không trăm lẻ năm"
+    },
+    {
+      "n": 1010,
+      "text": "một nghìn không trăm mười"
+    },
+    {
+      "n": 1050,
+      "text": "một nghìn không trăm năm mươi"
+    },
+    {
+      "n": 1100,
+      "text": "một nghìn một trăm"
+    },
+    {
+      "n": 1500,
+      "text": "một nghìn năm trăm"
+    },
+    {
+      "n": 1525,
+      "text": "một nghìn năm trăm hai mươi lăm"
+    },
+    {
+      "n": 2000,
+      "text": "hai nghìn"
+    },
+    {
+      "n": 2025,
+      "text": "hai nghìn không trăm hai mươi lăm"
+    },
+    {
+      "n": 3000,
+      "text": "ba nghìn"
+    },
+    {
+      "n": 4000,
+      "text": "bốn nghìn"
+    },
+    {
+      "n": 5000,
+      "text": "năm nghìn"
+    },
+    {
+      "n": 6000,
+      "text": "sáu nghìn"
+    },
+    {
+      "n": 7000,
+      "text": "bảy nghìn"
+    },
+    {
+      "n": 8000,
+      "text": "tám nghìn"
+    },
+    {
+      "n": 9000,
+      "text": "chín nghìn"
+    },
+    {
+      "n": 10000,
+      "text": "mười nghìn"
+    },
+    {
+      "n": 11000,
+      "text": "mười một nghìn"
+    },
+    {
+      "n": 12000,
+      "text": "mười hai nghìn"
+    },
+    {
+      "n": 20000,
+      "text": "hai mươi nghìn"
+    },
+    {
+      "n": 21000,
+      "text": "hai mươi mốt nghìn"
+    },
+    {
+      "n": 21525,
+      "text": "hai mươi mốt nghìn năm trăm hai mươi lăm"
+    },
+    {
+      "n": 30174,
+      "text": "ba mươi nghìn một trăm bảy mươi tư"
+    },
+    {
+      "n": 45000,
+      "text": "bốn mươi lăm nghìn"
+    },
+    {
+      "n": 99999,
+      "text": "chín mươi chín nghìn chín trăm chín mươi chín"
+    },
+    {
+      "n": 100000,
+      "text": "một trăm nghìn"
+    },
+    {
+      "n": 100100,
+      "text": "một trăm nghìn một trăm"
+    },
+    {
+      "n": 150000,
+      "text": "một trăm năm mươi nghìn"
+    },
+    {
+      "n": 481807,
+      "text": "bốn trăm tám mươi mốt nghìn tám trăm lẻ bảy"
+    },
+    {
+      "n": 500000,
+      "text": "năm trăm nghìn"
+    },
+    {
+      "n": 521888,
+      "text": "năm trăm hai mươi mốt nghìn tám trăm tám mươi tám"
+    },
+    {
+      "n": 797035,
+      "text": "bảy trăm chín mươi bảy nghìn không trăm ba mươi lăm"
+    },
+    {
+      "n": 808582,
+      "text": "tám trăm lẻ tám nghìn năm trăm tám mươi hai"
+    },
+    {
+      "n": 877270,
+      "text": "tám trăm bảy mươi bảy nghìn hai trăm bảy mươi"
+    },
+    {
+      "n": 919051,
+      "text": "chín trăm mười chín nghìn không trăm năm mươi mốt"
+    },
+    {
+      "n": 963248,
+      "text": "chín trăm sáu mươi ba nghìn hai trăm bốn mươi tám"
+    },
+    {
+      "n": 999999,
+      "text": "chín trăm chín mươi chín nghìn chín trăm chín mươi chín"
+    },
+    {
+      "n": 1000000,
+      "text": "một triệu"
+    },
+    {
+      "n": 1000001,
+      "text": "một triệu không trăm lẻ một"
+    },
+    {
+      "n": 1000005,
+      "text": "một triệu không trăm lẻ năm"
+    },
+    {
+      "n": 1092568,
+      "text": "một triệu không trăm chín mươi hai nghìn năm trăm sáu mươi tám"
+    },
+    {
+      "n": 1138862,
+      "text": "một triệu một trăm ba mươi tám nghìn tám trăm sáu mươi hai"
+    },
+    {
+      "n": 1141281,
+      "text": "một triệu một trăm bốn mươi mốt nghìn hai trăm tám mươi mốt"
+    },
+    {
+      "n": 1330986,
+      "text": "một triệu ba trăm ba mươi nghìn chín trăm tám mươi sáu"
+    },
+    {
+      "n": 1384861,
+      "text": "một triệu ba trăm tám mươi tư nghìn tám trăm sáu mươi mốt"
+    },
+    {
+      "n": 1396578,
+      "text": "một triệu ba trăm chín mươi sáu nghìn năm trăm bảy mươi tám"
+    },
+    {
+      "n": 1454753,
+      "text": "một triệu bốn trăm năm mươi tư nghìn bảy trăm năm mươi ba"
+    },
+    {
+      "n": 1500000,
+      "text": "một triệu năm trăm nghìn"
+    },
+    {
+      "n": 1860357,
+      "text": "một triệu tám trăm sáu mươi nghìn ba trăm năm mươi bảy"
+    },
+    {
+      "n": 1889059,
+      "text": "một triệu tám trăm tám mươi chín nghìn không trăm năm mươi chín"
+    },
+    {
+      "n": 2000000,
+      "text": "hai triệu"
+    },
+    {
+      "n": 2021534,
+      "text": "hai triệu không trăm hai mươi mốt nghìn năm trăm ba mươi tư"
+    },
+    {
+      "n": 2051197,
+      "text": "hai triệu không trăm năm mươi mốt nghìn một trăm chín mươi bảy"
+    },
+    {
+      "n": 2072154,
+      "text": "hai triệu không trăm bảy mươi hai nghìn một trăm năm mươi tư"
+    },
+    {
+      "n": 2135746,
+      "text": "hai triệu một trăm ba mươi lăm nghìn bảy trăm bốn mươi sáu"
+    },
+    {
+      "n": 2136210,
+      "text": "hai triệu một trăm ba mươi sáu nghìn hai trăm mười"
+    },
+    {
+      "n": 2137311,
+      "text": "hai triệu một trăm ba mươi bảy nghìn ba trăm mười một"
+    },
+    {
+      "n": 2184523,
+      "text": "hai triệu một trăm tám mươi tư nghìn năm trăm hai mươi ba"
+    },
+    {
+      "n": 2386356,
+      "text": "hai triệu ba trăm tám mươi sáu nghìn ba trăm năm mươi sáu"
+    },
+    {
+      "n": 2543888,
+      "text": "hai triệu năm trăm bốn mươi ba nghìn tám trăm tám mươi tám"
+    },
+    {
+      "n": 2578749,
+      "text": "hai triệu năm trăm bảy mươi tám nghìn bảy trăm bốn mươi chín"
+    },
+    {
+      "n": 2608495,
+      "text": "hai triệu sáu trăm lẻ tám nghìn bốn trăm chín mươi lăm"
+    },
+    {
+      "n": 2615489,
+      "text": "hai triệu sáu trăm mười lăm nghìn bốn trăm tám mươi chín"
+    },
+    {
+      "n": 2640402,
+      "text": "hai triệu sáu trăm bốn mươi nghìn bốn trăm lẻ hai"
+    },
+    {
+      "n": 2960148,
+      "text": "hai triệu chín trăm sáu mươi nghìn một trăm bốn mươi tám"
+    },
+    {
+      "n": 2969242,
+      "text": "hai triệu chín trăm sáu mươi chín nghìn hai trăm bốn mươi hai"
+    },
+    {
+      "n": 3000000,
+      "text": "ba triệu"
+    },
+    {
+      "n": 3009474,
+      "text": "ba triệu không trăm lẻ chín nghìn bốn trăm bảy mươi tư"
+    },
+    {
+      "n": 3121414,
+      "text": "ba triệu một trăm hai mươi mốt nghìn bốn trăm mười bốn"
+    },
+    {
+      "n": 3170832,
+      "text": "ba triệu một trăm bảy mươi nghìn tám trăm ba mươi hai"
+    },
+    {
+      "n": 3206485,
+      "text": "ba triệu hai trăm lẻ sáu nghìn bốn trăm tám mươi lăm"
+    },
+    {
+      "n": 3319536,
+      "text": "ba triệu ba trăm mười chín nghìn năm trăm ba mươi sáu"
+    },
+    {
+      "n": 3343900,
+      "text": "ba triệu ba trăm bốn mươi ba nghìn chín trăm"
+    },
+    {
+      "n": 3417148,
+      "text": "ba triệu bốn trăm mười bảy nghìn một trăm bốn mươi tám"
+    },
+    {
+      "n": 3501262,
+      "text": "ba triệu năm trăm lẻ một nghìn hai trăm sáu mươi hai"
+    },
+    {
+      "n": 3551276,
+      "text": "ba triệu năm trăm năm mươi mốt nghìn hai trăm bảy mươi sáu"
+    },
+    {
+      "n": 3570755,
+      "text": "ba triệu năm trăm bảy mươi nghìn bảy trăm năm mươi lăm"
+    },
+    {
+      "n": 3592300,
+      "text": "ba triệu năm trăm chín mươi hai nghìn ba trăm"
+    },
+    {
+      "n": 3691978,
+      "text": "ba triệu sáu trăm chín mươi mốt nghìn chín trăm bảy mươi tám"
+    },
+    {
+      "n": 3774406,
+      "text": "ba triệu bảy trăm bảy mươi tư nghìn bốn trăm lẻ sáu"
+    },
+    {
+      "n": 3818734,
+      "text": "ba triệu tám trăm mười tám nghìn bảy trăm ba mươi tư"
+    },
+    {
+      "n": 3908199,
+      "text": "ba triệu chín trăm lẻ tám nghìn một trăm chín mươi chín"
+    },
+    {
+      "n": 3924562,
+      "text": "ba triệu chín trăm hai mươi tư nghìn năm trăm sáu mươi hai"
+    },
+    {
+      "n": 4142380,
+      "text": "bốn triệu một trăm bốn mươi hai nghìn ba trăm tám mươi"
+    },
+    {
+      "n": 4257316,
+      "text": "bốn triệu hai trăm năm mươi bảy nghìn ba trăm mười sáu"
+    },
+    {
+      "n": 4272398,
+      "text": "bốn triệu hai trăm bảy mươi hai nghìn ba trăm chín mươi tám"
+    },
+    {
+      "n": 4309681,
+      "text": "bốn triệu ba trăm lẻ chín nghìn sáu trăm tám mươi mốt"
+    },
+    {
+      "n": 4387524,
+      "text": "bốn triệu ba trăm tám mươi bảy nghìn năm trăm hai mươi tư"
+    },
+    {
+      "n": 4652626,
+      "text": "bốn triệu sáu trăm năm mươi hai nghìn sáu trăm hai mươi sáu"
+    },
+    {
+      "n": 4838771,
+      "text": "bốn triệu tám trăm ba mươi tám nghìn bảy trăm bảy mươi mốt"
+    },
+    {
+      "n": 4909948,
+      "text": "bốn triệu chín trăm lẻ chín nghìn chín trăm bốn mươi tám"
+    },
+    {
+      "n": 4952782,
+      "text": "bốn triệu chín trăm năm mươi hai nghìn bảy trăm tám mươi hai"
+    },
+    {
+      "n": 4987996,
+      "text": "bốn triệu chín trăm tám mươi bảy nghìn chín trăm chín mươi sáu"
+    },
+    {
+      "n": 5005276,
+      "text": "năm triệu không trăm lẻ năm nghìn hai trăm bảy mươi sáu"
+    },
+    {
+      "n": 5017912,
+      "text": "năm triệu không trăm mười bảy nghìn chín trăm mười hai"
+    },
+    {
+      "n": 5086014,
+      "text": "năm triệu không trăm tám mươi sáu nghìn không trăm mười bốn"
+    },
+    {
+      "n": 5617887,
+      "text": "năm triệu sáu trăm mười bảy nghìn tám trăm tám mươi bảy"
+    },
+    {
+      "n": 5645483,
+      "text": "năm triệu sáu trăm bốn mươi lăm nghìn bốn trăm tám mươi ba"
+    },
+    {
+      "n": 5723556,
+      "text": "năm triệu bảy trăm hai mươi ba nghìn năm trăm năm mươi sáu"
+    },
+    {
+      "n": 5780487,
+      "text": "năm triệu bảy trăm tám mươi nghìn bốn trăm tám mươi bảy"
+    },
+    {
+      "n": 5955088,
+      "text": "năm triệu chín trăm năm mươi lăm nghìn không trăm tám mươi tám"
+    },
+    {
+      "n": 5969311,
+      "text": "năm triệu chín trăm sáu mươi chín nghìn ba trăm mười một"
+    },
+    {
+      "n": 6034567,
+      "text": "sáu triệu không trăm ba mươi tư nghìn năm trăm sáu mươi bảy"
+    },
+    {
+      "n": 6069747,
+      "text": "sáu triệu không trăm sáu mươi chín nghìn bảy trăm bốn mươi bảy"
+    },
+    {
+      "n": 6116333,
+      "text": "sáu triệu một trăm mười sáu nghìn ba trăm ba mươi ba"
+    },
+    {
+      "n": 6176338,
+      "text": "sáu triệu một trăm bảy mươi sáu nghìn ba trăm ba mươi tám"
+    },
+    {
+      "n": 6177064,
+      "text": "sáu triệu một trăm bảy mươi bảy nghìn không trăm sáu mươi tư"
+    },
+    {
+      "n": 6223748,
+      "text": "sáu triệu hai trăm hai mươi ba nghìn bảy trăm bốn mươi tám"
+    },
+    {
+      "n": 6242115,
+      "text": "sáu triệu hai trăm bốn mươi hai nghìn một trăm mười lăm"
+    },
+    {
+      "n": 6273561,
+      "text": "sáu triệu hai trăm bảy mươi ba nghìn năm trăm sáu mươi mốt"
+    },
+    {
+      "n": 6292152,
+      "text": "sáu triệu hai trăm chín mươi hai nghìn một trăm năm mươi hai"
+    },
+    {
+      "n": 6319073,
+      "text": "sáu triệu ba trăm mười chín nghìn không trăm bảy mươi ba"
+    },
+    {
+      "n": 6420230,
+      "text": "sáu triệu bốn trăm hai mươi nghìn hai trăm ba mươi"
+    },
+    {
+      "n": 6475143,
+      "text": "sáu triệu bốn trăm bảy mươi lăm nghìn một trăm bốn mươi ba"
+    },
+    {
+      "n": 6614966,
+      "text": "sáu triệu sáu trăm mười bốn nghìn chín trăm sáu mươi sáu"
+    },
+    {
+      "n": 6697902,
+      "text": "sáu triệu sáu trăm chín mươi bảy nghìn chín trăm lẻ hai"
+    },
+    {
+      "n": 6863421,
+      "text": "sáu triệu tám trăm sáu mươi ba nghìn bốn trăm hai mươi mốt"
+    },
+    {
+      "n": 7051661,
+      "text": "bảy triệu không trăm năm mươi mốt nghìn sáu trăm sáu mươi mốt"
+    },
+    {
+      "n": 7261766,
+      "text": "bảy triệu hai trăm sáu mươi mốt nghìn bảy trăm sáu mươi sáu"
+    },
+    {
+      "n": 7342014,
+      "text": "bảy triệu ba trăm bốn mươi hai nghìn không trăm mười bốn"
+    },
+    {
+      "n": 7415404,
+      "text": "bảy triệu bốn trăm mười lăm nghìn bốn trăm lẻ bốn"
+    },
+    {
+      "n": 7534864,
+      "text": "bảy triệu năm trăm ba mươi tư nghìn tám trăm sáu mươi tư"
+    },
+    {
+      "n": 7617855,
+      "text": "bảy triệu sáu trăm mười bảy nghìn tám trăm năm mươi lăm"
+    },
+    {
+      "n": 7654321,
+      "text": "bảy triệu sáu trăm năm mươi tư nghìn ba trăm hai mươi mốt"
+    },
+    {
+      "n": 7669304,
+      "text": "bảy triệu sáu trăm sáu mươi chín nghìn ba trăm lẻ bốn"
+    },
+    {
+      "n": 7719309,
+      "text": "bảy triệu bảy trăm mười chín nghìn ba trăm lẻ chín"
+    },
+    {
+      "n": 7833312,
+      "text": "bảy triệu tám trăm ba mươi ba nghìn ba trăm mười hai"
+    },
+    {
+      "n": 7970087,
+      "text": "bảy triệu chín trăm bảy mươi nghìn không trăm tám mươi bảy"
+    },
+    {
+      "n": 8064568,
+      "text": "tám triệu không trăm sáu mươi tư nghìn năm trăm sáu mươi tám"
+    },
+    {
+      "n": 8117009,
+      "text": "tám triệu một trăm mười bảy nghìn không trăm lẻ chín"
+    },
+    {
+      "n": 8166557,
+      "text": "tám triệu một trăm sáu mươi sáu nghìn năm trăm năm mươi bảy"
+    },
+    {
+      "n": 8323903,
+      "text": "tám triệu ba trăm hai mươi ba nghìn chín trăm lẻ ba"
+    },
+    {
+      "n": 8326386,
+      "text": "tám triệu ba trăm hai mươi sáu nghìn ba trăm tám mươi sáu"
+    },
+    {
+      "n": 8393787,
+      "text": "tám triệu ba trăm chín mươi ba nghìn bảy trăm tám mươi bảy"
+    },
+    {
+      "n": 8470829,
+      "text": "tám triệu bốn trăm bảy mươi nghìn tám trăm hai mươi chín"
+    },
+    {
+      "n": 8513532,
+      "text": "tám triệu năm trăm mười ba nghìn năm trăm ba mươi hai"
+    },
+    {
+      "n": 8632640,
+      "text": "tám triệu sáu trăm ba mươi hai nghìn sáu trăm bốn mươi"
+    },
+    {
+      "n": 8851490,
+      "text": "tám triệu tám trăm năm mươi mốt nghìn bốn trăm chín mươi"
+    },
+    {
+      "n": 8865203,
+      "text": "tám triệu tám trăm sáu mươi lăm nghìn hai trăm lẻ ba"
+    },
+    {
+      "n": 8938773,
+      "text": "tám triệu chín trăm ba mươi tám nghìn bảy trăm bảy mươi ba"
+    },
+    {
+      "n": 9000000,
+      "text": "chín triệu"
+    },
+    {
+      "n": 9033533,
+      "text": "chín triệu không trăm ba mươi ba nghìn năm trăm ba mươi ba"
+    },
+    {
+      "n": 9069617,
+      "text": "chín triệu không trăm sáu mươi chín nghìn sáu trăm mười bảy"
+    },
+    {
+      "n": 9145221,
+      "text": "chín triệu một trăm bốn mươi lăm nghìn hai trăm hai mươi mốt"
+    },
+    {
+      "n": 9168394,
+      "text": "chín triệu một trăm sáu mươi tám nghìn ba trăm chín mươi tư"
+    },
+    {
+      "n": 9181914,
+      "text": "chín triệu một trăm tám mươi mốt nghìn chín trăm mười bốn"
+    },
+    {
+      "n": 9273188,
+      "text": "chín triệu hai trăm bảy mươi ba nghìn một trăm tám mươi tám"
+    },
+    {
+      "n": 9437458,
+      "text": "chín triệu bốn trăm ba mươi bảy nghìn bốn trăm năm mươi tám"
+    },
+    {
+      "n": 9475108,
+      "text": "chín triệu bốn trăm bảy mươi lăm nghìn một trăm lẻ tám"
+    },
+    {
+      "n": 9520151,
+      "text": "chín triệu năm trăm hai mươi nghìn một trăm năm mươi mốt"
+    },
+    {
+      "n": 9593620,
+      "text": "chín triệu năm trăm chín mươi ba nghìn sáu trăm hai mươi"
+    },
+    {
+      "n": 9618914,
+      "text": "chín triệu sáu trăm mười tám nghìn chín trăm mười bốn"
+    },
+    {
+      "n": 9629701,
+      "text": "chín triệu sáu trăm hai mươi chín nghìn bảy trăm lẻ một"
+    },
+    {
+      "n": 9794876,
+      "text": "chín triệu bảy trăm chín mươi tư nghìn tám trăm bảy mươi sáu"
+    },
+    {
+      "n": 9838872,
+      "text": "chín triệu tám trăm ba mươi tám nghìn tám trăm bảy mươi hai"
+    },
+    {
+      "n": 9843025,
+      "text": "chín triệu tám trăm bốn mươi ba nghìn không trăm hai mươi lăm"
+    },
+    {
+      "n": 9876492,
+      "text": "chín triệu tám trăm bảy mươi sáu nghìn bốn trăm chín mươi hai"
+    },
+    {
+      "n": 9999999,
+      "text": "chín triệu chín trăm chín mươi chín nghìn chín trăm chín mươi chín"
+    }
+  ]
+}

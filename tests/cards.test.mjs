@@ -2185,6 +2185,23 @@ test("a cell left pointing at nothing is counted in what a save drops", () => {
  * back, and the counts on a tile.
  */
 test("nothing but the door reads a card's forms out of subs", () => {
+  /*
+   * Walked rather than listed, and into subdirectories: this read the top
+   * of src alone, which was the whole of src when it was written. A guard
+   * that stops at a directory boundary does not fail when code moves past
+   * it — it passes, which is the failure worth designing against.
+   */
+  /** @type {(dir: string, keep: (f: string) => boolean) => string[]} */
+  const filesUnder = (dir, keep) => {
+    /** @type {string[]} */
+    const out = [];
+    for (const entry of readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true })) {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) out.push(...filesUnder(rel, keep));
+      else if (keep(entry.name)) out.push(rel);
+    }
+    return out;
+  };
   /** @type {[string, (f: string) => boolean][]} */
   const roots = [
     ["src", (/** @type {string} */ f) => /\.tsx?$/.test(f) && f !== "cards.ts"],
@@ -2199,10 +2216,10 @@ test("nothing but the door reads a card's forms out of subs", () => {
   /** @type {string[]} */
   const found = [];
   for (const [dir, keep] of roots) {
-    for (const file of readdirSync(new URL(`../${dir}`, import.meta.url)).filter(keep)) {
-      const source = readFileSync(new URL(`../${dir}/${file}`, import.meta.url), "utf8");
+    for (const file of filesUnder(dir, keep)) {
+      const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
       for (const [, who] of source.matchAll(reads)) {
-        if (!notCards.includes(who)) found.push(`${dir}/${file}: ${who}.subs`);
+        if (!notCards.includes(who)) found.push(`${file}: ${who}.subs`);
       }
     }
   }

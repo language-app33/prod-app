@@ -35,9 +35,27 @@ import type { LangId, Millis, VerbSpec } from "../types.ts";
  * ten is written down rather than known — the same bargain the `counted`
  * table struck before this.
  */
-export type FormKey = "standalone" | "m" | "f" | "construct.m" | "construct.f";
+export type FormKey = "standalone" | "m" | "f" | "construct.m" | "construct.f" | "company";
 
-export const FORM_KEYS: FormKey[] = ["standalone", "m", "f", "construct.m", "construct.f"];
+export const FORM_KEYS: FormKey[] = [
+  "standalone",
+  "m",
+  "f",
+  "construct.m",
+  "construct.f",
+  /*
+   * The face a word wears inside a bigger number for no grammatical
+   * reason at all.
+   *
+   * Huế is why this exists and not Arabic: *five* is one word on its own
+   * and another after a ten, *one* is one word on its own and another
+   * after two tens, and *nought* has a form that means "the place here is
+   * empty" — a hundred, nothing, and five. None of that is gender or
+   * construct state; it is a word changing shape in company, which is a
+   * thing a language may do and no axis this app already had could hold.
+   */
+  "company",
+];
 
 /** The three faces of a counted noun a numeral may call for. */
 export type NounForm = "sg" | "dual" | "pl";

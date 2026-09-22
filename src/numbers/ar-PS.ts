@@ -34,17 +34,15 @@ import type {
   Composer,
   CountedNoun,
   FormKey,
-  Lexeme,
   NounForm,
   NumberSystem,
   Range,
   RenderCtx,
   Rendering,
   SlotSpec,
-  Token,
-  Warning,
 } from "./types.ts";
 import { NUMBER_CEILING } from "./types.ts";
+import { Build } from "./build.ts";
 import type { VerbSpec } from "../types.ts";
 
 /** Bumped when a change here could make an existing override wrong. */
@@ -128,8 +126,6 @@ export const AR_SLOTS: SlotSpec[] = [
   },
 ];
 
-const SLOT_SPEC = new Map(AR_SLOTS.map((s) => [s.slot, s]));
-
 /**
  * The ranges a learner is scheduled on.
  *
@@ -182,84 +178,27 @@ const FALLBACK: Record<FormKey, FormKey[]> = {
   f: ["f", "standalone"],
   "construct.m": ["construct.m", "construct.f", "m", "standalone"],
   "construct.f": ["construct.f", "construct.m", "f", "standalone"],
+  /* Not a face this language has. Declared so the table is complete and
+     a fourth language adding one cannot make this file stop compiling
+     without anybody noticing. */
+  company: ["company", "standalone"],
 };
 
-const textOf = (lex: Lexeme | undefined, key: FormKey): string =>
-  String((lex && lex.forms && lex.forms[key]) || "").trim();
-
 /**
- * What a rendering is built up in.
- *
- * Pieces and tokens are kept apart because they are different questions:
- * the pieces are what is said, and the tokens are what is credited. A
- * connector is one token however many joins it made.
+ * The connector attaches to the word after it and is spaced from the word
+ * before: "a hundred and-five", one word out of two. A language whose
+ * joining word stands alone would write this differently, which is why it
+ * is here and not in the shared bookkeeping.
  */
-class Build {
-  sys: NumberSystem;
-  tokens: Token[] = [];
-  warnings: Warning[] = [];
-  private seen = new Set<string>();
-
-  constructor(sys: NumberSystem) {
-    this.sys = sys;
-  }
-
-  warn(w: Warning) {
-    const key = `${w.code}:${w.slot || ""}:${w.formKey || ""}:${w.detail || ""}`;
-    if (this.seen.has(key)) return;
-    this.seen.add(key);
-    this.warnings.push(w);
-  }
-
-  /** The word for one slot in one face, or an empty string and a warning. */
-  word(slot: string, want: FormKey): string {
-    const spec = SLOT_SPEC.get(slot);
-    const lex = this.sys.lexemes ? this.sys.lexemes[slot] : undefined;
-    /* A face the slot does not offer is not a gap — it is a question this
-       slot has no answer to, and the counting form is the answer. */
-    const asked = spec && spec.formKeys.includes(want) ? want : "standalone";
-    for (const key of FALLBACK[asked]) {
-      const text = textOf(lex, key);
-      if (!text) continue;
-      if (key !== asked) this.warn({ code: "missing-form", slot, formKey: asked });
-      this.tokens.push({ text, slot, formKey: key });
-      return text;
-    }
-    this.warn({ code: "missing-slot", slot, formKey: asked });
-    return "";
-  }
-
-  /** A number the teacher wrote out by hand, in this face if they gave one. */
-  override(n: number, key: FormKey): string {
-    const table = this.sys.overrides || {};
-    for (const k of key === "standalone" ? [String(n)] : [`${n}|${key}`, String(n)]) {
-      const text = String((table[k] && table[k].text) || "").trim();
-      if (text) {
-        this.tokens.push({ text, override: k });
-        return text;
-      }
-    }
-    return "";
-  }
-
-  /** The connector, recorded once however often it is used. */
-  join(pieces: string[]): string {
-    const live = pieces.filter(Boolean);
-    if (live.length < 2) return live.join(" ");
-    const lex = this.sys.lexemes ? this.sys.lexemes.connector : undefined;
-    const conn = textOf(lex, "standalone");
-    if (!conn) {
-      this.warn({ code: "missing-slot", slot: "connector", formKey: "standalone" });
-      return live.join(" ");
-    }
-    if (!this.tokens.some((t) => t.slot === "connector")) {
-      this.tokens.push({ text: conn, slot: "connector", formKey: "standalone" });
-    }
-    /* The connector attaches to the word after it and is spaced from the
-       word before: "a hundred and-five", one word out of two. */
-    return live.reduce((a, b) => `${a} ${conn}${b}`);
-  }
+function join(b: Build, pieces: string[]): string {
+  const live = pieces.filter(Boolean);
+  if (live.length < 2) return live.join(" ");
+  const conn = b.connector();
+  if (!conn) return live.join(" ");
+  return live.reduce((a, c) => `${a} ${conn}${c}`);
 }
+
+const build = (sys: NumberSystem) => new Build(sys, AR_SLOTS, FALLBACK);
 
 /* ---- composing ---- */
 
@@ -316,11 +255,11 @@ function under1000(b: Build, n: number, gender: "m" | "f" | undefined): string {
       const u = tail % 10;
       const unit = b.word(`unit.${u}`, inflects(u) ? genderKey(gender, false) : "standalone");
       const ten = b.word(`ten.${tail - u}`, "standalone");
-      pieces.push(b.join([unit, ten]));
+      pieces.push(join(b, [unit, ten]));
     }
   }
 
-  return b.join(pieces);
+  return join(b, pieces);
 }
 
 /**
@@ -367,7 +306,7 @@ function numeral(b: Build, n: number, gender: "m" | "f" | undefined, counted: bo
     scale(b, thousands, 1000, "thousand"),
     rest ? under1000(b, rest, gender) : "",
   ];
-  return b.join(pieces);
+  return join(b, pieces);
 }
 
 /**
@@ -407,7 +346,7 @@ function nounText(b: Build, noun: CountedNoun, form: NounForm): string {
  * nothing deals a question out of a rendering that warned.
  */
 export function renderAr(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Rendering {
-  const b = new Build(sys);
+  const b = build(sys);
   if (typeof n !== "number" || !Number.isInteger(n) || n < 0 || n > NUMBER_CEILING) {
     b.warn({ code: "out-of-range", detail: String(n) });
     return { text: "", tokens: [], warnings: b.warnings };

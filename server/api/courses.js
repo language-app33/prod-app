@@ -16,6 +16,10 @@ import { formsOf } from "../../src/cards.ts";
 /* And which tenses a sentence's blanks ask their verbs for, read the one
    way the app reads it. */
 import { slotRows } from "../../src/verbs.ts";
+/* A number system and a time system are read at this boundary the way an
+   answer is: hand-written, total, and silent about why. See
+   src/numbers/schema.ts, and DECISIONS.md on why not a schema library. */
+import { clipsOfSystem, readNumberSystem, readTimeSystem } from "../../src/numbers/schema.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -198,6 +202,26 @@ const K = {
   fillsRev: (owner) => `fillsrev:${owner}`,
   /** @param {string} c */
   code: (c) => `code:${String(c).toLowerCase()}`,
+  /**
+   * A teacher's numbers, and their clock.
+   *
+   * One of each per teacher per language, because the words a language
+   * builds its numbers out of are a fact about the language and not about
+   * one deck — the same reason the Numbers screen stopped living on a
+   * deck in 0.153. They belong to no deck at all, like the cards that
+   * fill a blank, which is why their revisions have to be folded into the
+   * material version by hand: nothing else moves when one is written.
+   * @param {string} id
+   */
+  numSys: (id) => `numsys:${id}`,
+  /** @param {string} id */
+  timeSys: (id) => `timesys:${id}`,
+  /**
+   * Which system is which, for one teacher: kind, then language, then id.
+   * A map rather than a list because every lookup here is by the pair.
+   * @param {string} owner
+   */
+  mySystems: (owner) => `mysystems:${owner}`,
   /** @param {string} h */
   clip: (h) => `clip:${h}`,
   /** @param {string} id */
@@ -478,8 +502,9 @@ async function readManyJson(store, keys, opts) {
  * @param {any[]} courses
  * @param {any[]} decks
  * @param {[string, number][]} fills  Each teacher's value revision — see K.fillsRev.
+ * @param {[string, number][]} systems  Each number or time system's revision — see K.numSys.
  */
-function materialVersion(courses, decks, fills = []) {
+function materialVersion(courses, decks, fills = [], systems = []) {
   const summary = {
     courses: courses.map((c) => [c.id, c.title, c.language || "", (c.decks || []).length]),
     decks: decks.map((d) => [d.id, d.version || 1, d.title, (d.cardIds || []).length]),
@@ -488,8 +513,34 @@ function materialVersion(courses, decks, fills = []) {
        variable is in no deck. Sorted, so two reads of the same site agree
        whatever order the teachers came back in. */
     fills: [...fills].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    /* And the systems, for exactly the reason the line above exists: a
+       number system is in no deck, so a teacher correcting a word in one
+       moves nothing else a device compares against. Left out of here it
+       would reach nobody until something unrelated changed. */
+    systems: [...systems].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
   };
   return sha(JSON.stringify(summary)).slice(0, 24);
+}
+
+/**
+ * Every key one person's systems live under.
+ *
+ * Read off their own index rather than guessed at, and written out here
+ * once because three places delete a person's work — leaving an account,
+ * an administrator removing one, and clearing the site — and a system
+ * left behind by one of them is a lexicon nobody can reach and nothing
+ * will ever tidy.
+ * @param {Store} store
+ * @param {string} handle
+ */
+async function systemKeysOf(store, handle) {
+  const held = (await readJson(store, K.mySystems(handle)).catch(() => null)) || {};
+  const numbers = held.numbers && typeof held.numbers === "object" ? held.numbers : {};
+  const times = held.times && typeof held.times === "object" ? held.times : {};
+  return [
+    ...Object.values(numbers).map((id) => K.numSys(String(id))),
+    ...Object.values(times).map((id) => K.timeSys(String(id))),
+  ];
 }
 
 /**
@@ -523,6 +574,9 @@ async function wipeAccount(store, handle) {
     await store.delete(K.card(id)).catch(() => {});
   }
   await store.delete(K.ownCards(handle)).catch(() => {});
+
+  for (const key of await systemKeysOf(store, handle)) await store.delete(key).catch(() => {});
+  await store.delete(K.mySystems(handle)).catch(() => {});
 
   for (const id of await readIndex(store, "courses")) {
     const c = await readCourse(store, id);
@@ -746,6 +800,11 @@ export default async (req) => {
       }
       await writeJson(store, K.index("decks"), keep);
 
+      /* And the numbers they wrote, which belong to no deck and so are
+         reached by nothing above. */
+      for (const key of await systemKeysOf(store, mine)) await store.delete(key).catch(() => {});
+      await store.delete(K.mySystems(mine)).catch(() => {});
+
       if (me.keyHash) await store.delete(K.keyOf(me.keyHash)).catch(() => {});
       await store.delete(K.user(mine)).catch(() => {});
       const users = await readIndex(store, "users");
@@ -845,6 +904,40 @@ export default async (req) => {
         rev: (Number(at.rev) || 0) + 1,
         updated: Date.now(),
       });
+    }
+
+    /**
+     * Which systems one person has, by kind and language.
+     *
+     * A tiny index beside the systems themselves, because every question
+     * anybody asks is "the numbers of this language, by this teacher" and
+     * answering it by reading every system on the site would be reading
+     * the whole shelf to find one book.
+     * @param {string} owner
+     */
+    async function systemIndex(owner) {
+      const held = (await readJson(store, K.mySystems(owner))) || {};
+      return {
+        numbers: (held.numbers && typeof held.numbers === "object") ? held.numbers : {},
+        times: (held.times && typeof held.times === "object") ? held.times : {},
+      };
+    }
+
+    /**
+     * @param {string} owner
+     * @param {string[]} langs
+     */
+    async function systemsOf(owner, langs) {
+      const index = await systemIndex(owner);
+      /** @type {string[]} */
+      const keys = [];
+      for (const lang of langs) {
+        if (index.numbers[lang]) keys.push(K.numSys(index.numbers[lang]));
+        if (index.times[lang]) keys.push(K.timeSys(index.times[lang]));
+      }
+      if (!keys.length) return [];
+      const rows = await readManyJson(store, keys, EVENTUAL);
+      return rows.filter(Boolean);
     }
 
     /* Delete cards the person may delete. Returns what happened to each id,
@@ -1770,6 +1863,106 @@ export default async (req) => {
 
        Reads here are eventual: a student can see a teacher's change a
        minute late without noticing, and the version converges with it. */
+    /* ================= number and time systems =================
+
+       A teacher's numbers are one document per language, and their clock
+       is another. Whole-document last-write-wins, which is decided rather
+       than inherited: a lexicon is one thing a person edits in one
+       sitting, and merging two of them field by field would produce a
+       lexicon neither teacher wrote. What that costs is said out loud —
+       two teachers saving across each other lose the earlier save whole —
+       and it is paid rather than hidden: a save that would go backwards
+       is refused and the current document is handed back, so the editor
+       can say what happened instead of silently winning. */
+
+    if (action === "my-systems") {
+      const index = await systemIndex(mine);
+      const keys = [
+        ...Object.values(index.numbers).map((id) => K.numSys(String(id))),
+        ...Object.values(index.times).map((id) => K.timeSys(String(id))),
+      ];
+      const rows = keys.length ? (await readManyJson(store, keys)).filter(Boolean) : [];
+      return json({ ok: true, systems: rows });
+    }
+
+    if (action === "save-system") {
+      const kind = body.kind === "times" ? "times" : "numbers";
+      const read = kind === "times" ? readTimeSystem : readNumberSystem;
+      /* Narrowed before anything is decided about it, so what is compared,
+         stored and handed back is one shape and not three. */
+      const wanted = read(body.system);
+      if (!wanted) return json({ error: "not-a-system" }, 400);
+      if (!wanted.languageId) return json({ error: "no-language" }, 400);
+
+      const keyOf = kind === "times" ? K.timeSys : K.numSys;
+      const index = await systemIndex(mine);
+      const known = kind === "times" ? index.times : index.numbers;
+      let id = String(known[wanted.languageId] || "");
+      const existing = id ? await readJson(store, keyOf(id)) : null;
+
+      /*
+       * The refusal, and what it is keyed on.
+       *
+       * A save carries the revision it was *loaded from*, and is refused
+       * if the site has moved past it — the same compare-and-set
+       * `updateJson` does with an ETag, and for the same reason. **Not a
+       * timestamp**: the stamp on a save is the editing device's clock,
+       * and a device an hour slow would have every save after its first
+       * refused for ever with nothing on the screen to explain it. A
+       * revision is a number both sides have actually seen.
+       *
+       * Refusing rather than merging is the decision, and the cost is
+       * real: two teachers editing one lexicon across a sync means the
+       * later save is not made. It is answered with the document that is
+       * there, so the editor can say so — which is the whole difference
+       * between a cost and a mystery. The outbox treats an answered
+       * request as decided, and it is: asking again would only ask again.
+       */
+      const held = Number((existing && existing.rev) || 0);
+      if (existing && held > Number(wanted.rev || 0)) {
+        return json({ error: "stale-system", system: existing }, 409);
+      }
+
+      if (!id) {
+        id = `${kind === "times" ? "t" : "n"}${randomBytes(6).toString("hex")}`;
+        await updateJson(store, K.mySystems(mine), (current) => {
+          const now = current && typeof current === "object" ? current : {};
+          const slot = { ...(now[kind] && typeof now[kind] === "object" ? now[kind] : {}) };
+          slot[wanted.languageId] = id;
+          return { ...now, [kind]: slot };
+        });
+      }
+
+      const saved = {
+        ...wanted,
+        id,
+        owner: mine,
+        rev: held + 1,
+        created: Number(existing && existing.created) || Date.now(),
+        updated: Date.now(),
+      };
+      await writeJson(store, keyOf(id), saved);
+      return json({ ok: true, system: saved });
+    }
+
+    if (action === "delete-system") {
+      const kind = body.kind === "times" ? "times" : "numbers";
+      const languageId = String(body.languageId || "");
+      if (!languageId) return json({ error: "no-language" }, 400);
+      const index = await systemIndex(mine);
+      const held = kind === "times" ? index.times : index.numbers;
+      const id = String(held[languageId] || "");
+      if (!id) return json({ error: "no-system" }, 404);
+      await store.delete((kind === "times" ? K.timeSys : K.numSys)(id)).catch(() => {});
+      await updateJson(store, K.mySystems(mine), (current) => {
+        const now = current && typeof current === "object" ? current : {};
+        const slot = { ...(now[kind] && typeof now[kind] === "object" ? now[kind] : {}) };
+        delete slot[languageId];
+        return { ...now, [kind]: slot };
+      });
+      return json({ ok: true, deleted: id });
+    }
+
     if (action === "my-material") {
       const known = String(url.searchParams.get("version") || "");
       /** @type {string[]} */
@@ -1814,7 +2007,31 @@ export default async (req) => {
       );
       /** @type {[string, number][]} */
       const fillsAt = teacherHandles.map((h, i) => [h, (fillsRevs[i] && fillsRevs[i].rev) || 0]);
-      const version = materialVersion(courseRows, deckRows, fillsAt);
+
+      /*
+       * And their numbers, in the languages this person is actually
+       * learning.
+       *
+       * The languages come off the decks and the courses rather than off
+       * the teacher, so a teacher who also teaches Hebrew somewhere else
+       * does not post a Hebrew lexicon to a student of Arabic. Sent whole
+       * and regenerated into cards on the device; each system's revision
+       * goes into the version for the same reason a value's does.
+       */
+      const langs = [
+        ...new Set(
+          deckRows
+            .map((/** @type {any} */ d) => d.lang)
+            .concat(courseRows.map((/** @type {any} */ c) => c.language))
+            .filter(Boolean)
+        ),
+      ];
+      const systems = (
+        await Promise.all(teacherHandles.map((h) => systemsOf(h, langs)))
+      ).flat();
+      /** @type {[string, number][]} */
+      const systemsAt = systems.map((/** @type {any} */ sys) => [sys.id, Number(sys.rev) || 0]);
+      const version = materialVersion(courseRows, deckRows, fillsAt, systemsAt);
       const courses = courseRows.map((c) => ({
         ...c,
         code: undefined,
@@ -1941,7 +2158,7 @@ export default async (req) => {
         bundled.push({ deckId: d.id, cards: own.concat(values) });
       }
 
-      return json({ ok: true, version, teaches, courses, decks, cards: bundled });
+      return json({ ok: true, version, teaches, courses, decks, cards: bundled, systems });
     }
 
     /* Everything in a course is visible to everyone in it. */
@@ -2164,7 +2381,23 @@ export default async (req) => {
            Only the hashes are kept here; the bytes travel in their own
            chunks. */
         const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
-        const clipHashes = [...new Set(cards.filter(Boolean).flatMap(clipsOfCard))];
+
+        /* A teacher's numbers and their clock, which belong to no deck and
+           are therefore reachable from nothing above. Their recordings are
+           in the same position as a card's — only the thing that refers to
+           them says they exist — so the systems have to be read here for
+           the backup to be complete. */
+        const systemKeyLists = await Promise.all(handles.map((h) => systemKeysOf(store, h)));
+        const systemKeys = systemKeyLists.flat();
+        const systems = systemKeys.length ? await readManyJson(store, systemKeys) : [];
+        const clipHashes = [
+          ...new Set(
+            cards
+              .filter(Boolean)
+              .flatMap(clipsOfCard)
+              .concat(systems.filter(Boolean).flatMap(clipsOfSystem))
+          ),
+        ];
 
         /* Key hashes, so that restoring a backup leaves everyone's existing
            sign-in key working. The keys themselves are not stored anywhere
@@ -2189,6 +2422,8 @@ export default async (req) => {
         batch("deck", deckIds.map(K.deck), 40);
         batch("owncards", handles.map(K.myCards), 60);
         batch("card", cardIds.map(K.card), 25);
+        batch("system", systemKeys, 10);
+        batch("mysystems", handles.map(K.mySystems), 60);
         batch("flag", flagIds.map(K.flag), 60);
         batch("clip", clipHashes.map(K.clip), 3);
 
@@ -2202,6 +2437,7 @@ export default async (req) => {
               courses: courseIds.length,
               decks: deckIds.length,
               cards: cardIds.length,
+              systems: systemKeys.length,
               flags: flagIds.length,
               clips: clipHashes.length,
               keys: keyHashes.length,
@@ -2249,7 +2485,12 @@ export default async (req) => {
             : {};
         const keys = Object.keys(records).slice(0, 200);
         if (!keys.length) return json({ error: "no-keys" }, 400);
-        const allowed = /^(user|key|course|deck|owncards|mycards|card|flag|clip|code|index):/;
+        /* A prefix missing from here is not an error anybody sees: the
+           record is skipped, `written` quietly under-reports, and the
+           restore says it worked. So a new kind of record is added to
+           this line in the same release that starts writing one. */
+        const allowed =
+          /^(user|key|course|deck|owncards|mycards|card|numsys|timesys|mysystems|flag|clip|code|index):/;
         let written = 0;
         for (const k of keys) {
           if (!allowed.test(k) || k.length > 200) continue;
@@ -2302,7 +2543,12 @@ export default async (req) => {
         const cardIds = [...new Set(cardLists.flatMap((l) => l || []))];
 
         /** @type {Record<string, number>} */
-        const removed = { users: 0, courses: 0, decks: 0, cards: 0, flags: 0, clips: 0 };
+        const removed = { users: 0, courses: 0, decks: 0, cards: 0, systems: 0, flags: 0, clips: 0 };
+
+        /* Read before anything is deleted, for the same reason the cards
+           are: a system's recordings are only reachable through it. */
+        const systemKeyLists = await Promise.all(handles.map((h) => systemKeysOf(store, h)));
+        const systemKeys = systemKeyLists.flat();
 
         /* Reports go on their own say-so rather than with the cards they
            are about: a report outlives its card by design — that is why it
@@ -2323,7 +2569,15 @@ export default async (req) => {
            at it. */
         if (want.has("clips")) {
           const cards = await readManyJson(store, cardIds.map((id) => K.card(id)));
-          const hashes = [...new Set(cards.filter(Boolean).flatMap(clipsOfCard))];
+          const systems = systemKeys.length ? await readManyJson(store, systemKeys) : [];
+          const hashes = [
+            ...new Set(
+              cards
+                .filter(Boolean)
+                .flatMap(clipsOfCard)
+                .concat(systems.filter(Boolean).flatMap(clipsOfSystem))
+            ),
+          ];
           for (const h of hashes) {
             await store.delete(K.clip(h));
             removed.clips += 1;
@@ -2338,6 +2592,16 @@ export default async (req) => {
           /* The lists that say who owns what are part of the cards, not of
              the people: without them a card is unreachable anyway. */
           for (const h of handles) await store.delete(K.myCards(h));
+        }
+
+        /* The numbers a teacher wrote go with the cards, because that is
+           what they are: the material, minus the decks it is filed in. */
+        if (want.has("cards")) {
+          for (const key of systemKeys) {
+            await store.delete(key).catch(() => {});
+            removed.systems += 1;
+          }
+          for (const h of handles) await store.delete(K.mySystems(h)).catch(() => {});
         }
 
         if (want.has("decks")) {

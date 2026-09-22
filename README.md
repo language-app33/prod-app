@@ -809,6 +809,14 @@ src/
                    to ask next. How a language puts its numbers together is
                    `spell` on the pack, never here. Pure, imports nothing
                    but the pack.
+  numbers/         a language's numbers and its clock, written down once by
+                   a teacher and assembled by us. `types.ts` is the shapes,
+                   `schema.ts` the total reader at the storage boundary,
+                   `index.ts` the registry an app file asks, and one file
+                   per language holds that language's rules. **No file here
+                   holds a word**: a composer knows slot names, an order and
+                   how the connector attaches, and every syllable comes from
+                   the teacher's system. Pure.
   verbs.ts         a word's forms as a table over the card's own sub-forms —
                    a verb's persons and tenses, or the pronouns a language
                    attaches to the end of a word:
@@ -851,7 +859,15 @@ widely it is used — worth reading before adding UI.
 A few rules the code follows, learned the hard way:
 
 - **Anything language-specific lives in `languages.ts`.** Divergent copies of
-  a grader or an editor are where the subtle bugs come from.
+  a grader or an editor are where the subtle bugs come from. The one
+  narrowing: a language's *number and time rules* live in `src/numbers/`,
+  one file per language, imported by `languages.ts` and by nothing else —
+  they are two hundred lines each and the pack is already three and a half
+  thousand. What keeps that safe is checkable and checked: **no file under
+  `src/numbers/` may contain a word of any language.** The lexicon is data
+  a teacher typed or a golden table a speaker signed; the composer knows
+  slot names and an order. An app file asks `composerFor(langId)` and never
+  reaches for a language by name.
 - **One implementation of a thing.** If two versions of a component coexist,
   the goal is to converge on one, not to keep both.
 - **The saved card is the contract between editing a card and reading one.**
