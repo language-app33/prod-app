@@ -8,6 +8,33 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.212 — 22 September 2026
+
+**The word gets its fields back.**
+
+0.211 folded a word and the shapes it takes beside a noun into one list,
+four rows all written the same way. It read well, and it took two things
+off the word that only its own block can hold: the **+** that accepts a
+second spelling, and the list of its recordings. A card that accepts two
+answers is not a corner case in this app — it is what the whole idea of an
+accepted answer is for — and *type them yourself with a slash between* is
+not the same offer as a button.
+
+So the word has its block back, exactly as it was, and its feminine,
+plural and dual are the short rows under **Its other forms** again.
+Nothing is lost on either side of that line.
+
+**One thing is kept from the attempt.** The line under the word now says
+which shape of it this is — *the word this card is about — the masculine*
+— because three boxes named feminine, plural and dual sitting under a
+block called "the main form" was the screen naming its own layout rather
+than the language. Each language answers for itself: Arabic and Hebrew
+both say masculine.
+
+Making the two blocks read as one thing is still worth doing. It is a
+question of how they are drawn, and it will be answered there rather than
+by dropping fields to get it.
+
 ## 0.211 — 22 September 2026
 
 **A word and its forms, in one list, with the word finally called

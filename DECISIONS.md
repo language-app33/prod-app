@@ -3240,35 +3240,40 @@ written in the teacher's own system, not decided in shared code.
 
 ---
 
-## A word and the shapes it takes are one list, in one format
+## A word keeps its block, however well the list would read without it
 
-**22 September 2026** · `src/card-editor.tsx` (`AgreementFields`),
-`src/types.ts` (`VerbSpec.base`)
+**22 September 2026** · `src/card-editor.tsx` (`AgreementFields`,
+`TableEditor`), `src/types.ts` (`VerbSpec.base`)
 
-An adjective is one word and a handful of shapes of it. The editor drew
+An adjective is one word and a handful of shapes of it. The editor draws
 the word in a block of named fields — its accepted answers, its English,
-its recordings, each under a heading — and the shapes in a second block of
-short one-line rows. One list in two hands, with a border between them,
-and nothing dividing them except which of the four the card is *about*,
-which the card's own title already says.
+its recordings — and the shapes in a second block of short one-line rows.
+One list in two hands, with a border between them, and nothing dividing
+them except which of the four the card is *about*, which the card's own
+title already says.
 
-They are four rows of the same thing now: a name, the three boxes this app
-shows any form in, and a microphone. The word is the first row, and what
-to call it is the language's answer rather than the screen's — `base` on
-the table, beside the columns. Arabic and Hebrew both say *masculine*; a
-table that says nothing leaves the row named *the word* rather than
-guessing, which is the rule the dual column follows too.
+So for one release they were merged: four rows of the same thing, a name
+and three boxes each. It read better, and it was wrong. A row cannot hold
+what a block holds, and the two things it dropped were the button that
+accepts a second spelling and the list of the word's recordings. A card
+accepting two answers is not an edge case here — it is the case this app's
+answer model was built around, and *write them yourself with a slash
+between* is not the same offer as a button.
 
-**What it costs.** The card's own word loses two things a form block gave
-it: the button that adds a second accepted answer, and the list of its
-recordings. Neither was ever offered on the three shapes below it. A second
-spelling is still written the way the whole app has always written one,
-with a slash between — and reading it back is unaffected, because the
-delimited string is what the app stores and every reader falls back to it
-when the richer per-answer list no longer matches. The microphone opens the
-same recording screen the button did.
+**So the rule.** Fields are not dropped to make a layout read as one
+thing. If the word and its shapes should look like one list, that is a
+question of how the two blocks are drawn — spacing, borders, headings —
+and it is answered there.
 
-**Revisit if** a kind of card whose forms are a table turns out to want
-several accepted answers per shape. Then the answer is to give the *cells*
-what the word had, not to give the word back a block of its own — the
-point of this entry is that the four are the same kind of thing.
+**What survives from the attempt.** `base` on the table: what the card's
+own word is where the cells are shapes of it. Arabic and Hebrew both say
+*masculine*, and the line under the word's block says so, because three
+boxes named feminine, plural and dual over a block called "the main form"
+was the screen naming its own layout instead of the language. A table that
+says nothing keeps the sentence it had rather than guessing, which is the
+rule the dual column follows too.
+
+**Revisit if** the cells grow the fields the word has — several accepted
+answers per shape, each with its own recordings. Then the two really are
+the same kind of thing and can be drawn as one list without anything being
+given up, which is the only version of that idea worth having.

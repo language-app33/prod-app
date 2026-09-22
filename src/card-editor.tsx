@@ -4670,36 +4670,36 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
 /* The table a card carries — a verb's, an adjective's — and the one line
    that unblocks Save while the whole of it is empty. */
 /*
- * A word and every shape it takes, in one list.
+ * The other forms a word takes, beside the word itself.
  *
- * Minimal on purpose, and beside the word on purpose, which took three
- * goes to get right. The shapes used to sit under a heading of their own
+ * Minimal on purpose, and next to the word on purpose, which took two
+ * goes to get right. They used to sit under a heading of their own
  * further down the page, as though they were a second subject; then they
  * were written as full blocks in the format the word is written in, which
  * put them where they belong and made three shapes of one word take three
- * screens; then they went short and the word above them kept the long
- * format, so one list was written in two hands with a border between them.
+ * screens.
  *
- * So: the app's labelled control, one per shape, over the same boxes a
+ * So: the app's labelled control, one per form, over the same boxes a
  * verb's table is drawn with. A name, three boxes and a microphone —
- * which is the shortest thing this app has that can hold a form.
+ * which is the shortest thing this app has that can hold a form, and is
+ * what these were before anybody moved them.
  *
- * The word itself is the first of them, under the name the language gives
- * it: an adjective's own word is the masculine, and a row of boxes called
- * nothing beside three called feminine, plural and dual was the odd one
- * out for want of a word that was there to be said. It loses the two
- * things a form block has that a row has not — a second accepted answer,
- * and the list of its recordings — and neither was ever offered on the
- * three shapes below it. A second spelling is still written the way the
- * whole app writes one, with a slash between; the microphone opens the
- * same recording screen the button did.
+ * The card's own word is *not* one of these rows, though it was for one
+ * release. Putting it here made the four read as one list, which is what
+ * they are — and cost the word the two things a form block gives it that
+ * a row cannot: a second accepted answer, and the list of its recordings.
+ * Neither is a detail. A card accepting two spellings is the ordinary
+ * case this app was built around, and taking the button away leaves a
+ * slash-delimited string to be typed from memory. So the word keeps its
+ * block, and making the two read as one list is a matter of how they are
+ * drawn rather than of dropping fields to get there.
  *
  * The grid stays where a grid earns its keep: a verb's persons and tenses,
  * and the pronouns on the end of every form of a word. A handful of cells
  * under a name apiece reads better as a list than as a table with one row.
  */
 function AgreementFields({ word, lang }: { word: WordDraft; lang: Lang }) {
-  const { shownSpec, forms, setForm, setRecording, cells, setCells, mintCell, setRecordingCell } = word;
+  const { shownSpec, cells, setCells, mintCell, setRecordingCell } = word;
   if (!shownSpec || shownSpec.perForm) return null;
   const rows = tensesOf(shownSpec);
   const persons = personsOf(shownSpec);
@@ -4710,28 +4710,9 @@ function AgreementFields({ word, lang }: { word: WordDraft; lang: Lang }) {
   const saysHow = lang.translitDrilled !== false;
   const at = (row: string, col: string) =>
     cells.find((c) => c.row === row && c.col === col && !String(c.of || "")) || null;
-  /* What the card's own word is among these. A table that has not said
-     leaves it unnamed rather than guessed at — the same rule the dual
-     column follows, and the reason this is data. */
-  const main = forms[0] || null;
-  const mainName = shownSpec.base || "the word";
 
   return (
     <>
-      {main && (
-        <Field label={mainName}>
-          <div className="at-cellrow">
-            <CellFields
-              lang={lang}
-              cell={main}
-              which={mainName}
-              saysHow={saysHow}
-              onChange={(patch) => setForm(0, { ...main, ...patch })}
-              onRecord={() => setRecording(0)}
-            />
-          </div>
-        </Field>
-      )}
       {rows.flatMap((row) =>
         persons.map((person) => {
           const name = person.label || person.id;
@@ -5056,22 +5037,38 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
  * under it are for rather than leaving a teacher to find the Add button
  * and guess.
  *
- * Which means it is only ever said where there *is* an Add button. It
- * used to have a second wording for a card whose forms are laid out in a
- * table, because the first was wrong there twice over: it pointed below
- * at nothing, and what it offered to add — a form for a different number
- * or gender — is exactly what the table under it already is. An adjective
+ * Which means it has to know whether there *is* an Add button. A card
+ * whose forms are laid out in a table has none, and the sentence written
+ * for the other kind was wrong on it twice over: it pointed below at
+ * nothing, and what it offered to add — a form for a different number or
+ * gender — is exactly what the table under it already is. An adjective
  * read "you can add additional forms (for different numbers, gender)"
- * directly above its own feminine and plural.
- *
- * That second wording is gone with the block it stood over: such a card
- * writes its word as the first row of one list, under a heading that says
- * what the list is. The first form here is a first form again.
+ * directly above its own feminine and plural. Such a card says `laidOut`
+ * and gets the other sentence.
  */
-export const formRole = (i: number): string =>
+export const formRole = (i: number, laidOut = false): string =>
   i === 0
-    ? "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
+    ? laidOut
+      ? "The word this card is about. The shapes it takes beside a noun are written below — another spelling of one belongs on that shape, not on a form of its own."
+      : "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
     : "Another form of the same card.";
+
+/*
+ * The same sentence, with the word named where the language names it.
+ *
+ * An adjective's own word is the masculine, and until the table said so
+ * it was the one shape on the screen with no name — three boxes called
+ * feminine, plural and dual, and above them a block whose heading was the
+ * app talking about its own layout. Which shape it is, is the language's
+ * answer: see `VerbSpec.base`. A table that does not say leaves the
+ * sentence as it was rather than guessing.
+ */
+export const laidOutRole = (spec: VerbSpec | null): string => {
+  const base = (spec && spec.base) || "";
+  return base
+    ? `The word this card is about — the ${base}. The shapes it takes beside a noun are written below — another spelling of one belongs on that shape, not on a form of its own.`
+    : formRole(0, true);
+};
 
 /*
  * The one thing kept about the card's own word that is never asked.
@@ -6666,9 +6663,8 @@ function VerbEditor({ word, lang, allCards, selfId }: {
 /*
  * A word with a table of its forms beside it that cites nothing — an
  * adjective's feminine and plural. The verb's editor without the verb: no
- * name to list it under, and the card's own word is the head of the list
- * rather than a stand-in for it — the table is shapes of that word, so the
- * word is written among them under a name of its own. No form can be
+ * name to list it under, and the card's own word keeps its block, because
+ * the table is forms of it rather than a stand-in for it. No form can be
  * added, for the reason a verb's cannot: the table is the forms, and a
  * spelling is an accepted answer. A form the card already carries is still
  * shown rather than quietly dropped.
@@ -6681,45 +6677,48 @@ function TableEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
-      {/* One section, one list, one format. The word and its shapes are
-          four rows of the same thing, and the screen said so twice over
-          in two hands: the word in a block of named fields, the shapes in
-          a second block of short rows under a heading of their own. What
-          divided them was which one the card is *about*, which is a fact
-          the heading already carries and the card's own title says again.
+      {/* The word keeps its own block. For one release it was the first
+          row of the list below, which read better and cost it the two
+          things only a block can hold: the button that accepts a second
+          spelling, and the list of its recordings. A card with two
+          accepted answers is the ordinary case here, so the fields stay
+          and the two blocks are a drawing problem rather than a reason to
+          drop them.
 
-          The name across the top is the app's own rather than the table's
-          label — that label is the list of the shapes, and over the boxes
-          below it would be saying the same words twice. */}
-      <div className="at-formblock main">
-        <div className="at-formhead">
-          <span className="at-formnum">The word and its forms</span>
-          <span className="at-formrole">
-            The word this card is about, and the shapes it takes beside a noun.
-            Leave one empty and it is simply not asked for.
-          </span>
-        </div>
-        <div className="at-part">
-          <AgreementFields word={word} lang={lang} />
-        </div>
-        <ReferenceField word={word} lang={lang} />
-      </div>
-      {/* A loose form from before the table: still shown, still removable,
-          and still numbered, because there it really is one of several. No
-          new way to make one — see FormBlock's canCopy. */}
-      {word.forms.slice(1).map((f, j) => (
+          "Form 1" is a name for the first of several, and this card can
+          hold one: numbering it asks a teacher which the others are and
+          then never shows them. The app's own name for it — the one
+          askParts has always used, and the one the practice section
+          below reads — is what it is called, and the line under it says
+          which shape of the word it is. A card carrying a loose form from
+          before is still numbered, because there it is one of several. */}
+      {word.forms.map((f, i) => (
         <FormBlock
-          key={j + 1}
+          key={i}
           word={word}
           lang={lang}
-          index={j + 1}
+          index={i}
           form={f}
-          title={`Form ${j + 2}`}
-          role={formRole(j + 1)}
+          title={i === 0 ? "The main form" : `Form ${i + 1}`}
+          role={i === 0 ? laidOutRole(word.shownSpec) : formRole(i)}
           canCopy={false}
           drills={false}
         />
       ))}
+      {/* Under one name rather than one heading apiece: three shapes of a
+          word are a list, and a page of headings over one box each was
+          what made them read as three subjects. The name is the app's
+          own — not the table's label, which is the list of them and would
+          be saying the same words twice over the boxes below. */}
+      <div className="at-formblock">
+        <div className="at-formhead">
+          <span className="at-formnum">Its other forms</span>
+          <span className="at-formrole">The shapes this word takes beside a noun.</span>
+        </div>
+        <div className="at-part">
+          <AgreementFields word={word} lang={lang} />
+        </div>
+      </div>
       <PracticeSection word={word} />
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
