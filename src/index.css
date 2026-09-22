@@ -3384,6 +3384,12 @@ body.at-screening .at-chromebar { display:none; }
 .at-numlabel .at-numfig { flex:none; font-size:13px; color: var(--ink); font-weight:700; }
 .at-numboxes { flex:1 1 220px; min-width:0; display:flex; flex-direction:column; gap:6px; }
 .at-numcell { display:flex; flex-direction:column; gap:2px; }
+/* How a word sounds, under the word. Smaller and quieter than the script
+   above it, because it is the note and the script is the thing. */
+.at-numlat { font-size:13px; padding-top:5px; padding-bottom:5px; }
+/* And the one box on the try-it screen, which is the whole of that
+   screen's input and is read as figures. */
+.at-numtry { font-family: var(--mono); font-size:20px; font-variant-numeric: tabular-nums; }
 @media (max-width: 560px) {
   .at-numlabel { flex:0 0 100%; padding-top:0; }
   .at-numfig { flex:0 0 68px; }

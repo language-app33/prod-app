@@ -285,11 +285,13 @@ const readMinuteExpr = (v: unknown): MinuteExpr | null => {
   if (!text) return null;
   const audio = clips(v.audio);
   const en = capped(v.en);
+  const lat = capped(v.lat);
   return {
     text,
     refHour: v.refHour === "next" ? "next" : "same",
     ...(v.lead === true ? { lead: true } : null),
     ...(en ? { en } : null),
+    ...(lat ? { lat } : null),
     ...(audio.length ? { audio } : null),
   };
 };
@@ -318,11 +320,13 @@ const readPeriod = (v: unknown): Period | null => {
   if (!slot || !text) return null;
   const hour = (x: unknown) => Math.min(23, Math.max(0, Math.trunc(num(x, 0))));
   const en = capped(v.en);
+  const lat = capped(v.lat);
   const audio = clips(v.audio);
   return {
     slot,
     text,
     ...(en ? { en } : null),
+    ...(lat ? { lat } : null),
     fromHour: hour(v.fromHour),
     toHour: hour(v.toHour),
     ...(audio.length ? { audio } : null),

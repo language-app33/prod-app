@@ -201,6 +201,8 @@ const PLACES: Record<string, [string, string]> = {
   NounsSection: [TEACH, "A language's number system · the things a counting question counts"],
   TimesTab: [TEACH, "A language's number system · telling the time"],
   PeriodsSection: [TEACH, "A language's number system · the parts of the day"],
+  WrittenOutScreen: [TEACH, "A language's number system · one number written out by hand"],
+  TryItScreen: [TEACH, "A language's number system · trying a number out"],
   InContext: [TEACH, "The In context tab"],
   TryExercises: [TEACH, "A card · trying an exercise on it"],
   SelectionBar: [TEACH, "When several cards are selected"],

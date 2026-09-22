@@ -668,6 +668,15 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   a word gives back the same cards and nobody loses their year on one. A
   range is offered only once the whole of it can be said, so a system that
   stops at ten is a practice that counts to ten and stops.
+
+  A box that has a word in it asks two more things about it — **how it
+  sounds** and **a recording** — and both ride onto the card the word
+  becomes, in the fields a card written by hand keeps them in. A
+  transliteration is never joined up across a number: where the pieces sit
+  against each other is a fact about the script the composer's tokens do
+  not carry, so a romanisation of *forty-seven* would be wrong wherever a
+  one-letter connector attaches. A number written out by hand carries its
+  own.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in

@@ -96,6 +96,20 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
      recorder, pointed wherever it was asked for — two would be two live
      microphones the moment somebody pressed the second button. */
   const [recording, setRecording] = useState<{ slot: string; key: FormKey; time?: boolean } | null>(null);
+  /*
+   * The two things that are a screen of their own rather than a block
+   * that appears halfway down this one.
+   *
+   * Writing a number out used to unfold in place, under the sample it was
+   * tapped from, which put the box being typed into somewhere below the
+   * fold on a phone and left the grid scrolling underneath it. Trying a
+   * number out has the same shape and the same answer. Both are held here
+   * beside the recorder because they are the same kind of thing: this
+   * screen steps aside and another takes the whole of it, which is what
+   * the app already does for a recording.
+   */
+  const [writing, setWriting] = useState<string | null>(null);
+  const [trying, setTrying] = useState(false);
 
   const dirty =
     JSON.stringify(draft) !== JSON.stringify(numbers) ||
@@ -157,6 +171,37 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
     );
   }
 
+  if (writing !== null) {
+    return (
+      <WrittenOutScreen
+        lang={lang}
+        draft={draft}
+        forKey={writing}
+        render={(n, sys) => composer.render(n, sys)}
+        onKeep={(text, lat) => {
+          setDraft((d) => withOverride(d, writing, text, lat));
+          setWriting(null);
+        }}
+        onClose={() => setWriting(null)}
+      />
+    );
+  }
+
+  if (trying) {
+    return (
+      <TryItScreen
+        lang={lang}
+        draft={draft}
+        render={(n, ctx) => composer.render(n, draft, ctx)}
+        onWrite={(key) => {
+          setTrying(false);
+          setWriting(key);
+        }}
+        onClose={() => setTrying(false)}
+      />
+    );
+  }
+
   return (
     <Screen
       title="Number system"
@@ -186,6 +231,8 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
           render={(n, ctx) => composer.render(n, draft, ctx)}
           checks={rangeChecks(composer, draft)}
           onRecord={(slot, key) => setRecording({ slot, key })}
+          onWrite={setWriting}
+          onTry={() => setTrying(true)}
         />
       ) : (
         <TimesTab
@@ -210,7 +257,7 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
 
 /* ---- numbers ---- */
 
-function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord }: {
+function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord, onWrite, onTry }: {
   lang: Lang;
   draft: NumberSystem;
   setDraft: (f: (d: NumberSystem) => NumberSystem) => void;
@@ -218,9 +265,11 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord }: 
   render: (n: number, ctx?: { noun?: CountedNoun; gender?: "m" | "f" }) => { text: string; warnings: { code: string; slot?: string }[] };
   checks: ReturnType<typeof rangeChecks>;
   onRecord: (slot: string, key: FormKey) => void;
+  /** Write this number out by hand, on a screen of its own. */
+  onWrite: (key: string) => void;
+  onTry: () => void;
 }) {
   const [extra, setExtra] = useState<number[]>([]);
-  const [editing, setEditing] = useState<{ key: string; text: string } | null>(null);
 
   const groups: { id: string; slots: SlotSpec[] }[] = [];
   for (const slot of slots) {
@@ -255,12 +304,17 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord }: 
         title="What a student will be asked"
         lede="Tap any line to write it out yourself, where the app has it wrong."
         action={
-          <Button
-            size="sm"
-            onClick={() => setExtra((e) => e.concat([Math.floor(seeded(`more ${e.length}`)() * 9999999)]))}
-          >
-            Another
-          </Button>
+          <div className="at-row">
+            <Button size="sm" onClick={onTry}>
+              Try a number
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setExtra((e) => e.concat([Math.floor(seeded(`more ${e.length}`)() * 9999999)]))}
+            >
+              Another
+            </Button>
+          </div>
         }
         className="at-mt5"
       >
@@ -272,7 +326,7 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord }: 
               <button
                 className="at-numsamplerow at-tappable"
                 key={`${value}-${i}`}
-                onClick={() => setEditing({ key, text: said.text })}
+                onClick={() => onWrite(key)}
               >
                 <span className="at-numfig">{value.toLocaleString("en")}</span>
                 <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
@@ -285,47 +339,21 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord }: 
         </div>
       </Section>
 
-      {editing ? (
-        <Section title={`${Number(editing.key).toLocaleString("en")}, written out`} className="at-mt5">
-          <Help>
-            Whatever is written here is what a student is asked, for this number and wherever it
-            turns up inside a bigger one. Clear it and the app goes back to building it.
-          </Help>
-          <ScriptInput
-            lang={lang}
-            value={editing.text}
-            label={`${editing.key} in ${lang.name}`}
-            compact
-            onChange={(v) => setEditing((e) => (e ? { ...e, text: v } : e))}
-          />
-          <div className="at-row at-mt5">
-            <Button
-              variant="primary"
-              onClick={() => {
-                setDraft((d) => withOverride(d, editing.key, editing.text));
-                setEditing(null);
-              }}
-            >
-              Keep it
-            </Button>
-            <Button onClick={() => setEditing(null)}>Cancel</Button>
-          </div>
-        </Section>
-      ) : null}
-
       {Object.keys(draft.overrides).length ? (
-        <Section title="Numbers you wrote out" className="at-mt5">
+        <Section
+          title="Numbers you wrote out"
+          lede="Tap one to change what it says, or to put it back the way the app builds it."
+          className="at-mt5"
+        >
           <div className="at-numsample">
             {Object.entries(draft.overrides).map(([key, over]) => (
-              <div className="at-numsamplerow" key={key}>
+              <button className="at-numsamplerow at-tappable" key={key} onClick={() => onWrite(key)}>
                 <span className="at-numfig">{key}</span>
                 <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
                   {over.text}
                 </span>
-                <Button size="sm" onClick={() => setDraft((d) => withOverride(d, key, ""))}>
-                  Remove
-                </Button>
-              </div>
+                {over.lat ? <Meta>{over.lat}</Meta> : null}
+              </button>
             ))}
           </div>
         </Section>
@@ -352,11 +380,19 @@ function NumbersTab({ lang, draft, setDraft, slots, render, checks, onRecord }: 
                         onChange={(v) => setDraft((d) => withWord(d, slot.slot, key, v))}
                       />
                       {(draft.lexemes[slot.slot] || { forms: {} }).forms[key] ? (
-                        <Button size="sm" onClick={() => onRecord(slot.slot, key)}>
-                          {((draft.lexemes[slot.slot].audio || {})[key] || []).length
-                            ? "Recording ✓"
-                            : "Record"}
-                        </Button>
+                        <>
+                          <LatInput
+                            lang={lang}
+                            value={(draft.lexemes[slot.slot].lat || {})[key] || ""}
+                            of={`${slot.label}, ${FACE_LABEL[key] || key}`}
+                            onChange={(v) => setDraft((d) => withLat(d, slot.slot, key, v))}
+                          />
+                          <Button size="sm" onClick={() => onRecord(slot.slot, key)}>
+                            {((draft.lexemes[slot.slot].audio || {})[key] || []).length
+                              ? "Recording ✓"
+                              : "Record"}
+                          </Button>
+                        </>
                       ) : null}
                     </div>
                   ))}
@@ -541,11 +577,19 @@ function TimesTab({ lang, numbers, clock, setClock, hourReady, slots, render, on
                   onChange={(v) => setLex(slot.slot, v)}
                 />
                 {(clock.lexemes[slot.slot] || { forms: {} }).forms.standalone ? (
-                  <Button size="sm" onClick={() => onRecord(slot.slot)}>
-                    {(((clock.lexemes[slot.slot] || {}).audio || {}).standalone || []).length
-                      ? "Recording ✓"
-                      : "Record"}
-                  </Button>
+                  <>
+                    <LatInput
+                      lang={lang}
+                      value={((clock.lexemes[slot.slot] || {}).lat || {}).standalone || ""}
+                      of={slot.label}
+                      onChange={(v) => setClock((c) => (c ? withTimeLat(c, slot.slot, v) : c))}
+                    />
+                    <Button size="sm" onClick={() => onRecord(slot.slot)}>
+                      {(((clock.lexemes[slot.slot] || {}).audio || {}).standalone || []).length
+                        ? "Recording ✓"
+                        : "Record"}
+                    </Button>
+                  </>
                 ) : null}
               </div>
             </div>
@@ -617,6 +661,14 @@ function TimesTab({ lang, numbers, clock, setClock, hourReady, slots, render, on
                     aria-label={`What :${mark} means`}
                     onChange={(e) => setExpr(mark, { en: e.target.value })}
                   />
+                  {expr && expr.text ? (
+                    <LatInput
+                      lang={lang}
+                      value={expr.lat || ""}
+                      of={`:${String(mark).padStart(2, "0")}`}
+                      onChange={(v) => setExpr(mark, { lat: v })}
+                    />
+                  ) : null}
                   <Segmented
                     label="Counts from"
                     options={[
@@ -763,6 +815,14 @@ function PeriodsSection({ lang, clock, setClock }: {
               compact
               onChange={(v) => set(i, { text: v })}
             />
+            {period.text ? (
+              <LatInput
+                lang={lang}
+                value={period.lat || ""}
+                of={period.en || period.slot}
+                onChange={(v) => set(i, { lat: v })}
+              />
+            ) : null}
             <div className="at-row">
               <label className="at-dialrow">
                 <span>From</span>
@@ -804,6 +864,268 @@ function PeriodsSection({ lang, clock, setClock }: {
   );
 }
 
+/* ---- how a word sounds ---- */
+
+/**
+ * The pronunciation beside a box, drawn on the same condition the Record
+ * button is: there is a word here to say.
+ *
+ * It is not decoration. What is typed goes onto the card this word
+ * becomes, in the field a card written by hand keeps its transliteration
+ * in — so the learner meets the pronunciation under the script, and the
+ * question that asks for the script from its sound opens for a word that
+ * has one. A row of empty pronunciation fields under a grid nobody has
+ * started would be noise, which is why it waits for the word.
+ *
+ * What it is called is the language's own answer: a transliteration in
+ * the two written right-to-left, a pronunciation note in the one already
+ * written in Latin letters.
+ */
+function LatInput({ lang, value, of, onChange }: {
+  lang: Lang;
+  value: string;
+  /** What this is the pronunciation *of*, for the name a screen reader
+      reads — the boxes have no visible labels of their own. */
+  of: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <input
+      className="at-input at-numlat"
+      value={value}
+      placeholder={lang.translitLabel.toLowerCase()}
+      aria-label={`${lang.translitLabel} for ${of}`}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+/* ---- a number written out by hand ---- */
+
+/** The digits of an override key, which may name a face as well. */
+const digitsOf = (key: string): number => Number(String(key).split("|")[0]);
+
+/**
+ * One number, written out by the teacher, on a screen of its own.
+ *
+ * It used to unfold in place under the list it was tapped from, which put
+ * the box being typed into below the fold on a phone with the whole grid
+ * scrolling behind it. A correction is a small piece of work with a
+ * beginning and an end, so it gets a screen: what the app says now, what
+ * you want it to say, how it sounds, and one button.
+ *
+ * **What the app builds by itself is shown above the box**, because the
+ * question a teacher is answering is not "what is this number" — they
+ * know that — but "what did the app get wrong". Rendered with the
+ * override taken out, so it is the app's own attempt and not an echo of
+ * the correction being written.
+ */
+function WrittenOutScreen({ lang, draft, forKey, render, onKeep, onClose }: {
+  lang: Lang;
+  draft: NumberSystem;
+  forKey: string;
+  render: (n: number, sys: NumberSystem) => { text: string };
+  onKeep: (text: string, lat: string) => void;
+  onClose: () => void;
+}) {
+  const had = draft.overrides[forKey];
+  const [text, setText] = useState(had ? had.text : "");
+  const [lat, setLat] = useState((had && had.lat) || "");
+  const value = digitsOf(forKey);
+  const face = String(forKey).split("|")[1] || "";
+  /* The app's own answer, with the correction taken out of the way. */
+  const built = Number.isFinite(value) ? render(value, withOverride(draft, forKey, "")).text : "";
+  const changed = text.trim() !== (had ? had.text : "") || lat.trim() !== ((had && had.lat) || "");
+
+  return (
+    <Screen
+      title={`${Number.isFinite(value) ? value.toLocaleString("en") : forKey}, written out`}
+      onBack={onClose}
+      footer={
+        <Button
+          variant="primary"
+          wide
+          disabled={!changed}
+          onClick={() => onKeep(text, lat)}
+        >
+          {text.trim() ? "Keep it" : "Put it back"}
+        </Button>
+      }
+    >
+      <Help>
+        Whatever is written here is what a student is asked, for this number and wherever it
+        turns up inside a bigger one. Clear the box and the app goes back to building it.
+        {face ? ` This is the form used ${FACE_LABEL[face] || face}.` : ""}
+      </Help>
+
+      <Section title="What the app says now" className="at-mt5">
+        <div className="at-numsample">
+          <div className="at-numsamplerow">
+            <span className="at-numfig">
+              {Number.isFinite(value) ? value.toLocaleString("en") : forKey}
+            </span>
+            <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+              {built || "—"}
+            </span>
+          </div>
+        </div>
+        {!built ? (
+          <Help>
+            It cannot build this one at all yet, so whatever you write here is the only answer it
+            has for it.
+          </Help>
+        ) : null}
+      </Section>
+
+      <Section title="What it should say" className="at-mt5">
+        <ScriptInput
+          lang={lang}
+          value={text}
+          label={`${forKey} in ${lang.name}`}
+          onChange={setText}
+        />
+        {text.trim() ? (
+          <LatInput lang={lang} value={lat} of={String(value)} onChange={setLat} />
+        ) : null}
+      </Section>
+
+      {had ? (
+        <Help>
+          Emptying the box above and keeping it is how you take the correction away: this number
+          goes back to being built out of the words in the grid.
+        </Help>
+      ) : null}
+    </Screen>
+  );
+}
+
+/* ---- trying the system out ---- */
+
+/**
+ * Type a number, see it said.
+ *
+ * The sample list answers "is this right" for thirty numbers somebody
+ * else chose. This answers it for the one the teacher is actually
+ * wondering about — which is how anybody checks a thing they have just
+ * built, and what they were otherwise doing by adding numbers to the
+ * sample until one of them was near enough.
+ *
+ * It says more than the one line, because the interesting faults are in
+ * the extra faces rather than in counting aloud: where a number changes
+ * for the gender of what stands beside it, both are shown, and every noun
+ * the teacher wrote is counted with it. A number that cannot be said at
+ * all says what it is waiting for and offers the one thing that always
+ * works — writing it out by hand.
+ */
+function TryItScreen({ lang, draft, render, onWrite, onClose }: {
+  lang: Lang;
+  draft: NumberSystem;
+  render: (n: number, ctx?: { noun?: CountedNoun; gender?: "m" | "f" }) => {
+    text: string;
+    warnings: { code: string; slot?: string; detail?: string }[];
+  };
+  onWrite: (key: string) => void;
+  onClose: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+  /* Digits only, and no more of them than the app will ever ask about —
+     read off what was typed rather than refused, so a stray comma or a
+     space is simply not a number and never an error message. */
+  const digits = typed.replace(/[^0-9]/g, "").slice(0, 7);
+  const value = digits === "" ? null : Number(digits);
+  /* The number, not what was typed: an override is keyed by the number it
+     corrects, so writing one out after typing 007 has to file it under 7
+     or it would be a correction the composer never looks up. */
+  const key = value === null ? "" : String(value);
+
+  const said = value === null ? null : render(value);
+  const masc = value === null ? null : render(value, { gender: "m" });
+  const fem = value === null ? null : render(value, { gender: "f" });
+  /* Only where the language actually has something to show: in most
+     numbers in every language here, all three are the same word. */
+  const inflects =
+    !!said && !!masc && !!fem && (masc.text !== said.text || fem.text !== said.text);
+  const stops = said ? blocking(said.warnings as never) : [];
+
+  const line = (label: string, text: string) => (
+    <div className="at-numsamplerow" key={label}>
+      <span className="at-numfig">{label}</span>
+      <span className="at-numsaid" lang={lang.id} dir={lang.direction}>
+        {text || "—"}
+      </span>
+    </div>
+  );
+
+  return (
+    <Screen title="Try a number" onBack={onClose}>
+      <Help>
+        Type any number up to seven figures and see exactly what a student would be asked. It is
+        the same words the app would use in a question — nothing here is a preview of something
+        else.
+      </Help>
+
+      <Section title="The number" className="at-mt5">
+        <input
+          className="at-input at-numtry"
+          value={typed}
+          inputMode="numeric"
+          placeholder="47"
+          aria-label="A number to try, in figures"
+          autoFocus
+          onChange={(e) => setTyped(e.target.value)}
+        />
+      </Section>
+
+      {value === null ? (
+        <Help>Nothing typed yet.</Help>
+      ) : (
+        <>
+          <Section title="Said" className="at-mt5">
+            <div className="at-numsample">
+              {line(value.toLocaleString("en"), said ? said.text : "")}
+              {inflects && masc && fem
+                ? [
+                    line(FACE_LABEL.m, masc.text),
+                    line(FACE_LABEL.f, fem.text),
+                  ]
+                : null}
+            </div>
+            {stops.length ? (
+              <Notice kind="warn">
+                This one is not finished: {waitingOn(said ? said.warnings : [])}. A student is not
+                asked anything the app cannot say in full.
+              </Notice>
+            ) : null}
+            {draft.overrides[key] ? (
+              <Help>This is the wording you wrote out yourself, not one the app built.</Help>
+            ) : null}
+          </Section>
+
+          {draft.nouns.length ? (
+            <Section
+              title="Counting things"
+              lede="The same number in front of each of the words you gave it to count."
+              className="at-mt5"
+            >
+              <div className="at-numsample">
+                {draft.nouns.map((noun) =>
+                  line(noun.en || noun.id, render(value, { noun }).text),
+                )}
+              </div>
+            </Section>
+          ) : null}
+
+          <div className="at-row at-mt5">
+            <Button onClick={() => onWrite(key)}>
+              {draft.overrides[key] ? "Change what it says" : "Write this one out yourself"}
+            </Button>
+          </div>
+        </>
+      )}
+    </Screen>
+  );
+}
+
 /* ---- writing into the draft ---- */
 
 /**
@@ -826,6 +1148,31 @@ export function withWord(sys: NumberSystem, slot: string, key: FormKey, text: st
   return { ...sys, lexemes, updated: Date.now() };
 }
 
+/**
+ * And how that word sounds.
+ *
+ * Kept beside the word rather than inside it, in the shape the recordings
+ * already use: one entry per face, absent where nobody wrote one. A slot
+ * with no word in it has nothing to sound like, so this refuses rather
+ * than creating a lexeme that is a pronunciation and no word — which
+ * would read as a gap on the screen and as a word on the wire.
+ */
+export function withLat(sys: NumberSystem, slot: string, key: FormKey, text: string): NumberSystem {
+  const was = sys.lexemes[slot];
+  if (!was) return sys;
+  const lat = { ...(was.lat || {}) };
+  if (String(text || "").trim()) lat[key] = text;
+  else delete lat[key];
+  return {
+    ...sys,
+    lexemes: {
+      ...sys.lexemes,
+      [slot]: { ...was, lat: Object.keys(lat).length ? lat : undefined },
+    },
+    updated: Date.now(),
+  };
+}
+
 export function withAudio(sys: NumberSystem, slot: string, key: FormKey, clips: string[]): NumberSystem {
   const was = sys.lexemes[slot];
   if (!was) return sys;
@@ -839,10 +1186,25 @@ export function withAudio(sys: NumberSystem, slot: string, key: FormKey, clips: 
   };
 }
 
-export function withOverride(sys: NumberSystem, key: string, text: string): NumberSystem {
+/**
+ * A number the teacher wrote out, with how it sounds beside it.
+ *
+ * Emptying the text is how a correction is taken away — the whole entry
+ * goes, recording and all, because a pronunciation for a wording that is
+ * no longer used is not something anybody would want kept. Emptying only
+ * the pronunciation leaves the wording where it is.
+ */
+export function withOverride(sys: NumberSystem, key: string, text: string, lat = ""): NumberSystem {
   const overrides = { ...sys.overrides };
-  if (String(text || "").trim()) overrides[key] = { ...(overrides[key] || {}), text: text.trim() };
-  else delete overrides[key];
+  const said = String(text || "").trim();
+  const how = String(lat || "").trim();
+  if (!said) delete overrides[key];
+  else {
+    const next = { ...(overrides[key] || {}), text: said };
+    if (how) next.lat = how;
+    else delete next.lat;
+    overrides[key] = next;
+  }
   return { ...sys, overrides, updated: Date.now() };
 }
 
@@ -852,6 +1214,18 @@ export function withTimeWord(sys: TimeSystem, slot: string, text: string): TimeS
   if (String(text || "").trim()) lexemes[slot] = { ...was, slot, forms: { ...was.forms, standalone: text } };
   else delete lexemes[slot];
   return { ...sys, lexemes, updated: Date.now() };
+}
+
+/** The same, for a clock's own words, which have one face each. */
+export function withTimeLat(sys: TimeSystem, slot: string, text: string): TimeSystem {
+  const was = sys.lexemes[slot];
+  if (!was) return sys;
+  const how = String(text || "").trim();
+  return {
+    ...sys,
+    lexemes: { ...sys.lexemes, [slot]: { ...was, lat: how ? { standalone: how } : undefined } },
+    updated: Date.now(),
+  };
 }
 
 export function withTimeAudio(sys: TimeSystem, slot: string, clips: string[]): TimeSystem {

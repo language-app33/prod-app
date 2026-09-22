@@ -93,7 +93,7 @@ interface Made {
   systemId: string;
   slot: string;
   /** The card's own word, and the faces beside it. */
-  faces: { key: FormKey; text: string; label: string; audio?: string[] }[];
+  faces: { key: FormKey; text: string; label: string; lat?: string; audio?: string[] }[];
   en: string;
   note?: string;
   tag: string;
@@ -113,7 +113,11 @@ function cardOf(made: Made): Item {
     id: `${made.id}-f~${safe(face.key)}`,
     ar: face.text,
     en: made.en,
-    lat: "",
+    /* How it sounds, where the teacher wrote it. Empty where they did
+       not, which is what every card written by hand carries too — and
+       what decides whether the question that asks for the script from
+       its transliteration is ever put to this card. */
+    lat: String(face.lat || "").trim(),
     ...(i === 0 ? null : { row: "number", col: face.key, note: face.label }),
     ...(face.audio && face.audio.length
       ? { clips: face.audio, recs: face.audio.map((id) => ({ id, label: "", speed: "" })) }
@@ -171,6 +175,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
         key,
         text: String(lex.forms[key] || "").trim(),
         label: labelForFace(key),
+        lat: (lex.lat || {})[key],
         audio: (lex.audio || {})[key],
       }))
       .filter((f) => f.text);
@@ -206,6 +211,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
             key: "standalone",
             text: over.text,
             label: "",
+            lat: over.lat,
             audio: over.audio || (sys.curatedAudio || {})[key],
           },
         ],
@@ -228,7 +234,15 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
           lang,
           systemId: timeSys.id,
           slot: spec.slot,
-          faces: [{ key: "standalone", text, label: "", audio: (lex.audio || {}).standalone }],
+          faces: [
+            {
+              key: "standalone",
+              text,
+              label: "",
+              lat: (lex.lat || {}).standalone,
+              audio: (lex.audio || {}).standalone,
+            },
+          ],
           en: spec.label,
           note: spec.hint,
           tag,
@@ -245,7 +259,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
           lang,
           systemId: timeSys.id,
           slot: `min.${mark}`,
-          faces: [{ key: "standalone", text: expr.text, label: "", audio: expr.audio }],
+          faces: [{ key: "standalone", text: expr.text, label: "", lat: expr.lat, audio: expr.audio }],
           en: expr.en || `${mark} ${expr.refHour === "next" ? "to" : "past"}`,
           tag,
           now,
@@ -259,7 +273,7 @@ export function generate({ composer, sys, timeComposer, timeSys, tag, now }: Gen
           lang,
           systemId: timeSys.id,
           slot: `period.${period.slot}`,
-          faces: [{ key: "standalone", text: period.text, label: "", audio: period.audio }],
+          faces: [{ key: "standalone", text: period.text, label: "", lat: period.lat, audio: period.audio }],
           en: period.en || period.slot,
           tag,
           now,

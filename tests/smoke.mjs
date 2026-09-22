@@ -6624,8 +6624,23 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      it portals out, so that it stays inside the theme and outside whatever
      layer the space that opened it sits in. So the boxes are never under
      the div this mounted into, and looking there would find an empty
-     screen that is in fact drawn and working. */
-  const panel = () => document.querySelector('.at-screen[aria-label="Number system"]') || host;
+     screen that is in fact drawn and working.
+
+     Named, because this walk steps through three of them: the grid, the
+     screen one number is written out on, and the one a number is tried on.
+     Asking for "the screen" would find whichever was drawn first and quietly
+     pass while the wrong one was up. */
+  const screenNamed = (/** @type {string} */ name) =>
+    document.querySelector(`.at-screen[aria-label="${name}"]`);
+  const panel = () => screenNamed("Number system") || host;
+  /* Whichever of them is up. The last one in the document, because a
+     portal appends: earlier blocks of this walk left their own screens
+     mounted, and asking for the first would find a teaching screen from
+     half an hour ago and quietly agree with everything asked of it. */
+  const up = () => {
+    const all = [...document.querySelectorAll(".at-screen")];
+    return all[all.length - 1] || host;
+  };
 
   draw(system);
   await sleep(200);
@@ -6640,7 +6655,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      preview is the composer itself, so there is nothing here that could be
      right while what a student meets is wrong. */
   const boxNamed = (/** @type {string} */ name) =>
-    [...panel().querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === name);
+    [...up().querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === name);
+  const buttonIn = (/** @type {RegExp} */ re) =>
+    [...up().querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
   const typeIn = (/** @type {any} */ box, /** @type {string} */ text) => {
     const setValue = must(
       Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
@@ -6666,24 +6683,76 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!seven && /sab3a/.test(seven.textContent || ""),
     seven ? (seven.textContent || "").trim() : `${rows.length} preview rows`);
 
-  /* And a line that is wrong is tapped and written out. */
-  click(seven);
-  await sleep(200);
-  check("tapping a line offers to write that number out",
-    /written out/.test(panel().textContent || ""),
-    (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  /* And a filled box asks how it sounds, on the same condition the Record
+     button appears on: there is a word here to say. */
+  const sevenLat = boxNamed("Transliteration for 7, counting");
+  check("a box with a word in it asks how the word sounds",
+    !!sevenLat,
+    [...panel().querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
+      .filter((l) => l && /Transliteration/.test(l)).slice(0, 3).join(" | ") || "(none asked)");
+  check("and an empty box is not asked, because there is nothing to sound like",
+    !boxNamed("Transliteration for 8, counting"));
+  if (sevenLat) {
+    typeIn(sevenLat, "sabʕa");
+    await sleep(200);
+  }
 
-  const keep = [...panel().querySelectorAll("button")].find((b) => /Keep it/.test(b.textContent || ""));
-  check("and there is a button to keep it", !!keep);
+  /* A line that is wrong is tapped, and that is a screen of its own now
+     rather than a block unfolding under the list. */
+  click(seven);
+  await sleep(250);
+  check("tapping a line opens a screen for writing that number out",
+    !!screenNamed("7, written out"),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  check("which says what the app makes of it by itself, to be corrected against",
+    /What the app says now/.test(up().textContent || "") && /sab3a/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+
+  const outBox = boxNamed("7 in Palestinian Arabic");
+  check("and a box to write what it should say", !!outBox);
+  if (outBox) {
+    typeIn(outBox, "sabʕa-wahde");
+    await sleep(200);
+  }
+  check("which asks how that sounds too, once there is something to sound like",
+    !!boxNamed("Transliteration for 7"));
+
+  const keep = buttonIn(/^Keep it$/);
+  check("and the footer keeps it", !!keep);
   if (keep) {
     click(keep);
-    await sleep(200);
-    check("which files it among the numbers you wrote out",
-      /Numbers you wrote out/.test(panel().textContent || ""),
+    await sleep(250);
+    check("which puts the grid back with it filed among the numbers you wrote out",
+      !!screenNamed("Number system") && /Numbers you wrote out/.test(panel().textContent || ""),
       (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
   }
 
-  const save = [...panel().querySelectorAll("button")].find((b) => /^Save$/.test((b.textContent || "").trim()));
+  /* And the third screen: type a number, see it said. */
+  click(buttonIn(/^Try a number$/));
+  await sleep(250);
+  check("there is a screen for trying a number out",
+    !!screenNamed("Try a number"),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  const tryBox = boxNamed("A number to try, in figures");
+  check("with one box, for figures", !!tryBox);
+  if (tryBox) {
+    typeIn(tryBox, "7");
+    await sleep(200);
+    check("and what is typed comes back said in the words the teacher wrote",
+      /sabʕa-wahde/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "8");
+    await sleep(200);
+    check("a number it cannot say yet says what it is waiting for instead",
+      /waiting on/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  }
+  click(buttonIn(/^Back$/) || (up().querySelector && up().querySelector(".at-back")));
+  await sleep(250);
+  check("and coming back leaves the grid as it was",
+    !!screenNamed("Number system") && panel().querySelectorAll(".at-numrow").length > 20);
+
+  const save = buttonIn(/^Save$/);
   check("and the footer offers to save once something has changed", !!save);
   if (save) {
     click(save);
@@ -6691,11 +6760,14 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     const saved = saves[saves.length - 1];
     check("saving hands back a number system", !!saved && saved.kind === "numbers",
       saved ? saved.kind : "nothing saved");
-    check("with the word that was typed in it, and the line that was written out",
+    check("with the word that was typed, how it sounds, and the line that was written out",
       !!saved &&
         ((saved.sys.lexemes["unit.7"] || { forms: {} }).forms.standalone === "sab3a") &&
-        !!saved.sys.overrides["7"],
-      saved ? JSON.stringify(saved.sys.overrides) : "nothing saved");
+        ((saved.sys.lexemes["unit.7"] || { lat: {} }).lat || {}).standalone === "sabʕa" &&
+        (saved.sys.overrides["7"] || {}).text === "sabʕa-wahde",
+      saved
+        ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
+        : "nothing saved");
   }
 
   editorRoot.unmount();

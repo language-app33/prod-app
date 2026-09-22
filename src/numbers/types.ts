@@ -71,8 +71,18 @@ export type NounForm = "sg" | "dual" | "pl";
 export interface Lexeme {
   slot: string;
   forms: Partial<Record<FormKey, string>>;
-  /** A transliteration per form, where the teacher gave one. Not composed
-      into a number yet — see the backlog. */
+  /**
+   * How each form sounds, where the teacher wrote it down.
+   *
+   * It goes onto the card this word becomes, beside the script, exactly
+   * as a transliteration does on a card somebody typed — so a learner
+   * meets the pronunciation, and the exercise that asks for the script
+   * from its transliteration opens. It is **not** joined into a whole
+   * number: where the pieces sit against each other is a fact about the
+   * script that the tokens do not carry, and a joined-up romanisation
+   * would be wrong wherever a one-letter connector attaches. That is on
+   * the backlog; a number the teacher wrote out has its own.
+   */
   lat?: Partial<Record<FormKey, string>>;
   /** Clip hashes per form, as a card's form holds them. */
   audio?: Partial<Record<FormKey, string[]>>;
@@ -164,6 +174,8 @@ export interface MinuteExpr {
   lead?: boolean;
   /** What it means, where the teacher wants it said in words. */
   en?: string;
+  /** And how it sounds, which goes onto the card it becomes. */
+  lat?: string;
   audio?: string[];
 }
 
@@ -172,6 +184,8 @@ export interface Period {
   slot: string;
   text: string;
   en?: string;
+  /** How it sounds, which goes onto the card it becomes. */
+  lat?: string;
   fromHour: number;
   toHour: number;
   audio?: string[];

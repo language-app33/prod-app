@@ -8,6 +8,43 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.205 — 22 September 2026
+
+**Three things the number screen was missing.**
+
+**How a word sounds, beside the word.** Every box with something written
+in it now asks for the transliteration too — a pronunciation note in Huế,
+which is already written in Latin letters — on the same condition the
+Record button appears on: there is a word here to say. It is not
+decoration. What you type goes onto the card that word becomes, under the
+script, so a student meets the pronunciation and the question that asks
+them to write the word *from* its transliteration opens for it. The
+clock's own words, each five-minute expression, each part of the day and
+every number you wrote out by hand ask the same thing.
+
+Nothing is joined up: the app will not stitch *forty* and *seven* into one
+romanisation, because where the pieces sit against each other is a fact
+about the script that it does not know. A number you wrote out yourself
+has its own, entire.
+
+**Writing a number out is its own screen now.** It used to unfold in place
+under the list you tapped it from, which on a phone put the box you were
+typing into below the fold with the whole grid scrolling behind it. Tap a
+line and you get a screen: **what the app says now**, so you can see what
+you are correcting, then what it should say and how that sounds, and one
+button. Emptying the box and keeping it is how a correction goes away. The
+numbers you have already written out are tappable the same way, to change
+one or put it back.
+
+**And a way to try the thing out.** *Try a number* beside the sample list
+opens a screen where you type any number in figures and see exactly what a
+student would be asked — the same words, not a preview of something else.
+Where a number changes for the gender of the word beside it, both are
+shown; every noun you gave it to count is counted with it; and a number it
+cannot say yet says what it is waiting for rather than a dash. If it has
+it wrong, the button at the bottom takes you straight to writing that one
+out.
+
 ## 0.204 — 22 September 2026
 
 **Numbers are a system you write once, and the app can now tell the time.**

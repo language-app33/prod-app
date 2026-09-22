@@ -217,6 +217,43 @@ test("a minute expression lands only on a five-minute mark", () => {
   assert.equal(must(got.minuteExprs["15"], "15").refHour, "same", "an unknown reference reads as this hour");
 });
 
+test("how a word sounds comes through the door beside the word, everywhere", () => {
+  /* It is what goes onto the card the word becomes, so the boundary has
+     to keep it — and has to drop it where there is nothing to sound like,
+     on the same rule every other field here follows. */
+  const numbers = must(
+    readNumberSystem({
+      languageId: "ar-PS",
+      lexemes: {
+        "unit.1": { slot: "unit.1", forms: { standalone: "wahad" }, lat: { standalone: "waahad", nonsense: "x" } },
+      },
+      overrides: { 300: { text: "tultmiyye", lat: "tultmiyye" } },
+    }),
+    "numbers",
+  );
+  assert.deepEqual(must(numbers.lexemes["unit.1"].lat, "lat"), { standalone: "waahad" },
+    "a face no language declares is not a face");
+  assert.equal(must(numbers.overrides["300"], "300").lat, "tultmiyye");
+
+  const times = must(
+    readTimeSystem({
+      id: "t", languageId: "ar-PS",
+      lexemes: { "hour.word": { slot: "hour.word", forms: { standalone: "saa3a" }, lat: { standalone: "is-saa3a" } } },
+      minuteExprs: { 15: { text: "quarter", refHour: "same", lat: "rub3" }, 30: { text: "half", refHour: "same" } },
+      periods: [
+        { slot: "morning", text: "morning", lat: "is-subuh", fromHour: 5, toHour: 11 },
+        { slot: "night", text: "night", fromHour: 22, toHour: 4 },
+      ],
+    }),
+    "time",
+  );
+  assert.equal(must(must(times.lexemes["hour.word"], "hour").lat, "lat").standalone, "is-saa3a");
+  assert.equal(must(times.minuteExprs["15"], "15").lat, "rub3");
+  assert.equal(must(times.minuteExprs["30"], "30").lat, undefined, "none written, none stored");
+  assert.equal(times.periods[0].lat, "is-subuh");
+  assert.equal(times.periods[1].lat, undefined);
+});
+
 test("a part of the day may run backwards, because one of them always does", () => {
   const got = must(
     readTimeSystem({

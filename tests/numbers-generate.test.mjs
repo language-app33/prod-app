@@ -126,6 +126,59 @@ test("a recording rides on the face it was made for", () => {
   assert.deepEqual(feminine.clips, ["bbbbbbbb"]);
 });
 
+test("how a word sounds rides on the face it was written for, like a recording", () => {
+  /* And it is what opens the question that asks for the script from its
+     transliteration: a card with an empty `lat` is never asked that one,
+     so a box filled in here is a rung a learner can climb. */
+  const withLat = {
+    ...SYS,
+    lexemes: {
+      ...SYS.lexemes,
+      "unit.1": { ...SYS.lexemes["unit.1"], lat: { standalone: "waahad", f: "wahde" } },
+    },
+  };
+  const card = byId(made({ sys: withLat }).items, componentId(SYS.id, "unit.1"));
+  assert.equal(leadOf(card).lat, "waahad");
+  assert.equal(must(subFormsOf(card).find((f) => f.col === "f"), "f").lat, "wahde");
+  /* A face the teacher wrote no pronunciation for carries an empty one,
+     which is what a card written by hand carries too. */
+  assert.equal(must(subFormsOf(card).find((f) => f.col === "m"), "m").lat, "");
+  /* And a system nobody has written one in is every card with none. */
+  for (const it of made().items) {
+    for (const form of formsOf(it)) assert.equal(form.lat, "", `${it.id} ${form.id}`);
+  }
+});
+
+test("a number written out by hand carries its own pronunciation", () => {
+  const withLat = {
+    ...SYS,
+    overrides: { ...SYS.overrides, "300": { ...SYS.overrides["300"], lat: "tultmiyye" } },
+  };
+  const card = must(
+    made({ sys: withLat }).items.find((i) => i.id.includes(":override:300")),
+    "the written-out three hundred",
+  );
+  assert.equal(leadOf(card).lat, "tultmiyye");
+});
+
+test("a clock's words, its minute expressions and its parts of the day carry theirs too", () => {
+  const clock = {
+    ...TIME,
+    lexemes: {
+      ...TIME.lexemes,
+      "hour.word": { ...TIME.lexemes["hour.word"], lat: { standalone: "is-saa3a" } },
+    },
+    minuteExprs: { ...TIME.minuteExprs, 15: { ...TIME.minuteExprs["15"], lat: "rub3" } },
+    periods: TIME.periods.map((/** @type {any} */ p, /** @type {number} */ i) =>
+      i === 0 ? { ...p, lat: "is-subuh" } : p,
+    ),
+  };
+  const items = made({ timeSys: clock }).items;
+  assert.equal(leadOf(byId(items, componentId(TIME.id, "hour.word"))).lat, "is-saa3a");
+  assert.equal(leadOf(byId(items, componentId(TIME.id, "min.15"))).lat, "rub3");
+  assert.equal(leadOf(byId(items, componentId(TIME.id, `period.${TIME.periods[0].slot}`))).lat, "is-subuh");
+});
+
 test("a number written out by hand is a card like any other", () => {
   const { items } = made();
   const card = items.find((i) => i.id.includes(":override:300"));
