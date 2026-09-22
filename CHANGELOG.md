@@ -8,6 +8,85 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.204 — 22 September 2026
+
+**Numbers are a system you write once, and the app can now tell the time.**
+
+Numbers used to be fifty-five cards with a number written on each, filled
+in on a grid that wrote one card per box. That worked, and it could not
+be taught to say *three books*: nothing in the app could hold the form a
+numeral takes when it is standing in front of a noun, so nothing could
+ask for it.
+
+**For teachers: one screen, and a preview that is the real thing.** The
+**#** in the Teaching → Cards toolbar now opens a **Number system** — the
+words your language builds its numbers out of, with a box for each face a
+word wears. In Palestinian Arabic that is the word you count with, the
+two forms that go with a masculine or a feminine word, and the two that
+go directly before a noun. Thirty-eight boxes rather than fifty-five,
+because *one hundred*, *two hundred* and *the plural* replace nine
+separate hundreds.
+
+Under the boxes is a page of numbers said exactly as a student will meet
+them, and it moves as you type. **Tap any line and you can write that
+number out yourself** — which is the answer to anything the app gets
+wrong, including the hundreds this dialect fuses into one word. Whatever
+you write is used for that number and wherever it turns up inside a
+bigger one.
+
+Nothing has to be finished. A box nobody has filled is a gap, never a
+blocker: the list at the top says what each stretch of the number line is
+waiting for, and everything that can be built still is.
+
+**If you already filled in the old grid, your words are there.** Opening
+the screen the first time reads your number cards into the system —
+including the feminine forms — and says which card each box came from.
+Nothing is deleted: every card stays where it is, in whatever decks it is
+in, with its recordings and every student's progress on it. What the old
+screen never asked for was the form before a noun, so those boxes are
+empty and marked as gaps rather than guessed at.
+
+**And a Time tab.** The word for *hour*, the words for *past* and *to*,
+the word for *minute*, what is said at each five-minute mark and whether
+it counts from this hour or the next, and what each part of the day is
+called. It waits on one thing and says so: the hour is a feminine noun,
+so it cannot be said until the numerals that go with a feminine word are
+written.
+
+**For students: numbers and times are now dealt in ordinary sessions.**
+They were a button you pressed. They are **skills** now — *Numbers 0 to
+10*, *Numbers 11 to 99*, *Counting things*, *Telling the hour*, *Quarters
+and half past*, *To the minute*, *Which part of the day* — and each holds
+a schedule and climbs the ladder like a card. A skill is only offered
+once the whole of it can be said, so a system that stops at ten is a
+practice that counts to ten and stops.
+
+Ten ways of asking, including three the app has never had:
+
+> **How would you say this?** · 3 books
+>
+> **What time does this say?** · *a clock face, with its hands where they go*
+>
+> **Set the clock to this time** · *the hands are dragged, and are a pair
+> of sliders as well*
+
+The number or the time is made up when the question is dealt and thrown
+away with the sitting — none of it is ever stored. Get one wrong and the
+*same* number comes back later in the session; get it right and the next
+one is different. And answering says two things at once: that you are
+getting better at counting, and that you read the word for forty and knew
+what it meant. Both are filed, so the words keep coming round in your
+ordinary sessions without a single extra card being scheduled.
+
+**Every word in the system is a card**, filed under *Palestinian Arabic
+numbers* in your list, with the faces it takes laid out under it the way
+a verb's persons are. They are the teacher's to write, so they are locked
+— and a teacher correcting one does not cost you your progress on it.
+
+Recordings work as they always did: one per word, and a time may play its
+hour and its minutes one after the other. Nothing is stitched together
+inside a number.
+
 ## 0.203 — 20 September 2026
 
 **The app now says what your session moved.**

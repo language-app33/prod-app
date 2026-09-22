@@ -36,6 +36,7 @@ import {
   StickyFoot,
   Tabs,
   plural,
+  pairSystems,
   pullCourses,
   shortDate,
   pullAdmin,
@@ -176,7 +177,7 @@ import {
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
 import {
   bandIndexOf,
-  confusablesOf,
+  confusablesOf as oldConfusablesOf,
   openBands,
   partCards,
   pickNumber,
@@ -184,6 +185,20 @@ import {
   spell,
   teachesNumbers,
 } from "./numbers.ts";
+/* A language's numbers and its clock, reached the way everything else
+   language-shaped is: through a registry keyed by language, never by
+   naming one. See src/numbers/. */
+import { composerFor, timeComposerFor } from "./numbers/index.ts";
+import type { Ask } from "./numbers/types.ts";
+import {
+  askFor,
+  confusableTimes,
+  confusablesOf,
+  renderAsk,
+} from "./numbers/range.ts";
+import type { SystemSet } from "./numbers/generate.ts";
+import { componentId, isRangeSkill, overrideId, systemFor } from "./numbers/generate.ts";
+import { ClockDial, ClockFace } from "./clock.tsx";
 import {
   cleared,
   formatGap,
@@ -1879,6 +1894,59 @@ function castFill(
   };
 }
 
+/**
+ * A skill, cast as the question it was dealt.
+ *
+ * A range carries no words: it is a schedule and a marker. What it is
+ * *about* was drawn when the queue was built and rides on the question,
+ * so this is where the words are finally said — the script, the figures,
+ * and the two hands of a clock where one is being read.
+ *
+ * Nothing here reaches the disk. The cast form is for showing, as every
+ * cast form is: the schedule that is written afterwards belongs to the
+ * skill, and the cards the words came from are credited through their own
+ * tokens. See DECISIONS.md — "a cast form is for showing, never for
+ * deciding".
+ */
+function castRange(
+  resolved: { unit: Form; parent: Item; isSub: boolean } | null,
+  ex: Question | null | undefined,
+  sets: SystemSet[],
+) {
+  if (!resolved || !ex || !ex.ask || !resolved.parent.range) return resolved;
+  const set = systemFor(resolved.parent, sets);
+  if (!set) return resolved;
+  const said = renderAsk(
+    ex.ask,
+    composerFor(set.numbers.languageId),
+    set.numbers,
+    timeComposerFor(set.numbers.languageId),
+    set.times,
+  );
+  if (!said.text) return resolved;
+  const unit: Form = {
+    ...resolved.unit,
+    ar: said.text,
+    en: said.digits,
+    /* What it means in words, where a counted phrase has anything to say
+       beyond the figures. */
+    ...(said.en && said.en !== said.digits ? { gloss: said.en } : null),
+    /* The two hands, for the question that draws a face and the one that
+       is answered by setting one. */
+    ...(typeof said.hour === "number"
+      ? { hour: said.hour, minute: said.minute || 0 }
+      : null),
+    /* The recordings, in order: at most two, the hour and the minutes.
+       Nothing inside a number is ever stitched. */
+    ...(said.clips && said.clips.length ? { recSeq: said.clips } : null),
+    /* Which words stood in it, so a right answer credits the cards they
+       are written on — the same crediting a sentence does for the words
+       that filled its blanks. */
+    tokens: said.tokens,
+  };
+  return { ...resolved, unit, parent: withLead(resolved.parent, unit) };
+}
+
 /*
  * The form of the verb this sentence wants, this time round.
  *
@@ -2746,6 +2814,63 @@ interface Session {
   due?: number;
 }
 
+/**
+ * The number or the time one asking of a range is about, drawn.
+ *
+ * Empty for everything that is not a range, which is nearly every
+ * question — so the caller spreads the answer and says nothing about
+ * skills at all.
+ *
+ * The seed is the skill, the exercise and the count of right answers so
+ * far, which is the same odometer a sentence's fillers turn on: a missed
+ * question comes back as *the same* number, a right one moves on, and a
+ * re-render cannot swap the question under somebody halfway through
+ * answering it.
+ */
+function drawRange(
+  item: Item | undefined,
+  unit: Form,
+  type: string,
+  sets: SystemSet[],
+): { ask?: Ask; options?: string[] } {
+  const range = item && item.range;
+  if (!range) return {};
+  const set = systemFor(item, sets);
+  if (!set) return {};
+  const composer = composerFor(set.numbers.languageId);
+  const times = timeComposerFor(set.numbers.languageId);
+  if (!composer) return {};
+
+  const turn = turnOf(statesOf(unit)[type]);
+  const ask = askFor(range, `${item.id} ${type} ${turn}`, set.numbers);
+
+  if (EX[type] && EX[type].picks !== "word") return { ask };
+  /*
+   * The wrong answers, said. Numbers worth confusing with the right one —
+   * seventy-four beside forty-seven, four hundred and seventy beside it
+   * too — and only the ones the composer can actually say. Drawing from
+   * the learner's vocabulary instead would put a book and a house beside
+   * a number and make the question a reading test.
+   */
+  const right = renderAsk(ask, composer, set.numbers, times, set.times);
+  const options: string[] = [];
+  const near =
+    ask.kind === "time"
+      ? confusableTimes(ask.value, ask.minute || 0, range.marks || []).map(
+          (t): Ask => ({ ...ask, value: t.h, minute: t.m }),
+        )
+      : confusablesOf(ask.value).map((v): Ask => ({ ...ask, value: v }));
+  for (const other of near) {
+    if (options.length >= PICK_OPTIONS - 1) break;
+    const said = renderAsk(other, composer, set.numbers, times, set.times);
+    if (!said.text || said.text === right.text || options.includes(said.text)) continue;
+    options.push(said.text);
+  }
+  /* A question that could not find three is asked another way rather than
+     with two options — the same fallback the grid makes. */
+  return options.length >= PICK_OPTIONS - 1 ? { ask, options } : { ask };
+}
+
 export function buildSession({
   items,
   settings,
@@ -2753,6 +2878,7 @@ export function buildSession({
   practice,
   includeAll,
   budget: budgetIn,
+  systems,
 }: {
   items: Item[];
   settings: Settings;
@@ -2760,8 +2886,24 @@ export function buildSession({
   practice?: boolean;
   includeAll?: boolean;
   budget?: number;
+  /**
+   * The teachers' number systems, for the skills among the cards.
+   *
+   * A range holds a schedule and no words, so the number it is asked
+   * about has to be drawn and said here — and a caller with no systems
+   * to draw from simply deals no ranges rather than dealing a question
+   * with nothing in it.
+   */
+  systems?: SystemSet[];
 }): Session {
-  const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
+  const sets = systems || [];
+  const pool = items
+    .filter((it) => inDeck(it) && isDrillable(it, settings))
+    /* A skill whose system this device no longer holds — a course left,
+       a teacher's language dropped — is a schedule with nothing behind
+       it. Left in the collection, so the work comes back if the material
+       does, and simply not dealt. */
+    .filter((it) => !isRangeSkill(it) || systemFor(it, sets));
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
 
   const budget = Math.max(4, budgetIn || SESSION_SIZE);
@@ -3017,7 +3159,17 @@ export function buildSession({
            moment of asking, so the question does not change under the
            learner if the cards are refreshed mid-session. */
         const ctx = p.unit ? pickContext(p.unit, type) : null;
-        exercises.push({ id: p.id, subId: p.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+        /* And which number or time, for the same reason and by the same
+           rule: drawn once, here, from a seed that moves on a right
+           answer so a missed question comes back unchanged. */
+        const drawn = drawRange(items.find((i) => i.id === p.id), p.unit, type, sets);
+        exercises.push({
+          id: p.id,
+          subId: p.subId,
+          type,
+          ...(ctx ? { ctx: ctx.id } : null),
+          ...drawn,
+        });
       }
     }
   }
@@ -3707,7 +3859,7 @@ export function buildNumberSession({ items, settings, langId, count, reach, rand
          question that could not find three is asked another way rather
          than with two options. */
       const mates: { id: string; subId: string | null }[] = [];
-      for (const other of confusablesOf(picked.value)) {
+      for (const other of oldConfusablesOf(picked.value)) {
         if (mates.length >= NUMBER_MATES) break;
         const said = spell(lang, parts, other);
         if (!said || said.text === picked.spelled.text) continue;
@@ -5460,19 +5612,53 @@ export function leadSpeed(unit: Form, type?: string): "regular" | "slow" {
   return grown ? "regular" : "slow";
 }
 
-function AudioPrompt({ recs, autoPlay, lead = "regular" }: {
+/**
+ * What a question plays, and what it plays afterwards.
+ *
+ * A card's own recordings, for nearly everything. A time is the one
+ * exception: it is said as its hour and then its minutes, so the first
+ * group is what the button starts and the rest follow it.
+ */
+function audibleOf(unit: Form): any[] {
+  const seq = (unit as Record<string, any>).recSeq as string[][] | undefined;
+  if (!seq || !seq.length) return unit.recs || NO_RECS;
+  const first = (seq[0] || [])[0];
+  return first ? [{ id: first, label: "", speed: "" }] : NO_RECS;
+}
+
+function chainOf(unit: Form): string[] {
+  const seq = (unit as Record<string, any>).recSeq as string[][] | undefined;
+  if (!seq || seq.length < 2) return [];
+  return seq.slice(1).map((group) => (group || [])[0]).filter(Boolean);
+}
+
+function AudioPrompt({ recs, autoPlay, lead = "regular", after }: {
   recs?: any[];
   autoPlay?: boolean;
   lead?: "regular" | "slow";
+  /**
+   * Recordings to play straight after the one that was started.
+   *
+   * The one place two clips are ever joined: a time may be its hour and
+   * its minutes said one after the other, because a teacher records the
+   * words and not the nine hundred times a clock can show. Played in
+   * order rather than stitched — the join is where a dialect lives, and a
+   * stitched clip teaches the wrong sound.
+   */
+  after?: string[];
 }) {
   const [idx, setIdx] = useState(0);
   const [state, setState] = useState("idle");
   const audioRef: React.MutableRefObject<HTMLAudioElement | null> = useRef(null);
   const urlRef = useRef("");
+  /* Whether a clip is finishing so the next can start. Held apart from
+     the state because the browser reports the gap between two clips as a
+     pause, and a pause between them is not the player stopping. */
+  const chaining = useRef(false);
   const list = recs || NO_RECS;
   /* Which recordings this is showing, as one string, so the reset below
      fires when any of them changes and not only the first. */
-  const signature = list.map((r) => r.id).join("|");
+  const signature = list.map((r) => r.id).concat(after || []).join("|");
 
   /*
    * At most one of each speed, and the ordinary one first.
@@ -5528,12 +5714,40 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }: {
       releaseUrl();
       urlRef.current = url;
       el.src = url;
-      el.onended = () => setState("idle");
+      /* One clip, or a clip and then the rest of them. */
+      const queue = (after || []).slice();
+      el.onended = async () => {
+        const next = queue.shift();
+        if (!next) {
+          chaining.current = false;
+          setState("idle");
+          return;
+        }
+        chaining.current = true;
+        const nextUrl = await clipUrl(next);
+        if (!nextUrl) {
+          chaining.current = false;
+          setState("idle");
+          return;
+        }
+        releaseUrl();
+        urlRef.current = nextUrl;
+        el.src = nextUrl;
+        try {
+          await el.play();
+        } catch (e) {
+          chaining.current = false;
+          setState("idle");
+        }
+      };
       /* Paused by anything else — the other button taking the element, a
          headset, the phone's own controls — reads the same as pausing here.
          Only ever a step down from playing, so it cannot undo the state a
          moment before the clip starts. */
-      el.onpause = () => setState((v) => (v === "playing" ? "idle" : v));
+      el.onpause = () => {
+        if (chaining.current) return;
+        setState((v) => (v === "playing" ? "idle" : v));
+      };
       /* A clip that cannot be decoded used to leave the button on "playing"
          for good; now it reads as missing, which is what it is. */
       el.onerror = () => setState("missing");
@@ -6282,6 +6496,16 @@ const MATERIAL_KEY = "arabic-trainer:material";
 interface HeldMaterial {
   courses: Course[];
   decks: Deck[];
+  /*
+   * The teachers' numbers, kept with the courses and for the same reason.
+   *
+   * The *cards* a system becomes are in the document and survive a launch
+   * anyway; the system itself is what a skill's question is drawn from,
+   * and a device that had to ask the server for it would open with every
+   * range unaskable until the first refresh came back. Which is offline,
+   * every time, for as long as the connection is out.
+   */
+  systems: unknown[];
   version: string;
   at: Millis;
 }
@@ -6297,6 +6521,7 @@ function loadMaterial(handle?: string | null): HeldMaterial | null {
     return {
       courses: Array.isArray(held.courses) ? held.courses : [],
       decks: Array.isArray(held.decks) ? held.decks : [],
+      systems: Array.isArray(held.systems) ? held.systems : [],
       version: String(held.version || ""),
       at: Number(held.at) || 0,
     };
@@ -6305,7 +6530,10 @@ function loadMaterial(handle?: string | null): HeldMaterial | null {
   }
 }
 
-function saveMaterial(handle: string, held: { courses: Course[]; decks: Deck[]; version: string }) {
+function saveMaterial(
+  handle: string,
+  held: { courses: Course[]; decks: Deck[]; systems: unknown[]; version: string },
+) {
   try {
     localStorage.setItem(
       MATERIAL_KEY,
@@ -6450,6 +6678,12 @@ export default function ArabicTrainer() {
   /* A deck the person asked to practice from the Courses tab, handed to the
      cards tab once it is on screen. */
   const [deckWanted, setDeckWanted] = useState<string | null>(null);
+  /* The teachers' numbers, read back through the same narrowing the wire
+     goes through — what was kept is a copy of what arrived, and an older
+     build's copy is not this build's shape. */
+  const [systems, setSystems] = useState<SystemSet[]>(() =>
+    pairSystems(heldMaterial ? heldMaterial.systems : []),
+  );
   const [courseDecks, setCourseDecks] = useState<Deck[]>(
     heldMaterial ? heldMaterial.decks : [],
   );
@@ -7548,11 +7782,13 @@ export default function ArabicTrainer() {
         }
         setMyCourses(r.courses);
         setCourseDecks(r.decks);
+        setSystems(r.systems);
         /* Kept, so the next launch opens with them rather than with an
            error — and so the check after that can be the cheap one. */
         saveMaterial(account.handle, {
           courses: r.courses,
           decks: r.decks,
+          systems: r.systems.flatMap((set) => [set.numbers, ...(set.times ? [set.times] : [])]),
           version: r.version || "",
         });
         /* Folded against the cards as they are now, not as they were when
@@ -7807,7 +8043,7 @@ export default function ArabicTrainer() {
   }
 
   function begin(practice?: boolean) {
-    const built = buildSession({ items: shown, settings, inDeck, practice });
+    const built = buildSession({ items: shown, settings, inDeck, practice, systems });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that
@@ -7925,12 +8161,16 @@ export default function ArabicTrainer() {
   const resolved = useMemo(
     () =>
       exercise
-        ? castMeaning(
-            castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type),
-            exercise.type
+        ? castRange(
+            castMeaning(
+              castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type),
+              exercise.type
+            ),
+            exercise,
+            systems,
           )
         : null,
-    [asking, exercise, trial]
+    [asking, exercise, trial, systems]
   );
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
@@ -8166,6 +8406,27 @@ export default function ArabicTrainer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grid, asking, qLang.id]);
 
+  /*
+   * Where the hands are while a time is being set.
+   *
+   * Read out of the typed answer rather than held beside it, so there is
+   * one answer and not two that can disagree — the same reason the grid
+   * writes its pairs into `typed`. Nothing set yet opens at noon, which
+   * is the one position on a dial that is not an answer to anything.
+   */
+  const dialAt = useMemo(() => {
+    const m = String(typed || "").match(/^(\d{1,2}):(\d{1,2})$/);
+    return m
+      ? { hour: Math.min(23, Number(m[1])), minute: Math.min(59, Number(m[2])) }
+      : { hour: 12, minute: 0 };
+  }, [typed]);
+  /* What the minutes may land on: whatever the question is asked in, so a
+     five-minute question cannot be answered seven minutes past. A thumb is
+     not a precise instrument and a question that asks for precision it
+     cannot give is a question about the screen. */
+  const dialMarks = (parentItem && parentItem.range && parentItem.range.marks) || undefined;
+  const dialClock = ((systemFor(parentItem, systems) || {}).times || { clock: "12h" }).clock;
+
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
     if (spec.picks === "reply") {
@@ -8185,6 +8446,24 @@ export default function ArabicTrainer() {
      * instead would put a book and a house beside a number and make the
      * question a reading test.
      */
+    /*
+     * A range brings its own wrong answers, already said.
+     *
+     * They were chosen when the question was built, because which numbers
+     * are worth confusing is arithmetic and which of them can be said is
+     * the composer's business. Drawing from the learner's vocabulary
+     * instead would put a book and a house beside a number and make the
+     * question a reading test.
+     */
+    if (exercise && exercise.options && exercise.options.length) {
+      return optionsFor({
+        answer: item,
+        pool: exercise.options.map((text: string) => ({ id: `opt:${text}`, ar: text, en: "", lat: "" })),
+        wanted: PICK_OPTIONS,
+        seed: `${item.id} ${exercise.type}`,
+        textOf: (w) => w.ar,
+      });
+    }
     if (exercise && isMadeUpNumber(item)) {
       const said = (exercise.mates || [])
         .map((m: { id: string }) => (asking.find((i) => i.id === m.id) || { forms: [] }).forms[0])
@@ -8862,6 +9141,48 @@ export default function ArabicTrainer() {
      * ordinary exercise the question was evidence for. Same three rules a
      * sentence's fillers get, through the same function.
      */
+    /*
+     * And a range is marked on itself *and* on the words that stood in it.
+     *
+     * The difference from a made-up number, which is marked on its parts
+     * alone: a skill has a card's worth of schedule now, so the answer
+     * says two things. It says the learner is getting better at counting
+     * to a hundred, which is the skill's own key; and it says they read
+     * the word for forty and knew what it meant, which is the ordinary
+     * key each component card climbs. Both are true and each is filed
+     * where it belongs.
+     */
+    if (item.tokens) {
+      const set = systemFor(parentItem, systems);
+      const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+      const from = set ? set.numbers.id : "";
+      const said = new Set(
+        ((item.tokens as { slot?: string; override?: string }[]) || [])
+          .map((t) => (t.override ? overrideId(from, t.override) : t.slot ? componentId(from, t.slot) : ""))
+          .filter(Boolean),
+      );
+      marks.push(
+        ...fillerMarks(
+          [...said]
+            .map((id) => asking.find((i) => i.id === id))
+            .filter(Boolean)
+            .map((card) => {
+              const form = leadOf(card);
+              return {
+                id: (card as Item).id,
+                subId: null,
+                asked: laddered(form, settings).includes(under),
+                ready: (() => {
+                  const st = statesOf(form)[under];
+                  return !!st && st.phase !== "new" && stateReady(st);
+                })(),
+              };
+            }),
+          { correct: !!correct },
+          practice,
+        ).map((mark) => ({ ...mark, under })),
+      );
+    }
     const numbersAsked = isMadeUpNumber(item);
     const gradedType = numbersAsked
       ? NUMBER_EQUIVALENT[exercise.type] || exercise.type
@@ -9688,12 +10009,31 @@ export default function ArabicTrainer() {
                           )}
                         </>
                       )
+                    ) : spec.promptField === "clock" ? (
+                      /* The one question about a clock no word can ask.
+                         Drawn rather than written out, and said in words
+                         beside it for anybody not looking at the picture —
+                         a screen reader handed a dial to interpret is a
+                         screen reader asked to do the exercise. */
+                      <ClockFace
+                        hour={Number(item.hour) || 0}
+                        minute={Number(item.minute) || 0}
+                        fine={(Number(item.minute) || 0) % 5 !== 0}
+                        label={`${Number(item.hour) || 0}:${String(Number(item.minute) || 0).padStart(2, "0")}`}
+                      />
                     ) : spec.promptField === "audio" ? (
                       /* A context question plays the whole phrase, not the
                          word: hearing it in running speech is the exercise.
-                         Everything else plays the card's own recording. */
+                         Everything else plays the card's own recording.
+
+                         A time plays two: the hour and the minutes, one
+                         after the other. It is the only place two
+                         recordings are ever joined, and they are played in
+                         order rather than stitched — the joins are where a
+                         dialect lives. */
                       <AudioPrompt
-                        recs={context ? context.recs : item.recs}
+                        recs={context ? context.recs : audibleOf(item)}
+                        after={context ? [] : chainOf(item)}
                         autoPlay
                         lead={leadSpeed(item, exercise.type)}
                       />
@@ -9744,7 +10084,23 @@ export default function ArabicTrainer() {
                       second, so the at-mt4 gap was silently dropped and the
                       answer box sat hard against the hint button above it. */}
                   <div className="at-answerbox at-mt4" data-el="answer-box">
-                    {spec.answerMode === "read" ? null : spec.answerMode === "order" ? (
+                    {spec.answerMode === "read" ? null : spec.answerMode === "dial" ? (
+                      /* The hands, dragged. What a learner does with a
+                         clock is set it, so this is the answer in the form
+                         the skill is actually used in — and it is a pair
+                         of sliders as well, because a dial is what a
+                         keyboard and a screen reader cannot use. */
+                      <ClockDial
+                        hour={dialAt.hour}
+                        minute={dialAt.minute}
+                        marks={dialMarks}
+                        clock={dialClock}
+                        disabled={!!checked}
+                        onChange={(h, m) =>
+                          setTyped(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)
+                        }
+                      />
+                    ) : spec.answerMode === "order" ? (
                       <SceneOrder
                         card={dialog}
                         lang={qLang}

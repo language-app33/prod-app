@@ -2350,6 +2350,87 @@ test("a teacher's numbers are saved, read back, and minted an id of their own", 
   assert.equal((await api("/api/courses?action=my-systems", { key })).json.systems.length, 2);
 });
 
+test("a teacher who filled in the old Numbers screen finds their words in the new one", async () => {
+  /*
+   * A lift on read, in the mould every other migration here is: it runs
+   * the first time the screen is opened, it builds a system where there
+   * is none, and it deletes nothing. The cards stay where they are, with
+   * their recordings and every student's progress on them; they are
+   * marked as having been read, and a later release takes them.
+   */
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Huda" } });
+  const key = made.json.key;
+
+  /* The old shape: a card per part, findable by the value on it. */
+  const written = [];
+  for (const [value, word, feminine] of [
+    [1, "wahad", "wahde"],
+    [2, "tnen", "tinten"],
+    [20, "ishrin", ""],
+    [100, "miyye", ""],
+    [300, "tultmiyye", ""],
+  ]) {
+    /** @type {Record<string, any>[]} */
+    const forms = [{ ar: word, en: String(value), lat: "" }];
+    if (feminine) forms.push({ ar: feminine, en: String(value), lat: "", row: "counted", col: "feminine" });
+    const saved = await api("/api/courses?action=save-card", {
+      method: "POST", key,
+      body: { card: { id: "", lang: "ar-PS", forms, category: "number", value }, decks: [] },
+    });
+    assert.equal(saved.status, 200, saved.text);
+    written.push(saved.json.card.id);
+  }
+
+  const first = await api("/api/courses?action=my-systems", { key });
+  assert.equal(first.status, 200, first.text);
+  assert.equal(first.json.systems.length, 1, "opening the screen built one");
+  const sys = first.json.systems[0];
+  assert.equal(sys.languageId, "ar-PS");
+  assert.equal(sys.lexemes["unit.1"].forms.standalone, "wahad");
+  assert.equal(sys.lexemes["unit.1"].forms.f, "wahde", "and the cell came across as a face");
+  assert.equal(sys.lexemes["ten.20"].forms.standalone, "ishrin");
+  assert.equal(sys.lexemes["hundred.1"].forms.standalone, "miyye");
+  /* Three hundred is one word in this dialect and always was, so it is a
+     number the teacher wrote out rather than a box. */
+  assert.equal(sys.overrides["300"].text, "tultmiyye");
+  /* And every box says which card it came from, which is what lets a
+     device hand a learner's year on a word to the card that replaces it. */
+  assert.equal(sys.migratedFrom["unit.1"], written[0]);
+  assert.equal(sys.migratedFrom["override:300"], written[4]);
+
+  /* Nothing was deleted, and the cards say they have been read. */
+  const cards = await api("/api/courses?action=my-cards", { key });
+  assert.equal(cards.json.cards.length, written.length, "every card is still there");
+  for (const card of cards.json.cards) assert.equal(card.derived, true, `${card.id} should be marked`);
+
+  /* Run again and nothing happens: a system that exists is never rebuilt. */
+  const again = await api("/api/courses?action=my-systems", { key });
+  assert.equal(again.json.systems.length, 1);
+  assert.equal(again.json.systems[0].id, sys.id);
+  assert.deepEqual(again.json.systems[0].lexemes, sys.lexemes);
+
+  /* And a correction made afterwards is not undone by opening it again. */
+  await api("/api/courses?action=save-system", {
+    method: "POST", key,
+    body: {
+      kind: "numbers",
+      system: { ...sys, rev: sys.rev, lexemes: { ...sys.lexemes, "ten.20": { slot: "ten.20", forms: { standalone: "ishreen" } } } },
+    },
+  });
+  const after = await api("/api/courses?action=my-systems", { key });
+  assert.equal(after.json.systems[0].lexemes["ten.20"].forms.standalone, "ishreen");
+});
+
+test("a teacher with no number cards gets no system built for them", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Sami" } });
+  const key = made.json.key;
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "kitaab", en: "book", lat: "" }] }, decks: [] },
+  });
+  assert.deepEqual((await api("/api/courses?action=my-systems", { key })).json.systems, []);
+});
+
 test("a save built on an older copy is refused, and hands back the one that is there", async () => {
   /*
    * Whole-document last-write-wins, said out loud. Two teachers editing

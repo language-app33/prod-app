@@ -241,7 +241,13 @@ test("the listening exercises are exactly the ones prompted by audio", () => {
      an audio prompt and nothing else: the quiet window, the substitution
      and the "can't listen right now" button all picked it up unprompted,
      which is what deriving this from the prompt rather than a flag buys. */
-  assert.deepEqual(byHelper, ["rec2en", "rec2ar", "rec2attr", "rec2ctx"]);
+  assert.deepEqual(byHelper, [
+    "rec2en", "rec2ar", "rec2attr", "rec2ctx",
+    /* And the two that play a number or a time. They were picked up by
+       the quiet window and the "can't listen right now" button without
+       being told, which is what deriving this from the prompt buys. */
+    "rec2fig", "rec2dial",
+  ]);
 });
 
 test("reading and writing exercises are not listening ones", () => {
@@ -526,7 +532,13 @@ test("the gentle types are read off the definitions, not kept beside them", () =
      The gentle set is the first two levels of the ladder exactly:
      recognising what a word means, then which word it is. Every one of
      them puts the answer on the screen — nothing here is written out. */
-  assert.deepEqual(EASY_TYPES, ["ar2pick", "ar2en", "rec2en", "match", "en2pick", "ctx2pick", "dlgwhole"]);
+  assert.deepEqual(EASY_TYPES, [
+    "ar2pick", "ar2en", "rec2en", "match", "en2pick", "ctx2pick", "dlgwhole",
+    /* Reading a number or a time and saying what it is, and picking one
+       out of four, are recognition in exactly the sense the six above
+       are: the answer is on the screen and nothing is written out. */
+    "num2fig", "fig2pick", "rec2fig", "time2fig", "time2dial",
+  ]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);
@@ -761,7 +773,10 @@ test("the verb and the pronouns are still found by name, and the rest by the reg
      number's feminine, and deliberately: what a table is called is how a
      card finds it, and what is in it is the language's own business. */
   const vi = LANGUAGES["vi-Hue"];
-  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb", "counted"]);
+  /* And the faces a numeral takes, which every pack with a composer now
+     lays out under the same name — Huế's is the one form a word wears
+     inside a bigger number. */
+  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb", "counted", "number"]);
   assert.equal(specOf(vi, "agreement"), null);
   assert.deepEqual(must(specOf(vi, "counted"), "Huế counted").persons.map((p) => p.id),
     ["after-ten", "empty-place"]);

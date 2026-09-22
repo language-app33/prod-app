@@ -298,10 +298,28 @@ export interface Range {
  * `render` is the whole of it. Everything else says what the teacher is
  * asked for and how the forms lay out as a card's cells.
  */
+/**
+ * A number card as the app stored one before systems existed.
+ *
+ * The card's own word, and whatever named cells the old `counted` table
+ * carried beside it. Handed to a composer because how those map onto the
+ * faces a system holds is a fact about the language and nothing else:
+ * Arabic kept the counting form on the card and the feminine in a cell,
+ * and Hebrew kept the *masculine* on the card and the form you count with
+ * in the cell. Reading both the same way would have turned every Hebrew
+ * number round.
+ */
+export interface OldCard {
+  word: string;
+  cells: Record<string, string>;
+}
+
 export interface Composer {
   id: LangId;
   version: number;
   requiredSlots(): SlotSpec[];
+  /** What one of those becomes, in this language. */
+  liftCard(old: OldCard): Partial<Record<FormKey, string>>;
   /** How a lexeme's forms sit as cells of a component card's table. */
   table(): VerbSpec;
   ranges(): Range[];
@@ -344,6 +362,23 @@ export interface TimeComposer {
     numbers: NumberSystem | null,
     ctx: TimeCtx,
   ): TimeRendering;
+}
+
+/**
+ * What one asking of a range is about.
+ *
+ * Everything needed to render it again, so a retry is the same question.
+ * Declared here rather than beside the sampler because a card's queue
+ * entry carries one and the shapes a record can hold live together.
+ */
+export interface Ask {
+  rangeId: string;
+  kind: "numbers" | "time";
+  value: number;
+  minute?: number;
+  nounId?: string;
+  style?: TimeStyle;
+  period?: boolean;
 }
 
 /* ---- the ceiling ---- */

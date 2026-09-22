@@ -584,6 +584,17 @@ export interface Lang {
    * offered. See src/numbers.ts.
    */
   numbers?: NumberSpec;
+  /**
+   * The same answer, in the shape the number system asks it in: which
+   * boxes a teacher fills, which faces each takes, which ranges a learner
+   * is scheduled on, and how a number is put together out of the words
+   * they wrote. Declared beside the pack in src/numbers/, which holds the
+   * rules and not a word of any language.
+   */
+  composer?: import("./numbers/types.ts").Composer | null;
+  /** And how it tells the time, which is a separate answer: a language
+      may build numbers and have nobody yet who knows its clock. */
+  times?: import("./numbers/types.ts").TimeComposer | null;
 }
 
 /**
@@ -794,6 +805,20 @@ export type Card = {
    */
   value?: number;
   /**
+   * Whether this card's words have been read into a number system.
+   *
+   * Numbers used to be fifty-five cards with a `value` on each; they are
+   * one document now, and the migration that built it marked the cards it
+   * read rather than deleting them. A card carries recordings and
+   * somebody's progress, and neither is the migration's to throw away —
+   * so they stay where they are, in whatever decks they are in, and a
+   * later release takes them.
+   *
+   * Absent on every card that is not one of those, which is nearly all of
+   * them.
+   */
+  derived?: boolean;
+  /**
    * The variables this card can stand in for, where it is a value rather
    * than something to learn: a card saying `name` fills every {{name}} in
    * every phrase of the same language. Empty on an ordinary card.
@@ -998,6 +1023,26 @@ export interface Question {
    * above is only the first of them.
    */
   mates?: { id: string; subId: string | null }[];
+  /**
+   * Which number or time this asking of a range is about.
+   *
+   * Drawn when the queue is built and never stored: the same rule the
+   * phrase a word is stood in follows, and for the same reason — a
+   * question that changed under the learner between being dealt and being
+   * answered would be a different bug every time. What a right answer
+   * moves is the skill's own schedule and the cards whose words stood in
+   * the rendering; the number itself is thrown away with the sitting.
+   */
+  ask?: import("./numbers/types.ts").Ask;
+  /**
+   * The wrong answers beside it, already said in words.
+   *
+   * A range brings its own, because which numbers are worth confusing is
+   * arithmetic and which of them can be said is the composer's business.
+   * Drawing from the learner's vocabulary instead would put a book and a
+   * house beside a number and make the question a reading test.
+   */
+  options?: string[];
 }
 
 /**

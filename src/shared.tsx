@@ -19,6 +19,13 @@ import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSai
   rowsLine, tablesOn, tableTitle, unnamedOn } from "./card-facts.ts";
 import { colOf, personsOf, rowOf, slotRows, tensesOf } from "./verbs.ts";
 import { isOffline, watchNet } from "./net.ts";
+/* A teacher's numbers and their clock, which arrive with the material and
+   become cards on the way in. Reached through the registry, never by
+   naming a language — see src/numbers/. */
+import { composerFor, timeComposerFor } from "./numbers/index.ts";
+import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
+import type { SystemSet } from "./numbers/generate.ts";
+import { generate } from "./numbers/generate.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -3890,6 +3897,11 @@ export type CoursesPulled = Folded & {
   unchanged?: false;
   decks: Deck[];
   courses: Course[];
+  /* The teachers' numbers, paired with their clocks. Held by the caller
+     as well as folded into the cards, because a skill's question is drawn
+     from the system when it is dealt and the cards alone do not carry
+     enough to draw one. */
+  systems: SystemSet[];
   /* The same fold again, against whatever the cards and the drawer are by
      the time the caller adopts the result. */
   fold: (current: Item[], parked?: Record<string, Parked>) => Folded;
@@ -3955,11 +3967,44 @@ export async function pullCourses(
     }
   }
 
+  /*
+   * And the teachers' numbers, which are in no deck and arrive beside
+   * them.
+   *
+   * Read through the boundary reader first, so what is folded into
+   * somebody's collection is the narrowed shape and not whatever came
+   * down the wire. Then turned into cards — one per word the teacher
+   * wrote — and skills, which go into the same fold everything else does
+   * and so keep whatever the learner has earned on them.
+   */
+  const systems = pairSystems(r.systems || []);
+  const now = Date.now();
+  for (const set of systems) {
+    const lang = LANGUAGES[set.numbers.languageId];
+    const made = generate({
+      composer: composerFor(set.numbers.languageId),
+      sys: set.numbers,
+      timeComposer: timeComposerFor(set.numbers.languageId),
+      timeSys: set.times,
+      /* Filed under a name of its own in the card list, the way a deck's
+         title files its cards: they are material, and a learner looking
+         for the word for forty should find it where they look for words. */
+      tag: `${(lang && lang.name) || set.numbers.languageId} numbers`,
+      now,
+    });
+    for (const item of made.items) {
+      if (at.has(item.id)) continue;
+      at.set(item.id, item);
+      incoming.push(item);
+    }
+  }
+
   const folded = foldCourses(items, incoming, parked);
   return {
     ...folded,
     decks,
     courses: enrolled,
+    systems,
     /* The same fold again, against whatever the cards are by the time the
        caller adopts the result. */
     fold: (current: Item[], drawer: Record<string, Parked> = parked) =>
@@ -3967,6 +4012,36 @@ export async function pullCourses(
     version: r.version || "",
     teaches: !!r.teaches,
   };
+}
+
+/**
+ * The systems as they arrive, narrowed and paired.
+ *
+ * A clock cannot be rendered without the numbers it reads its hours from,
+ * so the two travel together and a clock whose numbers did not arrive is
+ * simply dropped — a half a system is a question that would fail at the
+ * moment it was dealt, which is the worst place to find out.
+ */
+export function pairSystems(raw: unknown[]): SystemSet[] {
+  const numbers = new Map<string, SystemSet>();
+  const times = [];
+  for (const one of raw || []) {
+    /* Told apart by what they hold rather than by a label on the wire:
+       a time system names the numbers it reads, and nothing else does. */
+    const isTime = !!(one && typeof one === "object" && "minuteExprs" in one);
+    if (isTime) {
+      const read = readTimeSystem(one);
+      if (read) times.push(read);
+      continue;
+    }
+    const read = readNumberSystem(one);
+    if (read && read.id) numbers.set(read.id, { numbers: read, times: null });
+  }
+  for (const clock of times) {
+    const set = numbers.get(clock.numberSystemId);
+    if (set) set.times = clock;
+  }
+  return [...numbers.values()];
 }
 
 /*

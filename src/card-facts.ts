@@ -617,6 +617,29 @@ export const CARD_FACTS: FieldRule[] = [
     shown: (value) => (value == null || value === "" ? [] : [String(value)]),
   },
   {
+    key: "range",
+    on: "card",
+    label: "The skill",
+    what:
+      "The stretch of what can be asked that this card *is*, where it is a skill rather than a word — counting to ten, telling the hour. " +
+      "It holds a schedule and no words: what it is asked is made up when the question is dealt and thrown away with the sitting.",
+    reader: "both",
+    shown: (value) => {
+      const range = value as { label?: string } | null;
+      return range && range.label ? [range.label] : [];
+    },
+  },
+  {
+    key: "derived",
+    on: "card",
+    label: "Read into the number system",
+    what:
+      "Whether this card's words have already been read into the language's number system. " +
+      "It is still a card, with its recordings and everybody's progress on it; a later release takes it away.",
+    reader: "teacher",
+    shown: (value) => (value ? ["Its words are in the number system now"] : []),
+  },
+  {
     key: "name",
     on: "card",
     label: "Listed as",

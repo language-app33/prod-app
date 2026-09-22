@@ -470,21 +470,44 @@ test("parts are read only from the language being asked about", () => {
 
 /* ---- the questions a number is asked ---- */
 
-test("the three number questions are real exercises, and none is scheduled", () => {
+test("a number question is a real exercise, and says which ordinary one it is evidence for", () => {
   for (const lang of [AR, HE, VI]) {
     for (const [asked, stands] of Object.entries(NUMBER_EQUIVALENT)) {
       const spec = exOf(asked, lang);
       assert.ok(spec, `${lang.id} cannot describe ${asked}`);
       assert.ok(spec.instruction && spec.question, `${asked} has nothing to put on screen`);
-      /* Never scheduled: a number is not a card and climbs no ladder, so
-         nothing may deal these or store a state for one. */
-      assert.equal(TYPES.includes(asked), false, `${asked} must stay out of TYPES`);
-      /* And what it stands in for is an ordinary exercise that is. */
+      /*
+       * Both are scheduled now, which is the change 0.204 made: a range
+       * of numbers is a skill and climbs the ladder like a card. What has
+       * not changed is that the same answer also says something about the
+       * *words* that stood in the number, under the ordinary key it is
+       * evidence for.
+       */
+      assert.ok(TYPES.includes(asked), `${asked} should be a scheduled skill`);
       assert.ok(TYPES.includes(stands), `${stands} should be a scheduled exercise`);
-      /* The pair has to agree about which way round the question goes, or
-         a number would credit a part for the opposite skill. */
-      assert.equal(spec.promptField, must(exOf(stands, lang), stands).promptField, `${asked} prompts differently from ${stands}`);
-      assert.equal(spec.answerField, must(exOf(stands, lang), stands).answerField, `${asked} answers differently from ${stands}`);
+      /*
+       * The pair has to agree about which way round the question goes, or
+       * a number would credit a component card for the opposite skill.
+       *
+       * What has to match is **what is produced** and **whether it was
+       * heard**, not what was put on the screen to ask for it. Reading a
+       * clock face and writing the time out is producing the script from
+       * something that is not the script, which is what `en2ar` asks of a
+       * word — the dial is a cue, and the cue is the one part of a
+       * question that may differ.
+       */
+      const ordinary = must(exOf(stands, lang), stands);
+      assert.equal(spec.answerField, ordinary.answerField, `${asked} answers differently from ${stands}`);
+      assert.equal(
+        spec.promptField === "audio",
+        ordinary.promptField === "audio",
+        `${asked} is heard and ${stands} is not, or the other way round`,
+      );
+      assert.equal(
+        spec.promptField === "ar",
+        ordinary.promptField === "ar",
+        `${asked} shows the script and ${stands} does not, or the other way round`,
+      );
     }
   }
 });

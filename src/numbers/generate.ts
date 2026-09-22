@@ -46,6 +46,38 @@ export const componentId = (systemId: string, slot: string) => `sys:${systemId}:
 export const overrideId = (systemId: string, key: string) => `sys:${systemId}:override:${safe(key)}`;
 export const rangeId = (systemId: string, range: string) => `sys:${systemId}:range:${range}`;
 
+/**
+ * A teacher's numbers for one language, with their clock beside them.
+ *
+ * The pair travels together because a time is a number with a feminine
+ * noun in front of it: rendering one without the other is not possible,
+ * and a caller holding only half of it would find that out at the moment
+ * a question was dealt.
+ */
+export interface SystemSet {
+  numbers: NumberSystem;
+  times?: TimeSystem | null;
+}
+
+/** Which system a generated item came out of, or "" for anything else. */
+export const systemIdOf = (it: { source?: unknown } | null | undefined): string => {
+  const source = it && (it as { source?: unknown }).source;
+  return source && typeof source === "object" && "systemId" in source
+    ? String((source as { systemId: unknown }).systemId || "")
+    : "";
+};
+
+/** The set a generated item belongs to, for a caller that has to render
+    one of its questions. */
+export const systemFor = (
+  it: { source?: unknown } | null | undefined,
+  sets: SystemSet[],
+): SystemSet | null => {
+  const id = systemIdOf(it);
+  if (!id) return null;
+  return (sets || []).find((set) => set.numbers && set.numbers.id === id) || null;
+};
+
 /** Whether an item is one of these rather than a card somebody wrote. */
 export const isFromSystem = (it: { id?: string } | null | undefined): boolean =>
   String((it && it.id) || "").startsWith("sys:");
@@ -275,8 +307,24 @@ function rangeItem(
     ar: "",
     en: "",
     lat: "",
-    /* The marker the gates read. */
+    /*
+     * The markers the gates read, and the whole of how a range and a word
+     * stay out of each other's questions.
+     *
+     * An ordinary exercise asks a form for its word and finds nothing
+     * here; a range exercise asks for one of these and finds nothing on a
+     * word. Which family it is has to be said as well as *that* it is a
+     * range, because reading a number, counting a thing and telling the
+     * time are three sets of questions and a skill is only ever one of
+     * them. Nobody wrote a rule about any of this: it falls out of what
+     * each exercise declares it needs.
+     */
     range: true,
+    ...(range.kind === "time"
+      ? { rangeTime: true }
+      : range.counted
+      ? { rangeCounted: true }
+      : { rangeNumbers: true }),
     ...(heard ? { recs: [{ id: "system", label: "", speed: "" }] } : null),
     s: {},
   };

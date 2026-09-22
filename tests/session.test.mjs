@@ -1209,9 +1209,11 @@ test("all three ways of asking are used", () => {
   const built = numbers(TO_NINETY_NINE);
   const asked = new Set(built.exercises.map((/** @type {any} */ e) => e.type));
   assert.deepEqual([...asked].sort(), ["fig2num", "fig2pick", "num2fig"]);
-  /* And none of them is a type anything schedules: a number is not a card
-     and climbs no ladder. */
-  for (const type of asked) assert.equal(TYPES.includes(type), false, `${type} must not be scheduled`);
+  /* All three are scheduled types since 0.204, when a range of numbers
+     became a skill that climbs the ladder. This sitting is the old
+     learner-started practice, which still deals them without a schedule
+     of its own; it goes when the old screens do. */
+  for (const type of asked) assert.ok(TYPES.includes(type), `${type} should be a scheduled skill`);
 });
 
 test("answering a number credits the parts that stood in it, not the number", () => {

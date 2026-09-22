@@ -23,6 +23,7 @@
  * Pure, and no clock: the seed is handed in.
  */
 import type {
+  Ask,
   Composer,
   CountedNoun,
   NounForm,
@@ -30,7 +31,6 @@ import type {
   Range,
   Rendering,
   TimeComposer,
-  TimeStyle,
   TimeSystem,
   Token,
   Warning,
@@ -235,24 +235,14 @@ export const openRanges = (
  * learner between the asking and the marking would be a different bug
  * every time.
  */
+export type { Ask };
+
 export function seeded(seed: string): () => number {
   let state = (hash(seed) || 1) >>> 0;
   return () => {
     state = (state * 1664525 + 1013904223) >>> 0;
     return state / 4294967296;
   };
-}
-
-/** What one asking of a range is about. Everything needed to render it
-    again, so a retry is the same question. */
-export interface Ask {
-  rangeId: string;
-  kind: "numbers" | "time";
-  value: number;
-  minute?: number;
-  nounId?: string;
-  style?: TimeStyle;
-  period?: boolean;
 }
 
 /**

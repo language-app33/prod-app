@@ -185,10 +185,28 @@ export function renderVi(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Ren
   };
 }
 
+/**
+ * An old number card, as faces.
+ *
+ * Two cells, one slot: the form after a ten and the word that marks an
+ * empty place are both a word wearing a different face inside a bigger
+ * number, and they were two columns only because the old table had no
+ * name for what they had in common.
+ */
+export const liftViCard = (old: { word: string; cells: Record<string, string> }) => {
+  const word = String(old.word || "").trim();
+  const company = String(old.cells["after-ten"] || old.cells["empty-place"] || "").trim();
+  return {
+    ...(word ? { standalone: word } : null),
+    ...(company ? { company } : null),
+  };
+};
+
 export const viComposer: Composer = {
   id: "vi-Hue",
   version: VI_COMPOSER_VERSION,
   requiredSlots: () => VI_SLOTS,
+  liftCard: liftViCard,
   table: () => VI_NUMBER_TABLE,
   ranges: () => VI_RANGES,
   render: renderVi,

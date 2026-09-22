@@ -285,10 +285,31 @@ export function renderHe(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Ren
   return { text, tokens: b.tokens, nounForm: form, warnings: b.warnings };
 }
 
+/**
+ * An old number card, as faces — and this one is turned round.
+ *
+ * The old storage kept the **masculine** on the card, because that is the
+ * form that stands beside a noun, and put the form you count with in a
+ * cell beside it. A system holds them the other way up: counting is what
+ * a slot's first box is for, everywhere. So the cell becomes the word and
+ * the word becomes the masculine, and a card with no cell — one the
+ * teacher never filled in — keeps its word in both places rather than
+ * losing half of itself.
+ */
+export const liftHeCard = (old: { word: string; cells: Record<string, string> }) => {
+  const word = String(old.word || "").trim();
+  const counting = String(old.cells.feminine || "").trim() || word;
+  return {
+    ...(counting ? { standalone: counting, f: counting } : null),
+    ...(word ? { m: word } : null),
+  };
+};
+
 export const heComposer: Composer = {
   id: "he-IL",
   version: HE_COMPOSER_VERSION,
   requiredSlots: () => HE_SLOTS,
+  liftCard: liftHeCard,
   table: () => HE_NUMBER_TABLE,
   ranges: () => HE_RANGES,
   render: renderHe,

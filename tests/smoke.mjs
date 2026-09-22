@@ -44,7 +44,15 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.tsx", "src/storage.ts", "src/gallery.tsx", "src/shared.tsx"],
+  entryPoints: [
+    "src/ArabicTrainer.tsx",
+    "src/storage.ts",
+    "src/gallery.tsx",
+    "src/shared.tsx",
+    /* The teaching space is loaded lazily by the app and is not walked
+       here, so the one screen in it worth driving is named on its own. */
+    "src/number-system-editor.tsx",
+  ],
   bundle: true,
   format: "esm",
   splitting: true,
@@ -6570,6 +6578,124 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and nothing threw while the weak session was built",
     errors.length === before, errors.slice(before, before + 2).join(" | "));
   if (online) Object.defineProperty(w.navigator, "onLine", online);
+}
+
+/* ---- the number system's own screen ----
+
+   Driven directly rather than through the teaching space, which this
+   harness does not mount: it is a plain component over a document, which
+   is most of why it is one.
+
+   What is worth checking is the loop the screen exists for. A word typed
+   into a box changes what a student would be asked, on the same line, at
+   once — the preview is the composer and not a second idea of it — and a
+   line that is wrong can be tapped and written out by hand. Everything
+   else on that screen is a list of boxes. */
+{
+  const { NumberSystemEditor } = await import(path.join(out, "number-system-editor.js"));
+  const { LANGUAGES } = await import(path.resolve("src/languages.ts"));
+  const { emptyNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
+
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const editorRoot = createRoot(host);
+  /** What the screen handed back, every time Save was pressed. */
+  const saves = /** @type {{ kind: string, sys: any }[]} */ ([]);
+  const system = emptyNumberSystem("n1", "lena", "ar-PS", Date.now(), 1);
+
+  const draw = (/** @type {any} */ numbers) =>
+    editorRoot.render(
+      React.createElement(NumberSystemEditor, {
+        lang: LANGUAGES["ar-PS"],
+        numbers,
+        times: null,
+        onSave: (/** @type {string} */ kind, /** @type {any} */ sys) => {
+          saves.push({ kind, sys });
+        },
+        onClose() {},
+      }),
+    );
+
+  /* A screen is drawn at the app's root rather than where it was written:
+     it portals out, so that it stays inside the theme and outside whatever
+     layer the space that opened it sits in. So the boxes are never under
+     the div this mounted into, and looking there would find an empty
+     screen that is in fact drawn and working. */
+  const panel = () => document.querySelector('.at-screen[aria-label="Number system"]') || host;
+
+  draw(system);
+  await sleep(200);
+  check("the number system's editor opens on a grid of boxes",
+    panel().querySelectorAll(".at-numrow").length > 20,
+    `${panel().querySelectorAll(".at-numrow").length} rows`);
+  check("and says nothing can be asked yet",
+    /waiting on|not yet/.test(panel().textContent || ""),
+    (panel().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+
+  /* One word typed into a box, and the line for that number says it. The
+     preview is the composer itself, so there is nothing here that could be
+     right while what a student meets is wrong. */
+  const boxNamed = (/** @type {string} */ name) =>
+    [...panel().querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === name);
+  const typeIn = (/** @type {any} */ box, /** @type {string} */ text) => {
+    const setValue = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setValue, "the input's value setter").call(box, text);
+    box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+
+  const sevenBox = boxNamed("7, counting");
+  check("and every box is named by the number it is and the face of it",
+    !!sevenBox,
+    [...panel().querySelectorAll("input")].slice(0, 4)
+      .map((i) => i.getAttribute("aria-label")).join(" | "));
+  if (sevenBox) {
+    typeIn(sevenBox, "sab3a");
+    await sleep(200);
+  }
+
+  const rows = [...panel().querySelectorAll(".at-numsamplerow")];
+  const seven = rows.find((r) => (r.querySelector(".at-numfig") || {}).textContent === "7");
+  check("a word typed into a box is what the preview says for that number",
+    !!seven && /sab3a/.test(seven.textContent || ""),
+    seven ? (seven.textContent || "").trim() : `${rows.length} preview rows`);
+
+  /* And a line that is wrong is tapped and written out. */
+  click(seven);
+  await sleep(200);
+  check("tapping a line offers to write that number out",
+    /written out/.test(panel().textContent || ""),
+    (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+
+  const keep = [...panel().querySelectorAll("button")].find((b) => /Keep it/.test(b.textContent || ""));
+  check("and there is a button to keep it", !!keep);
+  if (keep) {
+    click(keep);
+    await sleep(200);
+    check("which files it among the numbers you wrote out",
+      /Numbers you wrote out/.test(panel().textContent || ""),
+      (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  }
+
+  const save = [...panel().querySelectorAll("button")].find((b) => /^Save$/.test((b.textContent || "").trim()));
+  check("and the footer offers to save once something has changed", !!save);
+  if (save) {
+    click(save);
+    await sleep(200);
+    const saved = saves[saves.length - 1];
+    check("saving hands back a number system", !!saved && saved.kind === "numbers",
+      saved ? saved.kind : "nothing saved");
+    check("with the word that was typed in it, and the line that was written out",
+      !!saved &&
+        ((saved.sys.lexemes["unit.7"] || { forms: {} }).forms.standalone === "sab3a") &&
+        !!saved.sys.overrides["7"],
+      saved ? JSON.stringify(saved.sys.overrides) : "nothing saved");
+  }
+
+  editorRoot.unmount();
+  host.remove();
 }
 
 report();

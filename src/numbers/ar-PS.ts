@@ -376,10 +376,29 @@ export function renderAr(n: number, sys: NumberSystem, ctx: RenderCtx = {}): Ren
   return { text, tokens: b.tokens, nounForm: form, warnings: b.warnings };
 }
 
+/**
+ * An old number card, as faces.
+ *
+ * The card's own word was the one you count with, and the single cell the
+ * old table had was the form that goes with a feminine word. The forms
+ * that go directly before a noun were never asked for — nothing in the
+ * app could say them — so they come across empty, and the editor shows
+ * them as the gaps they are rather than guessing.
+ */
+export const liftArCard = (old: { word: string; cells: Record<string, string> }) => {
+  const word = String(old.word || "").trim();
+  const feminine = String(old.cells.feminine || "").trim();
+  return {
+    ...(word ? { standalone: word, m: word } : null),
+    ...(feminine ? { f: feminine } : null),
+  };
+};
+
 export const arComposer: Composer = {
   id: "ar-PS",
   version: AR_COMPOSER_VERSION,
   requiredSlots: () => AR_SLOTS,
+  liftCard: liftArCard,
   table: () => AR_NUMBER_TABLE,
   ranges: () => AR_RANGES,
   render: renderAr,

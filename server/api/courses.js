@@ -19,7 +19,9 @@ import { slotRows } from "../../src/verbs.ts";
 /* A number system and a time system are read at this boundary the way an
    answer is: hand-written, total, and silent about why. See
    src/numbers/schema.ts, and DECISIONS.md on why not a schema library. */
-import { clipsOfSystem, readNumberSystem, readTimeSystem } from "../../src/numbers/schema.ts";
+import { clipsOfSystem, emptyNumberSystem, readNumberSystem, readTimeSystem } from "../../src/numbers/schema.ts";
+import { composerFor } from "../../src/numbers/index.ts";
+import { migrateCards } from "../../src/numbers/migrate.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -938,6 +940,60 @@ export default async (req) => {
       if (!keys.length) return [];
       const rows = await readManyJson(store, keys, EVENTUAL);
       return rows.filter(Boolean);
+    }
+
+    /**
+     * Build a system out of somebody's old number cards, once per language.
+     * @param {string} owner
+     */
+    async function seedSystems(owner) {
+      /** @type {string[]} */
+      const ids = (await readJson(store, K.myCards(owner))) || [];
+      if (!ids.length) return;
+      const rows = (await readManyJson(store, ids.map((id) => K.card(id)))).filter(Boolean);
+      /** @type {Map<string, any[]>} */
+      const byLang = new Map();
+      for (const card of rows) {
+        /* A part was a card with a value on it, and nothing else ever
+           carried one — see the old numbers module. */
+        if (typeof card.value !== "number" || !card.lang) continue;
+        const held = byLang.get(card.lang);
+        if (held) held.push(card);
+        else byLang.set(card.lang, [card]);
+      }
+      if (!byLang.size) return;
+
+      const index = await systemIndex(owner);
+      for (const [lang, cards] of byLang) {
+        if (index.numbers[lang]) continue;
+        const composer = composerFor(lang);
+        if (!composer) continue;
+        const id = `n${randomBytes(6).toString("hex")}`;
+        const now = Date.now();
+        const built = migrateCards(
+          cards.sort((a, b) => (a.created || 0) - (b.created || 0)),
+          composer,
+          emptyNumberSystem(id, owner, lang, now, composer.version),
+        );
+        if (!built.filled && !built.written) continue;
+        await writeJson(store, K.numSys(id), { ...built.system, rev: 1, updated: now });
+        await updateJson(store, K.mySystems(owner), (current) => {
+          const held = current && typeof current === "object" ? current : {};
+          const slot = { ...(held.numbers && typeof held.numbers === "object" ? held.numbers : {}) };
+          if (slot[lang]) return null;
+          slot[lang] = id;
+          return { ...held, numbers: slot };
+        });
+        /* And the cards it was built from are marked as having been read.
+           They are not deleted: a card carries recordings and somebody's
+           progress, and clearing a box was never a way of asking for
+           either to be thrown away. A later release takes them. */
+        for (const cardId of built.fromCards) {
+          await updateJson(store, K.card(cardId), (card) =>
+            card && !card.derived ? { ...card, derived: true } : null,
+          );
+        }
+      }
     }
 
     /* Delete cards the person may delete. Returns what happened to each id,
@@ -1876,6 +1932,20 @@ export default async (req) => {
        can say what happened instead of silently winning. */
 
     if (action === "my-systems") {
+      /*
+       * A teacher who already filled in the old Numbers screen finds
+       * their words here rather than an empty grid.
+       *
+       * A lift on read, in the mould every other migration in this app
+       * is: it runs the first time the screen is opened, it builds a
+       * system where there is none and never touches one that exists,
+       * and it deletes nothing — the cards stay where they are, in their
+       * decks, with their recordings and every student's progress on
+       * them. Which card each box came from is written down, so a device
+       * can hand a learner's year on *forty* to the card that replaces
+       * it instead of starting them again.
+       */
+      await seedSystems(mine);
       const index = await systemIndex(mine);
       const keys = [
         ...Object.values(index.numbers).map((id) => K.numSys(String(id))),

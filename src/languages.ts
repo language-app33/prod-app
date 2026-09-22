@@ -42,6 +42,17 @@ import { leadOf } from "./cards.ts";
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
 import { standsInRows } from "./verbs.ts";
+/*
+ * How each language builds its numbers and tells the time.
+ *
+ * Imported here and nowhere else in the app: the pack stays the one door,
+ * exactly as `spell` was, and a screen that wants a number asks the pack.
+ * Two hundred lines a language is what moved them out of this file — and
+ * the condition they moved under is checkable and checked, in
+ * tests/language-isolation.test.mjs: **no file under src/numbers/ holds a
+ * word of any language.**
+ */
+import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import type { AnswerField, WithAnswers } from "./answers.ts";
 
 
@@ -56,20 +67,34 @@ import type { AnswerField, WithAnswers } from "./answers.ts";
    among the words: they are asked of a scene or a turn in one, never of a
    word, so the two families never stand in the same queue for a unit. */
 /**
- * Which ordinary exercise a made-up number's question is evidence for.
+ * Which ordinary exercise a range's question is *also* evidence for.
  *
- * A number is not a card and climbs no ladder, but the parts that stood in
- * it are cards and do — and what reading *forty-seven* off the screen
- * proves about أربعين is exactly what `ar2en` asks of it. So a number
- * question is marked against those part cards under the ordinary key it
- * stands in for, and the three number keys are themselves never scheduled
- * or stored. Every key here is in TYPES below; every key it maps from is
- * deliberately not.
+ * A range holds a schedule of its own now — telling the time and counting
+ * to a hundred are skills, and a learner gets better at them — so these
+ * keys are scheduled and stored like any other. What has not changed is
+ * that the same answer says something about the **words** that stood in
+ * the number: reading *forty-seven* off the screen and writing 47 is
+ * reading the word for forty and knowing what it means, which is exactly
+ * what `ar2en` asks of it. So a range question marks twice — once against
+ * the skill under its own key, and once against each component card under
+ * the ordinary key it stands in for.
+ *
+ * It was the other way round until numbers became skills: the three
+ * number keys were deliberately kept out of TYPES, because a made-up
+ * number was not a card and climbed no ladder. The parts it credits are
+ * unchanged; what is new is that the skill climbs too.
  */
 export const NUMBER_EQUIVALENT: Record<string, string> = {
   num2fig: "ar2en",
   fig2num: "en2ar",
   fig2pick: "en2pick",
+  rec2fig: "rec2en",
+  count2phrase: "en2ar",
+  time2fig: "ar2en",
+  time2dial: "ar2en",
+  fig2time: "en2ar",
+  clock2time: "en2ar",
+  rec2dial: "rec2en",
 };
 
 export const TYPES = [
@@ -83,6 +108,13 @@ export const TYPES = [
   "en2ar", "ctx2ar", "rec2ctx",
   /* and a conversation, on its own levels: 1, 3, 3 */
   "dlgwhole", "dlgpick", "dlgorder",
+  /* and a range of numbers or of times, which is a skill and climbs the
+     same four levels: read one, pick one, count with one, write one. A
+     range is never dealt an exercise above because it has no word of its
+     own to be asked about, and a word is never dealt one of these because
+     it is not a range — both fall out of what each `needs`. */
+  "num2fig", "fig2pick", "rec2fig", "fig2num", "count2phrase",
+  "time2fig", "time2dial", "rec2dial", "fig2time", "clock2time",
 ];
 
 export const EX: Record<string, ExerciseSpec> = {
@@ -335,25 +367,29 @@ export const EX: Record<string, ExerciseSpec> = {
     answerField: "ar",
     answerMode: "ar",
   },
-  /* ---- a number, made up on the spot ---------------------------------
-     Three questions asked of a number the app has built out of the
-     teacher's parts, rather than of a card. Not in TYPES, and for the
-     same reason the read-through is not: nothing schedules them and
-     nothing carries a state for them. A number is not a card, so there is
-     no ladder for it to climb — what a right answer moves is the parts
-     that stood in it, the way a sentence credits the words that filled
-     its blanks.
+  /* ---- a range of numbers or of times --------------------------------
+     Questions asked of a *skill* rather than of a word: counting to a
+     hundred, counting things, telling the hour. The number or the time is
+     made up when the queue is built, out of the teacher's system, and
+     thrown away with the sitting — nothing about it ever reaches the disk.
+     What is stored is the schedule, which the skill holds like any card.
 
-     They are ordinary exercise definitions all the same, because the
-     screen that asks a question reads `promptField`, `answerMode` and the
-     rest, and a question asked any other way would be a second
+     What each `needs` is the whole of how these stay apart from the rest
+     of the table. A range's form carries no word at all, so it fails
+     every ordinary exercise's needs; an ordinary card carries no marker,
+     so it fails every one of these. Neither can be dealt to the wrong
+     kind of card without anybody having written a rule about it.
+
+     They are ordinary exercise definitions in every other way, because
+     the screen that asks a question reads `promptField`, `answerMode` and
+     the rest, and a question asked any other way would be a second
      implementation of the only screen there is. */
   num2fig: {
     level: 1,
     instruction: "Read the number, then write it in figures",
     label: "{Script} → figures",
     short: "{S}→#",
-    needs: ["ar", "en"],
+    needs: ["rangeNumbers"],
     question: "Which number is this?",
     placeholder: "Type the figures",
     promptField: "ar",
@@ -363,24 +399,12 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "fig",
     gentle: true,
   },
-  fig2num: {
-    level: 4,
-    instruction: "Write this number in {script}",
-    label: "Figures → {script}",
-    short: "#→{S}",
-    needs: ["ar", "en"],
-    question: "Write this number out",
-    placeholder: "",
-    promptField: "en",
-    answerField: "ar",
-    answerMode: "ar",
-  },
   fig2pick: {
     level: 2,
     instruction: "Choose the number",
     label: "Figures → choose",
     short: "#→?",
-    needs: ["ar", "en", "mates"],
+    needs: ["rangeNumbers"],
     question: "Which one is this number?",
     placeholder: "",
     promptField: "en",
@@ -388,6 +412,115 @@ export const EX: Record<string, ExerciseSpec> = {
     answerMode: "choice",
     picks: "word",
     gentle: true,
+  },
+  rec2fig: {
+    level: 1,
+    instruction: "Listen, then write the number in figures",
+    label: "Listen → figures",
+    short: "L→#",
+    /* A recording somewhere in the system, which is what says a listening
+       question is possible at all. Whether *this* number has one is
+       decided when it is dealt, because which number is asked is. */
+    needs: ["rangeNumbers", "recs"],
+    question: "Which number is this?",
+    placeholder: "Type the figures",
+    promptField: "audio",
+    answerField: "en",
+    answerMode: "fig",
+    gentle: true,
+  },
+  fig2num: {
+    level: 4,
+    instruction: "Write this number in {script}",
+    label: "Figures → {script}",
+    short: "#→{S}",
+    needs: ["rangeNumbers"],
+    question: "Write this number out",
+    placeholder: "",
+    promptField: "en",
+    answerField: "ar",
+    answerMode: "ar",
+  },
+  /* Counting a thing is its own skill: what changes is the shape of the
+     phrase and not only the numeral, and a learner solid on saying
+     numbers is routinely lost on saying three of something. */
+  count2phrase: {
+    level: 4,
+    instruction: "Say how many there are, in {script}",
+    label: "Counting → {script}",
+    short: "#n→{S}",
+    needs: ["rangeCounted"],
+    question: "How would you say this?",
+    placeholder: "",
+    promptField: "en",
+    answerField: "ar",
+    answerMode: "ar",
+  },
+  time2fig: {
+    level: 1,
+    instruction: "Read the time, then write it in figures",
+    label: "{Script} → clock",
+    short: "{S}→⏱",
+    needs: ["rangeTime"],
+    question: "What time is this?",
+    placeholder: "7:15",
+    promptField: "ar",
+    answerField: "en",
+    answerMode: "clock",
+    gentle: true,
+  },
+  time2dial: {
+    level: 2,
+    instruction: "Read the time, then set the clock",
+    label: "{Script} → set the clock",
+    short: "{S}→◷",
+    needs: ["rangeTime"],
+    question: "Set the clock to this time",
+    placeholder: "",
+    promptField: "ar",
+    answerField: "en",
+    answerMode: "dial",
+    gentle: true,
+  },
+  rec2dial: {
+    level: 3,
+    instruction: "Listen, then set the clock",
+    label: "Listen → set the clock",
+    short: "L→◷",
+    needs: ["rangeTime", "recs"],
+    question: "Set the clock to what you hear",
+    placeholder: "",
+    promptField: "audio",
+    answerField: "en",
+    answerMode: "dial",
+  },
+  fig2time: {
+    level: 4,
+    instruction: "Say this time in {script}",
+    label: "Clock → {script}",
+    short: "⏱→{S}",
+    needs: ["rangeTime"],
+    question: "How would you say this time?",
+    placeholder: "",
+    promptField: "en",
+    answerField: "ar",
+    answerMode: "ar",
+  },
+  /* The one question about a clock that no word can ask. A learner who
+     can say a quarter past seven from the figures has learnt a
+     translation; one who can say it from a dial has learnt to tell the
+     time, and the two come apart in the place the skill is used. */
+  clock2time: {
+    level: 4,
+    instruction: "Say what the clock says, in {script}",
+    label: "Clock face → {script}",
+    short: "◷→{S}",
+    needs: ["rangeTime"],
+    question: "What time does this say?",
+    placeholder: "",
+    promptField: "clock",
+    answerField: "ar",
+    answerMode: "ar",
   },
 
   rec2attr: {
@@ -2415,6 +2548,27 @@ export function inScript(text: string, lang: Lang = activeLang()) {
   return !!(lang && lang.script && lang.script.test(String(text || "")));
 }
 
+/**
+ * The table a language lays a numeral's faces out in.
+ *
+ * Asked of the composer rather than written out three times, because
+ * which faces a language has and which boxes its teacher is asked for are
+ * the same answer — and two places holding it is two places to disagree.
+ * An empty table for a language with no composer, which is a language
+ * whose numerals have no faces to lay out.
+ */
+function numberTableOf(id: LangId): VerbSpec {
+  const composer = composerFor(id);
+  return (
+    (composer && composer.table()) || {
+      persons: [],
+      tenses: [{ id: "number", label: "number" }],
+      label: "the forms a number takes",
+      gate: "word",
+    }
+  );
+}
+
 export const LANGUAGES: Record<LangId, Lang> = {
   "ar-PS": {
     id: "ar-PS",
@@ -2468,12 +2622,20 @@ export const LANGUAGES: Record<LangId, Lang> = {
          what a number becomes beside a feminine one. */
       agreement: AR_AGREEMENT,
       counted: COUNTED_TABLE,
+      /* And the faces a numeral takes, which the number system's own
+         screen writes and a component card carries as cells. Declared by
+         the composer rather than here, because which faces a language has
+         is the same answer as which boxes its teacher is asked for. */
+      number: numberTableOf("ar-PS"),
     },
     /* And what a teacher says a word is. The shared list: nothing about
        Arabic asks for a category of its own. */
     categories: WORD_CATEGORIES,
-    /* Unit before ten, و in front of every chunk. See AR_NUMBERS. */
+    /* Unit before ten, and a joining word in front of every chunk. See
+       src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
     numbers: AR_NUMBERS,
+    composer: composerFor("ar-PS"),
+    times: timeComposerFor("ar-PS"),
     /* What each shade of not-quite-right is called here. The tiers are the
        same in every language; only the words for them differ. */
     verdicts: {
@@ -2623,6 +2785,7 @@ export const LANGUAGES: Record<LangId, Lang> = {
         label: "the forms inside a bigger number",
         gate: "word",
       },
+      number: numberTableOf("vi-Hue"),
     },
     /* The same list, and it attaches no pronouns and nothing agrees — so
        a noun here is a noun with nothing laid out under it, and so is an
@@ -2630,8 +2793,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
        got means. */
     categories: WORD_CATEGORIES,
     /* Regular, so eleven boxes and three bare multiplier words; the
-       irregularity is all in company. See VI_NUMBERS. */
+       irregularity is all in company. See src/numbers/vi-Hue.ts. */
     numbers: VI_NUMBERS,
+    composer: composerFor("vi-Hue"),
     verdicts: {
       partial: "Right letters, wrong tone",
       missing: "Letters right — add the tone marks",
@@ -2746,11 +2910,13 @@ export const LANGUAGES: Record<LangId, Lang> = {
          two cells; a number takes a feminine form as in Arabic. */
       agreement: HE_AGREEMENT,
       counted: COUNTED_TABLE,
+      number: numberTableOf("he-IL"),
     },
     categories: WORD_CATEGORIES,
-    /* Ten before unit, one ו in the whole number, and counted in the
-       feminine. See HE_NUMBERS. */
+    /* Ten before unit, one joining word in the whole number, and counted
+       in the feminine. See src/numbers/he-IL.ts. */
     numbers: HE_NUMBERS,
+    composer: composerFor("he-IL"),
     verdicts: {
       partial: "Right letters, wrong niqqud",
       missing: "Letters right — add the niqqud",
@@ -3254,6 +3420,43 @@ export function checkAnswer(typed: string, item: Record<string, any>, key: strin
     /* Leading zeros are notation too: 047 is 47 written out of habit. */
     const same = String(Number(got)) === String(Number(figures(expected)));
     return same ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
+  }
+  /*
+   * A time, typed or set on a dial. Exact or wrong, for the reason
+   * figures are: half past six is not nearly half past five.
+   *
+   * **Either half of the day is accepted**, and that is a decision rather
+   * than laziness. A learner shown the words for a quarter past seven has
+   * no way of knowing whether the clock said 07:15 or 19:15 — nothing in
+   * the words says so, which is exactly why the part of the day is a
+   * skill of its own and is asked in words. Marking them wrong for
+   * reading the clock correctly would be marking them on a question
+   * nobody asked.
+   *
+   * Notation is forgiven the same way it is for figures: a full stop for
+   * the colon, a missing leading nought, and the digits an Arabic or
+   * Persian keyboard writes.
+   */
+  if (mode === "clock" || mode === "dial") {
+    const asMinutes = (v: unknown) => {
+      const text = String(v == null ? "" : v)
+        .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+        .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06F0))
+        .replace(/[\s\u00A0]/g, "")
+        .replace(/[.\u066D]/g, ":");
+      const m = text.match(/^(\d{1,2}):(\d{1,2})$/);
+      if (!m) return null;
+      const h = Number(m[1]);
+      const min = Number(m[2]);
+      if (h > 23 || min > 59) return null;
+      /* On the twelve-hour cycle, so noon and midnight are one position
+         and so are seven in the morning and seven at night. */
+      return (h % 12) * 60 + min;
+    };
+    const got = asMinutes(typed);
+    const want = asMinutes(expected);
+    if (got === null || want === null) return { ok: false, reason: "wrong" };
+    return got === want ? { ok: true, reason: "exact" } : { ok: false, reason: "wrong" };
   }
   // "ar" means "the target language's own script", whatever that is.
   if (mode === "ar") return langOf(settings).check(typed, expected, settings);

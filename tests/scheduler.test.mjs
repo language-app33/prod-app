@@ -627,8 +627,16 @@ test("the settings say which level each exercise stands on, and every one has a 
   }
   /* The second level is the one that asks which word it is rather than
      what it means: the grid, and the two that offer the word among four. */
-  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 2), ["match", "en2pick", "ctx2pick"]);
-  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 1), ["ar2pick", "ar2en", "rec2en", "dlgwhole"]);
+  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 2), [
+    "match", "en2pick", "ctx2pick",
+    /* Picking a number out of four, and showing a time on a dial. Both
+       put the answer on the screen and ask which one it is. */
+    "fig2pick", "time2dial",
+  ]);
+  assert.deepEqual(TYPES.filter((t) => levelOf(t) === 1), [
+    "ar2pick", "ar2en", "rec2en", "dlgwhole",
+    "num2fig", "rec2fig", "time2fig",
+  ]);
   assert.equal(levelOf("no-such-exercise"), 1, "an unknown type is read as the bottom level, not a crash");
 });
 
