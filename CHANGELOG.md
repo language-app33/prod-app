@@ -8,6 +8,57 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.207 — 22 September 2026
+
+**A pair is a number the app can say, and an adjective stops inviting you
+to do its table's job.**
+
+**The dual.** Arabic and Hebrew both count in pairs — كتابين, שעתיים — and
+until now no card could say so: a form was singular, plural, or not
+applicable. **Dual** is now one of the answers wherever number is asked,
+so a noun's accepted answer can be marked as a pair. Huế is not offered
+it, because Huế is asked about no grammar at all.
+
+**And what stands beside a pair now agrees with it.** In Palestinian
+Arabic an adjective gains a third box — the form it takes beside a pair —
+sitting beside its feminine and its plural. One box rather than a
+masculine and a feminine one: written Arabic tells those apart and this
+dialect mostly does not, and a box you leave empty is a question nobody is
+asked. An adjective with it empty is simply not offered beside a dual
+noun, which is the app withholding rather than guessing. Hebrew gains no
+box, because a Hebrew adjective takes the plural beside a pair — its two
+plural columns answer for the dual, which is the point: the dual is a fact
+about the noun there and never about the adjective. Before this, a dual
+noun matched no column at all and the adjective fell back to its
+masculine singular — the one wrong answer that looks like an answer.
+
+Nothing already written changes meaning: the new answer is added to the
+end of the list rather than shuffled into it, so every form saved as
+singular, plural or N/A reads exactly as it did.
+
+**Three things on the card screen that were telling you the wrong story.**
+
+Under the main form of every adjective, the app said *"You can add
+additional forms (for different numbers, gender, etc) below"* — pointing
+below at nothing, since that button was taken away from these cards long
+ago, and offering to add forms for number and gender directly above the
+table whose whole job is number and gender. That line now says where the
+forms actually are.
+
+It was not only wrong, it was actionable: **Duplicate** sat on the same
+line and still worked, so the front door was shut and the side door left
+open on every adjective in the app. A form outside the table is one
+nothing can ever choose — it is drilled, it counts against the card being
+learnt, and no sentence can use it. Duplicate is gone from cards whose
+forms are a table. A card that already carries such a form keeps it, and
+keeps its Remove: no new way in, and the way out stays.
+
+And **an adjective in Huế** looked identical to *Something else*, because
+nothing agrees in that language so there is no table to lay out. That is
+true and it was silent, which is indistinguishable from the app having
+lost something. It now says so, and says why answering still matters: it
+is how a sentence knows what may stand in its blanks.
+
 ## 0.206 — 22 September 2026
 
 **Two buttons that were off the side of the screen, and a number that

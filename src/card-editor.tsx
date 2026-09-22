@@ -3050,6 +3050,18 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      conversation and a sentence lay out nothing: they have turns and
      blanks where a word has forms. */
   const shownSpec = worded ? specOf(lang, table) : null;
+  /*
+   * Whether this kind of word lays something out everywhere *but here*.
+   *
+   * A category names a table, and a pack declares the tables it has: an
+   * adjective agrees in the two Semitic languages and nothing agrees in
+   * Huế, so an adjective there is the word and whatever forms a teacher
+   * writes. That is right, and it was silent — the screen came out
+   * identical to "Something else", which is indistinguishable from the
+   * app having lost the table. Said out loud below.
+   */
+  const tableMissing =
+    worded && !!(categoryOf(lang, category) || { table: "" }).table && !table;
   /* Whether every form carries the table, or the card does. */
   const perForm = !!(shownSpec && shownSpec.perForm);
   /* What the stored card already carries, which is what the radio may no
@@ -4003,6 +4015,7 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     setCells,
     mintCell,
     category,
+    tableMissing,
     setCategory,
     table,
     shownSpec,
@@ -4853,22 +4866,54 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
     the editor's to say — "Form 2" on a word, "The verb" on a verb — and
     `children` sit after the fields, which is where a form's own pronoun
     table goes. */
-/* What a form is, said under its name. The line under a heading has room
-   for a sentence now that it is no longer squeezed in beside one, so the
-   first form says what the ones under it are for rather than leaving a
-   teacher to find the Add button and guess. */
-export const formRole = (i: number): string =>
+/*
+ * What a form is, said under its name.
+ *
+ * The line under a heading has room for a sentence now that it is no
+ * longer squeezed in beside one, so the first form says what the ones
+ * under it are for rather than leaving a teacher to find the Add button
+ * and guess.
+ *
+ * Which means it has to know whether there *is* an Add button. A card
+ * whose forms are laid out in a table has none, and the sentence written
+ * for the other kind was wrong on it twice over: it pointed below at
+ * nothing, and what it offered to add — a form for a different number or
+ * gender — is exactly what the table under it already is. An adjective
+ * read "you can add additional forms (for different numbers, gender)"
+ * directly above its own feminine and plural.
+ */
+export const formRole = (i: number, laidOut = false): string =>
   i === 0
-    ? "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
+    ? laidOut
+      ? "This is the main form of the card. The forms it takes are laid out in the table below — another spelling of one belongs on that form, not on a form of its own."
+      : "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
     : "Another form of the same card.";
 
-function FormBlock({ word, lang, index: i, form: f, title, role, blanks, children }: {
+function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true, blanks, children }: {
   word: WordDraft;
   lang: Lang;
   index: number;
   form: Record<string, any>;
   title: string;
   role: string;
+  /**
+   * Whether this form may be copied into another.
+   *
+   * False on a card whose forms are a table. Add-a-form was taken off
+   * those cards on the grounds that the table is the forms and a second
+   * spelling is an accepted answer — and Duplicate was left alone on the
+   * grounds that it is "a way out for somebody who has one, rather than
+   * an invitation to everybody who has not". That reasoning holds on a
+   * plain card, where Duplicate is only ever met on a second form somebody
+   * went and made. It does not hold here: the card's own word is a form
+   * block, so the invitation was on every adjective in the app, under a
+   * line telling teachers to accept it. Shutting the front door and
+   * leaving the side door open is not shutting the door.
+   *
+   * A form such a card already carries keeps its Remove: no new way in,
+   * and the way out stays.
+   */
+  canCopy?: boolean;
   /* Handed down only by the sentence editor: a blank belongs in a sentence
      and nowhere else, so the bar is not drawn on a word, a verb or a
      conversation. What refuses a blank on those is the save — see
@@ -4911,9 +4956,11 @@ function FormBlock({ word, lang, index: i, form: f, title, role, blanks, childre
             copy is a different word, so the original's audio would
             be wrong for it, and a wrong recording is worse than a
             missing one. */}
-        <Button variant="ghost" size="sm" onClick={() => duplicateForm(i)}>
-          Duplicate
-        </Button>
+        {canCopy && (
+          <Button variant="ghost" size="sm" onClick={() => duplicateForm(i)}>
+            Duplicate
+          </Button>
+        )}
         {i > 0 && (
           <Button variant="ghost" size="sm" onClick={() => removeForm(i)}>
             Remove
@@ -6331,6 +6378,13 @@ function WordEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
+      {word.tableMissing ? (
+        <Help>
+          In {lang.name} this kind of word lays nothing out: it is the word and whatever forms you
+          write. Saying what it is still matters — it is how a sentence knows what may stand in its
+          blanks.
+        </Help>
+      ) : null}
       {word.forms.map((f, i) => (
         <FormBlock
           key={i}
@@ -6425,7 +6479,8 @@ function TableEditor({ word, lang, allCards, selfId }: {
           index={i}
           form={f}
           title={`Form ${i + 1}`}
-          role={formRole(i)}
+          role={formRole(i, true)}
+          canCopy={false}
         />
       ))}
       <TableBlock word={word} lang={lang} />

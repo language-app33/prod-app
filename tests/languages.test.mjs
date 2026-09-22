@@ -163,18 +163,38 @@ test("a new form's number is the one the language declares, not the first option
 
 test("a number already stored keeps its meaning", () => {
   /* The point of not reordering the options: an existing card must not be
-     retranslated by the arrival of a new one. */
+     retranslated by the arrival of a new one — which the dual is. */
   assert.equal(dimValues({ number: "singular" }).number, "singular");
   assert.equal(dimValues({ number: "plural" }).number, "plural");
+  assert.equal(dimValues({ number: "na" }).number, "na");
+});
+
+test("a pair is a number a language may count", () => {
+  /* Arabic and Hebrew both do, and the app could not say it: a noun's
+     dual had nowhere to live, which is why a counting question draws its
+     nouns from a list written by hand rather than off the cards. */
+  assert.deepEqual(GRAMMAR.number.options.map(([v]) => v), ["singular", "plural", "dual", "na"]);
+  assert.equal(dimValues({ number: "dual" }).number, "dual");
+  assert.equal(normDimValue(GRAMMAR.number, "dual"), "dual");
+  assert.equal(normDimValue(GRAMMAR.number, "du"), "dual");
+  /* And it is offered only where somebody counts in pairs: Huế declares
+     no axes at all, so nobody there is asked a question about a dual. */
+  assert.deepEqual(LANGUAGES["vi-Hue"].grammar, []);
+  const ar = LANGUAGES["ar-PS"];
+  assert.equal(labelFor({ number: "dual", gender: "" }, ar), "du.");
+  assert.equal(labelFor({ number: "dual", gender: "feminine" }, ar), "du. f.");
 });
 
 test("an imported \"n/a\" lands on N/A", () => {
   assert.equal(normDimValue(GRAMMAR.number, "n/a"), "na");
   assert.equal(normDimValue(GRAMMAR.number, "N/A"), "na");
   assert.equal(normDimValue(GRAMMAR.number, "na"), "na");
-  /* And the two that were there before still win their own prefixes. */
+  /* And the ones that were there before still win their own prefixes,
+     which is the whole of what inserting an option had to not break. */
   assert.equal(normDimValue(GRAMMAR.number, "pl"), "plural");
   assert.equal(normDimValue(GRAMMAR.number, "sing"), "singular");
+  assert.equal(normDimValue(GRAMMAR.number, "s"), "singular");
+  assert.equal(normDimValue(GRAMMAR.number, "p"), "plural");
 });
 
 test("a form whose number doesn't apply carries no number label", () => {
@@ -822,6 +842,17 @@ test("what a kind of word lays out, and what it is asked about, is the category'
      not asked there — the category's list is within the pack's. */
   assert.deepEqual(dimsFor(LANGUAGES["he-IL"], "noun").map((d) => d.field), ["number", "gender"]);
   assert.deepEqual(dimsFor(LANGUAGES["vi-Hue"], "adjective"), []);
+  /* Huế names the same table the other two do and declares none of it, so
+     an adjective there is the word and whatever forms a teacher writes.
+     That is right and it used to be silent — the screen came out
+     identical to "Something else" — so the editor says so now, on exactly
+     this condition: a kind that names a table its language has not got. */
+  const vi = LANGUAGES["vi-Hue"];
+  const named = (/** @type {any} */ l, /** @type {string} */ id) =>
+    (must(categoriesOf(l).find((c) => c.id === id), id).table) || "";
+  assert.equal(named(vi, "adjective"), "agreement", "the kind names a table");
+  assert.equal(specOf(vi, "agreement"), null, "and this language lays none of it out");
+  assert.ok(specOf(LANGUAGES["ar-PS"], named(ar, "adjective")), "where it does, it does");
   assert.deepEqual(dimsFor(null, "noun"), []);
 });
 

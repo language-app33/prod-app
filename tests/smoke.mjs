@@ -5555,16 +5555,36 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("saying it is a person is the card's answer and stays said", axisOn() === "a person", axisOn() || "(nothing chosen)");
 
       await pickKind(/^Adjective/);
-      check("an adjective lays out its feminine and plural, and nothing else",
+      check("an adjective lays out the forms it takes beside a noun, and nothing else",
         !!boxes(/for agreement · feminine$/).length && !!boxes(/for agreement · plural$/).length &&
           !boxes(/attached pronouns|for (present|past|command) · /).length,
         tables().join(" | ") || "(no table)");
+      /* Including a pair, which this app could not say until 0.207: a
+         dual noun matched no column, so the adjective beside it fell back
+         to the card's own word — the one wrong answer that looks right. */
+      check("including the form beside a pair",
+        !!boxes(/for agreement · dual$/).length,
+        boxes(/for agreement · /).join(" | ") || "(no table)");
       check("with no number or gender on the word, because the table is its number and gender",
         !grammarBtn(), grammarBtn() ? "grammar asked" : "not asked");
       const blocksUp = () => [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
       check("and no second form offered, because a spelling is an accepted answer",
         !addForm() && blocksUp().includes("Form 1"),
         addForm() ? "a form is offered" : blocksUp().join(" | "));
+      /* Nor any other way to one. Taking the Add button away and leaving
+         Duplicate on the card's own word was not taking it away: the
+         invitation was on every adjective in the app, under a line that
+         told teachers to accept it. */
+      const copyBtn = () => [...document.querySelectorAll("button")]
+        .find((b) => /^Duplicate$/.test((b.textContent || "").trim()));
+      check("and no other way to one either, because the table is the forms",
+        !copyBtn(), copyBtn() ? "still offered" : "no such button");
+      check("and the line under the word says where its forms are, rather than pointing at nothing",
+        /laid out in the table below/.test(document.body.textContent || "") &&
+          !/You can add additional forms/.test(document.body.textContent || ""),
+        ((([...document.querySelectorAll(".at-formblock")]
+          .find((b) => /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
+          || document.body).querySelector(".at-formrole") || {}).textContent || "").trim().slice(0, 90));
 
       /* A number is not one of the answers any more: the faces a numeral
          takes are boxes in the language's number system, and the card
