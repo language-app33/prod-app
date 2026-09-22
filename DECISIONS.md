@@ -3267,16 +3267,28 @@ and it is answered there.
 
 **What survives from the attempt.** `base` on the table: what the card's
 own word is where the cells are shapes of it. Arabic and Hebrew both say
-*masculine*, and the line under the word's block says so, because three
-boxes named feminine, plural and dual over a block called "the main form"
-was the screen naming its own layout instead of the language. A table that
-says nothing keeps the sentence it had rather than guessing, which is the
-rule the dual column follows too.
+*masculine*, and it is what the word's own section is headed, because
+three boxes named feminine, plural and dual over a block called "the main
+form" was the screen naming its own layout instead of the language. A
+table that says nothing keeps the app's own name rather than guessing,
+which is the rule the dual column follows too.
 
-**Revisit if** the cells grow the fields the word has — several accepted
-answers per shape, each with its own recordings. Then the two really are
-the same kind of thing and can be drawn as one list without anything being
-given up, which is the only version of that idea worth having.
+**And the way it was settled, a release later.** The revisit this entry
+asked for — give the shapes the fields the word has, and the two really
+are the same kind of thing — is what happened. Every shape is a section
+of its own now, written by the same component, with its own accepted
+answers and a recording per answer. The four are drawn alike because they
+*are* alike, rather than by taking the word down to the smallest of them.
+
+What made that affordable was the boxes getting short first. The reason
+full blocks failed in 0.208 was that three shapes took three screens; at
+43 pixels a box they do not. Every attempt in between was trying to buy
+that with something else.
+
+**The rule stands either way.** Fields are not dropped to make a layout
+read as one thing. When two things should look alike, the answer is to
+give the lesser one what the greater has, or to make both smaller — never
+to take the greater one's away.
 
 ---
 

@@ -8,6 +8,40 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.215 — 22 September 2026
+
+**Every shape of a word is a section of its own, named in the language.**
+
+A word and the shapes it takes beside a noun are the same kind of thing,
+and the screen has spent five releases saying otherwise in different
+ways: a heading further down the page, full blocks that took three
+screens, a short list that made them look like something less than the
+word, and then the word folded into that list, which cost it a second
+accepted answer.
+
+They are four sections now — in Palestinian Arabic **Masculine**,
+**Feminine**, **Plural**, **Dual**; in Hebrew masculine, feminine,
+masculine plural and feminine plural — and each is written in exactly the
+fields the word is written in. That means each one now has what only the
+word had: **a second accepted answer**, and **a recording of its own per
+answer**. If the feminine has two acceptable spellings, you can write
+both and record each.
+
+What made that affordable is that the boxes got short two releases ago.
+Full blocks were right in principle and unusable in practice while each
+of them was a screen high; at the size they are now, four sections fit
+where two used to.
+
+**And the word is called what it is.** It was *Form 1*, then *The main
+form* — the app naming its own layout while the three boxes under it were
+named after the language. It is **Masculine**, out of the same place the
+other three names come from, so a language that arranges its adjectives
+differently says so itself.
+
+**The line under the heading is gone.** It explained where the word's
+other shapes were written; the four headings say that, in fewer words and
+in the language's own.
+
 ## 0.214 — 22 September 2026
 
 **The word is written in the same boxes its other forms are.**

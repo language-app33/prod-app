@@ -5657,35 +5657,46 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("including the form beside a pair",
         !!boxes(/^Arabic for dual$/).length,
         boxes(/ for (feminine|plural|dual)$/).join(" | ") || "(no table)");
-      /* Beside the word rather than under a heading of their own further
-         down the page — and short: a name and the three boxes the app
-         shows any form in, which is what they were before anybody moved
-         them. Three shapes of one word are a list, not three subjects. */
+      /* A section each, named in the language's own words and written in
+         exactly the fields the card's own word is written in. They have
+         been a heading further down the page, full blocks, a short list,
+         and a row of that list — and what was wrong each time was the
+         size of the boxes, not that a shape of a word is a lesser thing.
+         The boxes are short now, so each can have the room. */
       const blockNames = () => [...document.querySelectorAll(".at-formnum")]
         .map((n) => (n.textContent || "").trim());
       const fieldNames = () => [...document.querySelectorAll(".at-label")]
         .map((n) => (n.textContent || "").trim());
-      check("each of them named and beside the word, in the fewest boxes that hold a form",
-        blockNames().includes("Its other forms") &&
-          ["feminine", "plural", "dual"].every((c) => fieldNames().includes(c)) &&
-          !!boxes(/^English for feminine$/).length,
+      check("each of them a section of its own, in the same fields the word is written in",
+        ["Feminine", "Plural", "Dual"].every((c) => blockNames().includes(c)) &&
+          !blockNames().includes("Its other forms") &&
+          !!boxes(/^English for feminine$/).length &&
+          !!boxes(/^Transliteration for dual$/).length,
         `${blockNames().join(" | ")} · ${fieldNames().join(" | ")}`);
-      /* And the word itself is not numbered, because there is nothing for
-         it to be the first of. It keeps its own block: for one release it
-         was the first row of the list above, which cost it the button
-         that accepts a second spelling — and a card with two accepted
-         answers is the ordinary case here. */
-      check("and the word itself is called what it is rather than numbered",
-        blockNames().includes("The main form") &&
-          !blockNames().some((n) => /^Form 1$/.test(n)),
+      /* And the word itself is the first of them, named the way they are:
+         it was "Form 1" and then "The main form", and both were the app
+         naming its own layout while the three below it were named after
+         the language. */
+      check("and the word itself is named by the language, like the shapes of it",
+        blockNames()[2] === "Masculine" &&
+          !blockNames().some((n) => /^(Form 1|The main form)$/.test(n)),
         blockNames().join(" | "));
-      /* And the field only a block can hold: a second accepted answer.
-         Its recordings are not a field any more — they hang off the
-         answer they are of, on the line under it, which is where its
-         grammar is for the same reason. */
-      check("and keeps the field only a block can hold — a second accepted answer",
-        [...document.querySelectorAll("button")]
-          .some((b) => (b.getAttribute("aria-label") || "") === "Add another accepted answer") &&
+      /* With nothing under the heading explaining the heading. */
+      check("with no line under it telling a teacher what they can read",
+        !/shapes it takes beside a noun/.test(document.body.textContent || "") &&
+          !/You can add additional forms/.test(document.body.textContent || ""),
+        [...document.querySelectorAll(".at-formrole")].map((n) => (n.textContent || "").trim())
+          .join(" | ") || "(no lines)");
+      /* And a shape of the word now has what only the word had: a second
+         accepted answer, and a recording per answer. Its recordings are
+         not a field any more — they hang off the answer they are of, on
+         the line under it, which is where its grammar is for the same
+         reason. */
+      const addFor = (/** @type {RegExp} */ re) => [...document.querySelectorAll("button")]
+        .some((b) => re.test(b.getAttribute("aria-label") || ""));
+      check("and every one of them takes a second accepted answer, as the word does",
+        addFor(/^Add another accepted answer$/) &&
+          addFor(/^Add another accepted answer for feminine$/) &&
           !fieldNames().includes("Recordings"),
         fieldNames().join(" | "));
       const recBtn = () => [...document.querySelectorAll(".at-formblock.main .at-answerabout button")]
@@ -5693,6 +5704,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("with how it sounds hanging off the answer it is of, not standing beside the English",
         recBtn().length === 1 && /none yet/.test(recBtn()[0].getAttribute("aria-label") || ""),
         recBtn().map((b) => b.getAttribute("aria-label")).join(" | ") || "(no button)");
+      check("and a shape of the word can be recorded the same way",
+        [...document.querySelectorAll(".at-answerabout button")]
+          .some((b) => /^Recordings for feminine —/.test(b.getAttribute("aria-label") || "")),
+        [...document.querySelectorAll(".at-answerabout button")]
+          .map((b) => b.getAttribute("aria-label")).filter(Boolean).join(" | ") || "(no buttons)");
       /* And the box says which language it wants, in that language. The
          heading used to name two fields at once and the box itself said
          nothing. */
@@ -5712,7 +5728,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         blockNames().join(" | "));
       const blocksUp = () => [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
       check("and no second form offered, because a spelling is an accepted answer",
-        !addForm() && blocksUp().includes("The main form"),
+        !addForm() && blocksUp().includes("Masculine"),
         addForm() ? "a form is offered" : blocksUp().join(" | "));
       /* Nor any other way to one. Taking the Add button away and leaving
          Duplicate on the card's own word was not taking it away: the
@@ -5722,17 +5738,19 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .find((b) => /^Duplicate$/.test((b.textContent || "").trim()));
       check("and no other way to one either, because the table is the forms",
         !copyBtn(), copyBtn() ? "still offered" : "no such button");
-      /* And that line names which shape of the word this block is — the
-         masculine, in Arabic — because the three below it are named and
-         it was the one left as "the main form", which is the app talking
-         about its own layout rather than about the language. */
-      check("and the line under the word says which shape it is, and where its others are",
-        /the masculine\. The shapes it takes beside a noun are written below/
-          .test(document.body.textContent || "") &&
-          !/You can add additional forms/.test(document.body.textContent || ""),
-        ((([...document.querySelectorAll(".at-formblock")]
-          .find((b) => /^The main form$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
-          || document.body).querySelector(".at-formrole") || {}).textContent || "").trim().slice(0, 90));
+      /* And the four sections are in the order the language declares them,
+         the card's own word first. Which one a box belongs to is said out
+         loud on the box itself, because four blocks of identical fields
+         under four headings are four boxes called "English" to anybody
+         reading the screen aloud — a heading is not a label. */
+      check("the four read in the order the language declares, the word first",
+        blocksUp().slice(2, 6).join(" | ") === "Masculine | Feminine | Plural | Dual",
+        blocksUp().join(" | "));
+      check("and every box says which of them it belongs to",
+        ["feminine", "plural", "dual"].every((c) =>
+          !!boxes(new RegExp(`^Arabic for ${c}$`)).length &&
+          !!boxes(new RegExp(`^English for ${c}$`)).length),
+        boxes(/ for (feminine|plural|dual)$/).join(" | ") || "(nothing named)");
 
       /* A number is not one of the answers any more: the faces a numeral
          takes are boxes in the language's number system, and the card
@@ -6044,9 +6062,38 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       [...document.querySelectorAll(".at-drillhead")].length === 2,
     [...document.querySelectorAll(".at-drillhead")]
       .map((n) => (n.textContent || "").trim()).join(" | ") || "(no heads)");
-  check("with the word keeping its own block, being what these are forms of",
-    [...document.querySelectorAll(".at-formnum")].some((n) => (n.textContent || "").trim() === "The main form"),
+  check("with the word the first of them, named the way they are",
+    [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim())
+      .slice(2, 6).join(" | ") === "Masculine | Feminine | Plural | Dual",
     [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+  /* And a shape nobody has written yet can be written. These are edited
+     through the same component the card's own word is — accepted answers
+     and all — so what lands in the card is a packed answer rather than
+     the one string the box used to write, and the cell has to be minted
+     out of it. */
+  {
+    const setValue = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    const dual = must(box("Arabic for dual"), "the box for the dual");
+    must(setValue, "the input's value setter").call(dual, "كبيرين");
+    dual.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(200);
+    check("and a shape nobody had written can be written into",
+      !!box("Arabic for dual") && box("Arabic for dual").value === "كبيرين",
+      box("Arabic for dual") ? `"${box("Arabic for dual").value}"` : "(the box went)");
+    /* And with a word in it, it is something that can be recorded — which
+       is the cell having been minted rather than the box holding text
+       nothing kept. */
+    const recFor = () => /** @type {any} */ (
+      [...document.querySelectorAll(".at-answerabout button")]
+        .find((b) => /^Recordings for dual —/.test(b.getAttribute("aria-label") || "")) || null
+    );
+    check("and is then something that can be recorded, the cell having been made",
+      !!recFor() && !recFor().disabled,
+      recFor() ? (recFor().getAttribute("aria-label") || "") : "(no button)");
+  }
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
