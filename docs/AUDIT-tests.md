@@ -1,6 +1,6 @@
 # Audit: do the tests test the right things, and would they notice?
 
-**22 September 2026 · release 0.212, commit 1296f5a, the tree on `origin/beta`**
+**22 September 2026 · release 0.212, commit 1296f5a · re-checked against 0.213 (64b000e), which landed on `beta` during the audit: the full check is green there too (950 unit tests, 703 walk checks), and nothing below changes.**
 
 The earlier audits asked whether the app loses work, holds up offline, and
 keeps cards and progress straight. This one asks about the tests themselves:
@@ -153,7 +153,8 @@ did the measuring were throwaway and are not in the tree.*
 
 `npm run check` — lint, `tsc --noEmit`, 945 unit tests in 38 files
 (`node --test`), the smoke walk (698 checks in jsdom, seeded), and the Vite
-build — takes 2 m 51 s here and about 3 minutes in CI. CI (`ci.yml`) runs the
+build — takes 2 m 51 s here and about 3 minutes in CI (950 tests and 703
+checks on 0.213, 2 m 58 s). CI (`ci.yml`) runs the
 same five steps on every push and pull request; the last eight runs on `beta`
 are green. The unit suite was run three times and the smoke walk under
 `SMOKE_SEED` 1, 42 and 20260922 in addition to the default: no failure and no
