@@ -874,7 +874,9 @@ tests/
 ```
 
 `docs/UI-COMPONENTS.md` lists every reusable component with its props and how
-widely it is used — worth reading before adding UI.
+widely it is used — worth reading before adding UI. `DECISIONS.md` has the
+choices that were not obvious, with what each one cost; `BACKLOG.md` has the
+work that is wanted and not started, with why each item waits.
 
 A few rules the code follows, learned the hard way:
 
