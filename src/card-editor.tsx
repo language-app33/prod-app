@@ -1422,6 +1422,72 @@ function cellLabel(spec: VerbSpec | null, at: { row: string, col: string }) {
  * also drawn as blocks, in the format the card's own word is written in —
  * two ways of showing one table, and one way of changing it.
  */
+/**
+ * One cell's boxes, and the one button that records it.
+ *
+ * The minimal way this app shows a form: the script, how it is said and
+ * what it means on one line, and a microphone that lights when there is
+ * something recorded. A list and an explanation under every one of a
+ * verb's twenty-four cells would be the table's whole height again, so a
+ * cell gets none — it says how many recordings there are and opens the
+ * same screen the forms below open.
+ *
+ * Written once because two things show a cell: the grid a verb's table is
+ * drawn as, and the short labelled list a card's other forms are drawn as
+ * where there are only a few of them. Same boxes either way; what differs
+ * is what stands over them.
+ */
+function CellFields({ lang, cell, which, saysHow, onChange, onRecord }: {
+  lang: Lang;
+  cell: Record<string, any> | null;
+  /** What to call this one where a label has to name it out loud — for a
+      screen reader, and on the recording screen's title. */
+  which: string;
+  /** Whether this language has a pronunciation worth writing per cell. */
+  saysHow: boolean;
+  onChange: (patch: Record<string, any>) => void;
+  onRecord: () => void;
+}) {
+  const written = !!(cell && String(cell.ar || "").trim());
+  const heard = cell ? clipsOf(cell).length : 0;
+  return (
+    <>
+      <div className="at-cellfields">
+        <ScriptInput
+          compact
+          lang={lang}
+          label={`${lang.scriptLabel} for ${which}`}
+          value={(cell && cell.ar) || ""}
+          onChange={(v) => onChange({ ar: v })}
+        />
+        {saysHow && (
+          <input
+            className="at-input"
+            aria-label={`${lang.translitLabel} for ${which}`}
+            value={(cell && cell.lat) || ""}
+            placeholder={lang.translitLabel.toLowerCase()}
+            onChange={(e) => onChange({ lat: e.target.value })}
+          />
+        )}
+        <input
+          className="at-input"
+          aria-label={`English for ${which}`}
+          value={(cell && cell.en) || ""}
+          placeholder="English"
+          onChange={(e) => onChange({ en: e.target.value })}
+        />
+      </div>
+      <IconButton
+        icon="mic"
+        label={heard ? `${heard} ${plural(heard, "recording")} · ${which}` : `Record ${which}`}
+        className={`at-cellmic${heard ? " on" : ""}`}
+        disabled={!written}
+        onClick={onRecord}
+      />
+    </>
+  );
+}
+
 export function writeCell(
   { cells, of, mint }: {
     cells: Record<string, any>[];
@@ -1503,8 +1569,6 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
                them on screen: two forms of a word have a *me* apiece, and
                a box labelled only "me" would be two boxes with one name. */
             const which = [ofLabel, tense.label, person.label].filter(Boolean).join(" · ");
-            const written = !!(cell && String(cell.ar || "").trim());
-            const heard = cell ? clipsOf(cell).length : 0;
             /* Nothing marks the cell a dictionary would list this verb
                under. It used to carry a gold label reading "· the
                dictionary form", which made one row of the table a
@@ -1516,47 +1580,13 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
             return (
               <div className="at-cellrow" key={person.id}>
                 {named && <span className="at-celllabel">{person.label}</span>}
-                <div className="at-cellfields">
-                  <ScriptInput
-                    compact
-                    lang={lang}
-                    label={`${lang.scriptLabel} for ${which}`}
-                    value={(cell && cell.ar) || ""}
-                    onChange={(v) => write(tense.id, person.id, { ar: v })}
-                  />
-                  {saysHow && (
-                    <input
-                      className="at-input"
-                      aria-label={`${lang.translitLabel} for ${which}`}
-                      value={(cell && cell.lat) || ""}
-                      placeholder={lang.translitLabel.toLowerCase()}
-                      onChange={(e) => write(tense.id, person.id, { lat: e.target.value })}
-                    />
-                  )}
-                  <input
-                    className="at-input"
-                    aria-label={`English for ${which}`}
-                    value={(cell && cell.en) || ""}
-                    placeholder="English"
-                    onChange={(e) => write(tense.id, person.id, { en: e.target.value })}
-                  />
-                </div>
-                {/* One button rather than the Recordings block the forms
-                    below get: a list and an explanation under every one of
-                    twenty-four cells would be the table's whole height
-                    again. It says how many there are, and opens the same
-                    screen. Off until there is a word to say — a recording
-                    of an empty cell is a recording of nothing. */}
-                <IconButton
-                  icon="mic"
-                  label={
-                    heard
-                      ? `${heard} ${plural(heard, "recording")} · ${which}`
-                      : `Record ${which}`
-                  }
-                  className={`at-cellmic${heard ? " on" : ""}`}
-                  disabled={!written}
-                  onClick={() => onRecord(tense.id, person.id)}
+                <CellFields
+                  lang={lang}
+                  cell={cell}
+                  which={which}
+                  saysHow={saysHow}
+                  onChange={(patch) => write(tense.id, person.id, patch)}
+                  onRecord={() => onRecord(tense.id, person.id)}
                 />
               </div>
             );
@@ -4640,25 +4670,26 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
 /* The table a card carries — a verb's, an adjective's — and the one line
    that unblocks Save while the whole of it is empty. */
 /*
- * The cells of a small table, each written the way the card's own word is.
+ * The other forms a word takes, beside the word itself.
  *
- * An adjective is one word and a handful of shapes of it, and the screen
- * used to say so twice over in two different hands: the word in labelled
- * fields, with its accepted answers and a recording button, and then —
- * under a heading of its own, further down the page — its feminine and
- * plural as a compact grid of unlabelled boxes with a microphone icon.
- * Two formats for forms of one word, and the reason was only that one of
- * them started life as a verb's twenty-four-cell table, where a grid is
- * the right shape and a stack of full blocks would be a mile of screen.
+ * Minimal on purpose, and next to the word on purpose, which took two
+ * goes to get right. They used to sit under a heading of their own
+ * further down the page, as though they were a second subject; then they
+ * were written as full blocks in the format the word is written in, which
+ * put them where they belong and made three shapes of one word take three
+ * screens.
  *
- * Three cells is not twenty-four. So where a card can hold only the one
- * form — its other shapes being the table — those shapes are written
- * beside it, in the same format, in the order the language declares them.
- * The grid stays where it earns its keep: a verb's persons and tenses,
- * and the pronouns on the end of every form of a word.
+ * So: the app's labelled control, one per form, over the same boxes a
+ * verb's table is drawn with. A name, three boxes and a microphone —
+ * which is the shortest thing this app has that can hold a form, and is
+ * what these were before anybody moved them.
+ *
+ * The grid stays where a grid earns its keep: a verb's persons and tenses,
+ * and the pronouns on the end of every form of a word. A handful of cells
+ * under a name apiece reads better as a list than as a table with one row.
  */
-function CellBlocks({ word, lang }: { word: WordDraft; lang: Lang }) {
-  const { shownSpec, cells, setCells, mintCell, setRecordingCell, category, drillsTranslit } = word;
+function AgreementFields({ word, lang }: { word: WordDraft; lang: Lang }) {
+  const { shownSpec, cells, setCells, mintCell, setRecordingCell } = word;
   if (!shownSpec || shownSpec.perForm) return null;
   const rows = tensesOf(shownSpec);
   const persons = personsOf(shownSpec);
@@ -4666,67 +4697,33 @@ function CellBlocks({ word, lang }: { word: WordDraft; lang: Lang }) {
      called "agreement", which is the table and not a fact about the cell.
      Two or more and the row is half of where a cell sits, so it is said. */
   const named = rows.length > 1;
+  const saysHow = lang.translitDrilled !== false;
   const at = (row: string, col: string) =>
     cells.find((c) => c.row === row && c.col === col && !String(c.of || "")) || null;
-  const write = (row: string, col: string, patch: Record<string, any>) =>
-    setCells(writeCell({ cells, of: "", mint: mintCell }, row, col, patch));
 
   return (
     <>
       {rows.flatMap((row) =>
         persons.map((person) => {
-          const cell = at(row.id, person.id);
           const name = person.label || person.id;
-          const title = named ? `${row.label} · ${name}` : name;
+          const which = named ? `${row.label} · ${name}` : name;
           return (
-            <div className="at-formblock" key={`${row.id}|${person.id}`}>
-              <div className="at-formhead">
-                <span className="at-formnum">{title}</span>
-                {person.label ? (
-                  <span className="at-formrole">Its {person.label} form.</span>
-                ) : null}
+            <Field label={which} key={`${row.id}|${person.id}`}>
+              <div className="at-cellrow">
+                <CellFields
+                  lang={lang}
+                  cell={at(row.id, person.id)}
+                  which={which}
+                  saysHow={saysHow}
+                  onChange={(patch) =>
+                    setCells(writeCell({ cells, of: "", mint: mintCell }, row.id, person.id, patch))
+                  }
+                  onRecord={() =>
+                    setRecordingCell({ of: "", ofLabel: "", row: row.id, col: person.id })
+                  }
+                />
               </div>
-              <div className="at-part">
-                <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
-                  <ScriptAnswers
-                    lang={lang}
-                    dims={answerDims(lang, category)}
-                    form={cell || {}}
-                    of={title}
-                    onChange={(next) => write(row.id, person.id, next)}
-                  />
-                  {!drillsTranslit && (
-                    <Help>
-                      {lang.name} is written in the Latin alphabet, so the{" "}
-                      {lang.translitLabel.toLowerCase()} is never asked for — it is kept beside the
-                      answer it belongs to, and read.
-                    </Help>
-                  )}
-                </Field>
-                <Field label="English">
-                  <Alternatives
-                    value={(cell || {}).en || ""}
-                    onChange={(v) => write(row.id, person.id, { en: v })}
-                    render={(v, set) => (
-                      <input
-                        className="at-input"
-                        value={v}
-                        aria-label={`English for ${title}`}
-                        onChange={(e) => set(e.target.value)}
-                      />
-                    )}
-                  />
-                </Field>
-                <div className="at-field">
-                  <Recordings
-                    form={cell || {}}
-                    onOpen={() =>
-                      setRecordingCell({ of: "", ofLabel: "", row: row.id, col: person.id })
-                    }
-                  />
-                </div>
-              </div>
-            </div>
+            </Field>
           );
         }),
       )}
@@ -5041,7 +5038,7 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
 export const formRole = (i: number, laidOut = false): string =>
   i === 0
     ? laidOut
-      ? "This is the main form of the card. The forms it takes beside a noun are written below — another spelling of one belongs on that form, not on a form of its own."
+      ? "The word this card is about. The shapes it takes beside a noun are written below — another spelling of one belongs on that shape, not on a form of its own."
       : "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
     : "Another form of the same card.";
 
@@ -6636,6 +6633,13 @@ function TableEditor({ word, lang, allCards, selfId }: {
 }) {
   return (
     <>
+      {/* "Form 1" is a name for the first of several, and this card can
+          hold one: numbering it asks a teacher which the others are and
+          then never shows them. The app's own name for it — the one
+          askParts has always used, and the one the practice section
+          below reads — is what it is called. A card carrying a loose
+          form from before is still numbered, because there it is one of
+          several. */}
       {word.forms.map((f, i) => (
         <FormBlock
           key={i}
@@ -6643,13 +6647,26 @@ function TableEditor({ word, lang, allCards, selfId }: {
           lang={lang}
           index={i}
           form={f}
-          title={`Form ${i + 1}`}
+          title={i === 0 ? "The main form" : `Form ${i + 1}`}
           role={formRole(i, true)}
           canCopy={false}
           drills={false}
         />
       ))}
-      <CellBlocks word={word} lang={lang} />
+      {/* Under one name rather than one heading apiece: three shapes of a
+          word are a list, and a page of headings over one box each was
+          what made them read as three subjects. The name is the app's
+          own — not the table's label, which is the list of them and would
+          be saying the same words twice over the boxes below. */}
+      <div className="at-formblock">
+        <div className="at-formhead">
+          <span className="at-formnum">Its other forms</span>
+          <span className="at-formrole">The shapes this word takes beside a noun.</span>
+        </div>
+        <div className="at-part">
+          <AgreementFields word={word} lang={lang} />
+        </div>
+      </div>
       <PracticeSection word={word} />
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />

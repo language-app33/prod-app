@@ -5565,14 +5565,23 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("including the form beside a pair",
         !!boxes(/^Arabic script for dual$/).length,
         boxes(/ for (feminine|plural|dual)$/).join(" | ") || "(no table)");
-      /* And each of them written the way the word itself is, in a block
-         of its own rather than a grid of unlabelled boxes further down
-         the page. Three cells is not a verb's twenty-four. */
+      /* Beside the word rather than under a heading of their own further
+         down the page — and short: a name and the three boxes the app
+         shows any form in, which is what they were before anybody moved
+         them. Three shapes of one word are a list, not three subjects. */
       const blockNames = () => [...document.querySelectorAll(".at-formnum")]
         .map((n) => (n.textContent || "").trim());
-      check("each of them in a block beside the word, in the format the word is written in",
-        ["feminine", "plural", "dual"].every((c) => blockNames().includes(c)) &&
+      const fieldNames = () => [...document.querySelectorAll(".at-label")]
+        .map((n) => (n.textContent || "").trim());
+      check("each of them named and beside the word, in the fewest boxes that hold a form",
+        blockNames().includes("Its other forms") &&
+          ["feminine", "plural", "dual"].every((c) => fieldNames().includes(c)) &&
           !!boxes(/^English for feminine$/).length,
+        `${blockNames().join(" | ")} · ${fieldNames().join(" | ")}`);
+      /* And the word itself is not numbered, because there is nothing for
+         it to be the first of. */
+      check("and the word itself is called what it is rather than numbered",
+        blockNames().includes("The main form"),
         blockNames().join(" | "));
       check("with no number or gender on the word, because the table is its number and gender",
         !grammarBtn(), grammarBtn() ? "grammar asked" : "not asked");
@@ -5586,7 +5595,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         blockNames().join(" | "));
       const blocksUp = () => [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
       check("and no second form offered, because a spelling is an accepted answer",
-        !addForm() && blocksUp().includes("Form 1"),
+        !addForm() && blocksUp().includes("The main form"),
         addForm() ? "a form is offered" : blocksUp().join(" | "));
       /* Nor any other way to one. Taking the Add button away and leaving
          Duplicate on the card's own word was not taking it away: the
@@ -5597,10 +5606,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("and no other way to one either, because the table is the forms",
         !copyBtn(), copyBtn() ? "still offered" : "no such button");
       check("and the line under the word says where its forms are, rather than pointing at nothing",
-        /forms it takes beside a noun are written below/.test(document.body.textContent || "") &&
+        /shapes it takes beside a noun are written below/.test(document.body.textContent || "") &&
           !/You can add additional forms/.test(document.body.textContent || ""),
         ((([...document.querySelectorAll(".at-formblock")]
-          .find((b) => /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
+          .find((b) => /^The main form$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
           || document.body).querySelector(".at-formrole") || {}).textContent || "").trim().slice(0, 90));
 
       /* A number is not one of the answers any more: the faces a numeral
@@ -5914,7 +5923,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     [...document.querySelectorAll(".at-drillhead")]
       .map((n) => (n.textContent || "").trim()).join(" | ") || "(no heads)");
   check("with the word keeping its own block, being what these are forms of",
-    [...document.querySelectorAll(".at-formnum")].some((n) => (n.textContent || "").trim() === "Form 1"),
+    [...document.querySelectorAll(".at-formnum")].some((n) => (n.textContent || "").trim() === "The main form"),
     [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
