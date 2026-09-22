@@ -296,6 +296,12 @@ function ScriptAnswers({ lang, dims, form, of = "", onChange, blanks, onRemoveBl
     [base, rows.length > 1 ? ` of accepted answer ${i + 1}` : "", of ? ` for ${of}` : ""].join("");
   const [rows, setRows] = useState(() => answerRows(form, fields));
   const [open, setOpen] = useState<number | null>(null);
+  /* Which answer's recordings are being made, where any are. The screen is
+     rendered from here rather than beside the editor's other two, because
+     the rows live in this component's own state and a screen that wrote
+     into the card behind them would be overwritten by the next keystroke.
+     It is a Screen, so it stands over the editor wherever it is drawn. */
+  const [heard, setHeard] = useState<number | null>(null);
   /* The same rule as Alternatives above, and for the same reason: these
      rows were read off the form once, and a blank written into the card
      from outside would otherwise change the card and not the screen. What
@@ -345,6 +351,11 @@ function ScriptAnswers({ lang, dims, form, of = "", onChange, blanks, onRemoveBl
                 lang={lang}
                 value={row.text}
                 label={of ? named(lang.scriptLabel, i) : undefined}
+                /* The language's own name for itself, which is the only
+                   thing on this line saying which script is wanted now
+                   that the heading above says "Arabic" and not "Arabic
+                   script and transliteration". */
+                placeholder={lang.scriptNative}
                 onChange={(v) => edit(i, { text: v })}
               />
             )}
@@ -399,8 +410,18 @@ function ScriptAnswers({ lang, dims, form, of = "", onChange, blanks, onRemoveBl
               onChange={(e) => edit(i, { lat: e.target.value })}
             />
           )}
-          {dims.length > 0 && (
-            <div className="at-answergrammar">
+          {/* What is true of this answer rather than of the card: what
+              grammar it carries, and how it sounds. Both are answers about
+              one of the words above and not about the pair of them, and
+              both are written small and under it for that reason.
+
+              The recordings were a field of their own further down, level
+              with the English — which said a recording was a third thing
+              the card had, beside the word and its meaning. It is not: it
+              is one of the accepted answers, said out loud, and a card
+              that accepts two had one set of clips over the pair. */}
+          <div className="at-answerabout">
+            {dims.length > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -412,21 +433,54 @@ function ScriptAnswers({ lang, dims, form, of = "", onChange, blanks, onRemoveBl
                 {grammarOf(row) || "Grammar"}
                 <Icon name={open === i ? "chevronUp" : "chevronDown"} />
               </Button>
-              {open === i && (
-                <GrammarRadios
-                  dims={dims}
-                  values={row}
-                  of={`of accepted answer ${i + 1}`}
-                  onPick={(field, v) => edit(i, { [field]: v })}
-                />
-              )}
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="mic"
+              /* Nothing to record until there is a word to say. The same
+                 rule a cell of a table follows — see CellFields. */
+              disabled={!String(row.text || "").trim()}
+              aria-label={soundLabel(clipsOf(row).length, named("Recordings", i))}
+              onClick={() => setHeard(i)}
+            >
+              {soundOf(clipsOf(row).length)}
+            </Button>
+          </div>
+          {dims.length > 0 && open === i && (
+            <div className="at-answergrammar">
+              <GrammarRadios
+                dims={dims}
+                values={row}
+                of={`of accepted answer ${i + 1}`}
+                onPick={(field, v) => edit(i, { [field]: v })}
+              />
             </div>
           )}
         </div>
       ))}
+      {heard !== null && rows[heard] && (
+        <RecordingScreen
+          title={rows.length > 1 ? `Recordings · accepted answer ${heard + 1}` : "Recordings"}
+          form={rows[heard] as { clips?: string[]; slowClips?: string[] }}
+          onChange={(next) => edit(heard, next)}
+          onClose={() => setHeard(null)}
+        />
+      )}
     </div>
   );
 }
+
+/* What the button beside an answer reads, and what a screen reader is told
+   it is. Written once because the two must agree: the count is the whole
+   of what the button says, so a label saying something else would be the
+   only description of a button whose text is "2 recordings". */
+const soundOf = (made: number): string =>
+  /* `plural` counts as well as pluralising — "1 recording", "2 recordings"
+     — so the number is not written again in front of it. */
+  made ? plural(made, "recording") : "Record";
+const soundLabel = (made: number, of: string): string =>
+  made ? `${of} — ${made} made` : `${of} — none yet`;
 
 /* ------------------------------------------------------------------
    The field a blank stands in
@@ -932,7 +986,7 @@ function BlankText({ value, onChange, onRemove, className = "", style, dir, lang
    laid out by its direction, with the on-screen keys a click away. A
    second implementation of it there would be a second place for the caret
    handling and the direction rule to drift. */
-export function ScriptInput({ lang, value, onChange, compact = false, label, box, onRemoveBlank }: {
+export function ScriptInput({ lang, value, onChange, compact = false, label, box, onRemoveBlank, placeholder }: {
   lang: Lang;
   value?: string;
   onChange: (value: string) => void;
@@ -966,6 +1020,15 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
    * read — and only where a caller asks.
    */
   compact?: boolean;
+  /**
+   * What stands in the box while it is empty.
+   *
+   * Asked for rather than always the language's own name: a verb's table
+   * is twenty-four of these, and the same word greyed out in every one of
+   * them is noise. Where one box is the language — the card's own word —
+   * it is the only thing on the line that says which script is wanted.
+   */
+  placeholder?: string;
 }) {
   const [keys, setKeys] = useState(false);
   /* Either kind of box: an input, or the one a sentence's blanks are
@@ -977,6 +1040,7 @@ export function ScriptInput({ lang, value, onChange, compact = false, label, box
   const look = {
     className: "at-input",
     lang: lang.id,
+    placeholder: placeholder || undefined,
     /* The words decide, once there are any: the field is laid out by its
        own first strong character, so a pasted Arabic phrase reads
        right-to-left even if the deck is labelled with another language.
@@ -1479,7 +1543,7 @@ function CellFields({ lang, cell, which, saysHow, onChange, onRecord }: {
       </div>
       <IconButton
         icon="mic"
-        label={heard ? `${heard} ${plural(heard, "recording")} · ${which}` : `Record ${which}`}
+        label={heard ? `${plural(heard, "recording")} · ${which}` : `Record ${which}`}
         className={`at-cellmic${heard ? " on" : ""}`}
         disabled={!written}
         onClick={onRecord}
@@ -3413,10 +3477,12 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      below proposes and the teacher decides, because peeling prefixes off an
      Arabic word occasionally lands on a different real one. */
   const [uses, setUses] = useState((card && card.uses) || []);
-  /* Which form's recordings are being made, or null. The screen for them
-     opens over this one and hands its results straight back into the form,
-     so nothing about a card is saved any earlier than it was. */
-  const [recording, setRecording] = useState<number | null>(null);
+  /* No "which form's recordings are being made" here any more. Recordings
+     belong to an accepted answer, and the rows an answer is edited in live
+     inside ScriptAnswers — so the screen for them opens from there, over
+     this one, the way every other Screen in the app does. The cells of a
+     table still open theirs from here: a cell is one box and holds no
+     list of answers. */
 
   /*
    * Which tenses each of this sentence's blanks wants its verbs in.
@@ -4124,8 +4190,6 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
     dropStrip,
     uses,
     setUses,
-    recording,
-    setRecording,
     main,
     holes,
     /* Whether the teacher has called this a sentence, which is the one
@@ -5150,7 +5214,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true,
   blanks?: BlankWiring;
   children?: Node;
 }) {
-  const { drillsTranslit, parts, setForm, duplicateForm, removeForm, setRecording, dropBlank } = word;
+  const { drillsTranslit, parts, setForm, duplicateForm, removeForm, dropBlank } = word;
   /* This form's own two answers — see askParts, which lists one line per
      form whether or not anything is written in it yet: the answer is
      about the form, and a card being written from scratch should be able
@@ -5209,14 +5273,26 @@ function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true,
         A line naming it again, and a second line under that saying which
         of the fields below are required, were two rows of the screen
         telling a teacher what they could see. */}
-    <div className="at-part">
+    {/* `evenfields` sets the three boxes of one answer to one height — see
+        the stylesheet, where the reason is. Not on a sentence: its fields
+        hold blanks as pills and wrap to as many lines as the sentence
+        needs, and a fixed height would cut the second one off. */}
+    <div className={`at-part${blanks ? "" : " evenfields"}`}>
 
-    {/* An accepted answer and how it is said are written together,
-        because one transliteration under two spellings belongs to
-        one of them and lies about the other. Where the language
-        has no transliteration to write, this is the plain list it
-        always was. */}
-    <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
+    {/* An accepted answer, how it is said and how it sounds are
+        written together, because one transliteration under two
+        spellings belongs to one of them and lies about the other,
+        and so does one recording. Where the language has no
+        transliteration to write, this is the plain list it always
+        was.
+
+        Headed with the language and nothing else. It used to name
+        two of the boxes under it — "Arabic script and
+        transliteration" — which was a heading doing the work of
+        labels and still left the box itself blank; the box says
+        what it is now, in the language, and the heading says which
+        language. */}
+    <Field label={lang.scriptLabel}>
       <ScriptAnswers
         lang={lang}
         dims={answerDims(lang, word.category)}
@@ -5259,9 +5335,11 @@ function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true,
       />
     </Field>
 
-    <div className="at-field">
-      <Recordings form={f} onOpen={() => setRecording(i)} />
-    </div>
+    {/* No Recordings field here. It stood level with the English, which
+        said a recording was a third thing the card had beside the word
+        and its meaning — and gave a card with two accepted answers one
+        set of clips over the pair. Each answer carries its own now, on
+        the button under it. */}
 
     {/* And whether this form is drilled, at the foot of the fields it is
         about rather than in a list at the bottom of the screen. */}
@@ -6428,7 +6506,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
  * included. Drawn by the shell after the Screen, so they stand above it.
  */
 function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }) {
-  const { forms, recording, setRecording, setForm, recordingCell, setRecordingCell, cellHere, setCells, shownSpec } = word;
+  const { recordingCell, setRecordingCell, cellHere, setCells, shownSpec } = word;
   const { lines, recordingLine, setRecordingLine, setLine } = talk;
   return (
     <>
@@ -6442,14 +6520,10 @@ function RecordingOverlays({ word, talk }: { word: WordDraft; talk: SceneDraft }
         onClose={() => setRecordingLine(null)}
       />
     )}
-    {recording !== null && forms[recording] && (
-      <RecordingScreen
-        title={forms.length > 1 ? `Recordings · form ${recording + 1}` : "Recordings"}
-        form={forms[recording]}
-        onChange={(next) => setForm(recording, { ...forms[recording], ...next })}
-        onClose={() => setRecording(null)}
-      />
-    )}
+    {/* A form's own screen used to stand here. Recordings belong to an
+        accepted answer now, and ScriptAnswers opens theirs itself — it
+        owns the rows they are written into, and a screen reaching past it
+        into the card would be overwritten by the next keystroke. */}
     {recordingCell && cellHere && (
       <RecordingScreen
         /* Named out of whichever table is on screen. It used to be named

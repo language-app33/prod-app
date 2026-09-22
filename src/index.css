@@ -2203,6 +2203,25 @@ textarea.at-input { font-size:15px; font-weight:500; line-height:1.7; resize:ver
    form. Size and weight say which is which without moving anything. */
 .at-answersaid { grid-column:1; font-family: var(--ui); font-size:14px;
   padding-block:7px; width:auto; }
+/* And the three boxes one answer is written in are one height: the
+   language, how it is said, and what it means.
+
+   They were three heights, because each was sized by its own type —
+   twenty-two point script, eighteen point English, fourteen point
+   pronunciation — and three boxes of three heights read as three
+   different kinds of field rather than as one answer written three ways.
+   The type sizes stay, because they are what says which is which and
+   which is the thing being learnt; only the boxes agree. It is the rule
+   the learner's own answer box has followed since 0.171, for the same
+   reason and in the same words: a single-line field centres its text, so
+   the height is set outright and the vertical padding goes.
+
+   Not on a sentence — see the editor, which leaves the class off where a
+   field holds blanks and wraps. */
+.at-part.evenfields .at-answerpair > .at-altfield > .at-inputwrap > .at-input,
+.at-part.evenfields .at-answerpair > .at-answersaid,
+.at-part.evenfields .at-altrow > .at-altfield > .at-input {
+  height:56px; box-sizing:border-box; padding-block:0; line-height:normal; }
 /* Which side the button takes is the script's business, not the page's: it
    belongs at the end of the line, which is the left in Arabic. Marked with
    a class rather than left to logical properties, because the button
@@ -3216,7 +3235,14 @@ body.at-screening .at-chromebar { display:none; }
    run of one-line pickers, and every pixel the buttons beside the answer
    would take off it is a word that has to be abbreviated. */
 .at-answergrammar { grid-column:1 / -1; }
-.at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
+/* What is true of this one answer, on the line under it: the grammar it
+   carries, and how it sounds. Both small and quiet — they are notes about
+   the word above, not fields of their own, and the recordings button was
+   exactly that mistake before it came here. Wrapping rather than
+   shrinking, because a grammar button carries two or three words and a
+   phone is 390 pixels wide. */
+.at-answerabout { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:6px; }
+.at-answerabout > .at-btn, .at-answergrammar > .at-btn { font-size:12px; padding:4px 8px; gap:4px; }
 .at-answerdims { display:flex; flex-direction:column; gap:6px; margin-top:8px;
   padding:8px 12px; background: var(--well); border-radius: var(--r-sm);
   container-type: inline-size; }

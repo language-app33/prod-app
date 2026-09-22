@@ -8,6 +8,41 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.213 — 22 September 2026
+
+**Three boxes of one size, a box that says what goes in it, and a
+recording that knows which word it is of.**
+
+**The heading over the word is the language now.** It said *Arabic script
+and transliteration*, which named two of the boxes under it in a place
+meant for one name, and still left the box itself blank. It says
+**Arabic** — or Hebrew, or Vietnamese — and the box says the rest, in the
+language: **العربية** stands in it while it is empty, and **עברית** and
+**Tiếng Việt** in the other two. A heading is not a label, and a box with
+nothing in it was saying nothing about what goes in it.
+
+**The three boxes are one height.** The word, how it is said, and what it
+means were sized by their own type — twenty-two point, fourteen, eighteen
+— and three boxes of three heights read as three kinds of field rather
+than as one answer written three ways. The type sizes stay, because that
+is what says which of them is the thing being learnt. Only the boxes
+agree. A sentence card keeps fields that grow, because its blanks wrap.
+
+**And a recording belongs to the accepted answer it is of.** It was a
+field of its own, level with the English, which said a recording was a
+third thing a card has beside its word and its meaning. It is not: it is
+the word, said out loud. So it sits under the answer, beside that
+answer's grammar, and a card that accepts two spellings can record both —
+**مبسوط** in one voice and **مبسوطة** in another, which is exactly the
+card that had one set of clips over the pair and played the wrong one
+half the time. A question about one of them now plays that one's
+recording, or none, rather than whatever was there.
+
+**Nothing you have already recorded moves or is lost.** A card written
+before this keeps its recordings where they are, every accepted answer on
+it reads them, and a card with one answer — which is nearly all of them —
+is unchanged in every particular.
+
 ## 0.212 — 22 September 2026
 
 **The word gets its fields back.**

@@ -9,6 +9,10 @@
  *       { text: "مَبْسوطة", lat: "mabsuuta", gender: "feminine",  number: "singular" },
  *     ]
  *
+ * And how each of them sounds: a recording belongs to the answer it is of,
+ * for the same reason its gender does. One set over the pair played a
+ * man's voice for the question that asked for the feminine.
+ *
  * Gender and number used to sit on the form, one set for the whole card.
  * That was wrong wherever the card accepted two answers that differ in
  * exactly those things — "I'm happy" said by a man and by a woman is one
@@ -61,8 +65,27 @@ export interface AnswerField {
 export interface Answer {
   text: string;
   lat: string;
+  /**
+   * How this answer sounds, at each speed somebody recorded it at.
+   *
+   * On the answer for the reason the grammar is: two accepted answers are
+   * two words, said two ways. One set of recordings over the pair played
+   * a man's voice for a question that asked for the feminine, and there
+   * was nowhere to put the other. A card with one answer is unchanged in
+   * every particular, which is the whole test of the move.
+   *
+   * Named rather than left to the open keys below, because which speeds
+   * exist is this app's answer and not a language's — see CLIP_KINDS.
+   */
+  clips?: string[];
+  slowClips?: string[];
   [dim: string]: unknown;
 }
+
+/* The two lists of recordings, named the way a form has always named them.
+   Here rather than imported from the card facts: this module has no
+   imports on purpose, and what it needs is the two keys. */
+const CLIP_FIELDS = ["clips", "slowClips"] as const;
 
 /* Where an answer sits in its form's list. Carried out of a read rather
    than stored, because an index is a fact about a list. */
@@ -122,6 +145,16 @@ export function joinAlternatives(list: (string | null | undefined)[]): string {
 export function readAnswer(raw: unknown, fields: AnswerField[] = []): Answer {
   const said = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const out: Answer = { text: str(said.text), lat: str(said.lat) };
+  /* Always both lists, even where they are empty, and unlike the grammar
+     fields below. An answer read here is handed to `withAnswer`, which
+     narrows a card to it — and an absent list there would leave the
+     card's own recordings standing, so an answer nobody recorded would
+     play the one beside it. Empty is an answer; missing is not. What is
+     *stored* drops the empties again — see packAnswers. */
+  for (const key of CLIP_FIELDS) {
+    const list = said[key];
+    out[key] = (Array.isArray(list) ? list : []).map(str).filter(Boolean);
+  }
   for (const { field, allowed } of fields) {
     const value = str(said[field]);
     if (!value) continue;
@@ -242,6 +275,14 @@ export const saidAnswers = (
  * Generic in the form, so what comes back is the same kind of thing that
  * went in: narrowing an Item gives an Item, and a caller does not have to
  * say so twice.
+ *
+ * Recordings narrow too, where the card has any of its own per answer. A
+ * device keeps them under `recs` — a list of objects with an id, which is
+ * the clip name an answer carries — so the two are matched on the id and
+ * nothing else about either shape has to be known here. On a card whose
+ * answers name no recordings, which is every card written before they
+ * belonged to an answer, `recs` is left exactly as it was: the form's
+ * clips were the card's, and they still are.
  */
 export function withAnswer<T extends WithAnswers>(
   form: T,
@@ -249,7 +290,48 @@ export function withAnswer<T extends WithAnswers>(
 ): T {
   if (!answer) return form;
   const { text, lat, at: _at, ...rest } = answer as Partial<PlacedAnswer>;
-  return { ...form, ...rest, ar: text || "", lat: lat || "", answers: [answer] };
+  const out: Record<string, unknown> = {
+    ...form,
+    ...rest,
+    ar: text || "",
+    lat: lat || "",
+    answers: [answer],
+  };
+  const held = form ? form.answers : null;
+  const perAnswer = Array.isArray(held) && held.some((a) => clipsIn(a).length);
+  if (perAnswer && Array.isArray(form.recs)) {
+    const mine = new Set(clipsIn(answer));
+    out.recs = (form.recs as { id?: unknown }[]).filter((r) => mine.has(str(r && r.id)));
+  }
+  return out as T;
+}
+
+/* Every recording named on one answer, both speeds together. Order does
+   not matter: this is only ever asked whether an id is in it. */
+const clipsIn = (answer: unknown): string[] => {
+  const said = (answer && typeof answer === "object" ? answer : {}) as Record<string, unknown>;
+  return CLIP_FIELDS.flatMap((key) =>
+    (Array.isArray(said[key]) ? (said[key] as unknown[]) : []).map(str).filter(Boolean),
+  );
+};
+
+/*
+ * An answer on its way into storage: what was read, less the lists nobody
+ * filled.
+ *
+ * A read hands back both lists of recordings whether or not there are any,
+ * because an absent list and an empty one mean different things to
+ * `withAnswer`. Neither is worth storing: a stored shape must not
+ * accumulate, and this one is written into a document that syncs. Used
+ * wherever answers are saved rather than read — see packAnswers, and the
+ * learner's own copy of a card.
+ */
+export function storedAnswer<T extends Answer>(answer: T): T {
+  const out = { ...answer };
+  for (const key of CLIP_FIELDS) {
+    if (!((out[key] as string[]) || []).length) delete out[key];
+  }
+  return out;
 }
 
 /*
@@ -377,12 +459,26 @@ export function answerGiven(
 export function packAnswers(
   rows: unknown[],
   fields: AnswerField[] = [],
-): { ar: string; lat: string; answers: Answer[] } {
+): { ar: string; lat: string; clips: string[]; slowClips: string[]; answers: Answer[] } {
   const kept = (rows || []).map((row) => readAnswer(row, fields)).filter((a) => a.text);
+  /* Every recording on any of the answers, once each, written up onto the
+     form. The same rule `ar` and `lat` follow and for the same reason: the
+     form is the shape the server, an export and every card list read, and
+     the one that says which clips a card still points at. An answer's own
+     list is where a question finds the right voice; this is where the rest
+     of the app finds them all. */
+  const union = (key: (typeof CLIP_FIELDS)[number]): string[] => [
+    ...new Set(kept.flatMap((a) => (a[key] as string[]) || [])),
+  ];
   return {
     ar: joinAlternatives(kept.map((a) => a.text)),
     lat: joinAlternatives(kept.map((a) => a.lat)),
-    answers: kept,
+    clips: union("clips"),
+    slowClips: union("slowClips"),
+    /* Stored without their empty lists: a stored shape must not
+       accumulate, and an answer nobody recorded is read back as having
+       none either way. */
+    answers: kept.map(storedAnswer),
   };
 }
 

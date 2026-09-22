@@ -135,6 +135,16 @@ const clipsOfCard = (card) => [
   ...formsOf(card).flatMap((/** @type {Record<string, any>} */ f) => [
     ...(f.clips || []),
     ...(f.slowClips || []),
+    /* And whatever its accepted answers hold. A recording belongs to the
+       answer it is of, and the form's two lists are written from those —
+       so in an ordinary card these add nothing. They are read anyway,
+       because "what is this card still pointing at" is the question that
+       decides whether a blob is deleted, and answering it off a derived
+       field means a card written by anything but this app's own packer
+       loses its audio. */
+    ...(Array.isArray(f.answers) ? f.answers : []).flatMap(
+      (/** @type {Record<string, any>} */ a) => [...(a.clips || []), ...(a.slowClips || [])],
+    ),
   ]),
   ...(((card && card.lines) || [])).flatMap((/** @type {Record<string, any>} */ ln) => [
     ...(ln.clips || []),
@@ -1442,7 +1452,22 @@ export default async (req) => {
       function storedAnswers(form) {
         return answersOf(form, answerFields())
           .slice(0, 12)
-          .map(({ at: _at, ...answer }) => answer);
+          /* An answer's recordings go through the same sieve a form's do:
+             a name a clip cannot have is a name nothing can fetch, and
+             twelve is the cap either way. Dropped rather than refused,
+             like every other narrowing here — and a list left empty is
+             left out, because an answer nobody recorded should store
+             nothing rather than two empty arrays that ride along through
+             every save from here on. */
+          .map(({ at: _at, clips, slowClips, ...answer }) => {
+            const made = clipList(clips);
+            const slow = clipList(slowClips);
+            return {
+              ...answer,
+              ...(made.length ? { clips: made } : {}),
+              ...(slow.length ? { slowClips: slow } : {}),
+            };
+          });
       }
 
       /* Where a sub-form sits in its card's verb table, when it sits in one.

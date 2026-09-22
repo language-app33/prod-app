@@ -3277,3 +3277,47 @@ rule the dual column follows too.
 answers per shape, each with its own recordings. Then the two really are
 the same kind of thing and can be drawn as one list without anything being
 given up, which is the only version of that idea worth having.
+
+---
+
+## A recording belongs to an accepted answer
+
+**22 September 2026** · `src/answers.ts`, `src/card-editor.tsx`
+(`ScriptAnswers`), `server/api/courses.js`
+
+Gender and number moved onto the answer in September because two accepted
+answers are two words: مبسوط from a man and مبسوطة from a woman, one thing
+to know and two right answers. The recordings stayed on the form, which is
+the same mistake one field later — a card with both spellings had one set
+of clips over the pair, so the question that asked for the feminine played
+whichever voice happened to be there, and there was nowhere to put the
+other.
+
+They are on the answer now, beside its grammar, and the button that makes
+one is under the answer it is of rather than in a field of its own level
+with the English. A recording is not a third thing a card has beside its
+word and its meaning; it is the word, said out loud.
+
+**How it stays compatible.** The form keeps `clips` and `slowClips`, and
+they are now every answer's put together — the same rule `ar` and `lat`
+follow, and for the same reason: the form is what the server, an export
+and every card list read, and it is what says which recordings a card
+still points at, which is what decides whether a stored blob is deleted. A
+card written before this has its clips on the form and none on its
+answers, and every answer reads the form's, which is what they meant when
+there was one set of them. A card with one answer is unchanged in every
+particular.
+
+**What it costs.** `withAnswer` — which narrows a card to the answer a
+question is about — now narrows `recs`, the shape a device keeps audio in,
+by matching clip names. That is a second place that has to know the two
+are the same thing, and it is guarded: a card whose answers name no
+recordings keeps the ones it had, so no existing card goes quiet. The
+server sieves an answer's clip names the way it always sieved a form's,
+and reads them when collecting what a card points at — the form's list is
+derived, and answering "is this blob still wanted?" off a derived field
+loses audio the day something writes a card without deriving it.
+
+**Revisit if** a third thing turns out to belong to an answer and not to
+the form. The pattern is now established twice, and the third time it is
+worth asking whether the form should hold anything about the words at all.

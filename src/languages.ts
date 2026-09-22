@@ -2160,7 +2160,12 @@ export const LANGUAGES: Record<LangId, Lang> = {
     name: "Palestinian Arabic",
     nativeName: "اللهجة الفلسطينية",
     direction: "rtl",
-    scriptLabel: "Arabic script",
+    /* The language, not the script it is written in. The box is headed
+       with this and holds the same word in the language — which is what a
+       teacher needs to know about an empty box, and says it without a
+       heading that has to name two fields at once. */
+    scriptLabel: "Arabic",
+    scriptNative: "العربية",
     scriptShort: "A",
     script: /[\u0600-\u06FF]/,
     /* The type scale every script rule multiplies by. font-size sets the em
@@ -2304,6 +2309,11 @@ export const LANGUAGES: Record<LangId, Lang> = {
     nativeName: "tiếng Huế",
     direction: "ltr",
     scriptLabel: "Vietnamese",
+    /* The language's own name for itself, which in a Latin-written
+       language looks much like the label above it — and is still what a
+       teacher sees in the box, with the tone marks that say which
+       Vietnamese this is. */
+    scriptNative: "Tiếng Việt",
     scriptShort: "V",
     /* Latin script fills far more of its em box than Arabic does, so the
        sizes tuned for Arabic came out oversized here. A starting guess,
@@ -2431,6 +2441,9 @@ export const LANGUAGES: Record<LangId, Lang> = {
     nativeName: "עברית",
     direction: "rtl",
     scriptLabel: "Hebrew",
+    /* The same word the pack's own `nativeName` is, because in Hebrew the
+       language and the place it is spoken are not two names. */
+    scriptNative: "עברית",
     scriptShort: "H",
     script: /[֐-׿]/,
     sample: [

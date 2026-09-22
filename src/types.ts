@@ -425,6 +425,19 @@ export interface Lang {
    */
   direction: "rtl" | "ltr";
   scriptLabel: string;
+  /**
+   * The same word, written in the language.
+   *
+   * The placeholder in the box a teacher writes the language into, and the
+   * only thing on that line saying which script is wanted. The label above
+   * it used to say "Arabic script and transliteration", which named two
+   * fields in one heading and still left the box itself empty — a box with
+   * a name over it and nothing in it says nothing about what goes in it.
+   *
+   * Short: the name of the language, not of the dialect — `nativeName` is
+   * the dialect, and at the length of a sentence it is not a placeholder.
+   */
+  scriptNative: string;
   scriptShort: string;
   /** How to recognise the script. Latin-written languages have none. */
   script?: RegExp;

@@ -3655,7 +3655,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(450);
 
   const toScript = [...document.querySelectorAll(".at-try")]
-    .find((b) => /^Try English → Arabic script$/.test(b.getAttribute("aria-label") || ""));
+    .find((b) => /^Try English → Arabic$/.test(b.getAttribute("aria-label") || ""));
   check("writing it from its meaning is one of the exercises offered", !!toScript,
     [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
   click(toScript);
@@ -3665,13 +3665,13 @@ check("no console errors during the session", errors.length === 0, errors.slice(
     ((document.querySelector('[data-el="question-prompt"]') || {}).textContent || "").replace(/\s+/g, " ").trim();
 
   /* The line above it, while a question is on screen. It named the card —
-     "Write this card in Arabic script" — which is the thing underneath it,
+     "Write this card in Arabic" — which is the thing underneath it,
      and it lowered the language's own name, which is a name wherever it
      lands. */
   const asked = () =>
     ((document.querySelector(".at-instruction") || {}).textContent || "").replace(/\s+/g, " ").trim();
   check("the line above the question says what to do, without naming the card",
-    asked() === "Write in Arabic script", asked() || "(no instruction)");
+    asked() === "Write in Arabic", asked() || "(no instruction)");
   /* Which of the two it is depends on how often the card has been asked
      this, and this one has been through a session already — so what is
      checked is that it is one of them and whole, rather than which. */
@@ -3724,7 +3724,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   click(bookTile);
   await sleep(450);
   const tryScript = [...document.querySelectorAll(".at-try")]
-    .find((b) => /^Try English → Arabic script$/.test(b.getAttribute("aria-label") || ""));
+    .find((b) => /^Try English → Arabic$/.test(b.getAttribute("aria-label") || ""));
   check("the card offers writing it from its meaning, to try a misspelling on",
     !!tryScript,
     [...document.querySelectorAll(".at-try")].map((b) => b.getAttribute("aria-label")).join(" | "));
@@ -4375,13 +4375,41 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
     /* A card is its words, and with those written it can be saved —
        nameless, which is what nearly every card is. */
-    typeInto(fieldNamed(/^Arabic script and transliteration$/i), "شمس");
+    typeInto(fieldNamed(/^Arabic$/i), "شمس");
     await sleep(80);
     typeInto(fieldNamed(/^English$/), "sun");
     await sleep(200);
     check("and a card with its words is saved without one",
       !!saveBtn() && !saveBtn().disabled && !idBox().value,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"} with the ID box empty`);
+
+    /* And with a word written, that answer can be recorded. The button is
+       under the answer rather than in a field of its own, and what it
+       opens is the screen recordings have always been made on — reached
+       from inside the rows the answer is edited in, because that is where
+       what it writes has to land. */
+    {
+      const recOf = () => /** @type {any} */ (
+        [...document.querySelectorAll(".at-formblock.main .at-answerabout button")]
+          .find((b) => /Recordings/.test(b.getAttribute("aria-label") || "")) || null
+      );
+      check("a written answer can be recorded, from under the answer itself",
+        !!recOf() && !recOf().disabled,
+        recOf() ? (recOf().getAttribute("aria-label") || "") : "(no button)");
+      click(recOf());
+      await sleep(300);
+      const screens = () => [...document.querySelectorAll(".at-screen")];
+      const top = () => screens()[screens().length - 1];
+      check("and the button opens the screen recordings are made on",
+        !!top() && /Recordings/.test(top().getAttribute("aria-label") || ""),
+        top() ? (top().getAttribute("aria-label") || "(unnamed screen)") : "(no screen)");
+      click([...(top() ? top().querySelectorAll("button") : [])]
+        .find((b) => b.getAttribute("aria-label") === "Back"));
+      await sleep(300);
+      check("and closing it puts the card back as it was",
+        readField(fieldNamed(/^Arabic$/i)) === "شمس",
+        `"${readField(fieldNamed(/^Arabic$/i))}"`);
+    }
 
     /* Narrowed as it is typed to what can go between braces, so a teacher
        typing "Name Is!" is not handed "nameis" by a save they have already
@@ -4442,7 +4470,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     await sleep(250);
   }
 
-  typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
+  typeInto(fieldNamed(/^Arabic$/i), "ismi");
   await sleep(80);
   typeInto(fieldNamed(/^English$/), "My name is {{name}}");
   await sleep(200);
@@ -4477,7 +4505,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     screenTitle() === "New sentence" &&
       !/only a sentence can have one/.test(document.body.textContent || ""),
     screenTitle() || "(no editor)");
-  typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi");
+  typeInto(fieldNamed(/^Arabic$/i), "ismi");
   await sleep(80);
   typeInto(fieldNamed(/^English$/), "My name is {{name}}");
   await sleep(300);
@@ -4487,7 +4515,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and the editor says which field is short of it",
     /is missing\s+name\b/.test(document.body.textContent || ""),
     ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
-  typeInto(fieldNamed(/^Arabic script and transliteration$/i), "ismi {{name}}");
+  typeInto(fieldNamed(/^Arabic$/i), "ismi {{name}}");
   await sleep(200);
   check("and it can be saved once every field leaves the same hole",
     !!saveBtn() && !saveBtn().disabled,
@@ -4503,7 +4531,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      frame is while it is being written. The words decide now, and where
      there are none the language does. */
   {
-    const script = () => fieldNamed(/^Arabic script and transliteration$/i);
+    const script = () => fieldNamed(/^Arabic$/i);
     const dirOfScript = () => (script() ? script().getAttribute("dir") : "(no field)");
     typeInto(script(), "{{name}}");
     await sleep(200);
@@ -4680,7 +4708,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        these are the blanks in this card. What a card leaves is in its own
        words — the braces are in the text — so there is nothing to decide
        and nothing to tick. It says what is there. */
-    const ar = () => /** @type {any} */ (fieldNamed(/^Arabic script and transliteration$/i));
+    const ar = () => /** @type {any} */ (fieldNamed(/^Arabic$/i));
     const en = () => /** @type {any} */ (fieldNamed(/^English$/));
     const chips = () => inHalf(HOLES, ".at-blankchip")
       .map((c) => (c.textContent || "").trim());
@@ -4729,7 +4757,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           .find((b) => re.test((((b.querySelector("b") || {}).textContent) || "").trim())) || null);
 
       check("every field a sentence has offers to put a blank into it",
-        !!addIn(/into Arabic script$/) && !!addIn(/into Transliteration$/) && !!addIn(/into English$/),
+        !!addIn(/into Arabic$/) && !!addIn(/into Transliteration$/) && !!addIn(/into English$/),
         [...document.querySelectorAll(".at-blankadd")]
           .map((b) => b.getAttribute("aria-label")).join(" | ") || "(no buttons)");
 
@@ -4785,14 +4813,14 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          the others offer it — which is the rule the save has always
          enforced and never once helped anybody keep. */
       check("the other fields then offer the same blank, rather than waiting to be typed",
-        !!chip(/^Put the name blank into Arabic script$/) &&
+        !!chip(/^Put the name blank into Arabic$/) &&
           !!chip(/^Put the name blank into Transliteration$/),
         [...document.querySelectorAll(".at-blankput")]
           .map((b) => b.getAttribute("aria-label")).join(" | ") || "(no chips)");
 
-      click(chip(/^Put the name blank into Arabic script$/));
+      click(chip(/^Put the name blank into Arabic$/));
       await sleep(300);
-      const arNow = () => /** @type {any} */ (fieldNamed(/^Arabic script and transliteration$/i));
+      const arNow = () => /** @type {any} */ (fieldNamed(/^Arabic$/i));
       check("and one tap puts it there too",
         readField(arNow()) === "ismi {{name}}", readField(arNow()) || "(no field)");
       check("with a space around it, because a blank is a word and is spaced like one",
@@ -5044,7 +5072,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       await leaveScreen();
       await newCard();
       await pickCardKind(/^Word or phrase/);
-      typeInto(fieldNamed(/^Arabic script and transliteration$/i), "rafa");
+      typeInto(fieldNamed(/^Arabic$/i), "rafa");
       await sleep(80);
       typeInto(fieldNamed(/^English$/), "Raphael");
       await sleep(300);
@@ -5314,7 +5342,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      The block is not shown; the cell is the card. */
   {
     /* Back to a plain word, out of the frame the walk above left behind. */
-    typeInto(fieldNamed(/^Arabic script and transliteration$/i), "akal");
+    typeInto(fieldNamed(/^Arabic$/i), "akal");
     await sleep(80);
     typeInto(fieldNamed(/^English$/), "to eat");
     await sleep(200);
@@ -5397,7 +5425,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     const cellNamed = (/** @type {string} */ label) =>
       /** @type {any} */ ([...document.querySelectorAll("input")]
         .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
-    const script = cellNamed("Arabic script for past · he");
+    const script = cellNamed("Arabic for past · he");
     const meaning = cellNamed("English for past · he");
     check("the word moves into the dictionary form's own cell",
       !!script && script.value === "akal" && !!meaning && meaning.value === "to eat",
@@ -5457,7 +5485,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     typeInto(script, "");
     typeInto(meaning, "");
     await sleep(200);
-    typeInto(cellNamed("Arabic script for present · he"), "byaakul");
+    typeInto(cellNamed("Arabic for present · he"), "byaakul");
     typeInto(cellNamed("English for present · he"), "he eats");
     await sleep(250);
     check("a verb with the box a dictionary lists left empty still saves",
@@ -5488,7 +5516,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
     /* And with the whole table empty, the line is about the table as a
        whole — any box of it, and the teacher chooses which. */
-    typeInto(cellNamed("Arabic script for present · he"), "");
+    typeInto(cellNamed("Arabic for present · he"), "");
     typeInto(cellNamed("English for present · he"), "");
     await sleep(250);
     check("a verb with nothing written in its table is refused",
@@ -5515,7 +5543,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        Still offered here because this card has never been saved: a stored
        verb is not asked, because the answer would drop its table. */
     await pickKind(/^Something else/);
-    const back = fieldNamed(/^Arabic script and transliteration$/i);
+    const back = fieldNamed(/^Arabic$/i);
     check("choosing an ordinary word again brings the block back with the word still in it",
       !!block(/^Form 1$|^The verb$/) && !!back && back.value === "akal",
       back ? `"${back.value}"` : "no field");
@@ -5538,7 +5566,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     /* The table was emptied above to see Save refuse; fill the box a
        dictionary lists again, so what follows is about a table with
        something in it and a card that saves. */
-    typeInto(cellNamed("Arabic script for past · he"), "akal");
+    typeInto(cellNamed("Arabic for past · he"), "akal");
     typeInto(cellNamed("English for past · he"), "he ate");
     await sleep(200);
 
@@ -5620,14 +5648,14 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
       await pickKind(/^Adjective/);
       check("an adjective lays out the forms it takes beside a noun, and nothing else",
-        !!boxes(/^Arabic script for feminine$/).length && !!boxes(/^Arabic script for plural$/).length &&
+        !!boxes(/^Arabic for feminine$/).length && !!boxes(/^Arabic for plural$/).length &&
           !boxes(/attached pronouns|for (present|past|command) · /).length,
         tables().join(" | ") || "(no table)");
       /* Including a pair, which this app could not say until 0.207: a
          dual noun matched no column, so the adjective beside it fell back
          to the card's own word — the one wrong answer that looks right. */
       check("including the form beside a pair",
-        !!boxes(/^Arabic script for dual$/).length,
+        !!boxes(/^Arabic for dual$/).length,
         boxes(/ for (feminine|plural|dual)$/).join(" | ") || "(no table)");
       /* Beside the word rather than under a heading of their own further
          down the page — and short: a name and the three boxes the app
@@ -5651,11 +5679,27 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         blockNames().includes("The main form") &&
           !blockNames().some((n) => /^Form 1$/.test(n)),
         blockNames().join(" | "));
-      check("and keeps the fields only a block can hold — a second answer, and its recordings",
+      /* And the field only a block can hold: a second accepted answer.
+         Its recordings are not a field any more — they hang off the
+         answer they are of, on the line under it, which is where its
+         grammar is for the same reason. */
+      check("and keeps the field only a block can hold — a second accepted answer",
         [...document.querySelectorAll("button")]
           .some((b) => (b.getAttribute("aria-label") || "") === "Add another accepted answer") &&
-          fieldNames().includes("Recordings"),
+          !fieldNames().includes("Recordings"),
         fieldNames().join(" | "));
+      const recBtn = () => [...document.querySelectorAll(".at-formblock.main .at-answerabout button")]
+        .filter((b) => /Recordings/.test(b.getAttribute("aria-label") || ""));
+      check("with how it sounds hanging off the answer it is of, not standing beside the English",
+        recBtn().length === 1 && /none yet/.test(recBtn()[0].getAttribute("aria-label") || ""),
+        recBtn().map((b) => b.getAttribute("aria-label")).join(" | ") || "(no button)");
+      /* And the box says which language it wants, in that language. The
+         heading used to name two fields at once and the box itself said
+         nothing. */
+      const arBox = () => /** @type {any} */ (fieldNamed(/^Arabic$/i));
+      check("and the box says what goes in it, in the language",
+        !!arBox() && arBox().getAttribute("placeholder") === "العربية",
+        arBox() ? `"${arBox().getAttribute("placeholder")}"` : "(no box)");
       check("with no number or gender on the word, because the table is its number and gender",
         !grammarBtn(), grammarBtn() ? "grammar asked" : "not asked");
       /* And the ticks are about the card rather than about the block they
@@ -5729,10 +5773,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        table can be put aside is this question. */
     await pickKind(/^Verb/);
     check("and coming back brings the table with its cells still in it",
-      !!cellNamed("Arabic script for past · he") &&
-        cellNamed("Arabic script for past · he").value === "akal",
-      cellNamed("Arabic script for past · he")
-        ? `"${cellNamed("Arabic script for past · he").value}"` : "no such cell");
+      !!cellNamed("Arabic for past · he") &&
+        cellNamed("Arabic for past · he").value === "akal",
+      cellNamed("Arabic for past · he")
+        ? `"${cellNamed("Arabic for past · he").value}"` : "no such cell");
   }
 
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
@@ -5780,7 +5824,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
   await pickKind(/^Verb/);
   const cited = /** @type {any} */ ([...document.querySelectorAll("input")]
-    .find((i) => (i.getAttribute("aria-label") || "") === "Arabic script for past · he") || null);
+    .find((i) => (i.getAttribute("aria-label") || "") === "Arabic for past · he") || null);
   check("calling it one moves its word into the box a dictionary lists it under",
     !!cited && cited.value === "كتاب", cited ? `"${cited.value}"` : "no such cell");
   /* And the plural it already carried is still on screen: it is saved
@@ -5813,11 +5857,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      card said the plural's were the singular's. This card carries a
      plural, so there are two. */
   check("which puts a table of them under the word",
-    !!attachedCell("Arabic script for the word · attached pronouns · me") &&
-      !!attachedCell("Arabic script for the word · attached pronouns · them"),
+    !!attachedCell("Arabic for the word · attached pronouns · me") &&
+      !!attachedCell("Arabic for the word · attached pronouns · them"),
     [...document.querySelectorAll(".at-celllabel")].map((n) => n.textContent).join(" | ") || "(no table)");
   check("and another under the form beside it",
-    !!attachedCell("Arabic script for form 2 · attached pronouns · me"),
+    !!attachedCell("Arabic for form 2 · attached pronouns · me"),
     [...document.querySelectorAll("input")]
       .map((i) => i.getAttribute("aria-label"))
       .filter((l) => l && /attached/.test(l)).join(" | ") || "(one table only)");
@@ -5833,13 +5877,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     must(setValue, "the input's value setter").call(box, text);
     box.dispatchEvent(new w.Event("input", { bubbles: true }));
   };
-  typeIn(attachedCell("Arabic script for form 2 · attached pronouns · me"), "كتبي");
+  typeIn(attachedCell("Arabic for form 2 · attached pronouns · me"), "كتبي");
   await sleep(120);
   check("and filling one of them does not fill the other",
-    attachedCell("Arabic script for form 2 · attached pronouns · me").value === "كتبي" &&
-      attachedCell("Arabic script for the word · attached pronouns · me").value === "",
-    `the word's: "${attachedCell("Arabic script for the word · attached pronouns · me").value}" · ` +
-      `form 2's: "${attachedCell("Arabic script for form 2 · attached pronouns · me").value}"`);
+    attachedCell("Arabic for form 2 · attached pronouns · me").value === "كتبي" &&
+      attachedCell("Arabic for the word · attached pronouns · me").value === "",
+    `the word's: "${attachedCell("Arabic for the word · attached pronouns · me").value}" · ` +
+      `form 2's: "${attachedCell("Arabic for form 2 · attached pronouns · me").value}"`);
   /* And the mic beside a box opens that box's recordings. It used to be
      found by its row and column alone, which on two tables is two cells
      with one name. */
@@ -5860,8 +5904,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   /* And the verb's table is not also up: a card lays out one or the
      other, and the radio is what says which. */
   check("and not the verb's table as well",
-    !attachedCell("Arabic script for past · he"),
-    attachedCell("Arabic script for past · he") ? "both tables are up" : "one table at a time");
+    !attachedCell("Arabic for past · he"),
+    attachedCell("Arabic for past · he") ? "both tables are up" : "one table at a time");
   /* The word's own block stays. A verb whose dictionary form is a cell
      replaces it; an attached pronoun is a form of the word, not a
      stand-in for it. */
@@ -5881,7 +5925,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(300);
   check("and what it adds is a word and a table of its own",
     blockOrder().includes("Form 3") &&
-      !!attachedCell("Arabic script for form 3 · attached pronouns · me"),
+      !!attachedCell("Arabic for form 3 · attached pronouns · me"),
     blockOrder().join(" | "));
   /* The forms it already carries stay: they are saved either way, and
      hiding one would read as having lost it. */
@@ -5895,7 +5939,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click(plainHere());
   await sleep(350);
   const mainField = /** @type {any} */ ([...document.querySelectorAll(".at-formblock.main .at-field")]
-    .find((f) => /^Arabic script and transliteration$/i.test(
+    .find((f) => /^Arabic$/i.test(
       ((f.querySelector(".at-label") || {}).textContent || "").trim())) || null);
   const own = mainField ? mainField.querySelector("input") : null;
   check("and calling it a word again leaves the word where it was",
@@ -5979,18 +6023,18 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const box = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
-  const fem = box("Arabic script for feminine");
+  const fem = box("Arabic for feminine");
   check("a saved adjective opens on the forms it takes beside a noun",
     !!fem && fem.value === "كبيرة", fem ? `"${fem.value}"` : "no such box");
   check("and on no other table",
-    !box("Arabic script for past · he") && !box("Arabic script for the word · attached pronouns · me"),
+    !box("Arabic for past · he") && !box("Arabic for the word · attached pronouns · me"),
     "one table");
   /* Each named, because three blocks of identical fields under three
      headings are four boxes called the same thing to anybody reading the
      screen aloud — a heading is not a label. */
   check("and every box says which form it belongs to",
     !!box("Transliteration for feminine") && !!box("English for feminine") &&
-      !!box("Arabic script for dual"),
+      !!box("Arabic for dual"),
     [...document.querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
       .filter((l) => l && / for /.test(l)).join(" | ") || "(nothing named)");
   /* And with the table written there are two answers about practice, not
@@ -6027,12 +6071,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const box = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
-  const me = box("Arabic script for attached pronouns · me");
+  const me = box("Arabic for attached pronouns · me");
   check("a saved word with pronouns on its end opens on its pronouns",
     !!me && me.value === "قلمي", me ? `"${me.value}"` : "no such box");
   check("and not on a verb table it never had",
-    !box("Arabic script for past · he"),
-    box("Arabic script for past · he") ? "a past · he box is up" : "no verb table");
+    !box("Arabic for past · he"),
+    box("Arabic for past · he") ? "a past · he box is up" : "no verb table");
   check("and says which it is",
     /Attached pronouns: every form/.test(document.body.textContent || ""),
     ([...document.querySelectorAll(".at-hint, .at-help, p")]
@@ -6310,7 +6354,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     tryLabels.some((l) => /^Listen/.test(l) && /words that don't change/.test(l)),
     tryLabels.filter((l) => /^Listen/.test(l)).join(" | ") || "(no listening exercises listed)");
   check("and everything that reads it is still offered",
-    tryLabels.some((l) => /^Try English →/.test(l)) && tryLabels.some((l) => /^Try Arabic script → English$/.test(l)),
+    tryLabels.some((l) => /^Try English →/.test(l)) && tryLabels.some((l) => /^Try Arabic → English$/.test(l)),
     tryLabels.join(" | "));
 
   const toScript = [...document.querySelectorAll(".at-try")]

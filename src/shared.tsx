@@ -613,7 +613,7 @@ export function StickyFoot({ above, children, className }: {
    its transliteration is decided — and which a test can import. Re-exported
    here because this is where the screens look for it. */
 export { splitAlternatives, joinAlternatives } from "./answers.ts";
-import { answersOf } from "./answers.ts";
+import { answersOf, storedAnswer } from "./answers.ts";
 
 /* --- Segmented ----------------------------------------------------
    Pick one of a few. Replaces eighteen groups of buttons that each
@@ -3648,7 +3648,7 @@ function recsOf(form: { clips?: string[]; slowClips?: string[] }) {
 /* One card's accepted answers, in the shape a card stores them: no index,
    because an index is a fact about a list rather than about an answer. */
 const keptAnswers = (form: Record<string, any>) =>
-  answersOf(form, answerFields()).map(({ at: _at, ...answer }) => answer);
+  answersOf(form, answerFields()).map(({ at: _at, ...answer }) => storedAnswer(answer));
 
 export function cardToItem(card: Card, deckTitle: string, courseId: string, deckId: string, freshStates: () => Record<string, ExerciseState>): Item {
   /*

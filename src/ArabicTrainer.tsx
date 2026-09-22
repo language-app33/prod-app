@@ -3917,6 +3917,10 @@ for (const f of grammarFields()) FIELD_ALIASES[f] = f;
 const aliasKey: (label: unknown) => string = (label) => String(label || "").toLowerCase().replace(/[^a-z]/g, "");
 for (const L of Object.values(LANGUAGES)) {
   if (L.scriptLabel) FIELD_ALIASES[aliasKey(L.scriptLabel)] = "ar";
+  /* And to what it called them before 0.213, when the column was named
+     after the script rather than the language — a file exported then is
+     still a file somebody has. */
+  if (L.scriptLabel) FIELD_ALIASES[aliasKey(`${L.scriptLabel} script`)] = "ar";
   if (L.translitLabel) FIELD_ALIASES[aliasKey(L.translitLabel)] = "lat";
 }
 const FIELD_ORDER = ["en", "ar", "lat", "tags", "note"].concat(grammarFields());
