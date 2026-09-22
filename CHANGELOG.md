@@ -8,7 +8,7 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
-## 0.209 — 22 September 2026
+## 0.210 — 22 September 2026
 
 **The cards at the top of the ladder now say when they come back.**
 
@@ -32,6 +32,29 @@ while it is still hours.
 
 Nothing about how cards are scheduled has changed. This is the app saying
 out loud, in the list, what it already knew.
+
+## 0.209 — 22 September 2026
+
+**The other forms of a word go short again, and the word stops being
+numbered.**
+
+0.208 moved an adjective's feminine, plural and dual up beside the word,
+which was right, and wrote each of them out in the same full block the
+word gets — script, pronunciation, English, a recording button, all under
+a heading apiece. That put three shapes of one word across three screens
+and made them read as three subjects rather than as a list.
+
+They are short again: **Its other forms**, one line each, a name over the
+three boxes this app shows any form in, with the microphone beside them.
+That is what they looked like before anybody moved them, and it is the
+same set of boxes a verb's table is drawn with — written once now, so the
+two places that show a form show the same thing.
+
+And the word itself is no longer **Form 1**. Numbering the first of
+something asks where the others are, and on a card like this there are
+none to find: its other shapes are the list below. It is called **The
+main form**, which is what the app has always called it everywhere else —
+including in the practice section two blocks down.
 
 ## 0.208 — 22 September 2026
 
