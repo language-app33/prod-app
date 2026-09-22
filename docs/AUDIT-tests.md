@@ -1,6 +1,6 @@
 # Audit: do the tests test the right things, and would they notice?
 
-**22 September 2026 · release 0.212, commit 1296f5a · re-checked against 0.213 (64b000e), which landed on `beta` during the audit: the full check is green there too (950 unit tests, 703 walk checks), and nothing below changes.**
+**22 September 2026 · release 0.212, commit 1296f5a · re-checked against 0.213 (64b000e) and 0.214 (3e327bd), which landed on `beta` during the audit: the full check is green on both (950 unit tests, 703 walk checks), and nothing below changes.**
 
 The earlier audits asked whether the app loses work, holds up offline, and
 keeps cards and progress straight. This one asks about the tests themselves:
