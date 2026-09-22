@@ -5556,17 +5556,34 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
       await pickKind(/^Adjective/);
       check("an adjective lays out the forms it takes beside a noun, and nothing else",
-        !!boxes(/for agreement · feminine$/).length && !!boxes(/for agreement · plural$/).length &&
+        !!boxes(/^Arabic script for feminine$/).length && !!boxes(/^Arabic script for plural$/).length &&
           !boxes(/attached pronouns|for (present|past|command) · /).length,
         tables().join(" | ") || "(no table)");
       /* Including a pair, which this app could not say until 0.207: a
          dual noun matched no column, so the adjective beside it fell back
          to the card's own word — the one wrong answer that looks right. */
       check("including the form beside a pair",
-        !!boxes(/for agreement · dual$/).length,
-        boxes(/for agreement · /).join(" | ") || "(no table)");
+        !!boxes(/^Arabic script for dual$/).length,
+        boxes(/ for (feminine|plural|dual)$/).join(" | ") || "(no table)");
+      /* And each of them written the way the word itself is, in a block
+         of its own rather than a grid of unlabelled boxes further down
+         the page. Three cells is not a verb's twenty-four. */
+      const blockNames = () => [...document.querySelectorAll(".at-formnum")]
+        .map((n) => (n.textContent || "").trim());
+      check("each of them in a block beside the word, in the format the word is written in",
+        ["feminine", "plural", "dual"].every((c) => blockNames().includes(c)) &&
+          !!boxes(/^English for feminine$/).length,
+        blockNames().join(" | "));
       check("with no number or gender on the word, because the table is its number and gender",
         !grammarBtn(), grammarBtn() ? "grammar asked" : "not asked");
+      /* And the ticks are about the card rather than about the block they
+         used to sit at the foot of: on a card that can hold only one
+         form, "this form" and "this card" are the same thing, and the
+         answer belongs in a section rather than tucked under a field. */
+      check("and how it is practised is a section about the card, not a footnote to a form",
+        blockNames().includes("How this card can be practiced") &&
+          !/How this form can be practiced/.test(document.body.textContent || ""),
+        blockNames().join(" | "));
       const blocksUp = () => [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
       check("and no second form offered, because a spelling is an accepted answer",
         !addForm() && blocksUp().includes("Form 1"),
@@ -5580,7 +5597,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("and no other way to one either, because the table is the forms",
         !copyBtn(), copyBtn() ? "still offered" : "no such button");
       check("and the line under the word says where its forms are, rather than pointing at nothing",
-        /laid out in the table below/.test(document.body.textContent || "") &&
+        /forms it takes beside a noun are written below/.test(document.body.textContent || "") &&
           !/You can add additional forms/.test(document.body.textContent || ""),
         ((([...document.querySelectorAll(".at-formblock")]
           .find((b) => /^Form 1$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
@@ -5875,16 +5892,27 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const box = (/** @type {string} */ label) =>
     /** @type {any} */ ([...document.querySelectorAll("input")]
       .find((i) => (i.getAttribute("aria-label") || "") === label) || null);
-  const fem = box("Arabic script for agreement · feminine");
-  check("a saved adjective opens on its feminine and plural",
+  const fem = box("Arabic script for feminine");
+  check("a saved adjective opens on the forms it takes beside a noun",
     !!fem && fem.value === "كبيرة", fem ? `"${fem.value}"` : "no such box");
   check("and on no other table",
     !box("Arabic script for past · he") && !box("Arabic script for the word · attached pronouns · me"),
     "one table");
-  check("and says which it is",
-    /Feminine and plural: the word/.test(document.body.textContent || ""),
-    ([...document.querySelectorAll(".at-hint, .at-help, p")]
-      .map((n) => (n.textContent || "").trim()).find((t) => /^Feminine and plural:/.test(t)) || "(nothing said)"));
+  /* Each named, because three blocks of identical fields under three
+     headings are four boxes called the same thing to anybody reading the
+     screen aloud — a heading is not a label. */
+  check("and every box says which form it belongs to",
+    !!box("Transliteration for feminine") && !!box("English for feminine") &&
+      !!box("Arabic script for dual"),
+    [...document.querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
+      .filter((l) => l && / for /.test(l)).join(" | ") || "(nothing named)");
+  /* And with the table written there are two answers about practice, not
+     one: the word, and the shapes beside it. Both in the one section. */
+  check("and the practice section holds an answer for the word and one for its other forms",
+    /How this card can be practiced/.test(document.body.textContent || "") &&
+      [...document.querySelectorAll(".at-drillhead")].length === 2,
+    [...document.querySelectorAll(".at-drillhead")]
+      .map((n) => (n.textContent || "").trim()).join(" | ") || "(no heads)");
   check("with the word keeping its own block, being what these are forms of",
     [...document.querySelectorAll(".at-formnum")].some((n) => (n.textContent || "").trim() === "Form 1"),
     [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));

@@ -1524,14 +1524,17 @@ test("each form's own table is listed under it, and an empty one is not listed a
 });
 
 test("a table the card carries is one line, named after the table", () => {
-  /* An adjective's feminine and plural: the card's, not each form's, so
-     one part beside the word rather than one under every form. */
+  /* The forms an adjective takes beside a noun: the card's, not each
+     form's, so one part beside the word rather than one under every
+     form. Both parts are shown together now — see PracticeSection — and
+     they are still two answers, because a teacher may drill the word and
+     leave its shapes to be met inside sentences. */
   const forms = [{ ar: "كبير", en: "big" }, { id: "x", ar: "كبيرين", en: "big (dual)" }];
   const cells = [cellOf("agreement", "feminine", { ar: "كبيرة" }), cellOf("agreement", "plural", { ar: "كبار" })];
   const parts = askParts({ forms, cells, spec: arAgreement });
   assert.deepEqual(parts.map((/** @type {any} */ p) => p.id), ["form:0", "form:1", "table:"]);
   assert.equal(parts[0].title, "The main form", "nothing stands in for the word");
-  assert.match(parts[2].title, /feminine and plural/, "and the part is called what the table is");
+  assert.match(parts[2].title, /feminine, plural and dual/, "and the part is called what the table is");
   assert.match(parts[2].note, /2 forms/);
 });
 

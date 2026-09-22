@@ -1547,7 +1547,7 @@ const AR_AGREEMENT: VerbSpec = {
     { id: "dual", label: "dual", picks: { number: "dual" } },
   ],
   tenses: [{ id: "agreement", label: "agreement" }],
-  label: "feminine and plural",
+  label: "feminine, plural and dual",
   gate: "word",
 };
 

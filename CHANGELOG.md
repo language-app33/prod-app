@@ -8,6 +8,44 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.208 — 22 September 2026
+
+**A word and its other forms, written the same way.**
+
+An adjective is one word and a handful of shapes of it, and the card
+screen was saying so twice over in two different hands. The word came
+first, in named fields — the script with its pronunciation, the English,
+a button to record it. Then, under a heading of its own further down the
+page, its feminine and plural appeared as a cramped grid of unlabelled
+boxes with a microphone icon. Same card, same kind of thing, two formats,
+for no better reason than that the grid began life holding a verb's
+twenty-four cells.
+
+**Three cells is not twenty-four.** So on any card that can hold only the
+one form — an adjective in Palestinian Arabic and Hebrew — the forms it
+takes beside a noun are now written *right after the word*, each in a
+block of its own, in exactly the format the word is written in: its
+script and pronunciation, its English, its recording. A verb's table and
+the pronouns on the end of a word keep the grid, where a grid is the
+right shape and a stack of blocks would be a mile of screen.
+
+Each of those blocks says which form it is, and so does every box inside
+it — *Arabic script for feminine*, *English for dual*. Three blocks of
+identical fields under three headings would otherwise be a dozen boxes
+called the same thing to anybody reading the screen aloud, and a heading
+is not a label.
+
+**And how a card is practised is now a question about the card.** The
+ticks that say whether a form is asked on its own or lent to sentence
+cards were tucked at the foot of the word's fields, under the heading
+*How this form can be practiced* — which on a card with only one form was
+the card, said as though it were another field of the word. They are a
+section of their own now, called **How this card can be practiced**, and
+where the card's other forms are written there are two answers in it
+rather than one lost somewhere further down: one for the word, one for
+the shapes beside it. Neither answer has changed; both are simply in the
+same place.
+
 ## 0.207 — 22 September 2026
 
 **A pair is a number the app can say, and an adjective stops inviting you

@@ -259,8 +259,19 @@ function GrammarRadios({ dims, values, onPick, of, bare }: {
  * most cards accept one answer and want the language's default, and four
  * pickers under every row would bury the words the card is actually about.
  */
-function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
+function ScriptAnswers({ lang, dims, form, of = "", onChange, blanks, onRemoveBlank }: {
   lang: Lang;
+  /**
+   * Which form of the card these boxes belong to, where saying so is the
+   * only way to tell them apart.
+   *
+   * A card's own word needs nothing: there is one of it, and the heading
+   * above says which card. Its other forms are three blocks of identical
+   * fields under three headings, and a heading is not a label — somebody
+   * reading the screen aloud would meet four boxes all called the same
+   * thing and no way to know which was the feminine.
+   */
+  of?: string;
   /* The axes this *answer* is asked about — the kind of word's own list
      and not the pack's, less whatever is true of the card rather than of
      one of its answers: a preposition has neither number nor gender, and
@@ -279,6 +290,10 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
   onRemoveBlank?: (name: string) => void;
 }) {
   const fields = answerFields();
+  /* What a box is called: the field, which of the accepted answers it is
+     where there is more than one, and which form of the card. */
+  const named = (base: string, i: number) =>
+    [base, rows.length > 1 ? ` of accepted answer ${i + 1}` : "", of ? ` for ${of}` : ""].join("");
   const [rows, setRows] = useState(() => answerRows(form, fields));
   const [open, setOpen] = useState<number | null>(null);
   /* The same rule as Alternatives above, and for the same reason: these
@@ -326,7 +341,12 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                 )}
               </BlankField>
             ) : (
-              <ScriptInput lang={lang} value={row.text} onChange={(v) => edit(i, { text: v })} />
+              <ScriptInput
+                lang={lang}
+                value={row.text}
+                label={of ? named(lang.scriptLabel, i) : undefined}
+                onChange={(v) => edit(i, { text: v })}
+              />
             )}
           </div>
           {/* The buttons take a column of their own so that the answer and
@@ -362,11 +382,7 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
                     box={box}
                     className="at-input"
                     value={row.lat}
-                    label={
-                      rows.length > 1
-                        ? `${lang.translitLabel} of accepted answer ${i + 1}`
-                        : lang.translitLabel
-                    }
+                    label={named(lang.translitLabel, i)}
                     placeholder={lang.translitLabel.toLowerCase()}
                     onChange={(v) => edit(i, { lat: v })}
                     onRemove={onRemoveBlank}
@@ -378,11 +394,7 @@ function ScriptAnswers({ lang, dims, form, onChange, blanks, onRemoveBlank }: {
             <input
               className="at-input at-answersaid"
               value={row.lat}
-              aria-label={
-                rows.length > 1
-                  ? `${lang.translitLabel} of accepted answer ${i + 1}`
-                  : lang.translitLabel
-              }
+              aria-label={named(lang.translitLabel, i)}
               placeholder={lang.translitLabel.toLowerCase()}
               onChange={(e) => edit(i, { lat: e.target.value })}
             />
@@ -1392,6 +1404,47 @@ function cellLabel(spec: VerbSpec | null, at: { row: string, col: string }) {
   return [tense ? tense.label : at.row, person ? person.label : ""].filter(Boolean).join(" · ");
 }
 
+/**
+ * One cell written, added or dropped.
+ *
+ * A cell with nothing in any of its fields is not a blank the teacher is
+ * coming back to — it is a form the language has not got — so it leaves
+ * the list rather than being saved empty.
+ *
+ * In place, so a cell keeps where it sits in the list. Every keystroke
+ * used to drop the cell and push it back on the end, which on a student's
+ * device — where a form carrying no name of its own is known by its
+ * position — handed the cells below it the schedules of their neighbours.
+ * They carry names now, and the order is still worth keeping: it is what
+ * carries a table written before they had one across its first save.
+ *
+ * Written here rather than inside the grid because the same cells are
+ * also drawn as blocks, in the format the card's own word is written in —
+ * two ways of showing one table, and one way of changing it.
+ */
+export function writeCell(
+  { cells, of, mint }: {
+    cells: Record<string, any>[];
+    /** Whose table: "" for the card's own, a form's name for that form's. */
+    of: string;
+    mint: () => string;
+  },
+  row: string,
+  col: string,
+  patch: Record<string, any>,
+): Record<string, any>[] {
+  const ours = (c: Record<string, any>) => String(c.of || "") === of;
+  const had = cells.find((c) => c.row === row && c.col === col && ours(c)) || null;
+  const next = {
+    ...(had || { ...blankForm(), row, col, ...(of ? { of } : null), id: mint() }),
+    ...patch,
+  };
+  if (!["ar", "en", "lat"].some((f) => String(next[f] || "").trim())) {
+    return cells.filter((c) => !(c.row === row && c.col === col && ours(c)));
+  }
+  return had ? cells.map((c) => (c === had ? next : c)) : cells.concat([next]);
+}
+
 function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, mint, onChange, onRecord }: {
   lang: Lang;
   spec: VerbSpec;
@@ -1421,33 +1474,8 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
   const at = (row: string, col: string) =>
     cells.find((c) => c.row === row && c.col === col && mine(c)) || null;
 
-  /* One cell written, added or dropped. A cell with nothing in any of its
-     fields is not a blank the teacher is coming back to — it is a form the
-     language has not got — so it leaves the list rather than being saved
-     empty. */
-  const write = (row: string, col: string, patch: Record<string, any>) => {
-    const had = at(row, col);
-    const next = {
-      ...(had || { ...blankForm(), row, col, ...(of ? { of } : null), id: mint() }),
-      ...patch,
-    };
-    const keep = ["ar", "en", "lat"].some((f) => String(next[f] || "").trim());
-    if (!keep) {
-      onChange(cells.filter((c) => !(c.row === row && c.col === col && mine(c))));
-      return;
-    }
-    /*
-     * In place, so a cell keeps where it sits in the list.
-     *
-     * Every keystroke used to drop the cell and push it back on the end,
-     * which on a student's device — where a form carrying no name of its
-     * own is known by its position — handed the cells below it the
-     * schedules of their neighbours. They carry names now, and the order
-     * is still worth keeping: it is what carries a table written before
-     * they had one across its first save.
-     */
-    onChange(had ? cells.map((c) => (c === had ? next : c)) : cells.concat([next]));
-  };
+  const write = (row: string, col: string, patch: Record<string, any>) =>
+    onChange(writeCell({ cells, of, mint }, row, col, patch));
 
   const persons = personsOf(spec);
   /* A language whose verbs do not vary by person has one column and no
@@ -4611,6 +4639,134 @@ function NameBlock({ word, of }: { word: WordDraft; of: "verb" | "sentence" }) {
 
 /* The table a card carries — a verb's, an adjective's — and the one line
    that unblocks Save while the whole of it is empty. */
+/*
+ * The cells of a small table, each written the way the card's own word is.
+ *
+ * An adjective is one word and a handful of shapes of it, and the screen
+ * used to say so twice over in two different hands: the word in labelled
+ * fields, with its accepted answers and a recording button, and then —
+ * under a heading of its own, further down the page — its feminine and
+ * plural as a compact grid of unlabelled boxes with a microphone icon.
+ * Two formats for forms of one word, and the reason was only that one of
+ * them started life as a verb's twenty-four-cell table, where a grid is
+ * the right shape and a stack of full blocks would be a mile of screen.
+ *
+ * Three cells is not twenty-four. So where a card can hold only the one
+ * form — its other shapes being the table — those shapes are written
+ * beside it, in the same format, in the order the language declares them.
+ * The grid stays where it earns its keep: a verb's persons and tenses,
+ * and the pronouns on the end of every form of a word.
+ */
+function CellBlocks({ word, lang }: { word: WordDraft; lang: Lang }) {
+  const { shownSpec, cells, setCells, mintCell, setRecordingCell, category, drillsTranslit } = word;
+  if (!shownSpec || shownSpec.perForm) return null;
+  const rows = tensesOf(shownSpec);
+  const persons = personsOf(shownSpec);
+  /* A table with one row says nothing by naming it — an adjective's row is
+     called "agreement", which is the table and not a fact about the cell.
+     Two or more and the row is half of where a cell sits, so it is said. */
+  const named = rows.length > 1;
+  const at = (row: string, col: string) =>
+    cells.find((c) => c.row === row && c.col === col && !String(c.of || "")) || null;
+  const write = (row: string, col: string, patch: Record<string, any>) =>
+    setCells(writeCell({ cells, of: "", mint: mintCell }, row, col, patch));
+
+  return (
+    <>
+      {rows.flatMap((row) =>
+        persons.map((person) => {
+          const cell = at(row.id, person.id);
+          const name = person.label || person.id;
+          const title = named ? `${row.label} · ${name}` : name;
+          return (
+            <div className="at-formblock" key={`${row.id}|${person.id}`}>
+              <div className="at-formhead">
+                <span className="at-formnum">{title}</span>
+                {person.label ? (
+                  <span className="at-formrole">Its {person.label} form.</span>
+                ) : null}
+              </div>
+              <div className="at-part">
+                <Field label={`${lang.scriptLabel} and ${lang.translitLabel.toLowerCase()}`}>
+                  <ScriptAnswers
+                    lang={lang}
+                    dims={answerDims(lang, category)}
+                    form={cell || {}}
+                    of={title}
+                    onChange={(next) => write(row.id, person.id, next)}
+                  />
+                  {!drillsTranslit && (
+                    <Help>
+                      {lang.name} is written in the Latin alphabet, so the{" "}
+                      {lang.translitLabel.toLowerCase()} is never asked for — it is kept beside the
+                      answer it belongs to, and read.
+                    </Help>
+                  )}
+                </Field>
+                <Field label="English">
+                  <Alternatives
+                    value={(cell || {}).en || ""}
+                    onChange={(v) => write(row.id, person.id, { en: v })}
+                    render={(v, set) => (
+                      <input
+                        className="at-input"
+                        value={v}
+                        aria-label={`English for ${title}`}
+                        onChange={(e) => set(e.target.value)}
+                      />
+                    )}
+                  />
+                </Field>
+                <div className="at-field">
+                  <Recordings
+                    form={cell || {}}
+                    onOpen={() =>
+                      setRecordingCell({ of: "", ofLabel: "", row: row.id, col: person.id })
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        }),
+      )}
+    </>
+  );
+}
+
+/*
+ * How the card is practised, once rather than form by form.
+ *
+ * On a card that can hold only the one form, "this form" and "this card"
+ * are the same thing, and the ticks were tucked at the foot of the word's
+ * own fields as though they were another field of it. They are not: they
+ * are the answer to a question about the whole card, and on a card whose
+ * table is written there are two of them — the word, and the shapes beside
+ * it — which belong beside each other rather than a screen apart.
+ */
+function PracticeSection({ word }: { word: WordDraft }) {
+  const { parts } = word;
+  if (!parts.length) return null;
+  return (
+    <div className="at-formblock at-mt5">
+      <div className="at-formhead">
+        <span className="at-formnum">How this card can be practiced</span>
+      </div>
+      {parts.map((part) => (
+        <DrillChecks
+          key={part.id}
+          word={word}
+          part={part}
+          /* Named only where there is more than one answer to give: a card
+             with a word and nothing else has one, and a heading over a
+             single pair of ticks is the screen saying its own name twice. */
+          label={parts.length > 1 ? part.title : ""}
+        />
+      ))}
+    </div>
+  );
+}
+
 function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
   const { shownSpec, parts, cells, setCells, mintCell, setRecordingCell, needsForm } = word;
   /* The table's own line of what is drilled — see askParts, which lists
@@ -4885,11 +5041,11 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
 export const formRole = (i: number, laidOut = false): string =>
   i === 0
     ? laidOut
-      ? "This is the main form of the card. The forms it takes are laid out in the table below — another spelling of one belongs on that form, not on a form of its own."
+      ? "This is the main form of the card. The forms it takes beside a noun are written below — another spelling of one belongs on that form, not on a form of its own."
       : "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
     : "Another form of the same card.";
 
-function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true, blanks, children }: {
+function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true, drills = true, blanks, children }: {
   word: WordDraft;
   lang: Lang;
   index: number;
@@ -4914,6 +5070,15 @@ function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true,
    * and the way out stays.
    */
   canCopy?: boolean;
+  /**
+   * Whether the ticks that say how this form is practised sit at the foot
+   * of its fields.
+   *
+   * False where the card gathers them into a section of its own — see
+   * PracticeSection, which is what a card that can hold only one form
+   * does with them.
+   */
+  drills?: boolean;
   /* Handed down only by the sentence editor: a blank belongs in a sentence
      and nowhere else, so the bar is not drawn on a word, a verb or a
      conversation. What refuses a blank on those is the save — see
@@ -5037,7 +5202,7 @@ function FormBlock({ word, lang, index: i, form: f, title, role, canCopy = true,
 
     {/* And whether this form is drilled, at the foot of the fields it is
         about rather than in a list at the bottom of the screen. */}
-    {mine && <DrillChecks word={word} part={mine} />}
+    {drills && mine && <DrillChecks word={word} part={mine} />}
     </div>
 
     {/* Number and gender used to stand down here, one set for
@@ -5228,7 +5393,7 @@ function DrillChecks({ word, part, label = "How this form can be practiced" }: {
   const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
   return (
     <div className="at-drills">
-      <span className="at-drillhead">{label}</span>
+      {label ? <span className="at-drillhead">{label}</span> : null}
       <CheckList
         options={[
           {
@@ -6481,9 +6646,11 @@ function TableEditor({ word, lang, allCards, selfId }: {
           title={`Form ${i + 1}`}
           role={formRole(i, true)}
           canCopy={false}
+          drills={false}
         />
       ))}
-      <TableBlock word={word} lang={lang} />
+      <CellBlocks word={word} lang={lang} />
+      <PracticeSection word={word} />
       <NothingAsked word={word} />
       <BlanksBlock word={word} lang={lang} />
       <WordsUsed
