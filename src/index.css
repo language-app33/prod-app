@@ -518,8 +518,13 @@ button {
    shrink. */
 .at-formrole { flex:1; min-width:0; font-size:12px; color: var(--muted);
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-/* The actions stay whole: they are what the row is for. */
-.at-formacts { display:flex; align-items:baseline; gap:8px; flex-shrink:0; }
+/* The actions stay whole: they are what the row is for, and they sit hard
+   right whether or not there is a line of role text to push them there.
+   A form whose heading is one word — an adjective's "Feminine" — has no
+   such line, and the recording button beside the word would otherwise
+   read as part of the title. */
+.at-formacts { display:flex; align-items:baseline; gap:8px; flex-shrink:0;
+  margin-inline-start:auto; }
 /* One cell of a verb's table: who it is, then the form and what it means.
    Down the page rather than across it — a grid of seven columns is how a
    grammar book prints a paradigm and is unusable on a phone, which is what
@@ -890,6 +895,13 @@ button {
 .at-screen.cardform .at-formblock { margin:0 -16px; padding:28px 16px 32px;
   border:0; border-top:1px solid var(--line); border-radius:0; background:none; }
 .at-screen.cardform .at-formblock:first-child { border-top:0; }
+/* Except a form, which is not a section of the screen: it is one of
+   several panels under the Forms heading. No band, no rule above it, and
+   the next one close enough underneath to read as the next of a list. A
+   rule between two of them said each was a subject of its own, which on a
+   card with four forms is three claims too many. */
+.at-screen.cardform .at-formtile { margin:0 0 10px; padding:0; border-top:0; }
+.at-screen.cardform .at-formtile:last-child { margin-bottom:0; }
 /* A conversation's turns are sections like any other, and keep the one
    thing that said whose they were: the indent away from the far gutter.
    The coloured edge that used to go with it was the box's, and the box is
@@ -914,6 +926,16 @@ button {
    distance above what it explains and what it asks for. */
 .at-screen.cardform .at-label { font-size:15px; letter-spacing:.07em;
   line-height:1.3; margin-bottom:8px; }
+/* Inside a form's panel, both go a size back down. The form's name is a
+   panel heading rather than a heading of the screen — the Forms heading
+   above is the screen's — and the names of the two fields under it are
+   naming boxes rather than sections, on a card that may show four of each.
+   At section sizes the panel read as a page of its own. */
+.at-screen.cardform .at-formtile .at-part > .at-formhead { margin-bottom:12px; }
+.at-screen.cardform .at-formtile .at-formnum { font-size:17px; letter-spacing:-.005em; }
+.at-screen.cardform .at-formtile .at-label { font-size:12px; letter-spacing:.08em;
+  margin-bottom:6px; }
+.at-screen.cardform .at-formtile .at-formrole { font-size:13px; line-height:1.5; }
 .at-screen.cardform .at-hint { font-size:14px; line-height:1.6; }
 .at-screen.cardform .at-field { margin-bottom:16px; }
 .at-screen.cardform .at-groupline,
@@ -984,6 +1006,12 @@ button {
    answer the question the panel above them poses, so they are separated
    from it the way the panel is separated from its neighbours. */
 .at-drills { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+/* Except the first one under a heading of its own. The rule is there to
+   part the ticks from the fields they are the foot of; the practice
+   section has no fields above them, so it drew a line between a heading
+   and the thing it heads. The second and later ones keep theirs, which is
+   what tells one group of ticks from the next. */
+.at-formblock > .at-formhead + .at-drills { margin-top:0; padding-top:0; border-top:0; }
 .at-drillhead { display:block; margin:0 0 8px; font-size:11px; font-weight:800;
   text-transform:uppercase; letter-spacing:.07em; color: var(--muted); }
 /* A subsection heading that is also the thing that opens it: the same

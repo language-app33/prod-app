@@ -4383,17 +4383,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!saveBtn() && !saveBtn().disabled && !idBox().value,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"} with the ID box empty`);
 
-    /* And with a word written, that answer can be recorded. The button is
-       under the answer rather than in a field of its own, and what it
-       opens is the screen recordings have always been made on — reached
-       from inside the rows the answer is edited in, because that is where
-       what it writes has to land. */
+    /* And with a word written, the form can be recorded. The button is at
+       the right of the form's own name rather than in a field of its own,
+       and what it opens is the screen recordings have always been made on
+       — reached from inside the rows the answer is edited in, because
+       that is where what it writes has to land. */
     {
       const recOf = () => /** @type {any} */ (
-        [...document.querySelectorAll(".at-formblock.main .at-answerabout button")]
+        [...document.querySelectorAll(".at-formblock.main .at-formacts button")]
           .find((b) => /Recordings/.test(b.getAttribute("aria-label") || "")) || null
       );
-      check("a written answer can be recorded, from under the answer itself",
+      check("a written answer can be recorded, from the form's own heading",
         !!recOf() && !recOf().disabled,
         recOf() ? (recOf().getAttribute("aria-label") || "") : "(no button)");
       click(recOf());
@@ -5678,7 +5678,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          naming its own layout while the three below it were named after
          the language. */
       check("and the word itself is named by the language, like the shapes of it",
-        blockNames()[2] === "Masculine" &&
+        blockNames()[blockNames().indexOf("Forms") + 1] === "Masculine" &&
           !blockNames().some((n) => /^(Form 1|The main form)$/.test(n)),
         blockNames().join(" | "));
       /* With nothing under the heading explaining the heading. */
@@ -5699,15 +5699,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           addFor(/^Add another accepted answer for feminine$/) &&
           !fieldNames().includes("Recordings"),
         fieldNames().join(" | "));
-      const recBtn = () => [...document.querySelectorAll(".at-formblock.main .at-answerabout button")]
+      const recBtn = () => [...document.querySelectorAll(".at-formblock.main .at-formacts button")]
         .filter((b) => /Recordings/.test(b.getAttribute("aria-label") || ""));
-      check("with how it sounds hanging off the answer it is of, not standing beside the English",
+      check("with how it sounds at the right of the form's name, not standing beside the English",
         recBtn().length === 1 && /none yet/.test(recBtn()[0].getAttribute("aria-label") || ""),
         recBtn().map((b) => b.getAttribute("aria-label")).join(" | ") || "(no button)");
-      check("and a shape of the word can be recorded the same way",
-        [...document.querySelectorAll(".at-answerabout button")]
-          .some((b) => /^Recordings for feminine —/.test(b.getAttribute("aria-label") || "")),
-        [...document.querySelectorAll(".at-answerabout button")]
+      check("and every shape of it carries the same button in its own heading",
+        ["feminine", "plural", "dual"].every((c) =>
+          [...document.querySelectorAll(".at-formacts button")]
+            .some((b) => new RegExp(`^Recordings for ${c} —`).test(b.getAttribute("aria-label") || ""))),
+        [...document.querySelectorAll(".at-formacts button")]
           .map((b) => b.getAttribute("aria-label")).filter(Boolean).join(" | ") || "(no buttons)");
       /* And the box says which language it wants, in that language. The
          heading used to name two fields at once and the box itself said
@@ -5743,8 +5744,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          loud on the box itself, because four blocks of identical fields
          under four headings are four boxes called "English" to anybody
          reading the screen aloud — a heading is not a label. */
-      check("the four read in the order the language declares, the word first",
-        blocksUp().slice(2, 6).join(" | ") === "Masculine | Feminine | Plural | Dual",
+      check("the four read in the order the language declares, the word first, under one heading",
+        blocksUp().slice(blocksUp().indexOf("Forms"), blocksUp().indexOf("Forms") + 5)
+          .join(" | ") === "Forms | Masculine | Feminine | Plural | Dual",
         blocksUp().join(" | "));
       check("and every box says which of them it belongs to",
         ["feminine", "plural", "dual"].every((c) =>
@@ -6062,10 +6064,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       [...document.querySelectorAll(".at-drillhead")].length === 2,
     [...document.querySelectorAll(".at-drillhead")]
       .map((n) => (n.textContent || "").trim()).join(" | ") || "(no heads)");
-  check("with the word the first of them, named the way they are",
-    [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim())
-      .slice(2, 6).join(" | ") === "Masculine | Feminine | Plural | Dual",
-    [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+  {
+    const heads = [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
+    check("with the word the first of them, named the way they are",
+      heads.slice(heads.indexOf("Forms"), heads.indexOf("Forms") + 5)
+        .join(" | ") === "Forms | Masculine | Feminine | Plural | Dual",
+      heads.join(" | "));
+  }
   /* And a shape nobody has written yet can be written. These are edited
      through the same component the card's own word is — accepted answers
      and all — so what lands in the card is a packed answer rather than
@@ -6087,7 +6092,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        is the cell having been minted rather than the box holding text
        nothing kept. */
     const recFor = () => /** @type {any} */ (
-      [...document.querySelectorAll(".at-answerabout button")]
+      [...document.querySelectorAll(".at-formacts button")]
         .find((b) => /^Recordings for dual —/.test(b.getAttribute("aria-label") || "")) || null
     );
     check("and is then something that can be recorded, the cell having been made",

@@ -8,6 +8,32 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.217 — 22 September 2026
+
+**The forms of a card are one section, and each of them is a panel in it.**
+
+Every form on the card screen was a section of the screen in its own
+right: its name set at page-heading size, standing outside the box its
+fields were in, with a rule between one form and the next. On a card with
+four of them that was the screen announcing four subjects where there is
+one word.
+
+There is a **Forms** heading now, at the size the card's other sections
+are headed, and under it the forms are panels — the name **inside** the
+panel and a size down, the two field names under it (*Arabic*, *English*)
+a size down again, and nothing drawn between one panel and the next.
+
+**And the record button moved up.** It sits at the right of the form's own
+name, where Duplicate and Remove already were, rather than under the
+pronunciation. A form with two accepted answers still keeps one button per
+answer, beside the word it is of — there the button has to say which of
+the two it records, and a button up in the heading could not.
+
+**One line fewer under a heading.** The rule between *How this card can be
+practiced* and the ticks below it was drawing a line between a heading and
+the thing it heads; the rule that separates one group of ticks from the
+next is still there.
+
 ## 0.216 — 22 September 2026
 
 **Every shape of a word is a section of its own, named in the language.**
