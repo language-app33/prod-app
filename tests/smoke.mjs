@@ -49,8 +49,14 @@ await build({
     "src/storage.ts",
     "src/gallery.tsx",
     "src/shared.tsx",
-    /* The teaching space is loaded lazily by the app and is not walked
-       here, so the one screen in it worth driving is named on its own. */
+    /*
+     * The teaching space is loaded lazily, so its screens arrive through
+     * the app's own import rather than from this list — the card editor
+     * and the card lists below are walked that way, and nearly all of the
+     * editor runs. The number system's screen is reached from a toolbar
+     * button this walk does not press, so it is named here and driven on
+     * its own at the foot of the file.
+     */
     "src/number-system-editor.tsx",
   ],
   bundle: true,
@@ -256,6 +262,21 @@ let versionHits = 0;
 /* The build the bundle was compiled with — see the define above — so the
    app and the server agree until a test makes them disagree. */
 let deployedVersion = { release: "0.1", commit: "abc1234", builtAt: "2026-09-05T13:00:00.000Z" };
+/* The teachers' number documents, which the material request carries
+   beside the decks. Empty for every walk but the one at the foot of this
+   file that meets a number as a question. The real endpoint always sends
+   the field, so this one does too. */
+/** @type {any[]} */
+let materialSystems = [];
+/* The accounts the first screen asked to have made, so a walk of it can
+   check what was sent rather than only what the screen then showed. */
+/** @type {any[]} */
+const signedUp = [];
+/* Whether the course still hands out its decks. The last walk in this file
+   meets a number, and a number has to win a place in the session against
+   whatever else is in hand — so for that one the course is emptied and the
+   only thing left is the skills. */
+let materialQuiet = false;
 /**
  * The whole server, as far as the app is concerned.
  *
@@ -298,6 +319,12 @@ const fakeFetch = async (input, opts = {}) => {
     if (action === "whoami") return json({ ok: true, user: { ...account, key: undefined } });
     if (action === "my-material") {
       materialHits += 1;
+      if (materialQuiet) {
+        return json({
+          ok: true, version: "v-quiet", teaches: true,
+          courses: [], decks: [], cards: [], systems: materialSystems,
+        });
+      }
       const version = "v-abc";
       if (url.searchParams.get("version") === version) return json({ ok: true, unchanged: true, version, teaches: true });
       return json({
@@ -326,6 +353,7 @@ const fakeFetch = async (input, opts = {}) => {
           { deckId: "d2", cards: [frameCard, rafa, viktor] },
           { deckId: "d3", cards: [card] },
         ],
+        systems: materialSystems,
       });
     }
     /* What a teacher's own space is built from. The same two cards the
@@ -380,6 +408,19 @@ const fakeFetch = async (input, opts = {}) => {
           cardCount: 0,
           courses: [],
         },
+      });
+    }
+    /* Making an account. The one request the first screen makes, and the
+       only way into the app — so a walk of that screen needs it answered
+       the way the real endpoint answers it: a handle the server chose and
+       a key nobody can look up again. */
+    if (action === "signup") {
+      const body = JSON.parse(opts.body || "{}");
+      signedUp.push(body);
+      return json({
+        ok: true,
+        user: { handle: "newcomer-1a2b", displayName: body.displayName, admin: false },
+        key: "cedar-harbour-quartz-ember-4f2a",
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
@@ -2056,17 +2097,42 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
 }
 
 /* ---- a session: start, answer one card, continue ---- */
-/* What this card already carries. Two walks above answer a question each,
-   and which card they draw is a matter of chance — so "one answer writes
-   one state" has to be counted from here rather than from nothing, which
-   is what made this fail about one run in seven. */
-/** @param {any} it */
-const stateKeys = (it) =>
-  [...Object.keys((it || {}).s || {}), ...((it || {}).subs || []).flatMap((/** @type {any} */ sb) => Object.keys(sb.s || {}))];
-const beforeStates = stateKeys(
-  JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "{}").items
-    ?.find((/** @type {any} */ i) => i.id === "srv" + card.id)
-).length;
+/*
+ * Every schedule the document holds, keyed by the three things that say
+ * which one it is — the card, the form or turn, and the exercise — with
+ * the moment it was last written.
+ *
+ * This is the one place the whole path from pressing Check to a mark on
+ * the disk is checked: the marking has its own tests, the scheduler has
+ * its own tests, and what neither can see is whether the screen hands the
+ * mark the key it dealt. So what is compared is the document before the
+ * answer and the document after it.
+ *
+ * It used to read `it.s` and `it.subs`, which is how a card was stored
+ * three shapes ago — an item carries `forms` and `lines` now, so both
+ * sides of the comparison were empty lists and the check could only ever
+ * compare nought with nought. It passed for a year, and would have passed
+ * just as well with the save switched off.
+ */
+const schedules = () => {
+  /** @type {Map<string, number>} */
+  const out = new Map();
+  const held = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
+  for (const it of (held && held.items) || []) {
+    for (const part of [...(it.forms || []), ...(it.lines || [])]) {
+      for (const [key, st] of Object.entries((part && part.s) || {})) {
+        out.set(`${it.id} · ${part.id} · ${key}`, (st && /** @type {any} */ (st).updated) || 0);
+      }
+    }
+  }
+  return out;
+};
+/* Which of them this answer wrote: one that was not there before, or one
+   written again. A mark that moved nothing still stamps the schedule it
+   was about, so "written again" is the case that catches practice. */
+const writtenSince = (/** @type {Map<string, number>} */ before) =>
+  [...schedules()].filter(([k, at]) => !before.has(k) || before.get(k) !== at).map(([k]) => k);
+const beforeAnswer = schedules();
 /* ---- the weak-skills button sits under Start session ----
    Its own walk at the foot of this file drives it on a deck with something
    actually going wrong. Here it is the offer itself: on the ordinary home
@@ -2113,6 +2179,9 @@ const choice = document.querySelector(".at-answerbox .at-chips button");
    walk is about a session starting and an answer being marked, not about
    reading Arabic. */
 const tile = document.querySelector('[data-el="answer-choices"] .at-reply');
+/* Which kind of question came up, because a grid is five questions at once
+   and writes five schedules where the others write one. */
+let askedKind = "one";
 if (input) {
   const lang = input.getAttribute("lang");
   check(
@@ -2134,6 +2203,7 @@ if (input) {
   click(buttonNamed(/^Check$/));
 } else if (await playGrid()) {
   /* A grid answers itself, Check and all. */
+  askedKind = "grid";
 } else {
   check("found something to answer with", false, document.body.textContent.slice(0, 200));
 }
@@ -2143,12 +2213,28 @@ check("the answer was marked", /The answer is:|Incorrect\.|Not all of them|Corre
 click(buttonNamed(/Continue|Next/));
 await sleep(900); // the 600 ms save debounce
 const after = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
-const answered = after.items.find((/** @type {any} */ i) => i.id === "srv" + card.id) || { s: {}, subs: [] };
 check("the course card is still in storage after the session", after.items.some((/** @type {any} */ i) => i.id === "srv" + card.id), `items=${after.items.map((/** @type {any} */ i) => i.id).join(",")}`);
-const storedStates = stateKeys(answered);
-check("answering one question writes one state, and nothing untouched",
-  storedStates.length - beforeStates <= 1,
-  `stored states: ${storedStates.join(",")} · ${beforeStates} before the session`);
+const wroteKeys = writtenSince(beforeAnswer);
+check("answering a question writes the answer to the device",
+  wroteKeys.length > 0,
+  `kind=${askedKind}, ${wroteKeys.length} schedule(s) written`);
+check("and writes one schedule per question asked, touching nothing else",
+  askedKind === "grid" ? wroteKeys.length >= 2 : wroteKeys.length === 1,
+  `kind=${askedKind}, wrote: ${wroteKeys.join(" | ") || "nothing"}`);
+/* And what it wrote names a card the document actually holds, under an
+   exercise the app has — a mark filed under a key nothing reads is a mark
+   the learner never gets back. */
+{
+  const { TYPES } = await import(path.resolve("src/languages.ts"));
+  const held = new Set(after.items.map((/** @type {any} */ i) => i.id));
+  const known = new Set(TYPES);
+  const bad = wroteKeys.filter((/** @type {string} */ k) => {
+    const [id, , key] = k.split(" · ");
+    return !held.has(id) || !known.has(String(key).split("@")[0]);
+  });
+  check("and files it against a card that is here, under an exercise that exists",
+    bad.length === 0, bad.join(" | "));
+}
 check("no console errors during the session", errors.length === 0, errors.slice(0, 3).join(" | "));
 
 /* ---- the component gallery ----
@@ -6964,6 +7050,426 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
   editorRoot.unmount();
   host.remove();
+}
+
+/* ---- a number, met as a question ----
+
+   A teacher's number document reaches a learner as a pile of ordinary
+   cards and a handful of skills, and a skill has no words on it at all:
+   what it asks is built when the question is dealt and thrown away with
+   the sitting. Every part of that has unit tests now — the words against
+   a golden table, the dealing, the marking — and none of them can say
+   whether a number ever reaches the screen. This does.
+
+   On its own document at the end, like the two walks above it, so the
+   counts the rest of the file asserts are left alone. */
+{
+  root.unmount();
+  await sleep(200);
+  const before = errors.length;
+
+  const { readFileSync: readGolden } = await import("node:fs");
+  const goldenNumbers = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.numbers.json"), "utf8")).system;
+  const goldenTimes = JSON.parse(readGolden(path.resolve("tests/golden/ar-PS.times.json"), "utf8")).system;
+  const { generate, isRangeSkill } = await import(path.resolve("src/numbers/generate.ts"));
+  const { arComposer } = await import(path.resolve("src/numbers/ar-PS.ts"));
+  const { arTimeComposer } = await import(path.resolve("src/numbers/ar-PS.time.ts"));
+
+  const built = generate({
+    composer: arComposer, sys: goldenNumbers, timeComposer: arTimeComposer,
+    timeSys: goldenTimes, tag: "Numbers", now: Date.now(),
+  });
+  /* The skills alone. The component words are cards like any other and
+     are asked here only as themselves; what this walk is about is the
+     skill, which is the thing with no words on it. */
+  const rangeSkills = built.items.filter(isRangeSkill);
+  check("a teacher's numbers become skills a learner can be dealt", rangeSkills.length > 0,
+    `${built.items.length} items, ${rangeSkills.length} of them skills`);
+
+  /* The systems have to reach the app as well as the skills: a skill with
+     no system behind it is a question with nothing to say. They arrive
+     with the material, which is where the app keeps them. */
+  /* Flat, as the endpoint sends them: a number document and a clock
+     document side by side, told apart by what they hold rather than by a
+     label. The app pairs them up itself. */
+  materialSystems = [goldenNumbers, goldenTimes];
+  materialQuiet = true;
+  localStorage.setItem("arabic-trainer:material", JSON.stringify({
+    handle: account.handle, courses: [], decks: [], systems: materialSystems,
+    version: "v-numbers", at: Date.now(),
+  }));
+  /* The document starts empty on purpose: the cards and skills are the
+     app's to build from the teacher's document, through the same fold a
+     course refresh goes through. Seeding them here would test this walk's
+     idea of what a system becomes rather than the app's. */
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" },
+    account, items: [],
+  }));
+  /* And the shared copy goes with it. Every walk above has been syncing
+     its own cards up under this account, and a merge is a union — so
+     without this the session would be dealt from those as well, and a
+     number would have to win a draw against them to be asked at all. */
+  remoteDocs.clear();
+
+  const host4 = document.createElement("div");
+  document.body.appendChild(host4);
+  const root4 = createRoot(host4);
+  root4.render(React.createElement(App));
+  await sleep(1500);
+
+  const startNum = [...host4.querySelectorAll("button")]
+    .find((b) => /^Start session$/.test((b.textContent || "").trim()));
+  check("a teacher's number document is on its own enough to practise from", !!startNum && !startNum.disabled,
+    !startNum ? ((host4.textContent || "").slice(0, 120).replace(/\s+/g, " ") || "nothing rendered")
+      : startNum.disabled ? "the button is there but dimmed" : "live");
+  click(startNum);
+  await sleep(700);
+
+  const numAsk = host4.querySelector(".at-instruction");
+  check("and starting it asks about something the document taught", !!numAsk,
+    (host4.textContent || "").slice(0, 160).replace(/\s+/g, " "));
+  /*
+   * The words come first and the ranges open behind them — a learner
+   * meets the word for a quarter before being asked to tell the time — so
+   * what comes up here is a component word, which is exactly as it should
+   * be. What matters either way is that the question has something on it
+   * to read: these cards are built rather than written, so an empty
+   * prompt is the whole failure this walk exists to catch.
+   */
+  const numPrompt = host4.querySelector('[data-el="question-prompt"]');
+  check("and what it puts up has something on it to read",
+    !!numPrompt && (numPrompt.textContent || "").trim().length > 0,
+    numPrompt ? `"${(numPrompt.textContent || "").trim().slice(0, 60)}"` : "no prompt at all");
+
+  /* Answered in figures, which is what every level-one range question
+     wants. Whatever is typed, the point is that it is marked and filed. */
+  const numInput = host4.querySelector(".at-answerbox input");
+  const numTile = host4.querySelector('[data-el="answer-choices"] .at-reply')
+    || host4.querySelector(".at-answerbox .at-chips button");
+  const beforeNum = schedules();
+  if (numInput) {
+    const setter = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor",
+    ).set;
+    must(setter, "the input's value setter").call(numInput, "7");
+    numInput.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(50);
+    click([...host4.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim())));
+  } else if (numTile) {
+    click(numTile);
+    await sleep(50);
+    click([...host4.querySelectorAll("button")].find((b) => /^Check$/.test((b.textContent || "").trim())));
+  } else {
+    check("a number question offers a way to answer it", false,
+      (host4.textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  }
+  await sleep(250);
+  check("a number answered is marked",
+    /The answer is:|Incorrect\.|Correct!|Good job!|Nicely done!|Great!/.test(host4.textContent || ""),
+    (host4.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+
+  click([...host4.querySelectorAll("button")].find((b) => /Continue|Next/.test((b.textContent || "").trim())));
+  await sleep(900); // the save debounce
+  const numWrote = writtenSince(beforeNum);
+  check("and the answer is filed against the card the document built",
+    numWrote.length > 0 && numWrote.every((k) => k.startsWith("sys:")),
+    numWrote.join(" | ") || "nothing was written");
+
+  check("and nothing threw while a number was asked and answered",
+    errors.length === before, errors.slice(before, before + 3).join(" | "));
+
+  root4.unmount();
+  host4.remove();
+  materialSystems = [];
+  materialQuiet = false;
+  await sleep(200);
+}
+
+/* ---- putting a conversation back in order ----
+
+   The last of the exercises nothing had ever drawn on a screen. It is a
+   scene's top rung — a learner who can follow a conversation is asked to
+   rebuild it — and it is the one exercise whose answer is neither typed
+   nor tapped from a list, so nothing else in this file exercises the
+   shape of it.
+
+   On its own document, with the scene already up its ladder, because that
+   is the only state in which the ordering is dealt at all. */
+{
+  root.unmount();
+  await sleep(200);
+  const before = errors.length;
+  /* Answered right twice and due: the level-one reading is climbed, so
+     the rung above it has opened. */
+  const climbedState = {
+    phase: "review", step: 0, ease: 2.5, interval: 4, due: Date.now() - 86400000,
+    reps: 2, right: 2, wrong: 0, lapses: 0, skips: 0, near: 0, hints: 0,
+    hist: [1, 1], updated: Date.now() - 86400000,
+  };
+  const turn = (/** @type {string} */ id, /** @type {string} */ ar, /** @type {string} */ en, /** @type {string} */ lat, /** @type {number} */ who) =>
+    ({ id, ar, en, lat, who, recs: [], clips: [], slowClips: [], uses: [], s: { dlgwhole: { ...climbedState } } });
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" },
+    account,
+    items: [{
+      id: "scene1", kind: "dialog", tags: ["Lesson 1"], created: 1, updated: 1, lang: "ar-PS",
+      name: "At the door", speakers: ["Layla", "Karim"], you: null,
+      forms: [{ id: "scene1", ar: "", en: "At the door", lat: "", s: { dlgwhole: { ...climbedState } } }],
+      lines: [
+        turn("scene1-l0", "مرحبا", "hello", "marhaba", 0),
+        turn("scene1-l1", "أهلا وسهلا", "welcome", "ahlan wa sahlan", 1),
+        turn("scene1-l2", "كيف حالك", "how are you", "kiif haalak", 0),
+      ],
+    }],
+  }));
+  remoteDocs.clear();
+
+  const host7 = document.createElement("div");
+  document.body.appendChild(host7);
+  const root7 = createRoot(host7);
+  root7.render(React.createElement(App));
+  await sleep(1200);
+
+  /* The scene's own exercises are the only thing in hand, so the ordering
+     is somewhere in this session — the reading of the whole conversation
+     usually comes first. Walked forward one question at a time, saying "I
+     don't know" to whatever is not it, which is the cheapest way past a
+     question and moves the session on exactly as a learner would. */
+  const here = (/** @type {RegExp} */ re) =>
+    [...host7.querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+  click(here(/^Start session$/));
+  await sleep(500);
+  let order = host7.querySelector('[data-el="answer-order"]');
+  for (let asked = 0; asked < 10 && !order; asked += 1) {
+    const dunno = here(/^I don't know$/) || here(/^I don’t know$/);
+    if (!dunno) break;
+    click(dunno);
+    await sleep(200);
+    const onward = here(/^(Continue|Next)$/);
+    if (!onward) break;
+    click(onward);
+    await sleep(350);
+    order = host7.querySelector('[data-el="answer-order"]');
+  }
+
+  check("a scene that has been followed is asked to be put back in order", !!order,
+    (host7.textContent || "").slice(0, 160).replace(/\s+/g, " "));
+  if (order) {
+    const lines = [...order.querySelectorAll(".at-orderline")];
+    check("and every turn of it is on the screen to be placed", lines.length === 3,
+      `${lines.length} turns`);
+    /* Unnumbered until they are tapped: the dot is what says "not placed
+       yet", and a question that arrived already numbered would be a
+       question with its answer on it. */
+    const numbered = lines.map((l) => (l.querySelector(".at-ordernum") || {}).textContent || "");
+    check("and none of them arrives already placed",
+      numbered.every((n) => n.trim() === "·"), numbered.join(" "));
+    /* Tapping one places it first. */
+    click(lines[0]);
+    await sleep(150);
+    const after = [...order.querySelectorAll(".at-orderline")]
+      .map((l) => (l.querySelector(".at-ordernum") || {}).textContent || "");
+    check("and tapping a turn puts it in the first place",
+      after.filter((n) => n.trim() === "1").length === 1, after.join(" "));
+    check("and says who says each turn",
+      !!order.querySelector(".at-speaker"),
+      (order.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  }
+  check("nothing threw while a scene was put in order", errors.length === before,
+    errors.slice(before, before + 3).join(" | "));
+
+  root7.unmount();
+  host7.remove();
+  await sleep(200);
+}
+
+/* ---- the settings screens, and the menu that reaches them ----
+
+   Three screens hang off the corner menu — the account, the app's
+   preferences, and the guide — and no test had ever rendered any of
+   them. They are where somebody changes the language they are learning,
+   turns the sounds off, and closes their account, so a build that
+   shipped one of them throwing would be a build that looked perfect
+   until a learner opened the menu.
+
+   On its own document, so opening and closing screens does not leave the
+   walks above it looking at a different app. */
+{
+  root.unmount();
+  await sleep(200);
+  const before = errors.length;
+  localStorage.setItem("arabic-trainer:arabic-trainer-v3", JSON.stringify({
+    version: 3, tombstones: {}, log: {}, settings: { language: "ar-PS" },
+    account,
+    items: [{ id: "setcard", ar: "كتاب", en: "book", lat: "kitaab", kind: "word", tags: [], created: 1, updated: 1 }],
+  }));
+  remoteDocs.clear();
+
+  const host6 = document.createElement("div");
+  document.body.appendChild(host6);
+  const root6 = createRoot(host6);
+  root6.render(React.createElement(App));
+  await sleep(1200);
+
+  const rowNamed = (/** @type {RegExp} */ re) =>
+    [...host6.querySelectorAll(".at-cline")].find((r) => re.test((r.textContent || "").trim()));
+  /* A screen is drawn through a portal, so it lands in the body rather
+     than inside this walk's own host — and the walks above left theirs
+     mounted, so it is the last one with this name that is up. */
+  const screenTitled = (/** @type {string} */ name) => {
+    const all = [...document.querySelectorAll(`.at-screen[aria-label="${name}"]`)];
+    return all[all.length - 1] || null;
+  };
+  const openCorner = async () => {
+    click(host6.querySelector(".at-cornerbtn"));
+    await sleep(200);
+  };
+
+  for (const [name, wanted] of /** @type {[RegExp, string][]} */ ([
+    [/^Account settings$/, "Account settings"],
+    [/^App preferences$/, "App preferences"],
+    [/^How it works$/, "How it works"],
+  ])) {
+    await openCorner();
+    const row = rowNamed(name);
+    check(`the corner menu offers ${String(name).replace(/[/^$]/g, "")}`, !!row,
+      [...host6.querySelectorAll(".at-cline")].map((r) => (r.textContent || "").trim()).join(" · "));
+    click(row);
+    await sleep(350);
+    const screen = screenTitled(wanted);
+    check(`and opening ${wanted} draws the screen`, !!screen,
+      (host6.textContent || "").slice(0, 140).replace(/\s+/g, " "));
+    check(`and nothing threw drawing ${wanted}`, errors.length === before,
+      errors.slice(before, before + 2).join(" | "));
+    /* Back, so the next one opens from the same place. */
+    const back = screen
+      && ([...screen.querySelectorAll("button")].find((b) => /^Back$/.test((b.textContent || "").trim()))
+        || screen.querySelector(".at-back"));
+    click(back);
+    await sleep(250);
+  }
+
+  /* The two things a learner actually changes in there, which is the
+     whole reason the screen exists. */
+  await openCorner();
+  click(rowNamed(/^App preferences$/));
+  await sleep(350);
+  const prefsText = ((screenTitled("App preferences") || host6).textContent || "");
+  check("the preferences screen offers the language being learnt, the theme and the sounds",
+    /Language/.test(prefsText) && /Theme/.test(prefsText) && /Sounds/.test(prefsText),
+    prefsText.slice(0, 220).replace(/\s+/g, " "));
+
+  /* And the account screen names who is signed in, which is the one fact
+     it exists to carry. */
+  const prefsScreen = screenTitled("App preferences");
+  const backFromPrefs = prefsScreen
+    && ([...prefsScreen.querySelectorAll("button")].find((b) => /^Back$/.test((b.textContent || "").trim()))
+      || prefsScreen.querySelector(".at-back"));
+  click(backFromPrefs);
+  await sleep(250);
+  await openCorner();
+  click(rowNamed(/^Account settings$/));
+  await sleep(350);
+  const accountText = ((screenTitled("Account settings") || host6).textContent || "");
+  check("the account screen says who is signed in",
+    accountText.includes(account.displayName) || accountText.includes(account.handle),
+    accountText.slice(0, 200).replace(/\s+/g, " "));
+
+  check("and nothing threw while the settings screens were opened and closed",
+    errors.length === before, errors.slice(before, before + 3).join(" | "));
+
+  root6.unmount();
+  host6.remove();
+  await sleep(200);
+}
+
+/* ---- the screen that stands between a person and the app ----
+
+   Onboarding was rendered by nothing. It is the first thing anybody sees
+   and the only way in — both exits from it are requests to the server —
+   so a build that shipped it broken would be a build nobody could start
+   using, and every check in this file would still have been green,
+   because every one of them starts from an account already in storage.
+
+   Driven on its own at the end, with the storage emptied, which is the
+   state a new phone is in. */
+{
+  root.unmount();
+  await sleep(200);
+  const before = errors.length;
+  localStorage.clear();
+  remoteDocs.clear();
+
+  const host5 = document.createElement("div");
+  document.body.appendChild(host5);
+  const root5 = createRoot(host5);
+  root5.render(React.createElement(App));
+  await sleep(900);
+
+  const buttonHere = (/** @type {RegExp} */ re) =>
+    [...host5.querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+
+  check("a device with nothing on it opens on the way in, not on an empty session",
+    !!buttonHere(/^Set up$/) && !!buttonHere(/sign-in key/),
+    (host5.textContent || "").slice(0, 140).replace(/\s+/g, " "));
+  /* It says what setting up costs, because the one screen standing between
+     somebody and the app is the wrong place to be vague about a
+     connection. */
+  check("and says that setting up needs a connection and the rest does not",
+    /connection/i.test(host5.textContent || ""),
+    (host5.textContent || "").slice(0, 200).replace(/\s+/g, " "));
+
+  /* The way in for somebody who has been here before. */
+  click(buttonHere(/sign-in key/));
+  await sleep(200);
+  const keyBox = host5.querySelector("#signin-key");
+  check("asked for a key, it offers somewhere to type one", !!keyBox,
+    (host5.textContent || "").slice(0, 120).replace(/\s+/g, " "));
+  check("and the key is hidden as it is typed, with a way to show it",
+    !!keyBox && keyBox.getAttribute("type") === "password" && !!buttonHere(/^Show$/),
+    keyBox ? `type=${keyBox.getAttribute("type")}` : "no box");
+  const signInBtn = buttonHere(/^Sign in$/);
+  check("and signing in is not offered until something has been typed",
+    !!signInBtn && signInBtn.disabled,
+    !signInBtn ? "there is no Sign in button" : signInBtn.disabled ? "dimmed" : "live on an empty box");
+
+  /* And the way in for somebody new, which is the path that makes an
+     account. */
+  click(buttonHere(/^Back$/));
+  await sleep(200);
+  click(buttonHere(/^Set up$/));
+  await sleep(200);
+  const nameBox = host5.querySelector(".at-input");
+  check("setting up asks what to call you", !!nameBox,
+    (host5.textContent || "").slice(0, 140).replace(/\s+/g, " "));
+  if (nameBox) {
+    const setter = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor",
+    ).set;
+    must(setter, "the input's value setter").call(nameBox, "Newcomer");
+    nameBox.dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(80);
+    const go = [...host5.querySelectorAll("button")]
+      .find((b) => /^(Continue|Create|Set up|Next)$/.test((b.textContent || "").trim()));
+    click(go || host5.querySelector("button[type=submit]"));
+    await sleep(500);
+  }
+  check("and the name typed is what was asked for",
+    signedUp.length > 0 && signedUp[signedUp.length - 1].displayName === "Newcomer",
+    JSON.stringify(signedUp));
+  /* The key is shown once, because nobody can look it up again. */
+  check("and the key it hands back is put on the screen to be kept",
+    /cedar-harbour-quartz-ember-4f2a/.test(host5.textContent || ""),
+    (host5.textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  check("nothing threw on the way in", errors.length === before,
+    errors.slice(before, before + 3).join(" | "));
+
+  root5.unmount();
+  host5.remove();
+  await sleep(200);
 }
 
 report();

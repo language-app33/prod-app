@@ -137,6 +137,36 @@ test("the counts beside the schedule are kept whether or not it moved", () => {
   assert.deepEqual(s.hist, [0]);
 });
 
+test("the counts accumulate across answers rather than resetting to one", () => {
+  /*
+   * They are counters, and each was written `(s.skips || 0) + 1` — which
+   * is right, and reads identically to `1` on the one answer every other
+   * test gives it. A card skipped twice is a card the learner has said
+   * twice that they do not know, and the difficulty reading is made of
+   * exactly that difference: one skip weighs eight, two weigh sixteen.
+   */
+  const twice = (/** @type {any} */ how) => {
+    let s = freshState();
+    for (let i = 0; i < 3; i++) {
+      s = markedState(s, { rating: "again", correct: false, advance: true }, how, clock);
+    }
+    return s;
+  };
+  assert.equal(twice({ skipped: true }).skips, 3);
+  assert.equal(twice({ hintAtAnswer: true }).hints, 3);
+  assert.equal(twice({ checked: { ok: false, reason: "harakat" } }).near, 3);
+  /* And each one counts only the answers it was actually about. */
+  const mixed = markedState(
+    { ...freshState(), skips: 2, hints: 5, near: 1 },
+    { rating: "good", correct: true, advance: true },
+    {},
+    clock,
+  );
+  assert.equal(mixed.skips, 2, "an answer that was not skipped adds no skip");
+  assert.equal(mixed.hints, 5);
+  assert.equal(mixed.near, 1);
+});
+
 test("the last six outings are kept, and no more", () => {
   let s = { ...freshState(), hist: [1, 1, 1, 1, 1, 1] };
   s = markedState(s, { rating: "again", correct: false, advance: true }, {}, clock);
@@ -193,6 +223,55 @@ test("a turn of a conversation is marked on its own list", () => {
   assert.ok(keyOf(must(graded[0].lines, "the turns")[1], "dlgpick"), "the turn that was asked");
   assert.equal(keyOf(must(graded[0].lines, "the turns")[0], "dlgpick"), undefined, "and not the one beside it");
   assert.equal(keyOf(graded[0].forms[0], "dlgpick"), undefined, "nor the scene itself");
+});
+
+test("the turn a mark names is the turn it is read from, not merely written to", () => {
+  /*
+   * Two halves, and the earlier test only held the second.
+   *
+   * Writing the mark picks the turn by id; working out *what* to write
+   * reads the schedule the turn already had, through `targetOf`, and that
+   * lookup picks a turn by id too. With both turns blank the two are
+   * indistinguishable — a reader that found the wrong turn would read a
+   * blank schedule, which is what the right turn had as well.
+   *
+   * So the turns start differently. The second has never been asked; the
+   * first has been answered five times. A mark on the second that was read
+   * off the first would land as a sixth answer.
+   */
+  const scene = card({
+    forms: [{ id: "k", ar: "", en: "At the door", lat: "", s: {} }],
+    lines: [
+      { id: "k-l0", ar: "مرحبا", en: "hello", s: { dlgpick: { ...inReview(3), reps: 5, right: 5 } } },
+      { id: "k-l1", ar: "أهلا", en: "hi", s: {} },
+    ],
+  });
+  const graded = wrote([scene], [
+    { id: "k", subId: "k-l1", rating: "good", correct: true, advance: true },
+  ], { type: "dlgpick", clock });
+  const turns = must(graded[0].lines, "the turns");
+  assert.equal(keyOf(turns[1], "dlgpick").right, 1, "the second turn's first right answer");
+  assert.equal(keyOf(turns[1], "dlgpick").reps, 1, "and its first outing");
+  assert.equal(keyOf(turns[0], "dlgpick").reps, 5, "the first turn is left exactly as it was");
+});
+
+test("a form of a card that also has turns is marked as a form, not as a turn", () => {
+  /*
+   * Which list a mark belongs to is decided by whether the id names a
+   * turn. Asked the other way round — "is there a turn this is not?" — a
+   * card carrying any turn at all would send every mark to its turns,
+   * where no turn answers to a form's name and the mark would land
+   * nowhere at all. Silent, and the learner's answer gone.
+   */
+  const both = card({
+    lines: [{ id: "k-l0", ar: "مرحبا", en: "hello", s: {} }],
+  });
+  const graded = wrote([both], [
+    { id: "k", subId: "fpl", rating: "good", correct: true, advance: true },
+  ], { type: "ar2en", clock });
+  assert.equal(keyOf(graded[0].forms[1], "ar2en").right, 1, "the plural has the mark");
+  assert.equal(keyOf(must(graded[0].lines, "the turns")[0], "ar2en"), undefined,
+    "and the turn beside it has nothing");
 });
 
 test("a grid marks every word in it, each on its own pair", () => {
@@ -537,6 +616,23 @@ test("two passes and no more: the count stops where the badge does", () => {
   made.forms[0].s.en2ar = up({ passes: 2 });
   const out = rightNow("en2ar", [made]);
   assert.equal(keyOf(out[0].forms[0], "en2ar").passes, 2);
+});
+
+test("a card with one exercise to its name still makes its passes on it", () => {
+  /*
+   * The top of a form's ladder is the form's own, so a form with material
+   * for a single exercise tops out there — and that one rung is where its
+   * passes are counted. The guard in front of the count asks whether the
+   * form has any ladder at all; asked for *more than one* rung instead, a
+   * card like this would climb, clear, and then never be learnt, because
+   * nothing it could ever be asked would count.
+   */
+  const only = card({ forms: [{ id: "k", ar: "كِتاب", en: "book", lat: "kitaab",
+    s: { ar2en: up() } }] });
+  const out = wrote([only], [
+    { id: "k", subId: null, rating: "good", correct: true, advance: true },
+  ], { type: "ar2en", clock, keysOf: () => ["ar2en"] });
+  assert.equal(keyOf(out[0].forms[0], "ar2en").passes, 1);
 });
 
 test("with no ladder handed in, nothing counts towards a pass", () => {

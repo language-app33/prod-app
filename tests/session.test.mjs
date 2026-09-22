@@ -1182,3 +1182,150 @@ test("a week is the sum of its days, and a missing day is nought rather than a c
   assert.deepEqual(sumMoves(undefined, ["2026-09-20"]), { up: 0, cleared: 0, learnt: 0 },
     "and a document written before any of this was recorded reads as nothing");
 });
+
+/* ------------------------------------------------------------------
+   Practising what went wrong, by hand
+
+   The hand-built session's *mistakes* mode picks per exercise through
+   `hasRecentMistake`, which is a different question from the one the Weak
+   skills button asks and was reached by no test. The difference matters:
+   this one falls back to "has it ever gone wrong" only where there is no
+   record of outings to read, and a card with a clean record has to come
+   out the other side as nothing to fix.
+   ------------------------------------------------------------------ */
+
+test("asked for the mistakes, a card whose record is clean is not among them", () => {
+  const clean = slipping("clean", [1, 1]);
+  const missed = slipping("missed", [1, 0]);
+  const items = [clean, missed].concat(deckOf(4));
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "mistakes", count: 20,
+  });
+  assert.equal(got.reason, null, got.reason || "");
+  assert.deepEqual([...new Set(got.exercises.map((/** @type {any} */ e) => e.id))], ["missed"],
+    "a card answered right twice running was offered as a mistake");
+});
+
+test("and where nothing has been recorded, whether it ever went wrong is what is asked", () => {
+  /*
+   * The fallback, for cards answered before the record of outings existed.
+   * A card with a lapse behind it and no history is a mistake; a card with
+   * neither is not.
+   */
+  const noHist = (/** @type {string} */ id, /** @type {Record<string, any>} */ s) =>
+    word(id, `كلمة-${id}`, `word ${id}`, {
+      forms: [{ id, ar: `كلمة-${id}`, en: `word ${id}`, lat: `k-${id}`, lang: "ar-PS", s }],
+    });
+  const bad = { ...withHist([]), wrong: 2, right: 4, reps: 6 };
+  const fine = { ...withHist([]), wrong: 0, right: 4, reps: 4 };
+  const items = [noHist("aged-bad", { ar2en: bad }), noHist("aged-fine", { ar2en: fine })]
+    .concat(deckOf(4));
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "mistakes", count: 20,
+  });
+  assert.deepEqual([...new Set(got.exercises.map((/** @type {any} */ e) => e.id))], ["aged-bad"]);
+});
+
+test("nothing going wrong at all is said rather than built into a session", () => {
+  const items = [slipping("clean", [1, 1])].concat(deckOf(4));
+  installIndexes(items, settings);
+  const got = buildManualSession({
+    items, settings, ids: items.map((i) => i.id), mode: "mistakes", count: 20,
+  });
+  assert.equal(got.reason, "no-mistakes");
+});
+
+/* ------------------------------------------------------------------
+   The cards a learner asked for, counted and reached
+   ------------------------------------------------------------------ */
+
+test("a card the learner marked counts as waiting, however far off its review is", () => {
+  /*
+   * The count at the end of a session says how much of it was actually
+   * due. A marked card is waiting because the learner said so — that is
+   * the whole of what marking one means — and counting it as practice
+   * ahead would tell somebody who cleared their own list that they had
+   * done nothing that was owed.
+   */
+  const far = Array.from({ length: 11 }, (_, i) => settled(`f${i + 1}`, 30 + i));
+  const asked = { ...settled("asked", 60), priority: true };
+  const got = deal(far.concat([asked]));
+  assert.ok(dealtCards(got).has("asked"), "the marked card was not even dealt");
+  assert.equal(got.due, 1, "the marked card is the one thing waiting");
+  /* And with nothing marked, the same deck is nothing waiting at all —
+     so the count above is the mark and not the dealing. */
+  assert.equal(deal(far).due, 0);
+});
+
+test("the session ends on the last card the learner asked for, and not a question later", () => {
+  /*
+   * How long a session is comes from its budget, stretched far enough to
+   * reach the last marked card. Stretched one question further it would
+   * take an extra card in, which is a learner who marked eight cards being
+   * handed a ninth they did not ask for — and the reason the stretch is
+   * measured from the marked card's own place in the queue rather than
+   * padded.
+   */
+  /* Twenty of them, which is more than a session's own length can hold
+     however the questions fall — so the reach below is always the marks
+     doing the stretching rather than the ordinary budget. */
+  const deck = Array.from({ length: 30 }, (_, i) => settled(`f${i + 1}`, 30 + i));
+  const asked = Array.from({ length: 20 }, (_, i) => ({ ...settled(`a${i + 1}`, 60), priority: true }));
+  const ordinary = deal(deck).exercises.length;
+  const got = deal(deck.concat(asked));
+  const marked = new Set(asked.map((it) => it.id));
+
+  assert.ok(got.exercises.length > ordinary,
+    `the marks bought no extra room: ${got.exercises.length} against ${ordinary}`);
+  /* Every one of them got in — the promise the mark makes. */
+  const dealt = dealtCards(got);
+  const missing = [...marked].filter((id) => !dealt.has(id));
+  assert.deepEqual(missing, [], `left out: ${missing.join(" ")}`);
+
+  /*
+   * And it is exactly that long and no longer: the shortest run of
+   * questions that holds every marked card, or the length a session
+   * always is, whichever is greater. Stretched one question further it
+   * would take an extra card in — a learner who marked eight being handed
+   * a ninth they did not ask for — which is why the reach is measured
+   * from the marked card's own place in the queue rather than padded.
+   *
+   * Said this way rather than by looking at the last question, because
+   * which question sits where is shuffled: what is fixed is how far the
+   * queue has to run, not what is standing at the end of it.
+   */
+  const firstSeen = new Map();
+  got.exercises.forEach((/** @type {any} */ e, /** @type {number} */ i) => {
+    if (marked.has(e.id) && !firstSeen.has(e.id)) firstSeen.set(e.id, i);
+  });
+  const shortestRun = Math.max(...firstSeen.values()) + 1;
+  assert.ok(shortestRun > ordinary,
+    `the marked cards did not reach past an ordinary session (${shortestRun} against ${ordinary}), so this asserts nothing`);
+  /* Long enough is the assertion above — every marked card was dealt. This
+     is the other side of it: never longer. The two together are the whole
+     of what the stretch promises. */
+  assert.ok(got.exercises.length <= shortestRun,
+    `${got.exercises.length} questions, where ${shortestRun} already reach every marked card`);
+});
+
+test("a card that is both new and asked for is still asked about only as much as any card", () => {
+  /*
+   * Marked cards lead the queue and new cards follow them, and the two
+   * lists are cut from the same pile — so a card that is both has to
+   * belong to exactly one of them. Counted into both, it is dealt twice
+   * over, and a learner who marked a word they had never met would meet it
+   * four times in one sitting while another card waited.
+   */
+  const asked = { ...word("both", "كلمة-both", "word both"), priority: true };
+  const items = [asked].concat(deckOf(20));
+  const got = deal(items);
+  const mine = got.exercises.filter((/** @type {any} */ e) => e.id === "both");
+  assert.ok(mine.length > 0, "the marked card was not dealt");
+  assert.ok(mine.length <= 2, `one card, ${mine.length} questions: ${mine.map((/** @type {any} */ e) => e.type).join(" ")}`);
+  /* And no question is a copy of another, which is the same fault seen
+     from the other side. */
+  const keys = got.exercises.map((/** @type {any} */ e) => `${e.id}|${e.subId || ""}|${e.type}`);
+  assert.equal(new Set(keys).size, keys.length, "the same question was dealt twice");
+});

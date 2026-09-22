@@ -2,6 +2,20 @@
 
 **22 September 2026 · release 0.212, commit 1296f5a · re-checked against 0.213 (64b000e) and 0.214 (3e327bd), which landed on `beta` during the audit: the full check is green on both (950 unit tests, 703 walk checks), and nothing below changes.**
 
+> **Every finding in this note was addressed in 0.216.** This document is
+> kept as it was written, because the reasoning is the record of why they
+> were there; the release entry in `CHANGELOG.md` says what changed, and
+> *What was done about it* at the foot of this note says what was closed,
+> what was found to be a false alarm, and what was deliberately left. The
+> suite went from 950 unit tests and 703 walk checks to 1,029 and 739.
+>
+> Two of the findings below were wrong, and are marked where they appear:
+> the "automatic difficulty" score is live rather than dead code, and the
+> clock's hour-wrap is an equivalent mutation that no test could catch.
+> One was understated: the walk's save check was not merely loose, it was
+> reading a shape the app had stopped storing, and could only ever compare
+> nought with nought.
+
 The earlier audits asked whether the app loses work, holds up offline, and
 keeps cards and progress straight. This one asks about the tests themselves:
 is every part of the app that matters checked by something, and when a check
@@ -90,8 +104,8 @@ so; a few numbers the app's behaviour hangs on (the two caps on new words,
 the three lines a scene needs to be put in order, the fifty-item outbox, the
 four-megabyte document limit) are read by the tests rather than stated by
 them, so changing one would change nothing red; and the "automatic
-difficulty" score is exported, tested, and read by nothing — it is dead, and
-its tests are testing a thing the app no longer does.
+difficulty" score, which is what orders every session easiest-first, is
+tested only for its shape and not for any of the numbers in it.
 
 ## What is good, and worth keeping
 
@@ -318,10 +332,18 @@ the fix round above:*
 *Boundaries that only matter on equal timestamps, harmless in practice:*
 `sync.ts:85`.
 
-*Dead code, so survival was expected:* `scheduler.ts:883, :895` —
-`difficultyScore` and `difficulty` are exported and nothing in `src/` or
-`server/` calls them; "easiest first" is ordered another way. Delete them
-rather than test them.
+*Live, and unpinned:* `scheduler.ts:883, :895` — `difficultyScore`'s
+weights and `difficulty`'s 22-point threshold. They are reached through
+`itemDifficulty`, which is what orders a session easiest-first
+(`DIFF_RANK` in the trainer), so changing either changes the order every
+learner is dealt. The two tests on them assert only that a rough card
+scores above a clean one and that two attempts are needed before either
+says anything; nothing asserts a threshold or the resulting order.
+
+> **Correction.** This section first said the two were dead code, on a
+> case-sensitive grep that missed `itemDifficulty`. They are live. The
+> finding is the same size — the numbers are unpinned — but the fix is a
+> test, not a deletion.
 
 ### 7. Numbers the tests read rather than state
 
@@ -352,3 +374,142 @@ than it was before the session. That is the "wiring" the decision log
   runs did not vary.
 - `tests/helpers.mjs`'s `must` is used 54 times in the walk and throughout
   the suite, so a missing element fails where it is looked for.
+
+---
+
+## What was done about it
+
+**22 September 2026, release 0.216.** Every finding above was worked
+through in one round. The suite went from **950 unit tests to 1,029**, and
+the walk from **703 checks to 739**; `npm run check` is green, and the walk
+is green under four seeds.
+
+### The four pieces, as proposed
+
+**1. The device's sync round trip** — `tests/sync-wire.test.mjs`, 23 tests.
+The fetch, the conditional write, the one retry when another device wrote
+in between, and every refusal the server can answer with: a conflict
+retried once and then given up, *would-empty* (which is not retried,
+because retrying would only ask again), *too-large*, a bad passphrase from
+either half, and any other status carried by name rather than swallowed.
+The `lost` flag is asserted from both reads, the wire form is asserted to
+carry the parked drawer, the headstones, the day tallies and the settings
+stamp, and `allowEmpty` is asserted in all three of its cases. The clip
+transport and `drainRemote` are covered too.
+
+**2. The ten server actions** — `tests/server.test.mjs`, up from 64 tests
+to 87. `delete-deck` and `detach-deck` (including that the cards stay in
+the library and the *other* course keeps its copy), `course-decks` and
+`deck-cards` with their three permission answers each, `put-clip` and its
+refusals, and the five administrator actions with a test that none of them
+is open to somebody who is not one. The sync endpoint's `?audio=` routes,
+its `DELETE`, its `would-empty` refusal and its 405 are covered as well,
+and so are the 413 and the 405 on the courses endpoint.
+
+Both unreachable blocks are gone: `delete-account` and `admin-delete-user`
+each had an older inline copy below the live one, and the live handler now
+carries the explanation the dead copy was holding.
+
+**3. Number and time questions, asked** — `tests/numbers-session.test.mjs`,
+8 tests, and a section in the walk. A session dealt from a teacher's number
+document, every question checked to be inside its range and sayable in the
+teacher's own words; the pick questions checked to offer exactly three
+wrong answers, all distinct, none of them the right one, and the ones that
+cannot find three checked to be asked another way rather than with two; a
+number marked right and marked wrong; and the mapping from a range's
+exercises to the ordinary keys its component words climb. In the walk, a
+teacher's number document alone is now enough to practise from, and the
+answer is filed against the card the document built.
+
+**4. The walk, tightened and widened** — 703 checks to 739.
+
+The save check was rewritten. It was worse than this note said: it read
+`it.s` and `it.subs`, which is how a card was stored three shapes ago, so
+both sides of its comparison were empty lists and it could only ever
+compare nought with nought — it would have passed with the save switched
+off. It now takes every schedule in the document before the answer and
+after it, and asserts that exactly one was written for a single question
+(five or more for a grid), that it names a card the document holds, and
+that the exercise it was filed under exists. Breaking the marking path on
+purpose now fails it.
+
+Four screens the suite had never rendered are walked: **onboarding** (both
+ways in, the key hidden as it is typed, the name that was sent, and the key
+shown once to be kept), **the three settings screens** off the corner menu
+with the things a learner actually changes in them, **a number question**,
+and **putting a scene back in order** — the last exercise whose answer is
+neither typed nor tapped from a list. The stale note at the top of the walk
+about the teaching space is corrected.
+
+### The findings from §6, one by one
+
+Closed by a test: the `skips` and `near` counters accumulating; the
+conversation turn a mark is *read from* as well as written to; a form of a
+card that also has turns; a card whose form has one exercise still making
+its passes; duplicate and blank options in a pick question; a scene's turns
+merged type by type; the parked drawer's tie; both `spellDistance` guards
+and the all-wrong rule; an impossible or repeated time; and all five in the
+session builder — a marked card counted as waiting, the session reaching
+the last marked card and going no further, new cards behind marked ones, a
+clean record not read as a mistake, and a number question that cannot find
+three wrong answers.
+
+The relearning floor and `FRONT_DOOR_CAP` are pinned, along with
+`IN_HAND_CAP`, the minute and the day. The difficulty score's every term
+and both its thresholds are pinned, and so is the rollup `itemDifficulty`
+that orders a session.
+
+**Two of the findings were wrong.**
+
+`difficultyScore` and `difficulty` were called dead code. They are not:
+they are reached through `itemDifficulty`, which orders every session
+easiest-first. The mistake was a case-sensitive grep that missed the
+caller. The finding is the same size — the numbers were unpinned — but the
+fix was a test rather than a deletion.
+
+The clock's `(onClock + 1) % 24` was called a gap for times past eleven at
+night. It is an **equivalent mutation**: the wrapped hour is read only
+through `hour12Of`, and `hour12Of(24)` is 12 exactly as `hour12Of(0)` is,
+so no test can tell the two apart. The line is still the right thing to
+write; nothing can hold it.
+
+### What was deliberately left
+
+- **`numbers/range.ts` is still around half.** What survives is the
+  sampling — which numbers a probe tries, how many marks a clock offers —
+  where a different choice is a different but equally valid probe, and
+  changing one does not change what the app promises anybody. The rules
+  over the sampling are tested; the sampling itself is not pinned.
+- **Timestamp ties in the merge** (`sync.ts:85`, `:92`, `:261`): which
+  device wins when two schedules carry the same millisecond. Settled for
+  the parked drawer, where the answer is load-bearing; left everywhere
+  else, where either answer is defensible.
+- **Ageing-out boundaries** (`sync.ts:210`, `:234`): a headstone kept a
+  millisecond longer or shorter.
+- **`|| 0` and `|| {}` defaults** on fields the app always writes. Mutating
+  one changes nothing observable because the absent case does not occur.
+- **`server/api/courses.js` is at 27 of 45**, up from 20. The rest are
+  slice limits, sort tie-breaks and defaults of the same kind.
+- **The remaining unrendered screens**: the admin space, backups on the
+  device, joining a course with a code, the bulk paste, and recording
+  audio. Each needs a fixture of its own; none is on the path a learner
+  takes, and the four that are have been walked.
+
+### Where it stands
+
+| module | before | after |
+|---|---|---|
+| `grade.ts` | 32 / 37 | **37 / 37** |
+| `sync.ts` | 21 / 40 | **36 / 45** |
+| `spelling.ts` | 23 / 29 | **26 / 29** |
+| `chance.ts` | 17 / 24 | **20 / 24** |
+| `numbers/range.ts` | 10 / 20 | **11 / 20** |
+| `server/api/sync.js` | 8 / 19 | **13 / 19** |
+| `server/api/courses.js` | 20 / 40 | **27 / 45** |
+
+And one thing that was not a finding at all: `tests/server.test.mjs`
+deliberately corrupts a deck record to prove an unreadable record fails a
+request rather than reading as absent — and left it corrupt, in a store
+every test in the file shares. Every listing after it failed for
+everybody, which is that same assertion coming true where nobody was
+looking. It puts the record back now.

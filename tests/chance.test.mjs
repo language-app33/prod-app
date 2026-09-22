@@ -9,7 +9,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MIN_PAIR_WORDS, PAIR_DECOYS, PAIR_WORDS, matchGroups, matchSet } from "../src/chance.ts";
+import { MIN_PAIR_WORDS, PAIR_DECOYS, PAIR_WORDS, PICK_OPTIONS, matchGroups, matchSet, optionsFor } from "../src/chance.ts";
 
 /** @param {string} id @param {string} [ar] @param {string} [en] */
 const word = (id, ar = `ع${id}`, en = `meaning ${id}`) => ({ id, ar, en });
@@ -206,4 +206,72 @@ test("a spare meaning never repeats one already up", () => {
   assert.equal(grid.meanings.filter((m) => m === "book").length, 1, "the pool's second 'book' is passed over");
   assert.ok(!grid.meanings.includes("volume"), "and so is a second كتاب, which would pair right and mark wrong");
   assert.deepEqual([...grid.meanings].sort(), ["book", "door", "moon", "pen", "sun"]);
+});
+
+/* ------------------------------------------------------------------
+   The few answers a question offers to choose between
+
+   Used by the reply that comes next in a conversation and by the word
+   missing from a phrase. It was reached only through those until now, so
+   the one rule it exists to keep — that no two of them read alike — was
+   held by nothing that says so.
+   ------------------------------------------------------------------ */
+
+test("no two options read alike, however many copies the pool holds", () => {
+  /*
+   * Two tiles saying the same thing is not a hard question but an
+   * unanswerable one: whichever the learner taps, one of the two is
+   * marked wrong for being the right words. The pool is full of them
+   * here — a card that repeats the answer, two cards that repeat each
+   * other — which is the ordinary state of a collection where a teacher
+   * has written the same short word twice.
+   */
+  const answer = { id: "a", text: "نعم" };
+  const pool = [
+    { id: "b", text: "نعم" },   // the answer again, under another id
+    { id: "c", text: "لا" },
+    { id: "d", text: "لا" },    // and a wrong answer twice over
+    { id: "e", text: "ربما" },
+  ];
+  const got = optionsFor({ answer, pool, wanted: 4, seed: "s", textOf: (x) => x.text });
+  const texts = got.map((x) => x.text);
+  assert.equal(new Set(texts).size, texts.length, `two tiles read alike: ${texts.join(" / ")}`);
+  assert.ok(texts.includes("نعم"), "the right answer is among them");
+  assert.equal(texts.filter((t) => t === "نعم").length, 1, "and only once");
+});
+
+test("an option with nothing written on it is never offered", () => {
+  /* A blank tile is a tile that cannot be chosen and cannot be read. */
+  const answer = { id: "a", text: "نعم" };
+  const pool = [
+    { id: "b", text: "" },
+    { id: "c", text: "   " },
+    { id: "d", text: "لا" },
+  ];
+  const got = optionsFor({ answer, pool, wanted: 4, seed: "s", textOf: (x) => x.text });
+  assert.deepEqual(got.map((x) => x.id).sort(), ["a", "d"], "only the two with words on them");
+});
+
+test("the answer is always in, and the rest are as many as were asked for", () => {
+  const answer = { id: "a", text: "نعم" };
+  const pool = words(10).map((w, i) => ({ id: `p${i}`, text: `w${i}` }));
+  const got = optionsFor({ answer, pool, wanted: PICK_OPTIONS, seed: "s", textOf: (x) => x.text });
+  assert.equal(got.length, PICK_OPTIONS);
+  assert.ok(got.some((x) => x.id === "a"), "the right answer is one of them");
+  /* And it is not always in the same place: the seed decides, so a learner
+     cannot learn to tap third. */
+  const places = ["s1", "s2", "s3", "s4", "s5", "s6"].map((seed) =>
+    optionsFor({ answer, pool, wanted: PICK_OPTIONS, seed, textOf: (x) => x.text })
+      .findIndex((x) => x.id === "a"),
+  );
+  assert.ok(new Set(places).size > 1, `the answer sat in one place every time: ${places.join(",")}`);
+});
+
+test("a pool with nothing usable in it still offers the answer alone", () => {
+  /* Rather than an empty question or a thrown error: the caller decides
+     whether one option is worth asking, and PICK_OPTIONS - 1 is where
+     that is asked. */
+  const answer = { id: "a", text: "نعم" };
+  const got = optionsFor({ answer, pool: [], wanted: PICK_OPTIONS, seed: "s", textOf: (x) => x.text });
+  assert.deepEqual(got.map((x) => x.id), ["a"]);
 });

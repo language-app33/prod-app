@@ -279,6 +279,26 @@ test("relearning returns to review at the interval it was left at", () => {
   assert.equal(out.due, T + 15 * DAY);
 });
 
+test("a card relearned from nothing comes back a day later, not the same moment", () => {
+  /*
+   * The floor under the line above. A card can reach relearning with no
+   * usable interval — one halved from a single day rounds to nought, and a
+   * card written by an older build carries none at all — and without the
+   * floor it would graduate to review due *now*, which is a card that
+   * never leaves the session it was missed in.
+   */
+  for (const interval of [0, undefined]) {
+    const out = reschedule(
+      { ...freshState(), phase: "relearning", ...(interval === undefined ? {} : { interval }) },
+      "good",
+      still,
+    );
+    assert.equal(out.phase, "review", `interval ${interval}`);
+    assert.equal(out.interval, 1, `interval ${interval}: a day at the least`);
+    assert.equal(out.due, T + DAY, `interval ${interval}`);
+  }
+});
+
 test("failing again while relearning does not halve it twice", () => {
   const out = reschedule({ ...freshState(), phase: "relearning", interval: 15, lapses: 1 }, "again", still);
   assert.equal(out.interval, 15, "the interval is untouched");
@@ -294,6 +314,29 @@ test("the limits are the ones promised", () => {
   assert.equal(MIN_EASE, 1.3, "a card can get this much harder than default and no more");
   assert.equal(MAX_EASE, 3.0);
   assert.equal(MAX_DAYS, 365, "a year");
+});
+
+/*
+ * And the two numbers the README states in words.
+ *
+ * Every other test that touches these imports them, so the assertion moves
+ * with the constant and changing one goes green — which is the right shape
+ * for a rule ("nothing new past the cap") and the wrong one for a number a
+ * person decided. `tests/pace.test.mjs` measures what they cost a learner
+ * in days and would report a change; this is what makes changing one go
+ * red, so it is a decision rather than a drift. README, *A new word is
+ * earned by learning one*: "at most ten words the learner cannot yet
+ * recognise, and at most sixty in hand altogether".
+ */
+test("the two pools are the sizes the README says they are", () => {
+  assert.equal(FRONT_DOOR_CAP, 10, "words not yet recognisable");
+  assert.equal(IN_HAND_CAP, 60, "words in hand altogether");
+});
+
+test("a minute and a day are what they are everywhere else", () => {
+  /* Read by every interval in the file, and by the app's own "3mo" line. */
+  assert.equal(MIN, 60 * 1000);
+  assert.equal(DAY, 24 * 60 * 60 * 1000);
 });
 
 test("ease cannot fall below its floor however often a card is failed", () => {
@@ -362,6 +405,111 @@ test("a card failed repeatedly scores harder than one answered cleanly", () => {
   assert.ok(rough > clean, `${rough} should exceed ${clean}`);
   assert.equal(clean, 0);
   assert.ok(rough <= 100 && rough >= 0, "the score stays inside 0-100");
+});
+
+/*
+ * The weights themselves, and the two thresholds over them.
+ *
+ * Not arithmetic for its own sake: this score is the whole of what
+ * `itemDifficulty` reads, and that is what orders a session — easiest
+ * first, through DIFF_RANK in the trainer. So every number here decides
+ * which card a learner meets first, and until this test each of them could
+ * be changed without anything going red. Each case below names the one
+ * term it is about and states what it contributes.
+ */
+test("each term of the difficulty score is worth what it says it is", () => {
+  /* Nothing attempted is nothing to say, whatever else is on the state. */
+  assert.equal(difficultyScore(state({ right: 0, wrong: 0, lapses: 4, skips: 4 })), 0);
+
+  /* Wrong answers: the share of attempts that went wrong, times 40. Half
+     wrong is 20. */
+  assert.equal(difficultyScore(state({ right: 5, wrong: 5, ease: 2.5 })), 20);
+  assert.equal(difficultyScore(state({ right: 0, wrong: 4, ease: 2.5 })), 40);
+
+  /* Lapses: six each, and no more than five of them count. */
+  assert.equal(difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, lapses: 1 })), 6);
+  assert.equal(difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, lapses: 5 })), 30);
+  assert.equal(
+    difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, lapses: 9 })),
+    difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, lapses: 5 })),
+    "past five, another lapse adds nothing",
+  );
+
+  /* Skips: eight each, capped the same way. A skip is worth more than a
+     lapse because it is the learner saying they do not know it at all. */
+  assert.equal(difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, skips: 1 })), 8);
+  assert.equal(difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, skips: 5 })), 40);
+  assert.equal(
+    difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, skips: 9 })),
+    40,
+    "past five, another skip adds nothing either",
+  );
+
+  /* Ease: twenty per point below 2.5, which is where every card starts. */
+  assert.equal(difficultyScore(state({ right: 4, wrong: 0, ease: 2.0 })), 10);
+  assert.equal(difficultyScore(state({ right: 4, wrong: 0, ease: 1.5 })), 20);
+
+  /* Near misses pull the other way — three each, capped at five — because
+     a learner who is close is not finding the card hard in the way a
+     learner who is blank is. */
+  assert.equal(difficultyScore(state({ right: 2, wrong: 2, ease: 2.5, near: 1 })), 20 - 3);
+  assert.equal(difficultyScore(state({ right: 2, wrong: 2, ease: 2.5, near: 9 })), 20 - 15);
+
+  /* And the whole thing is held inside nought and a hundred. */
+  assert.equal(difficultyScore(state({ right: 4, wrong: 0, ease: 2.5, near: 5 })), 0);
+  assert.equal(
+    difficultyScore(state({ right: 0, wrong: 9, ease: MIN_EASE, lapses: 9, skips: 9 })),
+    100,
+  );
+});
+
+test("the two thresholds that turn the score into a word", () => {
+  /* Read off difficultyScore so the cases cannot drift from the formula:
+     each state below is built to land exactly on its side of a boundary. */
+  const scored = (/** @type {Partial<ExerciseState>} */ over) => {
+    const s = state({ right: 4, wrong: 0, ease: 2.5, ...over });
+    return { score: difficultyScore(s), word: difficulty(s) };
+  };
+  /* 21 is easy and 22 is steady: the boundary is exclusive below. */
+  const justEasy = scored({ lapses: 3, near: 1 }); // 18 - 3 = 15
+  assert.equal(justEasy.score, 15);
+  assert.equal(justEasy.word, "easy");
+  const atBoundary = scored({ skips: 1, ease: 1.8 }); // 8 + 14 = 22
+  assert.equal(atBoundary.score, 22);
+  assert.equal(atBoundary.word, "steady", "22 is not easy");
+  /* And 50 is where steady becomes hard, the same way round. */
+  const justSteady = scored({ right: 1, wrong: 1, lapses: 1, skips: 1 }); // 20 + 6 + 8 = 34
+  assert.equal(justSteady.word, "steady");
+  const hard = scored({ right: 0, wrong: 4, lapses: 2 }); // 40 + 12 = 52
+  assert.equal(hard.score, 52);
+  assert.equal(hard.word, "hard");
+});
+
+test("a card is as hard as its hardest rated exercise, and unrated until one is", () => {
+  /* What the session builder actually asks, which is about the card and
+     not about one of its schedules: the ordering reads this. */
+  /* Cast, as the fixture below this one is: what `itemDifficulty` reads of
+     a card is its forms and their schedules, and writing out every other
+     field a card carries would say less about that, not more.
+     @returns {Item} */
+  const formed = (/** @type {Record<string, any>} */ s) => /** @type {Item} */ (/** @type {unknown} */ ({
+    id: "k", tags: [], created: 1, forms: [{ id: "k", ar: "كتاب", en: "book", s }],
+  }));
+  const everyType = () => ["ar2en", "en2ar"];
+  const easy = state({ right: 4, wrong: 0, ease: 2.5 });
+  const hard = state({ right: 0, wrong: 4, ease: 2.5, lapses: 2 });
+  const once = state({ right: 1, wrong: 0, ease: 2.5 }); // unrated: one attempt
+
+  assert.equal(itemDifficulty(formed({}), everyType), "unrated", "nothing answered");
+  assert.equal(itemDifficulty(formed({ ar2en: once }), everyType), "unrated",
+    "one attempt says nothing, so the card says nothing");
+  assert.equal(itemDifficulty(formed({ ar2en: easy }), everyType), "easy");
+  /* One hard exercise makes the card hard, however well the rest is going
+     — which is the point: the card that needs the work goes first. */
+  assert.equal(itemDifficulty(formed({ ar2en: easy, en2ar: hard }), everyType), "hard");
+  /* And an unrated exercise beside a rated one is passed over rather than
+     dragging the card back to unrated. */
+  assert.equal(itemDifficulty(formed({ ar2en: easy, en2ar: once }), everyType), "easy");
 });
 
 /* ------------------------------------------------------------------

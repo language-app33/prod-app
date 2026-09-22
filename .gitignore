@@ -15,3 +15,4 @@ tests/.pace-build/
 tests/.facts-build/
 tests/.readout-build/
 .sweep-tmp/
+tests/.numbers-build/

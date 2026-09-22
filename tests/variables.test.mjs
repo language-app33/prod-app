@@ -466,6 +466,14 @@ test("being asked and being lent are two answers on one form", () => {
     "a name is lent everywhere and asked nowhere");
   assert.equal(isLent({ ar: "kitaab", lend: false }), false,
     "and a word can be asked without standing in for anything");
+  /* A form that is not there lends nothing. It reads as an edge case and
+     it is an ordinary one: every caller looks a form up by name first, and
+     a name that finds nothing — a cell of a table the card has not filled
+     in, a form withdrawn while a sentence still asks for it — arrives
+     here. Answered the other way, a hole would be filled with a form that
+     does not exist. */
+  assert.equal(isLent(null), false);
+  assert.equal(isLent(undefined), false);
 
   const card = {
     id: "n", lang: "ar-PS", fills: "name",

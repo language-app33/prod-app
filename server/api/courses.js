@@ -683,6 +683,11 @@ export default async (req) => {
       return json({ ok: true });
     }
 
+    /* Closing your own account: everything the server holds about you,
+       including the decks you made. Cards on the device are the person's
+       own business and stay there until they clear them. The same walk an
+       administrator removing somebody does, which is why it is one
+       function rather than two that drifted. */
     if (action === "delete-account") {
       await wipeAccount(store, mine);
       return json({ ok: true });
@@ -775,52 +780,6 @@ export default async (req) => {
         return json({ error: "not-allowed" }, 401);
       }
       await writeJson(store, K.user(mine), { ...me, admin: true });
-      return json({ ok: true });
-    }
-
-    /* Closing your own account: everything the server holds about you,
-       including the decks you made. Cards on the device are the person's
-       own business and stay there until they clear them. */
-    if (action === "delete-account") {
-      const courseIds = await readIndex(store, "courses");
-      for (const id of courseIds) {
-        const c = await readCourse(store, id);
-        if (!c || !inCourse(c, mine)) continue;
-        c.teachers = c.teachers.filter((h) => h !== mine);
-        c.students = c.students.filter((h) => h !== mine);
-        await writeJson(store, K.course(id), c);
-      }
-
-      const deckIds = await readIndex(store, "decks");
-      const keep = [];
-      for (const id of deckIds) {
-        const d = await readDeck(store, id);
-        if (!d) continue;
-        if (d.owner !== mine) {
-          keep.push(id);
-          continue;
-        }
-        for (const link of d.courses || []) {
-          const c = await readCourse(store, link.courseId);
-          if (c) {
-            c.decks = c.decks.filter((x) => x !== id);
-            await writeJson(store, K.course(link.courseId), c);
-          }
-        }
-        await store.delete(K.deck(id)).catch(() => {});
-        await store.delete(K.cards(id)).catch(() => {});
-      }
-      await writeJson(store, K.index("decks"), keep);
-
-      /* And the numbers they wrote, which belong to no deck and so are
-         reached by nothing above. */
-      for (const key of await systemKeysOf(store, mine)) await store.delete(key).catch(() => {});
-      await store.delete(K.mySystems(mine)).catch(() => {});
-
-      if (me.keyHash) await store.delete(K.keyOf(me.keyHash)).catch(() => {});
-      await store.delete(K.user(mine)).catch(() => {});
-      const users = await readIndex(store, "users");
-      await writeJson(store, K.index("users"), users.filter((h) => h !== mine));
       return json({ ok: true });
     }
 
@@ -2812,37 +2771,17 @@ export default async (req) => {
         return json({ ok: true, handle, key });
       }
 
+      /* Removing a person: the same walk as closing your own account, so
+         an administrator cannot leave a different set of leftovers behind
+         than the person themselves would. Your own account goes through
+         the door marked with your name, which is the one that needs no
+         administrator. */
       if (action === "admin-delete-user") {
         const handle = String(body.handle || "");
         if (handle === mine) return json({ error: "use-delete-account" }, 400);
         const gone = await wipeAccount(store, handle);
         if (!gone) return json({ error: "no-user" }, 404);
         return json({ ok: true });
-      }
-
-      /* Removing a person: their memberships go, their decks are left
-         orphaned rather than destroyed, and their key stops working. */
-      if (action === "admin-delete-user") {
-        const handle = String(body.handle || "");
-        if (handle === mine) return json({ error: "not-yourself" }, 400);
-        const target = await readUser(store, handle);
-        if (!target) return json({ error: "no-user" }, 404);
-
-        const courseIds = await readIndex(store, "courses");
-        for (const id of courseIds) {
-          const c = await readCourse(store, id);
-          if (!c) continue;
-          if (inCourse(c, handle)) {
-            c.teachers = c.teachers.filter((h) => h !== handle);
-            c.students = c.students.filter((h) => h !== handle);
-            await writeJson(store, K.course(id), c);
-          }
-        }
-        if (target.keyHash) await store.delete(K.keyOf(target.keyHash)).catch(() => {});
-        await store.delete(K.user(handle)).catch(() => {});
-        const users = await readIndex(store, "users");
-        await writeJson(store, K.index("users"), users.filter((h) => h !== handle));
-        return json({ ok: true, handle });
       }
 
       /* Removing a course: the roster goes and the decks are released back
@@ -2886,7 +2825,11 @@ export default async (req) => {
       if (action === "admin-course-language") {
         const course = await readCourse(store, String(body.courseId || ""));
         if (!course) return json({ error: "not-found" }, 404);
-        const language = String(body.language || "").slice(0, 20);
+        /* Trimmed, as the title beside it is. A language id is looked up
+           in the packs by exact match, so a course set to "  " is a course
+           whose material goes to no script at all — and `language-required`
+           says plainly that a blank is not an answer, which whitespace is. */
+        const language = String(body.language || "").trim().slice(0, 20);
         if (!language) return json({ error: "language-required" }, 400);
         await writeJson(store, K.course(course.id), {
           ...course,
