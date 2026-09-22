@@ -13099,6 +13099,63 @@ export function levelPercent(at: { done: number; of: number } | null | undefined
   return Math.max(0, Math.min(100, Math.floor((at.done / at.of) * 100)));
 }
 
+/**
+ * When a card next comes round, as a moment.
+ *
+ * For the two tiles at the top of the ladder, where a bar says nothing.
+ * Every card under Cleared has finished every level it has material for
+ * and every card under Learnt has done that and been kept, so the
+ * proportion the level tiles draw is full on all of them — a column of
+ * hundreds telling a learner apart from nothing. What is actually
+ * different between two cards sitting there is when each one is next
+ * asked, and that was on the card's own screen and nowhere in the list.
+ *
+ * Read over the keys the card *climbs* with rather than over everything a
+ * session might deal, so this and the standing beside it are the one
+ * answer said twice — see `laddered`, and the note on `cardStandings`.
+ *
+ * **The soonest of any of them**, which is when the learner next sees the
+ * card. It is deliberately not "the next review that counts towards
+ * learnt": that would be the top level's alone, and a line that skipped
+ * over a question the app is going to ask on Tuesday to name one on
+ * Friday would be read as wrong by the person who then sat the Tuesday
+ * one.
+ *
+ * Nought where nothing is scheduled, which a card at the top of the
+ * ladder should never be — it is the reading for a card whose schedule
+ * has been cleared out from under it, and the caller says so rather than
+ * doing arithmetic on a missing date.
+ */
+export function nextReviewAt(it: Item, settings: Settings): Millis {
+  let soonest = 0;
+  for (const { unit } of unitsOf(it)) {
+    for (const key of laddered(unit, settings)) {
+      const due = stateOf(unit, key).due || 0;
+      if (!due) continue;
+      if (!soonest || due < soonest) soonest = due;
+    }
+  }
+  return soonest;
+}
+
+/**
+ * And the same moment as the one line of small print a tile carries.
+ *
+ * A gap rather than a date: "Next review in 3d" is the sentence a learner
+ * reads off this screen, and "14 October" makes them count. `formatGap`
+ * picks the unit, so a card coming back this evening says hours and one
+ * coming back next month says months.
+ *
+ * **Already due says so instead.** A card at the top of the ladder can
+ * perfectly well be sitting there waiting to be answered, and running it
+ * through the gap would have read "Next review in now".
+ */
+export function reviewLine(due: Millis, at: Millis = now()): string {
+  if (!due) return "No review scheduled";
+  if (due <= at) return "Review due now";
+  return `Next review in ${formatGap(due - at)}`;
+}
+
 /*
  * How far along a card is: which level it is on and how it is going there.
  *
@@ -13211,15 +13268,24 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
   const progress = useMemo(() => {
     const at: Map<string, Standing | null> = new Map();
     const share: Map<string, number> = new Map();
+    /* And, for the cards at the top of the ladder, when each next comes
+       round — see `nextReviewAt`. Only for those two: it is another walk
+       of the card's keys, the tiles below it show a bar instead, and a
+       card still climbing is asked about tonight or tomorrow anyway. */
+    const next: Map<string, Millis> = new Map();
     for (const it of items) {
       const rows = cardStandings(it, settings);
-      at.set(it.id, standing(rows));
+      const one = standing(rows);
+      at.set(it.id, one);
       /* A level a card has no material for is not a level it is short of —
          openTypes passes those straight through, and standings leaves them
          out — so the denominator is the levels it actually has. */
       share.set(it.id, rows.length ? rows.filter((r) => r.status === "done").length / rows.length : 0);
+      if (one && (one.status === "cleared" || one.status === "done")) {
+        next.set(it.id, nextReviewAt(it, settings));
+      }
     }
-    return { at, share };
+    return { at, share, next };
   }, [items, settings]);
   const progressOf = progress.at;
 
@@ -13262,6 +13328,10 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
      another's would be forty per cent of different climbs, and under
      "Learnt" every bar would be full. */
   const onLevel = /^l\d$/.test(showing);
+  /* And whether it is one of the two at the top, where the climb is over
+     and what is left is time: every bar there would be full, so each card
+     says when it is next asked instead. */
+  const onTop = showing === "cleared" || showing === "done";
 
   /*
    * How far each deck is from being learnt outright.
@@ -13401,7 +13471,18 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
                  one where a card's level is not already the answer to
                  which tile you pressed — and under a level the headings
                  say how it is going there as well. */
-              meta={showing === "all" ? standingShort(progressOf.get(it.id) || null) : undefined}
+              /* And under Cleared or Learnt, when the card is next asked.
+                 Those two are where a card waits on time rather than on
+                 the learner, so the one thing that tells two of them
+                 apart is which comes back first — "Cleared" on every
+                 tile and "Learnt" on every tile said nothing at all. */
+              meta={
+                showing === "all"
+                  ? standingShort(progressOf.get(it.id) || null)
+                  : onTop
+                  ? reviewLine(progress.next.get(it.id) || 0)
+                  : undefined
+              }
               /* And under a level, how far the card has got on it. The
                  headings say which of three states it is in, which is the
                  difference between started and not; this says how much of

@@ -8,6 +8,31 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.209 — 22 September 2026
+
+**The cards at the top of the ladder now say when they come back.**
+
+Open one of the level tiles on Progress and each card carries a bar
+saying how far through that level it is. Open **Cleared** or **Learnt**
+and there was nothing — just a grid of words, every one of them looking
+exactly like the next.
+
+That was deliberate, and it was half an answer. A card under those two
+tiles has finished every level it has material for, so the bar would have
+been full on all of them: a column of hundreds telling nobody anything.
+But it left a real difference invisible. A cleared card is waiting to be
+asked again, and one coming back this evening is in a quite different
+place from one that will not be seen for a month — and on that screen
+they were the same tile.
+
+So each card under Cleared and under Learnt now says when it is next
+reviewed: *Next review in 5h*, *Next review in 3d*, *Review due now*. How
+long away it is, rather than a date to count forward from, and in hours
+while it is still hours.
+
+Nothing about how cards are scheduled has changed. This is the app saying
+out loud, in the list, what it already knew.
+
 ## 0.208 — 22 September 2026
 
 **A word and its other forms, written the same way.**

@@ -85,7 +85,8 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, levelPercent, formIsAmbiguous, kinTags, onePerLevel, quietUnits, easedUnits,
+const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, formIsAmbiguous, kinTags,
+  onePerLevel, quietUnits, easedUnits,
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
@@ -634,6 +635,57 @@ test("a card's bar on a level is how much of what that level needs is behind it"
      division by nothing. */
   assert.equal(levelPercent(null), 0);
   assert.equal(levelPercent({ done: 0, of: 0 }), 0);
+});
+
+/*
+ * And what the cards at the *top* of the ladder say instead of a bar.
+ *
+ * Cleared and Learnt are the two tiles where every card has finished every
+ * level it has material for, so the proportion above would be full on all
+ * of them and tell a learner nothing. What separates two cards sitting
+ * there is when each is next asked, which is these two: the moment, read
+ * off the card, and the line drawn from it.
+ */
+test("a card at the top of the ladder says when it next comes round", () => {
+  const settings = { language: "ar-PS" };
+  const day = 24 * 60 * 60 * 1000;
+  const word = { id: "k", lang: "ar-PS", ar: "كِتاب", en: "book", lat: "kitaab", s: {} };
+  const keys = laddered(/** @type {any} */ (word), settings);
+  assert.ok(keys.length >= 2, "the word is asked more than one thing, or there is nothing to choose between");
+
+  /* The soonest of them, not the last and not whichever happens to be
+     first in the list: the next review is the next time the learner sees
+     the card, whichever question it turns out to be. */
+  word.s = {
+    [keys[0]]: { phase: "review", due: 9 * day },
+    [keys[1]]: { phase: "review", due: 3 * day },
+  };
+  assert.equal(nextReviewAt(/** @type {any} */ (word), settings), 3 * day);
+
+  /* A key with no schedule behind it is not a review due at the epoch.
+     Every card carries keys that have never been answered — a second
+     accepted spelling is the usual one — and reading those as nought
+     would put "due now" on every card on the screen. */
+  word.s = { [keys[0]]: { phase: "review", due: 6 * day } };
+  assert.equal(nextReviewAt(/** @type {any} */ (word), settings), 6 * day);
+
+  /* And a card with nothing scheduled at all reads as nothing, rather
+     than as a date the line below would then do arithmetic on. */
+  word.s = {};
+  assert.equal(nextReviewAt(/** @type {any} */ (word), settings), 0);
+});
+
+test("what a card at the top of the ladder puts on its tile", () => {
+  const day = 24 * 60 * 60 * 1000;
+  assert.equal(reviewLine(10 * day, 7 * day), "Next review in 3d");
+  /* Hours while it is hours away, which is the whole point of saying the
+     gap rather than the date. */
+  assert.equal(reviewLine(7 * day + 5 * 60 * 60 * 1000, 7 * day), "Next review in 5h");
+  /* A card at the top of the ladder can perfectly well be sitting there
+     waiting to be answered. "Next review in now" was the alternative. */
+  assert.equal(reviewLine(7 * day, 7 * day), "Review due now");
+  assert.equal(reviewLine(6 * day, 7 * day), "Review due now");
+  assert.equal(reviewLine(0, 7 * day), "No review scheduled");
 });
 
 /*
