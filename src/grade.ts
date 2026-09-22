@@ -138,6 +138,19 @@ export interface Mark {
    * would say each of them had been met with itself.
    */
   filled?: Record<string, string> | null;
+  /**
+   * The key this mark is filed under, where it is not the question's own.
+   *
+   * One answer may be evidence for two different things. A range of
+   * numbers is one: answering it says the learner is getting better at
+   * counting, which is the skill's own key, and it says they read the
+   * word for forty and knew what it meant, which is the ordinary key that
+   * word's card climbs. Both are true, and filing the second under the
+   * first would write a schedule for a question no card is ever asked.
+   *
+   * Absent on nearly every mark, which is filed under the question.
+   */
+  under?: string;
 }
 
 /**
@@ -418,7 +431,8 @@ export function gradeInto(items: Item[], marks: Mark[], asking: Asking): Item[] 
       any = true;
       continue;
     }
-    const before = (target.s && target.s[asking.type]) || freshState();
+    const key = mark.under || asking.type;
+    const before = (target.s && target.s[key]) || freshState();
     /* Whether this answer can count towards a pass: the form's own ladder,
        already climbed, and the question asked standing on the top of it.
        Read before the mark is written, so the answer that clears a card
@@ -426,13 +440,13 @@ export function gradeInto(items: Item[], marks: Mark[], asking: Asking): Item[] 
     const keys = (asking.keysOf && asking.keysOf(target)) || [];
     const counting =
       keys.length > 0 &&
-      levelOf(asking.type) === topLevelOf(keys) &&
+      levelOf(key) === topLevelOf(keys) &&
       cleared(keys, (k) => target.s && target.s[k]);
     out[idx] = withMark(
       item,
       mark.subId,
       markedState(before, mark, asking.how, asking.clock, counting),
-      asking,
+      { ...asking, type: key },
       mark.filled,
     );
     any = true;

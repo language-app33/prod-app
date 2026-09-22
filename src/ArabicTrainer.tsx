@@ -23,18 +23,19 @@ import {
   ItemList,
   KeysButton,
   Lede,
-  Meta,
   Notice,
   LanguageRadio,
   Screen,
   Section,
   Segmented,
+  fromDeck,
   serverCardId,
   SnackbarProvider,
   Stat,
   StickyFoot,
   Tabs,
   plural,
+  pairSystems,
   pullCourses,
   shortDate,
   pullAdmin,
@@ -173,16 +174,20 @@ import {
   subjectSlot,
 } from "./verbs.ts";
 import { formsOf, leadOf, subFormsOf, withLead } from "./cards.ts";
+/* A language's numbers and its clock, reached the way everything else
+   language-shaped is: through a registry keyed by language, never by
+   naming one. See src/numbers/. */
+import { composerFor, timeComposerFor } from "./numbers/index.ts";
+import type { Ask } from "./numbers/types.ts";
 import {
-  bandIndexOf,
+  askFor,
+  confusableTimes,
   confusablesOf,
-  openBands,
-  partCards,
-  pickNumber,
-  reachOf,
-  spell,
-  teachesNumbers,
-} from "./numbers.ts";
+  renderAsk,
+} from "./numbers/range.ts";
+import type { SystemSet } from "./numbers/generate.ts";
+import { componentId, isRangeSkill, overrideId, systemFor } from "./numbers/generate.ts";
+import { ClockDial, ClockFace } from "./clock.tsx";
 import {
   cleared,
   formatGap,
@@ -990,48 +995,6 @@ export function fillersIn(unit: Form, key: string, settings: Settings): Filler[]
          whether the word has ever been asked this on its own, which is
          what a phase past `new` means. A sentence keeps a review up to
          date and does not open a rung. */
-      ready: (() => {
-        const s = statesOf(form)[key];
-        return !!s && s.phase !== "new" && stateReady(s);
-      })(),
-    });
-  }
-  return out;
-}
-
-/**
- * The parts that stood in a made-up number, as fillers.
- *
- * A number is a sentence made of parts, so it credits them exactly the way
- * a sentence credits the words that filled its blanks: only on a right
- * answer, only where the part's own schedule for that question was under
- * way and due, and only for exercises the part itself climbs. The same
- * three rules, through the same function — see fillerMarks in grade.ts.
- *
- * What it is credited *as* is the ordinary exercise the number question
- * was evidence for, not the number question itself. Reading *forty-seven*
- * off the screen and writing 47 is reading the word for forty and knowing
- * what it means, which is what `ar2en` asks; no card climbs a ladder
- * called "num2fig", and crediting one would be writing a schedule nothing
- * ever reads.
- */
-export function numberFillers(
-  unit: Form,
-  parts: Map<number, Item>,
-  key: string,
-  settings: Settings,
-): Filler[] {
-  const used = ((unit as Record<string, any>).used as number[]) || [];
-  const out: Filler[] = [];
-  for (const value of used) {
-    const card = parts.get(value);
-    if (!card || card.drill === false) continue;
-    const form = leadOf(card);
-    if (!form) continue;
-    out.push({
-      id: card.id,
-      subId: null,
-      asked: laddered(form, settings).includes(key),
       ready: (() => {
         const s = statesOf(form)[key];
         return !!s && s.phase !== "new" && stateReady(s);
@@ -1876,6 +1839,59 @@ function castFill(
     unit,
     parent: resolved.isSub ? resolved.parent : withLead(resolved.parent, unit),
   };
+}
+
+/**
+ * A skill, cast as the question it was dealt.
+ *
+ * A range carries no words: it is a schedule and a marker. What it is
+ * *about* was drawn when the queue was built and rides on the question,
+ * so this is where the words are finally said — the script, the figures,
+ * and the two hands of a clock where one is being read.
+ *
+ * Nothing here reaches the disk. The cast form is for showing, as every
+ * cast form is: the schedule that is written afterwards belongs to the
+ * skill, and the cards the words came from are credited through their own
+ * tokens. See DECISIONS.md — "a cast form is for showing, never for
+ * deciding".
+ */
+function castRange(
+  resolved: { unit: Form; parent: Item; isSub: boolean } | null,
+  ex: Question | null | undefined,
+  sets: SystemSet[],
+) {
+  if (!resolved || !ex || !ex.ask || !resolved.parent.range) return resolved;
+  const set = systemFor(resolved.parent, sets);
+  if (!set) return resolved;
+  const said = renderAsk(
+    ex.ask,
+    composerFor(set.numbers.languageId),
+    set.numbers,
+    timeComposerFor(set.numbers.languageId),
+    set.times,
+  );
+  if (!said.text) return resolved;
+  const unit: Form = {
+    ...resolved.unit,
+    ar: said.text,
+    en: said.digits,
+    /* What it means in words, where a counted phrase has anything to say
+       beyond the figures. */
+    ...(said.en && said.en !== said.digits ? { gloss: said.en } : null),
+    /* The two hands, for the question that draws a face and the one that
+       is answered by setting one. */
+    ...(typeof said.hour === "number"
+      ? { hour: said.hour, minute: said.minute || 0 }
+      : null),
+    /* The recordings, in order: at most two, the hour and the minutes.
+       Nothing inside a number is ever stitched. */
+    ...(said.clips && said.clips.length ? { recSeq: said.clips } : null),
+    /* Which words stood in it, so a right answer credits the cards they
+       are written on — the same crediting a sentence does for the words
+       that filled its blanks. */
+    tokens: said.tokens,
+  };
+  return { ...resolved, unit, parent: withLead(resolved.parent, unit) };
 }
 
 /*
@@ -2745,6 +2761,63 @@ interface Session {
   due?: number;
 }
 
+/**
+ * The number or the time one asking of a range is about, drawn.
+ *
+ * Empty for everything that is not a range, which is nearly every
+ * question — so the caller spreads the answer and says nothing about
+ * skills at all.
+ *
+ * The seed is the skill, the exercise and the count of right answers so
+ * far, which is the same odometer a sentence's fillers turn on: a missed
+ * question comes back as *the same* number, a right one moves on, and a
+ * re-render cannot swap the question under somebody halfway through
+ * answering it.
+ */
+function drawRange(
+  item: Item | undefined,
+  unit: Form,
+  type: string,
+  sets: SystemSet[],
+): { ask?: Ask; options?: string[] } {
+  const range = item && item.range;
+  if (!range) return {};
+  const set = systemFor(item, sets);
+  if (!set) return {};
+  const composer = composerFor(set.numbers.languageId);
+  const times = timeComposerFor(set.numbers.languageId);
+  if (!composer) return {};
+
+  const turn = turnOf(statesOf(unit)[type]);
+  const ask = askFor(range, `${item.id} ${type} ${turn}`, set.numbers);
+
+  if (EX[type] && EX[type].picks !== "word") return { ask };
+  /*
+   * The wrong answers, said. Numbers worth confusing with the right one —
+   * seventy-four beside forty-seven, four hundred and seventy beside it
+   * too — and only the ones the composer can actually say. Drawing from
+   * the learner's vocabulary instead would put a book and a house beside
+   * a number and make the question a reading test.
+   */
+  const right = renderAsk(ask, composer, set.numbers, times, set.times);
+  const options: string[] = [];
+  const near =
+    ask.kind === "time"
+      ? confusableTimes(ask.value, ask.minute || 0, range.marks || []).map(
+          (t): Ask => ({ ...ask, value: t.h, minute: t.m }),
+        )
+      : confusablesOf(ask.value).map((v): Ask => ({ ...ask, value: v }));
+  for (const other of near) {
+    if (options.length >= PICK_OPTIONS - 1) break;
+    const said = renderAsk(other, composer, set.numbers, times, set.times);
+    if (!said.text || said.text === right.text || options.includes(said.text)) continue;
+    options.push(said.text);
+  }
+  /* A question that could not find three is asked another way rather than
+     with two options — the same fallback the grid makes. */
+  return options.length >= PICK_OPTIONS - 1 ? { ask, options } : { ask };
+}
+
 export function buildSession({
   items,
   settings,
@@ -2752,6 +2825,7 @@ export function buildSession({
   practice,
   includeAll,
   budget: budgetIn,
+  systems,
 }: {
   items: Item[];
   settings: Settings;
@@ -2759,8 +2833,24 @@ export function buildSession({
   practice?: boolean;
   includeAll?: boolean;
   budget?: number;
+  /**
+   * The teachers' number systems, for the skills among the cards.
+   *
+   * A range holds a schedule and no words, so the number it is asked
+   * about has to be drawn and said here — and a caller with no systems
+   * to draw from simply deals no ranges rather than dealing a question
+   * with nothing in it.
+   */
+  systems?: SystemSet[];
 }): Session {
-  const pool = items.filter((it) => inDeck(it) && isDrillable(it, settings));
+  const sets = systems || [];
+  const pool = items
+    .filter((it) => inDeck(it) && isDrillable(it, settings))
+    /* A skill whose system this device no longer holds — a course left,
+       a teacher's language dropped — is a schedule with nothing behind
+       it. Left in the collection, so the work comes back if the material
+       does, and simply not dealt. */
+    .filter((it) => !isRangeSkill(it) || systemFor(it, sets));
   if (!pool.length) return { exercises: [], reason: "none-drillable" };
 
   const budget = Math.max(4, budgetIn || SESSION_SIZE);
@@ -3016,7 +3106,17 @@ export function buildSession({
            moment of asking, so the question does not change under the
            learner if the cards are refreshed mid-session. */
         const ctx = p.unit ? pickContext(p.unit, type) : null;
-        exercises.push({ id: p.id, subId: p.subId, type, ...(ctx ? { ctx: ctx.id } : null) });
+        /* And which number or time, for the same reason and by the same
+           rule: drawn once, here, from a seed that moves on a right
+           answer so a missed question comes back unchanged. */
+        const drawn = drawRange(items.find((i) => i.id === p.id), p.unit, type, sets);
+        exercises.push({
+          id: p.id,
+          subId: p.subId,
+          type,
+          ...(ctx ? { ctx: ctx.id } : null),
+          ...drawn,
+        });
       }
     }
   }
@@ -3566,178 +3666,6 @@ export function buildWeakSession({ items, settings, inDeck, budget: budgetIn }: 
     due,
   };
 }
-
-/* ---- the numbers practice ----
-
-   A sitting of made-up numbers, started by the learner rather than dealt.
-
-   The numbers are not cards and never become any: each is built out of the
-   teacher's parts at the moment the session is made, turned into an item
-   that lives for as long as the sitting does, and thrown away at the end.
-   They ride in the same `preview` list a teacher's trial does, which is
-   the app's existing answer to "ask a question about material that is not
-   on this device" — so the question screen, the marking, the keyboard, the
-   retry-what-you-missed rule and the summary are all the ones that already
-   exist, and none of them had to learn what a number is.
-
-   What a right answer moves is the part cards that stood in the number,
-   exactly as a sentence credits the words that filled its blanks. The
-   number itself has no schedule, because there is nothing to schedule: it
-   was made up, and it will never be made up again.
-
-   The ramp is here rather than in numbers.ts because it is about a sitting
-   and not about a language. It widens by a band every few questions inside
-   one sitting, and where the sitting ends up is carried to the next one in
-   `settings.numbersReach` — so a learner walks from single digits to seven
-   figures over a few sittings instead of being dropped into them. */
-
-/** Questions in a numbers practice, and how many before it widens a band. */
-export const NUMBER_SESSION_SIZE = 18;
-export const NUMBERS_PER_BAND = 6;
-
-/** The three ways a made-up number is asked, in the order a sitting uses
-    them: read it, pick it, write it. Rotated rather than drawn, so a
-    sitting asks all three of a given size before it asks any of them
-    twice — the same rule everything else that varies follows. */
-const NUMBER_TYPES = ["num2fig", "fig2pick", "fig2num"];
-
-/** How many wrong answers a picking question needs beside the right one. */
-const NUMBER_MATES = PICK_OPTIONS - 1;
-
-/**
- * One made-up number as something the question screen can ask about.
- *
- * `drill: false` is the important one: a number is not practised in its
- * own right and must never be dealt by anything else, counted as a card,
- * or offered in somebody's card list. It is here to be asked once.
- */
-function numberItem(langId: LangId, value: number, text: string, used: number[]): Item {
-  const id = `num:${langId}:${value}`;
-  return {
-    id,
-    lang: langId,
-    /* Which parts stood in it, so a right answer can credit them. Carried
-       on the item because the question screen has the item and not the
-       deck it was built from. */
-    used,
-    kind: "word",
-    tags: [],
-    category: "number",
-    value,
-    drill: false,
-    forms: [
-      {
-        id: `${id}-f0`,
-        /* The number written out, and the figures as its meaning — which
-           is what makes "read it" and "write it" the ordinary script and
-           meaning exercises rather than two new ones. */
-        ar: text,
-        en: String(value),
-        lat: "",
-        s: {},
-      },
-    ],
-    flags: [],
-    created: Date.now(),
-    updated: Date.now(),
-  };
-}
-
-/**
- * A sitting of made-up numbers.
- *
- * Returns the questions, the items they are about — which the caller holds
- * apart from the document — and, where it cannot build one, the reason in
- * the same shape every other builder reports it.
- */
-export function buildNumberSession({ items, settings, langId, count, reach, random }: {
-  items: Item[];
-  settings: Settings;
-  langId: LangId;
-  count?: number;
-  /** How many bands the learner reached last time. */
-  reach?: number;
-  random?: () => number;
-}) {
-  const lang = LANGUAGES[langId];
-  const rnd = random || Math.random;
-  const wanted = Math.max(1, count || NUMBER_SESSION_SIZE);
-  if (!teachesNumbers(lang)) return { exercises: [], preview: [], reason: "no-numbers", bands: 0 };
-
-  /* Only this language's parts, and only from cards the learner actually
-     holds — the same list every other builder reads. */
-  const parts = partCards(
-    items.filter((i) => langIdOf(i, settings) === langId),
-    langId,
-  );
-  const open = openBands(lang, parts);
-  if (!open.length) return { exercises: [], preview: [], reason: "no-parts", bands: 0 };
-
-  const preview: Item[] = [];
-  const exercises: Question[] = [];
-  const seen = new Set<number>();
-  const held = new Map<number, Item>();
-  /* One item per value, however many questions mention it: the wrong
-     answers beside one question are the right answer to another, and two
-     items for one number would be two ids for one thing. */
-  const itemFor = (value: number, text: string, used: number[]): Item => {
-    const had = held.get(value);
-    if (had) return had;
-    const made = numberItem(langId, value, text, used);
-    held.set(value, made);
-    preview.push(made);
-    return made;
-  };
-
-  /* Where the ramp starts: where the learner left off, never wider than
-     the deck can actually build and never narrower than one band. */
-  let width = Math.max(1, Math.min(Math.round(reach || 1) || 1, open.length));
-
-  for (let i = 0; i < wanted; i += 1) {
-    const picked = pickNumber(lang, parts, open, width, rnd, seen);
-    if (!picked) break;
-    seen.add(picked.value);
-    const item = itemFor(picked.value, picked.spelled.text, picked.spelled.used);
-    const type = NUMBER_TYPES[i % NUMBER_TYPES.length];
-    const q: Question = { id: item.id, type };
-    if (type === "fig2pick") {
-      /* The wrong answers: numbers worth confusing with this one, spelled
-         by the same pack and dropped where it cannot spell them. A
-         question that could not find three is asked another way rather
-         than with two options. */
-      const mates: { id: string; subId: string | null }[] = [];
-      for (const other of confusablesOf(picked.value)) {
-        if (mates.length >= NUMBER_MATES) break;
-        const said = spell(lang, parts, other);
-        if (!said || said.text === picked.spelled.text) continue;
-        mates.push({ id: itemFor(other, said.text, said.used).id, subId: null });
-      }
-      if (mates.length < NUMBER_MATES) q.type = "num2fig";
-      else q.mates = mates;
-    }
-    exercises.push(q);
-    /* And the ramp, a band at a time. */
-    if ((i + 1) % NUMBERS_PER_BAND === 0) width = Math.min(open.length, width + 1);
-  }
-
-  if (!exercises.length) return { exercises: [], preview: [], reason: "no-parts", bands: open.length };
-  return {
-    exercises,
-    preview,
-    reason: null,
-    manual: true,
-    numbers: true,
-    bands: open.length,
-    /* How wide the sitting got, which is what the next one starts at. */
-    width,
-    items: new Set(exercises.map((e) => e.id)).size,
-    units: exercises.length,
-  };
-}
-
-/** Whether an item is a number the app made up rather than a card. */
-export const isMadeUpNumber = (it: { id?: string } | null | undefined): boolean =>
-  String((it && it.id) || "").startsWith("num:");
 
 /* Resolve an exercise back to the item and the specific form it drills. */
 function resolveUnit(items: Item[], ex: Question | null | undefined) {
@@ -4364,6 +4292,11 @@ const RETIRED_SETTINGS = new Set([
      every card of a kind switched off long ago, which is the one thing
      this list exists to prevent. See isDrillable. */
   "kinds",
+  /* How far the old numbers practice had ramped. It was where a sitting of
+     made-up numbers started, and there is no such sitting any more: a
+     range is a skill with a schedule of its own, and where a learner is up
+     to is that schedule rather than a number in a preferences bag. */
+  "numbersReach",
   ...Object.keys(defaultMarking()),
 ]);
 
@@ -5459,19 +5392,53 @@ export function leadSpeed(unit: Form, type?: string): "regular" | "slow" {
   return grown ? "regular" : "slow";
 }
 
-function AudioPrompt({ recs, autoPlay, lead = "regular" }: {
+/**
+ * What a question plays, and what it plays afterwards.
+ *
+ * A card's own recordings, for nearly everything. A time is the one
+ * exception: it is said as its hour and then its minutes, so the first
+ * group is what the button starts and the rest follow it.
+ */
+function audibleOf(unit: Form): any[] {
+  const seq = (unit as Record<string, any>).recSeq as string[][] | undefined;
+  if (!seq || !seq.length) return unit.recs || NO_RECS;
+  const first = (seq[0] || [])[0];
+  return first ? [{ id: first, label: "", speed: "" }] : NO_RECS;
+}
+
+function chainOf(unit: Form): string[] {
+  const seq = (unit as Record<string, any>).recSeq as string[][] | undefined;
+  if (!seq || seq.length < 2) return [];
+  return seq.slice(1).map((group) => (group || [])[0]).filter(Boolean);
+}
+
+function AudioPrompt({ recs, autoPlay, lead = "regular", after }: {
   recs?: any[];
   autoPlay?: boolean;
   lead?: "regular" | "slow";
+  /**
+   * Recordings to play straight after the one that was started.
+   *
+   * The one place two clips are ever joined: a time may be its hour and
+   * its minutes said one after the other, because a teacher records the
+   * words and not the nine hundred times a clock can show. Played in
+   * order rather than stitched — the join is where a dialect lives, and a
+   * stitched clip teaches the wrong sound.
+   */
+  after?: string[];
 }) {
   const [idx, setIdx] = useState(0);
   const [state, setState] = useState("idle");
   const audioRef: React.MutableRefObject<HTMLAudioElement | null> = useRef(null);
   const urlRef = useRef("");
+  /* Whether a clip is finishing so the next can start. Held apart from
+     the state because the browser reports the gap between two clips as a
+     pause, and a pause between them is not the player stopping. */
+  const chaining = useRef(false);
   const list = recs || NO_RECS;
   /* Which recordings this is showing, as one string, so the reset below
      fires when any of them changes and not only the first. */
-  const signature = list.map((r) => r.id).join("|");
+  const signature = list.map((r) => r.id).concat(after || []).join("|");
 
   /*
    * At most one of each speed, and the ordinary one first.
@@ -5527,12 +5494,40 @@ function AudioPrompt({ recs, autoPlay, lead = "regular" }: {
       releaseUrl();
       urlRef.current = url;
       el.src = url;
-      el.onended = () => setState("idle");
+      /* One clip, or a clip and then the rest of them. */
+      const queue = (after || []).slice();
+      el.onended = async () => {
+        const next = queue.shift();
+        if (!next) {
+          chaining.current = false;
+          setState("idle");
+          return;
+        }
+        chaining.current = true;
+        const nextUrl = await clipUrl(next);
+        if (!nextUrl) {
+          chaining.current = false;
+          setState("idle");
+          return;
+        }
+        releaseUrl();
+        urlRef.current = nextUrl;
+        el.src = nextUrl;
+        try {
+          await el.play();
+        } catch (e) {
+          chaining.current = false;
+          setState("idle");
+        }
+      };
       /* Paused by anything else — the other button taking the element, a
          headset, the phone's own controls — reads the same as pausing here.
          Only ever a step down from playing, so it cannot undo the state a
          moment before the clip starts. */
-      el.onpause = () => setState((v) => (v === "playing" ? "idle" : v));
+      el.onpause = () => {
+        if (chaining.current) return;
+        setState((v) => (v === "playing" ? "idle" : v));
+      };
       /* A clip that cannot be decoded used to leave the button on "playing"
          for good; now it reads as missing, which is what it is. */
       el.onerror = () => setState("missing");
@@ -6281,6 +6276,16 @@ const MATERIAL_KEY = "arabic-trainer:material";
 interface HeldMaterial {
   courses: Course[];
   decks: Deck[];
+  /*
+   * The teachers' numbers, kept with the courses and for the same reason.
+   *
+   * The *cards* a system becomes are in the document and survive a launch
+   * anyway; the system itself is what a skill's question is drawn from,
+   * and a device that had to ask the server for it would open with every
+   * range unaskable until the first refresh came back. Which is offline,
+   * every time, for as long as the connection is out.
+   */
+  systems: unknown[];
   version: string;
   at: Millis;
 }
@@ -6296,6 +6301,7 @@ function loadMaterial(handle?: string | null): HeldMaterial | null {
     return {
       courses: Array.isArray(held.courses) ? held.courses : [],
       decks: Array.isArray(held.decks) ? held.decks : [],
+      systems: Array.isArray(held.systems) ? held.systems : [],
       version: String(held.version || ""),
       at: Number(held.at) || 0,
     };
@@ -6304,7 +6310,10 @@ function loadMaterial(handle?: string | null): HeldMaterial | null {
   }
 }
 
-function saveMaterial(handle: string, held: { courses: Course[]; decks: Deck[]; version: string }) {
+function saveMaterial(
+  handle: string,
+  held: { courses: Course[]; decks: Deck[]; systems: unknown[]; version: string },
+) {
   try {
     localStorage.setItem(
       MATERIAL_KEY,
@@ -6449,6 +6458,12 @@ export default function ArabicTrainer() {
   /* A deck the person asked to practice from the Courses tab, handed to the
      cards tab once it is on screen. */
   const [deckWanted, setDeckWanted] = useState<string | null>(null);
+  /* The teachers' numbers, read back through the same narrowing the wire
+     goes through — what was kept is a copy of what arrived, and an older
+     build's copy is not this build's shape. */
+  const [systems, setSystems] = useState<SystemSet[]>(() =>
+    pairSystems(heldMaterial ? heldMaterial.systems : []),
+  );
   const [courseDecks, setCourseDecks] = useState<Deck[]>(
     heldMaterial ? heldMaterial.decks : [],
   );
@@ -7132,19 +7147,6 @@ export default function ArabicTrainer() {
    * has to be able to find the phrases that word turns up in.
    */
   const [preview, setPreview] = useState<Item[]>([]);
-  /*
-   * A sitting of made-up numbers leaves nothing behind.
-   *
-   * They exist for as long as the questions about them do; once the
-   * session is over or has been replaced, holding them would leave the
-   * question machinery looking at cards this device does not have. A
-   * teacher's trial borrows the same list, so only the made-up numbers are
-   * cleared and a trial in progress is left alone.
-   */
-  useEffect(() => {
-    if (session && session.numbers) return;
-    setPreview((held) => (held.some(isMadeUpNumber) ? held.filter((i) => !isMadeUpNumber(i)) : held));
-  }, [session]);
   /* And where to put the teacher back down afterwards: the card they
      pressed the button on, and the screen they were looking at it from. */
   const [trialBack, setTrialBack] = useState<any>(null);
@@ -7547,11 +7549,13 @@ export default function ArabicTrainer() {
         }
         setMyCourses(r.courses);
         setCourseDecks(r.decks);
+        setSystems(r.systems);
         /* Kept, so the next launch opens with them rather than with an
            error — and so the check after that can be the cheap one. */
         saveMaterial(account.handle, {
           courses: r.courses,
           decks: r.decks,
+          systems: r.systems.flatMap((set) => [set.numbers, ...(set.times ? [set.times] : [])]),
           version: r.version || "",
         });
         /* Folded against the cards as they are now, not as they were when
@@ -7733,53 +7737,6 @@ export default function ArabicTrainer() {
    * session to decide.
    */
   /*
-   * A sitting of made-up numbers.
-   *
-   * The numbers go into `preview`, which is where the app already keeps
-   * material it is asking about but does not hold — a teacher's trial card
-   * arrives the same way. Unlike a trial this is not `trial`: the sitting
-   * is the learner's own, so what it credits the parts is written.
-   */
-  /*
-   * How far the numbers practice could reach right now, in the language
-   * the app is set to — and 0 where it could not reach at all, which is
-   * what decides whether the button is there. Read off the same `spell`
-   * the practice asks with, so a button that appears is a sitting that
-   * builds.
-   */
-  const numbersReach = useMemo(() => {
-    const L = langOf(settings);
-    if (!teachesNumbers(L)) return 0;
-    const parts = partCards(shown.filter((i) => langIdOf(i, settings) === L.id), L.id);
-    return Math.max(0, reachOf(L, parts));
-  }, [shown, settings]);
-
-  function beginNumbers(langId: LangId) {
-    const built = buildNumberSession({
-      items: shown,
-      settings,
-      langId,
-      reach: Number(settings.numbersReach) || 1,
-    });
-    if (!built.exercises.length) {
-      flash(
-        built.reason === "no-numbers"
-          ? "This language doesn't say how its numbers go together yet"
-          : "No numbers to build from — the deck needs its number words first"
-      );
-      return;
-    }
-    setPreview(built.preview);
-    warmSession(built);
-    setSession({ ...built, practice: false, startedAt: now(), endsAt: 0 });
-    setQi(0);
-    setTally({ ok: 0, no: 0 });
-    setMoved([]);
-    resetExercise();
-    setTab("home");
-  }
-
-  /*
    * A sitting of nothing but what is going wrong — see buildWeakSession.
    *
    * Out of the same cards a dealt session comes from, so the language
@@ -7806,7 +7763,7 @@ export default function ArabicTrainer() {
   }
 
   function begin(practice?: boolean) {
-    const built = buildSession({ items: shown, settings, inDeck, practice });
+    const built = buildSession({ items: shown, settings, inDeck, practice, systems });
     if (!built.exercises.length) {
       /* This used to return in silence, which reads as a broken button. It
          mattered little when the only way to get here was a card list that
@@ -7924,12 +7881,16 @@ export default function ArabicTrainer() {
   const resolved = useMemo(
     () =>
       exercise
-        ? castMeaning(
-            castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type),
-            exercise.type
+        ? castRange(
+            castMeaning(
+              castAnswer(castFill(resolveUnit(asking, exercise), exercise.type, trial), exercise.type),
+              exercise.type
+            ),
+            exercise,
+            systems,
           )
         : null,
-    [asking, exercise, trial]
+    [asking, exercise, trial, systems]
   );
   const item = resolved ? resolved.unit : null; // the form being drilled
   const parentItem = resolved ? resolved.parent : null;
@@ -7950,42 +7911,6 @@ export default function ArabicTrainer() {
   setActiveLang(qLang.id);
   const spec = exercise ? exOf(exercise.type, qLang) : null;
 
-  /*
-   * The learner's own number parts, in the language being asked about.
-   *
-   * Read from `items` rather than from the session, because what a right
-   * answer credits is a card on this device and the made-up number is not
-   * one. Off `shown` for the same reason everything else is: a part in a
-   * language switched off is not a part anybody is being asked about.
-   */
-  const numberParts = useMemo(
-    () => partCards(shown.filter((i) => langIdOf(i, settings) === qLang.id), qLang.id),
-    [shown, settings, qLang.id],
-  );
-
-  /*
-   * How far the numbers practice has got, kept between sittings.
-   *
-   * The widest band a number has been answered right in, so the next
-   * sitting opens where this one left off instead of back at single
-   * digits. A miss takes the answer at face value the same way: getting a
-   * thousand wrong says the thousands are not held yet, so the reach comes
-   * back to the band below it and is climbed again.
-   *
-   * Written through `settings`, which is the last-writer-wins bag a
-   * preference belongs in — this is a convenience about where to start,
-   * not progress on a card, and losing it to a merge costs a learner six
-   * easy questions.
-   */
-  function rememberNumberReach(unit: Form, correct: boolean) {
-    const value = Number((unit as Record<string, any>).value);
-    if (!Number.isFinite(value)) return;
-    const at = bandIndexOf(qLang, value);
-    if (at < 0) return;
-    const was = Math.max(1, Number(settings.numbersReach) || 1);
-    const next = correct ? Math.max(was, at + 1) : Math.max(1, Math.min(was, at));
-    if (next !== was) setSetting("numbersReach", next);
-  }
   /*
    * Whether the pronunciation or the meaning is beside the question.
    *
@@ -8165,6 +8090,27 @@ export default function ArabicTrainer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [grid, asking, qLang.id]);
 
+  /*
+   * Where the hands are while a time is being set.
+   *
+   * Read out of the typed answer rather than held beside it, so there is
+   * one answer and not two that can disagree — the same reason the grid
+   * writes its pairs into `typed`. Nothing set yet opens at noon, which
+   * is the one position on a dial that is not an answer to anything.
+   */
+  const dialAt = useMemo(() => {
+    const m = String(typed || "").match(/^(\d{1,2}):(\d{1,2})$/);
+    return m
+      ? { hour: Math.min(23, Number(m[1])), minute: Math.min(59, Number(m[2])) }
+      : { hour: 12, minute: 0 };
+  }, [typed]);
+  /* What the minutes may land on: whatever the question is asked in, so a
+     five-minute question cannot be answered seven minutes past. A thumb is
+     not a precise instrument and a question that asks for precision it
+     cannot give is a question about the screen. */
+  const dialMarks = (parentItem && parentItem.range && parentItem.range.marks) || undefined;
+  const dialClock = ((systemFor(parentItem, systems) || {}).times || { clock: "12h" }).clock;
+
   const choices = useMemo(() => {
     if (!spec || !spec.picks) return [];
     if (spec.picks === "reply") {
@@ -8174,25 +8120,20 @@ export default function ArabicTrainer() {
     }
     if (!item) return [];
     /*
-     * A made-up number brings its own wrong answers.
+     * A range brings its own wrong answers, already said.
      *
-     * They are numbers worth confusing with the right one — seventy-four
-     * beside forty-seven, four hundred and seventy beside it too — and
-     * they were chosen when the question was built, because which numbers
-     * are confusable is arithmetic and which of those can be said is the
-     * language pack's business. Drawing from the learner's vocabulary
+     * They were chosen when the question was built, because which numbers
+     * are worth confusing is arithmetic and which of them can be said is
+     * the composer's business. Drawing from the learner's vocabulary
      * instead would put a book and a house beside a number and make the
      * question a reading test.
      */
-    if (exercise && isMadeUpNumber(item)) {
-      const said = (exercise.mates || [])
-        .map((m: { id: string }) => (asking.find((i) => i.id === m.id) || { forms: [] }).forms[0])
-        .filter(Boolean);
+    if (exercise && exercise.options && exercise.options.length) {
       return optionsFor({
         answer: item,
-        pool: said,
+        pool: exercise.options.map((text: string) => ({ id: `opt:${text}`, ar: text, en: "", lat: "" })),
         wanted: PICK_OPTIONS,
-        seed: `${item.id}`,
+        seed: `${item.id} ${exercise.type}`,
         textOf: (w) => w.ar,
       });
     }
@@ -8631,8 +8572,8 @@ export default function ArabicTrainer() {
       /* Where the card reached this device from. A bad card is usually one
          of a bad batch, and the deck is what somebody goes and looks at.
          Absent on a card the learner made, which came through neither. */
-      courseId: (parentItem.source && parentItem.source.courseId) || "",
-      deckId: (parentItem.source && parentItem.source.deckId) || "",
+      courseId: (fromDeck(parentItem) || { courseId: "" }).courseId || "",
+      deckId: (fromDeck(parentItem) || { deckId: "" }).deckId || "",
       /* What they put, and what the app made of it — the half of "it
          marked me wrong" that the learner cannot be expected to type out
          and that usually names the bug on its own.
@@ -8853,28 +8794,45 @@ export default function ArabicTrainer() {
       marks.push(...fillerMarks(fillersIn(item, exercise.type, settings), { correct: !!correct }, practice));
     }
     /*
-     * A made-up number is marked on its parts and never on itself.
+     * A range is marked on itself *and* on the words that stood in it.
      *
-     * It has no card, no schedule and no ladder — it was built for this
-     * question and will not be built again — so the mark above is thrown
-     * away and the parts that stood in it are credited instead, under the
-     * ordinary exercise the question was evidence for. Same three rules a
-     * sentence's fillers get, through the same function.
+     * The answer says two things, so both are filed. It says the learner
+     * is getting better at counting to a hundred, which is the skill's own
+     * key; and it says they read the word for forty and knew what it
+     * meant, which is the ordinary key each component card climbs. The
+     * second goes through `under`, because no card climbs a ladder called
+     * "num2fig" and writing one would be a schedule nothing ever reads.
      */
-    const numbersAsked = isMadeUpNumber(item);
-    const gradedType = numbersAsked
-      ? NUMBER_EQUIVALENT[exercise.type] || exercise.type
-      : exercise.type;
-    if (numbersAsked) {
-      marks.length = 0;
+    if (item.tokens) {
+      const set = systemFor(parentItem, systems);
+      const under = NUMBER_EQUIVALENT[exercise.type] || exercise.type;
+      const from = set ? set.numbers.id : "";
+      const said = new Set(
+        ((item.tokens as { slot?: string; override?: string }[]) || [])
+          .map((t) => (t.override ? overrideId(from, t.override) : t.slot ? componentId(from, t.slot) : ""))
+          .filter(Boolean),
+      );
       marks.push(
         ...fillerMarks(
-          numberFillers(item, numberParts, gradedType, settings),
+          [...said]
+            .map((id) => asking.find((i) => i.id === id))
+            .filter(Boolean)
+            .map((card) => {
+              const form = leadOf(card);
+              return {
+                id: (card as Item).id,
+                subId: null,
+                asked: laddered(form, settings).includes(under),
+                ready: (() => {
+                  const st = statesOf(form)[under];
+                  return !!st && st.phase !== "new" && stateReady(st);
+                })(),
+              };
+            }),
           { correct: !!correct },
           practice,
-        ),
+        ).map((mark) => ({ ...mark, under })),
       );
-      rememberNumberReach(item, !!correct);
     }
     /* Filled in by the write below and read after it. `persist` calls its
        function there and then rather than queuing it, so by the time this
@@ -8882,8 +8840,8 @@ export default function ArabicTrainer() {
     let moving: { id: string; move: Move }[] = [];
     persist((cur) => {
       const graded = gradeInto(cur.items, marks, {
-        type: gradedType,
-        level: levelOf(gradedType),
+        type: exercise.type,
+        level: levelOf(exercise.type),
         keepMet: needsMetRecord,
         /* The ladder each marked form climbs, so a right answer given to
            a cleared card's top question, when that question came round of
@@ -9497,20 +9455,6 @@ export default function ArabicTrainer() {
                     </Button>
 
                   </div>
-                  {/* Numbers are built out of the deck's parts rather than
-                      dealt from it, so the practice is started by hand and
-                      is no part of the climb above. Offered only where
-                      there is actually something to build — a deck with no
-                      number words in it would open on an empty sitting,
-                      which is a promise the app has not kept. */}
-                  {numbersReach > 0 && (
-                    <div className="at-row at-mt3">
-                      <Button variant="ghost" onClick={() => beginNumbers(langOf(settings).id)}>
-                        Practise numbers
-                      </Button>
-                      <Meta>up to {numbersReach.toLocaleString("en")}</Meta>
-                    </div>
-                  )}
                   {/* Only once there is one to open. A button that leads to
                       an empty screen is a promise the app has not kept, and
                       the way to find this is to save one, which the Build
@@ -9687,12 +9631,31 @@ export default function ArabicTrainer() {
                           )}
                         </>
                       )
+                    ) : spec.promptField === "clock" ? (
+                      /* The one question about a clock no word can ask.
+                         Drawn rather than written out, and said in words
+                         beside it for anybody not looking at the picture —
+                         a screen reader handed a dial to interpret is a
+                         screen reader asked to do the exercise. */
+                      <ClockFace
+                        hour={Number(item.hour) || 0}
+                        minute={Number(item.minute) || 0}
+                        fine={(Number(item.minute) || 0) % 5 !== 0}
+                        label={`${Number(item.hour) || 0}:${String(Number(item.minute) || 0).padStart(2, "0")}`}
+                      />
                     ) : spec.promptField === "audio" ? (
                       /* A context question plays the whole phrase, not the
                          word: hearing it in running speech is the exercise.
-                         Everything else plays the card's own recording. */
+                         Everything else plays the card's own recording.
+
+                         A time plays two: the hour and the minutes, one
+                         after the other. It is the only place two
+                         recordings are ever joined, and they are played in
+                         order rather than stitched — the joins are where a
+                         dialect lives. */
                       <AudioPrompt
-                        recs={context ? context.recs : item.recs}
+                        recs={context ? context.recs : audibleOf(item)}
+                        after={context ? [] : chainOf(item)}
                         autoPlay
                         lead={leadSpeed(item, exercise.type)}
                       />
@@ -9743,7 +9706,23 @@ export default function ArabicTrainer() {
                       second, so the at-mt4 gap was silently dropped and the
                       answer box sat hard against the hint button above it. */}
                   <div className="at-answerbox at-mt4" data-el="answer-box">
-                    {spec.answerMode === "read" ? null : spec.answerMode === "order" ? (
+                    {spec.answerMode === "read" ? null : spec.answerMode === "dial" ? (
+                      /* The hands, dragged. What a learner does with a
+                         clock is set it, so this is the answer in the form
+                         the skill is actually used in — and it is a pair
+                         of sliders as well, because a dial is what a
+                         keyboard and a screen reader cannot use. */
+                      <ClockDial
+                        hour={dialAt.hour}
+                        minute={dialAt.minute}
+                        marks={dialMarks}
+                        clock={dialClock}
+                        disabled={!!checked}
+                        onChange={(h, m) =>
+                          setTyped(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`)
+                        }
+                      />
+                    ) : spec.answerMode === "order" ? (
                       <SceneOrder
                         card={dialog}
                         lang={qLang}

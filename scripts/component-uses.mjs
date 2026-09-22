@@ -11,7 +11,7 @@
  *   node scripts/component-uses.mjs --check  report whether it is current
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,7 +35,33 @@ function sourceOf(stem) {
   throw new Error(`no source file for ${stem}`);
 }
 
-const FILES = APP_FILES.map(sourceOf);
+/*
+ * And every screen in a subdirectory of src, found rather than listed.
+ *
+ * src was flat when the list above was written, so the list was the whole
+ * of it. It is not any more, and a scan that reads a fixed set of stems
+ * does not fail when a file moves out of reach — it finds nothing, writes
+ * a valid file, and reports that no component is used there.
+ */
+/** @param {string} dir */
+function screensUnder(dir) {
+  const at = path.join(ROOT, dir);
+  if (!existsSync(at)) return [];
+  /** @type {string[]} */
+  const out = [];
+  for (const entry of readdirSync(at, { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...screensUnder(rel));
+    /* The gallery stays out, for the reason at the top of this file: it
+       renders one of everything, so counting it would say only that the
+       gallery exists. Named here as well as there because the list above
+       no longer decides what is scanned. */
+    else if (/\.(tsx|jsx)$/.test(entry.name) && rel !== "src/gallery.tsx") out.push(rel);
+  }
+  return out;
+}
+
+const FILES = [...new Set(APP_FILES.map(sourceOf).concat(screensUnder("src")))];
 const LIBRARY = sourceOf("shared");
 
 /* Comments hold example markup — the library's own doc comments are full of

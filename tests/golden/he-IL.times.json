@@ -1,0 +1,629 @@
+{
+ "language": "he-IL",
+ "composerVersion": 1,
+ "reviewedBy": "",
+ "reviewedOn": "",
+ "note": [
+  "The table the Modern Hebrew time composer is held to.",
+  "",
+  "NOT yet read by a speaker of this language. Unlike he-IL.numbers.json,",
+  "which is a fence around what has been shipping since 0.152, every row",
+  "here is new: this app has told the time in no language until now, and",
+  "nobody has told it how Hebrew does it. So the rows below are what the",
+  "composer says given the words in `system`, and `check` marks the ones",
+  "where two answers are both plausible and a speaker has to pick.",
+  "",
+  "Read the file this way: the words in `system` are the claim, and the",
+  "rows are arithmetic over them. If a row is wrong and the words are",
+  "right, the composer is wrong. If the words are wrong, a teacher fixes",
+  "them on their own screen and nothing here has to change — which is the",
+  "whole point of the lexicon being data.",
+  "",
+  "The hour comes from the number system in he-IL.numbers.json, asked for",
+  "a feminine referent, because the word for hour is feminine. If the hour",
+  "is ever wrong here and right there, the fault is in this file's",
+  "expectations and not in the composer, which has no agreement in it."
+ ],
+ "numberSystem": "he-IL.numbers.json",
+ "system": {
+  "id": "golden-he-time",
+  "owner": "golden",
+  "languageId": "he-IL",
+  "numberSystemId": "golden-he",
+  "composerVersion": 1,
+  "clock": "12h",
+  "audioPolicy": "components",
+  "rev": 1,
+  "created": 0,
+  "updated": 0,
+  "lexemes": {
+   "connector.past": {
+    "slot": "connector.past",
+    "forms": {
+     "standalone": "ו"
+    }
+   },
+   "connector.to": {
+    "slot": "connector.to",
+    "forms": {
+     "standalone": "ל"
+    }
+   }
+  },
+  "minuteNoun": {
+   "id": "minute",
+   "sg": "דקה",
+   "pl": "דקות",
+   "gender": "f",
+   "en": "minute"
+  },
+  "minuteExprs": {
+   "5": {
+    "text": "חמש דקות",
+    "refHour": "same",
+    "en": "five past"
+   },
+   "10": {
+    "text": "עשר דקות",
+    "refHour": "same",
+    "en": "ten past"
+   },
+   "15": {
+    "text": "רבע",
+    "refHour": "same",
+    "en": "quarter past"
+   },
+   "20": {
+    "text": "עשרים דקות",
+    "refHour": "same",
+    "en": "twenty past"
+   },
+   "25": {
+    "text": "עשרים וחמש דקות",
+    "refHour": "same",
+    "en": "twenty-five past"
+   },
+   "30": {
+    "text": "חצי",
+    "refHour": "same",
+    "en": "half past"
+   },
+   "35": {
+    "text": "עשרים וחמש דקות",
+    "refHour": "next",
+    "lead": true,
+    "en": "twenty-five to"
+   },
+   "40": {
+    "text": "עשרים דקות",
+    "refHour": "next",
+    "lead": true,
+    "en": "twenty to"
+   },
+   "45": {
+    "text": "רבע",
+    "refHour": "next",
+    "lead": true,
+    "en": "quarter to"
+   },
+   "50": {
+    "text": "עשר דקות",
+    "refHour": "next",
+    "lead": true,
+    "en": "ten to"
+   },
+   "55": {
+    "text": "חמש דקות",
+    "refHour": "next",
+    "lead": true,
+    "en": "five to"
+   }
+  },
+  "periods": [
+   {
+    "slot": "morning",
+    "text": "בבוקר",
+    "en": "in the morning",
+    "fromHour": 5,
+    "toHour": 11
+   },
+   {
+    "slot": "noon",
+    "text": "בצהריים",
+    "en": "at midday",
+    "fromHour": 12,
+    "toHour": 14
+   },
+   {
+    "slot": "afternoon",
+    "text": "אחר הצהריים",
+    "en": "in the afternoon",
+    "fromHour": 15,
+    "toHour": 17
+   },
+   {
+    "slot": "evening",
+    "text": "בערב",
+    "en": "in the evening",
+    "fromHour": 18,
+    "toHour": 21
+   },
+   {
+    "slot": "night",
+    "text": "בלילה",
+    "en": "at night",
+    "fromHour": 22,
+    "toHour": 4
+   }
+  ],
+  "overrides": {}
+ },
+ "cases": [
+  {
+   "h": 7,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שבע",
+   "hour12": 7,
+   "minuteMark": 0
+  },
+  {
+   "h": 7,
+   "m": 5,
+   "style": "colloquial",
+   "text": "שבע וחמש דקות",
+   "hour12": 7,
+   "minuteMark": 5
+  },
+  {
+   "h": 7,
+   "m": 10,
+   "style": "colloquial",
+   "text": "שבע ועשר דקות",
+   "hour12": 7,
+   "minuteMark": 10
+  },
+  {
+   "h": 7,
+   "m": 15,
+   "style": "colloquial",
+   "text": "שבע ורבע",
+   "hour12": 7,
+   "minuteMark": 15
+  },
+  {
+   "h": 7,
+   "m": 20,
+   "style": "colloquial",
+   "text": "שבע ועשרים דקות",
+   "hour12": 7,
+   "minuteMark": 20,
+   "check": "Twenty past may be said as the minutes counted or as a third of an hour — a speaker picks."
+  },
+  {
+   "h": 7,
+   "m": 25,
+   "style": "colloquial",
+   "text": "שבע ועשרים וחמש דקות",
+   "hour12": 7,
+   "minuteMark": 25,
+   "check": "Twenty-five past may be said as half less five rather than as the minutes counted."
+  },
+  {
+   "h": 7,
+   "m": 30,
+   "style": "colloquial",
+   "text": "שבע וחצי",
+   "hour12": 7,
+   "minuteMark": 30
+  },
+  {
+   "h": 7,
+   "m": 35,
+   "style": "colloquial",
+   "text": "עשרים וחמש דקות לשמונה",
+   "hour12": 8,
+   "minuteMark": 35,
+   "check": "Twenty-five to may be said as half past and five rather than counted back from the next hour."
+  },
+  {
+   "h": 7,
+   "m": 40,
+   "style": "colloquial",
+   "text": "עשרים דקות לשמונה",
+   "hour12": 8,
+   "minuteMark": 40,
+   "check": "Twenty to may be said as a third to the hour rather than as the minutes counted."
+  },
+  {
+   "h": 7,
+   "m": 45,
+   "style": "colloquial",
+   "text": "רבע לשמונה",
+   "hour12": 8,
+   "minuteMark": 45
+  },
+  {
+   "h": 7,
+   "m": 50,
+   "style": "colloquial",
+   "text": "עשר דקות לשמונה",
+   "hour12": 8,
+   "minuteMark": 50
+  },
+  {
+   "h": 7,
+   "m": 55,
+   "style": "colloquial",
+   "text": "חמש דקות לשמונה",
+   "hour12": 8,
+   "minuteMark": 55
+  },
+  {
+   "h": 0,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שתים עשרה",
+   "hour12": 12,
+   "minuteMark": 0,
+   "check": "Midnight: the same question as midday, and the clock still reads twelve."
+  },
+  {
+   "h": 1,
+   "m": 0,
+   "style": "colloquial",
+   "text": "אחת",
+   "hour12": 1,
+   "minuteMark": 0,
+   "check": "One o'clock: whether the feminine one is said alone or with the word for hour in front of it."
+  },
+  {
+   "h": 2,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שתיים",
+   "hour12": 2,
+   "minuteMark": 0
+  },
+  {
+   "h": 3,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שלוש",
+   "hour12": 3,
+   "minuteMark": 0
+  },
+  {
+   "h": 4,
+   "m": 0,
+   "style": "colloquial",
+   "text": "ארבע",
+   "hour12": 4,
+   "minuteMark": 0
+  },
+  {
+   "h": 5,
+   "m": 0,
+   "style": "colloquial",
+   "text": "חמש",
+   "hour12": 5,
+   "minuteMark": 0
+  },
+  {
+   "h": 6,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שש",
+   "hour12": 6,
+   "minuteMark": 0
+  },
+  {
+   "h": 7,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שבע",
+   "hour12": 7,
+   "minuteMark": 0
+  },
+  {
+   "h": 8,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שמונה",
+   "hour12": 8,
+   "minuteMark": 0
+  },
+  {
+   "h": 9,
+   "m": 0,
+   "style": "colloquial",
+   "text": "תשע",
+   "hour12": 9,
+   "minuteMark": 0
+  },
+  {
+   "h": 10,
+   "m": 0,
+   "style": "colloquial",
+   "text": "עשר",
+   "hour12": 10,
+   "minuteMark": 0
+  },
+  {
+   "h": 11,
+   "m": 0,
+   "style": "colloquial",
+   "text": "אחת עשרה",
+   "hour12": 11,
+   "minuteMark": 0
+  },
+  {
+   "h": 12,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שתים עשרה",
+   "hour12": 12,
+   "minuteMark": 0,
+   "check": "Midday: whether the numeral is said at all, or a word for midday stands in its place."
+  },
+  {
+   "h": 13,
+   "m": 0,
+   "style": "colloquial",
+   "text": "אחת",
+   "hour12": 1,
+   "minuteMark": 0
+  },
+  {
+   "h": 14,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שתיים",
+   "hour12": 2,
+   "minuteMark": 0
+  },
+  {
+   "h": 15,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שלוש",
+   "hour12": 3,
+   "minuteMark": 0
+  },
+  {
+   "h": 16,
+   "m": 0,
+   "style": "colloquial",
+   "text": "ארבע",
+   "hour12": 4,
+   "minuteMark": 0
+  },
+  {
+   "h": 17,
+   "m": 0,
+   "style": "colloquial",
+   "text": "חמש",
+   "hour12": 5,
+   "minuteMark": 0
+  },
+  {
+   "h": 18,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שש",
+   "hour12": 6,
+   "minuteMark": 0
+  },
+  {
+   "h": 19,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שבע",
+   "hour12": 7,
+   "minuteMark": 0
+  },
+  {
+   "h": 20,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שמונה",
+   "hour12": 8,
+   "minuteMark": 0
+  },
+  {
+   "h": 21,
+   "m": 0,
+   "style": "colloquial",
+   "text": "תשע",
+   "hour12": 9,
+   "minuteMark": 0
+  },
+  {
+   "h": 22,
+   "m": 0,
+   "style": "colloquial",
+   "text": "עשר",
+   "hour12": 10,
+   "minuteMark": 0
+  },
+  {
+   "h": 23,
+   "m": 0,
+   "style": "colloquial",
+   "text": "אחת עשרה",
+   "hour12": 11,
+   "minuteMark": 0
+  },
+  {
+   "h": 7,
+   "m": 1,
+   "style": "exact",
+   "text": "שבע ודקה אחת",
+   "hour12": 7,
+   "check": "One minute: whether the noun is said at all when the count is one."
+  },
+  {
+   "h": 7,
+   "m": 2,
+   "style": "exact",
+   "text": "שבע ושתי דקות",
+   "hour12": 7,
+   "check": "Two minutes: Hebrew has no dual to count with, so this is the plural."
+  },
+  {
+   "h": 7,
+   "m": 3,
+   "style": "exact",
+   "text": "שבע ושלוש דקות",
+   "hour12": 7
+  },
+  {
+   "h": 7,
+   "m": 7,
+   "style": "exact",
+   "text": "שבע ושבע דקות",
+   "hour12": 7,
+   "check": "The exact style counts the word for minute, so this is the numeral agreeing with a feminine noun."
+  },
+  {
+   "h": 7,
+   "m": 10,
+   "style": "exact",
+   "text": "שבע ועשר דקות",
+   "hour12": 7
+  },
+  {
+   "h": 7,
+   "m": 11,
+   "style": "exact",
+   "text": "שבע ואחת עשרה דקות",
+   "hour12": 7
+  },
+  {
+   "h": 7,
+   "m": 20,
+   "style": "exact",
+   "text": "שבע ועשרים דקות",
+   "hour12": 7
+  },
+  {
+   "h": 7,
+   "m": 21,
+   "style": "exact",
+   "text": "שבע ועשרים ואחת דקות",
+   "hour12": 7
+  },
+  {
+   "h": 7,
+   "m": 30,
+   "style": "exact",
+   "text": "שבע ושלושים דקות",
+   "hour12": 7
+  },
+  {
+   "h": 7,
+   "m": 45,
+   "style": "exact",
+   "text": "שבע וארבעים וחמש דקות",
+   "hour12": 7
+  },
+  {
+   "h": 7,
+   "m": 59,
+   "style": "exact",
+   "text": "שבע וחמישים ותשע דקות",
+   "hour12": 7
+  },
+  {
+   "h": 6,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שש בבוקר",
+   "hour12": 6,
+   "minuteMark": 0,
+   "period": true,
+   "said": "בבוקר"
+  },
+  {
+   "h": 9,
+   "m": 30,
+   "style": "colloquial",
+   "text": "תשע וחצי בבוקר",
+   "hour12": 9,
+   "minuteMark": 30,
+   "period": true,
+   "said": "בבוקר"
+  },
+  {
+   "h": 12,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שתים עשרה בצהריים",
+   "hour12": 12,
+   "minuteMark": 0,
+   "period": true,
+   "said": "בצהריים",
+   "check": "Midday: whether the numeral is said at all, or a word for midday stands in its place."
+  },
+  {
+   "h": 13,
+   "m": 15,
+   "style": "colloquial",
+   "text": "אחת ורבע בצהריים",
+   "hour12": 1,
+   "minuteMark": 15,
+   "period": true,
+   "said": "בצהריים"
+  },
+  {
+   "h": 16,
+   "m": 45,
+   "style": "colloquial",
+   "text": "רבע לחמש אחר הצהריים",
+   "hour12": 5,
+   "minuteMark": 45,
+   "period": true,
+   "said": "אחר הצהריים"
+  },
+  {
+   "h": 19,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שבע בערב",
+   "hour12": 7,
+   "minuteMark": 0,
+   "period": true,
+   "said": "בערב"
+  },
+  {
+   "h": 23,
+   "m": 30,
+   "style": "colloquial",
+   "text": "אחת עשרה וחצי בלילה",
+   "hour12": 11,
+   "minuteMark": 30,
+   "period": true,
+   "said": "בלילה"
+  },
+  {
+   "h": 0,
+   "m": 45,
+   "style": "colloquial",
+   "text": "רבע לאחת בלילה",
+   "hour12": 1,
+   "minuteMark": 45,
+   "period": true,
+   "said": "בלילה"
+  },
+  {
+   "h": 3,
+   "m": 0,
+   "style": "colloquial",
+   "text": "שלוש בלילה",
+   "hour12": 3,
+   "minuteMark": 0,
+   "period": true,
+   "said": "בלילה"
+  }
+ ]
+}

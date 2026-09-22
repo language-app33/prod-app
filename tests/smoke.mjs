@@ -44,7 +44,15 @@ const out = path.resolve("tests/.smoke-build");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 await build({
-  entryPoints: ["src/ArabicTrainer.tsx", "src/storage.ts", "src/gallery.tsx", "src/shared.tsx"],
+  entryPoints: [
+    "src/ArabicTrainer.tsx",
+    "src/storage.ts",
+    "src/gallery.tsx",
+    "src/shared.tsx",
+    /* The teaching space is loaded lazily by the app and is not walked
+       here, so the one screen in it worth driving is named on its own. */
+    "src/number-system-editor.tsx",
+  ],
   bundle: true,
   format: "esm",
   splitting: true,
@@ -5558,11 +5566,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !addForm() && blocksUp().includes("Form 1"),
         addForm() ? "a form is offered" : blocksUp().join(" | "));
 
-      await pickKind(/^Number/);
-      check("a number lays out the form a feminine noun takes, and only that",
-        boxes(/^Arabic script for counted · feminine$/).length === 1 &&
-          !boxes(/^Arabic script for (agreement|the word · attached|present|past|command)/).length,
-        boxes(/^Arabic script for /).join(" | ") || "(no table)");
+      /* A number is not one of the answers any more: the faces a numeral
+         takes are boxes in the language's number system, and the card
+         under one is written by the app out of what the teacher typed
+         there. The kind is still read — a card saved while it was offered
+         goes on saying what it is — but nobody is offered it. */
+      await openWordKind();
+      check("a number is not a kind of word anybody is offered, because it is a system now",
+        !formRows().some((r) => /^Number/.test((r.textContent || "").trim())),
+        formRows().map((r) => (r.textContent || "").slice(0, 10)).join(" | ") || "(nothing offered)");
 
       await pickKind(/^Pronoun/);
       check("a pronoun has no table and is asked its number and gender",
@@ -6570,6 +6582,209 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("and nothing threw while the weak session was built",
     errors.length === before, errors.slice(before, before + 2).join(" | "));
   if (online) Object.defineProperty(w.navigator, "onLine", online);
+}
+
+/* ---- the number system's own screen ----
+
+   Driven directly rather than through the teaching space, which this
+   harness does not mount: it is a plain component over a document, which
+   is most of why it is one.
+
+   What is worth checking is the loop the screen exists for. A word typed
+   into a box changes what a student would be asked, on the same line, at
+   once — the preview is the composer and not a second idea of it — and a
+   line that is wrong can be tapped and written out by hand. Everything
+   else on that screen is a list of boxes. */
+{
+  const { NumberSystemEditor } = await import(path.join(out, "number-system-editor.js"));
+  const { LANGUAGES } = await import(path.resolve("src/languages.ts"));
+  const { emptyNumberSystem } = await import(path.resolve("src/numbers/schema.ts"));
+
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const editorRoot = createRoot(host);
+  /** What the screen handed back, every time Save was pressed. */
+  const saves = /** @type {{ kind: string, sys: any }[]} */ ([]);
+  const system = emptyNumberSystem("n1", "lena", "ar-PS", Date.now(), 1);
+
+  const draw = (/** @type {any} */ numbers) =>
+    editorRoot.render(
+      React.createElement(NumberSystemEditor, {
+        lang: LANGUAGES["ar-PS"],
+        numbers,
+        times: null,
+        onSave: (/** @type {string} */ kind, /** @type {any} */ sys) => {
+          saves.push({ kind, sys });
+        },
+        onClose() {},
+      }),
+    );
+
+  /* A screen is drawn at the app's root rather than where it was written:
+     it portals out, so that it stays inside the theme and outside whatever
+     layer the space that opened it sits in. So the boxes are never under
+     the div this mounted into, and looking there would find an empty
+     screen that is in fact drawn and working.
+
+     Named, because this walk steps through three of them: the grid, the
+     screen one number is written out on, and the one a number is tried on.
+     Asking for "the screen" would find whichever was drawn first and quietly
+     pass while the wrong one was up. */
+  const screenNamed = (/** @type {string} */ name) =>
+    document.querySelector(`.at-screen[aria-label="${name}"]`);
+  const panel = () => screenNamed("Number system") || host;
+  /* Whichever of them is up. The last one in the document, because a
+     portal appends: earlier blocks of this walk left their own screens
+     mounted, and asking for the first would find a teaching screen from
+     half an hour ago and quietly agree with everything asked of it. */
+  const up = () => {
+    const all = [...document.querySelectorAll(".at-screen")];
+    return all[all.length - 1] || host;
+  };
+
+  draw(system);
+  await sleep(200);
+  check("the number system's editor opens on a grid of boxes",
+    panel().querySelectorAll(".at-numrow").length > 20,
+    `${panel().querySelectorAll(".at-numrow").length} rows`);
+  check("and says nothing can be asked yet",
+    /waiting on|not yet/.test(panel().textContent || ""),
+    (panel().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+
+  /* One word typed into a box, and the line for that number says it. The
+     preview is the composer itself, so there is nothing here that could be
+     right while what a student meets is wrong. */
+  const boxNamed = (/** @type {string} */ name) =>
+    [...up().querySelectorAll("input")].find((i) => i.getAttribute("aria-label") === name);
+  const buttonIn = (/** @type {RegExp} */ re) =>
+    [...up().querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+  const typeIn = (/** @type {any} */ box, /** @type {string} */ text) => {
+    const setValue = must(
+      Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"),
+      "the input's value descriptor"
+    ).set;
+    must(setValue, "the input's value setter").call(box, text);
+    box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
+
+  const sevenBox = boxNamed("7, counting");
+  check("and every box is named by the number it is and the face of it",
+    !!sevenBox,
+    [...panel().querySelectorAll("input")].slice(0, 4)
+      .map((i) => i.getAttribute("aria-label")).join(" | "));
+  if (sevenBox) {
+    typeIn(sevenBox, "sab3a");
+    await sleep(200);
+  }
+
+  const rows = [...panel().querySelectorAll(".at-numsamplerow")];
+  const seven = rows.find((r) => (r.querySelector(".at-numfig") || {}).textContent === "7");
+  check("a word typed into a box is what the preview says for that number",
+    !!seven && /sab3a/.test(seven.textContent || ""),
+    seven ? (seven.textContent || "").trim() : `${rows.length} preview rows`);
+
+  /* A number the system cannot finish yet is marked as such, greyed,
+     rather than showing the half of it it managed as though that were the
+     answer. Nothing else on the screen is written down twice, so a row
+     that looked finished would be the screen saying this language calls
+     47 "seven". */
+  const partRows = [...panel().querySelectorAll(".at-numsamplerow[data-part]")];
+  check("a number it cannot say in full yet says so on the line",
+    partRows.length > 10 && /not yet/.test((partRows[0] || {}).textContent || ""),
+    `${partRows.length} of ${rows.length} marked · ${((partRows[0] || {}).textContent || "").trim()}`);
+  check("and the one it can say is not marked",
+    !!seven && !seven.hasAttribute("data-part"),
+    seven ? (seven.textContent || "").trim() : "(no row)");
+
+  /* And a filled box asks how it sounds, on the same condition the Record
+     button appears on: there is a word here to say. */
+  const sevenLat = boxNamed("Transliteration for 7, counting");
+  check("a box with a word in it asks how the word sounds",
+    !!sevenLat,
+    [...panel().querySelectorAll("input")].map((i) => i.getAttribute("aria-label"))
+      .filter((l) => l && /Transliteration/.test(l)).slice(0, 3).join(" | ") || "(none asked)");
+  check("and an empty box is not asked, because there is nothing to sound like",
+    !boxNamed("Transliteration for 8, counting"));
+  if (sevenLat) {
+    typeIn(sevenLat, "sabʕa");
+    await sleep(200);
+  }
+
+  /* A line that is wrong is tapped, and that is a screen of its own now
+     rather than a block unfolding under the list. */
+  click(seven);
+  await sleep(250);
+  check("tapping a line opens a screen for writing that number out",
+    !!screenNamed("7, written out"),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  check("which says what the app makes of it by itself, to be corrected against",
+    /What the app says now/.test(up().textContent || "") && /sab3a/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+
+  const outBox = boxNamed("7 in Palestinian Arabic");
+  check("and a box to write what it should say", !!outBox);
+  if (outBox) {
+    typeIn(outBox, "sabʕa-wahde");
+    await sleep(200);
+  }
+  check("which asks how that sounds too, once there is something to sound like",
+    !!boxNamed("Transliteration for 7"));
+
+  const keep = buttonIn(/^Keep it$/);
+  check("and the footer keeps it", !!keep);
+  if (keep) {
+    click(keep);
+    await sleep(250);
+    check("which puts the grid back with it filed among the numbers you wrote out",
+      !!screenNamed("Number system") && /Numbers you wrote out/.test(panel().textContent || ""),
+      (panel().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  }
+
+  /* And the third screen: type a number, see it said. */
+  click(buttonIn(/^Try a number$/));
+  await sleep(250);
+  check("there is a screen for trying a number out",
+    !!screenNamed("Try a number"),
+    ((up().getAttribute && up().getAttribute("aria-label")) || "(no screen)"));
+  const tryBox = boxNamed("A number to try, in figures");
+  check("with one box, for figures", !!tryBox);
+  if (tryBox) {
+    typeIn(tryBox, "7");
+    await sleep(200);
+    check("and what is typed comes back said in the words the teacher wrote",
+      /sabʕa-wahde/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+    typeIn(tryBox, "8");
+    await sleep(200);
+    check("a number it cannot say yet says what it is waiting for instead",
+      /waiting on/.test(up().textContent || ""),
+      (up().textContent || "").slice(0, 200).replace(/\s+/g, " "));
+  }
+  click(buttonIn(/^Back$/) || (up().querySelector && up().querySelector(".at-back")));
+  await sleep(250);
+  check("and coming back leaves the grid as it was",
+    !!screenNamed("Number system") && panel().querySelectorAll(".at-numrow").length > 20);
+
+  const save = buttonIn(/^Save$/);
+  check("and the footer offers to save once something has changed", !!save);
+  if (save) {
+    click(save);
+    await sleep(200);
+    const saved = saves[saves.length - 1];
+    check("saving hands back a number system", !!saved && saved.kind === "numbers",
+      saved ? saved.kind : "nothing saved");
+    check("with the word that was typed, how it sounds, and the line that was written out",
+      !!saved &&
+        ((saved.sys.lexemes["unit.7"] || { forms: {} }).forms.standalone === "sab3a") &&
+        ((saved.sys.lexemes["unit.7"] || { lat: {} }).lat || {}).standalone === "sabʕa" &&
+        (saved.sys.overrides["7"] || {}).text === "sabʕa-wahde",
+      saved
+        ? `${JSON.stringify(saved.sys.lexemes["unit.7"])} · ${JSON.stringify(saved.sys.overrides)}`
+        : "nothing saved");
+  }
+
+  editorRoot.unmount();
+  host.remove();
 }
 
 report();

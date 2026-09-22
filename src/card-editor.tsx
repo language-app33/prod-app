@@ -1119,8 +1119,14 @@ function Recordings({ form, onOpen }: {
  * One recorder rather than two, pointed at whichever section asked for it —
  * two would mean two live microphones the moment somebody pressed the
  * second button while the first was still running.
+ *
+ * Exported because the number system's editor records the same way: a
+ * word is a word, and a second recorder written for a second screen would
+ * be two microphones, two quota checks and two ideas of what a recording
+ * is. What it is handed is a thing with `clips` on it, which a card's
+ * form and a system's lexeme both are.
  */
-function RecordingScreen({ title, form, onChange, onClose }: {
+export function RecordingScreen({ title, form, onChange, onClose }: {
   title: string;
   form: { clips?: string[], slowClips?: string[] };
   onChange: (next: { clips: string[], slowClips: string[] }) => void;
@@ -2240,7 +2246,12 @@ export const shapeOf = (card: Card | null | undefined): CardShape =>
 export const categoryChoices = (
   lang: Lang | null | undefined,
 ): { value: string; label: string; note: string }[] =>
-  categoriesOf(lang).map((c) => ({ value: c.id, label: c.label, note: c.note }));
+  categoriesOf(lang)
+    /* A kind that is no longer asked about is still read — a card saved
+       while it was offered goes on saying what it is — but it is not one
+       of the answers. See WordCategory.retired. */
+    .filter((c) => !c.retired)
+    .map((c) => ({ value: c.id, label: c.label, note: c.note }));
 
 /**
  * And which of them the radio actually offers.

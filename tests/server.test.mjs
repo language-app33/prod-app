@@ -2271,6 +2271,497 @@ test("a push that would empty a document that is not empty is refused", async ()
   assert.deepEqual((await api("/api/sync", { token })).json.data.items, []);
 });
 
+/* ================= a language's numbers, and its clock =================
+
+   A number system is in no deck: it is the words a language builds its
+   numbers out of, and they are a fact about the language rather than
+   about one lesson. That is the same position a card filling a blank is
+   in, and it has the same consequence — nothing a student's device
+   compares against moves when one is written, so the version has to be
+   told about it by hand or a corrected word reaches nobody. */
+
+/** A small but complete system, the shape the editor saves. */
+const numberSystem = (/** @type {Record<string, any>} */ over = {}) => ({
+  id: "",
+  languageId: "ar-PS",
+  composerVersion: 1,
+  lexemes: {
+    "unit.1": { slot: "unit.1", forms: { standalone: "one", f: "one-f" } },
+    "unit.2": { slot: "unit.2", forms: { standalone: "two" } },
+    connector: { slot: "connector", forms: { standalone: "and" } },
+  },
+  overrides: { 300: { text: "three-hundred" } },
+  nouns: [{ id: "book", sg: "book", dual: "two-books", pl: "books", gender: "m", en: "book" }],
+  audioPolicy: "components",
+  rev: 0,
+  created: 0,
+  updated: 1000,
+  ...over,
+});
+
+test("a teacher's numbers are saved, read back, and minted an id of their own", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rania" } });
+  const key = made.json.key;
+
+  assert.deepEqual((await api("/api/courses?action=my-systems", { key })).json.systems, []);
+
+  const saved = await api("/api/courses?action=save-system", {
+    method: "POST", key, body: { kind: "numbers", system: numberSystem() },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  assert.match(saved.json.system.id, /^n[0-9a-f]{12}$/);
+  assert.equal(saved.json.system.owner, made.json.user.handle);
+  assert.equal(saved.json.system.rev, 1, "the first save is revision one");
+  assert.equal(saved.json.system.lexemes["unit.1"].forms.f, "one-f");
+  assert.equal(saved.json.system.overrides["300"].text, "three-hundred");
+
+  /* Saved again under the same id, not a second system: one per teacher
+     per language is the whole filing rule. */
+  const again = await api("/api/courses?action=save-system", {
+    method: "POST", key,
+    body: { kind: "numbers", system: { ...numberSystem(), rev: saved.json.system.rev } },
+  });
+  assert.equal(again.json.system.id, saved.json.system.id);
+  assert.equal(again.json.system.rev, 2);
+  assert.equal(again.json.system.created, saved.json.system.created, "the day it was made does not move");
+
+  const listed = await api("/api/courses?action=my-systems", { key });
+  assert.equal(listed.json.systems.length, 1);
+  assert.equal(listed.json.systems[0].id, saved.json.system.id);
+
+  /* And a clock is a second document beside it, pointing at the first. */
+  const time = await api("/api/courses?action=save-system", {
+    method: "POST", key,
+    body: {
+      kind: "times",
+      system: {
+        id: "", languageId: "ar-PS", numberSystemId: saved.json.system.id,
+        lexemes: { "hour.word": { slot: "hour.word", forms: { standalone: "hour" } } },
+        minuteNoun: { id: "minute", sg: "minute", pl: "minutes", gender: "f", en: "minute" },
+        minuteExprs: { 15: { text: "quarter", refHour: "same" } },
+        periods: [], clock: "12h", overrides: {}, audioPolicy: "components",
+        rev: 0, created: 0, updated: 1000,
+      },
+    },
+  });
+  assert.equal(time.status, 200, time.text);
+  assert.match(time.json.system.id, /^t[0-9a-f]{12}$/);
+  assert.equal(time.json.system.numberSystemId, saved.json.system.id);
+  assert.equal((await api("/api/courses?action=my-systems", { key })).json.systems.length, 2);
+});
+
+/*
+ * What a build before the number system stored on a number card.
+ *
+ * Written onto the record rather than sent, because the server does not
+ * take a `value` from anybody any more: there are no parts to be one of.
+ * A value already there is kept and read — which is the whole of what the
+ * lift below has to work from — so this is how a card written by the old
+ * screen is put in front of it.
+ * @param {string} id @param {number} value
+ */
+async function storeValue(/** @type {string} */ id, /** @type {number} */ value) {
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+  const card = JSON.parse(must(await store.get(`card:${id}`), `card ${id}`));
+  await store.set(`card:${id}`, JSON.stringify({ ...card, value }));
+}
+
+test("a teacher who filled in the old Numbers screen finds their words in the new one", async () => {
+  /*
+   * A lift on read, in the mould every other migration here is: it runs
+   * the first time the screen is opened, it builds a system where there
+   * is none, and it deletes nothing. The cards stay where they are, with
+   * their recordings and every student's progress on them; they are
+   * marked as having been read, and a later release takes them.
+   */
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Huda" } });
+  const key = made.json.key;
+
+  /* The old shape: a card per part, findable by the value on it. */
+  const written = [];
+  for (const [value, word, feminine] of [
+    [1, "wahad", "wahde"],
+    [2, "tnen", "tinten"],
+    [20, "ishrin", ""],
+    [100, "miyye", ""],
+    [300, "tultmiyye", ""],
+  ]) {
+    /** @type {Record<string, any>[]} */
+    const forms = [{ ar: word, en: String(value), lat: "" }];
+    if (feminine) forms.push({ ar: feminine, en: String(value), lat: "", row: "counted", col: "feminine" });
+    const saved = await api("/api/courses?action=save-card", {
+      method: "POST", key,
+      body: { card: { id: "", lang: "ar-PS", forms, category: "number" }, decks: [] },
+    });
+    assert.equal(saved.status, 200, saved.text);
+    await storeValue(saved.json.card.id, Number(value));
+    written.push(saved.json.card.id);
+  }
+
+  const first = await api("/api/courses?action=my-systems", { key });
+  assert.equal(first.status, 200, first.text);
+  assert.equal(first.json.systems.length, 1, "opening the screen built one");
+  const sys = first.json.systems[0];
+  assert.equal(sys.languageId, "ar-PS");
+  assert.equal(sys.lexemes["unit.1"].forms.standalone, "wahad");
+  assert.equal(sys.lexemes["unit.1"].forms.f, "wahde", "and the cell came across as a face");
+  assert.equal(sys.lexemes["ten.20"].forms.standalone, "ishrin");
+  assert.equal(sys.lexemes["hundred.1"].forms.standalone, "miyye");
+  /* Three hundred is one word in this dialect and always was, so it is a
+     number the teacher wrote out rather than a box. */
+  assert.equal(sys.overrides["300"].text, "tultmiyye");
+  /* And every box says which card it came from, which is what lets a
+     device hand a learner's year on a word to the card that replaces it. */
+  assert.equal(sys.migratedFrom["unit.1"], written[0]);
+  assert.equal(sys.migratedFrom["override:300"], written[4]);
+
+  /* Nothing was deleted, and the cards say they have been read. */
+  const cards = await api("/api/courses?action=my-cards", { key });
+  assert.equal(cards.json.cards.length, written.length, "every card is still there");
+  for (const card of cards.json.cards) assert.equal(card.derived, true, `${card.id} should be marked`);
+
+  /* Run again and nothing happens: a system that exists is never rebuilt. */
+  const again = await api("/api/courses?action=my-systems", { key });
+  assert.equal(again.json.systems.length, 1);
+  assert.equal(again.json.systems[0].id, sys.id);
+  assert.deepEqual(again.json.systems[0].lexemes, sys.lexemes);
+
+  /* And a correction made afterwards is not undone by opening it again. */
+  await api("/api/courses?action=save-system", {
+    method: "POST", key,
+    body: {
+      kind: "numbers",
+      system: { ...sys, rev: sys.rev, lexemes: { ...sys.lexemes, "ten.20": { slot: "ten.20", forms: { standalone: "ishreen" } } } },
+    },
+  });
+  const after = await api("/api/courses?action=my-systems", { key });
+  assert.equal(after.json.systems[0].lexemes["ten.20"].forms.standalone, "ishreen");
+});
+
+test("a teacher with no number cards gets no system built for them", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Sami" } });
+  const key = made.json.key;
+  await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "kitaab", en: "book", lat: "" }] }, decks: [] },
+  });
+  assert.deepEqual((await api("/api/courses?action=my-systems", { key })).json.systems, []);
+});
+
+test("a number card keeps what it was worth, and no save can give one a new value", async () => {
+  /*
+   * The one field of the old model that is kept rather than dropped.
+   *
+   * Nothing writes a value any more — there are no parts to be one of —
+   * so a value that arrives is ignored like any other field nobody
+   * writes. But the value already on a card is the only record of which
+   * box it fills, and it is what the lift reads. Stripping it on the next
+   * save would pull the mapping out from under the migration, and a
+   * teacher fixing a typo on the word for forty would be the one who did
+   * it.
+   */
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nabil" } });
+  const key = made.json.key;
+  const first = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "arba3iin", en: "40", lat: "" }], value: 40 }, decks: [] },
+  });
+  assert.equal(first.json.card.value, undefined, "a value sent in is not taken");
+
+  await storeValue(first.json.card.id, 40);
+  const again = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: { id: first.json.card.id, lang: "ar-PS", forms: [{ ar: "arba3een", en: "40", lat: "" }], value: 70 },
+      decks: [],
+    },
+  });
+  assert.equal(again.status, 200, again.text);
+  assert.equal(again.json.card.value, 40, "the stored value survives a save, and cannot be changed by one");
+  assert.equal(leadOf(again.json.card).ar, "arba3een", "and the rest of the card is saved as sent");
+});
+
+test("a class whose teacher never opened the screen still gets their numbers", async () => {
+  /*
+   * The migration runs from the students' own poll as well, because a
+   * teacher who never opens the number screen would otherwise leave a
+   * class with a shelf of number cards and no system to build a range
+   * out of. Once per person, ever — the index is stamped — so the poll
+   * that every device makes every few minutes does not read a whole
+   * collection each time.
+   */
+  const teacher = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rania" } });
+  const tKey = teacher.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key: tKey, body: { adminKey: ADMIN_KEY } });
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key: tKey, body: { title: "Numbers", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key: tKey, body: { title: "Arabic 1", language: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: tKey, body: { deckId, courseId: course.json.course.id },
+  });
+  for (const [value, word] of [[1, "wahad"], [2, "tnen"], [20, "ishrin"]]) {
+    const saved = await api("/api/courses?action=save-card", {
+      method: "POST", key: tKey,
+      body: {
+        card: { id: "", lang: "ar-PS", forms: [{ ar: word, en: String(value), lat: "" }], category: "number" },
+        decks: [deckId],
+      },
+    });
+    await storeValue(saved.json.card.id, Number(value));
+  }
+
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dana" } });
+  const sKey = student.json.key;
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key: tKey,
+    body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+
+  const material = await api("/api/courses?action=my-material", { key: sKey });
+  assert.equal(material.status, 200, material.text);
+  const systems = material.json.systems || [];
+  assert.equal(systems.length, 1, "the student's own poll read the teacher's cards across");
+  assert.equal(systems[0].lexemes["ten.20"].forms.standalone, "ishrin");
+  /* And the teacher opening the screen afterwards finds the same one
+     rather than a second. */
+  const mine = await api("/api/courses?action=my-systems", { key: tKey });
+  assert.equal(mine.json.systems.length, 1);
+  assert.equal(mine.json.systems[0].id, systems[0].id);
+});
+
+test("a save built on an older copy is refused, and hands back the one that is there", async () => {
+  /*
+   * Whole-document last-write-wins, said out loud. Two teachers editing
+   * one lexicon across a sync would otherwise lose an afternoon in
+   * silence: merging them field by field would make a lexicon neither
+   * wrote, and overwriting would make one of them wonder where their work
+   * went. Refusing is the third answer, and the only one that can be
+   * explained to the person it happened to.
+   */
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Faris" } });
+  const key = made.json.key;
+
+  const first = await api("/api/courses?action=save-system", {
+    method: "POST", key, body: { kind: "numbers", system: numberSystem() },
+  });
+  assert.equal(first.status, 200, first.text);
+  await api("/api/courses?action=save-system", {
+    method: "POST", key, body: { kind: "numbers", system: numberSystem({ rev: 1 }) },
+  });
+
+  /* A save from a device that loaded revision one and never saw the
+     second. Its clock is irrelevant, which is the point: what it is
+     refused on is a revision it has actually seen. */
+  const stale = await api("/api/courses?action=save-system", {
+    method: "POST", key,
+    body: {
+      kind: "numbers",
+      system: numberSystem({
+        rev: 1,
+        updated: Date.now() + 60 * 60 * 1000,
+        lexemes: { "unit.1": { slot: "unit.1", forms: { standalone: "wrong" } } },
+      }),
+    },
+  });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.json.error, "stale-system");
+  assert.equal(stale.json.system.lexemes["unit.1"].forms.standalone, "one", "and it is the live one");
+
+  /* The document on the site is untouched by the refusal. */
+  const held = (await api("/api/courses?action=my-systems", { key })).json.systems[0];
+  assert.equal(held.lexemes["unit.1"].forms.standalone, "one");
+  assert.equal(held.rev, 2, "a refused save is not a revision");
+});
+
+test("a system that is not one is refused rather than stored half-read", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dana" } });
+  const key = made.json.key;
+  for (const system of [null, 7, "words", {}, { id: "x" }, { languageId: "" }]) {
+    const res = await api("/api/courses?action=save-system", {
+      method: "POST", key, body: { kind: "numbers", system },
+    });
+    assert.equal(res.status, 400, JSON.stringify(system));
+    assert.ok(["not-a-system", "no-language"].includes(res.json.error), res.text);
+  }
+  assert.deepEqual((await api("/api/courses?action=my-systems", { key })).json.systems, []);
+});
+
+test("a teacher's numbers reach their students, and the version moves when a word changes", async () => {
+  const teacher = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Maha" } });
+  const tkey = teacher.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key: tkey, body: { adminKey: ADMIN_KEY } });
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key: tkey, body: { title: "Arabic 1", language: "ar-PS" },
+  });
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key: tkey, body: { title: "Lesson 1", description: "", lang: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: tkey, body: { deckId: deck.json.deck.id, courseId: course.json.course.id },
+  });
+
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nour" } });
+  const skey = student.json.key;
+  await api("/api/courses?action=join-course", {
+    method: "POST", key: skey, body: { code: course.json.course.code },
+  });
+
+  const before = await api("/api/courses?action=my-material", { key: skey });
+  assert.equal(before.status, 200, before.text);
+  assert.deepEqual(before.json.systems, [], "nothing yet");
+
+  await api("/api/courses?action=save-system", {
+    method: "POST", key: tkey, body: { kind: "numbers", system: numberSystem() },
+  });
+
+  const after = await api("/api/courses?action=my-material", { key: skey });
+  assert.equal(after.json.systems.length, 1, "the student has the teacher's numbers");
+  assert.equal(after.json.systems[0].lexemes["unit.1"].forms.standalone, "one");
+  assert.notEqual(after.json.version, before.json.version, "and the version says something moved");
+
+  /* The whole point of folding the revision in: correcting one word moves
+     nothing else on the site, so without it the correction reaches nobody. */
+  await api("/api/courses?action=save-system", {
+    method: "POST", key: tkey,
+    body: {
+      kind: "numbers",
+      system: numberSystem({
+        rev: 1,
+        lexemes: { "unit.1": { slot: "unit.1", forms: { standalone: "wahad" } } },
+      }),
+    },
+  });
+  const corrected = await api("/api/courses?action=my-material", { key: skey });
+  assert.notEqual(corrected.json.version, after.json.version, "a corrected word moves the version");
+  assert.equal(corrected.json.systems[0].lexemes["unit.1"].forms.standalone, "wahad");
+
+  /* And an unchanged site still answers `unchanged`, so the poll stays cheap. */
+  const nothing = await api(
+    `/api/courses?action=my-material&version=${encodeURIComponent(corrected.json.version)}`,
+    { key: skey },
+  );
+  assert.equal(nothing.json.unchanged, true);
+});
+
+test("a system in a language nobody is learning is not sent", async () => {
+  const teacher = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Tariq" } });
+  const tkey = teacher.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key: tkey, body: { adminKey: ADMIN_KEY } });
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key: tkey, body: { title: "Arabic 2", language: "ar-PS" },
+  });
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key: tkey, body: { title: "Lesson 1", description: "", lang: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: tkey, body: { deckId: deck.json.deck.id, courseId: course.json.course.id },
+  });
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Lina" } });
+  await api("/api/courses?action=join-course", {
+    method: "POST", key: student.json.key, body: { code: course.json.course.code },
+  });
+
+  await api("/api/courses?action=save-system", {
+    method: "POST", key: tkey, body: { kind: "numbers", system: numberSystem() },
+  });
+  await api("/api/courses?action=save-system", {
+    method: "POST", key: tkey,
+    body: { kind: "numbers", system: numberSystem({ languageId: "he-IL" }) },
+  });
+
+  const got = await api("/api/courses?action=my-material", { key: student.json.key });
+  assert.deepEqual(
+    got.json.systems.map((/** @type {any} */ s) => s.languageId),
+    ["ar-PS"],
+    "a teacher's Hebrew does not follow their Arabic students around",
+  );
+});
+
+test("a backup holds a teacher's numbers, and a restore puts them back", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yara" } });
+  const key = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+
+  const saved = await api("/api/courses?action=save-system", {
+    method: "POST", key,
+    body: {
+      kind: "numbers",
+      system: numberSystem({
+        lexemes: {
+          "unit.1": { slot: "unit.1", forms: { standalone: "one" }, audio: { standalone: [clipId(7)] } },
+        },
+      }),
+    },
+  });
+  const id = saved.json.system.id;
+
+  const manifest = await api("/api/courses?action=admin-backup-manifest", { key });
+  const planned = manifest.json.manifest.plan.flatMap((/** @type {any} */ c) => c.keys);
+  assert.ok(planned.includes(`numsys:${id}`), "the system is in the plan");
+  assert.ok(
+    planned.includes(`mysystems:${admin.json.user.handle}`),
+    "and the index that says which system is which",
+  );
+  /* A recording a system refers to is reachable from nothing else, so a
+     backup that did not read the systems would leave it out — the same
+     bug a card's recordings had before clipsOfCard existed. */
+  assert.ok(planned.includes(`clip:${clipId(7)}`), "and the recording it refers to");
+  assert.ok(manifest.json.manifest.counts.systems >= 1, "and it is counted");
+
+  const chunk = await api("/api/courses?action=admin-backup-chunk", {
+    method: "POST", key, body: { keys: [`numsys:${id}`] },
+  });
+  const record = must(chunk.json.records[`numsys:${id}`], "the system in the chunk");
+  assert.equal(record.lexemes["unit.1"].forms.standalone, "one");
+
+  /* Deleted from the site, then put back from the file. */
+  await api("/api/courses?action=delete-system", {
+    method: "POST", key, body: { kind: "numbers", languageId: "ar-PS" },
+  });
+  assert.deepEqual((await api("/api/courses?action=my-systems", { key })).json.systems, []);
+
+  const put = await api("/api/courses?action=admin-restore-chunk", {
+    method: "POST", key,
+    body: {
+      records: {
+        [`numsys:${id}`]: record,
+        [`mysystems:${admin.json.user.handle}`]: { numbers: { "ar-PS": id }, times: {} },
+      },
+    },
+  });
+  assert.equal(put.status, 200, put.text);
+  assert.equal(put.json.written, 2, "a prefix the allowlist has not got is skipped in silence");
+  const back = (await api("/api/courses?action=my-systems", { key })).json.systems;
+  assert.equal(back.length, 1);
+  assert.equal(back[0].lexemes["unit.1"].forms.standalone, "one");
+});
+
+test("closing an account takes its numbers with it", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Omar" } });
+  const key = made.json.key;
+  const saved = await api("/api/courses?action=save-system", {
+    method: "POST", key, body: { kind: "numbers", system: numberSystem() },
+  });
+  const id = saved.json.system.id;
+
+  const closed = await api("/api/courses?action=delete-account", { method: "POST", key, body: {} });
+  assert.equal(closed.status, 200, closed.text);
+
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+  assert.equal(await store.get(`numsys:${id}`, { type: "text" }), null, "the system is gone");
+  assert.equal(
+    await store.get(`mysystems:${made.json.user.handle}`, { type: "text" }),
+    null,
+    "and the index that pointed at it",
+  );
+});
+
 test("an unreadable record fails the request rather than reading as absent", async () => {
   /*
    * Every list on the courses endpoint filters out what it could not read

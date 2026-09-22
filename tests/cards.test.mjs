@@ -550,9 +550,15 @@ test("what a word is decides which table it is offered", () => {
   assert.equal(tableFor(ar, "verb"), "verb");
   assert.equal(tableFor(ar, "noun"), "attached");
   assert.equal(tableFor(ar, "preposition"), "attached");
-  /* An adjective its feminine and plural; a number its feminine. */
+  /* An adjective its feminine and plural. */
   assert.equal(tableFor(ar, "adjective"), "agreement");
-  assert.equal(tableFor(ar, "number"), "counted");
+  /* A number has none any more: the faces a numeral takes are boxes in the
+     language's number system, and the card under one is written by the app
+     out of what the teacher typed there. The kind is still read — a card
+     saved while it was offered goes on saying what it is — so this asks
+     for the table of a kind nobody is offered and gets the same nothing a
+     kind nobody declared gets. */
+  assert.equal(tableFor(ar, "number"), "");
   /* And everything else is the word and whatever forms the teacher
      writes — including a word nobody has said anything about. */
   assert.equal(tableFor(ar, "name"), "");
@@ -1374,7 +1380,11 @@ test("only a verb has its dictionary form seeded", () => {
   const bigCells = initialCells(big, arLang);
   assert.deepEqual(bigCells.map((/** @type {any} */ c) => [c.row, c.col]), [["agreement", "feminine"]]);
   assert.equal(initialCategory(big, arLang, bigCells), "adjective");
-  assert.equal(initialCategory(big, arLang, [cellOf("counted", "feminine")]), "number");
+  /* And a card whose only cells sit in a table no pack lays out any more
+     is a card of no kind, rather than a kind guessed from a table that has
+     gone. The cells stay on it: half of a card is worth more than none,
+     which is the rule every reader of one follows. */
+  assert.equal(initialCategory(/** @type {any} */ ({ id: "n" }), arLang, [cellOf("counted", "feminine")]), "");
 });
 
 /*
@@ -2185,6 +2195,23 @@ test("a cell left pointing at nothing is counted in what a save drops", () => {
  * back, and the counts on a tile.
  */
 test("nothing but the door reads a card's forms out of subs", () => {
+  /*
+   * Walked rather than listed, and into subdirectories: this read the top
+   * of src alone, which was the whole of src when it was written. A guard
+   * that stops at a directory boundary does not fail when code moves past
+   * it — it passes, which is the failure worth designing against.
+   */
+  /** @type {(dir: string, keep: (f: string) => boolean) => string[]} */
+  const filesUnder = (dir, keep) => {
+    /** @type {string[]} */
+    const out = [];
+    for (const entry of readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true })) {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) out.push(...filesUnder(rel, keep));
+      else if (keep(entry.name)) out.push(rel);
+    }
+    return out;
+  };
   /** @type {[string, (f: string) => boolean][]} */
   const roots = [
     ["src", (/** @type {string} */ f) => /\.tsx?$/.test(f) && f !== "cards.ts"],
@@ -2199,10 +2226,10 @@ test("nothing but the door reads a card's forms out of subs", () => {
   /** @type {string[]} */
   const found = [];
   for (const [dir, keep] of roots) {
-    for (const file of readdirSync(new URL(`../${dir}`, import.meta.url)).filter(keep)) {
-      const source = readFileSync(new URL(`../${dir}/${file}`, import.meta.url), "utf8");
+    for (const file of filesUnder(dir, keep)) {
+      const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
       for (const [, who] of source.matchAll(reads)) {
-        if (!notCards.includes(who)) found.push(`${dir}/${file}: ${who}.subs`);
+        if (!notCards.includes(who)) found.push(`${file}: ${who}.subs`);
       }
     }
   }

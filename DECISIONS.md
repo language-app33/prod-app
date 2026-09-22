@@ -3061,3 +3061,179 @@ evening every time a device synced twice. And the summary is fed from a
 value captured beside a write rather than from a re-read afterwards, which
 is sound only because `persist` runs its function there and then; a queued
 updater would have made it a lie.
+
+---
+
+## A number system is a document, and its parts are not cards
+
+**22 September 2026** · `src/numbers/schema.ts`, `server/api/courses.js`
+(`numsys`, `timesys`, `my-material`), `src/numbers/generate.ts`,
+`src/shared.tsx` (`pullCourses`)
+
+Numbers were built from parts since 0.152, and the parts were cards: one
+card per box, findable by a `value` on it, put in front of students by
+being added to a deck. That made a language's lexicon fifty-five cards with
+a number on each, written on two screens that agreed about nothing, and it
+meant a form a numeral takes only in company — the one before a noun, the
+feminine for an hour — had to be a cell of a `counted` table that only one
+of the three languages read. It also meant the app could not say *three
+books*, because nothing in the model could hold the form that stands in
+front of a noun.
+
+A number system is one document per teacher per language: the words, each
+with the faces its language's composer asks for, and the numbers the
+teacher wrote out by hand. It is teacher material, stored and delivered the
+way a value card is — in no deck, bundled with every course of its
+language, its revision folded into the material version so a change reaches
+a student without anything else moving. The student's device generates a
+card per word from it, with an id derived from the system and the box, so
+the fold that refreshes course cards refreshes these too and a student's
+year on *forty* survives every regeneration.
+
+**Why not the learner document.** It has exactly one whole-object
+last-writer-wins field, `settings`, and a lexicon is not a learner's
+preference. A new top-level field would have needed the wire whitelist, the
+merge, the size measure and the would-empty guard each told about it, and a
+teacher whose document held nothing but a system would have been refused as
+empty — silently, which is how `fillsrev` went wrong before it.
+
+**What it costs.** Whole-document last-write-wins: two teachers saving the
+same system across a sync lose the earlier save whole, and a save built on
+a copy that has since moved is refused rather than merged. The refusal
+keys on the revision the saver loaded, never on a clock, so a slow device
+is refused once and not for ever. The editor says what happened and hands
+back what is there.
+
+---
+
+## Composers live beside the pack, and hold no words
+
+**22 September 2026** · `src/numbers/<langId>.ts`, `src/languages.ts`
+(`composer`, `times`), `tests/language-isolation.test.mjs`
+
+*Anything language-specific lives in `languages.ts`* was the rule, and how
+a language builds its numbers is as language-specific as anything gets. It
+is also two hundred lines a language, and the pack was already three and a
+half thousand. So each language's composer is a module of its own under
+`src/numbers/`, imported by `languages.ts` and by nothing else: the pack is
+still the one door, and an app file that wants a number asks the pack.
+
+The narrowing that makes this safe is checkable, and checked: **no file
+under `src/numbers/` may contain a word of any language.** The lexicon is
+data in the system a teacher wrote, or a golden table a speaker signed; a
+composer knows box names, an order and how the joining word attaches. The
+isolation test walks the directory and fails on the first Arabic or Hebrew
+letter — which it did, twice, on examples written into comments.
+
+**What it costs.** The first subdirectory under `src/`, and four guards
+that resolved source files by a flat stem — the isolation test, the
+component scan, the icon check and the sub-forms door — each taught to walk
+it. A guard that skips a directory passes in silence, which is the failure
+this codebase has already written down once.
+
+---
+
+## The boundary reader for a system is hand-written, as the answer reader is
+
+**22 September 2026** · `readNumberSystem`, `readTimeSystem` in
+`src/numbers/schema.ts`
+
+The brief for this feature asked for Valibot schemas at the storage and
+sync boundaries. The decision of 11 September stands, for the same three
+reasons: the reader runs on every material refresh on a phone; the app has
+two runtime dependencies and both are React; and the boundary has to be
+*total* — a system with one bad word is a system with one gap, not a
+document that fails to open. What the editor shows a teacher about an empty
+box is the composer's warning and not the schema's, so the *revisit if*
+clause on that entry — validation needing to report why something was
+rejected — is still not triggered.
+
+**Revisit if** a teacher ever imports a system from a file and has to be
+told which line of it is wrong.
+
+---
+
+## A range is scheduled like a card, and what it asks is decided when the queue is built
+
+**22 September 2026** · `src/numbers/range.ts`, `src/ArabicTrainer.tsx`
+(`buildSession`, `drawRange`), `src/languages.ts` (`TYPES`)
+
+A made-up number climbed no ladder. The practice was a button, its only
+memory one integer in `settings`, and its three question types were kept
+out of `TYPES` on purpose — which kept the schedule honest and left numbers
+outside it, so a learner who never pressed the button never met one.
+
+A range — 0 to 10, 11 to 99, counting things, telling the hour — is an item
+with one form and a schedule per exercise, dealt by the ordinary session
+builder like anything else. Which number or time is asked is drawn from a
+seed of the range, the exercise and the count of right answers, which is
+the rule that already rotates a sentence's fillers: a missed question comes
+back as the same number, a right answer moves on to a different one. It is
+drawn when the queue is built and rendered there, so the question cannot
+change under the learner, and none of it is ever stored.
+
+**What was kept.** A right answer still credits the component cards that
+stood in the number, under the ordinary exercise the question was evidence
+for — through `Mark.under`, because no card climbs a ladder called
+"num2fig" and writing one would be a schedule nothing ever reads. What is
+new is that the range climbs too, on its own key.
+
+**What it costs.** Thirty-odd cards and up to ten ranges per language enter
+the pools a session is dealt from, where before they were behind a button.
+A range is offered only once the whole of it can be said, which is what
+keeps a half-written system from putting an unanswerable question up.
+
+---
+
+## A time is a number with a feminine noun
+
+**22 September 2026** · `src/numbers/compose.ts` (`renderClock`),
+`src/numbers/ar-PS.time.ts`, `src/numbers/he-IL.time.ts`
+
+The hour is the number composer asked for a feminine referent, because the
+word for *hour* is feminine in both languages that have a clock here. The
+minutes, in the exact style, are the number composer asked to count the
+word for *minute*. What is left over — choosing the expression for a
+five-minute mark, shifting the hour where the expression counts back,
+reading the part of the day off the hour the clock actually showed — is
+arithmetic, and it is shared.
+
+**So there is no agreement in a clock at all**, which is the point: a fault
+in *two minutes* is a fault in the number composer and is fixed once, for
+books and minutes together. A test in each language asserts that the
+minutes in a time are the number composer's own string, character for
+character, and that breaking the numbers breaks the clock.
+
+**What it costs.** A time may play two recordings back to back — the hour
+and the minutes — which is the one place in the app where two clips are
+joined, and the player had to learn it. Nothing inside a number is ever
+stitched: the joins are where a dialect's sandhi lives, and a stitched clip
+teaches a sound nobody makes.
+
+---
+
+## Shared helpers are extracted after the second language, not before
+
+**22 September 2026** · `src/numbers/compose.ts`
+
+The module this replaced carried a warning in its header about three
+languages wearing one coat. So the two Semitic composers were written
+twice — once each, each against a golden table of its own — and only then
+pulled together, with both tables unchanged across the move. What went into
+the shared file is only what both were already doing character for
+character: chunking into millions, thousands and the rest; which face a
+gender asks for; the counted noun and what to do when the teacher has not
+written the face it needs; and the whole of a clock.
+
+What stayed out is the interesting half — the order of the pieces, the
+joining word's habits, polarity, the bound form, which faces a box even
+offers. Those are the languages, and they live in the language files where
+somebody looking for them will be standing.
+
+**Why the order matters.** A helper invented before the second language
+exists is a guess about that language dressed up as a rule, and the guess
+becomes invisible the moment the second pack is written to fit the helper
+rather than the other way round. The two differences the Hebrew clock
+actually has — that the word opening a time is optional, and that counting
+back puts the minutes in front of the hour — are declared by the pack and
+written in the teacher's own system, not decided in shared code.

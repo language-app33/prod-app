@@ -241,7 +241,13 @@ test("the listening exercises are exactly the ones prompted by audio", () => {
      an audio prompt and nothing else: the quiet window, the substitution
      and the "can't listen right now" button all picked it up unprompted,
      which is what deriving this from the prompt rather than a flag buys. */
-  assert.deepEqual(byHelper, ["rec2en", "rec2ar", "rec2attr", "rec2ctx"]);
+  assert.deepEqual(byHelper, [
+    "rec2en", "rec2ar", "rec2attr", "rec2ctx",
+    /* And the two that play a number or a time. They were picked up by
+       the quiet window and the "can't listen right now" button without
+       being told, which is what deriving this from the prompt buys. */
+    "rec2fig", "rec2dial",
+  ]);
 });
 
 test("reading and writing exercises are not listening ones", () => {
@@ -526,7 +532,13 @@ test("the gentle types are read off the definitions, not kept beside them", () =
      The gentle set is the first two levels of the ladder exactly:
      recognising what a word means, then which word it is. Every one of
      them puts the answer on the screen — nothing here is written out. */
-  assert.deepEqual(EASY_TYPES, ["ar2pick", "ar2en", "rec2en", "match", "en2pick", "ctx2pick", "dlgwhole"]);
+  assert.deepEqual(EASY_TYPES, [
+    "ar2pick", "ar2en", "rec2en", "match", "en2pick", "ctx2pick", "dlgwhole",
+    /* Reading a number or a time and saying what it is, and picking one
+       out of four, are recognition in exactly the sense the six above
+       are: the answer is on the screen and nothing is written out. */
+    "num2fig", "fig2pick", "rec2fig", "time2fig", "time2dial",
+  ]);
   for (const t of EASY_TYPES) assert.equal(EX[t].gentle, true, t);
   for (const t of TYPES.filter((x) => !EASY_TYPES.includes(x))) {
     assert.notEqual(EX[t].gentle, true, t);
@@ -752,19 +764,20 @@ test("the verb and the pronouns are still found by name, and the rest by the reg
   assert.equal(verbOf(ar), specOf(ar, "verb"));
   assert.equal(attachedOf(ar), specOf(ar, "attached"));
   assert.ok(specOf(ar, "agreement"), "Arabic adjectives agree");
-  assert.ok(specOf(ar, "counted"), "and its numbers take a feminine form");
+  /* And the faces a numeral takes, which every pack with a composer lays
+     out under the same name. The `counted` table it had instead — one cell
+     for the form beside a feminine noun — went with the cards it was for:
+     the faces are boxes in the number system now, and there are five of
+     them rather than one. */
+  assert.equal(specOf(ar, "counted"), null);
+  assert.ok(specOf(ar, "number"), "and the faces a numeral takes");
   assert.equal(specOf(ar, "no-such-table"), null);
   assert.equal(specOf(null, "verb"), null);
-  /* Huế lays out a verb, and a number's forms inside a bigger number —
-     năm is five and mười lăm is fifteen, which is one word with two faces
-     and so a cell. It is the same table name the Semitic packs use for a
-     number's feminine, and deliberately: what a table is called is how a
-     card finds it, and what is in it is the language's own business. */
   const vi = LANGUAGES["vi-Hue"];
-  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb", "counted"]);
+  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb", "number"]);
   assert.equal(specOf(vi, "agreement"), null);
-  assert.deepEqual(must(specOf(vi, "counted"), "Huế counted").persons.map((p) => p.id),
-    ["after-ten", "empty-place"]);
+  assert.deepEqual(must(specOf(vi, "number"), "Huế number").persons.map((p) => p.id),
+    ["company"]);
   /* Hebrew agrees in number and gender at once, so its plural is two cells. */
   assert.deepEqual(must(specOf(LANGUAGES["he-IL"], "agreement"), "Hebrew agreement").persons.map((p) => p.id),
     ["feminine", "masc-plural", "fem-plural"]);
@@ -779,14 +792,18 @@ test("a table says what its cells wait on, and whose it is", () => {
   assert.equal(!!must(specOf(ar, "agreement"), "agreement").perForm, false, "an adjective's forms are the card's");
   /* What it is called to a teacher, where the rows do not say. */
   assert.ok(must(specOf(ar, "agreement"), "agreement").label);
-  assert.ok(must(specOf(ar, "counted"), "counted").label);
+  assert.ok(must(specOf(ar, "number"), "number").label);
 });
 
 test("what a kind of word lays out, and what it is asked about, is the category's answer", () => {
   const ar = LANGUAGES["ar-PS"];
   const cat = (/** @type {string} */ id) => must(categoriesOf(ar).find((c) => c.id === id), id);
   assert.equal(cat("adjective").table, "agreement");
-  assert.equal(cat("number").table, "counted");
+  /* A number lays out nothing and is offered to nobody: its faces are
+     boxes in the language's number system now. The kind is still declared
+     so that a card saved while it was offered goes on saying what it is. */
+  assert.equal(cat("number").table, undefined);
+  assert.equal(cat("number").retired, true);
   assert.equal(cat("noun").table, "attached");
   assert.equal(cat("verb").table, "verb");
   assert.equal(cat("pronoun").table, undefined);
@@ -811,7 +828,9 @@ test("what a kind of word lays out, and what it is asked about, is the category'
 test("which kinds of word agree out of a table, and which do not", () => {
   const ar = LANGUAGES["ar-PS"];
   assert.ok(agreementOf(ar, "adjective"), "an adjective agrees");
-  assert.ok(agreementOf(ar, "number"), "so does a number, by gender");
+  /* A number did, out of a table with one cell in it. It agrees in five
+     faces now, out of the number system, which is not a card's table. */
+  assert.equal(agreementOf(ar, "number"), null);
   /* The pronouns on the end of a word pick nothing, and a verb's three
      rows need a sentence to say which. */
   assert.equal(agreementOf(ar, "noun"), null);

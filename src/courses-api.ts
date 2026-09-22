@@ -192,6 +192,22 @@ export const detachDeck = (deckId: string, courseId: string) =>
   call("detach-deck", { body: { deckId, courseId } });
 
 /* ---- clips ---- */
+/* ---- a language's numbers, and its clock ----
+
+   One document per teacher per language, in no deck, delivered with every
+   course of its language. Whole-document last-write-wins: a lexicon is one
+   thing a person edits in one sitting, and merging two of them field by
+   field would make a lexicon neither of them wrote. A save that would go
+   backwards is refused rather than silently winning, and the answer
+   carries the document that is there — see `stale-system` in explain. */
+export const mySystems = (): Promise<{ ok: true; systems: any[] }> => call("my-systems");
+export const saveSystem = (
+  kind: "numbers" | "times",
+  system: unknown,
+): Promise<{ ok: true; system: any }> => call("save-system", { body: { kind, system } });
+export const deleteSystem = (kind: "numbers" | "times", languageId: LangId) =>
+  call("delete-system", { body: { kind, languageId } });
+
 export const putClip = (hash: string, data: string) => call("put-clip", { body: { hash, data } });
 export const getClip = (hash: string): Promise<{ ok: true; hash: string; data: string }> =>
   call("clip", { params: { hash } });
@@ -274,6 +290,12 @@ export function explain(err: unknown): string {
       "no-deck": "That deck no longer exists.",
       "no-user": "No account with that handle.",
       "no-card": "That card no longer exists.",
+      "stale-system":
+        "Somebody else saved these numbers after you opened them, so this " +
+        "save was not made. Open them again to see what is there now.",
+      "not-a-system": "That isn't a number system this app can read.",
+      "no-system": "There are no numbers saved for that language yet.",
+      "no-language": "Say which language these numbers are for.",
       "bad-flag": "That isn't a kind of problem this app reports.",
       "note-required": "Say what went wrong and it can be looked into.",
       "name-required": "A name is needed.",

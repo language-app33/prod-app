@@ -9,7 +9,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const { scan, render, libraryComponents } = await import("../scripts/component-uses.mjs");
 const { COMPONENT_USES } = await import("../src/component-uses.js");
@@ -86,7 +86,22 @@ test("Tile and TileNote are told apart", () => {
  * in the DOM, had its label, and worked.
  */
 test("every icon name used in the app is one the set has", () => {
-  const files = ["ArabicTrainer.tsx", "spaces.tsx", "shared.tsx", "card-editor.tsx", "gallery.tsx"];
+  /* Found rather than listed, and recursively: src was flat when this was
+     written, and a list of five filenames does not fail when a sixth
+     screen appears somewhere it does not look — it passes. */
+  /** @param {string} dir @returns {string[]} */
+  const screensUnder = (dir) => {
+    /** @type {string[]} */
+    const out = [];
+    for (const entry of readdirSync(new URL(`../${dir}`, import.meta.url), { withFileTypes: true })) {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) out.push(...screensUnder(rel));
+      else if (/\.(tsx|jsx)$/.test(entry.name)) out.push(rel);
+    }
+    return out;
+  };
+  const files = screensUnder("src");
+  assert.ok(files.length >= 5, `only ${files.length} screens found — the scan is wrong, not the source`);
   const set = new Set(
     [...readFileSync(new URL("../src/shared.tsx", import.meta.url), "utf8")
       .split("export function Icon")[0]
@@ -96,7 +111,7 @@ test("every icon name used in the app is one the set has", () => {
   /** @type {string[]} */
   const unknown = [];
   for (const file of files) {
-    const src = readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
+    const src = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     /* `icon="x"` on a button, `<Icon name="x" />` directly, and the one
        place an icon is built as a DOM node rather than rendered — the
        cross on a blank, inside a field the app draws by hand. Literals

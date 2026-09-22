@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { readdirSync } from "node:fs";
 import * as LANG from "../src/languages.ts";
 
 const here = path.dirname(new URL(import.meta.url).pathname);
@@ -36,6 +37,30 @@ const src = (/** @type {string} */ stem) => {
 /* Everything that renders or drives the app. languages is the one file
    allowed to know about languages, so it is not in this list. */
 const APP_FILES = ["ArabicTrainer", "spaces", "card-editor", "shared", "gallery", "screen-elements", "sync", "storage", "courses-api", "scheduler", "grade", "spelling"];
+
+/*
+ * And the composers, which are held to something stricter.
+ *
+ * `src/numbers/` is where each language's number rules live, so the rule
+ * above — do not know about a language — cannot apply to it. What applies
+ * instead is the condition the directory exists under: **the words are
+ * data and the joining is code**, so a composer may know that the unit
+ * comes before the ten and may not know a single word of any language.
+ * Every syllable comes from the system the teacher typed, or from a
+ * golden table a speaker signed.
+ *
+ * Read off the directory rather than listed, because a list is the thing
+ * that rots: a file added tomorrow is checked tomorrow, without anybody
+ * remembering. That is also why this walks a directory where the rest of
+ * the file resolves stems — the guard that skips a file passes in
+ * silence, which is the one way a guard fails badly.
+ */
+const composerFiles = () => {
+  const dir = new URL("../src/numbers/", import.meta.url);
+  return readdirSync(dir)
+    .filter((f) => /\.tsx?$/.test(f))
+    .map((f) => ({ name: `src/numbers/${f}`, at: new URL(f, dir) }));
+};
 
 /* A name belongs to one language if it is prefixed with that language, in
    either of the two spellings the file uses: ar/Ar for Arabic, vi/Viet for
@@ -129,6 +154,43 @@ for (const file of APP_FILES) {
     );
   });
 }
+
+test("no composer holds a word of any language", async () => {
+  const files = composerFiles();
+  assert.ok(files.length >= 4, `only ${files.length} composers found — the scan is wrong, not the source`);
+  for (const { name, at } of files) {
+    const source = await readFile(at, "utf8");
+    const runs = [...new Set((source.match(/[\u0590-\u06FF]+/g) || []))];
+    assert.deepEqual(
+      runs,
+      [],
+      `${name} holds words: ${runs.join(", ")} — a composer knows slot names and an order, ` +
+        `never a syllable. The words belong in the teacher's system or in a golden table.`,
+    );
+  }
+});
+
+test("a composer is reached through the registry, never by its language's name", async () => {
+  /* The other half of the same rule. An app file that imported the Arabic
+     composer directly would be a screen that knows about Arabic, which is
+     what composerFor exists to prevent. */
+  for (const file of APP_FILES) {
+    let source;
+    try {
+      source = await readFile(src(file), "utf8");
+    } catch (e) {
+      continue; /* a screen this release has not written yet */
+    }
+    const bad = [...source.matchAll(/from\s*["']\.\/numbers\/([\w.-]+)\.tsx?["']/g)]
+      .map((m) => m[1])
+      .filter((mod) => mod !== "index" && mod !== "types" && mod !== "schema" && mod !== "range" && mod !== "generate");
+    assert.deepEqual(
+      bad,
+      [],
+      `${file} reaches into src/numbers/${bad.join(", ")} — ask composerFor(langId) instead`,
+    );
+  }
+});
 
 test("every pack that offers context exercises can actually match a word", () => {
   /* supportsContext is what the app tests before offering anything; a pack

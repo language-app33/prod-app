@@ -700,12 +700,24 @@ test("the form that agrees: the cell a column picks, the word where none does, n
   assert.equal(agreedValue(big, arabic, own, beside({ number: "singular", gender: "feminine" })), own);
 });
 
-test("a number agrees by the noun's gender alone, and the cell says the rest", () => {
-  const counted = must(specOf(LANGUAGES["ar-PS"], "counted"), "counted");
+test("a column that picks on gender alone is chosen by gender alone", () => {
+  /* A one-cell table whose column names a gender and says nothing about
+     number: whatever number the word beside it is, the cell is chosen on
+     the gender and the word itself answers for the other. Declared here
+     rather than taken from a pack, because the shape is the subject and no
+     language happens to declare one today — Arabic's numbers did until
+     their faces became boxes in the number system. */
+  const byGender = {
+    persons: [{ id: "feminine", label: "feminine", picks: { gender: "feminine" } }],
+    tenses: [{ id: "counted", label: "counted" }],
+    label: "feminine",
+    gate: /** @type {const} */ ("word"),
+  };
   const three = { id: "3", ar: "ثلاثة", en: "three", lat: "", subs: [{ id: "3-f", row: "counted", col: "feminine", ar: "ثلاث", en: "three", lat: "" }] };
   const word = { id: "3", ar: "ثلاثة", en: "three", lat: "" };
-  assert.equal(must(agreedValue(three, counted, word, beside({ number: "plural", gender: "feminine", human: "thing" })), "f").ar, "ثلاث");
-  assert.equal(agreedValue(three, counted, word, beside({ number: "plural", gender: "masculine", human: "thing" })), word);
+  assert.equal(must(agreedValue(three, byGender, word, beside({ number: "plural", gender: "feminine", human: "thing" })), "f").ar, "ثلاث");
+  assert.equal(must(agreedValue(three, byGender, word, beside({ number: "singular", gender: "feminine", human: "thing" })), "f").ar, "ثلاث");
+  assert.equal(agreedValue(three, byGender, word, beside({ number: "plural", gender: "masculine", human: "thing" })), word);
 });
 
 test("Hebrew agrees in number and gender at once", () => {
