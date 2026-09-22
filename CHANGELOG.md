@@ -8,6 +8,38 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.210 — 22 September 2026
+
+**A word and its forms, in one list, with the word finally called
+something.**
+
+0.209 made an adjective's feminine, plural and dual short again — one line
+each, three boxes and a microphone. The word they are shapes of kept the
+long format above them: its own block, its own headings, fields with names
+across the top. One list written in two hands, with a border between them,
+and nothing dividing them except which of the four the card happens to be
+*about* — which the title at the top of the screen already says.
+
+It is one section now, **The word and its forms**, and the word is the
+first row of it, written exactly like the three under it.
+
+**And it is called masculine**, because that is what it is. It has been
+*Form 1* and then *The main form*, and both are the app talking about its
+own screen: a row of boxes named nothing, beside three named feminine,
+plural and dual, was the odd one out for want of a word that was there to
+be said. Which word it is, each language now answers for itself — Arabic
+and Hebrew both say masculine, and Hebrew reads down as *masculine,
+feminine, masculine plural, feminine plural*, which is how the four are
+written anywhere else. A language that does not say is left with *the
+word* rather than a guess.
+
+**What it costs.** The word loses two things the three shapes below it
+never had: the **+** that adds a second accepted answer, and the list of
+its recordings under the microphone. A second spelling is still written
+the way it is written everywhere in the app, with a slash between them,
+and a card that already has two is unaffected. The microphone opens the
+same recording screen the button did.
+
 ## 0.209 — 22 September 2026
 
 **The other forms of a word go short again, and the word stops being

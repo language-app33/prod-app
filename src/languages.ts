@@ -1548,6 +1548,11 @@ const AR_AGREEMENT: VerbSpec = {
   ],
   tenses: [{ id: "agreement", label: "agreement" }],
   label: "feminine, plural and dual",
+  /* And the word itself, which is the masculine singular — named here so
+     it can stand at the head of that list rather than beside it with no
+     name. Nothing changes about it: it is still the card's own word and
+     still not a cell. */
+  base: "masculine",
   gate: "word",
 };
 
@@ -1578,6 +1583,11 @@ const HE_AGREEMENT: VerbSpec = {
   ],
   tenses: [{ id: "agreement", label: "agreement" }],
   label: "feminine, masculine plural and feminine plural",
+  /* The masculine singular here too. Read down the four names — masculine,
+     feminine, masculine plural, feminine plural — and the first two are
+     singular by standing against the last two, which is how a paradigm is
+     written and why neither of them says so. */
+  base: "masculine",
   gate: "word",
 };
 

@@ -5565,24 +5565,29 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("including the form beside a pair",
         !!boxes(/^Arabic script for dual$/).length,
         boxes(/ for (feminine|plural|dual)$/).join(" | ") || "(no table)");
-      /* Beside the word rather than under a heading of their own further
-         down the page — and short: a name and the three boxes the app
-         shows any form in, which is what they were before anybody moved
-         them. Three shapes of one word are a list, not three subjects. */
+      /* One section and one list: the word and its shapes are four rows of
+         the same thing, in the three boxes the app shows any form in.
+         They were a block of named fields and then a second block of short
+         rows — one list written in two hands with a border between. */
       const blockNames = () => [...document.querySelectorAll(".at-formnum")]
         .map((n) => (n.textContent || "").trim());
       const fieldNames = () => [...document.querySelectorAll(".at-label")]
         .map((n) => (n.textContent || "").trim());
       check("each of them named and beside the word, in the fewest boxes that hold a form",
-        blockNames().includes("Its other forms") &&
+        blockNames().includes("The word and its forms") &&
+          !blockNames().includes("Its other forms") &&
           ["feminine", "plural", "dual"].every((c) => fieldNames().includes(c)) &&
           !!boxes(/^English for feminine$/).length,
         `${blockNames().join(" | ")} · ${fieldNames().join(" | ")}`);
-      /* And the word itself is not numbered, because there is nothing for
-         it to be the first of. */
-      check("and the word itself is called what it is rather than numbered",
-        blockNames().includes("The main form"),
-        blockNames().join(" | "));
+      /* And the word itself is one of them, under the name the language
+         gives it: a row of boxes called nothing, beside three called
+         feminine, plural and dual, was the odd one out for want of a word
+         that was there to be said. Arabic says masculine. */
+      check("and the word itself is named by the language rather than by the screen",
+        fieldNames().includes("masculine") &&
+          !!boxes(/^Arabic script for masculine$/).length &&
+          !blockNames().some((n) => /^(Form 1|The main form)$/.test(n)),
+        `${fieldNames().join(" | ")} · ${blockNames().join(" | ")}`);
       check("with no number or gender on the word, because the table is its number and gender",
         !grammarBtn(), grammarBtn() ? "grammar asked" : "not asked");
       /* And the ticks are about the card rather than about the block they
@@ -5595,7 +5600,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         blockNames().join(" | "));
       const blocksUp = () => [...document.querySelectorAll(".at-formnum")].map((n) => (n.textContent || "").trim());
       check("and no second form offered, because a spelling is an accepted answer",
-        !addForm() && blocksUp().includes("The main form"),
+        !addForm() && blocksUp().includes("The word and its forms"),
         addForm() ? "a form is offered" : blocksUp().join(" | "));
       /* Nor any other way to one. Taking the Add button away and leaving
          Duplicate on the card's own word was not taking it away: the
@@ -5605,11 +5610,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .find((b) => /^Duplicate$/.test((b.textContent || "").trim()));
       check("and no other way to one either, because the table is the forms",
         !copyBtn(), copyBtn() ? "still offered" : "no such button");
-      check("and the line under the word says where its forms are, rather than pointing at nothing",
-        /shapes it takes beside a noun are written below/.test(document.body.textContent || "") &&
+      check("and the line under the heading says what the list is, rather than pointing at nothing",
+        /the shapes it takes beside a noun/.test(document.body.textContent || "") &&
           !/You can add additional forms/.test(document.body.textContent || ""),
         ((([...document.querySelectorAll(".at-formblock")]
-          .find((b) => /^The main form$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
+          .find((b) => /^The word and its forms$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()))
           || document.body).querySelector(".at-formrole") || {}).textContent || "").trim().slice(0, 90));
 
       /* A number is not one of the answers any more: the faces a numeral
@@ -5922,9 +5927,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       [...document.querySelectorAll(".at-drillhead")].length === 2,
     [...document.querySelectorAll(".at-drillhead")]
       .map((n) => (n.textContent || "").trim()).join(" | ") || "(no heads)");
-  check("with the word keeping its own block, being what these are forms of",
-    [...document.querySelectorAll(".at-formnum")].some((n) => (n.textContent || "").trim() === "The main form"),
-    [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
+  /* And the word at the head of the same list, in the same boxes, under
+     the name Arabic gives it — one section, not a block and a block. */
+  const masc = box("Arabic script for masculine");
+  check("with the word at the head of the list, named and written like the rest of it",
+    !!masc && masc.value === "كبير" &&
+      [...document.querySelectorAll(".at-formnum")]
+        .some((n) => (n.textContent || "").trim() === "The word and its forms"),
+    `${masc ? `"${masc.value}"` : "no masculine box"} · ${
+      [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | ")}`);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
   await sleep(300);
   click([...document.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back"));
