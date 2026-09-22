@@ -550,9 +550,15 @@ test("what a word is decides which table it is offered", () => {
   assert.equal(tableFor(ar, "verb"), "verb");
   assert.equal(tableFor(ar, "noun"), "attached");
   assert.equal(tableFor(ar, "preposition"), "attached");
-  /* An adjective its feminine and plural; a number its feminine. */
+  /* An adjective its feminine and plural. */
   assert.equal(tableFor(ar, "adjective"), "agreement");
-  assert.equal(tableFor(ar, "number"), "counted");
+  /* A number has none any more: the faces a numeral takes are boxes in the
+     language's number system, and the card under one is written by the app
+     out of what the teacher typed there. The kind is still read — a card
+     saved while it was offered goes on saying what it is — so this asks
+     for the table of a kind nobody is offered and gets the same nothing a
+     kind nobody declared gets. */
+  assert.equal(tableFor(ar, "number"), "");
   /* And everything else is the word and whatever forms the teacher
      writes — including a word nobody has said anything about. */
   assert.equal(tableFor(ar, "name"), "");
@@ -1374,7 +1380,11 @@ test("only a verb has its dictionary form seeded", () => {
   const bigCells = initialCells(big, arLang);
   assert.deepEqual(bigCells.map((/** @type {any} */ c) => [c.row, c.col]), [["agreement", "feminine"]]);
   assert.equal(initialCategory(big, arLang, bigCells), "adjective");
-  assert.equal(initialCategory(big, arLang, [cellOf("counted", "feminine")]), "number");
+  /* And a card whose only cells sit in a table no pack lays out any more
+     is a card of no kind, rather than a kind guessed from a table that has
+     gone. The cells stay on it: half of a card is worth more than none,
+     which is the rule every reader of one follows. */
+  assert.equal(initialCategory(/** @type {any} */ ({ id: "n" }), arLang, [cellOf("counted", "feminine")]), "");
 });
 
 /*

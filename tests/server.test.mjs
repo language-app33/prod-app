@@ -2350,6 +2350,23 @@ test("a teacher's numbers are saved, read back, and minted an id of their own", 
   assert.equal((await api("/api/courses?action=my-systems", { key })).json.systems.length, 2);
 });
 
+/*
+ * What a build before the number system stored on a number card.
+ *
+ * Written onto the record rather than sent, because the server does not
+ * take a `value` from anybody any more: there are no parts to be one of.
+ * A value already there is kept and read — which is the whole of what the
+ * lift below has to work from — so this is how a card written by the old
+ * screen is put in front of it.
+ * @param {string} id @param {number} value
+ */
+async function storeValue(/** @type {string} */ id, /** @type {number} */ value) {
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+  const card = JSON.parse(must(await store.get(`card:${id}`), `card ${id}`));
+  await store.set(`card:${id}`, JSON.stringify({ ...card, value }));
+}
+
 test("a teacher who filled in the old Numbers screen finds their words in the new one", async () => {
   /*
    * A lift on read, in the mould every other migration here is: it runs
@@ -2375,9 +2392,10 @@ test("a teacher who filled in the old Numbers screen finds their words in the ne
     if (feminine) forms.push({ ar: feminine, en: String(value), lat: "", row: "counted", col: "feminine" });
     const saved = await api("/api/courses?action=save-card", {
       method: "POST", key,
-      body: { card: { id: "", lang: "ar-PS", forms, category: "number", value }, decks: [] },
+      body: { card: { id: "", lang: "ar-PS", forms, category: "number" }, decks: [] },
     });
     assert.equal(saved.status, 200, saved.text);
+    await storeValue(saved.json.card.id, Number(value));
     written.push(saved.json.card.id);
   }
 
@@ -2429,6 +2447,91 @@ test("a teacher with no number cards gets no system built for them", async () =>
     body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "kitaab", en: "book", lat: "" }] }, decks: [] },
   });
   assert.deepEqual((await api("/api/courses?action=my-systems", { key })).json.systems, []);
+});
+
+test("a number card keeps what it was worth, and no save can give one a new value", async () => {
+  /*
+   * The one field of the old model that is kept rather than dropped.
+   *
+   * Nothing writes a value any more — there are no parts to be one of —
+   * so a value that arrives is ignored like any other field nobody
+   * writes. But the value already on a card is the only record of which
+   * box it fills, and it is what the lift reads. Stripping it on the next
+   * save would pull the mapping out from under the migration, and a
+   * teacher fixing a typo on the word for forty would be the one who did
+   * it.
+   */
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Nabil" } });
+  const key = made.json.key;
+  const first = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "arba3iin", en: "40", lat: "" }], value: 40 }, decks: [] },
+  });
+  assert.equal(first.json.card.value, undefined, "a value sent in is not taken");
+
+  await storeValue(first.json.card.id, 40);
+  const again = await api("/api/courses?action=save-card", {
+    method: "POST", key,
+    body: {
+      card: { id: first.json.card.id, lang: "ar-PS", forms: [{ ar: "arba3een", en: "40", lat: "" }], value: 70 },
+      decks: [],
+    },
+  });
+  assert.equal(again.status, 200, again.text);
+  assert.equal(again.json.card.value, 40, "the stored value survives a save, and cannot be changed by one");
+  assert.equal(leadOf(again.json.card).ar, "arba3een", "and the rest of the card is saved as sent");
+});
+
+test("a class whose teacher never opened the screen still gets their numbers", async () => {
+  /*
+   * The migration runs from the students' own poll as well, because a
+   * teacher who never opens the number screen would otherwise leave a
+   * class with a shelf of number cards and no system to build a range
+   * out of. Once per person, ever — the index is stamped — so the poll
+   * that every device makes every few minutes does not read a whole
+   * collection each time.
+   */
+  const teacher = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Rania" } });
+  const tKey = teacher.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key: tKey, body: { adminKey: ADMIN_KEY } });
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key: tKey, body: { title: "Numbers", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key: tKey, body: { title: "Arabic 1", language: "ar-PS" },
+  });
+  await api("/api/courses?action=attach-deck", {
+    method: "POST", key: tKey, body: { deckId, courseId: course.json.course.id },
+  });
+  for (const [value, word] of [[1, "wahad"], [2, "tnen"], [20, "ishrin"]]) {
+    const saved = await api("/api/courses?action=save-card", {
+      method: "POST", key: tKey,
+      body: {
+        card: { id: "", lang: "ar-PS", forms: [{ ar: word, en: String(value), lat: "" }], category: "number" },
+        decks: [deckId],
+      },
+    });
+    await storeValue(saved.json.card.id, Number(value));
+  }
+
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Dana" } });
+  const sKey = student.json.key;
+  await api("/api/courses?action=assign-student", {
+    method: "POST", key: tKey,
+    body: { courseId: course.json.course.id, handle: student.json.user.handle },
+  });
+
+  const material = await api("/api/courses?action=my-material", { key: sKey });
+  assert.equal(material.status, 200, material.text);
+  const systems = material.json.systems || [];
+  assert.equal(systems.length, 1, "the student's own poll read the teacher's cards across");
+  assert.equal(systems[0].lexemes["ten.20"].forms.standalone, "ishrin");
+  /* And the teacher opening the screen afterwards finds the same one
+     rather than a second. */
+  const mine = await api("/api/courses?action=my-systems", { key: tKey });
+  assert.equal(mine.json.systems.length, 1);
+  assert.equal(mine.json.systems[0].id, systems[0].id);
 });
 
 test("a save built on an older copy is refused, and hands back the one that is there", async () => {

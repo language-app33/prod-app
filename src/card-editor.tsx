@@ -2246,7 +2246,12 @@ export const shapeOf = (card: Card | null | undefined): CardShape =>
 export const categoryChoices = (
   lang: Lang | null | undefined,
 ): { value: string; label: string; note: string }[] =>
-  categoriesOf(lang).map((c) => ({ value: c.id, label: c.label, note: c.note }));
+  categoriesOf(lang)
+    /* A kind that is no longer asked about is still read — a card saved
+       while it was offered goes on saying what it is — but it is not one
+       of the answers. See WordCategory.retired. */
+    .filter((c) => !c.retired)
+    .map((c) => ({ value: c.id, label: c.label, note: c.note }));
 
 /**
  * And which of them the radio actually offers.

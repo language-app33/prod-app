@@ -922,6 +922,11 @@ export default async (req) => {
       return {
         numbers: (held.numbers && typeof held.numbers === "object") ? held.numbers : {},
         times: (held.times && typeof held.times === "object") ? held.times : {},
+        /* Whether the old number cards have already been read. A stamp
+           rather than a thing to work out, because every student's device
+           asks this question on every poll and the honest answer costs a
+           read of the teacher's whole collection. */
+        seeded: !!held.seeded,
       };
     }
 
@@ -947,8 +952,19 @@ export default async (req) => {
      * @param {string} owner
      */
     async function seedSystems(owner) {
+      if (!owner) return;
+      /* Once per person, ever. It used to run only where a teacher opened
+         the screen, and then a class whose teacher never did would keep a
+         shelf of number cards and no system to build a range out of. It
+         runs from the students' own poll as well now, so the stamp is
+         what keeps that poll from reading a whole collection every time. */
+      if ((await systemIndex(owner)).seeded) return;
       /** @type {string[]} */
       const ids = (await readJson(store, K.myCards(owner))) || [];
+      await updateJson(store, K.mySystems(owner), (current) => {
+        const held = current && typeof current === "object" ? current : {};
+        return held.seeded ? null : { ...held, seeded: true };
+      });
       if (!ids.length) return;
       const rows = (await readManyJson(store, ids.map((id) => K.card(id)))).filter(Boolean);
       /** @type {Map<string, any[]>} */
@@ -1155,20 +1171,17 @@ export default async (req) => {
            another. Stored as "" where nobody has said, which is what
            every card written before the question existed carries. */
         category: idish(card.category),
-        /* Which number this card is worth, where it is a number.
-           Everything that builds a number out of the teacher's parts finds
-           those parts by this and nothing else: two teachers will write
-           "forty" and "أربعين" and neither string says what it is worth.
-           A whole number, never negative, and capped where the practice
-           stops — a card claiming more is a card claiming something no
-           exercise could ask. Absent on every other card, and on every
-           card written before numbers were built rather than memorised. */
-        ...(Number.isFinite(Number(card.value)) &&
-        Number.isInteger(Number(card.value)) &&
-        Number(card.value) >= 0 &&
-        Number(card.value) <= 9999999
-          ? { value: Number(card.value) }
-          : {}),
+        /* No `value` here, and none taken from a save.
+           It was what made a card one of the parts a number was built out
+           of, and there are no parts any more: a language's numbers are
+           one document now, and the cards under it are written by the app
+           out of that. So a value that arrives is dropped, like any other
+           field nobody writes. A value already *stored* is kept — it comes
+           through the spread of the card as it stood — because it is the
+           one record of which box an old card fills and it is what the
+           lift reads. Stripping it on the next save would be pulling the
+           mapping out from under the migration. Kept the way a retired
+           grammar axis is kept, and read in `seedSystems`. */
         note: String(card.note || "").slice(0, 500),
         lang: String(card.lang || "").slice(0, 12),
         /* Which blanks this card fills, where it is a value rather than
@@ -2096,6 +2109,10 @@ export default async (req) => {
             .filter(Boolean)
         ),
       ];
+      /* And a teacher who never opened the screen still has their words
+         read across, because a student's own poll does it. Once per
+         teacher, ever — see seedSystems, which stamps itself. */
+      await Promise.all(teacherHandles.map((h) => seedSystems(h)));
       const systems = (
         await Promise.all(teacherHandles.map((h) => systemsOf(h, langs)))
       ).flat();

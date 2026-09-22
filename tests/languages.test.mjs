@@ -764,22 +764,20 @@ test("the verb and the pronouns are still found by name, and the rest by the reg
   assert.equal(verbOf(ar), specOf(ar, "verb"));
   assert.equal(attachedOf(ar), specOf(ar, "attached"));
   assert.ok(specOf(ar, "agreement"), "Arabic adjectives agree");
-  assert.ok(specOf(ar, "counted"), "and its numbers take a feminine form");
+  /* And the faces a numeral takes, which every pack with a composer lays
+     out under the same name. The `counted` table it had instead — one cell
+     for the form beside a feminine noun — went with the cards it was for:
+     the faces are boxes in the number system now, and there are five of
+     them rather than one. */
+  assert.equal(specOf(ar, "counted"), null);
+  assert.ok(specOf(ar, "number"), "and the faces a numeral takes");
   assert.equal(specOf(ar, "no-such-table"), null);
   assert.equal(specOf(null, "verb"), null);
-  /* Huế lays out a verb, and a number's forms inside a bigger number —
-     năm is five and mười lăm is fifteen, which is one word with two faces
-     and so a cell. It is the same table name the Semitic packs use for a
-     number's feminine, and deliberately: what a table is called is how a
-     card finds it, and what is in it is the language's own business. */
   const vi = LANGUAGES["vi-Hue"];
-  /* And the faces a numeral takes, which every pack with a composer now
-     lays out under the same name — Huế's is the one form a word wears
-     inside a bigger number. */
-  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb", "counted", "number"]);
+  assert.deepEqual(Object.keys(tablesOf(vi)), ["verb", "number"]);
   assert.equal(specOf(vi, "agreement"), null);
-  assert.deepEqual(must(specOf(vi, "counted"), "Huế counted").persons.map((p) => p.id),
-    ["after-ten", "empty-place"]);
+  assert.deepEqual(must(specOf(vi, "number"), "Huế number").persons.map((p) => p.id),
+    ["company"]);
   /* Hebrew agrees in number and gender at once, so its plural is two cells. */
   assert.deepEqual(must(specOf(LANGUAGES["he-IL"], "agreement"), "Hebrew agreement").persons.map((p) => p.id),
     ["feminine", "masc-plural", "fem-plural"]);
@@ -794,14 +792,18 @@ test("a table says what its cells wait on, and whose it is", () => {
   assert.equal(!!must(specOf(ar, "agreement"), "agreement").perForm, false, "an adjective's forms are the card's");
   /* What it is called to a teacher, where the rows do not say. */
   assert.ok(must(specOf(ar, "agreement"), "agreement").label);
-  assert.ok(must(specOf(ar, "counted"), "counted").label);
+  assert.ok(must(specOf(ar, "number"), "number").label);
 });
 
 test("what a kind of word lays out, and what it is asked about, is the category's answer", () => {
   const ar = LANGUAGES["ar-PS"];
   const cat = (/** @type {string} */ id) => must(categoriesOf(ar).find((c) => c.id === id), id);
   assert.equal(cat("adjective").table, "agreement");
-  assert.equal(cat("number").table, "counted");
+  /* A number lays out nothing and is offered to nobody: its faces are
+     boxes in the language's number system now. The kind is still declared
+     so that a card saved while it was offered goes on saying what it is. */
+  assert.equal(cat("number").table, undefined);
+  assert.equal(cat("number").retired, true);
   assert.equal(cat("noun").table, "attached");
   assert.equal(cat("verb").table, "verb");
   assert.equal(cat("pronoun").table, undefined);
@@ -826,7 +828,9 @@ test("what a kind of word lays out, and what it is asked about, is the category'
 test("which kinds of word agree out of a table, and which do not", () => {
   const ar = LANGUAGES["ar-PS"];
   assert.ok(agreementOf(ar, "adjective"), "an adjective agrees");
-  assert.ok(agreementOf(ar, "number"), "so does a number, by gender");
+  /* A number did, out of a table with one cell in it. It agrees in five
+     faces now, out of the number system, which is not a card's table. */
+  assert.equal(agreementOf(ar, "number"), null);
   /* The pronouns on the end of a word pick nothing, and a verb's three
      rows need a sentence to say which. */
   assert.equal(agreementOf(ar, "noun"), null);

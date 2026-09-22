@@ -201,10 +201,11 @@ const value = {
   ],
 };
 
-/* A part of a number, which is the one card whose worth is the point of it.
-   Written from the numbers screen rather than the card editor, which is the
-   second reason the read-out walks the card instead of mirroring the
-   editor. */
+/* A number card from before the language's numbers were one system: it
+   carries what it was worth, and the kind of word nobody is offered any
+   more. Neither is written now and a card that has them keeps them, which
+   is the second reason the read-out walks the card instead of mirroring
+   the editor. */
 const part = {
   id: "srv-part",
   lang: AR,
@@ -271,7 +272,7 @@ export const CORPUS = [
   { what: "a sentence with two blanks in it", card: sentence },
   { what: "a sentence whose verb blank asks for one tense", card: tensed },
   { what: "a value that fills other cards' blanks and is not asked itself", card: value },
-  { what: "a part of a number, carrying what it is worth", card: part },
+  { what: "a number card from before the number system, carrying what it was worth", card: part },
   { what: "a conversation with its speakers, its setting and a turn kept unasked", card: scene },
   { what: "a card in the shape stored before forms were one list, with a retired axis and a lexical one", card: legacy },
 ];

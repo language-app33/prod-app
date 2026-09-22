@@ -25,7 +25,7 @@ import { isOffline, watchNet } from "./net.ts";
 import { composerFor, timeComposerFor } from "./numbers/index.ts";
 import { readNumberSystem, readTimeSystem } from "./numbers/schema.ts";
 import type { SystemSet } from "./numbers/generate.ts";
-import { generate } from "./numbers/generate.ts";
+import { generate, handOn } from "./numbers/generate.ts";
 
 /*
  * Anything React will render: an element, a string, a list of them, or
@@ -3992,7 +3992,12 @@ export async function pullCourses(
       tag: `${(lang && lang.name) || set.numbers.languageId} numbers`,
       now,
     });
-    for (const item of made.items) {
+    /* And a learner who could already read the word for forty off the
+       card their teacher wrote is not asked it again from scratch because
+       that card is a box now. See handOn, which reads what the migration
+       wrote down and moves the schedule across — once, onto a card this
+       device has never held. */
+    for (const item of handOn(made.items, items, set.numbers)) {
       if (at.has(item.id)) continue;
       at.set(item.id, item);
       incoming.push(item);

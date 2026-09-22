@@ -20,12 +20,7 @@ import type {
   GrammarDim,
   Lang,
   LangId,
-  NumberBand,
-  NumberCell,
-  NumberCtx,
-  NumberSpec,
   Settings,
-  Spelling,
   Verdicts,
   VerbPerson,
   VerbSpec,
@@ -1551,467 +1546,6 @@ const HE_AGREEMENT: VerbSpec = {
   gate: "word",
 };
 
-/*
- * The form a number takes with a feminine noun.
- *
- * Its own table rather than the adjective's with a cell left blank, and
- * the reason is the picks: the noun a number counts is plural, so an
- * agreement table's plural column would fire on every one of them and
- * select a cell nobody fills. A number's column picks on gender alone.
- * Which form goes in which box is the teacher's typing — ثلاثة in the
- * word, ثلاث here — so the reversed agreement of three to ten is written
- * down rather than known.
- */
-const COUNTED_TABLE: VerbSpec = {
-  persons: [{ id: "feminine", label: "feminine", picks: { gender: "feminine" } }],
-  tenses: [{ id: "counted", label: "counted" }],
-  label: "feminine",
-  gate: "word",
-};
-
-/* ---- how a language builds its numbers ----
-
-   Declared once per pack, because this is the part that is genuinely
-   different everywhere: Arabic says the unit before the ten and puts a و
-   in front of every chunk, Hebrew says the ten before the unit and puts a
-   ו in front of only the last, and Huế changes the word for five when it
-   follows a ten and says *không trăm* — no hundred — in the middle of a
-   thousand so that the places still line up.
-
-   None of that is in src/numbers.ts, and none of it should be. What the
-   app knows is how to find the card a part is written on and how far a
-   deck reaches; what a pack knows is the language. The test of the split
-   is that a fourth language should be addable here and nowhere else.
-
-   Two rules every `spell` below follows:
-
-     * **Ask for a part, and give up if it is not there.** `ctx.word` is ""
-       for a box the teacher has not filled, and returning null is how a
-       deck that stops at ten is never asked for a hundred.
-     * **Say what was used.** The values in `used` are the cards that stood
-       in the number, and they are what a right answer credits.
-
-   The bands are the one thing they share, so they are declared once and
-   spread in. They are a ramp rather than a classification — each is a
-   stretch the practice opens only once everything below it can be built —
-   which is why they are the same shape in three languages that agree
-   about nothing else. */
-const NUMBER_BANDS: NumberBand[] = [
-  { id: "units", label: "0 to 10", from: 0, to: 10 },
-  { id: "teens", label: "11 to 20", from: 11, to: 20 },
-  { id: "tens", label: "21 to 99", from: 21, to: 99 },
-  { id: "hundreds", label: "100 to 999", from: 100, to: 999 },
-  { id: "thousands", label: "1,000 to 9,999", from: 1000, to: 9999 },
-  { id: "tens-of-thousands", label: "10,000 to 99,999", from: 10000, to: 99999 },
-  { id: "hundreds-of-thousands", label: "100,000 to 999,999", from: 100000, to: 999999 },
-  { id: "millions", label: "1,000,000 to 9,999,999", from: 1000000, to: 9999999 },
-];
-
-/** A run of values — the tens are 20, 30 … 90, which is tedious to write
-    out three times and easy to get wrong once. */
-const numRun = (from: number, to: number, step: number): number[] => {
-  const out: number[] = [];
-  for (let v = from; v <= to; v += step) out.push(v);
-  return out;
-};
-
-/*
- * Arabic and Hebrew ask for the same boxes: every unit, every teen as its
- * own word, the tens, and every hundred and thousand because both fuse
- * them — خمسمية is not خمسة followed by مية, and שלוש מאות is two words
- * where תשע מאות is two different ones. A language that built its
- * hundreds regularly would declare one box for *hundred* and let the
- * pack multiply, the way Huế does below.
- */
-const SEMITIC_NUMBER_GROUPS = [
-  {
-    id: "units",
-    label: "Zero to ten",
-    note: "The words everything else is built out of.",
-    parts: numRun(0, 10, 1).map((value) => ({ value })),
-  },
-  {
-    id: "teens",
-    label: "Eleven to nineteen",
-    note: "Each is its own word rather than a ten and a unit.",
-    parts: numRun(11, 19, 1).map((value) => ({ value })),
-  },
-  {
-    id: "tens",
-    label: "The tens",
-    note: "Twenty to ninety. Everything between them is built from these and a unit.",
-    parts: numRun(20, 90, 10).map((value) => ({ value })),
-  },
-  {
-    id: "hundreds",
-    label: "The hundreds",
-    note: "One hundred to nine hundred, each written out — the hundreds fuse with the unit in front of them, so they cannot be built.",
-    parts: numRun(100, 900, 100).map((value) => ({ value })),
-  },
-  {
-    id: "thousands",
-    label: "The thousands",
-    note: "One thousand to nine thousand. Anything above nine thousand is built from these.",
-    parts: numRun(1000, 9000, 1000).map((value) => ({ value })),
-  },
-  {
-    id: "millions",
-    label: "The millions",
-    note: "One million to nine million.",
-    parts: numRun(1000000, 9000000, 1000000).map((value) => ({ value })),
-  },
-];
-
-/**
- * The feminine box beside a unit, which both Semitic packs already lay
- * out as the `counted` table and which the Numbers screen is simply
- * another way into.
- *
- * Arabic's `spell` does not read it — counting aloud in Arabic uses the
- * form the card's own word already holds — but an adjective agreeing with
- * a counted noun does, which is what 0.141 added. Hebrew's `spell` does
- * read it: counting in the abstract is feminine there, so *three* said on
- * its own is שלוש and not שלושה.
- */
-const semiticNumberCells = (value: number): NumberCell[] =>
-  value >= 1 && value <= 19
-    ? [{ id: "feminine", row: "counted", label: "feminine", hint: "The form used with a feminine noun." }]
-    : [];
-
-/**
- * Palestinian Arabic.
- *
- * Chunks, largest first, joined by و — مية وخمسة وعشرين. Inside a chunk
- * the unit comes before the ten and takes the same و, which is why the
- * join is uniform: every piece after the first wears one.
- */
-const AR_NUMBERS: NumberSpec = {
-  groups: SEMITIC_NUMBER_GROUPS,
-  bands: NUMBER_BANDS,
-  cells: semiticNumberCells,
-  spell(value: number, ctx: NumberCtx): Spelling | null {
-    /* A card written for the whole number wins over building one, which is
-       how anything this pack gets wrong can be overridden by the teacher
-       simply writing it down. */
-    const exact = ctx.word(value);
-    if (exact) return { text: exact, used: [value] };
-
-    const used: number[] = [];
-    /* One to 999, as it is said inside a larger number. */
-    const under1000 = (n: number): string | null => {
-      const bits: string[] = [];
-      const take = (v: number): boolean => {
-        const w = ctx.word(v);
-        if (!w) return false;
-        bits.push(w);
-        used.push(v);
-        return true;
-      };
-      const hundreds = Math.floor(n / 100) * 100;
-      const tail = n % 100;
-      if (hundreds && !take(hundreds)) return null;
-      if (tail) {
-        /* The teens are words in their own right and the tens are round,
-           so only what is left needs a unit and a ten put together. */
-        if (tail <= 19 || tail % 10 === 0) {
-          if (!take(tail)) return null;
-        } else if (!take(tail % 10) || !take(tail - (tail % 10))) return null;
-      }
-      return bits.length ? bits.join(" و") : null;
-    };
-
-    const chunks: string[] = [];
-    /* A scale said as its own word where the teacher wrote one — تلات
-       آلاف is a box on the screen — and counted out where they did not,
-       which is what carries eleven thousand. */
-    const scale = (count: number, unit: number): boolean => {
-      if (!count) return true;
-      const whole = ctx.word(count * unit);
-      if (whole) {
-        chunks.push(whole);
-        used.push(count * unit);
-        return true;
-      }
-      const said = under1000(count);
-      const word = ctx.word(unit);
-      if (!said || !word) return false;
-      chunks.push(`${said} ${word}`);
-      used.push(unit);
-      return true;
-    };
-
-    if (!scale(Math.floor(value / 1000000), 1000000)) return null;
-    if (!scale(Math.floor((value % 1000000) / 1000), 1000)) return null;
-    const rest = value % 1000;
-    if (rest) {
-      const said = under1000(rest);
-      if (!said) return null;
-      chunks.push(said);
-    }
-    if (!chunks.length) return null;
-    return { text: chunks.join(" و"), used };
-  },
-};
-
-/**
- * Modern Hebrew.
- *
- * The same parts and the opposite habits: the ten before the unit —
- * עשרים וחמש — and a ו in front of the last word only, so 1,525 is אלף
- * חמש מאות עשרים וחמש with a single ו in it. Pieces are therefore kept
- * flat rather than in chunks: where the ו goes is a fact about the whole
- * number, not about each part of it.
- *
- * And it counts in the feminine. A number said on its own — reading 5 out
- * loud, counting to ten — is חמש, not חמשה, so the feminine cell is
- * preferred over the card's own word wherever the teacher has filled it
- * in, and the card's own word carries on being the masculine one that
- * stands beside a noun.
- */
-const HE_NUMBERS: NumberSpec = {
-  groups: SEMITIC_NUMBER_GROUPS,
-  bands: NUMBER_BANDS,
-  cells: semiticNumberCells,
-  spell(value: number, ctx: NumberCtx): Spelling | null {
-    const pick = (v: number): string => ctx.cell(v, "feminine") || ctx.word(v);
-    const exact = pick(value);
-    if (exact) return { text: exact, used: [value] };
-
-    const used: number[] = [];
-    const pieces: string[] = [];
-    /* `how` is which face of a word to use: counting in the abstract is
-       feminine, and a count standing in front of a scale word is not. */
-    const under1000 = (n: number, how: (v: number) => string = pick): string[] | null => {
-      const out: string[] = [];
-      const take = (v: number): boolean => {
-        const w = how(v);
-        if (!w) return false;
-        out.push(w);
-        used.push(v);
-        return true;
-      };
-      const hundreds = Math.floor(n / 100) * 100;
-      const tail = n % 100;
-      if (hundreds && !take(hundreds)) return null;
-      if (tail) {
-        if (tail <= 19 || tail % 10 === 0) {
-          if (!take(tail)) return null;
-        } else if (!take(tail - (tail % 10)) || !take(tail % 10)) return null;
-      }
-      return out.length ? out : null;
-    };
-
-    /* Where the ו goes: in front of the last word and nowhere else, so
-       1,525 has one in it and not three. Used for the number as a whole
-       and again inside a count — twenty-one thousand is עשרים ואחד אלף,
-       with the ו inside the count rather than before אלף. */
-    const join = (of: string[]): string =>
-      of.length === 1 ? of[0] : `${of.slice(0, -1).join(" ")} ו${of[of.length - 1]}`;
-
-    const scale = (count: number, unit: number): boolean => {
-      if (!count) return true;
-      const whole = pick(count * unit);
-      if (whole) {
-        pieces.push(whole);
-        used.push(count * unit);
-        return true;
-      }
-      /* The count in front of a scale word is masculine, because אלף is a
-         masculine noun and this is no longer counting in the abstract:
-         eleven thousand is אחד עשר אלף, not אחת עשרה אלף. It is the one
-         place in a number where the feminine is wrong, and the reason the
-         masculine stays on the card rather than being replaced by it. */
-      const said = under1000(count, ctx.word);
-      const word = pick(unit);
-      if (!said || !word) return false;
-      pieces.push(`${join(said)} ${word}`);
-      used.push(unit);
-      return true;
-    };
-
-    if (!scale(Math.floor(value / 1000000), 1000000)) return null;
-    if (!scale(Math.floor((value % 1000000) / 1000), 1000)) return null;
-    const rest = value % 1000;
-    if (rest) {
-      const said = under1000(rest);
-      if (!said) return null;
-      pieces.push(...said);
-    }
-    if (!pieces.length) return null;
-    return { text: join(pieces), used };
-  },
-};
-
-/*
- * Huế Vietnamese.
- *
- * Eleven boxes and three words, against the Semitic packs' fifty-five:
- * the language is regular, so *năm trăm* is five and hundred said one
- * after the other and there is nothing to write down for it. What it asks
- * for instead is the three multiplier words on their own — trăm, nghìn,
- * triệu — which is why those boxes are glossed *hundred* rather than
- * *100*: one hundred is *một trăm*, with the one said out loud, and a box
- * holding *một trăm* could not be used to build five hundred.
- *
- * The irregularity is all in company. *Năm* is five and *mười lăm* is
- * fifteen; *một* is one and *hai mươi mốt* is twenty-one; *mười* is ten
- * and *hai mươi* is twenty. Each of those is the same word wearing a
- * different face inside a bigger number, so each is a cell on its own
- * card and the teacher writes it once.
- */
-const VI_MULTIPLIERS = new Set([100, 1000, 1000000]);
-
-const VI_NUMBERS: NumberSpec = {
-  groups: [
-    {
-      id: "units",
-      label: "Zero to ten",
-      note: "The words everything else is built out of.",
-      parts: numRun(0, 10, 1).map((value) => ({ value })),
-    },
-    {
-      id: "scales",
-      label: "Hundred, thousand, million",
-      note: "The bare words on their own, without the one in front: the app says the one. Write trăm, not một trăm.",
-      parts: [
-        { value: 100, label: "hundred", gloss: "hundred", hint: "As in năm trăm — five hundred." },
-        { value: 1000, label: "thousand", gloss: "thousand", hint: "nghìn or ngàn, whichever you teach." },
-        { value: 1000000, label: "million", gloss: "million" },
-      ],
-    },
-  ],
-  bands: NUMBER_BANDS,
-  /* The four words that change inside a bigger number. Every other unit
-     is said exactly as it is, so every other box has nothing beside it. */
-  cells: (value: number): NumberCell[] => {
-    if (value === 0) {
-      return [
-        {
-          id: "empty-place",
-          row: "counted",
-          label: "empty place",
-          hint: "As in một trăm lẻ năm — one hundred and five.",
-        },
-      ];
-    }
-    const hints: Record<number, string> = {
-      1: "As in hai mươi mốt — twenty-one.",
-      4: "As in hai mươi tư — twenty-four.",
-      5: "As in mười lăm — fifteen.",
-      10: "As in hai mươi — twenty.",
-    };
-    return hints[value]
-      ? [{ id: "after-ten", row: "counted", label: "after a ten", hint: hints[value] }]
-      : [];
-  },
-  spell(value: number, ctx: NumberCtx): Spelling | null {
-    /* Every box but the three multipliers is the name of its own number,
-       so only those three are skipped here: the box for 100 holds *trăm*,
-       and answering 100 with it would be answering *hundred*. */
-    if (!VI_MULTIPLIERS.has(value)) {
-      const exact = ctx.word(value);
-      if (exact) return { text: exact, used: [value] };
-    }
-
-    const used: number[] = [];
-    const take = (v: number): string | null => {
-      const w = ctx.word(v);
-      if (!w) return null;
-      used.push(v);
-      return w;
-    };
-    /* The changed form where there is one, and the plain word where there
-       is not: *ba* is *ba* wherever it stands. */
-    const inCompany = (v: number): string | null => {
-      const cell = ctx.cell(v, "after-ten");
-      if (cell) {
-        used.push(v);
-        return cell;
-      }
-      return take(v);
-    };
-
-    /* 10 to 99. `tens` is how many tens — 1 is mười and the rest are the
-       digit followed by mươi, which is ten's own changed form. */
-    const under100 = (n: number): string | null => {
-      const tens = Math.floor(n / 10);
-      const unit = n % 10;
-      let head: string | null;
-      if (tens === 1) head = take(10);
-      else {
-        const digit = take(tens);
-        const tenWord = inCompany(10);
-        head = digit && tenWord ? `${digit} ${tenWord}` : null;
-      }
-      if (!head) return null;
-      if (!unit) return head;
-      /* One and four only change after two tens or more — *mười một* but
-         *hai mươi mốt*. Five changes after any ten at all. */
-      const changes = unit === 5 || ((unit === 1 || unit === 4) && tens >= 2);
-      const tail = changes ? inCompany(unit) : take(unit);
-      return tail ? `${head} ${tail}` : null;
-    };
-
-    /* 1 to 999, as a place in a bigger number. A place that is not the
-       leading one says its empty hundreds out loud — 1,005 is một nghìn
-       không trăm lẻ năm — because dropping them would leave the digits
-       unreadable. */
-    const place = (n: number, leading: boolean): string | null => {
-      const hundreds = Math.floor(n / 100);
-      const rest = n % 100;
-      const bits: string[] = [];
-      if (hundreds || !leading) {
-        const digit = take(hundreds);
-        const hundredWord = take(100);
-        if (!digit || !hundredWord) return null;
-        bits.push(`${digit} ${hundredWord}`);
-      }
-      if (rest) {
-        /* Under ten with a hundred in front of it needs the marker that
-           says the tens place is empty. It is the zero card's own form in
-           company — không is nothing and lẻ is a place with nothing in it
-           — so the teacher writes it in the box beside zero rather than
-           the pack shipping a word nobody chose. */
-        if (rest < 10 && bits.length) {
-          const filler = ctx.cell(0, "empty-place");
-          const unit = take(rest);
-          if (!filler || !unit) return null;
-          used.push(0);
-          bits.push(`${filler} ${unit}`);
-        } else {
-          const said = rest < 10 ? take(rest) : under100(rest);
-          if (!said) return null;
-          bits.push(said);
-        }
-      }
-      return bits.length ? bits.join(" ") : null;
-    };
-
-    const parts: string[] = [];
-    const scale = (count: number, unit: number, leading: boolean): boolean => {
-      if (!count) return true;
-      const said = place(count, leading);
-      const word = take(unit);
-      if (!said || !word) return false;
-      parts.push(`${said} ${word}`);
-      return true;
-    };
-
-    const millions = Math.floor(value / 1000000);
-    const thousands = Math.floor((value % 1000000) / 1000);
-    const rest = value % 1000;
-    if (!scale(millions, 1000000, true)) return null;
-    if (!scale(thousands, 1000, !millions)) return null;
-    if (rest) {
-      const said = place(rest, !millions && !thousands);
-      if (!said) return null;
-      parts.push(said);
-    }
-    if (!parts.length) return null;
-    return { text: parts.join(" "), used };
-  },
-};
-
 /* ---- what a word can be ----
 
    The list a teacher picks from, declared once and spread into every pack
@@ -2072,11 +1606,17 @@ const WORD_CATEGORIES: WordCategory[] = [
        and she, and a name with no number would silently stop agreeing. */
     grammar: ["number", "gender"],
   },
+  /* Retired. A number is not a word a teacher writes a card for any more —
+     it is a box in the language's number system, and the card under it is
+     written by the app out of what they typed there. The definition stays
+     so that the cards written while this was offered keep saying what they
+     are, in storage, in an export and on the screen; it is simply no
+     longer one of the answers. */
   {
     id: "number",
     label: "Number",
     note: "One, two, three, and the words built on them — with the form a feminine noun takes.",
-    table: "counted",
+    retired: true,
     grammar: [],
   },
   {
@@ -2618,10 +2158,8 @@ export const LANGUAGES: Record<LangId, Lang> = {
       /* And the pronouns that attach to the end of a word — كتابي is my
          book, عندي is I have. See ATTACHED_TABLE. */
       attached: ATTACHED_TABLE,
-      /* What an adjective becomes beside a feminine or a plural noun, and
-         what a number becomes beside a feminine one. */
+      /* What an adjective becomes beside a feminine or a plural noun. */
       agreement: AR_AGREEMENT,
-      counted: COUNTED_TABLE,
       /* And the faces a numeral takes, which the number system's own
          screen writes and a component card carries as cells. Declared by
          the composer rather than here, because which faces a language has
@@ -2633,7 +2171,6 @@ export const LANGUAGES: Record<LangId, Lang> = {
     categories: WORD_CATEGORIES,
     /* Unit before ten, and a joining word in front of every chunk. See
        src/numbers/ar-PS.ts, which holds the rule and not one word of it. */
-    numbers: AR_NUMBERS,
     composer: composerFor("ar-PS"),
     times: timeComposerFor("ar-PS"),
     /* What each shade of not-quite-right is called here. The tiers are the
@@ -2760,31 +2297,6 @@ export const LANGUAGES: Record<LangId, Lang> = {
         ],
         gate: "rows",
       },
-      /*
-       * The forms a number takes inside a bigger one.
-       *
-       * The same table name the Semitic packs use for a number's feminine,
-       * and deliberately: what the table is called is how a card finds it —
-       * the Number category names `counted` in every pack — and what is in
-       * it is the language's own business. Huế has no genders to agree
-       * with and every reason to lay a number out: *năm* is five and
-       * *mười lăm* is fifteen, which is one word with two faces and so a
-       * cell, exactly as an adjective's feminine is.
-       *
-       * Two columns, because two different things change: a unit standing
-       * after a ten, and the zero that marks a place with nothing in it.
-       * Neither picks, because nothing here is chosen by looking at a word
-       * beside it — the pack's `spell` asks for the cell it wants by name.
-       */
-      counted: {
-        persons: [
-          { id: "after-ten", label: "after a ten" },
-          { id: "empty-place", label: "empty place" },
-        ],
-        tenses: [{ id: "counted", label: "in a bigger number" }],
-        label: "the forms inside a bigger number",
-        gate: "word",
-      },
       number: numberTableOf("vi-Hue"),
     },
     /* The same list, and it attaches no pronouns and nothing agrees — so
@@ -2794,7 +2306,6 @@ export const LANGUAGES: Record<LangId, Lang> = {
     categories: WORD_CATEGORIES,
     /* Regular, so eleven boxes and three bare multiplier words; the
        irregularity is all in company. See src/numbers/vi-Hue.ts. */
-    numbers: VI_NUMBERS,
     composer: composerFor("vi-Hue"),
     verdicts: {
       partial: "Right letters, wrong tone",
@@ -2907,15 +2418,13 @@ export const LANGUAGES: Record<LangId, Lang> = {
       /* The same endings, and the same reason: ספרי is my book. */
       attached: ATTACHED_TABLE,
       /* An adjective agrees in number and gender at once, so the plural is
-         two cells; a number takes a feminine form as in Arabic. */
+         two cells. */
       agreement: HE_AGREEMENT,
-      counted: COUNTED_TABLE,
       number: numberTableOf("he-IL"),
     },
     categories: WORD_CATEGORIES,
     /* Ten before unit, one joining word in the whole number, and counted
        in the feminine. See src/numbers/he-IL.ts. */
-    numbers: HE_NUMBERS,
     composer: composerFor("he-IL"),
     verdicts: {
       partial: "Right letters, wrong niqqud",

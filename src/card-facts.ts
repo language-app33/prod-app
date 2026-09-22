@@ -612,7 +612,9 @@ export const CARD_FACTS: FieldRule[] = [
     key: "value",
     on: "card",
     label: "Worth",
-    what: "What number this card is worth, where it is one of the parts numbers are built out of. The only thing that makes a part findable.",
+    what:
+      "What number this card was written as, on a card from before the language's numbers were one system. " +
+      "Nothing is built out of it any more — the words were read across — and it is shown so that a card that has one still says everything it carries.",
     reader: "both",
     shown: (value) => (value == null || value === "" ? [] : [String(value)]),
   },

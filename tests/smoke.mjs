@@ -5566,11 +5566,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !addForm() && blocksUp().includes("Form 1"),
         addForm() ? "a form is offered" : blocksUp().join(" | "));
 
-      await pickKind(/^Number/);
-      check("a number lays out the form a feminine noun takes, and only that",
-        boxes(/^Arabic script for counted · feminine$/).length === 1 &&
-          !boxes(/^Arabic script for (agreement|the word · attached|present|past|command)/).length,
-        boxes(/^Arabic script for /).join(" | ") || "(no table)");
+      /* A number is not one of the answers any more: the faces a numeral
+         takes are boxes in the language's number system, and the card
+         under one is written by the app out of what the teacher typed
+         there. The kind is still read — a card saved while it was offered
+         goes on saying what it is — but nobody is offered it. */
+      await openWordKind();
+      check("a number is not a kind of word anybody is offered, because it is a system now",
+        !formRows().some((r) => /^Number/.test((r.textContent || "").trim())),
+        formRows().map((r) => (r.textContent || "").slice(0, 10)).join(" | ") || "(nothing offered)");
 
       await pickKind(/^Pronoun/);
       check("a pronoun has no table and is asked its number and gender",

@@ -20,7 +20,7 @@ import { readFileSync } from "node:fs";
 import { must } from "./helpers.mjs";
 import { arComposer } from "../src/numbers/ar-PS.ts";
 import { arTimeComposer } from "../src/numbers/ar-PS.time.ts";
-import { componentId, generate, isFromSystem, isRangeSkill, rangeId } from "../src/numbers/generate.ts";
+import { componentId, generate, handOn, isFromSystem, isRangeSkill, rangeId } from "../src/numbers/generate.ts";
 import { formsOf, leadOf, subFormsOf } from "../src/cards.ts";
 
 const load = (/** @type {string} */ name) =>
@@ -240,4 +240,59 @@ test("a card from a system says where it came from, by name", () => {
   /* Which is a different shape from a card out of a deck, and told apart
      by name rather than by which fields happen to be filled in. */
   assert.equal("cardId" in must(card.source, "source"), false);
+});
+
+/* ---- and what a learner had already earned ---- */
+
+/* A schedule on the card the teacher wrote before any of this existed. */
+const learnt = { phase: "review", reps: 9, ease: 2.5, due: NOW, updated: NOW, right: 7, wrong: 1 };
+
+/** The old number card, as a learner's device holds one. */
+const oldCard = (/** @type {string} */ id, /** @type {any} */ over = {}) => ({
+  id, lang: "ar-PS", kind: "word", tags: [], created: 1, updated: 1,
+  forms: [{ id: `${id}-f0`, ar: "arba3iin", en: "40", lat: "", s: { ar2en: learnt }, ...over }],
+});
+
+test("a learner's year on the card a box was filled from goes to the card that replaces it", () => {
+  const sys = { ...SYS, migratedFrom: { "ten.40": "k40", "unit.7": "k7" } };
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const held = [oldCard("k40")];
+  const handed = handOn(fresh.items, held, sys);
+
+  const card = byId(handed, componentId(sys.id, "ten.40"));
+  assert.deepEqual(must(leadOf(card).s, "states").ar2en, learnt, "the schedule came across");
+  /* The faces under it are cells of a table the old model never had, so
+     there is nothing of theirs to inherit and nothing is invented. */
+  for (const face of subFormsOf(card)) assert.deepEqual(face.s, {});
+  /* And a box whose card this learner does not hold is simply a new card. */
+  assert.deepEqual(leadOf(byId(handed, componentId(sys.id, "unit.7"))).s, {});
+  /* Nothing was taken off the old card: it is still on the device, in its
+     deck, with everything on it. A later release is what removes it. */
+  assert.deepEqual(held[0].forms[0].s, { ar2en: learnt });
+});
+
+test("and a card the device already holds keeps its own schedule, not an older one", () => {
+  /* Whatever this device has learnt since is the answer. Handing the old
+     card's schedule to a card already being asked would undo a week. */
+  const sys = { ...SYS, migratedFrom: { "ten.40": "k40" } };
+  const fresh = generate({ composer: arComposer, sys, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  const id = componentId(sys.id, "ten.40");
+  const held = [
+    oldCard("k40"),
+    { id, lang: "ar-PS", kind: "word", tags: [], created: 1, updated: 1,
+      forms: [{ id: `${id}-f0`, ar: "x", en: "", lat: "", s: {} }] },
+  ];
+  assert.deepEqual(leadOf(byId(handOn(fresh.items, held, sys), id)).s, {});
+});
+
+test("a system that was never migrated hands nothing on, and neither does an empty card", () => {
+  const fresh = generate({ composer: arComposer, sys: SYS, timeComposer: null, timeSys: null, tag: "Numbers", now: NOW });
+  assert.equal(handOn(fresh.items, [oldCard("k40")], SYS), fresh.items, "no map, nothing to do");
+  /* A card that was written and never answered has nothing to hand on, so
+     the new card is left as the new card it is rather than being given an
+     empty schedule and a fold to go with it. */
+  const sys = { ...SYS, migratedFrom: { "ten.40": "k40" } };
+  const blank = { ...oldCard("k40"), forms: [{ id: "k40-f0", ar: "arba3iin", en: "40", lat: "", s: {} }] };
+  const card = byId(handOn(fresh.items, [blank], sys), componentId(sys.id, "ten.40"));
+  assert.deepEqual(leadOf(card).s, {});
 });

@@ -219,120 +219,6 @@ export interface VerbSpec {
   citation?: { row: string; col: string };
 }
 
-/* ---- numbers ----
-
-   A number is not a word to memorise one at a time: forty-seven is built
-   out of forty and seven, and a learner who has those two should be able
-   to be asked all of it. So a language declares how its numbers are put
-   together, the teacher writes down the handful of parts, and the app
-   makes up as many numbers as it likes out of them.
-
-   Everything that differs between languages is in `spell` — the order the
-   parts go in, what joins them, which form a part takes in company. The
-   app knows only how to find a part's card, how to ask, and how to widen
-   the range as a learner gets them right. See src/numbers.ts. */
-
-/**
- * One box on the teacher's Numbers screen: a value, and what to write in
- * it.
- *
- * `gloss` exists because a part is not always the name of its own number.
- * Arabic's مية *is* a hundred and Huế's trăm is only the word *hundred* —
- * one hundred is *một trăm*, with the one said out loud. So the box for 100
- * in Huế is glossed "hundred" and the pack builds 100 out of it, where
- * Arabic's box for 100 is glossed "100" and is the answer on its own.
- */
-export interface NumberPart {
-  value: number;
-  /** What the box is called. Defaults to the digits. */
-  label?: string;
-  /** The meaning written onto the card. Defaults to the digits. */
-  gloss?: string;
-  /** A line under the box — an example, a warning about a fused form. */
-  hint?: string;
-}
-
-/** A run of boxes on the teacher's screen, under one heading. */
-export interface NumberGroup {
-  id: string;
-  label: string;
-  note?: string;
-  parts: NumberPart[];
-}
-
-/**
- * A stretch of the number line the practice ramps through, smallest first.
- *
- * A band is open when every number in it can be built from the cards the
- * student has, which is what stops the app asking for a million from a
- * deck that stops at ten. The practice starts in the lowest open band and
- * widens as answers come back right, so the ramp to millions is walked
- * rather than jumped.
- */
-export interface NumberBand {
-  id: string;
-  label: string;
-  from: number;
-  to: number;
-}
-
-/**
- * An extra form a part takes inside a bigger number.
- *
- * Huế is the reason this exists: *năm* is five and *mười lăm* is fifteen,
- * *một* is one and *hai mươi mốt* is twenty-one. The changed form is a
- * form of the same word, so it is a cell of a table like any other — `row`
- * and `col` place it, and the pack's `spell` asks for it by `col`.
- */
-export interface NumberCell {
-  /** The cell's column id, which is what spell() asks for. */
-  id: string;
-  row: string;
-  label: string;
-  hint?: string;
-}
-
-/**
- * What a pack's `spell` is handed: the words the teacher has actually
- * written, and nothing else.
- *
- * Both return "" for something that is not there, so a pack can test what
- * it got and give up on a number it cannot build — which is how a deck
- * that stops at ten is never asked for a hundred.
- */
-export interface NumberCtx {
-  /** The teacher's word for exactly this value, or "". */
-  word(value: number): string;
-  /** A named alternate form of that value's card, or "". */
-  cell(value: number, id: string): string;
-}
-
-/** A number written out, and the parts it was built from. */
-export interface Spelling {
-  text: string;
-  /** The values whose cards stood in it, for crediting the answer. */
-  used: number[];
-}
-
-/**
- * How a language builds its numbers.
- *
- * `spell` is the whole of it. Everything else here describes what the
- * teacher is asked for and how far the practice can reach; the rules —
- * unit before ten in Arabic and ten before unit in Hebrew, a و before
- * every chunk and a ו before only the last, Huế's *không trăm lẻ* in the
- * middle of a thousand — live in that one function, and the app never
- * looks inside what it returns.
- */
-export interface NumberSpec {
-  groups: NumberGroup[];
-  bands: NumberBand[];
-  /** The extra boxes a given value carries, where it carries any. */
-  cells?: (value: number) => NumberCell[];
-  /** The number written out, or null where a part is missing. */
-  spell: (value: number, ctx: NumberCtx) => Spelling | null;
-}
-
 /**
  * One thing a word can be: a noun, a verb, a name.
  *
@@ -355,6 +241,16 @@ export interface WordCategory {
   note: string;
   /** The table it lays out, by the name the pack declares it under. */
   table?: string;
+  /**
+   * No longer offered, but still read.
+   *
+   * A kind of word the app has stopped asking about keeps its definition
+   * so that a card saved while it was offered goes on saying what it is —
+   * on the screen, in an export and in storage — rather than becoming a
+   * card of no kind at all. It is left out of the radio and out of
+   * anything that reads a card's shape from the kinds a pack declares.
+   */
+  retired?: boolean;
   /**
    * Which grammar axes a word of this kind is asked about, of the ones
    * the pack declares — a preposition has neither number nor gender, a
@@ -578,18 +474,12 @@ export interface Lang {
    */
   guessKind?: (text: string) => string;
   /**
-   * How this language builds its numbers, where it says. A pack without
-   * one teaches numbers the way it teaches any other word — one card at a
-   * time — and the Numbers screen and the numbers practice are simply not
-   * offered. See src/numbers.ts.
-   */
-  numbers?: NumberSpec;
-  /**
-   * The same answer, in the shape the number system asks it in: which
+   * How this language builds its numbers, where anybody has said: which
    * boxes a teacher fills, which faces each takes, which ranges a learner
    * is scheduled on, and how a number is put together out of the words
    * they wrote. Declared beside the pack in src/numbers/, which holds the
-   * rules and not a word of any language.
+   * rules and not a word of any language. A pack without one teaches
+   * numbers the way it teaches any other word, one card at a time.
    */
   composer?: import("./numbers/types.ts").Composer | null;
   /** And how it tells the time, which is a separate answer: a language
@@ -793,17 +683,6 @@ export type Card = {
    * business: nothing about how a card is drilled reads this.
    */
   category?: string;
-  /**
-   * What number this card is worth, where it is a number.
-   *
-   * The only thing that makes a number card findable: everything that
-   * builds *forty-seven* out of *forty* and *seven* looks the parts up by
-   * value, and two teachers will write "forty" and "أربعين" without
-   * either string saying what it is worth. Absent on every other card,
-   * and on a number card written before this — which goes on being
-   * practised as the word it is, and simply builds nothing.
-   */
-  value?: number;
   /**
    * Whether this card's words have been read into a number system.
    *
@@ -1163,20 +1042,6 @@ export type Item = {
   name?: string;
   /** What the teacher says the word is — a noun, a verb, a name. See Card. */
   category?: string;
-  /** What number it is worth, where it is a number. See Card. */
-  value?: number;
-  /**
-   * Which number parts stood in this one, where it is a number the app
-   * made up rather than a card.
-   *
-   * A made-up number lives for one sitting and is never stored, so this
-   * never reaches the disk or the wire — but it is what a right answer
-   * credits, the way a sentence credits the words that filled its blanks,
-   * so it travels with the item that is asked about. Values, not ids: the
-   * card a value is written on is a fact about the device, and is looked
-   * up at the moment of marking.
-   */
-  used?: number[];
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
   /**

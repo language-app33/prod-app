@@ -7,12 +7,12 @@
  * right" — somebody answered that once already — but **"is this the
  * same"**, and that is a much sharper question to ask.
  *
- * It is asked twice. The golden tables were generated from the shipping
- * implementation, so a row that changes is a learner seeing something
- * new. And while both implementations are still in the tree, this file
- * runs them side by side over three hundred numbers: same words in, same
- * words out, character for character. That second test goes when the old
- * module does, which is what the tables are for.
+ * The golden tables are how it is asked. Every row in them was generated
+ * from the shipping implementation, before a line of the new one ran, so
+ * a row that changes here is a learner seeing something new. While both
+ * implementations were in the tree this file also ran them side by side
+ * over five thousand numbers, character for character; that test went
+ * with the old module, and the tables are what it left behind.
  */
 
 import { test } from "node:test";
@@ -20,8 +20,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { must } from "./helpers.mjs";
-import { LANGUAGES } from "../src/languages.ts";
-import { partCards, spell } from "../src/numbers.ts";
 import { renderHe } from "../src/numbers/he-IL.ts";
 import { renderVi } from "../src/numbers/vi-Hue.ts";
 import { composerFor, composerLanguages, timeComposerFor } from "../src/numbers/index.ts";
@@ -33,80 +31,9 @@ const load = (/** @type {string} */ name) =>
 const HE = load("he-IL.numbers.json");
 const VI = load("vi-Hue.numbers.json");
 
-/* The decks the old implementation reads, built from the very lexemes the
-   new one reads, so the two are given the same words and nothing else. */
-
-/** @param {any} sys @returns {(slot: string, key?: string) => string} */
-const wordOf = (sys) => (slot, key = "standalone") =>
-  ((sys.lexemes[slot] || { forms: {} }).forms || {})[key] || "";
-
-/** @param {string} langId @param {Record<string, string>} words @param {Record<string, Record<string,string>>} cells */
-function deckOf(langId, words, cells = {}) {
-  /** @type {any[]} */
-  const cards = [];
-  for (const [value, ar] of Object.entries(words)) {
-    if (!ar) continue;
-    const v = Number(value);
-    /** @type {any[]} */
-    const forms = [{ ar, en: String(v), lat: "" }];
-    for (const [col, text] of Object.entries(cells[v] || {})) {
-      if (text) forms.push({ ar: text, en: String(v), lat: "", row: "counted", col });
-    }
-    cards.push({ id: `n${v}`, lang: langId, value: v, category: "number", forms });
-  }
-  return partCards(cards, langId);
-}
-
-/* Hebrew: the old deck held the masculine on the card and the feminine in
-   a cell beside it, which is the storage this port turns round. */
-const heDeck = (() => {
-  const w = wordOf(HE.system);
-  /** @type {Record<string, string>} */
-  const words = {};
-  /** @type {Record<string, Record<string, string>>} */
-  const cells = {};
-  words[0] = w("unit.0");
-  for (let v = 1; v <= 10; v += 1) {
-    words[v] = w(`unit.${v}`, "m");
-    cells[v] = { feminine: w(`unit.${v}`) };
-  }
-  for (let v = 11; v <= 19; v += 1) {
-    words[v] = w(`teen.${v}`, "m");
-    cells[v] = { feminine: w(`teen.${v}`) };
-  }
-  for (let v = 20; v <= 90; v += 10) words[v] = w(`ten.${v}`);
-  words[100] = w("hundred.1");
-  words[200] = w("hundred.2");
-  for (let k = 3; k <= 9; k += 1) words[k * 100] = `${w(`unit.${k}`)} ${w("hundred.n")}`;
-  words[1000] = w("thousand.1");
-  words[2000] = w("thousand.2");
-  for (let k = 3; k <= 9; k += 1) words[k * 1000] = `${w(`unit.${k}`, "construct.m")} ${w("thousand.n")}`;
-  words[1000000] = w("million.1");
-  words[2000000] = w("million.2");
-  for (let k = 3; k <= 9; k += 1) words[k * 1000000] = `${w(`unit.${k}`, "m")} ${w("million.n")}`;
-  return deckOf("he-IL", words, cells);
-})();
-
-const viDeck = (() => {
-  const w = wordOf(VI.system);
-  /** @type {Record<string, string>} */
-  const words = {};
-  /** @type {Record<string, Record<string, string>>} */
-  const cells = {};
-  for (let v = 0; v <= 10; v += 1) {
-    words[v] = w(`unit.${v}`);
-    const company = w(`unit.${v}`, "company");
-    if (company) cells[v] = v === 0 ? { "empty-place": company } : { "after-ten": company };
-  }
-  words[100] = w("hundred.n");
-  words[1000] = w("thousand.n");
-  words[1000000] = w("million.n");
-  return deckOf("vi-Hue", words, cells);
-})();
-
 const CASES = {
-  "he-IL": { golden: HE, render: renderHe, deck: heDeck, lang: LANGUAGES["he-IL"] },
-  "vi-Hue": { golden: VI, render: renderVi, deck: viDeck, lang: LANGUAGES["vi-Hue"] },
+  "he-IL": { golden: HE, render: renderHe },
+  "vi-Hue": { golden: VI, render: renderVi },
 };
 
 /* ---- the tables ---- */
@@ -119,29 +46,6 @@ for (const [langId, { golden, render }] of Object.entries(CASES)) {
       assert.equal(got.text, row.text, `${langId} ${row.n}`);
       assert.deepEqual(got.warnings, [], `${langId} ${row.n} warned`);
     }
-  });
-}
-
-/* ---- the same, said twice ---- */
-
-for (const [langId, { golden, render, deck, lang }] of Object.entries(CASES)) {
-  test(`${langId} is the same after the port as before it`, () => {
-    /* Delete this when src/numbers.ts goes. Until then it is the strongest
-       thing that can be said about a rewrite: two implementations, one set
-       of words, three hundred numbers, no difference. */
-    const check = (/** @type {number} */ v) => {
-      const before = spell(lang, deck, v);
-      const after = render(v, golden.system);
-      assert.ok(before, `${langId}: the old implementation could not say ${v}`);
-      assert.equal(after.text, must(before, "before").text, `${langId} ${v}`);
-    };
-    for (let v = 0; v <= 2000; v += 1) check(v);
-    let seed = 99;
-    for (let i = 0; i < 3000; i += 1) {
-      seed = (seed * 1103515245 + 12345) % 2147483648;
-      check(Math.floor((seed / 2147483648) * (NUMBER_CEILING + 1)));
-    }
-    for (const v of [9999, 10000, 99999, 100000, 999999, 1000000, 1000001, 9999999]) check(v);
   });
 }
 

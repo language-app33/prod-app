@@ -87,6 +87,21 @@ Recordings work as they always did: one per word, and a time may play its
 hour and its minutes one after the other. Nothing is stitched together
 inside a number.
 
+**What went.** The old Numbers grid under Teaching → Cards, and the
+*Practise numbers* button on Learning: there is one screen and one way of
+asking now, and both of them are above. **Number** is no longer one of the
+kinds a word can be — a numeral is a box in the system rather than a card
+somebody writes — though a card saved while it was offered goes on saying
+what it is, keeps its feminine form, and is still practised as the word it
+is.
+
+Nobody loses anything in the move. Your number cards stay where they are,
+and a student who could already read the word for *forty* off one of them
+does not start it again: the schedule they had earned follows the word to
+the card that replaces it. A phone still on the previous release keeps
+working — it sees ordinary cards, and its Practise numbers button says
+there is nothing to build.
+
 ## 0.203 — 20 September 2026
 
 **The app now says what your session moved.**

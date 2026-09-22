@@ -357,3 +357,59 @@ function labelForFace(key: FormKey | string): string {
     }[key] || ""
   );
 }
+
+/* ---- what a learner already earned on the card this replaces ---- */
+
+/**
+ * A year on the word for *forty*, handed to the card that replaces it.
+ *
+ * The teacher's old number cards became boxes in a system, and the cards
+ * under those boxes are new cards with new ids. Nothing about them is the
+ * same as far as a schedule is concerned — so without this, every learner
+ * who could already read *forty* would be asked it again as though they
+ * had never seen it, on the day their teacher opened a screen.
+ *
+ * `migratedFrom` is what makes it possible: the migration wrote down which
+ * card each box was filled from, so this can find the old card in the
+ * learner's own collection and move its schedule across.
+ *
+ * Three rules, and each is the difference between this and a mess:
+ *
+ *   * **Only onto a card that has no schedule.** A device that has been
+ *     asking these cards for a week has the real answer; the old card's is
+ *     older. This runs, in effect, once per learner per box.
+ *   * **The word's own schedule only.** The faces under it are cells of a
+ *     table the old model never had, so there is nothing of theirs to
+ *     inherit and nothing is invented for them.
+ *   * **Nothing is taken away.** The old card keeps everything it has. It
+ *     is still on the device, still in its deck, and a later release is
+ *     what removes it.
+ */
+export function handOn(fresh: Item[], held: Item[], sys: NumberSystem): Item[] {
+  const from = sys.migratedFrom || {};
+  if (!Object.keys(from).length) return fresh;
+  const byId = new Map(held.map((i) => [i.id, i]));
+  return fresh.map((item) => {
+    const source = item.source;
+    const slot = source && typeof source === "object" && "slot" in source
+      ? String((source as { slot?: unknown }).slot || "")
+      : "";
+    const wasId = slot ? from[slot] : "";
+    if (!wasId) return item;
+    /* Already on this device: whatever it has learnt since is the answer,
+       and an older schedule is not an improvement on it. */
+    if (byId.has(item.id)) return item;
+    const was = byId.get(wasId);
+    const old = was && was.forms && was.forms[0];
+    if (!old) return item;
+    const states = old.s || {};
+    if (!Object.keys(states).length && !old.met) return item;
+    const forms = item.forms.slice();
+    forms[0] = {
+      ...forms[0],
+      s: { ...states },
+      ...(old.met ? { met: old.met } : null),
+    };
+    return { ...item, forms };
+  });
+}

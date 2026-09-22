@@ -623,38 +623,51 @@ Three rules shape what a session asks, all of them in `src/scheduler.ts`:
   word with nothing on the screen to go on. A card that is not practised in
   its own right — a name — is left to the frame's own `met` record, and a
   verb's own place in its own sentence to its table's gate.
-- **A number is built, not memorised.** A learner who knows *forty* and
-  *seven* knows *forty-seven*, so numbers are not cards one at a time: a
-  language declares how its numbers go together, the teacher fills in the
-  handful of **parts** on one screen, and the app makes up as many numbers
-  as it likes out of them. A card is a part by carrying a `value` — two
-  teachers write *forty* and أربعين and neither string says what it is
-  worth — and `spell` on the pack turns a number into words or refuses,
-  which is how a deck that stops at ten is never asked for a hundred.
+- **A number is built, not memorised, and so is a time.** A learner who
+  knows *forty* and *seven* knows *forty-seven*, so numbers are not cards
+  one at a time. A language's numbers are **one document** — the words it
+  builds them out of, each with the faces it wears — written on one screen
+  and never a card: the teacher fills the boxes in from **Teaching →
+  Cards**, the `#` in the list's toolbar, and a **Time** tab beside them
+  holds the clock. A language and not a deck, because the words are the
+  language's.
 
-  Everything that differs between languages is in that one function.
-  Arabic puts the unit before the ten and a و in front of every chunk;
-  Hebrew puts the ten before the unit, one ו in the whole number, and
-  counts in the feminine except in front of *thousand*; Huế is regular
-  enough to need eleven boxes against the other two's fifty-five, and puts
-  its irregularity in the forms a word takes in company — *năm* is five and
-  *mười lăm* is fifteen, which is a cell of a table like an adjective's
-  feminine. `src/numbers.ts` knows none of it: it finds the card a part is
-  written on, works out which stretches of the number line can be built,
-  and chooses what to ask.
+  **The lexicon is data; the composition is code.** There is no rule
+  language a teacher writes in: what a box is for is declared by the
+  language's composer in `src/numbers/`, and where the app gets a number
+  wrong the teacher taps the line and writes it out, which is an
+  **override** and beats everything for that number and wherever it turns
+  up inside a bigger one.
 
-  The teacher fills the parts in from **Teaching → Cards**, the `#` in the
-  list's toolbar: one screen for the language, over every number card they
-  have in it, saving to their collection the way any new card does. A
-  language and not a deck, because the parts are the language's.
+  Everything that differs between languages is in that composer. Arabic
+  puts the unit before the ten and a joining word in front of every chunk,
+  and its numerals agree with what they count — one face for counting, two
+  for the gender of a word beside them, two more for standing directly in
+  front of a noun. Hebrew puts the ten before the unit and one joining
+  word in the whole number. Huế is regular enough to need fourteen boxes
+  against the Semitic pair's thirty-eight, and puts its irregularity in
+  the face a word wears inside a bigger number.
 
-  The practice is started by the learner, not dealt. It ramps: it opens in
-  the lowest **band** the deck can build — 0–10, 11–20, 21–99, and so on to
-  millions — widens as answers come back right, and remembers where it got
-  to in `settings.numbersReach`. The numbers themselves are never cards and
-  are thrown away with the sitting; a right answer credits the *parts* that
-  stood in the number, under the ordinary exercise the question was
-  evidence for, by exactly the rule a sentence credits its fillers with.
+  **A time is a number with a feminine noun in front of it.** The hour is
+  the number composer asked for its feminine, and *twenty past* is twenty
+  counting a noun — so the clock has no agreement rules of its own, and a
+  language whose numbers are right has a clock that is right.
+
+  On a learner's device a system is **cards and skills**: one card per word
+  the teacher wrote, with the faces under it as a table, and a **range**
+  per stretch that can be asked — counting to ten, counting things,
+  telling the hour, to the minute, which part of the day. A range holds a
+  schedule and climbs the ladder like a card and has no words on it: the
+  number or the time is made up when the question is dealt and thrown away
+  with the sitting. A right answer says two things and files both — that
+  the learner is getting better at the range, on its own key, and that
+  they read the word for *forty* and knew what it meant, on each component
+  card's ordinary key.
+
+  Every id is derived from the system and the box, so a teacher correcting
+  a word gives back the same cards and nobody loses their year on one. A
+  range is offered only once the whole of it can be said, so a system that
+  stops at ten is a practice that counts to ten and stops.
 - **A learner studying more than one language says which are in play.** A
   switch at the top of Learning, beside the space tabs, lists the languages
   they have cards in and holds the ones switched off in
@@ -804,19 +817,24 @@ src/
                    screen is drawn from it and a field it does not name yet
                    is still shown, raw, so the screen cannot fall behind the
                    editor. Pure.
-  numbers.ts       numbers built out of a teacher's parts: finding the card
-                   a part is written on, how far a deck reaches, and what
-                   to ask next. How a language puts its numbers together is
-                   `spell` on the pack, never here. Pure, imports nothing
-                   but the pack.
   numbers/         a language's numbers and its clock, written down once by
                    a teacher and assembled by us. `types.ts` is the shapes,
                    `schema.ts` the total reader at the storage boundary,
-                   `index.ts` the registry an app file asks, and one file
-                   per language holds that language's rules. **No file here
-                   holds a word**: a composer knows slot names, an order and
-                   how the connector attaches, and every syllable comes from
-                   the teacher's system. Pure.
+                   `index.ts` the registry an app file asks, `generate.ts`
+                   turns a system into the cards and skills a device holds,
+                   `range.ts` decides what a skill can be asked and picks
+                   it, `migrate.ts` reads a teacher's old number cards into
+                   a system, and one file per language holds that
+                   language's rules. **No file here holds a word**: a
+                   composer knows slot names, an order and how the
+                   connector attaches, and every syllable comes from the
+                   teacher's system. Pure.
+  clock.tsx        a clock face to read and a dial to set, in inline SVG:
+                   no numerals on it on purpose, and the hands snap to the
+                   marks the question asks about.
+  number-system-editor.tsx
+                   the one screen a language's numbers and its clock are
+                   written on, with the composer itself drawing the preview
   verbs.ts         a word's forms as a table over the card's own sub-forms —
                    a verb's persons and tenses, or the pronouns a language
                    attaches to the end of a word:
