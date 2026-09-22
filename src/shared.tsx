@@ -3830,8 +3830,26 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
  */
 export function serverCardId(item: Item | null | undefined) {
   if (!item) return "";
-  if (item.source && item.source.cardId) return item.source.cardId;
+  /* A card out of a number system also says where it came from, and what
+     it says is not a card id — so the two are told apart by name rather
+     than by which fields happen to be filled in. */
+  const from = fromDeck(item);
+  if (from && from.cardId) return from.cardId;
   return item.id || "";
+}
+
+/**
+ * Where a card came from, when it came from a teacher's deck.
+ *
+ * Null for a card the learner wrote and for a word generated out of a
+ * language's number system — which carries a source of its own shape, and
+ * which nothing that asks this is about.
+ */
+export function fromDeck(
+  item: { source?: Item["source"] } | null | undefined,
+): { courseId: string; deckId: string; cardId: string; rev: number } | null {
+  const source = item && item.source;
+  return source && "cardId" in source ? source : null;
 }
 
 /*

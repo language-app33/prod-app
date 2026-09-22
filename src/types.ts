@@ -22,6 +22,17 @@
  *     \@import { Card, Flag } from "./types.ts"
  */
 
+/*
+ * The one shape this file borrows rather than declaring.
+ *
+ * A skill is a stretch of what a language's numbers and clock can be
+ * asked over, and it is declared beside the composers that answer for it.
+ * Aliased on the way in because the browser has a `Range` of its own and
+ * the two would be told apart by nothing but where you were standing.
+ */
+import type { Range as SkillRange } from "./numbers/types.ts";
+export type { SkillRange };
+
 /**
  * A language's id — "ar-PS", "vi-Hue". The key into LANGUAGES, and what is
  * stored on a card, a course and a report.
@@ -1159,8 +1170,30 @@ export type Item = {
   lines?: Line[];
   speakers?: string[];
   you?: number | null;
-  source?: { courseId: string; deckId: string; cardId: string; rev: number };
+  /**
+   * Where a card the learner did not write came from.
+   *
+   * Two sorts, because there are two ways material arrives: a teacher's
+   * card, which came out of a deck in a course, and a word out of a
+   * language's number system, which is in no deck at all. Both are
+   * refreshed by being made again from their source and folded over what
+   * the learner has earned, which is why both say where they came from
+   * rather than only that they are not the learner's own.
+   */
+  source?:
+    | { courseId: string; deckId: string; cardId: string; rev: number }
+    | { systemId: string; slot: string };
   locked?: boolean;
+  /**
+   * The stretch of what can be asked that this item *is*, where it is a
+   * skill rather than a word.
+   *
+   * A range holds a schedule and no words: what it is asked is made up
+   * when the queue is built, out of the system it came from, and thrown
+   * away with the sitting. Nothing about it reaches the disk but the
+   * schedule — see src/numbers/generate.ts.
+   */
+  range?: SkillRange;
   /**
    * The learner has asked for this card.
    *

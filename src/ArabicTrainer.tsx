@@ -29,6 +29,7 @@ import {
   Screen,
   Section,
   Segmented,
+  fromDeck,
   serverCardId,
   SnackbarProvider,
   Stat,
@@ -8631,8 +8632,8 @@ export default function ArabicTrainer() {
       /* Where the card reached this device from. A bad card is usually one
          of a bad batch, and the deck is what somebody goes and looks at.
          Absent on a card the learner made, which came through neither. */
-      courseId: (parentItem.source && parentItem.source.courseId) || "",
-      deckId: (parentItem.source && parentItem.source.deckId) || "",
+      courseId: (fromDeck(parentItem) || { courseId: "" }).courseId || "",
+      deckId: (fromDeck(parentItem) || { deckId: "" }).deckId || "",
       /* What they put, and what the app made of it — the half of "it
          marked me wrong" that the learner cannot be expected to type out
          and that usually names the bug on its own.
