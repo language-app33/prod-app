@@ -16,6 +16,7 @@ import {
   dimValues,
   grammarFields,
   labelFor,
+  formLabel,
   normDimValue,
   arRootKey,
   arTokenIsWord,
@@ -909,6 +910,34 @@ test("whether a noun is a person or a thing is never printed on a tag", () => {
   assert.equal(labelFor({ number: "singular", gender: "feminine", human: "thing" }, ar), "sg. f.");
   /* And a new form starts as a thing, which is what most nouns are. */
   assert.equal(dimValues({}).human, "thing");
+});
+
+test("an adjective's shapes say which they are: gender, plural and dual", () => {
+  /* Reported by a learner: since an adjective's feminine, plural and dual
+     became its table, an exercise asking for one of them said only "big",
+     which is what the masculine answers. The cells carry no number or
+     gender of their own — where they sit is which they are. */
+  const ar = LANGUAGES["ar-PS"];
+  const cell = (/** @type {string} */ col) => ({ id: `big-${col}`, ar: "", en: "big", lat: "", row: "agreement", col });
+  assert.equal(labelFor(cell("feminine"), ar), "feminine");
+  assert.equal(labelFor(cell("plural"), ar), "plural");
+  assert.equal(labelFor(cell("dual"), ar), "dual");
+  const he = LANGUAGES["he-IL"];
+  assert.equal(labelFor(cell("masc-plural"), he), "masculine plural");
+  assert.equal(labelFor(cell("fem-plural"), he), "feminine plural");
+  /* The word itself is the masculine, which only the card can say. */
+  const big = { id: "big", ar: "كبير", en: "big", lat: "", category: "adjective", subs: [cell("feminine"), cell("plural")] };
+  assert.equal(formLabel(big, big, ar), "masculine");
+  assert.equal(formLabel(cell("feminine"), big, ar), "feminine");
+  assert.equal(formLabel(big, { id: "big", ar: "كبير", en: "big", subs: [] }, ar), "", "no table, nothing to tell it from");
+  /* A verb's cells and the pronouns on a word say which they are in their
+     English, and stay untagged as they always were. */
+  assert.equal(labelFor({ id: "v", ar: "أكلت", en: "she ate", row: "past", col: "she" }, ar), "");
+  assert.equal(labelFor({ id: "p", ar: "كتابي", en: "my book", row: "attached", col: "me" }, ar), "");
+  /* And a form that carries its own grammar is named by it, as before. */
+  assert.equal(labelFor({ number: "plural", gender: "feminine" }, ar), "pl. f.");
+  /* Huế has no such table and nothing to say. */
+  assert.equal(labelFor(cell("feminine"), LANGUAGES["vi-Hue"]), "");
 });
 
 test("an agreeing card lends its own word only, and every other card lends every form", () => {

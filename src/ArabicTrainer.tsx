@@ -134,6 +134,7 @@ import {
   kindOf,
   isListening,
   groupAttrOf,
+  formLabel,
   labelFor,
   langOf,
   quizAttrOf,
@@ -8079,14 +8080,14 @@ export default function ArabicTrainer() {
   const gridTags = useMemo(() => {
     const said = grid.said || [];
     if (!grid.words.length) return { words: [] as string[], meanings: [] as string[] };
-    const ownerOf = new Map<string, string>();
+    const ownerOf = new Map<string, Item>();
     for (const card of asking) {
-      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
+      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card);
     }
     const tags = kinTags({
       units: (grid.words as Record<string, any>[]).concat(said),
-      cardOf: (u) => ownerOf.get(u.id) || "",
-      labelOf: (u) => labelFor(u, qLang),
+      cardOf: (u) => (ownerOf.get(u.id) || { id: "" }).id,
+      labelOf: (u) => formLabel(u, ownerOf.get(u.id), qLang),
     });
     return {
       words: grid.words.map((w) => tags[w.id] || ""),
@@ -9581,10 +9582,10 @@ export default function ArabicTrainer() {
                         And nothing at all where the language declares no
                         grammar to say it with: Huế has none, and the tag was
                         a bare separator there with nothing after it. */}
-                    {(isSub || tellForm) && labelFor(item, qLang) && (
+                    {(isSub || tellForm) && formLabel(item, parentItem, qLang) && (
                       <span className="at-formtag" data-el="question-form-tag">
                         {" "}
-                        · {labelFor(item, qLang)}
+                        · {formLabel(item, parentItem, qLang)}
                       </span>
                     )}
                   </p>

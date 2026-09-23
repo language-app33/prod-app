@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.220 — 23 September 2026
+
+**An exercise says which shape of an adjective it wants again.**
+
+Since an adjective's feminine, plural and dual became its own sections,
+a question asking for one of them said only what the word means — *big*
+— which is exactly what the masculine answers too. Writing the masculine
+was marked wrong for knowing the word, and there was no way to tell
+which was wanted. Those shapes had stopped carrying a gender or a number
+of their own: which one each is, is where it sits on the card, and
+nothing that names a question was reading that.
+
+So the question says it again, in the language's own words: **feminine**,
+**plural**, **dual** in Palestinian Arabic, **feminine**, **masculine
+plural**, **feminine plural** in Hebrew. The word itself says
+**masculine** wherever one of its other shapes could answer the same
+question, and the match-the-pairs grid tags each shape of one adjective
+the same way when two of them are on it. The card list names each shape
+by its section rather than calling it *form*.
+
+Nouns, verbs and the pronouns on the end of a word are unchanged: a noun
+still says *sg. f.*, and a verb's forms say which they are in their
+English.
+
 ## 0.219 — 23 September 2026
 
 **Cleared says what a card is waiting for.**
