@@ -32,11 +32,11 @@ import type {
    have to read. */
 import { DIALOG_KIND, SELF_ALL, isDialog, linesOf, orderIsRight, partAnswers, yourLines } from "./dialogs.ts";
 import { answersOf } from "./answers.ts";
-import { leadOf } from "./cards.ts";
+import { leadOf, subFormsOf } from "./cards.ts";
 /* And what a row is, for the one rule below that reads one: verbs.ts
    knows what a table is made of and no language at all, which is the
    same direction every other import here goes. */
-import { standsInRows } from "./verbs.ts";
+import { colOf, isCell, ownerOf, personsOf, rowIdsOf, rowOf, standsInRows } from "./verbs.ts";
 /*
  * How each language builds its numbers and tells the time.
  *
@@ -903,7 +903,61 @@ export function labelFor(unit: Record<string, any>, lang: Lang = activeLang()) {
       bits.push(opt ? opt[1] : value);
     }
   }
-  return bits.filter(Boolean).join(" ");
+  return bits.filter(Boolean).join(" ") || shapeOf(unit, lang);
+}
+
+/**
+ * Which table a cell sits in, where that table's cells are shapes of the
+ * word — an adjective's agreement — rather than words of their own.
+ *
+ * Those are the tables that declare `base`. A verb's cells and the
+ * pronouns on the end of a word say which they are in their English —
+ * *she ate*, *my book* — and a tag would be saying it twice. An
+ * adjective's feminine, plural and dual all mean *big*.
+ */
+const shapeTable = (unit: unknown, lang: Lang): VerbSpec | null => {
+  if (!isCell(unit)) return null;
+  const spec = Object.values(tablesOf(lang)).find((s) => rowIdsOf(s).has(rowOf(unit)));
+  return spec && spec.base ? spec : null;
+};
+
+/*
+ * What a cell of such a table is called, in the language's own name for
+ * its column — *feminine*, *plural*, *dual*, *masculine plural*.
+ *
+ * An adjective's shapes carry no number or gender of their own: which
+ * shape a cell is, is where it sits. So until this, every one of them
+ * named nothing, and an exercise asking for the feminine of *big* asked
+ * for *big* — the question the masculine answers.
+ */
+function shapeOf(unit: unknown, lang: Lang): string {
+  const spec = shapeTable(unit, lang);
+  if (!spec) return "";
+  const person = personsOf(spec).find((p) => p.id === colOf(unit));
+  return person ? person.label || person.id : "";
+}
+
+/**
+ * What a form is called, where the card it is on is known.
+ *
+ * `labelFor`, and one thing it cannot see from the form alone: the word
+ * of a card whose other shapes are an agreement table is the masculine —
+ * `base` — and it has to say so wherever its feminine and plural are
+ * named, or the one question they could all answer is still unsaid.
+ */
+export function formLabel(
+  unit: Record<string, any> | null | undefined,
+  card: unknown,
+  lang: Lang = activeLang(),
+): string {
+  const said = unit ? labelFor(unit, lang) : "";
+  if (said || !unit || !card || isCell(unit)) return said;
+  if (String(leadOf(card).id || "") !== String(unit.id || "")) return "";
+  const spec = subFormsOf(card)
+    .filter((f) => !ownerOf(f))
+    .map((f) => shapeTable(f, lang))
+    .find(Boolean);
+  return (spec && spec.base) || "";
 }
 
 export const AR_KEY_ROWS = [

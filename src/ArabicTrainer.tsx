@@ -134,6 +134,7 @@ import {
   kindOf,
   isListening,
   groupAttrOf,
+  formLabel,
   labelFor,
   langOf,
   quizAttrOf,
@@ -207,6 +208,7 @@ import {
   maturity,
   missedTwice,
   openTypes as openTypesOf,
+  passesMade,
   reachedLevel,
   roomForNew,
   recognised,
@@ -8078,14 +8080,14 @@ export default function ArabicTrainer() {
   const gridTags = useMemo(() => {
     const said = grid.said || [];
     if (!grid.words.length) return { words: [] as string[], meanings: [] as string[] };
-    const ownerOf = new Map<string, string>();
+    const ownerOf = new Map<string, Item>();
     for (const card of asking) {
-      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card.id);
+      for (const { unit } of unitsOf(card)) ownerOf.set(unit.id, card);
     }
     const tags = kinTags({
       units: (grid.words as Record<string, any>[]).concat(said),
-      cardOf: (u) => ownerOf.get(u.id) || "",
-      labelOf: (u) => labelFor(u, qLang),
+      cardOf: (u) => (ownerOf.get(u.id) || { id: "" }).id,
+      labelOf: (u) => formLabel(u, ownerOf.get(u.id), qLang),
     });
     return {
       words: grid.words.map((w) => tags[w.id] || ""),
@@ -9580,10 +9582,10 @@ export default function ArabicTrainer() {
                         And nothing at all where the language declares no
                         grammar to say it with: Huế has none, and the tag was
                         a bare separator there with nothing after it. */}
-                    {(isSub || tellForm) && labelFor(item, qLang) && (
+                    {(isSub || tellForm) && formLabel(item, parentItem, qLang) && (
                       <span className="at-formtag" data-el="question-form-tag">
                         {" "}
-                        · {labelFor(item, qLang)}
+                        · {formLabel(item, parentItem, qLang)}
                       </span>
                     )}
                   </p>
@@ -13119,11 +13121,12 @@ export function levelPercent(at: { done: number; of: number } | null | undefined
  * answer said twice — see `laddered`, and the note on `cardStandings`.
  *
  * **The soonest of any of them**, which is when the learner next sees the
- * card. It is deliberately not "the next review that counts towards
- * learnt": that would be the top level's alone, and a line that skipped
- * over a question the app is going to ask on Tuesday to name one on
- * Friday would be read as wrong by the person who then sat the Tuesday
- * one.
+ * card. That is the reading under Learnt, where there is nothing left to
+ * count towards and the only question is when the card is next asked.
+ * Under Cleared it is `nextPassAt` instead: those cards are waiting on
+ * one review in particular, and the line there names it — "Second review
+ * in 4d" — so the date beside it has to be that review's, not a lower
+ * level's question that happens to come round on Tuesday.
  *
  * Nought where nothing is scheduled, which a card at the top of the
  * ladder should never be — it is the reading for a card whose schedule
@@ -13158,6 +13161,68 @@ export function reviewLine(due: Millis, at: Millis = now()): string {
   if (!due) return "No review scheduled";
   if (due <= at) return "Review due now";
   return `Next review in ${formatGap(due - at)}`;
+}
+
+/**
+ * When a cleared card's next *counting* review comes round, as a moment.
+ *
+ * A pass is made on the top of each form's own ladder, answered right when
+ * it came round — see `passesMade` and `markedState`. So the review a
+ * cleared card is waiting on is one of those top-level questions, and not
+ * whichever of its keys is soonest: a reading question falling due on
+ * Tuesday moves the card no nearer to Learnt, and a line saying "First
+ * review in 1d" over it would be pointing at the wrong question.
+ *
+ * **Only the questions still at the card's own count.** The card has made
+ * as many passes as its weakest form, the way `standings` reads it, so a
+ * top-level question already a pass ahead is not the one holding the card
+ * back — its next review would be its own second, not the card's first,
+ * and the ordinal the line puts beside this date would be wrong about it.
+ * Of those still at the count, the soonest.
+ *
+ * Nought where none of them has a date, as `nextReviewAt`.
+ */
+export function nextPassAt(it: Item, settings: Settings): Millis {
+  const forms = unitsOf(it)
+    .map(({ unit }) => ({ unit, keys: laddered(unit, settings) }))
+    .filter(({ keys }) => keys.length);
+  if (!forms.length) return 0;
+  const made = Math.min(
+    ...forms.map(({ unit, keys }) => passesMade(keys, (k) => stateOf(unit, k))),
+  );
+  let soonest = 0;
+  for (const { unit, keys } of forms) {
+    const top = topLevelOf(keys);
+    for (const key of keys) {
+      if (levelOf(key) !== top) continue;
+      const s = stateOf(unit, key);
+      if (((s && s.passes) || 0) > made) continue;
+      const due = (s && s.due) || 0;
+      if (!due) continue;
+      if (!soonest || due < soonest) soonest = due;
+    }
+  }
+  return soonest;
+}
+
+/* Which review of the ones that make a card learnt, as a word. There are
+   two today; the rest are here so that raising PASSES_TO_LEARN changes a
+   number and not a sentence. */
+const ORDINALS = ["First", "Second", "Third", "Fourth", "Fifth"];
+
+/**
+ * The small print on a card under Cleared.
+ *
+ * Says which of the reviews still to make is the next one — the passes
+ * made plus one — and when: "First review in 3d", "Second review due now".
+ * The count is what tells two cleared cards apart as much as the date is,
+ * and the line at the top of the screen says how many there are in all.
+ */
+export function passLine(due: Millis, passes: number, at: Millis = now()): string {
+  if (!due) return "No review scheduled";
+  const said = ORDINALS[passes] ? `${ORDINALS[passes]} review` : `Review ${passes + 1}`;
+  if (due <= at) return `${said} due now`;
+  return `${said} in ${formatGap(due - at)}`;
 }
 
 /*
@@ -13273,9 +13338,12 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
     const at: Map<string, Standing | null> = new Map();
     const share: Map<string, number> = new Map();
     /* And, for the cards at the top of the ladder, when each next comes
-       round — see `nextReviewAt`. Only for those two: it is another walk
-       of the card's keys, the tiles below it show a bar instead, and a
-       card still climbing is asked about tonight or tomorrow anyway. */
+       round. Only for those two: it is another walk of the card's keys,
+       the tiles below it show a bar instead, and a card still climbing is
+       asked about tonight or tomorrow anyway. A learnt card is next seen
+       at the soonest of its questions — see `nextReviewAt`; a cleared one
+       is waiting on the review that counts towards learnt — see
+       `nextPassAt` — and its line names that review. */
     const next: Map<string, Millis> = new Map();
     for (const it of items) {
       const rows = cardStandings(it, settings);
@@ -13285,9 +13353,8 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
          openTypes passes those straight through, and standings leaves them
          out — so the denominator is the levels it actually has. */
       share.set(it.id, rows.length ? rows.filter((r) => r.status === "done").length / rows.length : 0);
-      if (one && (one.status === "cleared" || one.status === "done")) {
-        next.set(it.id, nextReviewAt(it, settings));
-      }
+      if (one && one.status === "cleared") next.set(it.id, nextPassAt(it, settings));
+      else if (one && one.status === "done") next.set(it.id, nextReviewAt(it, settings));
     }
     return { at, share, next };
   }, [items, settings]);
@@ -13445,6 +13512,15 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
           title={LADDER_TILES.find((t) => t.key === showing)?.label || "Cards"}
           onBack={() => setShowing("")}
         >
+        {/* What is left for a cleared card, said once for all of them. Each
+            card below says which of these reviews it is waiting on, and
+            "Second review in 4d" only means something to somebody who
+            knows how many there are. */}
+        {showing === "cleared" && (
+          <Lede>
+            It takes {plural(PASSES_TO_LEARN, "review")} to move a card from Cleared to Learnt.
+          </Lede>
+        )}
         <ItemList
           noun="card"
           items={byBucket[showing]}
@@ -13483,6 +13559,8 @@ function ProgressTab({ items, myCourses = [], settings, moves }: {
               meta={
                 showing === "all"
                   ? standingShort(progressOf.get(it.id) || null)
+                  : showing === "cleared"
+                  ? passLine(progress.next.get(it.id) || 0, progressOf.get(it.id)?.passes || 0)
                   : onTop
                   ? reviewLine(progress.next.get(it.id) || 0)
                   : undefined
