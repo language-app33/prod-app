@@ -85,12 +85,13 @@ await build({
     __BUILT_AT__: '"0"',
   },
 });
-const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, formIsAmbiguous, kinTags,
+const { leadSpeed, deckPercent, levelPercent, nextReviewAt, reviewLine, nextPassAt, passLine,
+  formIsAmbiguous, kinTags,
   onePerLevel, quietUnits, easedUnits,
   drillableUnits, askedUnits, agreeTook, laddered, liftStates, merge,
   setValueIndex, valueKey, setMateCounts } =
   await import(path.join(out, "trainer.js"));
-const { TYPES, LANGUAGES, verbOf, attachedOf, specOf } = await import(path.join(here, "..", "src", "languages.ts"));
+const { TYPES, LANGUAGES, verbOf, attachedOf, specOf, levelOf } = await import(path.join(here, "..", "src", "languages.ts"));
 
 /** @param {Record<string, any>} [over] */
 const card = (over) => ({ id: "x", ar: "", en: "", clips: [], subs: [], updated: 1000, ...over });
@@ -686,6 +687,93 @@ test("what a card at the top of the ladder puts on its tile", () => {
   assert.equal(reviewLine(7 * day, 7 * day), "Review due now");
   assert.equal(reviewLine(6 * day, 7 * day), "Review due now");
   assert.equal(reviewLine(0, 7 * day), "No review scheduled");
+});
+
+/*
+ * Under Cleared, though, a card is waiting on one review in particular: the
+ * top-level question whose right answer, on time, is the next pass. The
+ * date is that question's, whatever lower level falls due sooner — the
+ * line beside it names the review, and a date belonging to a different
+ * question would make the name wrong.
+ */
+test("a cleared card's date is the review that counts towards learnt", () => {
+  const settings = { language: "ar-PS" };
+  const day = 24 * 60 * 60 * 1000;
+  const word = { id: "k", lang: "ar-PS", ar: "كِتاب", en: "book", lat: "kitaab", s: {} };
+  /** @type {string[]} */
+  const keys = laddered(/** @type {any} */ (word), settings);
+  const topLevel = Math.max(...keys.map(levelOf));
+  const top = keys.filter((k) => levelOf(k) === topLevel);
+  const below = keys.filter((k) => levelOf(k) < topLevel);
+  assert.ok(top.length && below.length, "the word has a top level and something under it");
+
+  /* A lower question falling due sooner is when the card is next *seen*,
+     which is what Learnt says — but it is not a pass, so Cleared skips it. */
+  word.s = {
+    [below[0]]: { phase: "review", due: 1 * day, passes: 0 },
+    ...Object.fromEntries(top.map((k) => [k, { phase: "review", due: 5 * day, passes: 0 }])),
+  };
+  assert.equal(nextReviewAt(/** @type {any} */ (word), settings), 1 * day);
+  assert.equal(nextPassAt(/** @type {any} */ (word), settings), 5 * day);
+
+  /* One pass made, and the top question is still the one it waits on. */
+  word.s = {
+    [below[0]]: { phase: "review", due: 1 * day, passes: 0 },
+    ...Object.fromEntries(top.map((k) => [k, { phase: "review", due: 9 * day, passes: 1 }])),
+  };
+  assert.equal(nextPassAt(/** @type {any} */ (word), settings), 9 * day);
+
+  /* And nothing on the top level scheduled reads as nothing, even with a
+     lower question due — rather than borrowing that question's date. */
+  word.s = { [below[0]]: { phase: "review", due: 1 * day } };
+  assert.equal(nextPassAt(/** @type {any} */ (word), settings), 0);
+  word.s = {};
+  assert.equal(nextPassAt(/** @type {any} */ (word), settings), 0);
+});
+
+/*
+ * Where a card has two forms, each makes its passes on its own top level
+ * and the card has made as many as the weaker of them. The form already a
+ * pass ahead is not what the card is waiting on: its next review is its
+ * own second, not the card's first, and "First review in 2d" over it
+ * would be wrong about both.
+ */
+test("and a form already a pass ahead is not the one a cleared card waits on", () => {
+  const settings = { language: "ar-PS" };
+  const day = 24 * 60 * 60 * 1000;
+  const lead = { id: "k", ar: "كِتاب", en: "book", lat: "kitaab", s: {} };
+  const plural = { id: "k-f~pl", ar: "كُتُب", en: "books", lat: "kutub", s: {} };
+  const card = { ...lead, lang: "ar-PS", forms: [lead, plural] };
+  const topOf = (/** @type {any} */ f) => {
+    /** @type {string[]} */
+    const keys = laddered(f, settings);
+    const level = Math.max(...keys.map(levelOf));
+    return keys.filter((k) => levelOf(k) === level);
+  };
+  const [leadTop] = topOf(lead);
+  const [pluralTop] = topOf(plural);
+  assert.ok(leadTop && pluralTop, "both forms are asked something on a top level");
+
+  lead.s = { [leadTop]: { phase: "review", due: 2 * day, passes: 1 } };
+  plural.s = { [pluralTop]: { phase: "review", due: 6 * day, passes: 0 } };
+  assert.equal(nextPassAt(/** @type {any} */ (card), settings), 6 * day);
+
+  /* And once they are level, whichever of them comes round first. */
+  plural.s = { [pluralTop]: { phase: "review", due: 6 * day, passes: 1 } };
+  assert.equal(nextPassAt(/** @type {any} */ (card), settings), 2 * day);
+});
+
+test("what a cleared card puts on its tile: which review, and when", () => {
+  const day = 24 * 60 * 60 * 1000;
+  /* The ordinal is the passes made plus one. */
+  assert.equal(passLine(10 * day, 0, 7 * day), "First review in 3d");
+  assert.equal(passLine(7 * day + 5 * 60 * 60 * 1000, 1, 7 * day), "Second review in 5h");
+  /* Due says so, with the ordinal still on it. */
+  assert.equal(passLine(7 * day, 0, 7 * day), "First review due now");
+  assert.equal(passLine(6 * day, 1, 7 * day), "Second review due now");
+  assert.equal(passLine(0, 0, 7 * day), "No review scheduled");
+  /* And one past the words there are is still a sentence. */
+  assert.equal(passLine(10 * day, 7, 7 * day), "Review 8 in 3d");
 });
 
 /*

@@ -1859,14 +1859,32 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       await sleep(300);
       const cards = [...document.querySelectorAll(".at-cardgrid .at-minicard")];
       const said = cards.map((t) => ((t.querySelector(".at-minimeta") || {}).textContent || "").trim());
+      const isCleared = /Cleared/.test(name);
+      /* Under Cleared, which of the reviews still to make is next — "First
+         review in 3d" — because that is what the card is waiting on. Under
+         Learnt there is nothing left to count, so it is simply the next
+         time the card is asked. */
       check(`${name}: every card says when it is next reviewed`,
-        cards.length > 0 && said.every((l) => /^(Next review in \S+|Review due now)$/.test(l)),
+        cards.length > 0 && said.every((l) => isCleared
+          ? /^(First|Second) review (in \S+|due now)$/.test(l)
+          : /^(Next review in \S+|Review due now)$/.test(l)),
         said.join(" · ").slice(0, 140) || "(no small print)");
       /* As how long away it is, rather than a date to count from: hours
          while it is hours, days once it is days. */
       check(`${name}: as a gap, in hours or days`,
-        said.every((l) => l === "Review due now" || /in \d+(\.\d+)?(m|h|d|mo|y)$/.test(l)),
+        said.every((l) => / due now$/.test(l) || /in \d+(\.\d+)?(m|h|d|mo|y)$/.test(l)),
         said.join(" · ").slice(0, 140));
+      /* And Cleared says, once, how many of those reviews there are — the
+         ordinal on each card means nothing without it. Learnt has no
+         such line: there is nothing left to count. */
+      const screen = [...document.querySelectorAll(".at-screen.over")].pop();
+      const lede = screen ? screen.querySelector(".at-lede") : null;
+      const ledeText = lede ? (lede.textContent || "").replace(/\s+/g, " ").trim() : "";
+      check(`${name}: ${isCleared ? "says how many reviews make a card learnt" : "and no count of reviews to go"}`,
+        isCleared
+          ? ledeText === "It takes 2 reviews to move a card from Cleared to Learnt."
+          : !/reviews? to move a card/.test(ledeText),
+        ledeText || "(no line)");
       /* And no bar, which is the whole reason there is a line here at all. */
       check(`${name}: and no bar, which would be full on every one of them`,
         !cards.some((t) => t.querySelector(".at-minibar")),

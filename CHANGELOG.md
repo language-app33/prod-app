@@ -8,6 +8,30 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.219 — 23 September 2026
+
+**Cleared says what a card is waiting for.**
+
+Open **Cleared** on Progress and there is now a line at the top: *It
+takes 2 reviews to move a card from Cleared to Learnt.* That was said on a
+card's own screen and nowhere in the list.
+
+Each card under Cleared now names the review it is waiting on: *First
+review in 3d*, *Second review in 5h*, *First review due now*. First until
+a card has made one of its two, second after.
+
+**And the time beside it is that review's.** It used to be whenever the
+card was next asked anything at all. A cleared card is still asked its
+easier questions now and then, and those can come round sooner, but they
+do not move it any nearer Learnt. Only the hardest question it has counts,
+answered right when it comes due. So a card whose easy question is due
+tomorrow and whose hard one is due on Friday now says Friday.
+
+**Learnt is unchanged.** There is nothing left to count there, so each
+card still says when it is next asked: *Next review in 3d*.
+
+Nothing about how cards are scheduled has changed.
+
 ## 0.218 — 22 September 2026
 
 **Nothing you can see; the tests the audit asked for.** 0.215 published a
