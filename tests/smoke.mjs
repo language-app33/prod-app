@@ -3952,6 +3952,8 @@ const cardNameField = () => {
 };
 const formRows = () => [...document.querySelectorAll(
   '[role="radiogroup"][aria-label="What subtype"] .at-tickrow')];
+/* The subtype's options are in a sheet since 0.241; the rows are the same
+   radio rows, looked for wherever they are drawn. */
 const openWordKind = async () => {
   if (formRows().length) return;
   click(wordKindPencil() || wordKindBtn());
@@ -4231,6 +4233,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!wordKindBtn() && /Not set/.test(wordKindBtn().textContent || "") && !formRows().length,
     `${wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(no button)"} · ${formRows().length} rows`);
   await openWordKind();
+  check("the subtypes open in a sheet of their own",
+    !!document.querySelector('.at-kindsheet[role="dialog"]') &&
+      !!document.querySelector('.at-kindsheet [role="radiogroup"][aria-label="What subtype"]'),
+    document.querySelector(".at-kindsheet") ? "open" : "(no sheet)");
   check("and opening it lists what the language lets a word be",
     formRows().length > 2 &&
       /^Noun/.test((formRows()[0].textContent || "").trim()) &&
@@ -4241,11 +4247,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   check("each of them saying what it gets you",
     formRows().every((r) => !!r.querySelector("i")),
     formRows().map((r) => ((r.querySelector("i") || {}).textContent || "—")).join(" | "));
-  /* And a click anywhere else puts it away again, the rule every menu on
-     this screen goes by. */
-  click(document.querySelector(".at-screenhead h2"));
+  /* And a tap outside the sheet puts it away again, the rule every sheet
+     on this screen goes by. */
+  click(/** @type {any} */ (document.querySelector(".at-kindsheet")).closest(".at-modalback"));
   await sleep(200);
-  check("and a click outside puts the list away without answering it",
+  check("and a tap outside puts the sheet away without answering it",
     !formRows().length && !!wordKindBtn() && /Not set/.test(wordKindBtn().textContent || ""),
     wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(no button)");
 
@@ -4277,13 +4283,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     check("and says it is in none yet, as the offer to put it in one",
       !pills().length && /add this card to a deck/i.test(addBtn() ? addBtn().textContent || "" : ""),
       `${pills().length} pills · ${addBtn() ? (addBtn().textContent || "").trim() : "no button"}`);
-    check("the decks are put away until asked for", !document.querySelector(".at-choosemenu"));
+    check("the decks are put away until asked for", !document.querySelector(".at-decksheet"));
 
     click(addBtn());
     await sleep(200);
-    const menu = document.querySelector(".at-choosemenu");
+    /* In a sheet of their own since 0.241, as a blank and a custom tag
+       are chosen: a list hanging off the button ran off a phone. */
+    const menu = document.querySelector('.at-decksheet[role="dialog"]');
     const rows = menu ? [...menu.querySelectorAll(".at-deckpick")] : [];
-    check("pressing it opens the decks as a list to pick from", rows.length > 0,
+    check("pressing it opens the decks as a list to pick from, in a sheet", rows.length > 0 &&
+      /^Decks$/.test(((menu && menu.querySelector(".at-modaltitle")) || {}).textContent || ""),
       `${rows.length} decks offered`);
     const firstDeck = ((rows[0] && rows[0].querySelector("b")) || {}).textContent || "";
     click(rows[0]);
@@ -4298,12 +4307,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /added/i.test(((rows[0].querySelector(".at-deckmark") || {}).textContent || "")),
       ((rows[0].querySelector(".at-deckmark") || {}).textContent || "").trim() || "(no mark)");
     check("and the list stays open, because you are usually picking more than one",
-      !!document.querySelector(".at-choosemenu"));
-    /* A click anywhere else puts it away — the rule the language switch
-       goes by, read off the click on the way down. */
-    click(document.querySelector(".at-screenhead h2"));
+      !!document.querySelector(".at-decksheet"));
+    /* A tap outside the sheet puts it away, as it does every sheet. */
+    click(/** @type {any} */ (document.querySelector(".at-decksheet")).closest(".at-modalback"));
     await sleep(200);
-    check("a click outside puts it away", !document.querySelector(".at-choosemenu"));
+    check("a tap outside puts it away", !document.querySelector(".at-decksheet"));
     check("and the deck it was put in is still named",
       pills().length === 1 && pills()[0] === firstDeck.trim(),
       pills().join(" | ") || "(no decks named)");

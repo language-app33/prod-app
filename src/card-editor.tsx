@@ -1719,60 +1719,71 @@ function VerbTable({ lang, spec, of = "", ofLabel = "", inline = false, cells, m
 }
 
 /*
- * Which decks a card is in, as a button and a menu.
+ * A sheet of choices, in the mould of the one a blank is put in from.
+ *
+ * Which decks a card is in and what subtype it is used to open as lists
+ * hanging off their buttons, inside the form — where a long list ran off
+ * the bottom of a phone and a short one covered the field under it. They
+ * are sheets now, as putting in a blank and choosing custom tags already
+ * were: up from the bottom on a phone, a panel in the middle where there
+ * is room, shut by its cross, by Escape or by a tap outside it.
+ */
+function PickSheet({ title, lede, className = "", onClose, children }: {
+  title: string;
+  lede?: string;
+  className?: string;
+  onClose: () => void;
+  children?: Node;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <Overlay>
+      <div className="at-modalback sheet" onClick={onClose}>
+        <div
+          className={`at-sheet${className ? " " + className : ""}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="at-sheettop">
+            <h3 className="at-modaltitle">{title}</h3>
+            <IconButton icon="close" label="Close" onClick={onClose} />
+          </div>
+          {lede ? <p className="at-hint">{lede}</p> : null}
+          {children}
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+/*
+ * Which decks a card is in: the decks as pills, and a button that opens
+ * the list of them in a sheet.
  *
  * It was the last block on the editor, a full section with a heading, a
  * paragraph and a tick per deck — so the answer to "where does this card
- * go?" was several hundred pixels below the question, and a teacher with
- * twenty decks scrolled past twenty rows to reach Variables. The decision
- * is one line long and belongs near the top, beside what kind of card this
- * is: both are facts about the card rather than about its words.
- *
- * Built the way the learning space's language switch is, for the same
- * reason it was: a button whose label is the state, opening a list of
- * ticks. What differs is where the menu hangs. The language switch is
- * pinned to the window because it lives in the chrome, which does not
- * scroll; this one is a control inside a form, so it hangs off the button
- * and travels with it.
+ * go?" was several hundred pixels below the question. The decision is one
+ * line long and belongs near the top, beside what kind of card this is:
+ * both are facts about the card rather than about its words.
  */
-/*
- * A button that opens a list under itself, and puts it away again.
- *
- * Two controls on this screen are the same shape — which decks a card is
- * in, and which blank it fills or leaves — so the part that is fiddly is
- * written once. "Outside" is read off the click on the way down rather
- * than waited for at the window: a menu that waits can be left open behind
- * something that stopped the click travelling. Choosing inside the menu
- * keeps it open, because these are lists people work down.
- */
-function usePicker() {
-  const [open, setOpen] = useState(false);
-  const mine: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      const at = e.target;
-      if (mine.current && at instanceof Node && mine.current.contains(at)) return;
-      setOpen(false);
-    };
-    document.addEventListener("click", close, true);
-    return () => document.removeEventListener("click", close, true);
-  }, [open]);
-  return { open, setOpen, mine };
-}
-
 function DeckSwitch({ decks, chosen, onToggle }: {
   decks: Deck[];
   chosen: string[];
   onToggle: (id: string, wasOn: boolean) => void;
 }) {
-  const { open, setOpen, mine } = usePicker();
+  const [open, setOpen] = useState(false);
 
   const all = decks || [];
   const inThese = all.filter((d) => chosen.includes(d.id));
 
   return (
-    <div className="at-chooser deckwrap" ref={mine}>
+    <div className="at-chooser deckwrap">
       {/* The decks this card is in, each as a thing you can see and take
           off, with the way to add another on the end of the row. It was a
           pill saying "2 decks" that had to be opened to find out which
@@ -1800,7 +1811,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
           <button
             className="at-deckadd"
             aria-expanded={open}
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => setOpen(true)}
           >
             <Icon name="add" size={17} />
             {inThese.length ? "Another deck" : "Add this card to a deck"}
@@ -1812,9 +1823,15 @@ function DeckSwitch({ decks, chosen, onToggle }: {
         )}
       </div>
 
+      {/* Stays open while decks are picked, because a card usually goes in
+          more than one; the pills behind it change as it does. */}
       {open && (
-        <div className="at-choosemenu">
-          <p className="at-eyebrow">Your decks</p>
+        <PickSheet
+          title="Decks"
+          lede="Choose the decks this card belongs to."
+          className="at-decksheet"
+          onClose={() => setOpen(false)}
+        >
           <div className="at-deckpicks">
             {all.map((d) => {
               const on = chosen.includes(d.id);
@@ -1837,7 +1854,7 @@ function DeckSwitch({ decks, chosen, onToggle }: {
             })}
           </div>
           <Help>A student sees this card only where it is in a deck their course uses.</Help>
-        </div>
+        </PickSheet>
       )}
     </div>
   );
@@ -4380,7 +4397,25 @@ const SUBTYPE_LEDE = "Each subtype has specific fields, forms, structures, etc."
 
 function WordKind({ word }: { word: WordDraft }) {
   const { category, chooseCategory, categoryOffer, categorySaid } = word;
-  const { open, setOpen, mine } = usePicker();
+  const [open, setOpen] = useState(false);
+  /* The list, in a sheet of its own — see PickSheet. Choosing shuts it,
+     because choosing is the whole of what it was open for, and what
+     follows from the answer is a table appearing on the screen behind. */
+  const sheet = open ? (
+    <PickSheet title="What subtype" lede={SUBTYPE_LEDE} className="at-kindsheet" onClose={() => setOpen(false)}>
+      <RadioGroup
+        quiet
+        label="What subtype"
+        name="card-category"
+        options={categoryOffer}
+        value={category}
+        onChange={(v) => {
+          chooseCategory(v);
+          setOpen(false);
+        }}
+      />
+    </PickSheet>
+  ) : null;
   const said = categoryOffer.find((c) => c.value === category) || null;
   /*
    * Where there is nothing to choose between, the answer is shown and not
@@ -4424,7 +4459,7 @@ function WordKind({ word }: { word: WordDraft }) {
   /* Shut is the state an answered question sits in, and the pencil is the
      way back into it — so the list is on screen only while it is being
      read, and the answer is on screen the rest of the time. */
-  if (said && !open) {
+  if (said) {
     return (
       <div className="at-field at-mt3">
         <label className="at-label">What subtype</label>
@@ -4438,6 +4473,7 @@ function WordKind({ word }: { word: WordDraft }) {
             onClick={() => setOpen(true)}
           />
         </div>
+        {sheet}
       </div>
     );
   }
@@ -4445,41 +4481,19 @@ function WordKind({ word }: { word: WordDraft }) {
     <div className="at-field at-mt3">
       <label className="at-label">What subtype</label>
       <p className="at-fieldlede">{SUBTYPE_LEDE}</p>
-      <div className="at-chooser" ref={mine}>
+      <div className="at-chooser">
         <button
-          className={`at-choosebtn${said ? " on" : ""}`}
+          className="at-choosebtn"
           aria-expanded={open}
-          aria-label={
-            said
-              ? `What subtype — ${said.label}. Choose another.`
-              : "What subtype. Not set. Choose one."
-          }
-          onClick={() => setOpen((v) => !v)}
+          aria-label="What subtype. Not set. Choose one."
+          onClick={() => setOpen(true)}
         >
           <Icon name="tune" size={16} />
-          <span className="at-choosemark">{said ? said.label : "Not set"}</span>
-          <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
+          <span className="at-choosemark">Not set</span>
+          <Icon name="chevronDown" size={16} />
         </button>
-        {open && (
-          <div className="at-choosemenu">
-            {/* Choosing shuts it, because choosing is the whole of what it
-                was open for — and what follows from the answer is a table
-                appearing further down the screen, which a menu standing
-                over it would hide. */}
-            <RadioGroup
-              quiet
-              label="What subtype"
-              name="card-category"
-              options={categoryOffer}
-              value={category}
-              onChange={(v) => {
-                chooseCategory(v);
-                setOpen(false);
-              }}
-            />
-          </div>
-        )}
       </div>
+      {sheet}
     </div>
   );
 }

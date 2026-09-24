@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.241 — 24 September 2026
+
+**A card's subtype and decks are chosen in sheets.**
+
+Choosing **What subtype** a card is, and which **Decks** it goes in, now
+opens a sheet like the ones for putting in a blank and choosing custom
+tags, instead of a list hanging under the button. On a phone it rises
+from the bottom, so a long list of decks no longer runs off the screen.
+Choosing a subtype closes its sheet; the deck sheet stays open while
+you pick several, and closes with its cross, Escape or a tap outside it.
+
 ## 0.240 — 24 September 2026
 
 **Custom tags are chosen in a sheet of their own.**
