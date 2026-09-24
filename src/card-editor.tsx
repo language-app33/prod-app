@@ -5896,43 +5896,34 @@ function IdBox({ word }: { word: WordDraft }) {
 }
 
 /*
- * The groups this card is in, each with the pencil that renames it.
+ * The tags this card has, read as pills — and the way to change them.
  *
- * A tick list with a second control on every row, which is why it is not
- * the shared CheckList: the tick and the pencil are different questions
- * about the same tag — is this card in it, and is the tag called the right
- * thing — and a row that answered the second by being tapped anywhere
- * would rename a group every time somebody meant to join one.
- *
- * Renaming opens in place, over the row: a group is a name two cards agree
- * on, and the only place a misspelt one is visible is a card that has it.
+ * Both runs are shown the same way now: Default tags, which follow from
+ * the kind of card, and Custom tags, which a teacher chose. Neither is a
+ * control on this screen. Choosing a custom tag, creating one, renaming
+ * one and taking one off every card all happen in a sheet of their own —
+ * see TagSheet — opened by the one button under the pills, the way a
+ * sentence's blanks are put in from a sheet rather than typed into the
+ * page.
  */
-function TagList({ word, rows, maker }: {
+function TagList({ word, rows, maker, full, open, onOpen, onClose }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
-  /** The box that creates a custom tag, drawn under that heading. */
+  /** The box that creates a custom tag, drawn at the top of the sheet. */
   maker?: Node;
+  /** Whether the card already carries as many tags as it may. */
+  full: boolean;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
 }) {
-  const {
-    fills, addFill, dropFill, renameFill, nameHeld, askStrip, defaultTags, ownFills,
-  } = word;
-  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
-  /* A tag may be renamed onto another tag — two groups becoming one is a
-     thing a teacher may mean — but never onto a card's ID, which would
-     leave two different things answering to one `{{x}}`. */
-  const clash = renaming ? nameHeld(slotName(renaming.to)) : null;
-  const canRename = !!renaming && !!slotName(renaming.to) &&
-    slotName(renaming.to) !== renaming.from && (!clash || clash.kind === "group");
-  /* The two runs, named: the tags that follow from the card, and the ones
-     a teacher keeps. They are one list because they are one namespace —
-     every one of them is a name a sentence writes between braces — and two
-     runs because only the second is a question. */
+  const { fills, defaultTags, ownFills } = word;
   /* Only the default tags this card actually has, as plain labels: nothing
-     on them can be pressed — the answer is the kind of card, above — so
-     they carry no tick and no box a tick could be looked for in. */
+     on them can be pressed — the answer is the kind of card, above. */
   const worn = defaultTags.filter((t) => ownFills.includes(t.name));
-  const fixed = (
-    <>
+  const row = (name: string) => rows.find((b) => b.name === name);
+  return (
+    <div className="at-ticklist at-cardtags">
       {/* What each run is, said under its own heading rather than after
           the rows, where it read as a note on whatever came next. */}
       <p className="at-eyebrow">Default tags</p>
@@ -5954,111 +5945,200 @@ function TagList({ word, rows, maker }: {
       )}
       <p className="at-eyebrow">Custom tags</p>
       <Help>Apply a custom tag that already exists, or create a new one.</Help>
-      {maker}
-    </>
-  );
-  if (!rows.length) {
-    return (
-      <div className="at-ticklist at-cardtags">
-        {fixed}
-        <p className="at-hint">
-          No custom tag exists yet — the first one has to be created by
-          somebody.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <div className="at-ticklist at-cardtags">
-      {fixed}
-      {rows.map((b) => {
-        const on = fills.includes(b.name);
-        if (renaming && renaming.from === b.name) {
-          return (
-            <div className="at-tagrow" key={b.name}>
-              <input
-                className="at-input"
-                value={renaming.to}
-                aria-label={`A new name for the tag ${b.name}`}
-                autoFocus
-                onChange={(e) => setRenaming({ from: b.name, to: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setRenaming(null);
-                  if (e.key !== "Enter" || !canRename) return;
-                  renameFill(b.name, renaming.to);
-                  setRenaming(null);
-                }}
-              />
-              <IconButton
-                icon="check"
-                label={`Rename the tag ${b.name}`}
-                disabled={!canRename}
-                onClick={() => {
-                  renameFill(b.name, renaming.to);
-                  setRenaming(null);
-                }}
-              />
-              <IconButton icon="close" label="Leave the name as it is" onClick={() => setRenaming(null)} />
-            </div>
-          );
-        }
-        return (
-          <div className="at-tagrow" key={b.name}>
-            <label className="at-tickrow">
-              <input
-                type="checkbox"
-                checked={on}
-                onChange={() => (on ? dropFill(b.name) : addFill(b.name))}
-              />
-              <span className="at-tickbody">
-                <b>{b.name}</b>
-                {/* Two facts, each of which is a reason to tick or not:
-                    how many sentences would borrow this word, and whether
-                    anybody else's card is already standing in that hole. */}
-                <i>
-                  {[
-                    b.used ? `used in ${plural(b.used, "card")}` : "not used in any card yet",
-                    b.wrote ? `${plural(b.wrote, "card")} already fill it` : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </i>
+      {/* The ones this card has, dressed as the default ones are: which
+          tags a card carries is one kind of fact whichever run it is in. */}
+      {fills.length ? (
+        <div className="at-tagchips at-customchips">
+          {fills.map((name) => {
+            const b = row(name);
+            return (
+              <span
+                className="at-tagchip"
+                key={name}
+                title={b && b.used ? `Used in ${plural(b.used, "card")}` : "Not used in any card yet"}
+              >
+                {name}
               </span>
-            </label>
-            <IconButton
-              icon="edit"
-              label={`Rename the tag ${b.name}`}
-              onClick={() => setRenaming({ from: b.name, to: b.name })}
-            />
-            {/* And the bin, beside the pencil, for the same reason the
-                pencil is here: a group nobody wants any more is only
-                visible from a card that is in it. Only where cards
-                actually fill it — on a name a sentence leaves and nothing
-                fills, there is nothing to take off anybody, and a button
-                that would do nothing is worse than no button. Taking this
-                one card out is the tick to its left, so this can mean the
-                one thing. */}
-            {b.wrote > 0 && (
-              <IconButton
-                icon="delete"
-                label={`Take the tag ${b.name} off every card`}
-                onClick={() => askStrip(b.name, b.wrote, b.used)}
-              />
-            )}
-          </div>
-        );
-      })}
-      {/* Said rather than left as a tick that will not press. Two groups
-          becoming one is allowed and this is the case that is not: a card
-          answers to that name already. */}
-      {clash && clash.kind === "card" && (
-        <p className="at-formneed unmet">
-          A card&rsquo;s ID is that name already, and one{" "}
-          <BlankName name={slotName((renaming || { to: "" }).to)} /> cannot be
-          two things.
-        </p>
+            );
+          })}
+        </div>
+      ) : null}
+      <div>
+        <Button variant="ghost" size="sm" icon="add" onClick={onOpen}>
+          Add custom tags
+        </Button>
+      </div>
+      {open && (
+        <TagSheet word={word} rows={rows} maker={maker} full={full} onClose={onClose} />
       )}
     </div>
+  );
+}
+
+/*
+ * The sheet custom tags are chosen, made, renamed and taken off in.
+ *
+ * The same bottom sheet a blank is put into a sentence from (BlankSheet):
+ * a box for a new name at the top, then every tag there is, each with its
+ * tick, the pencil that renames it and — where cards actually carry it —
+ * the bin that takes it off all of them. A tick list with a second control
+ * on every row, which is why it is not the shared CheckList: the tick and
+ * the pencil are different questions about the same tag, and a row that
+ * answered the second by being tapped anywhere would rename a tag every
+ * time somebody meant to apply one.
+ *
+ * The two questions a rename and a bin ask are drawn in here while it is
+ * open, so they stand over the sheet rather than under it.
+ */
+function TagSheet({ word, rows, maker, full, onClose }: {
+  word: WordDraft;
+  rows: { name: string; used: number; wrote: number }[];
+  maker?: Node;
+  full: boolean;
+  onClose: () => void;
+}) {
+  const { fills, addFill, dropFill, renameFill, nameHeld, askStrip, asking, dropping } = word;
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  /* Escape shuts the sheet — unless it is shutting something inside it
+     first: a rename being typed, or one of the two questions. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !renaming && !asking && !dropping) onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, renaming, asking, dropping]);
+  /* A tag may be renamed onto another tag — two tags becoming one is a
+     thing a teacher may mean — but never onto a card's ID, which would
+     leave two different things answering to one `{{x}}`. */
+  const clash = renaming ? nameHeld(slotName(renaming.to)) : null;
+  const canRename = !!renaming && !!slotName(renaming.to) &&
+    slotName(renaming.to) !== renaming.from && (!clash || clash.kind === "group");
+  return (
+    <Overlay>
+      <div className="at-modalback sheet" onClick={onClose}>
+        <div
+          className="at-sheet at-tagsheet"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Custom tags"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="at-sheettop">
+            <h3 className="at-modaltitle">Custom tags</h3>
+            <IconButton icon="close" label="Close" onClick={onClose} />
+          </div>
+          <p className="at-hint">
+            Tick the tags this card should have, or create a new one.
+          </p>
+          {maker}
+          {full && (
+            <Notice kind="warn">
+              That is as many tags as one card may have. Take one off to
+              add another.
+            </Notice>
+          )}
+          <div className="at-ticklist at-tagsheetlist">
+            {!rows.length && (
+              <p className="at-hint">
+                No custom tag exists yet — the first one has to be created by
+                somebody.
+              </p>
+            )}
+            {rows.map((b) => {
+              const on = fills.includes(b.name);
+              if (renaming && renaming.from === b.name) {
+                return (
+                  <div className="at-tagrow" key={b.name}>
+                    <input
+                      className="at-input"
+                      value={renaming.to}
+                      aria-label={`A new name for the tag ${b.name}`}
+                      autoFocus
+                      onChange={(e) => setRenaming({ from: b.name, to: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setRenaming(null);
+                        if (e.key !== "Enter" || !canRename) return;
+                        renameFill(b.name, renaming.to);
+                        setRenaming(null);
+                      }}
+                    />
+                    <IconButton
+                      icon="check"
+                      label={`Rename the tag ${b.name}`}
+                      disabled={!canRename}
+                      onClick={() => {
+                        renameFill(b.name, renaming.to);
+                        setRenaming(null);
+                      }}
+                    />
+                    <IconButton icon="close" label="Leave the name as it is" onClick={() => setRenaming(null)} />
+                  </div>
+                );
+              }
+              return (
+                <div className="at-tagrow" key={b.name}>
+                  <label className="at-tickrow">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => (on ? dropFill(b.name) : addFill(b.name))}
+                    />
+                    <span className="at-tickbody">
+                      <b>{b.name}</b>
+                      {/* Two facts, each of which is a reason to tick or
+                          not: how many sentences would borrow this word,
+                          and whether anybody else's card already stands in
+                          that hole. */}
+                      <i>
+                        {[
+                          b.used ? `used in ${plural(b.used, "card")}` : "not used in any card yet",
+                          b.wrote ? `${plural(b.wrote, "card")} already fill it` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </i>
+                    </span>
+                  </label>
+                  <IconButton
+                    icon="edit"
+                    label={`Rename the tag ${b.name}`}
+                    onClick={() => setRenaming({ from: b.name, to: b.name })}
+                  />
+                  {/* And the bin, beside the pencil: a tag nobody wants any
+                      more is only visible from a card that has it. Only
+                      where cards actually carry it — on a name a sentence
+                      leaves and nothing fills, there is nothing to take off
+                      anybody. Taking this one card out is the tick. */}
+                  {b.wrote > 0 && (
+                    <IconButton
+                      icon="delete"
+                      label={`Take the tag ${b.name} off every card`}
+                      onClick={() => askStrip(b.name, b.wrote, b.used)}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            {/* Said rather than left as a tick that will not press: a card
+                answers to that name already. */}
+            {clash && clash.kind === "card" && (
+              <p className="at-formneed unmet">
+                A card&rsquo;s ID is that name already, and one{" "}
+                <BlankName name={slotName((renaming || { to: "" }).to)} /> cannot be
+                two things.
+              </p>
+            )}
+          </div>
+        </div>
+        {/* Over the sheet, and outside its own click-catcher, so answering
+            one does not also shut the sheet. */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <RenameAsk word={word} />
+          <StripAsk word={word} />
+        </div>
+      </div>
+    </Overlay>
   );
 }
 
@@ -6171,6 +6251,9 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
    * which is the thing worth knowing without opening it.
    */
   const [examplesOpen, setExamplesOpen] = useState(false);
+  /* Whether the custom tags sheet is open — see TagSheet. Held here because
+     the two questions a tag asks are drawn here while it is shut. */
+  const [tagsOpen, setTagsOpen] = useState(false);
   /*
    * And the sentences themselves, built only once somebody asks to see
    * them.
@@ -6542,6 +6625,10 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             <TagList
               word={word}
               rows={offered}
+              full={full}
+              open={tagsOpen}
+              onOpen={() => setTagsOpen(true)}
+              onClose={() => setTagsOpen(false)}
               /* The box that creates a custom tag, under that heading: it
                  was at the top of the section, over the default tags it
                  has nothing to do with. */
@@ -6565,14 +6652,6 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               }
             />
 
-            {full && (
-              <Notice kind="warn">
-                That is as many tags as one card may have. Take one off to
-                add another.
-              </Notice>
-            )}
-
-
           </>
         )}
         </div>
@@ -6581,8 +6660,10 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
           editing, so neither can be answered beside the row it came
           from: where a rename follows the name to, and whether a group
           comes off the collection. */}
-      <RenameAsk word={word} />
-      <StripAsk word={word} />
+      {/* Drawn in the tag sheet instead while that is open, so they stand
+          over it. */}
+      {!tagsOpen && <RenameAsk word={word} />}
+      {!tagsOpen && <StripAsk word={word} />}
     </>
   );
 }

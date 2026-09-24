@@ -749,6 +749,10 @@ button {
 }
 .at-sheettop { display:flex; align-items:center; gap:8px; }
 .at-sheettop .at-modaltitle { flex:1; min-width:0; margin:0; }
+/* The close button is a square at the end of the title's line. An icon
+   button grows to share its row by default, which stretched this one
+   across half the sheet — on the blank sheet and the tag sheet alike. */
+.at-sheettop .at-icon { flex:0 0 auto; width:44px; min-height:44px; padding:0; }
 .at-sheet > .at-hint { margin:4px 0 12px; }
 .at-sheet > .at-input { width:100%; }
 .at-blankmake, .at-blanklist button { display:flex; flex-direction:column; gap:2px;
@@ -830,6 +834,10 @@ button {
 .at-cardtags > .at-eyebrow + .at-hint { margin-top:-4px; }
 .at-cardtags > .at-blanknew { margin-top:0; }
 .at-cardtags + .at-hint { margin-top:20px; }
+/* The custom tags sheet: the box that makes one, then every tag there is,
+   a step under it. */
+.at-tagsheet .at-blanknew { margin-top:4px; }
+.at-tagsheet .at-tagsheetlist { margin-top:14px; }
 /* One group tag: the tick that joins it, and the pencil that renames it.
    Two questions about one row, so they are two controls — a row that
    renamed the group when you meant to join it would be unusable. */

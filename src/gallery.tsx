@@ -183,6 +183,7 @@ const PLACES: Record<string, [string, string]> = {
   BlankSheet: [TEACH, "Editing a card · choosing which blank to put in"],
   IdBox: [TEACH, "Editing a card · the ID it answers to"],
   TagList: [TEACH, "Editing a card · its tags"],
+  TagSheet: [TEACH, "Editing a card · the sheet custom tags are chosen in"],
   RenameAsk: [TEACH, "Editing a card · renaming an ID or a tag"],
   StripAsk: [TEACH, "Editing a card · taking a tag off every card"],
   RecordingOverlays: [TEACH, "Editing a card · recording a form"],

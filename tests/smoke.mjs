@@ -5158,7 +5158,18 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          into somebody else's hole is a sentence with a gap where the point
          was — so the half that offers it says why rather than offering a
          control there is no answer to. */
-      const newBox = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew")[0] || null);
+      /* The custom tags live in a sheet of their own now, opened from the
+         section — see TagSheet — so what is in it is looked for there. */
+      const inSheet = (/** @type {string} */ sel) =>
+        [...document.querySelectorAll(`.at-tagsheet ${sel}`)];
+      const tagsBtn = () => /** @type {any} */ (
+        inHalf(FILLS, "button").find((b) => /^Add custom tags$/.test((b.textContent || "").trim())) || null);
+      const openTags = async () => {
+        if (document.querySelector(".at-tagsheet") || !tagsBtn()) return;
+        click(tagsBtn());
+        await sleep(200);
+      };
+      const newBox = () => /** @type {any} */ (inSheet(".at-blanknew")[0] || null);
       check("and a card that leaves a blank is told why it fills none",
         /fills none/.test(((blanks() || {}).textContent) || "") && !newBox(),
         newBox() ? "offered anyway" : "said, and not offered");
@@ -5167,8 +5178,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          offered the question at all: a sentence dropped into a hole is a
          sentence with a gap where the point was. */
       check("a sentence is offered no group to join, because it fills none",
-        !inHalf(FILLS, ".at-ticklist .at-tickrow").length,
-        `${inHalf(FILLS, ".at-ticklist .at-tickrow").length} groups offered`);
+        !tagsBtn() && !inSheet(".at-tickrow").length,
+        tagsBtn() ? "a button to add them" : `${inSheet(".at-tickrow").length} groups offered`);
 
       /* And the other half comes alive on a word — which is a different
          card, not this one called something else: a sentence goes on being
@@ -5184,7 +5195,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /* The blanks it may fill, as a list on the screen. It was a menu
          that had to be opened — and a list you have to open to see is a
          list you answer without reading. */
-      const fillList = () => inHalf(FILLS, ".at-ticklist .at-tickrow");
+      /* Under Custom tags, a button — and what it opens is the list. */
+      check("custom tags are added from a button under their heading",
+        !!tagsBtn() && !inSheet(".at-tickrow").length,
+        tagsBtn() ? "a button, nothing listed yet" : "(no button)");
+      await openTags();
+      check("which opens a sheet of them, titled for what it is",
+        !!document.querySelector('.at-tagsheet[role="dialog"]') &&
+          /^Custom tags$/.test(((document.querySelector(".at-tagsheet .at-modaltitle") || {}).textContent || "").trim()),
+        document.querySelector(".at-tagsheet") ? "open" : "(no sheet)");
+      const fillList = () => inSheet(".at-tickrow");
       const fillNames = () => fillList()
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
       const fillRow = (/** @type {RegExp} */ re) => /** @type {any} */ (
@@ -5223,7 +5243,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          are shown since 0.189 — grouped, flat rather than ticked, because
          the answer to them is the kind of word further up the screen. */
       {
-        const fixed = () => inHalf(FILLS, ".at-tagchip");
+        const fixed = () => inHalf(FILLS, ".at-tagchips:not(.at-customchips) .at-tagchip");
         const fixedNames = () => fixed()
           .map((r) => (r.textContent || "").trim());
         const runs = () => inHalf(FILLS, ".at-eyebrow")
@@ -5252,8 +5272,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           fixed().map((r) => r.outerHTML.slice(0, 60)).join(" | "));
         /* And none of them can be typed in as a group, because each is
            already a name on this list. */
-        const newInput = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew input")[0] || null);
-        const addBtn = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew button")[0] || null);
+        const newInput = () => /** @type {any} */ (inSheet(".at-blanknew input")[0] || null);
+        const addBtn = () => /** @type {any} */ (inSheet(".at-blanknew button")[0] || null);
         typeInto(newInput(), "noun");
         await sleep(200);
         check("and a group cannot be named after one of them",
@@ -5273,13 +5293,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !!newBox() && !!fillList().length &&
           !!(newBox().compareDocumentPosition(fillList()[0]) & 4),
         newBox() && fillList().length ? "above" : "(nothing to compare)");
-      /* Under the Custom tags heading, not over the default tags it has
-         nothing to do with. */
+      /* And the button that opens it is under the Custom tags heading, not
+         over the default tags it has nothing to do with. */
       {
         const customHead = inHalf(FILLS, ".at-eyebrow")
           .find((e) => (e.textContent || "").trim() === "Custom tags");
-        check("and under the Custom tags heading",
-          !!newBox() && !!customHead && !!(customHead.compareDocumentPosition(newBox()) & 4),
+        check("and the button is under the Custom tags heading",
+          !!tagsBtn() && !!customHead && !!(customHead.compareDocumentPosition(tagsBtn()) & 4),
           customHead ? "compared" : "(no heading)");
       }
 
@@ -5337,6 +5357,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         check("a tag says how many cards use it",
           /used in \d+ card/.test((fillRow(/^person$/) || {}).textContent || ""),
           ((fillRow(/^person$/) || {}).textContent || "").trim());
+        const customPills = inHalf(FILLS, ".at-customchips .at-tagchip").map((c) => (c.textContent || "").trim());
+        check("and a ticked tag shows on the card as a pill, as the default ones do",
+          JSON.stringify(customPills) === JSON.stringify(["person"]),
+          customPills.join(", ") || "(no pills)");
         check("and nothing after the tags repeats what ticking one did",
           !/can borrow this word|under the form itself/.test(((blanks() || {}).textContent) || ""),
           "said");
@@ -5461,7 +5485,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           .querySelector('button[aria-label^="Rename the tag"]') || null);
       click(pencil(/^person$/));
       await sleep(250);
-      const renameBox = () => /** @type {any} */ (inHalf(FILLS, ".at-tagrow input.at-input")[0] || null);
+      const renameBox = () => /** @type {any} */ (inSheet(".at-tagrow input.at-input")[0] || null);
       check("the pencil on a tag opens its name for editing, in place",
         !!renameBox() && renameBox().value === "person",
         renameBox() ? renameBox().value : "(no box)");

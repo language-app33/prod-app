@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.240 — 24 September 2026
+
+**Custom tags are chosen in a sheet of their own.**
+
+Under **Custom tags** the card now shows the tags it has as pills, the
+same gold pills as **Default tags**, with an **Add custom tags** button
+under them. The button opens a sheet like the one a blank is put into a
+sentence from: a box to create a new tag at the top, then every tag
+there is, each with its tick, its pencil to rename it and — where cards
+carry it — its bin to take it off every card.
+
+The close button at the top of that sheet, and of the blank sheet, is a
+small square again instead of stretching across the title's line.
+
 ## 0.239 — 24 September 2026
 
 **No custom tag shares a name with a subtype.**
