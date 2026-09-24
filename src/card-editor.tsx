@@ -4829,7 +4829,7 @@ function PracticeSection({ word }: { word: WordDraft }) {
     <div className="at-formblock at-mt5">
       <div className="at-formhead">
         <span className="at-formnum">How this card can be practiced</span>
-        <span className="at-formrole">{drillLede(word.canLend)}</span>
+        <span className="at-formrole">{drillLede("this card")}</span>
       </div>
       {parts.map((part) => (
         <DrillChecks
@@ -4897,7 +4897,7 @@ function TableBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               <span className="at-formnum">{mine.title}</span>
               <span className="at-formrole">{mine.note}</span>
             </div>
-            <DrillChecks word={word} part={mine} label="How these forms can be practiced" />
+            <DrillChecks word={word} part={mine} label="How these forms can be practiced" of="these forms" />
           </div>
         )}
       </>
@@ -5548,7 +5548,7 @@ function PronounTable({ word, lang, index: i, form: f }: {
         </p>
       )}
       {mine ? (
-        <DrillChecks word={word} part={mine} label="How these forms can be practiced" />
+        <DrillChecks word={word} part={mine} label="How these forms can be practiced" of="these forms" />
       ) : written ? (
         /* Named rather than left as a missing tick: the reason these are
            not asked is a decision made in the block above this one, and
@@ -5628,19 +5628,20 @@ function AddFormButton({ word }: { word: WordDraft }) {
  * see canLend, and a tick that does nothing is worse than no tick.
  */
 /* What the practice ticks are about, said once under their heading rather
-   than a sentence inside each tick. Which of the two it names depends on
-   whether the card can be lent at all. */
-const drillLede = (canLend: boolean): string =>
-  canLend
-    ? "Choose where this comes up in practice: asked as a question on its own, or placed in the sentence cards whose blanks it fills."
-    : "Choose whether this comes up in practice, asked as a question on its own.";
+   than a sentence inside each tick — and about whatever that heading is
+   about: this form, these forms, this card. */
+type DrillOf = "this form" | "these forms" | "this card";
+const drillLede = (of: DrillOf): string =>
+  `Choose where ${of} ${of === "these forms" ? "come" : "comes"} up in practice.`;
 
-function DrillChecks({ word, part, label = "How this form can be practiced", lede = true }: {
+function DrillChecks({ word, part, label = "How this form can be practiced", of = "this form", lede = true }: {
   word: WordDraft;
   part: AskPart;
   /* What the ticks are about, in the caller's words: one form under its
      own fields, and a table of them under the table. */
   label?: string;
+  /* What the heading is about, for the line under it. */
+  of?: DrillOf;
   /* Whether the line saying what the ticks are for goes under that label.
      Off where the caller has said it once already, over several of these. */
   lede?: boolean;
@@ -5650,7 +5651,7 @@ function DrillChecks({ word, part, label = "How this form can be practiced", led
   return (
     <div className="at-drills">
       {label ? <span className="at-drillhead">{label}</span> : null}
-      {label && lede ? <p className="at-hint at-drilllede">{drillLede(canLend)}</p> : null}
+      {label && lede ? <p className="at-hint at-drilllede">{drillLede(of)}</p> : null}
       <CheckList
         options={[
           { id: "ask", title: "On its own" },

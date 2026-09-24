@@ -5312,7 +5312,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           formsRole ? (formsRole.textContent || "").trim() : "(no Forms heading)");
         const drills = /** @type {any} */ (document.querySelector(".at-formtile.main .at-drills"));
         check("the practice ticks are explained once, under their heading, not in each tick",
-          !!drills && /Choose where this comes up in practice/.test(
+          !!drills && /^Choose where this form comes up in practice\.$/.test(
             ((drills.querySelector(".at-drilllede") || {}).textContent) || "") &&
             ![...drills.querySelectorAll(".at-tickrow i")].length,
           drills ? (drills.textContent || "").trim().slice(0, 160) : "(no ticks)");
