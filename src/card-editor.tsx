@@ -6005,7 +6005,7 @@ function TagList({ word, rows, maker }: {
                     anybody else's card is already standing in that hole. */}
                 <i>
                   {[
-                    b.used ? `left by ${plural(b.used, "card")}` : "no card leaves it yet",
+                    b.used ? `used in ${plural(b.used, "card")}` : "not used in any card yet",
                     b.wrote ? `${plural(b.wrote, "card")} already fill it` : "",
                   ]
                     .filter(Boolean)
@@ -6234,9 +6234,9 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                   }`
                 : sentence
                   ? "no blank in it yet"
-                  : fills.length
-                    ? `this card fills ${plural(fills.length, "blank")}`
-                    : "How this card can be used to fill blanks in sentence cards"}
+                  /* The same line however many tags the card has: it says
+                     what the section is for, and the tags below say which. */
+                  : "How this card can be used to fill blanks in sentence cards"}
           </span>
         </div>
 
@@ -6560,30 +6560,6 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               </Notice>
             )}
 
-            {fills.length ? (
-              <>
-                <Help>
-                  Every card with{" "}
-                  {fills.map((name, i) => (
-                    <React.Fragment key={name}>
-                      {i > 0 ? (i === fills.length - 1 ? " or " : ", ") : ""}
-                      <BlankName name={name} />
-                    </React.Fragment>
-                  ))}{" "}
-                  in it can borrow this word.
-                </Help>
-                {/* Whether it is *also* a question of its own was a tick
-                    here — one answer for the whole card, in a different
-                    place from the ticks under each form and asking a
-                    question that read like theirs. It is the first of
-                    those ticks now, so what is drilled is asked once and
-                    asked where the thing being drilled is. */}
-                <Help>
-                  Whether it is <i>also</i> asked as a question of its own is
-                  under the form itself, beside the word.
-                </Help>
-              </>
-            ) : null}
 
           </>
         )}

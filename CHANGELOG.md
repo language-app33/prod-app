@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.238 — 24 September 2026
+
+**Filling blanks, said less.**
+
+- The line beside **Filling blanks** always reads *How this card can be
+  used to fill blanks in sentence cards*. It used to change to *this
+  card fills 2 blanks* once a tag was ticked.
+- A custom tag now says where it is used: *used in 1 card* rather than
+  *left by 1 card* (and *not used in any card yet* where no sentence
+  asks for it).
+- The two lines that appeared under the tags once one was ticked —
+  *Every card with … can borrow this word* and *Whether it is also
+  asked as a question of its own…* — are gone.
+
 ## 0.237 — 24 September 2026
 
 **One note fewer under a card's tags.**

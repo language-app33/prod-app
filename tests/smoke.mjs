@@ -5327,6 +5327,20 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("ticking one says this card fills it",
         JSON.stringify(ticked()) === JSON.stringify(["name"]),
         ticked().join(", ") || "(none ticked)");
+      /* And with a tag ticked the section still says what it is for, the
+         tag says where it is used, and nothing under the list says it all
+         again. */
+      {
+        const role = (((blanks() || document).querySelector(".at-formrole") || {}).textContent || "").trim();
+        check("the section's line stays the same once a tag is ticked",
+          role === "How this card can be used to fill blanks in sentence cards", role || "(no line)");
+        check("a tag says how many cards use it",
+          /used in \d+ card/.test((fillRow(/^name$/) || {}).textContent || ""),
+          ((fillRow(/^name$/) || {}).textContent || "").trim());
+        check("and nothing after the tags repeats what ticking one did",
+          !/can borrow this word|under the form itself/.test(((blanks() || {}).textContent) || ""),
+          "said");
+      }
       /* And joining a group is what makes a card look like a value —
          "what does Raphael mean" is not a question — so the tick under
          the form goes off with it, where the teacher can see it and say
@@ -5351,12 +5365,6 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("a group nobody has named yet is typed in, and joins the list ticked",
         JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
         ticked().join(", ") || "(none ticked)");
-      check("with every one of them named in what the card is for",
-        /\bname\b/.test(((blanks() || {}).textContent) || "") &&
-          /\bgreeting\b/.test(((blanks() || {}).textContent) || ""),
-        ([...((blanks() || document).querySelectorAll(".at-hint"))]
-          .map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
-          .find((t) => /borrow/.test(t))) || "(nothing said)");
 
       const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
       const modalBtns = () => modal() ? [...modal().querySelectorAll("button")] : [];
