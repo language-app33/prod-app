@@ -8,6 +8,15 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.226 — 24 September 2026
+
+**Blanks is now Filling blanks.**
+
+The section of the card editor that was headed **Blanks** is headed
+**Filling blanks**. On a word that doesn't fill any blank yet, the line
+beside the heading now reads *How this card can be used to fill blanks
+in sentence cards*.
+
 ## 0.225 — 24 September 2026
 
 **A card's tags, tidied.**

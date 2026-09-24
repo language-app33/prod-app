@@ -6249,7 +6249,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
         says these are the blanks in this card. Neither was true. */}
       <div className="at-formblock at-mt5">
         <div className="at-formhead">
-          <span className="at-formnum">Blanks</span>
+          <span className="at-formnum">Filling blanks</span>
           <span className="at-formrole">
             {!sentence && strayHoles.length
               ? "Only a sentence can have a blank."
@@ -6266,7 +6266,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                   ? "no blank in it yet"
                   : fills.length
                     ? `this card fills ${plural(fills.length, "blank")}`
-                    : "gaps in sentences, and the cards that fill them"}
+                    : "How this card can be used to fill blanks in sentence cards"}
           </span>
         </div>
 

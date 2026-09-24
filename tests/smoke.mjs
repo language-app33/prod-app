@@ -4663,7 +4663,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      every field at once, so the fields cannot disagree. */
   {
     const blanks = () => [...document.querySelectorAll(".at-formblock")]
-      .find((b) => /^Blanks$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
+      .find((b) => /^Filling blanks$/.test(((b.querySelector(".at-formnum") || {}).textContent || "").trim()));
     /* Which half of the section a thing is in. The block is named
        subsections doing opposite jobs and each has a box and a list, so a
        selector over the whole block would answer about whichever came
@@ -4692,7 +4692,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     const CARDID = /^The card’s ID$/;
     const FILLS = /^The card’s tags$/;
 
-    check("the section is called Blanks, not Variables", !!blanks(),
+    check("the section is called Filling blanks, not Variables", !!blanks(),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
     /* The sentences a student will be asked, filled from the cards that
        exist — the explanation that replaced the paragraphs. Each is three
@@ -5192,6 +5192,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const ticked = () => fillList()
         .filter((r) => /** @type {any} */ (r.querySelector("input")).checked)
         .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+      /* On a word that fills nothing yet, the heading says what the section
+         is for on this kind of card. */
+      check("a word's section says it is about filling sentence cards' blanks",
+        /How this card can be used to fill blanks in sentence cards/.test(
+          (((blanks() || document).querySelector(".at-formrole") || {}).textContent) || ""),
+        (((blanks() || document).querySelector(".at-formrole") || {}).textContent) || "(no line)");
       check("the groups it can join are a list on the screen, not a menu to open",
         fillList().length > 0 && !inHalf(FILLS, ".at-choosebtn").length,
         fillNames().join(", ") || "(no list)");
