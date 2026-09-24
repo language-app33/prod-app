@@ -4473,7 +4473,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       idBox() ? "offered" : "no such field");
     check("and says it is optional",
       /Optional\./.test(((document.querySelector(".at-part") && document.body.textContent) || "")) &&
-        /needs to point at this card by name/.test(document.body.textContent || ""),
+        /reaching this one specific card/.test(document.body.textContent || ""),
       ([...document.querySelectorAll(".at-hint")].map((h) => (h.textContent || "").replace(/\s+/g, " ").trim())
         .find((t) => /^Optional\./.test(t))) || "(nothing said)");
 
@@ -5151,7 +5151,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       const idHalf = () => inHalf(CARDID, ".at-hint, .at-idrow, .at-shutrow")
         .map((n) => (n.textContent || "").replace(/\s+/g, " ").trim()).join(" · ");
       check("the ID is one of them, with the line saying what it is for",
-        /reaching this one card from another card/.test(idHalf()) &&
+        /reaching this one specific card from another card/.test(idHalf()) &&
           !!inHalf(CARDID, 'input[aria-label="The card\'s ID"]').length,
         idHalf() || "(nothing there)");
       /* A card with a blank of its own fills none — a sentence dropped

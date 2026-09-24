@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.223 — 24 September 2026
+
+**Plainer words in the Blanks section.**
+
+On a word that fills no blank yet, the line beside the **Blanks**
+heading said *a gap this card leaves for another word*, which described
+only half of what the section is for. It now reads *gaps in sentences,
+and the cards that fill them*.
+
+The line under **The card’s ID** is one sentence now: *Optional. A name
+for reaching this one specific card from another card’s blank.*
+
 ## 0.222 — 24 September 2026
 
 **No empty Forms section on a verb.**

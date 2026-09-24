@@ -5863,10 +5863,8 @@ function IdBox({ word }: { word: WordDraft }) {
   return (
     <>
       <Help>
-        Optional. A name for reaching <i>this one card</i> from another
-        card&rsquo;s blank — <code>{"{{colour-red}}"}</code> rather than any
-        colour. Leave it empty unless something needs to point at this card by
-        name; it can be given one later.
+        Optional. A name for reaching this one specific card from another
+        card&rsquo;s blank.
       </Help>
       {refOpen ? (
         <>
@@ -6270,7 +6268,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                   ? "no blank in it yet"
                   : fills.length
                     ? `this card fills ${plural(fills.length, "blank")}`
-                    : "a gap this card leaves for another word"}
+                    : "gaps in sentences, and the cards that fill them"}
           </span>
         </div>
 
