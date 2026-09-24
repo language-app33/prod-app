@@ -4440,12 +4440,12 @@ function WordKind({ word }: { word: WordDraft }) {
           aria-label={
             said
               ? `What subtype — ${said.label}. Choose another.`
-              : "What subtype. Nobody has said. Choose one."
+              : "What subtype. Not set. Choose one."
           }
           onClick={() => setOpen((v) => !v)}
         >
           <Icon name="tune" size={16} />
-          <span className="at-choosemark">{said ? said.label : "Not said yet"}</span>
+          <span className="at-choosemark">{said ? said.label : "Not set"}</span>
           <Icon name={open ? "chevronUp" : "chevronDown"} size={16} />
         </button>
         {open && (

@@ -536,7 +536,7 @@ button {
    the size a control inside a form is rather than one in the chrome. */
 .at-chooser { position:relative; display:inline-block; max-width:100%; }
 .at-choosebtn { display:inline-flex; align-items:center; gap:7px; max-width:100%;
-  min-height:38px; padding:0 14px 0 12px; border-radius:999px; cursor:pointer;
+  min-height:48px; padding:0 14px 0 12px; border-radius:999px; cursor:pointer;
   background: var(--surface); border:2px solid var(--line); color: var(--muted);
   font-family: var(--ui); font-size:13px; font-weight:700; text-align:start; }
 .at-choosebtn.on { border-color: var(--accent); color: var(--ink); }

@@ -4228,7 +4228,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     !!wordKindBtn(),
     wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(nothing asked)");
   check("and nothing has been said yet, so the button says so and the list is shut",
-    !!wordKindBtn() && /Not said yet/.test(wordKindBtn().textContent || "") && !formRows().length,
+    !!wordKindBtn() && /Not set/.test(wordKindBtn().textContent || "") && !formRows().length,
     `${wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(no button)"} · ${formRows().length} rows`);
   await openWordKind();
   check("and opening it lists what the language lets a word be",
@@ -4246,7 +4246,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   click(document.querySelector(".at-screenhead h2"));
   await sleep(200);
   check("and a click outside puts the list away without answering it",
-    !formRows().length && !!wordKindBtn() && /Not said yet/.test(wordKindBtn().textContent || ""),
+    !formRows().length && !!wordKindBtn() && /Not set/.test(wordKindBtn().textContent || ""),
     wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(no button)");
 
   /* ---- where the card goes, beside what kind of card it is ----
@@ -5949,7 +5949,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      kind of word it is and holds no table to be read as one, so it opens
      unanswered — the button, saying so, with the list behind it. */
   check("a card written weeks ago opens with the question unanswered rather than guessed at",
-    !!wordKindBtn() && /Not said yet/.test(wordKindBtn().textContent || "") && !saved().length,
+    !!wordKindBtn() && /Not set/.test(wordKindBtn().textContent || "") && !saved().length,
     wordKindBtn() ? (wordKindBtn().textContent || "").trim() : "(nothing offered)");
   await openWordKind();
   check("and is still asked what kind of word it is",
