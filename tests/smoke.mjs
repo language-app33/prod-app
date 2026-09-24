@@ -7927,8 +7927,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const many = Array.from({ length: 320 }, (_, i) => name(i));
   drawReview([...many, frame], frame);
   await sleep(300);
+  const saveBtn = /** @type {HTMLButtonElement | undefined} */ (buttonIn(/^Save review$/));
   check("a frame too wide to read offers no approval, and a blank to narrow",
-    !!buttonIn(/^Save review$/) && buttonIn(/^Save review$/).disabled && /Narrow a blank/.test(up().textContent || ""),
+    !!saveBtn && saveBtn.disabled && /Narrow a blank/.test(up().textContent || ""),
     (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
   const ticks = up().querySelectorAll(".at-narrowlist input[type=checkbox], .at-narrowlist [role=checkbox], .at-narrowlist button");
   click(ticks[0]);
