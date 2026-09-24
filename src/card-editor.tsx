@@ -5321,9 +5321,8 @@ function FormsSection({ children }: { children?: Node }) {
       <div className="at-formhead">
         <span className="at-formnum">Forms</span>
         <span className="at-formrole">
-          A form is one shape of the word — its plural, its feminine — and
-          each is practised in its own right. The first is the card&rsquo;s
-          main form.
+          A form is one shape of the word, such as its plural or its
+          feminine.
         </span>
       </div>
       {children}
