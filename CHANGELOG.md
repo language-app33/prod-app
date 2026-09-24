@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.230 — 24 September 2026
+
+**The subtype button is lettered like the deck button.**
+
+**Not set** — and whatever subtype is chosen — is now written in the
+same size and weight as **Add this card to a deck**, with the same
+room around it, so the two read as the same kind of button.
+
 ## 0.229 — 24 September 2026
 
 **The subtype button says Not set, and is full height.**
