@@ -525,6 +525,10 @@ button {
    read as part of the title. */
 .at-formacts { display:flex; align-items:baseline; gap:8px; flex-shrink:0;
   margin-inline-start:auto; }
+/* A form's Duplicate and Remove are icons: a square each, the height of a
+   thumb, centred on the heading they sit level with. */
+.at-formacts > .at-icon { flex:0 0 auto; width:40px; height:40px; min-height:40px; padding:0; }
+.at-screen.cardform .at-formtile .at-formacts { align-self:center; align-items:center; }
 /* One cell of a verb's table: who it is, then the form and what it means.
    Down the page rather than across it — a grid of seven columns is how a
    grammar book prints a paradigm and is unusable on a phone, which is what

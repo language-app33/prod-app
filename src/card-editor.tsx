@@ -5169,7 +5169,7 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
   /** And the sentence under it, where there is anything to say. */
   role?: string;
   /** Whatever else belongs at the right of the heading — Duplicate,
-      Remove. The recording button joins them there. */
+      Remove. */
   acts?: Node;
   drillsTranslit: boolean;
   blanks?: BlankWiring;
@@ -5205,27 +5205,10 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
   };
   const edit = (i: number, patch: Partial<Answer>) =>
     commit(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-  /* One answer, so "record this form" and "record this answer" are the
-     same thing and the button belongs with the form's own name. Two, and
-     they are not: a button in the heading would be recording one of two
-     words with nothing saying which, so each goes back beside the word it
-     is of. The move happens at the moment a second answer appears, which
-     is already the moment the block changes shape. */
-  const inHead = rows.length === 1;
-  const recorder = (i: number) => (
-    <Button
-      variant="ghost"
-      size="sm"
-      icon="mic"
-      /* Nothing to record until there is a word to say. The same rule a
-         cell of a verb's table follows — see CellFields. */
-      disabled={!String(rows[i].text || "").trim()}
-      aria-label={soundLabel(clipsOf(rows[i]).length, of ? `Recordings for ${of}` : "Recordings")}
-      onClick={() => setHeard(i)}
-    >
-      {soundOf(clipsOf(rows[i]).length)}
-    </Button>
-  );
+  /* The recording button is each answer's, beside its grammar, however
+     many answers there are. With one it used to sit in the heading, beside
+     Duplicate and Remove — which put a thing about the word among things
+     about the panel, and moved it the moment a second answer appeared. */
   return (
     <>
     {/* ---- the form, in a panel with its name across the top ----
@@ -5249,10 +5232,7 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
         {role ? <span className="at-formrole">{role}</span> : null}
         {/* Kept together so the pair stays whole and the role text beside
             them shortens instead of collapsing into a column. */}
-        <span className="at-formacts">
-          {acts}
-          {inHead && recorder(0)}
-        </span>
+        {acts ? <span className="at-formacts">{acts}</span> : null}
       </div>
       {/* An accepted answer, how it is said and how it sounds are written
           together, because one transliteration under two spellings belongs
@@ -5274,7 +5254,7 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
           onEdit={edit}
           onCommit={commit}
           onRecord={setHeard}
-          ownRecorders={!inHead}
+          ownRecorders
           blanks={blanks}
           onRemoveBlank={onRemoveBlank}
         />
@@ -5483,15 +5463,14 @@ function FormBlock({ word, lang, index: i, form: f, title, role, of = "", canCop
               copy is a different word, so the original's audio would
               be wrong for it, and a wrong recording is worse than a
               missing one. */}
+          {/* Icons, named out loud: the heading is the form's, and two
+              worded buttons beside it outweighed it — on a phone they
+              pushed it onto a line of its own. */}
           {canCopy && (
-            <Button variant="ghost" size="sm" onClick={() => duplicateForm(i)}>
-              Duplicate
-            </Button>
+            <IconButton icon="copy" label="Duplicate this form" onClick={() => duplicateForm(i)} />
           )}
           {i > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => removeForm(i)}>
-              Remove
-            </Button>
+            <IconButton icon="delete" label="Remove this form" onClick={() => removeForm(i)} />
           )}
         </>
       }

@@ -4487,17 +4487,17 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       !!saveBtn() && !saveBtn().disabled && !idBox().value,
       `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"} with the ID box empty`);
 
-    /* And with a word written, the form can be recorded. The button is at
-       the right of the form's own name rather than in a field of its own,
-       and what it opens is the screen recordings have always been made on
-       — reached from inside the rows the answer is edited in, because
-       that is where what it writes has to land. */
+    /* And with a word written, the form can be recorded. The button is
+       beside the answer's grammar, under the word it records, rather than
+       in a field of its own — and what it opens is the screen recordings
+       have always been made on, reached from inside the rows the answer is
+       edited in, because that is where what it writes has to land. */
     {
       const recOf = () => /** @type {any} */ (
-        [...document.querySelectorAll(".at-formblock.main .at-formacts button")]
+        [...document.querySelectorAll(".at-formblock.main .at-answerabout button")]
           .find((b) => /Recordings/.test(b.getAttribute("aria-label") || "")) || null
       );
-      check("a written answer can be recorded, from the form's own heading",
+      check("a written answer can be recorded, from beside its grammar",
         !!recOf() && !recOf().disabled,
         recOf() ? (recOf().getAttribute("aria-label") || "") : "(no button)");
       click(recOf());
@@ -5299,6 +5299,19 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /* Ticking one is what says the card fills it. */
       click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
       await sleep(250);
+      /* The form's heading carries its own actions as icons, and the
+         recording button is the answer's, beside its grammar. */
+      {
+        const head = /** @type {any} */ (document.querySelector(".at-formtile.main .at-formhead"));
+        const about = /** @type {any} */ (document.querySelector(".at-formtile.main .at-answerabout"));
+        check("a form's heading has Duplicate as an icon, and no recording button",
+          !!head && !!head.querySelector('.at-icon[aria-label="Duplicate this form"]') &&
+            !/Record/.test(head.textContent || "") && !head.querySelector('[aria-label^="Recordings"]'),
+          head ? (head.textContent || "").trim() : "(no heading)");
+        check("the recording button sits beside Grammar, under the word",
+          !!about && !!about.querySelector('[aria-label^="Recordings"]') && /Grammar/.test(about.textContent || ""),
+          about ? (about.textContent || "").trim() : "(no row)");
+      }
       check("ticking one says this card fills it",
         JSON.stringify(ticked()) === JSON.stringify(["name"]),
         ticked().join(", ") || "(none ticked)");
@@ -5820,16 +5833,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           addFor(/^Add another accepted answer for feminine$/) &&
           !fieldNames().includes("Recordings"),
         fieldNames().join(" | "));
-      const recBtn = () => [...document.querySelectorAll(".at-formblock.main .at-formacts button")]
+      const recBtn = () => [...document.querySelectorAll(".at-formblock.main .at-answerabout button")]
         .filter((b) => /Recordings/.test(b.getAttribute("aria-label") || ""));
-      check("with how it sounds at the right of the form's name, not standing beside the English",
+      check("with how it sounds beside its grammar, not standing beside the English",
         recBtn().length === 1 && /none yet/.test(recBtn()[0].getAttribute("aria-label") || ""),
         recBtn().map((b) => b.getAttribute("aria-label")).join(" | ") || "(no button)");
-      check("and every shape of it carries the same button in its own heading",
+      check("and every shape of it carries the same button, under its own word",
         ["feminine", "plural", "dual"].every((c) =>
-          [...document.querySelectorAll(".at-formacts button")]
+          [...document.querySelectorAll(".at-answerabout button")]
             .some((b) => new RegExp(`^Recordings for ${c} —`).test(b.getAttribute("aria-label") || ""))),
-        [...document.querySelectorAll(".at-formacts button")]
+        [...document.querySelectorAll(".at-answerabout button")]
           .map((b) => b.getAttribute("aria-label")).filter(Boolean).join(" | ") || "(no buttons)");
       /* And the box says which language it wants, in that language. The
          heading used to name two fields at once and the box itself said
@@ -5857,7 +5870,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          invitation was on every adjective in the app, under a line that
          told teachers to accept it. */
       const copyBtn = () => [...document.querySelectorAll("button")]
-        .find((b) => /^Duplicate$/.test((b.textContent || "").trim()));
+        .find((b) => /^Duplicate/.test(b.getAttribute("aria-label") || ""));
       check("and no other way to one either, because the table is the forms",
         !copyBtn(), copyBtn() ? "still offered" : "no such button");
       /* And the four sections are in the order the language declares them,
@@ -6219,7 +6232,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        is the cell having been minted rather than the box holding text
        nothing kept. */
     const recFor = () => /** @type {any} */ (
-      [...document.querySelectorAll(".at-formacts button")]
+      [...document.querySelectorAll(".at-answerabout button")]
         .find((b) => /^Recordings for dual —/.test(b.getAttribute("aria-label") || "")) || null
     );
     check("and is then something that can be recorded, the cell having been made",
