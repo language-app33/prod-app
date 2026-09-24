@@ -749,16 +749,19 @@ test("a deck's phrases are sent with the cards that fill their variables", async
   await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: {
-      card: carded({ ar: "اسمي {{name}}", en: "My name is {{name}}", lat: "ismi {{name}}" }),
+      card: carded({ ar: "صاحبي {{friend}}", en: "My friend is {{friend}}", lat: "sa7bi {{friend}}" }),
       decks: [deckId],
     },
   });
-  /* The values, in no deck at all, and not practised in their own right. */
+  /* The values, in no deck at all, and not practised in their own right.
+     Tagged with a name of the teacher's own: a tag named for a subtype —
+     `name` — is folded into the subtype now (see subtype-tags.ts), and
+     what this is about is the custom tag travelling with the deck. */
   const value = (/** @type {string} */ ar, /** @type {string} */ en) =>
     api("/api/courses?action=save-card", {
       method: "POST", key,
       body: {
-        card: carded({ ar, en, lat: en.toLowerCase() }, [], { fills: "name", drill: false }),
+        card: carded({ ar, en, lat: en.toLowerCase() }, [], { fills: "friend", drill: false }),
         decks: [],
       },
     });
@@ -769,7 +772,7 @@ test("a deck's phrases are sent with the cards that fill their variables", async
   await api("/api/courses?action=save-card", {
     method: "POST", key,
     body: {
-      card: carded({ ar: "Tâm", en: "Tam" }, [], { lang: "vi-HUE", fills: "name", drill: false }),
+      card: carded({ ar: "Tâm", en: "Tam" }, [], { lang: "vi-HUE", fills: "friend", drill: false }),
       decks: [],
     },
   });
@@ -3448,4 +3451,52 @@ test("a method the sync endpoint does not serve is refused as JSON", async () =>
   const res = await fetch(`${origin}/api/sync`, { method: "PATCH", headers: { "x-sync-token": token } });
   assert.equal(res.status, 405);
   assert.deepEqual(await res.json(), { error: "method" });
+});
+
+/*
+ * A custom tag named for a subtype is folded into the subtype — see
+ * subtype-tags.ts for the rule, which the owner settled: no subtype takes
+ * the tag's, the same subtype just loses it, and a different subtype is
+ * kept and the tag goes. Run once per teacher from their own screen, and
+ * written back to the card rather than only shown that way.
+ */
+test("a custom tag that names a subtype is folded into the subtype, and stored so", async () => {
+  const made = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Maya" } });
+  const key = made.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key, body: { adminKey: ADMIN_KEY } });
+  /** @param {Record<string, any>} card */
+  const save = async (card) => {
+    const r = await api("/api/courses?action=save-card", {
+      method: "POST", key, body: { card: { id: "", lang: "ar-PS", ...card }, decks: [] },
+    });
+    assert.equal(r.status, 200, r.text);
+    return r.json.card.id;
+  };
+  const bare = await save({ ar: "رافا", en: "Rafa", fills: ["name", "colour"] });
+  const other = await save({ ar: "باب", en: "door", category: "noun", fills: ["name"] });
+  const same = await save({ ar: "سارة", en: "Sara", category: "name", fills: ["name", "word"] });
+  const plain = await save({ ar: "أحمر", en: "red", fills: ["colour"] });
+
+  const listed = await api("/api/courses?action=my-cards", { key });
+  assert.equal(listed.status, 200, listed.text);
+  /** @param {string} id */
+  const shown = (id) => must(listed.json.cards.find((/** @type {any} */ c) => c.id === id), id);
+  assert.equal(shown(bare).category, "name");
+  assert.deepEqual(shown(bare).fills, ["colour"]);
+  assert.equal(shown(other).category, "noun");
+  assert.equal(shown(other).fills, undefined);
+  assert.equal(shown(same).category, "name");
+  assert.equal(shown(same).fills, undefined);
+  assert.deepEqual(shown(plain).fills, ["colour"]);
+  assert.equal(shown(plain).category, "");
+
+  /* And on the record itself, so a student's material and a co-teacher's
+     screen read the tidied card rather than working it out again. */
+  const { getStore } = await import("../server/store.js");
+  const store = getStore("arabic-courses");
+  /** @param {string} id */
+  const stored = async (id) => JSON.parse(must(await store.get(`card:${id}`), `card ${id}`));
+  assert.equal((await stored(bare)).category, "name");
+  assert.deepEqual((await stored(bare)).fills, ["colour"]);
+  assert.equal((await stored(other)).fills, undefined);
 });

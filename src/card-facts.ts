@@ -671,7 +671,7 @@ export const CARD_FACTS: FieldRule[] = [
   {
     key: "fills",
     on: "card",
-    label: "Group tags",
+    label: "Tags",
     what: "The blanks this card says it fills, which is nowhere in its words: the teacher's answer to what kind of hole this word stands in.",
     reader: "teacher",
     shown: (value) => fillNames({ fills: value }),
@@ -970,7 +970,7 @@ export const NOT_SHOWN: [string, string][] = [
   ["card.inDecks", "Which decks the server says carry it, which is what `decks` says in words."],
   ["card.kind", "What sort of card it is, from before that was read off the card's own turns and its own words. The shape of this screen is the answer now."],
   ["card.spread", "A rename the teacher said should follow the name into every other card. It travels beside the card being saved and is not part of it."],
-  ["card.stripped", "The same for a group taken off the whole collection."],
+  ["card.stripped", "The same for a tag taken off the whole collection."],
   ["card.source", "Which deck of which course a student's copy came from. The card they are holding is the card."],
   ["card.locked", "Whether the teacher's wording is the student's to change, which every course card's is not."],
   ["card.tags", "The learner's own tags on their copy, which they gave it and can see where they gave it."],

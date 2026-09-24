@@ -22,6 +22,7 @@ import { slotRows } from "../../src/verbs.ts";
 import { clipsOfSystem, emptyNumberSystem, readNumberSystem, readTimeSystem } from "../../src/numbers/schema.ts";
 import { composerFor } from "../../src/numbers/index.ts";
 import { migrateCards } from "../../src/numbers/migrate.ts";
+import { liftSubtypeTagsIn } from "../../src/subtype-tags.ts";
 
 /*
  * Courses, decks and the people who use them.
@@ -212,6 +213,14 @@ const K = {
    * @param {string} owner
    */
   fillsRev: (owner) => `fillsrev:${owner}`,
+  /**
+   * Whether this person's cards have had their subtype-named custom tags
+   * folded into their subtype — see liftTags. A stamp, like `seeded` on a
+   * person's systems, because the pass reads their whole collection and
+   * every student's poll would otherwise ask it again.
+   * @param {string} owner
+   */
+  tagLift: (owner) => `taglift:${owner}`,
   /** @param {string} c */
   code: (c) => `code:${String(c).toLowerCase()}`,
   /**
@@ -589,6 +598,7 @@ async function wipeAccount(store, handle) {
 
   for (const key of await systemKeysOf(store, handle)) await store.delete(key).catch(() => {});
   await store.delete(K.mySystems(handle)).catch(() => {});
+  await store.delete(K.tagLift(handle)).catch(() => {});
 
   for (const id of await readIndex(store, "courses")) {
     const c = await readCourse(store, id);
@@ -981,6 +991,49 @@ export default async (req) => {
       }
     }
 
+    /**
+     * Fold a person's subtype-named custom tags into the subtype, once.
+     *
+     * A lift in the mould of seedSystems: stamped per person, run from the
+     * teacher's own screen and from their students' polls, and it deletes
+     * nothing but the tag. What the rule is — which card takes which
+     * subtype — is liftSubtypeTags's, shared with the device. Every card it
+     * changes moves the decks it is in and the owner's fills revision, so
+     * a student's device fetches the corrected cards rather than keeping
+     * the ones it had.
+     * @param {string} owner
+     */
+    async function liftTags(owner) {
+      if (!owner) return;
+      const done = await readJson(store, K.tagLift(owner));
+      if (done && done.v >= 1) return;
+      /** @type {string[]} */
+      const ids = (await readJson(store, K.myCards(owner))) || [];
+      /** @type {Set<string>} */
+      const decks = new Set();
+      let moved = false;
+      for (const id of ids) {
+        let changed = null;
+        await updateJson(store, K.card(id), (card) => {
+          changed = card ? liftSubtypeTagsIn(card, card.lang) : null;
+          return changed;
+        });
+        if (!changed) continue;
+        moved = true;
+        for (const did of /** @type {any} */ (changed).inDecks || []) decks.add(String(did));
+      }
+      for (const did of decks) {
+        await updateJson(store, K.deck(did), (deck) =>
+          deck ? { ...deck, version: (deck.version || 1) + 1, updated: Date.now() } : null,
+        );
+      }
+      if (moved) await bumpFills(owner);
+      /* Stamped after rather than before, so a pass cut short runs again.
+         Two polls racing through it both find the same cards and write
+         the same answer: the lift changes nothing the second time. */
+      await writeJson(store, K.tagLift(owner), { v: 1, at: Date.now() });
+    }
+
     /* Delete cards the person may delete. Returns what happened to each id,
        so a batch can report partial success rather than stopping at the
        first card that isn't theirs. */
@@ -1074,6 +1127,7 @@ export default async (req) => {
     }
 
     if (action === "my-cards") {
+      await liftTags(mine);
       /** @type {string[]} */
       const ids = (await readJson(store, K.myCards(mine))) || [];
       const deckIds = await readIndex(store, "decks");
@@ -1101,7 +1155,11 @@ export default async (req) => {
       /* Cards I own, plus any card sitting in a deck I look after. */
       const extraIds = Object.keys(holding).filter((id) => !ids.includes(id));
       const extra = await readManyJson(store, extraIds.map((id) => K.card(id)));
-      const cards = cardRows.concat(extra).filter(Boolean);
+      /* A co-teacher's card whose owner's pass has not run yet is shown as
+         it will be once it has, so the editor never offers the tag it is
+         about to lose. Saving it stores it that way. */
+      const cards = cardRows.concat(extra).filter(Boolean)
+        .map((c) => liftSubtypeTagsIn(c, c.lang) || c);
       return json({ ok: true, cards: cards.map((c) => ({ ...c, decks: holding[c.id] || [] })) });
     }
 
@@ -2097,6 +2155,10 @@ export default async (req) => {
          read across, because a student's own poll does it. Once per
          teacher, ever — see seedSystems, which stamps itself. */
       await Promise.all(teacherHandles.map((h) => seedSystems(h)));
+      /* And their tags, before the cards below are read, so what is sent is
+         already tidied. The version was taken a step earlier; where this
+         moved anything it moves again, and the device fetches once more. */
+      await Promise.all(teacherHandles.map((h) => liftTags(h)));
       const systems = (
         await Promise.all(teacherHandles.map((h) => systemsOf(h, langs)))
       ).flat();
@@ -2673,6 +2735,9 @@ export default async (req) => {
             removed.systems += 1;
           }
           for (const h of handles) await store.delete(K.mySystems(h)).catch(() => {});
+          /* And the stamp saying their tags were tidied, so cards written
+             after a clear are looked at again. */
+          for (const h of handles) await store.delete(K.tagLift(h)).catch(() => {});
         }
 
         if (want.has("decks")) {

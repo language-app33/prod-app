@@ -8,6 +8,261 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.242 — 24 September 2026
+
+**Name is now Person or Place.**
+
+A new card's subtype can be **Person** (Sarah, Abu Khaled, a named pet)
+or **Place** (a city, a country, a street), in place of **Name**. A
+sentence can then leave a *{{person}}* or a *{{place}}* blank, so *"I
+live in ___"* is no longer filled with somebody's name.
+
+Nothing already written changes. A card saved as a Name still says
+Name, still fills *{{name}}*, and every sentence asking for *{{name}}*
+still finds it. Opening one shows a short note — *When you can, choose
+Person or Place instead* — and changing its subtype offers the two new
+ones.
+
+## 0.241 — 24 September 2026
+
+**A card's subtype and decks are chosen in sheets.**
+
+Choosing **What subtype** a card is, and which **Decks** it goes in, now
+opens a sheet like the ones for putting in a blank and choosing custom
+tags, instead of a list hanging under the button. On a phone it rises
+from the bottom, so a long list of decks no longer runs off the screen.
+Choosing a subtype closes its sheet; the deck sheet stays open while
+you pick several, and closes with its cross, Escape or a tap outside it.
+
+## 0.240 — 24 September 2026
+
+**Custom tags are chosen in a sheet of their own.**
+
+Under **Custom tags** the card now shows the tags it has as pills, the
+same gold pills as **Default tags**, with an **Add custom tags** button
+under them. The button opens a sheet like the one a blank is put into a
+sentence from: a box to create a new tag at the top, then every tag
+there is, each with its tick, its pencil to rename it and — where cards
+carry it — its bin to take it off every card.
+
+The close button at the top of that sheet, and of the blank sheet, is a
+small square again instead of stretching across the title's line.
+
+## 0.239 — 24 September 2026
+
+**No custom tag shares a name with a subtype.**
+
+A card could carry a custom tag called, say, *name* — often written
+before the language had Name as a kind of word — which then showed
+twice: once under **Default tags** and again under **Custom tags**.
+Those tags are now folded into the card's subtype, once, for every
+card:
+
+- a card with no subtype becomes that subtype, and the tag goes;
+- a card already of that subtype just loses the tag;
+- a card of a **different** subtype keeps its subtype and loses the tag,
+  so it no longer fills that blank. For example, a Noun tagged *name*
+  stays a Noun and stops filling *{{name}}*.
+
+A custom *word* tag goes the same way: every single word fills
+*{{word}}* already. It happens the first time a teacher, or any of
+their students, opens the app after this release, and students' devices
+fetch the tidied cards on their own.
+
+## 0.238 — 24 September 2026
+
+**Filling blanks, said less.**
+
+- The line beside **Filling blanks** always reads *How this card can be
+  used to fill blanks in sentence cards*. It used to change to *this
+  card fills 2 blanks* once a tag was ticked.
+- A custom tag now says where it is used: *used in 1 card* rather than
+  *left by 1 card* (and *not used in any card yet* where no sentence
+  asks for it).
+- The two lines that appeared under the tags once one was ticked —
+  *Every card with … can borrow this word* and *Whether it is also
+  asked as a question of its own…* — are gone.
+
+## 0.237 — 24 September 2026
+
+**One note fewer under a card's tags.**
+
+On a card whose subtype is set, the foot of **The card’s tags** no
+longer says *It also fills {{verb}}, because that is what you said this
+word is — and {{word}}, which every word fills…* The **Default tags**
+above it already show both.
+
+## 0.236 — 24 September 2026
+
+**A shorter line over the practice ticks.**
+
+Under **How this form can be practiced** it now reads *Choose where
+this form comes up in practice.* — and, the same way, *these forms*
+under a verb's table and *this card* on an adjective's practice
+section.
+
+## 0.235 — 24 September 2026
+
+**A shorter line under Forms.**
+
+It now reads *A form is one shape of the word, such as its plural or
+its feminine.*
+
+## 0.234 — 24 September 2026
+
+**The practice ticks, explained once.**
+
+Under **How this form can be practiced**, the two ticks are now just
+**On its own** and **Inside sentence cards**. What they are for is said
+once, under the heading: *Choose where this comes up in practice: asked
+as a question on its own, or placed in the sentence cards whose blanks
+it fills.* On a card that can't fill a blank, only the first half is
+said. The same line sits under **How this card can be practiced** on
+an adjective.
+
+## 0.233 — 24 September 2026
+
+**What a form is, said once.**
+
+The **Forms** section now says what a form is under its heading: *A
+form is one shape of the word — its plural, its feminine — and each is
+practised in its own right. The first is the card’s main form.* The
+line each form's panel carried — *This is the main form of the card…*
+on the first, *Another form of the same card* on every one after — is
+gone.
+
+## 0.232 — 24 September 2026
+
+**A form's buttons, tidied.**
+
+In each form's panel, **Duplicate** and **Remove** are now icons — a
+copy and a bin — sitting level with the form's heading, and a screen
+reader still reads them as *Duplicate this form* and *Remove this
+form*. **Record** has moved out of the heading to sit beside
+**Grammar**, under the word it records, which is where it already went
+once a form had two accepted answers.
+
+## 0.231 — 24 September 2026
+
+**Every panel on the card editor is headed the same way.**
+
+The panels a form is written in — *Form 1*, an adjective's
+*Masculine*, *Feminine*, *Plural* and *Dual*, a sentence's *The
+sentence* — had a heading of their own, dark and a size larger. They
+now wear the heading every other panel has, the one on **The card’s
+ID**: green capitals over a thin rule, with the panel's explanation
+under the rule rather than above it.
+
+## 0.230 — 24 September 2026
+
+**The subtype button is lettered like the deck button.**
+
+**Not set** — and whatever subtype is chosen — is now written in the
+same size and weight as **Add this card to a deck**, with the same
+room around it, so the two read as the same kind of button.
+
+## 0.229 — 24 September 2026
+
+**The subtype button says Not set, and is full height.**
+
+On a card whose subtype hasn't been chosen, the **What subtype** button
+now reads **Not set** instead of *Not said yet*. It is also as tall as
+the **Add this card to a deck** button, so it is as easy to tap.
+
+## 0.228 — 24 September 2026
+
+**The card's tags, evenly spaced.**
+
+In **The card's tags**, **Default tags** now stands clear of the line
+above it, **Custom tags** stands clear of the pills above it instead of
+touching them, and each heading's explanation sits close under the
+heading with the same step before whatever follows — the pills, or the
+box that creates a tag. The default-tag pills are roomier.
+
+## 0.227 — 24 September 2026
+
+**Default tags look like blanks.**
+
+The tags listed under **Default tags** on a card now wear the same
+gold pill a blank wears when it is put into a sentence card — without
+the cross, since these can't be taken off.
+
+## 0.226 — 24 September 2026
+
+**Blanks is now Filling blanks.**
+
+The section of the card editor that was headed **Blanks** is headed
+**Filling blanks**. On a word that doesn't fill any blank yet, the line
+beside the heading now reads *How this card can be used to fill blanks
+in sentence cards*.
+
+## 0.225 — 24 September 2026
+
+**A card's tags, tidied.**
+
+What was called **group tags** is now just **tags**, everywhere: the
+section on the card editor, the card's details, the blank picker and the
+questions about renaming a tag or taking one off every card.
+
+Under **Default tags** the editor now shows only the tags this card
+actually has — its kind of word, and *word* for any single word —
+instead of every one in the language. They are shown as plain labels,
+with no tick and no border, because they can't be switched on or off:
+they follow from the kind of card.
+
+**Your own tags** is now **Custom tags**, and the box for creating a
+new one sits right under that heading instead of at the top of the
+section.
+
+## 0.224 — 24 September 2026
+
+**The group tags on a card say what they are, where they are.**
+
+Under **The card’s group tags**, the opening line is now *Tag this
+card. Wherever another card has a blank for one of these tags, this
+card can fill it.*
+
+Each list of tags is explained right under its own heading rather than
+after its rows: **Default tags** says *These follow from the kind of
+card this is*, and **Your own tags** says *Apply a custom tag that
+already exists, or create a new one in the box above.* The longer notes
+these replace, one of which sat at the foot of the section, are gone.
+
+## 0.223 — 24 September 2026
+
+**Plainer words in the Blanks section.**
+
+On a word that fills no blank yet, the line beside the **Blanks**
+heading said *a gap this card leaves for another word*, which described
+only half of what the section is for. It now reads *gaps in sentences,
+and the cards that fill them*.
+
+The line under **The card’s ID** is one sentence now: *Optional. A name
+for reaching this one specific card from another card’s blank.*
+
+## 0.222 — 24 September 2026
+
+**No empty Forms section on a verb.**
+
+A verb whose dictionary form is one of the boxes of its table showed a
+**Forms** heading under the table with nothing beneath it: its word is
+written in the table, so there was nothing left for the section to hold.
+The heading is gone on those verbs. A verb that still carries a form of
+its own from before its table shows it there, as before.
+
+## 0.221 — 24 September 2026
+
+**A verb card no longer explains what a verb is.**
+
+Creating or editing a verb, the box for its name used to carry a
+paragraph about why a verb needs one, and a saved verb ended its first
+section with a line about its table and how emptying it makes it a word
+again. Both are gone. The padlock on its subtype still says it cannot be
+changed while the card carries its table, and a card whose name is
+missing still says so under the box.
+
+Adjectives and nouns with a table, and sentences, keep their lines.
+
 ## 0.220 — 23 September 2026
 
 **An exercise says which shape of an adjective it wants again.**

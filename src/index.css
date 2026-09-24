@@ -525,6 +525,10 @@ button {
    read as part of the title. */
 .at-formacts { display:flex; align-items:baseline; gap:8px; flex-shrink:0;
   margin-inline-start:auto; }
+/* A form's Duplicate and Remove are icons: a square each, the height of a
+   thumb, centred on the heading they sit level with. */
+.at-formacts > .at-icon { flex:0 0 auto; width:40px; height:40px; min-height:40px; padding:0; }
+.at-screen.cardform .at-formtile .at-formacts { align-self:center; align-items:center; }
 /* One cell of a verb's table: who it is, then the form and what it means.
    Down the page rather than across it — a grid of seven columns is how a
    grammar book prints a paradigm and is unusable on a phone, which is what
@@ -535,10 +539,13 @@ button {
    pill whose text is the state, outlined once it is doing something — at
    the size a control inside a form is rather than one in the chrome. */
 .at-chooser { position:relative; display:inline-block; max-width:100%; }
-.at-choosebtn { display:inline-flex; align-items:center; gap:7px; max-width:100%;
-  min-height:38px; padding:0 14px 0 12px; border-radius:999px; cursor:pointer;
+/* Lettered and sized as the deck button beside it (.at-deckadd) — the two
+   are the same kind of control a few lines apart, and read as two sizes of
+   one thing while one of them was smaller. */
+.at-choosebtn { display:inline-flex; align-items:center; gap:8px; max-width:100%;
+  min-height:48px; padding-inline:16px 18px; border-radius:999px; cursor:pointer;
   background: var(--surface); border:2px solid var(--line); color: var(--muted);
-  font-family: var(--ui); font-size:13px; font-weight:700; text-align:start; }
+  font-family: var(--ui); font-size:14px; font-weight:700; text-align:start; }
 .at-choosebtn.on { border-color: var(--accent); color: var(--ink); }
 .at-choosemark { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 /*
@@ -590,28 +597,11 @@ button {
   font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color: var(--muted); }
 .at-deckpick.on .at-deckmark { color: var(--accent); }
-/*
- * Hung off the button, not pinned to the window.
- *
- * The language switch's menu is fixed because it lives in the chrome,
- * which does not move; this one is inside a form that scrolls, and a fixed
- * panel would stay behind while the control it belongs to went up the
- * screen. It opens from the button's leading edge and grows the way the
- * page reads, so it has the whole width of the form to fill and cannot
- * reach the far gutter — the case that put the chrome's menu off the side
- * of a phone.
- */
-.at-choosemenu { position:absolute; top:calc(100% + 6px); inset-inline-start:0;
-  z-index: var(--z-over);
-  width: max(260px, 100%); max-width: min(340px, calc(100vw - 32px));
-  max-height: calc(100vh - 160px);
-  max-height: calc(100dvh - 160px);
-  overflow-y:auto; background: var(--surface);
-  border:2px solid var(--line); border-radius:18px; padding:12px;
-  box-shadow: var(--nav-shadow); }
-.at-choosemenu .at-eyebrow { margin:0 0 8px; }
-.at-choosemenu .at-hint { margin:10px 0 0; }
-.at-choosemenu > .at-field:last-child { margin-bottom:0; }
+/* The deck and subtype sheets: the list a step under the line saying what
+   it is for, and the note under the decks a step under them. */
+.at-decksheet .at-deckpicks { margin-top:4px; }
+.at-decksheet .at-deckpicks + .at-hint { margin-top:12px; }
+.at-kindsheet [role="radiogroup"] { margin-top:4px; }
 /*
  * The sentences a student will be asked, filled with the words that exist
  * today. The section used to explain this in ninety words; five real
@@ -742,6 +732,10 @@ button {
 }
 .at-sheettop { display:flex; align-items:center; gap:8px; }
 .at-sheettop .at-modaltitle { flex:1; min-width:0; margin:0; }
+/* The close button is a square at the end of the title's line. An icon
+   button grows to share its row by default, which stretched this one
+   across half the sheet — on the blank sheet and the tag sheet alike. */
+.at-sheettop .at-icon { flex:0 0 auto; width:44px; min-height:44px; padding:0; }
 .at-sheet > .at-hint { margin:4px 0 12px; }
 .at-sheet > .at-input { width:100%; }
 .at-blankmake, .at-blanklist button { display:flex; flex-direction:column; gap:2px;
@@ -796,20 +790,37 @@ button {
    the face those are read in. A part of speech is a word. */
 .at-idname { font-family: var(--mono); }
 /* ---- a tag a card wears without being given it ----
-   Its kind of word, and the built-in every single word fills. A row in the
-   same list as the tags a teacher ticks, because it is one namespace — but
-   flat rather than ticked, because there is nothing on it to answer: the
-   question is the kind of word, further up the screen. Dashed says so; the
-   one that applies is marked and takes the solid rim a ticked row has. */
-.at-tagfixed { display:flex; align-items:center; gap:10px;
-  border:2px dashed var(--line); border-radius: var(--r-sm);
-  background: var(--well); padding:10px 12px; }
-.at-tagfixed.on { border-style:solid; border-color: var(--accent); }
-.at-tagmark { flex:0 0 auto; display:inline-flex; width:20px; justify-content:center;
-  color: var(--accent); }
-.at-tagmark.off { visibility:hidden; }
+   Its kind of word, and the built-in every single word fills — only the
+   ones this card has. Plain text on a tint, with no rim, no tick and no
+   box: nothing about them can be pressed, since the question is the kind
+   of card further up the screen, so they must not look like the ticked
+   rows under Custom tags. Dressed as the pill a blank is in a sentence
+   field (.at-blankpill), because a tag is the name that pill carries —
+   without its cross or its grab, since this one goes nowhere. */
+.at-tagchips { display:flex; flex-wrap:wrap; gap:8px; }
+.at-tagchip { display:inline-flex; align-items:center; padding:6px 14px; border-radius:999px;
+  background: var(--tag-bg); border:2px solid var(--tag-line); color: var(--brass);
+  font-family: var(--mono); font-weight:700; font-size:14px; white-space:nowrap; }
 .at-ticklist > .at-eyebrow { margin:2px 0 0; }
 .at-ticklist > .at-hint { margin:0; }
+/* ---- the card's tags: one rhythm for the whole run ----
+   Two runs, Default and Custom, each a heading, the line saying what the
+   run is, and then the run. The line is tied to its heading (4px), the run
+   sits a step under the line (8px, the list's gap), and each heading
+   stands clear of whatever came before it (20px) — the section's own
+   opening line, or the run above. Written out here because the list's
+   ordinary rules gave the second heading 2px, overriding the room it
+   asked for, and the box that creates a tag 16px where the pills got 6. */
+.at-cardtags { gap:8px; margin-top:20px; }
+.at-cardtags > .at-eyebrow { margin:0; }
+.at-cardtags > .at-eyebrow ~ .at-eyebrow { margin-top:20px; }
+.at-cardtags > .at-eyebrow + .at-hint { margin-top:-4px; }
+.at-cardtags > .at-blanknew { margin-top:0; }
+.at-cardtags + .at-hint { margin-top:20px; }
+/* The custom tags sheet: the box that makes one, then every tag there is,
+   a step under it. */
+.at-tagsheet .at-blanknew { margin-top:4px; }
+.at-tagsheet .at-tagsheetlist { margin-top:14px; }
 /* One group tag: the tick that joins it, and the pencil that renames it.
    Two questions about one row, so they are two controls — a row that
    renamed the group when you meant to join it would be unusable. */
@@ -931,8 +942,21 @@ button {
    above is the screen's — and the names of the two fields under it are
    naming boxes rather than sections, on a card that may show four of each.
    At section sizes the panel read as a page of its own. */
-.at-screen.cardform .at-formtile .at-part > .at-formhead { margin-bottom:12px; }
-.at-screen.cardform .at-formtile .at-formnum { font-size:17px; letter-spacing:-.005em; }
+/* And it is headed the way every other panel on this screen is — the
+   card's ID, its tags, the blanks in a sentence: .at-groupline's green
+   capitals over a hairline. It was the one panel with a heading of its
+   own, dark and a size up, which read as a second tier of heading rather
+   than as one more panel. */
+.at-screen.cardform .at-formtile .at-part > .at-formhead { margin-bottom:10px;
+  padding-bottom:8px; border-bottom:1px solid var(--line); align-items:center; }
+/* Where the panel says what it is, that line goes under the rule, as the
+   ID's does — so the rule is drawn over the line rather than under it. */
+.at-screen.cardform .at-formtile .at-part > .at-formhead:has(> .at-formrole) {
+  padding-bottom:0; border-bottom:0; }
+.at-screen.cardform .at-formtile .at-part > .at-formhead > .at-formrole {
+  margin-top:4px; padding-top:10px; border-top:1px solid var(--line); }
+.at-screen.cardform .at-formtile .at-formnum { font-size:15px; font-weight:800;
+  line-height:1.3; letter-spacing:.07em; text-transform:uppercase; color: var(--accent); }
 .at-screen.cardform .at-formtile .at-label { font-size:12px; letter-spacing:.08em;
   margin-bottom:6px; }
 .at-screen.cardform .at-formtile .at-formrole { font-size:13px; line-height:1.5; }
@@ -940,6 +964,9 @@ button {
 .at-screen.cardform .at-field { margin-bottom:16px; }
 .at-screen.cardform .at-groupline,
 .at-screen.cardform .at-drillhead { font-size:15px; line-height:1.3; }
+/* What the ticks are for, tied close under their heading and a step above
+   the ticks themselves. */
+.at-drills > .at-drilllede { margin:-2px 0 10px; }
 /* Icons sit inside buttons at the text baseline. */
 .at-ic { flex:0 0 auto; vertical-align:-4px; }
 .at-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family: var(--ui); font-size:16px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background: var(--raised); color: var(--text); border:2px solid var(--line); border-radius: var(--r); padding:14px 22px; cursor:pointer; transition: transform 60ms, background 120ms; min-height:52px; }
