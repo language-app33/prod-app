@@ -947,8 +947,21 @@ button {
    above is the screen's — and the names of the two fields under it are
    naming boxes rather than sections, on a card that may show four of each.
    At section sizes the panel read as a page of its own. */
-.at-screen.cardform .at-formtile .at-part > .at-formhead { margin-bottom:12px; }
-.at-screen.cardform .at-formtile .at-formnum { font-size:17px; letter-spacing:-.005em; }
+/* And it is headed the way every other panel on this screen is — the
+   card's ID, its tags, the blanks in a sentence: .at-groupline's green
+   capitals over a hairline. It was the one panel with a heading of its
+   own, dark and a size up, which read as a second tier of heading rather
+   than as one more panel. */
+.at-screen.cardform .at-formtile .at-part > .at-formhead { margin-bottom:10px;
+  padding-bottom:8px; border-bottom:1px solid var(--line); align-items:center; }
+/* Where the panel says what it is, that line goes under the rule, as the
+   ID's does — so the rule is drawn over the line rather than under it. */
+.at-screen.cardform .at-formtile .at-part > .at-formhead:has(> .at-formrole) {
+  padding-bottom:0; border-bottom:0; }
+.at-screen.cardform .at-formtile .at-part > .at-formhead > .at-formrole {
+  margin-top:4px; padding-top:10px; border-top:1px solid var(--line); }
+.at-screen.cardform .at-formtile .at-formnum { font-size:15px; font-weight:800;
+  line-height:1.3; letter-spacing:.07em; text-transform:uppercase; color: var(--accent); }
 .at-screen.cardform .at-formtile .at-label { font-size:12px; letter-spacing:.08em;
   margin-bottom:6px; }
 .at-screen.cardform .at-formtile .at-formrole { font-size:13px; line-height:1.5; }

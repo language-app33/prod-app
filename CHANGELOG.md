@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.231 — 24 September 2026
+
+**Every panel on the card editor is headed the same way.**
+
+The panels a form is written in — *Form 1*, an adjective's
+*Masculine*, *Feminine*, *Plural* and *Dual*, a sentence's *The
+sentence* — had a heading of their own, dark and a size larger. They
+now wear the heading every other panel has, the one on **The card’s
+ID**: green capitals over a thin rule, with the panel's explanation
+under the rule rather than above it.
+
 ## 0.230 — 24 September 2026
 
 **The subtype button is lettered like the deck button.**
