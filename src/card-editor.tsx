@@ -5101,28 +5101,6 @@ function TurnBlock({ talk, lang, allCards, selfId, index: i, line: l }: {
     `children` sit after the fields, which is where a form's own pronoun
     table goes. */
 /*
- * What a form is, said under its name.
- *
- * The line under a heading has room for a sentence now that it is no
- * longer squeezed in beside one, so the first form says what the ones
- * under it are for rather than leaving a teacher to find the Add button
- * and guess.
- *
- * Which means it has to know whether there *is* an Add button. A card
- * whose forms are laid out in a table has none, and the sentence written
- * for the other kind was wrong on it twice over: it pointed below at
- * nothing, and what it offered to add — a form for a different number or
- * gender — is exactly what the table under it already is. An adjective
- * read "you can add additional forms (for different numbers, gender)"
- * directly above its own feminine and plural. Such a card says `laidOut`
- * and gets the other sentence.
- */
-export const formRole = (i: number): string =>
-  i === 0
-    ? "This is the main form of the card. You can add additional forms (for different numbers, gender, etc) below."
-    : "Another form of the same card.";
-
-/*
  * What the card's own word is called on a card whose forms are a table.
  *
  * The language's word for it — an adjective's own word is the masculine —
@@ -5334,8 +5312,17 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
 function FormsSection({ children }: { children?: Node }) {
   return (
     <div className="at-formblock">
+      {/* What a form is, said once over all of them. Each panel used to say
+          it for itself — "the main form of the card", then "another form
+          of the same card" on every one after — which was one sentence
+          about the section written out once per panel. */}
       <div className="at-formhead">
         <span className="at-formnum">Forms</span>
+        <span className="at-formrole">
+          A form is one shape of the word — its plural, its feminine — and
+          each is practised in its own right. The first is the card&rsquo;s
+          main form.
+        </span>
       </div>
       {children}
     </div>
@@ -6794,7 +6781,7 @@ function WordEditor({ word, lang, allCards, selfId }: {
             index={i}
             form={f}
             title={`Form ${i + 1}`}
-            role={formRole(i)}
+            role=""
           />
         ))}
         <AddFormButton word={word} />
@@ -6845,7 +6832,7 @@ function VerbEditor({ word, lang, allCards, selfId }: {
               index={i}
               form={f}
               title={i === 0 ? "The verb" : `Form ${i + 1}`}
-              role={i === 0 ? "This is the verb itself." : formRole(i)}
+              role=""
             />
           ))}
         </FormsSection>
@@ -6921,7 +6908,7 @@ function TableEditor({ word, lang, allCards, selfId }: {
             index={j + 1}
             form={f}
             title={`Form ${j + 2}`}
-            role={formRole(j + 1)}
+            role=""
             canCopy={false}
             drills={false}
           />
@@ -6964,7 +6951,7 @@ function AttachedEditor({ word, lang, allCards, selfId }: {
             index={i}
             form={f}
             title={`Form ${i + 1}`}
-            role={formRole(i)}
+            role=""
           >
             <PronounTable word={word} lang={lang} index={i} form={f} />
           </FormBlock>

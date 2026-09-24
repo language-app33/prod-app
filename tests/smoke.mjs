@@ -5304,6 +5304,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       {
         const head = /** @type {any} */ (document.querySelector(".at-formtile.main .at-formhead"));
         const about = /** @type {any} */ (document.querySelector(".at-formtile.main .at-answerabout"));
+        const formsRole = [...document.querySelectorAll(".at-formhead")]
+          .find((h) => ((h.querySelector(".at-formnum") || {}).textContent || "").trim() === "Forms");
+        check("what a form is is said once, under Forms, and not on each panel",
+          !!formsRole && /A form is one shape of the word/.test(formsRole.textContent || "") &&
+            !/main form of the card|Another form of the same card/.test(document.body.textContent || ""),
+          formsRole ? (formsRole.textContent || "").trim() : "(no Forms heading)");
         check("a form's heading has Duplicate as an icon, and no recording button",
           !!head && !!head.querySelector('.at-icon[aria-label="Duplicate this form"]') &&
             !/Record/.test(head.textContent || "") && !head.querySelector('[aria-label^="Recordings"]'),

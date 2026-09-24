@@ -8,6 +8,17 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.233 — 24 September 2026
+
+**What a form is, said once.**
+
+The **Forms** section now says what a form is under its heading: *A
+form is one shape of the word — its plural, its feminine — and each is
+practised in its own right. The first is the card’s main form.* The
+line each form's panel carried — *This is the main form of the card…*
+on the first, *Another form of the same card* on every one after — is
+gone.
+
 ## 0.232 — 24 September 2026
 
 **A form's buttons, tidied.**
