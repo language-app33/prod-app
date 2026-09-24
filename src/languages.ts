@@ -1696,13 +1696,35 @@ const WORD_CATEGORIES: WordCategory[] = [
     note: "I, you, she — the word itself, not an ending.",
     grammar: ["number", "gender"],
   },
+  /* A name, split by what a sentence asks for: "___ is my friend" wants a
+     person and "I live in ___" a place, and one `{{name}}` blank took
+     either. Both carry number and gender, though a name is nearly always
+     singular: the verb beside it reads the two together to choose between
+     he and she, and a city is feminine in Arabic. Organisations and
+     events were weighed and left out — a custom tag covers the few a
+     course needs. */
+  {
+    id: "person",
+    label: "Person",
+    note: "A particular person, or a named animal: Sarah, Abu Khaled.",
+    grammar: ["number", "gender"],
+  },
+  {
+    id: "place",
+    label: "Place",
+    note: "A particular place: a city, a country, a street — Nablus, Jordan.",
+    grammar: ["number", "gender"],
+  },
+  /* Retired in favour of the two above, and kept exactly as it was so
+     that nothing written with it breaks: a Name card still says Name,
+     still fills `{{name}}`, and a sentence asking for `{{name}}` still
+     finds them. It is no longer offered for a new card; a teacher moves
+     the old ones across one at a time, as they come to them. */
   {
     id: "name",
     label: "Name",
     note: "A particular person or place: Sarah, Nablus.",
-    /* Both, though a name is nearly always singular: the verb beside it in
-       a sentence reads number and gender together to choose between he
-       and she, and a name with no number would silently stop agreeing. */
+    retired: true,
     grammar: ["number", "gender"],
   },
   /* Retired. A number is not a word a teacher writes a card for any more —

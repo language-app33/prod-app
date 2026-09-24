@@ -8,6 +8,21 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.242 — 24 September 2026
+
+**Name is now Person or Place.**
+
+A new card's subtype can be **Person** (Sarah, Abu Khaled, a named pet)
+or **Place** (a city, a country, a street), in place of **Name**. A
+sentence can then leave a *{{person}}* or a *{{place}}* blank, so *"I
+live in ___"* is no longer filled with somebody's name.
+
+Nothing already written changes. A card saved as a Name still says
+Name, still fills *{{name}}*, and every sentence asking for *{{name}}*
+still finds it. Opening one shows a short note — *When you can, choose
+Person or Place instead* — and changing its subtype offers the two new
+ones.
+
 ## 0.241 — 24 September 2026
 
 **A card's subtype and decks are chosen in sheets.**

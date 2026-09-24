@@ -3239,7 +3239,12 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
    * kind so that the two cannot come apart: the offer is about what may
    * be changed, this is about what the card is.
    */
-  const categorySaid = (worded && categoryChoices(lang).find((c) => c.value === category)) || null;
+  /* From every kind the language declares, retired ones included: a Name
+     card saved before Person and Place existed is still a Name, and says
+     so, rather than reading as a card nobody had answered. */
+  const categorySaid = (worded && categoriesOf(lang)
+    .filter((c) => c.id === category)
+    .map((c) => ({ value: c.id, label: c.label, note: c.note, retired: !!c.retired }))[0]) || null;
   /* How much of a table is being held aside — what the line under the
      radio counts. */
   const aside = asideOf(cells, Object.values(tablesOf(lang)), shownSpec, forms);
@@ -4416,7 +4421,10 @@ function WordKind({ word }: { word: WordDraft }) {
       />
     </PickSheet>
   ) : null;
-  const said = categoryOffer.find((c) => c.value === category) || null;
+  /* The answer, even where it is no longer one of the answers offered: a
+     retired kind is still what the card is until somebody changes it. */
+  const said = categoryOffer.find((c) => c.value === category) || categorySaid || null;
+  const retired = !!(categorySaid && categorySaid.retired);
   /*
    * Where there is nothing to choose between, the answer is shown and not
    * asked.
@@ -4473,6 +4481,15 @@ function WordKind({ word }: { word: WordDraft }) {
             onClick={() => setOpen(true)}
           />
         </div>
+        {/* A kind no longer offered: the card keeps working as it is, and
+            this is the nudge to move it across when there is a moment. */}
+        {retired && (
+          <Help>
+            {category === "name"
+              ? "Name is no longer offered for new cards. When you can, choose Person or Place instead."
+              : `${said.label} is no longer offered for new cards. When you can, choose another subtype.`}
+          </Help>
+        )}
         {sheet}
       </div>
     );
