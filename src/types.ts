@@ -594,6 +594,9 @@ export interface CardForm {
    * speeds.
    */
   slowClips?: string[];
+  /** Picture hashes — what this form means, shown. At most four; see
+      ImageScreen. */
+  images?: string[];
   /**
    * Where this form sits in its card's verb table: which tense, which
    * person. Both or neither — one without the other places nothing.
@@ -989,6 +992,8 @@ export type Form = Record<string, any> & {
      a form on a device and a form on the server carry the same ones. */
   clips?: string[];
   slowClips?: string[];
+  /* Its pictures, by hash, as CardForm holds them. */
+  images?: string[];
   s?: Record<string, ExerciseState>;
   /* Whether this form is asked about at all. Absent means yes — see
      CardForm, where the teacher sets it. A form switched off keeps its

@@ -44,6 +44,15 @@ import { liftSubtypeTagsIn } from "../../src/subtype-tags.ts";
 
 const STORE = "arabic-courses";
 const MAX_CLIP_BYTES = 1024 * 1024;
+/* An image, as the data URL the editor sends. The editor shrinks a photo
+   to a long side of 1024 pixels before it leaves the device, which puts an
+   ordinary one at a few hundred kilobytes; this leaves room for a detailed
+   one and refuses a camera original sent whole. */
+const MAX_IMAGE_BYTES = 1536 * 1024;
+/* The only kinds of picture kept: what every browser draws. Checked on the
+   data URL's own header, so an image key cannot be used to park anything
+   else on the server. */
+const IMAGE_DATA = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
 const WORDS = [
   "amber", "cedar", "harbour", "lantern", "meadow", "quartz", "raven", "saffron",
@@ -174,6 +183,23 @@ const clipList = (list) =>
     .filter((/** @type {unknown} */ h) => typeof h === "string" && /^[a-f0-9]{64}$/.test(h))
     .slice(0, 12);
 
+/* The images on one form, narrowed the way its recordings are — names an
+   image can have, and a handful of them: a picture is there to say what
+   the word means, and four is already a gallery. */
+const MAX_IMAGES = 4;
+/** @param {unknown} list */
+const imageList = (list) => [
+  ...new Set(
+    (Array.isArray(list) ? list : [])
+      .filter((/** @type {unknown} */ h) => typeof h === "string" && /^[a-f0-9]{64}$/.test(h)),
+  ),
+].slice(0, MAX_IMAGES);
+
+/** Every image a card points at — what backup, restore and clearing read. */
+/** @param {Record<string, any>} card */
+const imagesOfCard = (card) =>
+  formsOf(card).flatMap((/** @type {Record<string, any>} */ f) => (Array.isArray(f.images) ? f.images : []));
+
 const RETIRED_CARD_FIELDS = Object.fromEntries(
   [
     "ar", "en", "lat", "clips", "slowClips", "answers", "subs", "ask", "lend",
@@ -245,6 +271,8 @@ const K = {
   mySystems: (owner) => `mysystems:${owner}`,
   /** @param {string} h */
   clip: (h) => `clip:${h}`,
+  /** @param {string} h */
+  image: (h) => `image:${h}`,
   /** @param {string} id */
   flag: (id) => `flag:${id}`,
   /** @param {string} what */
@@ -1328,6 +1356,10 @@ export default async (req) => {
             answers: storedAnswers(f),
             clips: clipList(f.clips),
             slowClips: clipList(f.slowClips),
+            /* The pictures on this form — see imageList. Absent rather than
+               empty on a form with none, which is every form written before
+               a card could carry one. */
+            ...(imageList(f.images).length ? { images: imageList(f.images) } : {}),
           })),
         /* Which word cards this one teaches by containing them. A phrase
            the teacher recorded is a context for the words inside it, and
@@ -1444,6 +1476,15 @@ export default async (req) => {
           clipsIn(fields.forms),
           "recording",
           "recordings",
+        );
+        /** @param {Record<string, any>[]} list */
+        const imagesIn = (list) =>
+          list.reduce((n, f) => n + (Array.isArray(f.images) ? f.images.length : 0), 0);
+        note(
+          imagesIn(sentForms.slice(0, fields.forms.length)),
+          imagesIn(fields.forms),
+          "image",
+          "images",
         );
         /* And a word cut off at the end of a field, which is the one that
            does not read as a count. */
@@ -2365,6 +2406,32 @@ export default async (req) => {
       return json({ ok: true, hash, data });
     }
 
+    /* ================= images =================
+       A card's pictures, stored the way its recordings are: under the hash
+       of their own bytes, as the data URL the editor sent, fetched by that
+       hash and never changed once written. */
+
+    if (action === "put-image") {
+      const hash = String(body.hash || "");
+      const data = String(body.data || "");
+      if (!/^[a-f0-9]{64}$/.test(hash)) return json({ error: "bad-hash" }, 400);
+      if (!data || data.length > MAX_IMAGE_BYTES || !IMAGE_DATA.test(data)) {
+        return json({ error: "bad-image" }, 400);
+      }
+      const existing = await store.get(K.image(hash), { type: "text" });
+      if (existing) return json({ ok: true, deduplicated: true });
+      await store.set(K.image(hash), data);
+      return json({ ok: true, deduplicated: false });
+    }
+
+    if (action === "image") {
+      const hash = url.searchParams.get("hash") || "";
+      if (!/^[a-f0-9]{64}$/.test(hash)) return json({ error: "bad-hash" }, 400);
+      const data = await store.get(K.image(hash), { type: "text", consistency: "eventual" });
+      if (!data) return json({ error: "not-found" }, 404);
+      return json({ ok: true, hash, data });
+    }
+
     /* ================= admin ================= */
 
     if (action.startsWith("admin-")) {
@@ -2531,6 +2598,8 @@ export default async (req) => {
               .concat(systems.filter(Boolean).flatMap(clipsOfSystem))
           ),
         ];
+        /* And the pictures, reachable the same way: only from the cards. */
+        const imageHashes = [...new Set(cards.filter(Boolean).flatMap(imagesOfCard))];
 
         /* Key hashes, so that restoring a backup leaves everyone's existing
            sign-in key working. The keys themselves are not stored anywhere
@@ -2559,6 +2628,7 @@ export default async (req) => {
         batch("mysystems", handles.map(K.mySystems), 60);
         batch("flag", flagIds.map(K.flag), 60);
         batch("clip", clipHashes.map(K.clip), 3);
+        batch("image", imageHashes.map(K.image), 2);
 
         return json({
           ok: true,
@@ -2573,6 +2643,7 @@ export default async (req) => {
               systems: systemKeys.length,
               flags: flagIds.length,
               clips: clipHashes.length,
+              images: imageHashes.length,
               keys: keyHashes.length,
             },
             indexes: { users: handles, courses: courseIds, decks: deckIds, flags: flagIds },
@@ -2591,7 +2662,7 @@ export default async (req) => {
            silently dropped every recording from every backup. */
         const values = await Promise.all(
           keys.map((/** @type {string} */ k) =>
-            k.startsWith("clip:")
+            k.startsWith("clip:") || k.startsWith("image:")
               ? store.get(k, { type: "text" }).catch(() => null)
               : readJson(store, k)
           )
@@ -2623,7 +2694,7 @@ export default async (req) => {
            restore says it worked. So a new kind of record is added to
            this line in the same release that starts writing one. */
         const allowed =
-          /^(user|key|course|deck|owncards|mycards|card|numsys|timesys|mysystems|flag|clip|code|index):/;
+          /^(user|key|course|deck|owncards|mycards|card|numsys|timesys|mysystems|flag|clip|image|code|index):/;
         let written = 0;
         for (const k of keys) {
           if (!allowed.test(k) || k.length > 200) continue;
@@ -2635,7 +2706,7 @@ export default async (req) => {
             const have = (await readJson(store, k)) || [];
             v = [...new Set(have.concat(v))];
           }
-          const payload = k.startsWith("clip:") ? String(v || "") : JSON.stringify(v);
+          const payload = k.startsWith("clip:") || k.startsWith("image:") ? String(v || "") : JSON.stringify(v);
           if (!payload || payload.length > 4 * 1024 * 1024) continue;
           await store.set(k, payload);
           written += 1;
@@ -2714,6 +2785,11 @@ export default async (req) => {
           for (const h of hashes) {
             await store.delete(K.clip(h));
             removed.clips += 1;
+          }
+          /* The pictures go with the recordings: both are a card's media,
+             reachable only from the cards, and cleared before them. */
+          for (const h of [...new Set(cards.filter(Boolean).flatMap(imagesOfCard))]) {
+            await store.delete(K.image(h));
           }
         }
 

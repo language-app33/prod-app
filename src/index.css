@@ -731,6 +731,18 @@ button {
   .at-sheet { border-radius: var(--r-lg); padding-bottom:18px; }
 }
 .at-sheettop { display:flex; align-items:center; gap:8px; }
+/* ---- a form's pictures ----
+   Large enough to judge on the screen they are added on: two to a row on
+   a phone, their own shape inside a square frame, with the bin over a
+   corner. */
+.at-imggrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px; }
+.at-imgtile { position:relative; margin:0; aspect-ratio:1; border-radius: var(--r-sm);
+  overflow:hidden; background: var(--well); border:2px solid var(--line); }
+.at-imgtile > img, .at-imgtile > .at-imgslot { width:100%; height:100%; object-fit:contain; display:block; }
+.at-imgtile > .at-icon { position:absolute; top:6px; inset-inline-end:6px; flex:none;
+  width:40px; min-height:40px; padding:0; }
+.at-imgslot { display:flex; align-items:center; justify-content:center;
+  color: var(--muted); font-size:13px; }
 .at-sheettop .at-modaltitle { flex:1; min-width:0; margin:0; }
 /* The close button is a square at the end of the title's line. An icon
    button grows to share its row by default, which stretched this one

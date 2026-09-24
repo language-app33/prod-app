@@ -41,6 +41,7 @@ import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, m
 import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
 import { liftSubtypeTags } from "./subtype-tags.ts";
+import { MAX_IMAGES, shrinkImage } from "./images.ts";
 import type { Answer } from "./answers.ts";
 import {
   Button,
@@ -284,7 +285,7 @@ function GrammarRadios({ dims, values, onPick, of, bare }: {
  * most cards accept one answer and want the language's default, and four
  * pickers under every row would bury the words the card is actually about.
  */
-function ScriptAnswers({ lang, dims, rows, of = "", onEdit, onCommit, onRecord, ownRecorders, blanks, onRemoveBlank }: {
+function ScriptAnswers({ lang, dims, rows, of = "", onEdit, onCommit, onRecord, ownRecorders, blanks, onRemoveBlank, pictures }: {
   lang: Lang;
   /**
    * Which form of the card these boxes belong to, where saying so is the
@@ -327,6 +328,10 @@ function ScriptAnswers({ lang, dims, rows, of = "", onEdit, onCommit, onRecord, 
   blanks?: BlankWiring;
   /** What the cross on a blank means here — see BlankText. */
   onRemoveBlank?: (name: string) => void;
+  /** The form's Add image button, drawn beside the first answer's Record:
+      a picture belongs to the form rather than to one of its spellings,
+      so it is offered once. */
+  pictures?: Node;
 }) {
   /* What a box is called: the field, which of the accepted answers it is
      where there is more than one, and which form of the card. */
@@ -470,6 +475,7 @@ function ScriptAnswers({ lang, dims, rows, of = "", onEdit, onCommit, onRecord, 
                 {soundOf(clipsOf(row).length)}
               </Button>
             )}
+            {i === 0 && pictures}
           </div>
           {dims.length > 0 && open === i && (
             <div className="at-answergrammar">
@@ -1167,6 +1173,155 @@ function blobToDataUrl(blob: Blob) {
 
 /* Clips are addressed by the hash of their contents, so the same
    recording published twice is stored once. */
+
+/* ==================================================================
+   Pictures on a card
+   ==================================================================
+
+   A form may carry a few pictures — what the word means, shown rather
+   than translated. Stored the way its recordings are: under the hash of
+   their bytes, as a data URL, fetched by that hash and never changed once
+   written. A form keeps the hashes in `images`.
+
+   Shrunk before they leave the device. A phone's photo is several
+   megabytes and four thousand pixels across, which every student would
+   then download to see a thumbnail of a cup; a long side of 1024 pixels
+   is sharp on any screen this app is read on, and a JPEG of that is a
+   few hundred kilobytes. */
+
+/* Every picture this screen has fetched or made, by hash, so the same one
+   is fetched once however many times it is drawn. A picture never changes
+   once written, so nothing here goes stale. */
+const imageCache = new Map<string, Promise<string>>();
+const imageData = (hash: string): Promise<string> => {
+  const held = imageCache.get(hash);
+  if (held) return held;
+  const asked = API.getImage(hash).then((r) => r.data);
+  /* A failure is not kept: the next draw asks again. */
+  asked.catch(() => imageCache.delete(hash));
+  imageCache.set(hash, asked);
+  return asked;
+};
+
+/** One stored picture, drawn once its bytes arrive. */
+function StoredImage({ hash, alt, className = "" }: { hash: string; alt: string; className?: string }) {
+  const [src, setSrc] = useState("");
+  const [lost, setLost] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setLost(false);
+    imageData(hash).then(
+      (d) => live && setSrc(d),
+      () => live && setLost(true),
+    );
+    return () => { live = false; };
+  }, [hash]);
+  if (lost) return <span className={`at-imgslot lost ${className}`}>Couldn&rsquo;t load</span>;
+  if (!src) return <span className={`at-imgslot ${className}`} aria-busy="true" />;
+  return <img className={className} src={src} alt={alt} />;
+}
+
+/* What the button beside Record reads, and what a screen reader hears. */
+const picturesOf = (made: number): string => (made ? plural(made, "image") : "Add image");
+
+/*
+ * Adding them: a screen of its own, the way recordings are made.
+ *
+ * The pictures the form has, each large enough to judge and with a way to
+ * take it off; under them, a way to choose one from the device and — on a
+ * phone — to take one with the camera. Choosing opens the device's own
+ * picker, which on a phone offers the camera anyway; the second button is
+ * the shortcut for the teacher standing in front of the thing.
+ */
+export function ImageScreen({ title, images, onChange, onClose }: {
+  title: string;
+  images: string[];
+  onChange: (next: string[]) => void;
+  onClose: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const full = images.length >= MAX_IMAGES;
+
+  async function add(file: File | undefined | null) {
+    if (!file) return;
+    setError("");
+    if (!/^image\//.test(file.type || "")) {
+      setError("That file isn't a picture.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const small = await shrinkImage(file);
+      const hash = await hashOf(small);
+      const data = await blobToDataUrl(small);
+      await API.putImage(hash, data);
+      imageCache.set(hash, Promise.resolve(data));
+      if (!images.includes(hash)) onChange(images.concat([hash]).slice(0, MAX_IMAGES));
+    } catch (e) {
+      setError(
+        e instanceof Error && e.message === "bad-image"
+          ? "That picture couldn't be read. Try another, or save it as a JPEG or PNG first."
+          : API.explain(e),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const picker = (label: string, icon: string, camera: boolean) => (
+    <label className={`at-btn sm${camera ? " ghost" : ""}${busy || full ? " off" : ""}`}>
+      <Icon name={icon} />
+      {busy && !camera ? "Saving…" : label}
+      <input
+        type="file"
+        accept="image/*"
+        {...(camera ? { capture: "environment" } : {})}
+        className="at-hidden"
+        disabled={busy || full}
+        onChange={(e) => {
+          const f = e.target.files && e.target.files[0];
+          e.target.value = "";
+          add(f);
+        }}
+      />
+    </label>
+  );
+
+  return (
+    <Screen title={title} onBack={onClose} rise backLabel="Back to the card">
+      <Help>
+        A picture of what this form means, shown with it. Up to {MAX_IMAGES}. A card with no
+        picture is still a card.
+      </Help>
+      <Notice kind="error">{error}</Notice>
+      <section className="at-panel">
+        <p className="at-eyebrow">Images</p>
+        {images.length ? (
+          <div className="at-imggrid">
+            {images.map((h, i) => (
+              <figure className="at-imgtile" key={h}>
+                <StoredImage hash={h} alt={`Image ${i + 1}`} />
+                <IconButton
+                  icon="delete"
+                  label={`Remove image ${i + 1}`}
+                  onClick={() => onChange(images.filter((x) => x !== h))}
+                />
+              </figure>
+            ))}
+          </div>
+        ) : (
+          <p className="at-hint">No image yet.</p>
+        )}
+        <div className="at-chips" style={{ marginTop: 12 }}>
+          {picker("Choose an image", "image", false)}
+          {picker("Take a photo", "camera", true)}
+        </div>
+        {full && <Help>That is as many as one form may have. Remove one to add another.</Help>}
+      </section>
+    </Screen>
+  );
+}
 
 /*
  * The recordings on one form, as the card editor shows them.
@@ -2597,6 +2752,8 @@ export function initialForms(
       ...(Array.isArray(word.answers) ? { answers: word.answers } : null),
       clips: word.clips || [],
       slowClips: word.slowClips || [],
+      /* Its pictures — see ImageScreen. Only where it has some. */
+      ...(Array.isArray(word.images) && word.images.length ? { images: word.images } : null),
       /* Whether the card's own word is asked about. Carried only where it
          is off, which is what the field means everywhere else too. */
       ...(word.ask === false ? { ask: false } : null),
@@ -4085,6 +4242,8 @@ export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
     setForms((x) =>
       x
         .slice(0, i + 1)
+        /* Its pictures come with it — a picture of a cup is a picture of
+           cups — where its recordings, which say one word, do not. */
         .concat([{ ...x[i], id: formName(x), clips: [], slowClips: [] }])
         .concat(x.slice(i + 1)),
     );
@@ -5209,6 +5368,10 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
      into the card behind them would be overwritten by the next keystroke.
      It is a Screen, so it stands over the editor wherever it is drawn. */
   const [heard, setHeard] = useState<number | null>(null);
+  /* And whether its pictures are open — see ImageScreen. The form's own,
+     so kept on the form rather than on one of its answers. */
+  const [seeing, setSeeing] = useState(false);
+  const images: string[] = Array.isArray(f.images) ? f.images : [];
   /* The same rule as Alternatives above, and for the same reason: these
      rows were read off the form once, and a blank written into the card
      from outside would otherwise change the card and not the screen. What
@@ -5278,6 +5441,19 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
           onCommit={commit}
           onRecord={setHeard}
           ownRecorders
+          pictures={
+            <Button
+              variant="ghost"
+              size="sm"
+              icon="image"
+              iconSize={17}
+              className="at-answerrec"
+              aria-label={`${of ? `Images for ${of}` : "Images"} — ${images.length ? `${images.length} added` : "none yet"}`}
+              onClick={() => setSeeing(true)}
+            >
+              {picturesOf(images.length)}
+            </Button>
+          }
           blanks={blanks}
           onRemoveBlank={onRemoveBlank}
         />
@@ -5336,6 +5512,14 @@ function FormFields({ lang, form: f, dims, of = "", title, role = "", acts, dril
         form={rows[heard] as { clips?: string[]; slowClips?: string[] }}
         onChange={(next) => edit(heard, next)}
         onClose={() => setHeard(null)}
+      />
+    )}
+    {seeing && (
+      <ImageScreen
+        title={of ? `Images · ${of}` : "Images"}
+        images={images}
+        onChange={(next) => onChange({ images: next })}
+        onClose={() => setSeeing(false)}
       />
     )}
     </>

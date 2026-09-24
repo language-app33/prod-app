@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.243 — 24 September 2026
+
+**A card can carry pictures.**
+
+Beside **Record**, under each form's word, there is now **Add image**.
+It opens a screen of its own, the way recording does, where you can
+**choose an image** from the device or **take a photo** with the camera,
+see the pictures the form has, and remove one. A form can have up to
+four.
+
+Pictures are made smaller on your device before they are stored — a
+long side of 1024 pixels, as a JPEG — so a phone photo of several
+megabytes arrives as a few hundred kilobytes, and students download no
+more than they need. They are kept in backups alongside recordings.
+
+Students don't see the pictures yet: they are stored with the card and
+reach students' devices, ready for exercises that use them.
+
 ## 0.242 — 24 September 2026
 
 **Name is now Person or Place.**

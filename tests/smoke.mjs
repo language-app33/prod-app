@@ -432,6 +432,8 @@ const fakeFetch = async (input, opts = {}) => {
       });
     }
     if (action === "clip") return json({ error: "not-found" }, 404);
+    if (action === "image") return json({ error: "not-found" }, 404);
+    if (action === "put-image") return json({ ok: true, deduplicated: false });
     if (action === "report-flag") {
       reported.push(JSON.parse(opts.body || "{}"));
       return json({ ok: true, id: "flag-1" });
@@ -5359,6 +5361,25 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         check("the recording button sits beside Grammar, under the word",
           !!about && !!about.querySelector('[aria-label^="Recordings"]') && /Grammar/.test(about.textContent || ""),
           about ? (about.textContent || "").trim() : "(no row)");
+        /* And beside it, the way to add a picture of what the word means. */
+        const imgBtn = about ? /** @type {any} */ (about.querySelector('[aria-label^="Images"]')) : null;
+        check("with Add image beside Record",
+          !!imgBtn && /^Add image$/.test((imgBtn.textContent || "").trim()) &&
+            !!(about.querySelector('[aria-label^="Recordings"]').compareDocumentPosition(imgBtn) & 4),
+          imgBtn ? (imgBtn.textContent || "").trim() : "(no button)");
+        click(imgBtn);
+        await sleep(250);
+        const shot = () => /** @type {any} */ ([...document.querySelectorAll(".at-screen")]
+          .find((sc) => /^Images/.test(((sc.querySelector(".at-screenhead h2") || {}).textContent || "").trim())) || null);
+        check("which opens a screen of its own, as recording does",
+          !!shot() && [...(shot() || document).querySelectorAll("label.at-btn")]
+            .some((l) => /Choose an image/.test(l.textContent || "") && !!l.querySelector('input[type="file"][accept="image/*"]')) &&
+            [...(shot() || document).querySelectorAll("label.at-btn")]
+              .some((l) => /Take a photo/.test(l.textContent || "") && !!l.querySelector('input[capture="environment"]')),
+          shot() ? (shot().textContent || "").replace(/\s+/g, " ").slice(0, 160) : "(no screen)");
+        click([...(shot() || document).querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Back to the card"));
+        await sleep(250);
+        check("and goes back to the card", !shot(), shot() ? "still open" : "closed");
       }
       check("ticking one says this card fills it",
         JSON.stringify(ticked()) === JSON.stringify(["friend"]),

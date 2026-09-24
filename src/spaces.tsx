@@ -646,10 +646,12 @@ const BACKUP_PARTS: {
   },
   {
     key: "clips",
-    title: "Recordings",
-    what: "The audio itself, which is nearly all of the size of a backup.",
-    kinds: ["clip"],
-    prefixes: ["clip:"],
+    title: "Recordings and images",
+    /* The pictures ride with the recordings: both are a card's media,
+       stored the same way and reachable only from the cards. */
+    what: "The audio and the pictures themselves, which are nearly all of the size of a backup.",
+    kinds: ["clip", "image"],
+    prefixes: ["clip:", "image:"],
     count: "clips",
     unit: "recording",
   },

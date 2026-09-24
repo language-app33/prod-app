@@ -142,6 +142,9 @@ const ICONS: Record<string, string> = {
   mic:
     "M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z",
   remove: "M19 13H5v-2h14v2z",
+  image: "M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z",
+  camera:
+    "M9 2 7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8.2a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z",
   /* A learner saying "this one, please" — see `priority` on a card. A star
      rather than the flag beside it, which is already how a learner says
      something is wrong with a question. */
@@ -3716,6 +3719,9 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        two is right half the time. */
     lang: card.lang,
     recs: recsOf(f),
+    /* Its pictures, by hash — carried so that an exercise can show them.
+       Absent on a form with none. */
+    ...(Array.isArray(f.images) && f.images.length ? { images: f.images.slice() } : null),
     created: Date.now(),
     updated: Date.now(),
     s: freshStates(),

@@ -212,6 +212,11 @@ export const putClip = (hash: string, data: string) => call("put-clip", { body: 
 export const getClip = (hash: string): Promise<{ ok: true; hash: string; data: string }> =>
   call("clip", { params: { hash } });
 
+/* A card's pictures, stored and fetched the way its recordings are. */
+export const putImage = (hash: string, data: string) => call("put-image", { body: { hash, data } });
+export const getImage = (hash: string): Promise<{ ok: true; hash: string; data: string }> =>
+  call("image", { params: { hash } });
+
 export const deleteAccount = () => call("delete-account", { body: {} });
 
 /* ---- admin ---- */
@@ -301,6 +306,7 @@ export function explain(err: unknown): string {
       "name-required": "A name is needed.",
       "title-required": "A title is needed.",
       "too-large": "That is too big to store.",
+      "bad-image": "That picture couldn't be stored. Use a PNG, JPEG, WebP or GIF.",
       "not-in-course": "You aren't in that course.",
       "no-access": "You don't have access to that.",
       "not-yourself": "Use the danger zone in Account settings to close your own account.",

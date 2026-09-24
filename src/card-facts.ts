@@ -792,6 +792,17 @@ export const CARD_FACTS: FieldRule[] = [
     shown: (value) => (Array.isArray(value) && value.length ? [clipLabel("slowClips", value.length)] : []),
   },
   {
+    key: "images",
+    on: "form",
+    label: "Images",
+    what: "Pictures of what this form means, shown with it. Up to four.",
+    reader: "both",
+    /* A hash is not information, as with a recording: what is owed is that
+       the pictures are there, and how many. */
+    shown: (value) =>
+      Array.isArray(value) && value.length ? [`${value.length} image${value.length === 1 ? "" : "s"}`] : [],
+  },
+  {
     key: "ask",
     on: "form",
     label: "",

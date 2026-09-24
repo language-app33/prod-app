@@ -3500,3 +3500,81 @@ test("a custom tag that names a subtype is folded into the subtype, and stored s
   assert.deepEqual((await stored(bare)).fills, ["colour"]);
   assert.equal((await stored(other)).fills, undefined);
 });
+
+/* ---- pictures ----
+   Stored the way recordings are, under the hash of their own bytes — and,
+   unlike a recording, only when what arrives is a picture a browser can
+   draw. */
+
+test("an image is stored under its hash, once, and fetched by it", async () => {
+  const teacher = await anAdmin("Lina");
+  const hash = "e".repeat(64);
+  const data = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
+  const first = await api("/api/courses?action=put-image", {
+    method: "POST", key: teacher.key, body: { hash, data },
+  });
+  assert.equal(first.status, 200, first.text);
+  assert.equal(first.json.deduplicated, false);
+  const again = await api("/api/courses?action=put-image", {
+    method: "POST", key: teacher.key, body: { hash, data },
+  });
+  assert.equal(again.json.deduplicated, true);
+  const back = await api(`/api/courses?action=image&hash=${hash}`, { key: teacher.key });
+  assert.equal(back.status, 200, back.text);
+  assert.equal(back.json.data, data);
+});
+
+test("anything that is not a picture, or too large a one, is refused as an image", async () => {
+  const teacher = await anAdmin("Mais");
+  /** @param {string} hash @param {string} data */
+  const put = (hash, data) =>
+    api("/api/courses?action=put-image", { method: "POST", key: teacher.key, body: { hash, data } });
+  const cases = [
+    ["f".repeat(64), "data:audio/webm;base64,AAAA", "a recording"],
+    ["1".repeat(64), "data:image/svg+xml;base64,PHN2Zz4=", "an SVG, which can carry script"],
+    ["2".repeat(64), "not a data url", "plain text"],
+    ["3".repeat(64), "data:image/jpeg;base64," + "A".repeat(1536 * 1024), "one over the limit"],
+  ];
+  for (const [hash, data, what] of cases) {
+    const r = await put(hash, data);
+    assert.equal(r.status, 400, `${what} was stored`);
+    assert.equal(r.json.error, "bad-image", what);
+    const back = await api(`/api/courses?action=image&hash=${hash}`, { key: teacher.key });
+    assert.equal(back.status, 404, `${what} is fetchable`);
+  }
+  const unnamed = await put("nope", "data:image/png;base64,AAAA");
+  assert.equal(unnamed.json.error, "bad-hash");
+});
+
+test("a card keeps up to four images on each form, and says when it cut some", async () => {
+  const teacher = await anAdmin("Rawan");
+  const img = (/** @type {number} */ n) => String(n).padStart(64, "a");
+  const saved = await api("/api/courses?action=save-card", {
+    method: "POST", key: teacher.key,
+    body: {
+      card: {
+        id: "", lang: "ar-PS",
+        forms: [
+          { ar: "فنجان", en: "cup", lat: "finjaan", images: [img(1), img(2), img(3), img(4), img(5), "junk"] },
+          { ar: "فناجين", en: "cups", lat: "fanaajiin", images: [img(1)] },
+          { ar: "صحن", en: "plate", lat: "sa7n" },
+        ],
+      },
+      decks: [],
+    },
+  });
+  assert.equal(saved.status, 200, saved.text);
+  const forms = saved.json.card.forms;
+  assert.deepEqual(forms[0].images, [img(1), img(2), img(3), img(4)], "four kept, junk dropped");
+  assert.deepEqual(forms[1].images, [img(1)]);
+  assert.equal(forms[2].images, undefined, "a form with none carries none");
+  assert.ok((saved.json.trimmed || []).includes("2 images"), JSON.stringify(saved.json.trimmed));
+
+  /* And a backup holds them, as it holds a card's recordings. */
+  const manifest = await api("/api/courses?action=admin-backup-manifest", { key: teacher.key });
+  const planned = manifest.json.manifest.plan
+    .filter((/** @type {any} */ c) => c.kind === "image")
+    .flatMap((/** @type {any} */ c) => c.keys);
+  for (const n of [1, 2, 3, 4]) assert.ok(planned.includes(`image:${img(n)}`), `image ${n} is backed up`);
+  assert.equal(manifest.json.manifest.counts.images, planned.length);
+});
