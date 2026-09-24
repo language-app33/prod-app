@@ -176,8 +176,8 @@ const talk = {
    — they reach a student because the deck's phrases ask for them, not
    because anybody filed them under Lesson 1. */
 const frameCard = {
-  id: "k444444444444", owner: "t-1", ar: "اسمي {{name}}", en: "My name is {{name}}",
-  lat: "ismi {{name}}", note: "", lang: "ar-PS", number: "singular", gender: "masculine",
+  id: "k444444444444", owner: "t-1", ar: "اسمي {{person}}", en: "My name is {{person}}",
+  lat: "ismi {{person}}", note: "", lang: "ar-PS", number: "singular", gender: "masculine",
   classifier: "", clips: [], subs: [], uses: [], rev: 1, updated: 1, created: 1,
 };
 /** @param {string} id @param {string} ar @param {string} en @param {string} lat */
@@ -186,7 +186,7 @@ const nameCard = (id, ar, en, lat) => ({
   gender: "masculine", classifier: "", clips: [], subs: [], uses: [],
   /* What makes it a value: which variable it fills, and that it is never a
      question of its own. */
-  fills: "name", drill: false, rev: 1, updated: 1,
+  fills: "person", drill: false, rev: 1, updated: 1,
   /* When each was made, which is the order the values are offered in — the
      rotation walks that list, and a card with no date would take today's
      and sort against the others by luck. Every card the server has ever
@@ -701,11 +701,11 @@ check("both course cards and every old card landed in storage", stored.items.len
    them values rather than cards to learn. */
 check("the cards that fill a variable arrive with the deck that needs them",
   !!byId["srv" + rafa.id] &&
-    JSON.stringify(byId["srv" + rafa.id].fills) === JSON.stringify(["name"]) &&
+    JSON.stringify(byId["srv" + rafa.id].fills) === JSON.stringify(["person"]) &&
     byId["srv" + rafa.id].drill === false,
   JSON.stringify(byId["srv" + rafa.id] ? { fills: byId["srv" + rafa.id].fills, drill: byId["srv" + rafa.id].drill } : "not here"));
 check("and the phrase with the hole in it arrives as written",
-  !!byId["srv" + frameCard.id] && lead(byId["srv" + frameCard.id]).en === "My name is {{name}}",
+  !!byId["srv" + frameCard.id] && lead(byId["srv" + frameCard.id]).en === "My name is {{person}}",
   byId["srv" + frameCard.id] ? lead(byId["srv" + frameCard.id]).en : "no frame card");
 
 /* What a course card is, rather than what it used to be told it was. Every
@@ -1305,7 +1305,7 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
       /*
        * And only for exercises the card can actually be asked.
        *
-       * This walk flags a sentence card — "اسمي {{name}}" — and a card
+       * This walk flags a sentence card — "اسمي {{person}}" — and a card
        * whose words change is never asked to be told apart from others:
        * there is nothing stable to put beside it, so `ar2pick` and the
        * grid are not on its ladder at all. The lift used to read that
@@ -1684,12 +1684,12 @@ if (/of 3|of 4|Build a session/.test(document.body.textContent)) {
     const face = frameTile && frameTile.querySelector(".ar");
     const holes = face ? [...face.querySelectorAll(".at-slot")] : [];
     check("a frame's tile marks the hole in it",
-      holes.length === 1 && holes[0].textContent === "name",
+      holes.length === 1 && holes[0].textContent === "person",
       face ? `${holes.length} marked in "${face.textContent}"` : "no frame tile");
     /* The words around it are left alone: marking the whole line would
        shrink the card's own script to the size of its blank. */
     check("and marks only the hole",
-      !!face && face.textContent.replace("name", "").trim() === "اسمي",
+      !!face && face.textContent.replace("person", "").trim() === "اسمي",
       face ? face.textContent : "no frame tile");
     check("and the braces it is stored with are not on the tile",
       !!face && !/[{}]/.test(face.textContent || ""),
@@ -3432,7 +3432,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   await sleep(500);
 
   /* The question comes up filled: the hole is filled before anybody sees
-     it, and a visible {{name}} is the bug this whole gate could have
+     it, and a visible {{person}} is the bug this whole gate could have
      introduced. */
   const shown = (document.body.textContent || "").replace(/\s+/g, " ");
   check("a frame is asked with its hole filled, and never with the braces showing",
@@ -3470,7 +3470,7 @@ check("no console errors during the session", errors.length === 0, errors.slice(
   const met = lead(frame).met || {};
   const keys = Object.keys(met);
   check("answering it records which name it was asked with",
-    keys.length > 0 && keys.every((k) => /^name:srvk[56]/.test(k)),
+    keys.length > 0 && keys.every((k) => /^person:srvk[56]/.test(k)),
     JSON.stringify(met));
   check("at the level the question stood on",
     keys.every((k) => Number.isInteger(met[k]) && met[k] >= 1 && met[k] <= 4),
@@ -4530,7 +4530,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        braces, so they are one namespace or they are two cards answering to
        one name. Nothing is said about a name that is free — the rim is the
        whole of "yes". */
-    typeInto(idBox(), "name");
+    typeInto(idBox(), "person");
     await sleep(200);
     check("a name something else answers to is refused, and says so",
       /already/.test((document.body.textContent || "")) && !!withLabel("Lock this ID") &&
@@ -4576,7 +4576,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
   typeInto(fieldNamed(/^Arabic$/i), "ismi");
   await sleep(80);
-  typeInto(fieldNamed(/^English$/), "My name is {{name}}");
+  typeInto(fieldNamed(/^English$/), "My name is {{person}}");
   await sleep(200);
 
   /* ---- only a sentence may have a blank ----
@@ -4611,15 +4611,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     screenTitle() || "(no editor)");
   typeInto(fieldNamed(/^Arabic$/i), "ismi");
   await sleep(80);
-  typeInto(fieldNamed(/^English$/), "My name is {{name}}");
+  typeInto(fieldNamed(/^English$/), "My name is {{person}}");
   await sleep(300);
   check("a card with a hole in one field only cannot be saved",
     !!saveBtn() && saveBtn().disabled,
     `save is ${saveBtn() && saveBtn().disabled ? "refused" : "offered"}`);
   check("and the editor says which field is short of it",
-    /is missing\s+name\b/.test(document.body.textContent || ""),
+    /is missing\s+person\b/.test(document.body.textContent || ""),
     ([...document.querySelectorAll(".at-formneed.unmet")].map((p) => (p.textContent || "").replace(/\s+/g, " ").trim())[0]) || "(nothing said)");
-  typeInto(fieldNamed(/^Arabic$/i), "ismi {{name}}");
+  typeInto(fieldNamed(/^Arabic$/i), "ismi {{person}}");
   await sleep(200);
   check("and it can be saved once every field leaves the same hole",
     !!saveBtn() && !saveBtn().disabled,
@@ -4637,18 +4637,18 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   {
     const script = () => fieldNamed(/^Arabic$/i);
     const dirOfScript = () => (script() ? script().getAttribute("dir") : "(no field)");
-    typeInto(script(), "{{name}}");
+    typeInto(script(), "{{person}}");
     await sleep(200);
     check("a field holding nothing but blanks reads the way the language does",
       dirOfScript() === "rtl", `dir=${dirOfScript()}`);
-    typeInto(script(), "{{name}} اسمي");
+    typeInto(script(), "{{person}} اسمي");
     await sleep(200);
     check("and so does an Arabic sentence that begins with one",
       dirOfScript() === "rtl", `dir=${dirOfScript()}`);
     /* And what the teacher wrote still decides, which is what laying a
        field out by its own text was for: a phrase in another script does
        not take the deck's direction. */
-    typeInto(script(), "ismi {{name}}");
+    typeInto(script(), "ismi {{person}}");
     await sleep(200);
     check("while the words themselves still decide where there are any",
       dirOfScript() === "ltr", `dir=${dirOfScript()}`);
@@ -4705,7 +4705,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        a list worth reading down is worth a heading saying what it is. It
        is folded away until it is asked for, because the list is now every
        filling the card has rather than the first few of them. */
-    typeInto(saidFields()[0], "ismi {{name}}");
+    typeInto(saidFields()[0], "ismi {{person}}");
     await sleep(200);
     const examples = () => inHalf(SHOWN, ".at-askedline")
       .map((line) => ({
@@ -4759,7 +4759,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     await sleep(200);
     check("the blank is named as a fact about the card",
       [...(blanks() || document).querySelectorAll(".at-blankchip")]
-        .map((c) => (c.textContent || "").trim()).includes("name"),
+        .map((c) => (c.textContent || "").trim()).includes("person"),
       [...(blanks() || document).querySelectorAll(".at-blankchip")].map((c) => c.textContent).join(", ") || "(none)");
 
     /* ---- and pointing at one says what will be put in it ----
@@ -4771,7 +4771,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     {
       const chip = () => /** @type {any} */ (
         [...(blanks() || document).querySelectorAll(".at-blankchip")]
-          .find((c) => (c.textContent || "").trim() === "name") || null);
+          .find((c) => (c.textContent || "").trim() === "person") || null);
       const panel = () => (blanks() || document).querySelector(".at-blankfills");
       check("a blank is something to point at, not a label",
         !!chip() && chip().tagName === "BUTTON",
@@ -4872,10 +4872,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       /* The one thing a teacher cannot tell from a name: whether the hole
          they are about to write has anything to fill it. */
       check("each saying what would stand in it, and how many words do today",
-        !!rowFor(/^name$/) &&
-          /2 words behind it/.test((rowFor(/^name$/).textContent || "").replace(/\s+/g, " ")),
-        rowFor(/^name$/)
-          ? (rowFor(/^name$/).textContent || "").replace(/\s+/g, " ").trim()
+        !!rowFor(/^person$/) &&
+          /2 words behind it/.test((rowFor(/^person$/).textContent || "").replace(/\s+/g, " ")),
+        rowFor(/^person$/)
+          ? (rowFor(/^person$/).textContent || "").replace(/\s+/g, " ").trim()
           : "(no row for name)");
       /* Four kinds of name reach a card and the sheet says which is which,
          because they are four different questions: anything at all, a kind
@@ -4891,11 +4891,11 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("and names it as the blank it is, not as the braces it is stored as",
         !/[{}]/.test(rows().join(" ")), rows().slice(0, 3).join(" / "));
 
-      click(rowFor(/^name$/));
+      click(rowFor(/^person$/));
       await sleep(300);
       const enNow = () => /** @type {any} */ (fieldNamed(/^English$/));
       check("choosing one puts it into the field it was asked from",
-        readField(enNow()) === "My name is {{name}}",
+        readField(enNow()) === "My name is {{person}}",
         readField(enNow()) || "(no field)");
       check("and the sheet closes behind it", !sheet(), sheet() ? "still open" : "closed");
 
@@ -4906,7 +4906,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          thing the moment the field itself could draw a blank where it
          stands. The field has it; the bar is what the field cannot say. */
       check("the blank is a pill inside the field itself",
-        JSON.stringify(pillsIn(enNow())) === JSON.stringify(["name"]),
+        JSON.stringify(pillsIn(enNow())) === JSON.stringify(["person"]),
         JSON.stringify(pillsIn(enNow())));
       check("and the field that has it is not offered it again on the bar",
         !chip(/into English$/),
@@ -4917,16 +4917,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          the others offer it — which is the rule the save has always
          enforced and never once helped anybody keep. */
       check("the other fields then offer the same blank, rather than waiting to be typed",
-        !!chip(/^Put the name blank into Arabic$/) &&
-          !!chip(/^Put the name blank into Transliteration$/),
+        !!chip(/^Put the person blank into Arabic$/) &&
+          !!chip(/^Put the person blank into Transliteration$/),
         [...document.querySelectorAll(".at-blankput")]
           .map((b) => b.getAttribute("aria-label")).join(" | ") || "(no chips)");
 
-      click(chip(/^Put the name blank into Arabic$/));
+      click(chip(/^Put the person blank into Arabic$/));
       await sleep(300);
       const arNow = () => /** @type {any} */ (fieldNamed(/^Arabic$/i));
       check("and one tap puts it there too",
-        readField(arNow()) === "ismi {{name}}", readField(arNow()) || "(no field)");
+        readField(arNow()) === "ismi {{person}}", readField(arNow()) || "(no field)");
       check("with a space around it, because a blank is a word and is spaced like one",
         !/\S\{\{/.test(readField(arNow())) && !/\}\}\S/.test(readField(arNow())),
         readField(arNow()) || "(no field)");
@@ -4952,12 +4952,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        every field, because a card whose English has a hole and whose
        script has not cannot be saved — which this half is where you find
        out about. */
-    typeInto(ar(), "ismi {{name}}");
+    typeInto(ar(), "ismi {{person}}");
     await sleep(80);
-    typeInto(en(), "My name is {{name}}");
+    typeInto(en(), "My name is {{person}}");
     await sleep(300);
     check("and a blank written into the words is read off them",
-      JSON.stringify(chips()) === JSON.stringify(["name"]),
+      JSON.stringify(chips()) === JSON.stringify(["person"]),
       chips().join(", ") || "(none)");
     check("so the fields agree, and the card saves",
       !!saveBtn() && !saveBtn().disabled && !/is missing \{\{/.test(document.body.textContent || ""),
@@ -5009,12 +5009,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     /* A blank named after a kind of word — "{{noun}} {{adjective}}" is all
        a teacher has to write and every noun they have made joins in — and
        the section reads it off the words like any other. */
-    typeInto(ar(), "ismi {{name}} {{noun}}");
+    typeInto(ar(), "ismi {{person}} {{noun}}");
     await sleep(80);
-    typeInto(en(), "My name is {{name}} {{noun}}");
+    typeInto(en(), "My name is {{person}} {{noun}}");
     await sleep(300);
     check("a blank named after a kind of word is read off the words too",
-      JSON.stringify(chips()) === JSON.stringify(["name", "noun"]),
+      JSON.stringify(chips()) === JSON.stringify(["person", "noun"]),
       chips().join(", ") || "(none)");
     check("and the sentence saves, because every field leaves the same two",
       !!saveBtn() && !saveBtn().disabled && !/is missing \{\{/.test(document.body.textContent || ""),
@@ -5037,13 +5037,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     /* ---- which tenses a blank asks its verbs for ----
 
        A verb card is right to carry every tense, and the sentence is what
-       says when the thing happened: "yesterday {{name}} {{verb}}" is met
+       says when the thing happened: "yesterday {{person}} {{verb}}" is met
        as the present, the past and the command one after another, and two
        of those say something nobody means. So the one thing in this
        subsection that is not a readout is here — under the blanks, because
        it is a fact about a blank rather than about the words behind it.
 
-       Only where there is something to ask. {{name}} and {{noun}} above
+       Only where there is something to ask. {{person}} and {{noun}} above
        are filled by words with no tenses, and neither was offered a row of
        ticks; a language whose verbs take one form would be offered none
        either. */
@@ -5059,9 +5059,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("a blank with no verbs behind it is asked nothing about tenses",
         !tenseRows().length, tenseNames().join(", ") || "(nothing asked)");
 
-      typeInto(ar(), "mbaari7 {{name}} {{verb}}");
+      typeInto(ar(), "mbaari7 {{person}} {{verb}}");
       await sleep(80);
-      typeInto(en(), "yesterday {{name}} {{verb}}");
+      typeInto(en(), "yesterday {{person}} {{verb}}");
       await sleep(320);
       check("a blank that verbs fill is asked which tenses it wants them in",
         JSON.stringify(tenseNames()) === JSON.stringify(["present", "past", "command"]),
@@ -5110,9 +5110,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 
       /* Left as the teacher found it, so what follows is about the same
          sentence the checks above were written against. */
-      typeInto(ar(), "ismi {{name}} {{noun}}");
+      typeInto(ar(), "ismi {{person}} {{noun}}");
       await sleep(80);
-      typeInto(en(), "My name is {{name}} {{noun}}");
+      typeInto(en(), "My name is {{person}} {{noun}}");
       await sleep(320);
     }
 
@@ -5202,13 +5202,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         fillList().length > 0 && !inHalf(FILLS, ".at-choosebtn").length,
         fillNames().join(", ") || "(no list)");
       /* The ticked list is the tags somebody wrote. A card fills {{noun}}
-         by saying it is a noun, so a tick for it would do nothing — while
-         {{name}}, which this language also declares as a kind of word, is
-         the oldest blank in the app and has to stay. Written, not built
-         in. */
-      check("and they are the group tags somebody wrote, not the kinds of card",
-        fillNames().includes("name") &&
-          !["word", "noun", "verb", "adjective", "pronoun", "preposition"]
+         by saying it is a noun, so a tick for it would do nothing — and
+         since 0.239 that holds for every kind of word, `name` included,
+         however many sentences leave a {{name}} blank: a tag named for a
+         subtype is the subtype. {{person}} is a tag of the teacher's own. */
+      check("and they are the tags somebody wrote, never a subtype's name",
+        fillNames().includes("person") &&
+          !["word", "name", "noun", "verb", "adjective", "pronoun", "preposition"]
             .some((kind) => fillNames().includes(kind)),
         fillNames().join(", ") || "(no list)");
       check("with what each is worth, which is whether to tick it",
@@ -5297,7 +5297,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         ownTick(/On its own/) ? String(ownTick(/On its own/).checked) : "(no tick)");
 
       /* Ticking one is what says the card fills it. */
-      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      click(/** @type {any} */ (fillRow(/^person$/).querySelector("input")));
       await sleep(250);
       /* The form's heading carries its own actions as icons, and the
          recording button is the answer's, beside its grammar. */
@@ -5325,7 +5325,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           about ? (about.textContent || "").trim() : "(no row)");
       }
       check("ticking one says this card fills it",
-        JSON.stringify(ticked()) === JSON.stringify(["name"]),
+        JSON.stringify(ticked()) === JSON.stringify(["person"]),
         ticked().join(", ") || "(none ticked)");
       /* And with a tag ticked the section still says what it is for, the
          tag says where it is used, and nothing under the list says it all
@@ -5335,8 +5335,8 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         check("the section's line stays the same once a tag is ticked",
           role === "How this card can be used to fill blanks in sentence cards", role || "(no line)");
         check("a tag says how many cards use it",
-          /used in \d+ card/.test((fillRow(/^name$/) || {}).textContent || ""),
-          ((fillRow(/^name$/) || {}).textContent || "").trim());
+          /used in \d+ card/.test((fillRow(/^person$/) || {}).textContent || ""),
+          ((fillRow(/^person$/) || {}).textContent || "").trim());
         check("and nothing after the tags repeats what ticking one did",
           !/can borrow this word|under the form itself/.test(((blanks() || {}).textContent) || ""),
           "said");
@@ -5363,7 +5363,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         .find((b) => /^Add$/.test((b.textContent || "").trim())));
       await sleep(300);
       check("a group nobody has named yet is typed in, and joins the list ticked",
-        JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
+        JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "person"]),
         ticked().join(", ") || "(none ticked)");
 
       const modal = () => /** @type {any} */ (document.querySelector(".at-modal"));
@@ -5382,16 +5382,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         (fillRow(re) ? fillRow(re).parentElement : document)
           .querySelector('button[aria-label^="Take the tag"]') || null);
       check("a group cards actually fill offers to come off all of them",
-        !!bin(/^name$/), bin(/^name$/) ? "there" : "(no bin)");
+        !!bin(/^person$/), bin(/^person$/) ? "there" : "(no bin)");
       /* And one nothing fills does not: there is nothing to take off
          anybody, and a button that would do nothing is worse than none. */
       check("while one nobody fills yet does not, having nothing to come off",
         !bin(/^greeting$/), bin(/^greeting$/) ? "offered anyway" : "not offered");
 
-      click(bin(/^name$/));
+      click(bin(/^person$/));
       await sleep(300);
       check("the bin asks before it reaches past this card",
-        !!modal() && /^Take name off every card\?$/.test(
+        !!modal() && /^Take person off every card\?$/.test(
           ((modal().querySelector(".at-modaltitle") || {}).textContent || "").trim()),
         modal() ? ((modal().querySelector(".at-modaltitle") || {}).textContent || "").trim() : "(nothing asked)");
       /* Not "are you sure" — what it costs, in both directions: the cards
@@ -5410,10 +5410,10 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       click(modalBtn(/^Cancel$/));
       await sleep(250);
       check("answering no leaves the group exactly as it was",
-        !modal() && JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "name"]),
+        !modal() && JSON.stringify(ticked().slice().sort()) === JSON.stringify(["greeting", "person"]),
         ticked().join(", ") || "(none ticked)");
 
-      click(bin(/^name$/));
+      click(bin(/^person$/));
       await sleep(300);
       click(modalBtn(/^Take it off every card$/));
       await sleep(300);
@@ -5424,16 +5424,16 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          and nothing is stored until the card is saved — the same way a
          rename leaves the old name on the list until then. */
       check("the row stays until the save that carries the answer out",
-        fillNames().includes("name"), fillNames().join(", "));
+        fillNames().includes("person"), fillNames().join(", "));
 
       /* Ticked back on, so the walk below meets the card it expects: this
          card is in the group again, and the answer it carries out is the
          one being tested here rather than a card that quietly left. */
-      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      click(/** @type {any} */ (fillRow(/^person$/).querySelector("input")));
       await sleep(250);
 
       /* And unticking is how one is taken off. */
-      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      click(/** @type {any} */ (fillRow(/^person$/).querySelector("input")));
       await sleep(250);
       check("and unticking one takes it off, leaving the others",
         JSON.stringify(ticked()) === JSON.stringify(["greeting"]),
@@ -5441,7 +5441,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       click(/** @type {any} */ (fillRow(/^greeting$/).querySelector("input")));
       await sleep(250);
       check("down to none, which is what an ordinary card is",
-        ticked().length === 0 && fillNames().includes("name"),
+        ticked().length === 0 && fillNames().includes("person"),
         ticked().join(", ") || "(none ticked)");
       check("and leaving the last group makes it a question again",
         !!ownTick(/On its own/) && ownTick(/On its own/).checked,
@@ -5454,21 +5454,21 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          that renames it is on the row. What it asks is the one question a
          rename has: does the new name follow into every card that writes
          it, or does this card alone move? */
-      click(/** @type {any} */ (fillRow(/^name$/).querySelector("input")));
+      click(/** @type {any} */ (fillRow(/^person$/).querySelector("input")));
       await sleep(250);
       const pencil = (/** @type {RegExp} */ re) => /** @type {any} */ (
         (fillRow(re) ? fillRow(re).parentElement : document)
           .querySelector('button[aria-label^="Rename the tag"]') || null);
-      click(pencil(/^name$/));
+      click(pencil(/^person$/));
       await sleep(250);
       const renameBox = () => /** @type {any} */ (inHalf(FILLS, ".at-tagrow input.at-input")[0] || null);
       check("the pencil on a tag opens its name for editing, in place",
-        !!renameBox() && renameBox().value === "name",
+        !!renameBox() && renameBox().value === "person",
         renameBox() ? renameBox().value : "(no box)");
-      typeInto(renameBox(), "names");
+      typeInto(renameBox(), "persons");
       await sleep(150);
       click([...document.querySelectorAll("button")]
-        .find((b) => b.getAttribute("aria-label") === "Rename the tag name"));
+        .find((b) => b.getAttribute("aria-label") === "Rename the tag person"));
       await sleep(300);
 
       check("renaming a tag asks whether the name follows it everywhere",
@@ -5481,9 +5481,9 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       click(modalBtn(/^Only here$/));
       await sleep(300);
       check("and answering “only here” moves this card alone",
-        JSON.stringify(ticked()) === JSON.stringify(["names"]) && fillNames().includes("name"),
+        JSON.stringify(ticked()) === JSON.stringify(["persons"]) && fillNames().includes("person"),
         `${ticked().join(", ") || "(none ticked)"} · offered ${fillNames().join(", ")}`);
-      click(/** @type {any} */ (fillRow(/^names$/).querySelector("input")));
+      click(/** @type {any} */ (fillRow(/^persons$/).querySelector("input")));
       await sleep(250);
     }
   }
@@ -6542,7 +6542,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
 }
 
 /* ---- a hole in a card, filled ----
-   "My name is {{name}}" is a frame, not a sentence: the question fills it
+   "My name is {{person}}" is a frame, not a sentence: the question fills it
    with one of the cards that say they fill `name`, and fills every field
    with the same one — so the prompt, the marking and the answer screen are
    looking at the same person. Driven through the teacher's own trial,
@@ -6615,7 +6615,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   const stored = JSON.parse(localStorage.getItem("arabic-trainer:arabic-trainer-v3") || "null");
   const held = (stored.items || []).find((/** @type {any} */ i) => i.id === "srv" + viktor.id);
   check("a value is held like any card, and practised like none",
-    !!held && JSON.stringify(held.fills) === JSON.stringify(["name"]) && held.drill === false,
+    !!held && JSON.stringify(held.fills) === JSON.stringify(["person"]) && held.drill === false,
     held ? `fills=${JSON.stringify(held.fills)} drill=${held.drill}` : "not on the device");
 }
 
@@ -6694,7 +6694,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   /* ---- and by a blank, from either side of it ----
      A blank has two sides and a teacher wants both: the sentences it is a
      hole in, and the words that go in the hole. The filter could name only
-     the second — it could say which words fill {{name}} and not which cards
+     the second — it could say which words fill {{person}} and not which cards
      ask for one — which is half an answer to "what is going on with this
      blank". */
   const all = tiles();
@@ -6718,7 +6718,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
      each saying what it is worth on both sides. */
   const blankRow = () => /** @type {any} */ (
     [...frame.querySelectorAll(".at-listmenu .at-tickrow")]
-      .find((r) => /^name\b/.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
+      .find((r) => /^person\b/.test((((r.querySelector("b") || {}).textContent) || "").trim())) || null);
   check("and the blanks are there to pick from, named and counted from both sides",
     !!blankRow() && /left by .*card/.test(blankRow().textContent || "") &&
       /filled by .*card/.test(blankRow().textContent || ""),
@@ -6745,7 +6745,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     .map((t) => (t.textContent || "").replace(/\s+/g, " ").trim());
   check("and they are the sentences, not the words — never both",
     [...frame.querySelectorAll(".at-minicard")].every((t) =>
-      [...t.querySelectorAll(".at-slot")].some((n) => (n.textContent || "").trim() === "name")),
+      [...t.querySelectorAll(".at-slot")].some((n) => (n.textContent || "").trim() === "person")),
     leftText.join(" | ").slice(0, 120) || "(nothing listed)");
 
   /* And the other way: everything that is not a value, which is the

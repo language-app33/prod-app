@@ -8,6 +8,27 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.239 — 24 September 2026
+
+**No custom tag shares a name with a subtype.**
+
+A card could carry a custom tag called, say, *name* — often written
+before the language had Name as a kind of word — which then showed
+twice: once under **Default tags** and again under **Custom tags**.
+Those tags are now folded into the card's subtype, once, for every
+card:
+
+- a card with no subtype becomes that subtype, and the tag goes;
+- a card already of that subtype just loses the tag;
+- a card of a **different** subtype keeps its subtype and loses the tag,
+  so it no longer fills that blank. For example, a Noun tagged *name*
+  stays a Noun and stops filling *{{name}}*.
+
+A custom *word* tag goes the same way: every single word fills
+*{{word}}* already. It happens the first time a teacher, or any of
+their students, opens the app after this release, and students' devices
+fetch the tidied cards on their own.
+
 ## 0.238 — 24 September 2026
 
 **Filling blanks, said less.**

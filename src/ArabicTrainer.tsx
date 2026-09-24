@@ -260,6 +260,7 @@ import {
 } from "./answers.ts";
 import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
+import { liftSubtypeTagsIn } from "./subtype-tags.ts";
 import { spellRuns, typoed } from "./spelling.ts";
 import type { Run } from "./spelling.ts";
 
@@ -4217,7 +4218,11 @@ const CARD_ONLY = new Set([
 const formPart = (f: Record<string, any>): Record<string, any> =>
   Object.fromEntries(Object.entries(f).filter(([k]) => !CARD_ONLY.has(k)));
 
-function liftItem(it: Record<string, any>) {
+function liftItem(stored: Record<string, any>, settings: Record<string, any> = {}) {
+  /* A custom tag that is also a subtype, folded into the subtype — see
+     subtype-tags.ts. In the card's own language, or the one this device
+     is learning where an older card never said. */
+  const it = liftSubtypeTagsIn(stored, stored.lang || settings.language || DEFAULT_LANGUAGE) || stored;
   return {
     ...it,
     tags: Array.isArray(it.tags) ? it.tags : [],
@@ -4322,7 +4327,7 @@ export function merge(parsedIn: Record<string, any> | null | undefined) {
     ...EMPTY,
     ...parsed,
     settings,
-    items: (parsed.items || []).map(liftItem),
+    items: (parsed.items || []).map((it: Record<string, any>) => liftItem(it, settings)),
     tombstones: parsed.tombstones || {},
     parked: parsed.parked || {},
     settingsUpdated: parsed.settingsUpdated || 0,

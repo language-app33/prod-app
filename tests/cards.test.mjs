@@ -2202,6 +2202,27 @@ test("a setting the app no longer offers is dropped rather than obeyed", () => {
   assert.equal(doc.settings.theme, "dark", "and what is genuinely the learner's stays");
 });
 
+test("a card on the device with a tag named for a subtype comes back as that subtype", () => {
+  /* The same rule the server runs over a teacher's cards — see
+     subtype-tags.ts — run over the ones a device holds, in the card's own
+     language or, where an old card never said, the one being learnt. */
+  const doc = merge({
+    version: 3,
+    items: [
+      { id: "a", tags: [], created: 1, ar: "رافا", en: "Rafa", fills: ["name", "colour"] },
+      { id: "b", tags: [], created: 1, ar: "باب", en: "door", category: "noun", fills: "name" },
+      { id: "c", tags: [], created: 1, ar: "أحمر", en: "red", fills: ["colour"] },
+    ],
+    settings: { language: "ar-PS" },
+  });
+  const [a, b, c] = doc.items;
+  assert.equal(a.category, "name");
+  assert.deepEqual(a.fills, ["colour"]);
+  assert.equal(b.category, "noun", "a subtype already said is kept");
+  assert.equal(b.fills, undefined, "and the tag that contradicted it goes");
+  assert.deepEqual(c.fills, ["colour"], "a tag of the teacher's own is left alone");
+});
+
 test("a document written the old way comes through as one list of forms", () => {
   const doc = merge({
     version: 3,

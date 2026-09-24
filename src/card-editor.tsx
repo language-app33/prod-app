@@ -40,6 +40,7 @@ import { answerRows, answersOf, packAnswers } from "./answers.ts";
 import { cardRef, dropRail, fillNames, fillsOf, isLent, isSentence, MAX_FILLS, movedSlot, refClash, slotName, slotsIn, slotsOf, slotTrouble, splitSlots, withoutSlot, withSlotAt, WORD_SLOT, wordsDir } from "./variables.ts";
 import { combosOf, EXAMPLES_CEILING, examplesOf, fillersFor, rowsLine, tensedBlanks } from "./card-facts.ts";
 import type { Value } from "./variables.ts";
+import { liftSubtypeTags } from "./subtype-tags.ts";
 import type { Answer } from "./answers.ts";
 import {
   Button,
@@ -3151,7 +3152,7 @@ const NO_HOLES: string[] = [];
 const NO_ASKED: Asked[] = [];
 
 /** The word, its forms, its tables and everything asked of them. */
-export function useWordDraft({ card, lang, allCards, draft, shape }: {
+export function useWordDraft({ card: given, lang, allCards, draft, shape }: {
   card: Card | null;
   lang: Lang;
   allCards: Card[];
@@ -3162,6 +3163,11 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
      no table, because it is not a word. */
   shape: CardShape;
 }) {
+  /* The card as it is to be kept: a custom tag named for a subtype folded
+     into the subtype — see subtype-tags.ts — so the screen never offers
+     the tag, and saving stores the card without it. The server does the
+     same to every stored card; this covers one it has not reached. */
+  const card = useMemo(() => (given && liftSubtypeTags(given, lang)) || given, [given, lang]);
   const scene = shape === "scene";
   /* The two answers a table and a part of speech belong to. A sentence is
      neither: what fills its blanks is other cards. */
@@ -3808,14 +3814,20 @@ export function useWordDraft({ card, lang, allCards, draft, shape }: {
   );
 
   const fillsOffer = useMemo(() => {
+    /* Never a subtype's name, nor `word`: a card fills those by being what
+       it is, and they are listed under Default tags. A sentence with a
+       {{name}} blank is asking for Names, not for a custom tag. */
+    const kinds = new Set(categoriesOf(lang).map((c) => c.id));
+    const custom = (name: string) => name !== WORD_SLOT && !kinds.has(name);
     const written = blanksAround.filter(
-      (b) => b.name !== WORD_SLOT && (b.used > 0 || b.wrote > 0),
+      (b) => custom(b.name) && (b.used > 0 || b.wrote > 0),
     );
     const held = fills
+      .filter(custom)
       .filter((name) => !written.some((b) => b.name === name))
       .map((name) => ({ name, words: 0, used: 0, wrote: 0 }));
     return written.concat(held).sort((a, b) => a.name.localeCompare(b.name));
-  }, [blanksAround, fills]);
+  }, [blanksAround, fills, lang]);
 
   /*
    * Every blank the sheet can offer, and what each of them would take.
