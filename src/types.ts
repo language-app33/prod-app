@@ -793,6 +793,18 @@ export type Card = {
    */
   person?: string;
   /**
+   * Which of the sentences this card makes a teacher has read — the
+   * fingerprints of the ones approved and the ones struck, and who last
+   * changed it. See review.ts.
+   *
+   * Absent on every card written before review existed, which is asked
+   * exactly as it always was and sits on the teacher's list to go back to.
+   * Present — even empty — on a card that has been reviewed, or that was
+   * made or had its words changed since: that card is asked only in the
+   * sentences on `ok`. The server writes it; a save never does.
+   */
+  review?: import("./review.ts").Review;
+  /**
    * Whether the card is practised in its own right. Absent means yes, which
    * is what every card written before variables existed meant. A value —
    * "Raphael" — is turned off: it is there to fill a hole in somebody
@@ -1087,6 +1099,9 @@ export type Item = {
   category?: string;
   /** Whether it is practised in its own right. Absent means yes. See Card. */
   drill?: boolean;
+  /** What a teacher approved of the sentences it makes, where they have
+      reviewed it. Absent means asked as it always was. See Card. */
+  review?: import("./review.ts").Review;
   /**
    * When the learner last said whether they want this card next, so that
    * the answer survives a merge.
@@ -1352,6 +1367,15 @@ export interface Flag {
    */
   answer?: string;
   verdict?: FlagVerdict;
+  /**
+   * The fingerprint of the sentence as it was asked, where the card was a
+   * sentence filled from other cards — see sentenceKey in review.ts.
+   *
+   * What lets a teacher reading the report strike that one sentence and
+   * leave every other the frame makes: the prompt says which words, and
+   * this says which sentence, in the terms the card's review is kept in.
+   */
+  sentence?: string;
   /** Which build of the app they were on: release, then commit. */
   release?: string;
   /** Added when the report is read, never stored. */

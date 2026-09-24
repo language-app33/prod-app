@@ -3581,3 +3581,45 @@ body.at-screening .at-chromebar { display:none; }
   border:1px solid var(--line); border-radius: var(--r); padding:5px 10px;
   font-size:13px; cursor:pointer; }
 .at-dialhalf:hover { background: var(--raised-hover); }
+
+/* ---- review ----
+   A card's sentences, read by a teacher before a student meets them — see
+   review-sheet.tsx. Approved rows read as the jade the examples list is
+   drawn in; struck ones are crossed through in rose; waiting ones carry a
+   brass rule down their edge, which is the thing to scan the list for. */
+.at-reviewline { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin:0 0 16px; padding:10px 12px; border:1px solid var(--line);
+  border-radius: var(--r-sm); background: var(--surface); }
+.at-reviewline.waiting { border-color: var(--tag-line); background: var(--tag-bg); }
+.at-reviewsays { flex:1 1 12em; min-width:0; font-size: var(--fs-sm); font-weight:600; color: var(--text); }
+.at-reviewcounts { display:flex; flex-wrap:wrap; gap:6px 14px; margin:14px 0 4px;
+  font-size: var(--fs-sm); font-weight:700; color: var(--text-soft); }
+.at-reviewcounts .ok { color: var(--jade); }
+.at-reviewcounts .no { color: var(--rose); }
+.at-reviewcounts .wait { color: var(--brass-shade); }
+.at-reviewlist .at-askedline { flex-wrap:wrap; }
+.at-reviewlist .at-askedline.wait { box-shadow: inset 3px 0 0 var(--tag-line); padding-left:8px; }
+.at-reviewlist .at-askedline.no .at-askedsays { text-decoration: line-through;
+  text-decoration-color: var(--rose); opacity:.7; }
+.at-reviewmarks { display:flex; gap:6px; flex:0 0 auto; margin-left:auto; }
+.at-reviewmark { font: inherit; font-size: var(--fs-xs); font-weight:800; min-height:36px;
+  padding:6px 12px; border-radius:999px; border:1px solid var(--line);
+  background: var(--surface); color: var(--text-soft); cursor:pointer; }
+.at-reviewmark.ok.on { background: var(--jade); border-color: var(--jade); color: var(--onjade); }
+.at-reviewmark.no.on { background: var(--rose); border-color: var(--rose); color:#fff; }
+.at-reviewmark:focus-visible { outline:2px solid var(--brass); outline-offset:2px; }
+.at-narrowlist { max-height: 50vh; overflow:auto; margin-top:10px; }
+.at-reviewbanner { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin:0 0 12px; padding:10px 12px; border-radius: var(--r-sm);
+  border:1px solid var(--tag-line); background: var(--tag-bg); }
+.at-reviewbanner > span { flex:1 1 12em; min-width:0; font-size: var(--fs-sm); font-weight:600; }
+.at-reportlist { list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
+.at-report { padding:12px; border:1px solid var(--line); border-radius: var(--r-sm); background: var(--surface);
+  display:flex; flex-direction:column; gap:4px; min-width:0; }
+.at-report > * { min-width:0; overflow-wrap:anywhere; }
+.at-report .at-row { margin-top:8px; }
+.at-reportkind { font-size: var(--fs-xs); font-weight:800; color: var(--muted); letter-spacing:.04em; }
+.at-reportprompt { font-size:calc(19px * var(--sscale, 1)); font-weight:600; color: var(--text); }
+.at-reportmeans { font-size: var(--fs-sm); color: var(--text); }
+.at-reportnote { font-size: var(--fs-sm); color: var(--text-soft); }
+.at-reportwho { font-size: var(--fs-xs); color: var(--muted); }

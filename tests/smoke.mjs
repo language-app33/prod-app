@@ -58,6 +58,9 @@ await build({
      * its own at the foot of the file.
      */
     "src/number-system-editor.tsx",
+    /* And the review screens, reached from a card's page and a toolbar
+       button this walk does not press — driven on their own at the foot. */
+    "src/review-sheet.tsx",
   ],
   bundle: true,
   format: "esm",
@@ -6861,7 +6864,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
   await sleep(200);
   check("and Filter replaces it rather than standing beside it",
     frame.querySelectorAll(".at-listmenu").length === 1 &&
-      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks",
+      sortLabels().join(" | ") === "Recordings | Forms | Decks | Blanks | Review",
     `${frame.querySelectorAll(".at-listmenu").length} panels · ${sortLabels().join(" | ")}`);
 
   /* ---- and by a blank, from either side of it ----
@@ -7868,6 +7871,95 @@ const pickKind = async (/** @type {RegExp} */ want) => {
     fourth.promptWritten > 0, JSON.stringify(fourth));
   check("and nothing threw while the pictures were practised",
     errors.length === before, errors.slice(before, before + 3).join(" | "));
+}
+
+/* ---- the review screens ----
+
+   Driven directly, as the number system's screen is: a card's sentences
+   listed as a student sees them, approved and struck and sent; a frame
+   too wide to read narrowed instead; and a report struck from the list. */
+{
+  const { ReviewScreen, ReportsScreen } = await import(path.join(out, "review-sheet.js"));
+  const { LANGUAGES } = await import(path.resolve("src/languages.ts"));
+  const before = errors.length;
+  const lang = LANGUAGES["ar-PS"];
+  const name = (/** @type {number} */ i) => ({
+    id: `n${i}`, lang: "ar-PS", fills: ["name"], drill: false, created: i, decks: [],
+    forms: [{ id: `n${i}`, ar: `اسم${i}`, en: `Name${i}`, lat: `Name${i}` }],
+  });
+  const frame = {
+    id: "f", lang: "ar-PS", sentence: true, created: 0, decks: ["d"], review: { ok: [], no: [] },
+    forms: [{ id: "f", ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "ismi {{name}}" }],
+  };
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const r = createRoot(host);
+  const sent = /** @type {any[]} */ ([]);
+  const narrowedTo = /** @type {any[]} */ ([]);
+  const up = () => {
+    const all = [...document.querySelectorAll(".at-screen")];
+    return all[all.length - 1] || host;
+  };
+  const buttonIn = (/** @type {RegExp} */ re) =>
+    [...up().querySelectorAll("button")].find((b) => re.test((b.textContent || "").trim()));
+  const drawReview = (/** @type {any[]} */ pool, /** @type {any} */ card) =>
+    r.render(React.createElement(ReviewScreen, {
+      card, cards: pool, lang, onClose() {},
+      onReview: async (/** @type {any} */ change) => { sent.push(change); },
+      onNarrow: async (/** @type {any[]} */ changed) => { narrowedTo.push(changed); },
+    }));
+
+  const three = [0, 1, 2].map(name);
+  drawReview([...three, frame], frame);
+  await sleep(200);
+  const rows = up().querySelectorAll(".at-reviewlist .at-askedline");
+  check("the review screen lists every sentence a card makes", rows.length === 3, `${rows.length} rows`);
+  check("each one waiting to start with", up().querySelectorAll(".at-askedline.wait").length === 3);
+  click(rows[0].querySelector(".at-reviewmark.ok"));
+  await sleep(50);
+  click(up().querySelectorAll(".at-reviewlist .at-askedline")[1].querySelector(".at-reviewmark.no"));
+  await sleep(50);
+  click(buttonIn(/^Save review$/));
+  await sleep(100);
+  check("and Save review sends one approved and one struck",
+    sent.length === 1 && sent[0].ok.length === 1 && sent[0].no.length === 1, JSON.stringify(sent));
+
+  const many = Array.from({ length: 320 }, (_, i) => name(i));
+  drawReview([...many, frame], frame);
+  await sleep(300);
+  check("a frame too wide to read offers no approval, and a blank to narrow",
+    !!buttonIn(/^Save review$/) && buttonIn(/^Save review$/).disabled && /Narrow a blank/.test(up().textContent || ""),
+    (up().textContent || "").slice(0, 160).replace(/\s+/g, " "));
+  const ticks = up().querySelectorAll(".at-narrowlist input[type=checkbox], .at-narrowlist [role=checkbox], .at-narrowlist button");
+  click(ticks[0]);
+  await sleep(50);
+  const box = must(up().querySelector("#at-narrow-name"), "the group name box");
+  const setValue = must(Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value"), "value").set;
+  must(setValue, "setter").call(box, "friends");
+  box.dispatchEvent(new w.Event("input", { bubbles: true }));
+  await sleep(50);
+  click(buttonIn(/^Narrow to/));
+  await sleep(100);
+  const done = narrowedTo[0] || [];
+  check("narrowing renames the blank and tags the word ticked",
+    done.length === 2 && done[0].forms[0].ar === "اسمي {{friends}}" && done[1].fills.includes("friends"),
+    JSON.stringify(done.map((/** @type {any} */ c) => [c.id, c.fills, c.forms[0].ar])));
+
+  const struck = /** @type {any[]} */ ([]);
+  r.render(React.createElement(ReportsScreen, {
+    flags: [{ id: "fl1", kind: "data", note: "", handle: "s", handleName: "Sara", cardId: "f", exercise: "ar2en",
+      subId: null, language: "ar-PS", prompt: "اسمي اسم0", meaning: "my name is Name0", at: Date.now(),
+      sentence: "0123456789abcdef" }],
+    cards: [frame], languages: LANGUAGES, onClose() {},
+    onStrike: (/** @type {any} */ f) => struck.push(f.id), onReview() {}, onDismiss() {},
+  }));
+  await sleep(200);
+  click(buttonIn(/^Strike this sentence$/));
+  await sleep(50);
+  check("a report about a sentence strikes it in one tap", struck.length === 1, JSON.stringify(struck));
+  check("and nothing threw on the review screens", errors.length === before, errors.slice(before, before + 3).join(" | "));
+  r.unmount();
+  host.remove();
 }
 
 report();

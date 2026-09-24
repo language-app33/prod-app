@@ -999,6 +999,7 @@ export const NOT_SHOWN: [string, string][] = [
   ["card.locked", "Whether the teacher's wording is the student's to change, which every course card's is not."],
   ["card.tags", "The learner's own tags on their copy, which they gave it and can see where they gave it."],
   ["card.flags", "Problems reported about the card. They have a screen of their own in Teaching."],
+  ["card.review", "Which of the sentences the card makes a teacher has approved or struck. A line of its own above the read-out says where it stands, and the review screen lists them."],
   ["card.priority", "The learner's mark asking for the card, which has its own block on their card screen."],
   ["card.priorityAt", "When they made or cleared that mark, which is there so two devices can agree about it."],
   ["card.reset", "When the card's progress was last set aside. A fact about a schedule."],

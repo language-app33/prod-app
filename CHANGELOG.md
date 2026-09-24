@@ -8,6 +8,44 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.246 — 24 September 2026
+
+**Sentences reach students once a teacher has read them.**
+
+A sentence card is filled from your other cards, so one card can make
+hundreds of sentences — and some of them can be wrong even when every rule
+behind them is right. Now nothing a sentence card makes reaches a student
+until a teacher has approved it.
+
+- **Review sentences**, on a sentence card's own page, lists every sentence
+  the card makes today, exactly as a student will see it — with the
+  feminine beside a feminine noun, and the verb in the right person. Tap
+  **Approve** or **Strike** on each, or approve every waiting one at once,
+  then **Save review**. Struck sentences are never shown.
+- A new sentence card starts with nothing approved. When you change its
+  words, or add a word that fills one of its blanks, only the new sentences
+  wait for you; everything already approved stays shown.
+- A card that makes more than 300 sentences can't be approved as it is. The
+  review screen offers **Narrow a blank** instead: tick the words that
+  belong, give them a group name, and the blank takes only those.
+- Sentence cards written before this release are still shown as they were.
+  The Cards tab says how many are **waiting for review**, the new
+  **Review** filter lists them, and each deck says how many of its cards
+  are waiting. Once you save a review of one, students see only what you
+  approved.
+- **Reports from students** now reach the teachers of the course, not only
+  the administrator — from the flag button on the Cards tab. A report about
+  one sentence can strike that sentence in one tap, and a report can be
+  dismissed once it is dealt with.
+- **Numbers and times are signed off.** They run to millions, so on the
+  Numbers screen you check the sample list and press **Sign off**; students
+  get the version you last signed off. A change waits for the next sign-off
+  rather than reaching students unread. Numbers already in use stay as they
+  are until you next change them.
+- Two fixes found on the way: a sentence that limits which tenses its verbs
+  take now keeps to those tenses on students' devices too, and the Numbers
+  screen no longer refuses a second save in one sitting.
+
 ## 0.245 — 24 September 2026
 
 **Pronouns, written once for the language.**

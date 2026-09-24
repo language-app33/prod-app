@@ -154,15 +154,12 @@ import {
   typeOf,
   tablesOf,
   verbOf,
-  agreementOf,
   blankAdmits,
   lendsForm,
   NUMBER_EQUIVALENT,
 } from "./languages.ts";
 import {
   agreedCell,
-  agreedValue,
-  agreeWith,
   cellsIn,
   hasCells,
   ownSlot,
@@ -260,6 +257,8 @@ import {
 } from "./answers.ts";
 import { fillForm, fillsOf, hasSlots, lentBy, refOf, slotsOf, valuesAt, valuesForTurn, valuesOf } from "./variables.ts";
 import type { Value } from "./variables.ts";
+import { agreeTook, finishTook, passes, reviewOf, sentenceKey, SCAN_LIMIT } from "./review.ts";
+import type { Review } from "./review.ts";
 import { liftSubtypeTagsIn } from "./subtype-tags.ts";
 import { spellRuns, typoed } from "./spelling.ts";
 import type { Run } from "./spelling.ts";
@@ -928,6 +927,32 @@ function setValueReach(map: Map<string, number | null>) {
   VALUE_REACH = map || new Map();
 }
 
+/*
+ * Which of the forms and turns on this device a teacher has reviewed, and
+ * what they approved: every unit of a card that carries a review, by the
+ * unit's id, with the card beside it for a verb's own place. A unit that
+ * is not here is asked as it always was — a card written before review
+ * existed, or a learner's own. See fillFor.
+ */
+let REVIEW_GATE: Map<string, { review: Review; card: Item }> = new Map();
+export function setReviewGate(map: Map<string, { review: Review; card: Item }>) {
+  /* Set on every render with the same memoised map; only a new one changes
+     what a form can be asked. */
+  if (map && map === REVIEW_GATE) return;
+  REVIEW_GATE = map || new Map();
+  forgetTypes();
+}
+export function reviewGateOf(items: Item[]): Map<string, { review: Review; card: Item }> {
+  const out: Map<string, { review: Review; card: Item }> = new Map();
+  for (const it of items || []) {
+    const review = reviewOf(it);
+    if (!review) continue;
+    for (const form of formsOf(it)) if (form.id) out.set(form.id, { review, card: it });
+    for (const line of linesOf(it)) if (line.id) out.set(line.id, { review, card: it });
+  }
+  return out;
+}
+
 /* Which card, and which form of it, a lent word came from — so a sentence
    can go back to the card for the form that agrees with what stands
    beside it. Filled in the same walk as VALUE_REACH, keyed the same way. */
@@ -1560,6 +1585,7 @@ export function installIndexes(items: Item[], settings: Settings): void {
   setContextIndex(contextIndexOf(items, settings));
   setDialogIndex(buildDialogIndex(items));
   setValueIndex(valueIndexOf(items, settings));
+  setReviewGate(reviewGateOf(items));
   /*
    * The counts before the three walks that read them, and not after.
    *
@@ -1755,42 +1781,11 @@ function pickContext(unit: Form, type: string) {
  * a question — canAsk refuses it, so it should never reach here — and
  * leaving {{name}} standing is a visible bug rather than a silent gap.
  */
-/**
- * The values a sentence was filled with, with each agreeing card's own
- * word swapped for the form that agrees with the slot beside it.
- *
- * An adjective lends its own word into a hole — see lendsForm — and this
- * is where the sentence goes back to its card for the feminine beside a
- * feminine noun: the slot it agrees with is the first other one the
- * teacher wrote, its grammar picks a column, and the cell in that column
- * is what is shown.
- * Null where the column picks a cell the teacher left blank: nothing to
- * ask and nothing to invent, the way a verb's own sentence is left when
- * its table has no such cell.
- *
- * Handed what it reads rather than reaching for the module-level maps, so
- * a test can ask it with a card in hand.
- */
-export function agreeTook(
-  took: Record<string, Value>,
-  slots: string[],
-  ownerOf: (value: Value) => { card: Item; form: Form } | null,
-  langFor: (card: Item) => Lang,
-): Record<string, Value> | null {
-  const out = { ...took };
-  for (const slot of slots) {
-    const value = took[slot];
-    const owner = value ? ownerOf(value) : null;
-    if (!owner) continue;
-    const spec = agreementOf(langFor(owner.card), owner.card.category);
-    if (!spec) continue;
-    const partner = took[agreeWith(slots, slot)] || null;
-    const agreed = agreedValue(owner.card, spec, value, partner);
-    if (!agreed) return null;
-    out[slot] = agreed;
-  }
-  return out;
-}
+/* The agreement step lives in review.ts now, because the teacher's review
+   list has to take it too — a list that stopped short of it listed the
+   masculine where a student was shown the feminine. Re-exported so what
+   reads it from here still can. */
+export { agreeTook };
 
 /*
  * The words that stand in this question's holes, this time round — or
@@ -1832,6 +1827,20 @@ function fillFor(
   const own = ownSlot(unit);
   const drawn = slots.filter((slot) => slot !== own);
   const pool = preview ? fillsFor(unit) : fillsAt(unit, type);
+  /*
+   * A card a teacher has reviewed is asked only in the sentences they
+   * approved — see review.ts. The turn is where the walk starts rather
+   * than the one combination it lands on: the next approved sentence from
+   * here, so the same count is still the same question and a frame whose
+   * next few combinations are waiting for the teacher is asked in the one
+   * after them instead of not at all. None approved at this level is no
+   * question, and it comes back the moment the teacher approves one.
+   *
+   * A teacher trying their own card out is shown it whatever its review,
+   * which is what trying it out is for.
+   */
+  const gate = preview ? null : REVIEW_GATE.get(unit.id) || null;
+  if (gate) return gatedFill(unit, gate, drawn, pool, seen);
   const turned = valuesForTurn(drawn, pool, seen);
   if (!turned) return null;
   /* An agreeing card lent its own word; the form that agrees with the
@@ -1856,6 +1865,44 @@ function fillFor(
   return took;
 }
 
+/* The walk a reviewed card is filled by: forward from the turn, over at
+   most every combination once, to the first sentence on the approved list.
+   Filled whole — the verb's own place included, off the card the gate
+   carries — because what is approved is the sentence as it is shown. */
+function gatedFill(
+  unit: Form,
+  gate: { review: Review; card: Item },
+  drawn: string[],
+  pool: Record<string, Value[]>,
+  seen: number,
+): Record<string, Value> | null {
+  const combos = drawn.length ? drawn.reduce((n, slot) => n * (pool[slot] || []).length, 1) : 0;
+  const walk = Math.min(combos, SCAN_LIMIT);
+  const ownerOf = (v: Value) => VALUE_OWNER.get(refOf(v)) || null;
+  const langFor = (c: Record<string, any>) => LANGUAGES[String(c.lang || "")] || activeLang();
+  for (let i = 0; i < walk; i++) {
+    const turned = valuesForTurn(drawn, pool, seen + i);
+    if (!turned) return null;
+    const took = finishTook(unit, gate.card, turned, drawn, ownerOf, langFor);
+    if (!took) continue;
+    if (passes(gate.review, sentenceKey(fillForm(unit, took)))) return took;
+  }
+  return null;
+}
+
+/**
+ * One question's form with its blanks filled, as the screen would draw it.
+ *
+ * Exported for the reason setValueIndex is: what a sentence is filled
+ * with — and whether a teacher's review lets it be filled at all — is the
+ * whole of what the review gate does, and nothing outside a render could
+ * otherwise ask it. Indexes first; see installIndexes.
+ */
+export function castQuestion(items: Item[], ex: Question, preview = false): Form | null {
+  const cast = castFill(resolveUnit(items, ex), ex.type, preview);
+  return cast ? cast.unit : null;
+}
+
 function castFill(
   resolved: { unit: Form, parent: Item, isSub: boolean } | null,
   type: string,
@@ -1872,7 +1919,11 @@ function castFill(
    * filled, and gone by the time anybody could read it.
    */
   if (!took) return resolved;
-  const unit = (fillForm(resolved.unit, took) as any);
+  const filled = fillForm(resolved.unit, took) as any;
+  /* The sentence's fingerprint, as it was filled and before anything
+     narrows it to one answer — what a report about it names, so the
+     teacher can strike this sentence and no other. See review.ts. */
+  const unit = { ...filled, reviewKey: sentenceKey(filled) };
   return {
     ...resolved,
     unit,
@@ -7418,6 +7469,11 @@ export default function ArabicTrainer() {
   );
   setValueIndex(valueIndex);
 
+  /* And which sentences a teacher has approved, on the cards they have
+     reviewed. Rebuilt with the cards, which is when a review can change. */
+  const reviewGate = useMemo(() => reviewGateOf(asking), [asking]);
+  setReviewGate(reviewGate);
+
   /* And how many words each language has to pair against.
 
      Before the three walks below rather than in among them: each of these
@@ -8843,6 +8899,9 @@ export default function ArabicTrainer() {
       /* Which build, so a report can be matched against what was running.
          The release alone is two or three deploys. */
       release: APP_BUILD,
+      /* Which filled sentence this was, where the card is a frame — so the
+         teacher reading the report can strike exactly this one. */
+      ...(item && (item as any).reviewKey ? { sentence: String((item as any).reviewKey) } : null),
     };
 
     /*

@@ -13,6 +13,7 @@ import * as API from "./courses-api.ts";
 import { answerFields, categoryLabel, dimValues, kindLabel, kindOf, LANGUAGES, DEFAULT_LANGUAGE, scriptVars } from "./languages.ts";
 import { DIALOG_KIND, isDialog, isTwoSided, linesOf, namedPart, sideOf } from "./dialogs.ts";
 import { cardRef, fillNames, fillsOf, isSentence, mergeMet, slotsOf, splitSlots } from "./variables.ts";
+import { reviewOf } from "./review.ts";
 import type { Reader, TableGroup } from "./card-facts.ts";
 import { askLine, A_SENTENCE, blanksOn, cellTitle, CLIP_KINDS, combosOf, dimsSaid, dimText, EXAMPLES_CEILING,
   examplesOf, fillersOn, IN_NO_DECK, isTableCell, lexicalKeys, lexicalLabel, NO_PART, NOT_DRILLED,
@@ -3706,6 +3707,12 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        only where the teacher has answered it, because absent means
        whatever `ask` says — see isLent in variables.ts. */
     ...(typeof f.lend === "boolean" ? { lend: f.lend } : null),
+    /* Which tenses a sentence's blanks ask their verbs in, where the
+       teacher narrowed any. Never carried until 0.246, so a student's
+       device filled "Yesterday {{name}} {{verb}}" with every tense the
+       teacher had unticked. The teacher's review list is built from what
+       the teacher narrowed, so the two have to agree. */
+    ...(f.tenses && typeof f.tenses === "object" ? { tenses: f.tenses } : null),
     /* What each accepted answer is, grammatically. Read rather than copied,
        so a card the server has not been asked to save since the change —
        one set of values flat on the form — arrives with each of its answers
@@ -3806,6 +3813,19 @@ export function cardToItem(card: Card, deckTitle: string, courseId: string, deck
        where the teacher has not said, which reads as it always did. */
     ...(typeof card.sentence === "boolean" ? { sentence: card.sentence } : null),
     ...(card.drill === false ? { drill: false } : null),
+    /* And which of the sentences it makes a teacher has read and approved,
+       where it has been reviewed: a card that carries this is asked only
+       in those — see review.ts. The fingerprints, and nothing about who or
+       when, which is the teacher's business. Left off a card never
+       reviewed, which is asked as it always was. */
+    ...(reviewOf(card)
+      ? {
+          review: {
+            ok: (reviewOf(card)!.ok || []).slice(),
+            ...(reviewOf(card)!.no && reviewOf(card)!.no!.length ? { no: reviewOf(card)!.no!.slice() } : null),
+          },
+        }
+      : null),
     /* And what the teacher calls it, where its own words do not name it —
        a verb saved as the form a dictionary lists. Carried for the same
        reason those two are: it is the teacher's words and nothing here

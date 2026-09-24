@@ -6842,6 +6842,14 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                     will draw. The rest are this card with other words in it.
                   </Help>
                 )}
+                {/* Where these go next. Since 0.246 a sentence reaches a
+                    student only once a teacher has read it — see review.ts
+                    — and this list is where a teacher first meets them, so
+                    it says where they are approved. */}
+                <Help>
+                  Students see these sentences only once you approve them. After
+                  saving, open the card and press Review sentences.
+                </Help>
               </>
             ) : (
               <Help>

@@ -2622,6 +2622,14 @@ test("a teacher's numbers reach their students, and the version moves when a wor
     method: "POST", key: tkey, body: { kind: "numbers", system: numberSystem() },
   });
 
+  /* A new system waits for its teacher to sign it off — see sign-system. */
+  const unsigned = await api("/api/courses?action=my-material", { key: skey });
+  assert.deepEqual(unsigned.json.systems, [], "nothing reaches a student before sign-off");
+  const signed = await api("/api/courses?action=sign-system", {
+    method: "POST", key: tkey, body: { kind: "numbers", languageId: "ar-PS", rev: 1 },
+  });
+  assert.equal(signed.status, 200, signed.text);
+
   const after = await api("/api/courses?action=my-material", { key: skey });
   assert.equal(after.json.systems.length, 1, "the student has the teacher's numbers");
   assert.equal(after.json.systems[0].lexemes["unit.1"].forms.standalone, "one");
@@ -2639,6 +2647,19 @@ test("a teacher's numbers reach their students, and the version moves when a wor
       }),
     },
   });
+  /* A correction waits for sign-off too: until then the student keeps the
+     version that was signed, rather than losing their numbers. */
+  const waiting = await api("/api/courses?action=my-material", { key: skey });
+  assert.equal(waiting.json.systems[0].lexemes["unit.1"].forms.standalone, "one", "the signed version stays");
+  const stale = await api("/api/courses?action=sign-system", {
+    method: "POST", key: tkey, body: { kind: "numbers", languageId: "ar-PS", rev: 1 },
+  });
+  assert.equal(stale.status, 409, "only the version on disk can be signed off");
+  await api("/api/courses?action=sign-system", {
+    method: "POST", key: tkey, body: { kind: "numbers", languageId: "ar-PS", rev: 2 },
+  });
+  const listed = await api("/api/courses?action=my-systems", { key: tkey });
+  assert.equal(Object.values(listed.json.signed)[0], 2, "the teacher's screen says what is signed");
   const corrected = await api("/api/courses?action=my-material", { key: skey });
   assert.notEqual(corrected.json.version, after.json.version, "a corrected word moves the version");
   assert.equal(corrected.json.systems[0].lexemes["unit.1"].forms.standalone, "wahad");
@@ -2676,6 +2697,11 @@ test("a system in a language nobody is learning is not sent", async () => {
     method: "POST", key: tkey,
     body: { kind: "numbers", system: numberSystem({ languageId: "he-IL" }) },
   });
+  for (const languageId of ["ar-PS", "he-IL"]) {
+    await api("/api/courses?action=sign-system", {
+      method: "POST", key: tkey, body: { kind: "numbers", languageId, rev: 1 },
+    });
+  }
 
   const got = await api("/api/courses?action=my-material", { key: student.json.key });
   assert.deepEqual(
@@ -3599,4 +3625,118 @@ test("a pronoun card keeps which person it is", async () => {
     body: { card: { id: "", lang: "ar-PS", forms: [{ ar: "باب", en: "door", lat: "baab" }] }, decks: [] },
   });
   assert.equal(plain.json.card.person, undefined);
+});
+
+/*
+ * A sentence reaches a student once a teacher has read it — see
+ * src/review.ts. The server's half: a card that makes sentences starts
+ * with an empty review, a teacher of its course can approve and strike
+ * sentences on it, nobody else can, and a student's report names the
+ * sentence it was about and reaches the teachers who can strike it.
+ */
+test("a sentence card waits for review, and only its teachers can review it or read its reports", async () => {
+  const admin = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Huda" } });
+  const akey = admin.json.key;
+  await api("/api/courses?action=claim-admin", { method: "POST", key: akey, body: { adminKey: ADMIN_KEY } });
+  const course = await api("/api/courses?action=create-course", {
+    method: "POST", key: akey, body: { title: "Arabic review", language: "ar-PS" },
+  });
+  const courseId = course.json.course.id;
+  const deck = await api("/api/courses?action=create-deck", {
+    method: "POST", key: akey, body: { title: "Frames", description: "", lang: "ar-PS" },
+  });
+  const deckId = deck.json.deck.id;
+  await api("/api/courses?action=attach-deck", { method: "POST", key: akey, body: { deckId, courseId } });
+
+  const frame = await api("/api/courses?action=save-card", {
+    method: "POST", key: akey,
+    body: {
+      card: { id: "", lang: "ar-PS", sentence: true, forms: [{ ar: "اسمي {{name}}", en: "my name is {{name}}", lat: "" }],
+              review: { ok: ["ffffffffffffffff"] } },
+      decks: [deckId],
+    },
+  });
+  assert.equal(frame.status, 200, frame.text);
+  const cardId = frame.json.card.id;
+  assert.deepEqual(frame.json.card.review.ok, [], "a new sentence starts with nothing approved, whatever a save says");
+
+  const word = await api("/api/courses?action=save-card", {
+    method: "POST", key: akey, body: { card: { id: "", lang: "ar-PS", ar: "سامي", en: "Sami", fills: ["name"] }, decks: [] },
+  });
+  assert.equal(word.json.card.review, undefined, "a word makes no sentences and has nothing to review");
+
+  const k1 = "0123456789abcdef";
+  const k2 = "fedcba9876543210";
+  const decksBefore = (await api("/api/courses?action=my-decks", { key: akey })).json.decks;
+  const versionBefore = must(decksBefore.find((/** @type {any} */ d) => d.id === deckId), "deck").version || 1;
+  const reviewed = await api("/api/courses?action=review-card", {
+    method: "POST", key: akey, body: { cardId, ok: [k1, "not a key"], no: [k2] },
+  });
+  assert.equal(reviewed.status, 200, reviewed.text);
+  assert.deepEqual(reviewed.json.card.review.ok, [k1]);
+  assert.deepEqual(reviewed.json.card.review.no, [k2]);
+  assert.equal(reviewed.json.card.review.by, admin.json.user.handle);
+  assert.equal(reviewed.json.card.rev, frame.json.card.rev, "a review is not an edit of the card");
+  const decksAfter = (await api("/api/courses?action=my-decks", { key: akey })).json.decks;
+  assert.ok(must(decksAfter.find((/** @type {any} */ d) => d.id === deckId), "deck").version > versionBefore,
+    "but the deck moves, so students fetch it");
+
+  /* Striking one approved moves it across; an edit keeps the review. */
+  const struck = await api("/api/courses?action=review-card", { method: "POST", key: akey, body: { cardId, no: [k1] } });
+  assert.deepEqual(struck.json.card.review.ok, []);
+  assert.deepEqual(struck.json.card.review.no, [k2, k1]);
+  const edited = await api("/api/courses?action=save-card", {
+    method: "POST", key: akey,
+    body: { card: { id: cardId, lang: "ar-PS", sentence: true, forms: [{ ar: "أنا اسمي {{name}}", en: "my name is {{name}}", lat: "" }] }, decks: [deckId] },
+  });
+  assert.deepEqual(edited.json.card.review.no, [k2, k1], "what was answered stays answered through an edit");
+
+  const stranger = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Walid" } });
+  const refused = await api("/api/courses?action=review-card", {
+    method: "POST", key: stranger.json.key, body: { cardId, ok: [k1] },
+  });
+  assert.equal(refused.status, 403, "someone who does not teach the course cannot review its cards");
+
+  const coteacher = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Samar" } });
+  await api("/api/courses?action=assign-teacher", {
+    method: "POST", key: akey, body: { courseId, handle: coteacher.json.user.handle },
+  });
+  const helped = await api("/api/courses?action=review-card", {
+    method: "POST", key: coteacher.json.key, body: { cardId, ok: [k1] },
+  });
+  assert.equal(helped.status, 200, "a teacher of the course can");
+
+  /* A student's report names the sentence, and reaches the teachers. */
+  const student = await api("/api/courses?action=signup", { method: "POST", body: { displayName: "Yousef" } });
+  await api("/api/courses?action=join-course", { method: "POST", key: student.json.key, body: { code: course.json.course.code } });
+  const sent = await api("/api/courses?action=report-flag", {
+    method: "POST", key: student.json.key,
+    body: { kind: "data", cardId: `srv${cardId}`, exercise: "ar2en", language: "ar-PS",
+            prompt: "اسمي سامي", meaning: "my name is Sami", courseId, deckId, sentence: k1 },
+  });
+  assert.equal(sent.status, 200, sent.text);
+  const theirs = await api("/api/courses?action=my-reports", { key: coteacher.json.key });
+  const got = must(theirs.json.flags.find((/** @type {any} */ f) => f.id === sent.json.id), "the report, for a teacher");
+  assert.equal(got.sentence, k1, "naming the sentence it was about");
+  assert.ok(theirs.json.cards.some((/** @type {any} */ c) => c.id === cardId), "with the card to strike it on");
+  const notTheirs = await api("/api/courses?action=my-reports", { key: stranger.json.key });
+  assert.equal(notTheirs.json.flags.some((/** @type {any} */ f) => f.id === sent.json.id), false);
+  const nope = await api("/api/courses?action=dismiss-reports", {
+    method: "POST", key: stranger.json.key, body: { flagIds: [sent.json.id] },
+  });
+  assert.equal(nope.json.deleted, 0, "nor dismiss it");
+  const dismissed = await api("/api/courses?action=dismiss-reports", {
+    method: "POST", key: coteacher.json.key, body: { flagIds: [sent.json.id] },
+  });
+  assert.equal(dismissed.json.deleted, 1);
+  const left = overviewOf(await api("/api/courses?action=admin-overview", { key: akey })).flags;
+  assert.equal(left.some((f) => f.id === sent.json.id), false, "one report, answered once");
+
+  const junk = await api("/api/courses?action=report-flag", {
+    method: "POST", key: student.json.key,
+    body: { kind: "data", cardId, exercise: "ar2en", language: "ar-PS", prompt: "x", meaning: "y", sentence: "<script>" },
+  });
+  const kept = must(overviewOf(await api("/api/courses?action=admin-overview", { key: akey }))
+    .flags.find((f) => f.id === junk.json.id), "the junk report");
+  assert.equal(kept.sentence, undefined, "a sentence that is not a fingerprint is not kept");
 });

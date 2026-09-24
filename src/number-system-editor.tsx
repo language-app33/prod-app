@@ -26,7 +26,7 @@
  * the numerals that agree with a feminine word are written. The tab says
  * so rather than opening onto boxes that would render nothing.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Lang } from "./types.ts";
 import type {
   CountedNoun,
@@ -95,6 +95,73 @@ const FACE_LABEL: Record<string, string> = {
   company: "inside a bigger number",
 };
 
+/* A document as a string that two copies of it agree on whatever order
+   their keys were written in. */
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object") {
+    const rec = value as Record<string, unknown>;
+    return `{${Object.keys(rec)
+      .filter((k) => rec[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stable(rec[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+/* ---- signing a version off ---- */
+
+/**
+ * Where a system stands with its students, and the button that moves it.
+ *
+ * A language's numbers run to the millions and nobody can read them all,
+ * so what a teacher signs off is the sample on this screen — one of every
+ * shape the language can get wrong — and *Try a number* for anything else.
+ * Students are sent the version last signed off; an edit waits for the
+ * next sign-off rather than reaching them unread.
+ */
+function SignOff({
+  kind,
+  system,
+  signed,
+  unsaved,
+  busy,
+  onSignOff,
+}: {
+  kind: "numbers" | "times";
+  system: NumberSystem | TimeSystem | null;
+  signed?: Record<string, number | null>;
+  unsaved: boolean;
+  busy?: boolean;
+  onSignOff?: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => void;
+}) {
+  if (!system || !system.id || !onSignOff) return null;
+  const what = kind === "times" ? "times" : "numbers";
+  const said = signed && Object.prototype.hasOwnProperty.call(signed, system.id) ? signed[system.id] : undefined;
+  if (said === system.rev) {
+    return (
+      <Notice kind="ok">
+        {`Signed off. Students get these ${what} as they are saved now.`}
+      </Notice>
+    );
+  }
+  const note =
+    said === undefined
+      ? `Students get these ${what} as saved. Check the list below and sign off. After that, changes reach students only when you sign off again.`
+      : said === null
+        ? `Students don't get these ${what} yet. Check the list below, then sign off.`
+        : `You've changed these ${what} since you last signed off. Students still get the signed-off version until you sign off again.`;
+  return (
+    <div className="at-reviewbanner">
+      <span>{unsaved ? `${note} Save your changes first.` : note}</span>
+      <Button size="sm" variant="primary" disabled={unsaved || busy} onClick={() => onSignOff(kind, system)}>
+        Sign off
+      </Button>
+    </div>
+  );
+}
+
 /* ---- the screen ---- */
 
 export interface EditorProps {
@@ -106,9 +173,17 @@ export interface EditorProps {
   busy?: boolean;
   /** What the server holds, for saying whether there is anything to save. */
   savedRev?: number;
+  /**
+   * Which version of each system its teacher signed off, by id: a
+   * revision, null where nothing is signed yet, and absent where the
+   * system has not been edited since sign-off existed.
+   */
+  signed?: Record<string, number | null>;
+  /** Sign off the version the server holds. */
+  onSignOff?: (kind: "numbers" | "times", system: NumberSystem | TimeSystem) => void;
 }
 
-export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy }: EditorProps) {
+export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy, signed, onSignOff }: EditorProps) {
   const composer = composerFor(lang.id);
   const timeComposer = timeComposerFor(lang.id);
   const [tab, setTab] = useState<"numbers" | "times">("numbers");
@@ -133,9 +208,33 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
   const [writing, setWriting] = useState<string | null>(null);
   const [trying, setTrying] = useState(false);
 
-  const dirty =
-    JSON.stringify(draft) !== JSON.stringify(numbers) ||
-    JSON.stringify(clock) !== JSON.stringify(times);
+  /*
+   * What a save hands back, taken into the copy being edited.
+   *
+   * The server numbers each version and refuses a save built on one it has
+   * moved past. The copy here kept the number it was opened with, so the
+   * second save of a sitting was refused as stale, and the screen went on
+   * calling the saved system unsaved — which also kept it from being
+   * signed off. Only the bookkeeping is taken; what the teacher is typing
+   * is theirs.
+   */
+  const { id: nId, owner: nOwner, rev: nRev, created: nCreated, updated: nUpdated } = numbers;
+  useEffect(() => {
+    setDraft((d) => ({ ...d, id: nId, owner: nOwner, rev: nRev, created: nCreated, updated: nUpdated }));
+  }, [nId, nOwner, nRev, nCreated, nUpdated]);
+  const tId = times ? times.id : "";
+  const tOwner = times ? times.owner : "";
+  const tRev = times ? times.rev : 0;
+  const tCreated = times ? times.created : 0;
+  const tUpdated = times ? times.updated : 0;
+  useEffect(() => {
+    setClock((c) => (c && tId ? { ...c, id: tId, owner: tOwner, rev: tRev, created: tCreated, updated: tUpdated } : c));
+  }, [tId, tOwner, tRev, tCreated, tUpdated]);
+
+  /* Compared by content rather than by how the keys happen to be ordered:
+     what the server hands back is read into a fresh object, whose keys
+     need not come in the order the one being edited has them. */
+  const dirty = stable(draft) !== stable(numbers) || stable(clock) !== stable(times);
 
   if (!composer) {
     return (
@@ -242,6 +341,15 @@ export function NumberSystemEditor({ lang, numbers, times, onSave, onClose, busy
         ]}
         value={tab}
         onChange={setTab}
+      />
+
+      <SignOff
+        kind={tab}
+        system={tab === "times" ? times : numbers}
+        signed={signed}
+        unsaved={dirty}
+        busy={busy}
+        onSignOff={onSignOff}
       />
 
       {tab === "numbers" ? (
