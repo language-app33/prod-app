@@ -800,10 +800,13 @@ button {
    ones this card has. Plain text on a tint, with no rim, no tick and no
    box: nothing about them can be pressed, since the question is the kind
    of card further up the screen, so they must not look like the ticked
-   rows under Custom tags. */
+   rows under Custom tags. Dressed as the pill a blank is in a sentence
+   field (.at-blankpill), because a tag is the name that pill carries —
+   without its cross or its grab, since this one goes nowhere. */
 .at-tagchips { display:flex; flex-wrap:wrap; gap:6px; }
-.at-tagchip { display:inline-flex; font-family: var(--mono); font-size:14px;
-  color: var(--text-soft); background: var(--well); border-radius:999px; padding:4px 10px; }
+.at-tagchip { display:inline-flex; align-items:center; padding:2px 10px; border-radius:999px;
+  background: var(--tag-bg); border:2px solid var(--tag-line); color: var(--brass);
+  font-family: var(--mono); font-weight:700; font-size:14px; white-space:nowrap; }
 .at-ticklist > .at-eyebrow { margin:2px 0 0; }
 .at-ticklist > .at-hint { margin:0; }
 /* One group tag: the tick that joins it, and the pencil that renames it.

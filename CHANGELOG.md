@@ -8,6 +8,14 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.227 — 24 September 2026
+
+**Default tags look like blanks.**
+
+The tags listed under **Default tags** on a card now wear the same
+gold pill a blank wears when it is put into a sentence card — without
+the cross, since these can't be taken off.
+
 ## 0.226 — 24 September 2026
 
 **Blanks is now Filling blanks.**
