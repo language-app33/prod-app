@@ -973,6 +973,9 @@ button {
 .at-screen.cardform .at-field { margin-bottom:16px; }
 .at-screen.cardform .at-groupline,
 .at-screen.cardform .at-drillhead { font-size:15px; line-height:1.3; }
+/* What the ticks are for, tied close under their heading and a step above
+   the ticks themselves. */
+.at-drills > .at-drilllede { margin:-2px 0 10px; }
 /* Icons sit inside buttons at the text baseline. */
 .at-ic { flex:0 0 auto; vertical-align:-4px; }
 .at-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; font-family: var(--ui); font-size:16px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; background: var(--raised); color: var(--text); border:2px solid var(--line); border-radius: var(--r); padding:14px 22px; cursor:pointer; transition: transform 60ms, background 120ms; min-height:52px; }

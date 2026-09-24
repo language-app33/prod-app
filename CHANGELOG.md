@@ -8,6 +8,18 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.234 — 24 September 2026
+
+**The practice ticks, explained once.**
+
+Under **How this form can be practiced**, the two ticks are now just
+**On its own** and **Inside sentence cards**. What they are for is said
+once, under the heading: *Choose where this comes up in practice: asked
+as a question on its own, or placed in the sentence cards whose blanks
+it fills.* On a card that can't fill a blank, only the first half is
+said. The same line sits under **How this card can be practiced** on
+an adjective.
+
 ## 0.233 — 24 September 2026
 
 **What a form is, said once.**

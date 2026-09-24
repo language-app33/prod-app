@@ -5310,6 +5310,12 @@ const pickKind = async (/** @type {RegExp} */ want) => {
           !!formsRole && /A form is one shape of the word/.test(formsRole.textContent || "") &&
             !/main form of the card|Another form of the same card/.test(document.body.textContent || ""),
           formsRole ? (formsRole.textContent || "").trim() : "(no Forms heading)");
+        const drills = /** @type {any} */ (document.querySelector(".at-formtile.main .at-drills"));
+        check("the practice ticks are explained once, under their heading, not in each tick",
+          !!drills && /Choose where this comes up in practice/.test(
+            ((drills.querySelector(".at-drilllede") || {}).textContent) || "") &&
+            ![...drills.querySelectorAll(".at-tickrow i")].length,
+          drills ? (drills.textContent || "").trim().slice(0, 160) : "(no ticks)");
         check("a form's heading has Duplicate as an icon, and no recording button",
           !!head && !!head.querySelector('.at-icon[aria-label="Duplicate this form"]') &&
             !/Record/.test(head.textContent || "") && !head.querySelector('[aria-label^="Recordings"]'),

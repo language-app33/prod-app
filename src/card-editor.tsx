@@ -4829,12 +4829,14 @@ function PracticeSection({ word }: { word: WordDraft }) {
     <div className="at-formblock at-mt5">
       <div className="at-formhead">
         <span className="at-formnum">How this card can be practiced</span>
+        <span className="at-formrole">{drillLede(word.canLend)}</span>
       </div>
       {parts.map((part) => (
         <DrillChecks
           key={part.id}
           word={word}
           part={part}
+          lede={false}
           /* Named only where there is more than one answer to give: a card
              with a word and nothing else has one, and a heading over a
              single pair of ticks is the screen saying its own name twice. */
@@ -5626,32 +5628,34 @@ function AddFormButton({ word }: { word: WordDraft }) {
  * The second is only offered where the card stands in a blank at all —
  * see canLend, and a tick that does nothing is worse than no tick.
  */
-function DrillChecks({ word, part, label = "How this form can be practiced" }: {
+/* What the practice ticks are about, said once under their heading rather
+   than a sentence inside each tick. Which of the two it names depends on
+   whether the card can be lent at all. */
+const drillLede = (canLend: boolean): string =>
+  canLend
+    ? "Choose where this comes up in practice: asked as a question on its own, or placed in the sentence cards whose blanks it fills."
+    : "Choose whether this comes up in practice, asked as a question on its own.";
+
+function DrillChecks({ word, part, label = "How this form can be practiced", lede = true }: {
   word: WordDraft;
   part: AskPart;
   /* What the ticks are about, in the caller's words: one form under its
      own fields, and a table of them under the table. */
   label?: string;
+  /* Whether the line saying what the ticks are for goes under that label.
+     Off where the caller has said it once already, over several of these. */
+  lede?: boolean;
 }) {
   const { canLend, setAskPart, setLendPart } = word;
   const chosen = [part.on ? "ask" : "", canLend && part.lends ? "lend" : ""].filter(Boolean);
   return (
     <div className="at-drills">
       {label ? <span className="at-drillhead">{label}</span> : null}
+      {label && lede ? <p className="at-hint at-drilllede">{drillLede(canLend)}</p> : null}
       <CheckList
         options={[
-          {
-            id: "ask",
-            title: "On its own",
-            note: "Dealt as a question of its own — what it means, how it is written, how it sounds.",
-          },
-          ...(canLend
-            ? [{
-                id: "lend",
-                title: "Inside sentence cards",
-                note: "Lent to the cards that leave a blank this one fills, so the sentence is met with this word in it.",
-              }]
-            : []),
+          { id: "ask", title: "On its own" },
+          ...(canLend ? [{ id: "lend", title: "Inside sentence cards" }] : []),
         ]}
         chosen={chosen}
         onToggle={(id, wasOn) =>
