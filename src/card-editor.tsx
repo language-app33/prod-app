@@ -5945,7 +5945,10 @@ function TagList({ word, rows }: {
      runs because only the second is a question. */
   const fixed = (
     <>
+      {/* What each run is, said under its own heading rather than after
+          the rows, where it read as a note on whatever came next. */}
       <p className="at-eyebrow">Default tags</p>
+      <Help>These follow from the kind of card this is.</Help>
       {defaultTags.map((t) => {
         const on = ownFills.includes(t.name);
         return (
@@ -5969,12 +5972,8 @@ function TagList({ word, rows }: {
           </div>
         );
       })}
-      <Help>
-        These follow from the card: the one that matches what kind of word
-        you said it is, and <code>{`{{${WORD_SLOT}}}`}</code>, which every
-        single word fills. Change them by changing the kind of word, above.
-      </Help>
       <p className="at-eyebrow at-mt3">Your own tags</p>
+      <Help>Apply a custom tag that already exists, or create a new one in the box above.</Help>
     </>
   );
   if (!rows.length) {
@@ -6555,8 +6554,8 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             )}
 
             <Help>
-              Select which group this card should belong to so it fills cards
-              that tag those groups in blank spaces
+              Tag this card. Wherever another card has a blank for one of
+              these tags, this card can fill it.
             </Help>
 
             {/* The box that names one, at the top and always there.
@@ -6624,12 +6623,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
                   under the form itself, beside the word.
                 </Help>
               </>
-            ) : (
-              <Help>
-                Leave this unless the card is a word other cards borrow — a name, a
-                number, a colour.
-              </Help>
-            )}
+            ) : null}
 
             {/* Where the built-in blanks went. A card fills them by being
                 what it already said it was, so there was never anything to

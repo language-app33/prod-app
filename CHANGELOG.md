@@ -8,6 +8,20 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.224 — 24 September 2026
+
+**The group tags on a card say what they are, where they are.**
+
+Under **The card’s group tags**, the opening line is now *Tag this
+card. Wherever another card has a blank for one of these tags, this
+card can fill it.*
+
+Each list of tags is explained right under its own heading rather than
+after its rows: **Default tags** says *These follow from the kind of
+card this is*, and **Your own tags** says *Apply a custom tag that
+already exists, or create a new one in the box above.* The longer notes
+these replace, one of which sat at the foot of the section, are gone.
+
 ## 0.223 — 24 September 2026
 
 **Plainer words in the Blanks section.**

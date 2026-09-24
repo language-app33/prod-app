@@ -5225,6 +5225,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         check("the default tags are listed too, in a run of their own",
           runs()[0] === "Default tags" && runs().includes("Your own tags"),
           runs().join(" | ") || "(no runs)");
+        /* And each run says what it is directly under its own heading. */
+        const underHead = (/** @type {string} */ head) => {
+          const h = inHalf(FILLS, ".at-eyebrow").find((e) => (e.textContent || "").trim() === head);
+          return h && h.nextElementSibling ? (h.nextElementSibling.textContent || "").replace(/\s+/g, " ").trim() : "";
+        };
+        check("each run of tags is explained right under its heading",
+          /follow from the kind of card this is/.test(underHead("Default tags")) &&
+            /custom tag that already exists/.test(underHead("Your own tags")),
+          `${underHead("Default tags")} | ${underHead("Your own tags")}`);
         check("and they are the kinds of word, plus the one every word fills",
           ["noun", "verb", "adjective", "name", "word"]
             .every((n) => fixedNames().includes(n)),
