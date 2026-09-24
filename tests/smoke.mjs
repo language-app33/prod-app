@@ -4690,7 +4690,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
        is matched from the front rather than whole. */
     const SHOWN = /^Examples of this card with filled blanks/;
     const CARDID = /^The card’s ID$/;
-    const FILLS = /^The card’s group tags$/;
+    const FILLS = /^The card’s tags$/;
 
     check("the section is called Blanks, not Variables", !!blanks(),
       [...document.querySelectorAll(".at-formnum")].map((n) => n.textContent).join(" | "));
@@ -5143,7 +5143,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       check("the section is named parts, not one block doing several jobs",
         groups().includes("Blanks in this card") &&
           groups().includes("The card’s ID") &&
-          groups().includes("The card’s group tags"),
+          groups().includes("The card’s tags"),
         groups().join(" | ") || "(no headings)");
       /* And the ID is one of them rather than a field at the top of the
          screen: what it is for is filling somebody else's blank, so it is
@@ -5217,13 +5217,13 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          are shown since 0.189 — grouped, flat rather than ticked, because
          the answer to them is the kind of word further up the screen. */
       {
-        const fixed = () => inHalf(FILLS, ".at-tagfixed");
+        const fixed = () => inHalf(FILLS, ".at-tagchip");
         const fixedNames = () => fixed()
-          .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
+          .map((r) => (r.textContent || "").trim());
         const runs = () => inHalf(FILLS, ".at-eyebrow")
           .map((n) => (n.textContent || "").trim());
         check("the default tags are listed too, in a run of their own",
-          runs()[0] === "Default tags" && runs().includes("Your own tags"),
+          runs()[0] === "Default tags" && runs().includes("Custom tags") && !runs().includes("Your own tags"),
           runs().join(" | ") || "(no runs)");
         /* And each run says what it is directly under its own heading. */
         const underHead = (/** @type {string} */ head) => {
@@ -5232,24 +5232,18 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         };
         check("each run of tags is explained right under its heading",
           /follow from the kind of card this is/.test(underHead("Default tags")) &&
-            /custom tag that already exists/.test(underHead("Your own tags")),
-          `${underHead("Default tags")} | ${underHead("Your own tags")}`);
-        check("and they are the kinds of word, plus the one every word fills",
-          ["noun", "verb", "adjective", "name", "word"]
-            .every((n) => fixedNames().includes(n)),
+            /custom tag that already exists/.test(underHead("Custom tags")),
+          `${underHead("Default tags")} | ${underHead("Custom tags")}`);
+        /* Only the ones this card has: it is a word nobody has said the
+           kind of, so {{word}} and no kind of word. */
+        check("and only the ones this card actually has are shown",
+          JSON.stringify(fixedNames()) === JSON.stringify(["word"]),
           fixedNames().join(", ") || "(none listed)");
-        check("each saying what it takes and how many words are behind it",
+        /* And nothing about them says they can be pressed. */
+        check("shown as plain labels, with nothing to tick",
           fixed().length > 0 && fixed().every((r) =>
-            /^Any /.test(((r.querySelector("i") || {}).textContent) || "")),
-          fixed().map((r) => (((r.querySelector("i") || {}).textContent) || "").trim()).join(" | "));
-        /* The card on screen is a word nobody has said the kind of, so
-           {{word}} is marked and no kind of word is. */
-        const marked = () => fixed()
-          .filter((r) => !((r.className || "").includes("off")) && (r.className || "").includes("on"))
-          .map((r) => (((r.querySelector("b") || {}).textContent) || "").trim());
-        check("and the ones this card actually fills are marked",
-          JSON.stringify(marked()) === JSON.stringify(["word"]),
-          marked().join(", ") || "(none marked)");
+            r.tagName === "SPAN" && !r.querySelector("input, button, .at-icon")),
+          fixed().map((r) => r.outerHTML.slice(0, 60)).join(" | "));
         /* And none of them can be typed in as a group, because each is
            already a name on this list. */
         const newInput = () => /** @type {any} */ (inHalf(FILLS, ".at-blanknew input")[0] || null);
@@ -5273,6 +5267,15 @@ const pickKind = async (/** @type {RegExp} */ want) => {
         !!newBox() && !!fillList().length &&
           !!(newBox().compareDocumentPosition(fillList()[0]) & 4),
         newBox() && fillList().length ? "above" : "(nothing to compare)");
+      /* Under the Custom tags heading, not over the default tags it has
+         nothing to do with. */
+      {
+        const customHead = inHalf(FILLS, ".at-eyebrow")
+          .find((e) => (e.textContent || "").trim() === "Custom tags");
+        check("and under the Custom tags heading",
+          !!newBox() && !!customHead && !!(customHead.compareDocumentPosition(newBox()) & 4),
+          customHead ? "compared" : "(no heading)");
+      }
 
       /* What the card's own ticks say about being drilled, before and
          after it joins a group — see `guess` in the draft. */
@@ -5338,7 +5341,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
          question is whether to do it at all, and what it costs. */
       const bin = (/** @type {RegExp} */ re) => /** @type {any} */ (
         (fillRow(re) ? fillRow(re).parentElement : document)
-          .querySelector('button[aria-label^="Take the group"]') || null);
+          .querySelector('button[aria-label^="Take the tag"]') || null);
       check("a group cards actually fill offers to come off all of them",
         !!bin(/^name$/), bin(/^name$/) ? "there" : "(no bin)");
       /* And one nothing fills does not: there is nothing to take off
@@ -5416,7 +5419,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       await sleep(250);
       const pencil = (/** @type {RegExp} */ re) => /** @type {any} */ (
         (fillRow(re) ? fillRow(re).parentElement : document)
-          .querySelector('button[aria-label^="Rename the group"]') || null);
+          .querySelector('button[aria-label^="Rename the tag"]') || null);
       click(pencil(/^name$/));
       await sleep(250);
       const renameBox = () => /** @type {any} */ (inHalf(FILLS, ".at-tagrow input.at-input")[0] || null);
@@ -5426,7 +5429,7 @@ const pickKind = async (/** @type {RegExp} */ want) => {
       typeInto(renameBox(), "names");
       await sleep(150);
       click([...document.querySelectorAll("button")]
-        .find((b) => b.getAttribute("aria-label") === "Rename the group name"));
+        .find((b) => b.getAttribute("aria-label") === "Rename the tag name"));
       await sleep(300);
 
       check("renaming a tag asks whether the name follows it everywhere",

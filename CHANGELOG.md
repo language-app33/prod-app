@@ -8,6 +8,24 @@ counter, not a decimal, and 1.0 is reserved for whenever the app is
 considered launched. The release lives in `package.json`'s `version` field
 and moves once per batch of work you would notice, not once per commit.
 
+## 0.225 — 24 September 2026
+
+**A card's tags, tidied.**
+
+What was called **group tags** is now just **tags**, everywhere: the
+section on the card editor, the card's details, the blank picker and the
+questions about renaming a tag or taking one off every card.
+
+Under **Default tags** the editor now shows only the tags this card
+actually has — its kind of word, and *word* for any single word —
+instead of every one in the language. They are shown as plain labels,
+with no tick and no border, because they can't be switched on or off:
+they follow from the kind of card.
+
+**Your own tags** is now **Custom tags**, and the box for creating a
+new one sits right under that heading instead of at the top of the
+section.
+
 ## 0.224 — 24 September 2026
 
 **The group tags on a card say what they are, where they are.**

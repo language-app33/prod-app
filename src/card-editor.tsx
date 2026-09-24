@@ -2226,7 +2226,7 @@ function BlankSheet({ lang, offers, onPick, onClose }: {
   const KINDS: Record<BlankOffer["kind"], string> = {
     any: "Any word",
     category: "Kind of word",
-    group: "Group tag",
+    group: "Tag",
     card: "One card",
   };
   return (
@@ -2269,8 +2269,8 @@ function BlankSheet({ lang, offers, onPick, onClose }: {
             <button className="at-blankmake" onClick={() => { onPick(name); onClose(); }}>
               <b>{name}</b>
               <span>
-                A new group tag. Nothing fills it until a card says it is in
-                the group, which is a tick on that card.
+                A new tag. Nothing fills it until a card is given this tag,
+                which is a tick on that card.
               </span>
             </button>
           )}
@@ -2300,7 +2300,7 @@ function BlankSheet({ lang, offers, onPick, onClose }: {
           {!shown.length && !name && (
             <Help>
               No blank exists yet in {lang.name}. Type a name above and it
-              becomes a group tag, which cards can then say they are in.
+              becomes a tag, which cards can then be given.
             </Help>
           )}
         </div>
@@ -5892,7 +5892,7 @@ function IdBox({ word }: { word: WordDraft }) {
                 ? `Taken — ${who || "another card"} already has this ID. Choose another.`
                 : refHeld.kind === "category"
                   ? "Taken — that is a kind of word, and every word of that kind already fills it. Choose another."
-                  : "Taken — a group tag already answers to this name. Choose another."}
+                  : "Taken — a tag already answers to this name. Choose another."}
             </p>
           )}
           {refName && refName !== ref && (
@@ -5925,9 +5925,11 @@ function IdBox({ word }: { word: WordDraft }) {
  * Renaming opens in place, over the row: a group is a name two cards agree
  * on, and the only place a misspelt one is visible is a card that has it.
  */
-function TagList({ word, rows }: {
+function TagList({ word, rows, maker }: {
   word: WordDraft;
   rows: { name: string; used: number; wrote: number }[];
+  /** The box that creates a custom tag, drawn under that heading. */
+  maker?: Node;
 }) {
   const {
     fills, addFill, dropFill, renameFill, nameHeld, askStrip, defaultTags, ownFills,
@@ -5943,37 +5945,34 @@ function TagList({ word, rows }: {
      a teacher keeps. They are one list because they are one namespace —
      every one of them is a name a sentence writes between braces — and two
      runs because only the second is a question. */
+  /* Only the default tags this card actually has, as plain labels: nothing
+     on them can be pressed — the answer is the kind of card, above — so
+     they carry no tick and no box a tick could be looked for in. */
+  const worn = defaultTags.filter((t) => ownFills.includes(t.name));
   const fixed = (
     <>
       {/* What each run is, said under its own heading rather than after
           the rows, where it read as a note on whatever came next. */}
       <p className="at-eyebrow">Default tags</p>
       <Help>These follow from the kind of card this is.</Help>
-      {defaultTags.map((t) => {
-        const on = ownFills.includes(t.name);
-        return (
-          <div className={`at-tagfixed${on ? " on" : ""}`} key={t.name}>
-            {/* The mark keeps its room where it is not drawn, so the names
-                read as a column rather than stepping in and out. */}
-            <span className={`at-tagmark${on ? "" : " off"}`}>
-              <Icon name="check" size={16} />
+      {worn.length ? (
+        <div className="at-tagchips">
+          {worn.map((t) => (
+            <span
+              className="at-tagchip"
+              key={t.name}
+              title={`${t.what} · ${t.words ? `${plural(t.words, "word")} fill${t.words === 1 ? "s" : ""} it` : "nothing fills it yet"}`}
+            >
+              {t.name}
             </span>
-            <span className="at-tickbody">
-              <b>{t.name}</b>
-              <i>
-                {[
-                  t.what,
-                  t.words
-                    ? `${plural(t.words, "word")} fill${t.words === 1 ? "s" : ""} it`
-                    : "nothing fills it yet",
-                ].join(" · ")}
-              </i>
-            </span>
-          </div>
-        );
-      })}
-      <p className="at-eyebrow at-mt3">Your own tags</p>
-      <Help>Apply a custom tag that already exists, or create a new one in the box above.</Help>
+          ))}
+        </div>
+      ) : (
+        <p className="at-hint">None.</p>
+      )}
+      <p className="at-eyebrow at-mt3">Custom tags</p>
+      <Help>Apply a custom tag that already exists, or create a new one.</Help>
+      {maker}
     </>
   );
   if (!rows.length) {
@@ -5981,8 +5980,8 @@ function TagList({ word, rows }: {
       <div className="at-ticklist">
         {fixed}
         <p className="at-hint">
-          No group has been named yet. Type one above — the first of its kind
-          has to be named by somebody.
+          No custom tag exists yet — the first one has to be created by
+          somebody.
         </p>
       </div>
     );
@@ -5998,7 +5997,7 @@ function TagList({ word, rows }: {
               <input
                 className="at-input"
                 value={renaming.to}
-                aria-label={`A new name for the group ${b.name}`}
+                aria-label={`A new name for the tag ${b.name}`}
                 autoFocus
                 onChange={(e) => setRenaming({ from: b.name, to: e.target.value })}
                 onKeyDown={(e) => {
@@ -6010,7 +6009,7 @@ function TagList({ word, rows }: {
               />
               <IconButton
                 icon="check"
-                label={`Rename the group ${b.name}`}
+                label={`Rename the tag ${b.name}`}
                 disabled={!canRename}
                 onClick={() => {
                   renameFill(b.name, renaming.to);
@@ -6046,7 +6045,7 @@ function TagList({ word, rows }: {
             </label>
             <IconButton
               icon="edit"
-              label={`Rename the group ${b.name}`}
+              label={`Rename the tag ${b.name}`}
               onClick={() => setRenaming({ from: b.name, to: b.name })}
             />
             {/* And the bin, beside the pencil, for the same reason the
@@ -6060,7 +6059,7 @@ function TagList({ word, rows }: {
             {b.wrote > 0 && (
               <IconButton
                 icon="delete"
-                label={`Take the group ${b.name} off every card`}
+                label={`Take the tag ${b.name} off every card`}
                 onClick={() => askStrip(b.name, b.wrote, b.used)}
               />
             )}
@@ -6095,7 +6094,7 @@ function TagList({ word, rows }: {
 function RenameAsk({ word }: { word: WordDraft }) {
   const { asking, answerAsk, dropAsk } = word;
   if (!asking) return null;
-  const what = asking.kind === "id" ? "ID" : "group tag";
+  const what = asking.kind === "id" ? "ID" : "tag";
   return (
     <ConfirmModal
       danger={false}
@@ -6108,7 +6107,7 @@ function RenameAsk({ word }: { word: WordDraft }) {
           <p>
             {asking.kind === "id"
               ? "Other cards ask for this one by its ID. Change it everywhere and those sentences follow it; change it only here and they go on asking for the old name, which nothing will answer to."
-              : "A group tag is a name several cards share. Change it everywhere and every card in the group is renamed with it; change it only here and this card leaves the group for one of the new name."}
+              : "A tag is a name several cards share. Change it everywhere and every card with it is renamed with it; change it only here and this card drops it for one of the new name."}
           </p>
         </>
       }
@@ -6536,7 +6535,7 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
             a blank of its own, what they find is the reason there is
             nothing to answer. */}
         <div className="at-part">
-        <p className="at-groupline">The card&rsquo;s group tags</p>
+        <p className="at-groupline">The card&rsquo;s tags</p>
 
         {!canFill ? (
           <Help>
@@ -6558,45 +6557,36 @@ function BlanksBlock({ word, lang }: { word: WordDraft; lang: Lang }) {
               these tags, this card can fill it.
             </Help>
 
-            {/* The box that names one, at the top and always there.
-                It was the last thing in a menu that had to be opened, under
-                a list — so naming the first group, which is the one thing
-                on this screen nobody can do by choosing, was the hardest
-                thing on it to reach. */}
-            {!holes.length && !full && (
-              <BlankNameBox
-                label="Name a group this card joins"
-                placeholder="A new group, like colours"
-                /* Every name already on the list, which since 0.189
-                   includes the ones that follow from the card: a group
-                   called `noun` would be a second thing answering to
-                   `{{noun}}`. */
-                /* And every ID a card answers to, which a group of the
-                   same name would be a second answer to — see refsTaken.
-                   The ID box has always refused a name a group holds;
-                   this is the same refusal from the other side. */
-                taken={offered
-                  .map((b) => b.name)
-                  .concat(word.defaultTags.map((t) => t.name))
-                  .concat(word.refsTaken)
-                  .concat(word.refName ? [word.refName] : [])}
-                onName={addFill}
-              />
-            )}
-
-            {/* And every group there is, on the screen rather than behind a
-                button: which groups a word is in is the question this half
-                of the section exists to ask, and a list you have to open to
-                see is a list you answer without reading. Each carries the
-                pencil that renames it, because a tag is a name two cards
-                agree on and a misspelt one is only findable from a card
-                that has it. */}
-            <TagList word={word} rows={offered} />
+            <TagList
+              word={word}
+              rows={offered}
+              /* The box that creates a custom tag, under that heading: it
+                 was at the top of the section, over the default tags it
+                 has nothing to do with. */
+              maker={
+                !holes.length && !full ? (
+                  <BlankNameBox
+                    label="Create a custom tag"
+                    placeholder="A new tag, like colours"
+                    /* Every name already on the list, the default tags
+                       included — a tag called `noun` would be a second
+                       thing answering to `{{noun}}` — and every ID a card
+                       answers to, for the same reason (see refsTaken). */
+                    taken={offered
+                      .map((b) => b.name)
+                      .concat(word.defaultTags.map((t) => t.name))
+                      .concat(word.refsTaken)
+                      .concat(word.refName ? [word.refName] : [])}
+                    onName={addFill}
+                  />
+                ) : null
+              }
+            />
 
             {full && (
               <Notice kind="warn">
-                That is as many groups as one card may be in. Take one off to
-                join another.
+                That is as many tags as one card may have. Take one off to
+                add another.
               </Notice>
             )}
 

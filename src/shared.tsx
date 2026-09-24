@@ -2350,12 +2350,12 @@ function ReadNames({ card, lang, cards }: {
       <p className="at-eyebrow">What other cards call it</p>
       <p className="at-hint">
         A sentence borrows a word by name. An ID names this one card and no
-        other; a group tag names a set of words a sentence will take any of.
+        other; a tag names a set of words a sentence will take any of.
       </p>
       <ReadRow label="The card's ID">
         {own ? <span className="at-slot">{own}</span> : null}
       </ReadRow>
-      <ReadRow label="Group tags">
+      <ReadRow label="Tags">
         {wrote.length || anyway.length ? (
           <span className="at-flags">
             {wrote.concat(anyway).map((name) => (
